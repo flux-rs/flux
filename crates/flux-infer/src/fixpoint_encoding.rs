@@ -1557,7 +1557,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn define_funs(&mut self, scx: &mut SortEncodingCtxt) -> QueryResult<Vec<fixpoint::FunDecl>> {
         let mut res = FxHashMap::default();
-        let mut wkl = self.def_map.keys().cloned().collect_vec();
+        let mut wkl = self.def_map.keys().copied().collect_vec();
         while let Some(did) = wkl.pop() {
             if res.contains_key(&did) {
                 continue;
@@ -1571,11 +1571,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.errors.emit(err.at(self.def_span));
                     fixpoint::Sort::Int
                 });
-            let body = self.genv.normalized_defn(did);
-            for dep in rty::normalize::local_deps(&body) {
+            let info = self.genv.normalized_info(did);
+            for dep in rty::normalize::local_deps(&info.body) {
                 wkl.push(dep.to_def_id());
             }
-            let (args, body) = self.body_to_fixpoint(&body, scx)?;
+            let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
             let fun_decl = fixpoint::FunDecl {
                 name: fixpoint::Var::Global(var),
                 args,
@@ -1583,12 +1583,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 out,
                 comment: Some(format!("def: {did:?}")),
             };
-            res.insert(did, fun_decl);
+            res.insert(did, (info.rank, fun_decl));
         }
 
+        // we sort by rank so the definitions go out without any forward dependencies.
         let decls = res
             .into_iter()
-            .filter_map(|(def_id, decl)| {
+            .sorted_by(|(_, (rank1, _)), (_, (rank2, _))| rank1.cmp(rank2))
+            .filter_map(|(def_id, (_, decl))| {
                 let is_define = self.genv.is_define_fun(def_id).unwrap_or_else(|err| {
                     self.errors.emit(err.at(self.def_span));
                     false
@@ -1599,44 +1601,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
         Ok(decls)
     }
-
-    // CUT
-    // fn fun_decls(&mut self, scx: &mut SortEncodingCtxt) -> QueryResult<Vec<fixpoint::FunDecl>> {
-    //     let infos = self
-    //         .def_map
-    //         .iter()
-    //         .map(|(def_id, info)| (*def_id, *info))
-    //         .filter(|(def_id, _)| {
-    //             self.genv.is_define_fun(*def_id).unwrap_or_else(|err| {
-    //                 self.errors.emit(err.at(self.def_span));
-    //                 false
-    //             })
-    //         })
-    //         .collect_vec();
-
-    //     infos
-    //         .iter()
-    //         .map(|(def_id, info)| {
-    //             let out = self
-    //                 .genv
-    //                 .func_sort(*def_id)
-    //                 .map(|sort| scx.func_sort_output_to_fixpoint(&sort))
-    //                 .unwrap_or_else(|err| {
-    //                     self.errors.emit(err.at(self.def_span));
-    //                     fixpoint::Sort::Int
-    //                 });
-    //             let body = self.genv.normalized_defn(*def_id);
-    //             let (args, body) = self.body_to_fixpoint(&body, scx)?;
-    //             Ok(fixpoint::FunDecl {
-    //                 name: fixpoint::Var::Global(*info),
-    //                 args,
-    //                 body,
-    //                 out,
-    //                 comment: Some(format!("def: {def_id:?}")),
-    //             })
-    //         })
-    //         .try_collect()
-    // }
 
     fn body_to_fixpoint(
         &mut self,

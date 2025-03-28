@@ -30,10 +30,11 @@ impl Default for NormalizedDefns {
     }
 }
 
-#[derive(TyEncodable, TyDecodable)]
+#[derive(Clone, TyEncodable, TyDecodable)]
 pub struct NormalizeInfo {
     pub body: Binder<Expr>,
     pub inline: bool,
+    pub rank: usize,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
@@ -44,7 +45,7 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 impl NormalizedDefns {
     pub fn new(
         genv: GlobalEnv,
-        defns: &[(FluxLocalDefId, NormalizeInfo)],
+        defns: &[(FluxLocalDefId, Binder<Expr>, bool)],
     ) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
@@ -52,12 +53,11 @@ impl NormalizedDefns {
         // 2. Expand each defn in the sorted order
         let mut normalized = UnordMap::default();
         let mut ids = vec![];
-        for i in ds {
-            let (id, info) = &defns[i];
-            let body = info
-                .body
-                .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
-            let info = NormalizeInfo { body: body.clone(), inline: info.inline };
+        for (rank, i) in ds.iter().enumerate() {
+            let (id, body, inline) = &defns[*i];
+            let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+
+            let info = NormalizeInfo { body: body.clone(), inline: *inline, rank };
             ids.push(*id);
             normalized.insert(*id, info);
         }
@@ -69,18 +69,29 @@ impl NormalizedDefns {
                 .collect(),
         })
     }
-
-    pub fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
+    pub fn func_info(&self, did: FluxDefId) -> NormalizeInfo {
         debug_assert_eq!(self.krate, did.krate());
-        self.defns.get(&did.index()).unwrap().body.clone()
+        self.defns.get(&did.index()).unwrap().clone()
     }
+
+    // pub fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
+    //     debug_assert_eq!(self.krate, did.krate());
+    //     self.defns.get(&did.index()).unwrap().body.clone()
+    // }
+
+    // pub fn func_rank(&self, did: FluxDefId) -> usize {
+    //     debug_assert_eq!(self.krate, did.krate());
+    //     self.defns.get(&did.index()).unwrap().rank
+    // }
 }
 
 /// Returns
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort(defns: &[(FluxLocalDefId, NormalizeInfo)]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
+fn toposort<T>(
+    defns: &[(FluxLocalDefId, Binder<Expr>, T)],
+) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
@@ -91,7 +102,7 @@ fn toposort(defns: &[(FluxLocalDefId, NormalizeInfo)]) -> Result<Vec<usize>, Vec
     // 2. Make the dependency graph
     let mut adj_list = Vec::with_capacity(defns.len());
     for defn in defns {
-        let deps = local_deps(&defn.1.body);
+        let deps = local_deps(&defn.1);
         let ddeps = deps
             .iter()
             .filter_map(|s| s2i.get(s).copied())
@@ -145,7 +156,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         {
             defs.get(&local_id).unwrap().body.clone()
         } else {
-            self.genv.normalized_defn(did)
+            self.genv.normalized_info(did).body
         }
     }
 
