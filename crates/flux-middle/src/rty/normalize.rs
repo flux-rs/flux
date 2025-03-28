@@ -73,16 +73,6 @@ impl NormalizedDefns {
         debug_assert_eq!(self.krate, did.krate());
         self.defns.get(&did.index()).unwrap().clone()
     }
-
-    // pub fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
-    //     debug_assert_eq!(self.krate, did.krate());
-    //     self.defns.get(&did.index()).unwrap().body.clone()
-    // }
-
-    // pub fn func_rank(&self, did: FluxDefId) -> usize {
-    //     debug_assert_eq!(self.krate, did.krate());
-    //     self.defns.get(&did.index()).unwrap().rank
-    // }
 }
 
 /// Returns

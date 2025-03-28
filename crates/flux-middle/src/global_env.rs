@@ -133,17 +133,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    // pub fn normalized_rank(self, did: FluxDefId) -> usize {
-    //     self.normalized_defns(did.krate()).func_rank(did)
-    // }
-
-    // pub fn normalized_defn(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-    //     self.normalized_defns(did.krate()).func_defn(did).clone()
-    // }
-
     pub fn normalized_info(self, did: FluxDefId) -> rty::NormalizeInfo {
         self.normalized_defns(did.krate()).func_info(did).clone()
     }
+
     pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
         self.inner.queries.normalized_defns(self, krate)
     }
