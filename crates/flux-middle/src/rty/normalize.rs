@@ -62,7 +62,7 @@ impl NormalizedDefns {
                 .body
                 .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
             let info = NormalizeInfo { body: body.clone(), inline: info.inline };
-            ids.push(id.clone());
+            ids.push(*id);
             normalized.insert(*id, info);
         }
         Ok(Self {
@@ -154,6 +154,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         }
     }
 
+    #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
     fn inline(&self, did: &FluxDefId) -> bool {
         if let Some(defs) = self.defs
             && let Some(local_id) = did.as_local()

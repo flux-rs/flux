@@ -372,7 +372,7 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
 
 type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
 
-type DefMap = FxIndexMap<FluxDefId, FunInfo>;
+type DefMap = FxIndexMap<FluxDefId, fixpoint::GlobalVar>;
 
 #[derive(Eq, Hash, PartialEq)]
 enum Key<'tcx> {
@@ -823,14 +823,6 @@ impl LocalVarEnv {
         let depth = self.layers.len().checked_sub(debruijn.as_usize() + 1)?;
         self.layers[depth].get(var.as_usize()).copied()
     }
-}
-
-#[derive(Clone)]
-struct FunInfo {
-    name: fixpoint::GlobalVar,
-    // body: Binder<rty::Expr>,
-    // out: fixpoint::Sort,
-    // comment: String,
 }
 
 struct ConstInfo {
@@ -1427,10 +1419,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn register_def(&mut self, def_id: FluxDefId) -> fixpoint::GlobalVar {
-        self.def_map
+        *self
+            .def_map
             .entry(def_id)
-            .or_insert_with(|| FunInfo { name: self.global_var_gen.fresh() })
-            .name
+            .or_insert_with(|| self.global_var_gen.fresh())
     }
 
     fn register_uif(
@@ -1574,7 +1566,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let infos = self
             .def_map
             .iter()
-            .map(|(def_id, info)| (*def_id, info.clone()))
+            .map(|(def_id, info)| (*def_id, *info))
             .filter(|(def_id, _)| {
                 self.genv.is_define_fun(*def_id).unwrap_or_else(|err| {
                     self.errors.emit(err.at(self.def_span));
@@ -1597,7 +1589,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let body = self.genv.normalized_defn(*def_id);
                 let (args, body) = self.body_to_fixpoint(&body, scx)?;
                 Ok(fixpoint::FunDecl {
-                    name: fixpoint::Var::Global(info.name),
+                    name: fixpoint::Var::Global(*info),
                     args,
                     body,
                     out,
@@ -1630,17 +1622,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         qualifier: &rty::Qualifier,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Qualifier> {
-        // self.local_var_env
-        //     .push_layer_with_fresh_names(qualifier.body.vars().len());
-
-        // let body = self.expr_to_fixpoint(qualifier.body.as_ref().skip_binder(), scx)?;
-
-        // let args: Vec<(fixpoint::Var, fixpoint::Sort)> =
-        //     iter::zip(self.local_var_env.pop_layer(), qualifier.body.vars())
-        //         .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
-        //         .collect();
         let (args, body) = self.body_to_fixpoint(&qualifier.body, scx)?;
-
         let name = qualifier.def_id.name().to_string();
         Ok(fixpoint::Qualifier { name, args, body })
     }
