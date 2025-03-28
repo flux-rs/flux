@@ -26,7 +26,7 @@ pub struct NormalizedDefns {
 
 impl Default for NormalizedDefns {
     fn default() -> Self {
-        Self { krate: LOCAL_CRATE, defns: UnordMap::default(), ids: vec![] }
+        Self { krate: LOCAL_CRATE, defns: UnordMap::default() }
     }
 }
 
@@ -42,10 +42,6 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 }
 
 impl NormalizedDefns {
-    pub fn ids(&self) -> Vec<FluxLocalDefId> {
-        self.ids.clone()
-    }
-
     pub fn new(
         genv: GlobalEnv,
         defns: &[(FluxLocalDefId, NormalizeInfo)],
@@ -71,7 +67,6 @@ impl NormalizedDefns {
                 .into_items()
                 .map(|(id, body)| (id.local_def_index(), body))
                 .collect(),
-            ids,
         })
     }
 
@@ -116,7 +111,7 @@ fn toposort(defns: &[(FluxLocalDefId, NormalizeInfo)]) -> Result<Vec<usize>, Vec
     }
 }
 
-fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
+pub fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
     struct DepsVisitor(FxIndexSet<FluxLocalDefId>);
     impl TypeVisitor for DepsVisitor {
         #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]

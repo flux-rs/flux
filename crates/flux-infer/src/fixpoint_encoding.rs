@@ -24,10 +24,10 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
 use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
+    fx::{FxHashMap, FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::def_id::{DefId, LOCAL_CRATE, LocalDefId};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
@@ -439,7 +439,7 @@ where
             .ecx
             .qualifiers_for(self.def_id.local_id(), &mut self.scx)?;
 
-        let fun_decls = self.ecx.fun_decls(&mut self.scx)?;
+        let define_funs = self.ecx.define_funs(&mut self.scx)?;
 
         let mut constants = self
             .ecx
@@ -469,7 +469,7 @@ where
             comments: self.comments,
             constants,
             kvars,
-            fun_decls,
+            define_funs,
             constraint,
             qualifiers,
             scrape_quals,
@@ -993,7 +993,7 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>, def_span: Span) -> Self {
-        let mut ecx = Self {
+        Self {
             genv,
             local_var_env: LocalVarEnv::new(),
             global_var_gen: IndexGen::new(),
@@ -1001,14 +1001,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             def_map: Default::default(),
             errors: Errors::new(genv.sess()),
             def_span,
-        };
-        // register all the `defns`
-        if flux_config::smt_define_fun() {
-            for def_id in genv.normalized_defns(LOCAL_CRATE).ids() {
-                ecx.register_def(def_id.to_def_id());
-            }
         }
-        ecx
     }
 
     fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
@@ -1562,42 +1555,88 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .try_collect()
     }
 
-    fn fun_decls(&mut self, scx: &mut SortEncodingCtxt) -> QueryResult<Vec<fixpoint::FunDecl>> {
-        let infos = self
-            .def_map
-            .iter()
-            .map(|(def_id, info)| (*def_id, *info))
-            .filter(|(def_id, _)| {
-                self.genv.is_define_fun(*def_id).unwrap_or_else(|err| {
+    fn define_funs(&mut self, scx: &mut SortEncodingCtxt) -> QueryResult<Vec<fixpoint::FunDecl>> {
+        let mut res = FxHashMap::default();
+        let mut wkl = self.def_map.keys().cloned().collect_vec();
+        while let Some(did) = wkl.pop() {
+            if res.contains_key(&did) {
+                continue;
+            }
+            let var = self.register_def(did);
+            let out = self
+                .genv
+                .func_sort(did)
+                .map(|sort| scx.func_sort_output_to_fixpoint(&sort))
+                .unwrap_or_else(|err| {
+                    self.errors.emit(err.at(self.def_span));
+                    fixpoint::Sort::Int
+                });
+            let body = self.genv.normalized_defn(did);
+            for dep in rty::normalize::local_deps(&body) {
+                wkl.push(dep.to_def_id());
+            }
+            let (args, body) = self.body_to_fixpoint(&body, scx)?;
+            let fun_decl = fixpoint::FunDecl {
+                name: fixpoint::Var::Global(var),
+                args,
+                body,
+                out,
+                comment: Some(format!("def: {did:?}")),
+            };
+            res.insert(did, fun_decl);
+        }
+
+        let decls = res
+            .into_iter()
+            .filter_map(|(def_id, decl)| {
+                let is_define = self.genv.is_define_fun(def_id).unwrap_or_else(|err| {
                     self.errors.emit(err.at(self.def_span));
                     false
-                })
+                });
+                if is_define { Some(decl) } else { None }
             })
             .collect_vec();
 
-        infos
-            .iter()
-            .map(|(def_id, info)| {
-                let out = self
-                    .genv
-                    .func_sort(*def_id)
-                    .map(|sort| scx.func_sort_output_to_fixpoint(&sort))
-                    .unwrap_or_else(|err| {
-                        self.errors.emit(err.at(self.def_span));
-                        fixpoint::Sort::Int
-                    });
-                let body = self.genv.normalized_defn(*def_id);
-                let (args, body) = self.body_to_fixpoint(&body, scx)?;
-                Ok(fixpoint::FunDecl {
-                    name: fixpoint::Var::Global(*info),
-                    args,
-                    body,
-                    out,
-                    comment: Some(format!("def: {def_id:?}")),
-                })
-            })
-            .try_collect()
+        Ok(decls)
     }
+
+    // CUT
+    // fn fun_decls(&mut self, scx: &mut SortEncodingCtxt) -> QueryResult<Vec<fixpoint::FunDecl>> {
+    //     let infos = self
+    //         .def_map
+    //         .iter()
+    //         .map(|(def_id, info)| (*def_id, *info))
+    //         .filter(|(def_id, _)| {
+    //             self.genv.is_define_fun(*def_id).unwrap_or_else(|err| {
+    //                 self.errors.emit(err.at(self.def_span));
+    //                 false
+    //             })
+    //         })
+    //         .collect_vec();
+
+    //     infos
+    //         .iter()
+    //         .map(|(def_id, info)| {
+    //             let out = self
+    //                 .genv
+    //                 .func_sort(*def_id)
+    //                 .map(|sort| scx.func_sort_output_to_fixpoint(&sort))
+    //                 .unwrap_or_else(|err| {
+    //                     self.errors.emit(err.at(self.def_span));
+    //                     fixpoint::Sort::Int
+    //                 });
+    //             let body = self.genv.normalized_defn(*def_id);
+    //             let (args, body) = self.body_to_fixpoint(&body, scx)?;
+    //             Ok(fixpoint::FunDecl {
+    //                 name: fixpoint::Var::Global(*info),
+    //                 args,
+    //                 body,
+    //                 out,
+    //                 comment: Some(format!("def: {def_id:?}")),
+    //             })
+    //         })
+    //         .try_collect()
+    // }
 
     fn body_to_fixpoint(
         &mut self,

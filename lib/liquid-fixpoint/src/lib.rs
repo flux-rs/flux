@@ -166,7 +166,7 @@ pub struct Task<T: Types> {
     pub comments: Vec<String>,
     pub constants: Vec<ConstDecl<T>>,
     pub data_decls: Vec<DataDecl<T>>,
-    pub fun_decls: Vec<FunDecl<T>>,
+    pub define_funs: Vec<FunDecl<T>>,
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,

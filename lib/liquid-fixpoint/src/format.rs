@@ -47,7 +47,7 @@ impl<T: Types> fmt::Display for Task<T> {
             writeln!(f, "{cinfo}")?;
         }
 
-        for fun_decl in &self.fun_decls {
+        for fun_decl in &self.define_funs {
             writeln!(f, "{fun_decl}")?;
         }
 
