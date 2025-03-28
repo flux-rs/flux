@@ -98,8 +98,12 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
         let Ok(defn) = conv::conv_defn(genv, func, &wfckresults).emit(&errors) else {
             continue;
         };
+
+        // We want to inline all polymorphic definitions, as they cannot be `define-fun`ed in SMT
+        let is_define_fun = genv.is_define_fun(func.def_id.to_def_id()).emit(&genv)?;
         if let Some(defn) = defn {
-            defns.push((func.def_id, defn));
+            let info = rty::NormalizeInfo { body: defn, inline: !is_define_fun };
+            defns.push((func.def_id, info));
         }
     }
     errors.into_result()?;

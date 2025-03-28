@@ -59,8 +59,8 @@ fn scrape_quals() -> bool {
     CONFIG.scrape_quals
 }
 
-pub fn smt_functions() -> bool {
-    CONFIG.smt_functions
+pub fn smt_define_fun() -> bool {
+    CONFIG.smt_define_fun
 }
 
 fn solver() -> SmtSolver {
@@ -88,7 +88,7 @@ struct Config {
     check_overflow: bool,
     scrape_quals: bool,
     solver: SmtSolver,
-    smt_functions: bool,
+    smt_define_fun: bool,
 }
 
 #[derive(Default)]
@@ -240,7 +240,7 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("check_overflow", false)?
             .set_default("scrape_quals", false)?
             .set_default("solver", "z3")?
-            .set_default("smt_functions", false)?;
+            .set_default("smt_define_fun", false)?;
 
         // Config comes first, environment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {

@@ -20,7 +20,7 @@ use crate::{
 #[derive(TyEncodable, TyDecodable)]
 pub struct NormalizedDefns {
     krate: CrateNum,
-    defns: UnordMap<FluxId<DefIndex>, Binder<Expr>>,
+    defns: UnordMap<FluxId<DefIndex>, NormalizeInfo>,
     ids: Vec<FluxLocalDefId>,
 }
 
@@ -30,9 +30,15 @@ impl Default for NormalizedDefns {
     }
 }
 
+#[derive(TyEncodable, TyDecodable)]
+pub struct NormalizeInfo {
+    pub body: Binder<Expr>,
+    pub inline: bool,
+}
+
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    defs: Option<&'a UnordMap<FluxLocalDefId, Binder<Expr>>>,
+    defs: Option<&'a UnordMap<FluxLocalDefId, NormalizeInfo>>,
 }
 
 impl NormalizedDefns {
@@ -42,10 +48,8 @@ impl NormalizedDefns {
 
     pub fn new(
         genv: GlobalEnv,
-        defns: &[(FluxLocalDefId, Binder<Expr>)],
+        defns: &[(FluxLocalDefId, NormalizeInfo)],
     ) -> Result<Self, Vec<FluxLocalDefId>> {
-        let should_normalize = !flux_config::smt_functions();
-
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
 
@@ -53,15 +57,13 @@ impl NormalizedDefns {
         let mut normalized = UnordMap::default();
         let mut ids = vec![];
         for i in ds {
-            let defn = &defns[i];
-            let body = if should_normalize {
-                defn.1
-                    .fold_with(&mut Normalizer::new(genv, Some(&normalized)))
-            } else {
-                defn.1.clone()
-            };
-            ids.push(defn.0.clone());
-            normalized.insert(defn.0, body);
+            let (id, info) = &defns[i];
+            let body = info
+                .body
+                .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+            let info = NormalizeInfo { body: body.clone(), inline: info.inline };
+            ids.push(id.clone());
+            normalized.insert(*id, info);
         }
         Ok(Self {
             krate: LOCAL_CRATE,
@@ -75,7 +77,7 @@ impl NormalizedDefns {
 
     pub fn func_defn(&self, did: FluxDefId) -> Binder<Expr> {
         debug_assert_eq!(self.krate, did.krate());
-        self.defns.get(&did.index()).unwrap().clone()
+        self.defns.get(&did.index()).unwrap().body.clone()
     }
 }
 
@@ -83,7 +85,7 @@ impl NormalizedDefns {
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort(defns: &[(FluxLocalDefId, Binder<Expr>)]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
+fn toposort(defns: &[(FluxLocalDefId, NormalizeInfo)]) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
@@ -94,7 +96,7 @@ fn toposort(defns: &[(FluxLocalDefId, Binder<Expr>)]) -> Result<Vec<usize>, Vec<
     // 2. Make the dependency graph
     let mut adj_list = Vec::with_capacity(defns.len());
     for defn in defns {
-        let deps = local_deps(&defn.1);
+        let deps = local_deps(&defn.1.body);
         let ddeps = deps
             .iter()
             .filter_map(|s| s2i.get(s).copied())
@@ -136,7 +138,7 @@ fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
 impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
     pub(super) fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        defs: Option<&'a UnordMap<FluxLocalDefId, Binder<Expr>>>,
+        defs: Option<&'a UnordMap<FluxLocalDefId, NormalizeInfo>>,
     ) -> Self {
         Self { genv, defs }
     }
@@ -146,9 +148,20 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         if let Some(defs) = self.defs
             && let Some(local_id) = did.as_local()
         {
-            defs.get(&local_id).unwrap().clone()
+            defs.get(&local_id).unwrap().body.clone()
         } else {
             self.genv.normalized_defn(did)
+        }
+    }
+
+    fn inline(&self, did: &FluxDefId) -> bool {
+        if let Some(defs) = self.defs
+            && let Some(local_id) = did.as_local()
+            && let Some(info) = defs.get(&local_id)
+        {
+            info.inline
+        } else {
+            true
         }
     }
 
@@ -161,7 +174,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
 
     fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
         match func.kind() {
-            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
+            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) if self.inline(did) => {
                 let res = self.func_defn(*did).replace_bound_refts(args);
                 Self::at_base(res, espan)
             }

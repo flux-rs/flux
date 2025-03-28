@@ -1011,7 +1011,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             def_span,
         };
         // register all the `defns`
-        if flux_config::smt_functions() {
+        if flux_config::smt_define_fun() {
             for def_id in genv.normalized_defns(LOCAL_CRATE).ids() {
                 ecx.register_def(def_id.to_def_id());
             }
@@ -1133,7 +1133,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Var(self.register_uif(*def_id, scx).into())
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
-                if flux_config::smt_functions() {
+                if flux_config::smt_define_fun() {
                     fixpoint::Expr::Var(self.register_def(*def_id).into())
                 } else {
                     span_bug!(
@@ -1575,6 +1575,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .def_map
             .iter()
             .map(|(def_id, info)| (*def_id, info.clone()))
+            .filter(|(def_id, _)| {
+                self.genv.is_define_fun(*def_id).unwrap_or_else(|err| {
+                    self.errors.emit(err.at(self.def_span));
+                    false
+                })
+            })
             .collect_vec();
 
         infos

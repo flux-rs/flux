@@ -38,7 +38,7 @@ use flux_rustc_bridge::{
     ty::{self, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::NormalizedDefns;
+pub use normalize::{NormalizeInfo, NormalizedDefns};
 use refining::{Refine as _, Refiner};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{LangItem, Safety, def_id::DefId};

@@ -161,6 +161,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.func_sort(self, def_id)
     }
 
+    pub fn is_define_fun(self, def_id: FluxDefId) -> QueryResult<bool> {
+        let is_mono = self.func_sort(def_id)?.params().len() == 0;
+        Ok(is_mono && flux_config::smt_define_fun())
+    }
+
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
         self.tcx().variances_of(did)
     }
