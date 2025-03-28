@@ -171,12 +171,6 @@ impl From<PartialInferOpts> for InferOpts {
     }
 }
 
-impl Default for InferOpts {
-    fn default() -> Self {
-        InferOpts::from(PartialInferOpts::default())
-    }
-}
-
 #[derive(Clone, Copy, Default, Deserialize, Debug)]
 pub struct PartialInferOpts {
     pub check_overflow: Option<bool>,
