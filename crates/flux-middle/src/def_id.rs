@@ -16,7 +16,7 @@ use rustc_span::Symbol;
 /// Since the name can be an arbitrary [`Symbol`], this doesn't guarantee the existence of the item,
 /// so we must be careful when creating instances of this struct.
 ///
-/// # Implementaiton Details
+/// # Implementation Details
 /// * Fields are private to ensure construction only through [`FluxId::new`]
 /// * A clippy lint prevents direct usage of [`FluxId::new`], which can be selectively disabled
 ///   when item existence is guaranteed
