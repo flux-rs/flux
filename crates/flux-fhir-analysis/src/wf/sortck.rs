@@ -875,10 +875,11 @@ impl TypeFolder for ShallowResolver<'_, '_, '_> {
                     .unwrap_or(sort.clone())
             }
             rty::Sort::Infer(rty::NumVar(vid)) => {
+                // same here, a num var could had been unified with a bitvector
                 self.infcx
                     .num_unification_table
                     .probe_value(*vid)
-                    .map(rty::NumVarValue::to_sort)
+                    .map(|val| val.to_sort().fold_with(self))
                     .unwrap_or(sort.clone())
             }
             rty::Sort::BitVec(rty::BvSize::Infer(vid)) => {
