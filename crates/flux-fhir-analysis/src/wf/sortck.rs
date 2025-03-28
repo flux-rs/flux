@@ -914,7 +914,7 @@ impl FallibleTypeFolder for FullResolver<'_, '_, '_> {
     fn try_fold_sort(&mut self, sort: &rty::Sort) -> std::result::Result<rty::Sort, Self::Error> {
         let s = self.infcx.shallow_resolve(sort);
         match s {
-            rty::Sort::Infer(_) => Err(()),
+            rty::Sort::Infer(_) | rty::Sort::BitVec(rty::BvSize::Infer(_)) => Err(()),
             _ => s.try_super_fold_with(self),
         }
     }
