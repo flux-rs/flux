@@ -2750,6 +2750,7 @@ mod errors {
     #[diag(fhir_analysis_invalid_bitvector_constant, code = E0999)]
     pub struct InvalidBitVectorConstant {
         #[primary_span]
+        #[label]
         span: Span,
         sort: Sort,
     }

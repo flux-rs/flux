@@ -262,7 +262,8 @@ fhir_analysis_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
 
 fhir_analysis_invalid_bitvector_constant =
-    integer is not a `{$sort}` bit vector
+    invalid bit vector literal
+    .label = not a valid `{$sort}` literal
 
 fhir_analysis_refine_arg_mismatch =
     {$kind} takes {$expected} generic refinement {$expected ->
