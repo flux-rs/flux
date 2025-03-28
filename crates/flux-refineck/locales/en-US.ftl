@@ -79,4 +79,5 @@ refineck_blame_span_note =
 
 refineck_err_with_blame_spans =
     failed to verfy predicate: `{$pred}`
+    blamed variable: `{$blame_var}`
     related variables: `{$related_vars}`
