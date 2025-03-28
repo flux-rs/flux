@@ -198,12 +198,12 @@ fn report_errors(
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
         let vars_and_originators: String = err.blame_spans.0.iter()
-                                                          .map(|(name, bp)| {
+                                                          .map(|(name, bp, depth)| {
                                                               let origin_str = match bp {
                                                                   Some(BinderProvenance {originator: origin, ..}) => format!("{:?}", origin),
                                                                   _ => "No provenance".to_string(),
                                                               };
-                                                              format!("({:?}: {})", name, origin_str)
+                                                              format!("({:?} (depth {}): {})", name, depth, origin_str)
                                                           }).join(", ");
         let blame_span_err = errors::ErrWithBlameSpans {
             span,
@@ -212,11 +212,11 @@ fn report_errors(
                 .blame_spans
                 .0
                 .iter()
-                .filter_map(|(name, bp)| {
+                .filter_map(|(name, bp, depth)| {
                     bp.clone().and_then(|bp| {
                         bp.span.map(|span| {
                             errors::BlameSpan {
-                                var: format!("{:?}", name),
+                                var: format!("{:?} (depth {})", name, depth),
                                 span,
                                 originator: format!("{:?}", bp.originator),
                             }

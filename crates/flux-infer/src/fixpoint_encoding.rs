@@ -496,7 +496,7 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
-pub type BlameSpans = (Vec<(Name, Option<BinderProvenance>)>, rty::Expr);
+pub type BlameSpans = (Vec<(Name, Option<BinderProvenance>, usize)>, rty::Expr);
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
@@ -829,12 +829,15 @@ where
                 let fvars = expr.fvars();
                 let blame_vars = fvars
                     .iter()
-                    .filter_map(|var| binder_deps.get(var).map(|(_bp, related_vars)| related_vars))
+                    .filter_map(|var| binder_deps.get(var).map(|(_bp, _depth, related_vars)| related_vars))
                     .flatten()
                     .chain(&fvars)
                     .copied();
                 let blame_var_spans = blame_vars
-                    .map(|var| (var, binder_deps[&var].0.clone()))
+                    .map(|var| {
+                        let (bp, depth, _) = &binder_deps[&var];
+                        (var, bp.clone(), *depth)
+                    })
                     .collect();
                 self.blame_spans.insert(tag_idx, (blame_var_spans, expr.clone()));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
@@ -905,7 +908,7 @@ where
                     // are reused for binders, we ensure that we don't
                     // initialize the dependencies if a name is missing. Perhaps
                     // it would be better to panic/error here.
-                    if let Some((_, deps)) = binder_deps.get_mut(fvar) {
+                    if let Some((_bp, _depth, deps)) = binder_deps.get_mut(fvar) {
                         for fvar2 in &fvars {
                             if fvar != fvar2 {
                                 deps.insert(*fvar2);
