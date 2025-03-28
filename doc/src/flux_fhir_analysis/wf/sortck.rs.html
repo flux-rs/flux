@@ -919,7 +919,8 @@
 <a href="#918" id="918">918</a>
 <a href="#919" id="919">919</a>
 <a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1796,10 +1797,11 @@
                     .unwrap_or(sort.clone())
             }
             rty::Sort::Infer(rty::NumVar(vid)) =&gt; {
-                <span class="self">self</span>.infcx
+                <span class="comment">// same here, a num var could had been unified with a bitvector
+                </span><span class="self">self</span>.infcx
                     .num_unification_table
                     .probe_value(<span class="kw-2">*</span>vid)
-                    .map(rty::NumVarValue::to_sort)
+                    .map(|val| val.to_sort().fold_with(<span class="self">self</span>))
                     .unwrap_or(sort.clone())
             }
             rty::Sort::BitVec(rty::BvSize::Infer(vid)) =&gt; {
@@ -1835,7 +1837,7 @@
     <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; std::result::Result&lt;rty::Sort, <span class="self">Self</span>::Error&gt; {
         <span class="kw">let </span>s = <span class="self">self</span>.infcx.shallow_resolve(sort);
         <span class="kw">match </span>s {
-            rty::Sort::Infer(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(()),
+            rty::Sort::Infer(<span class="kw">_</span>) | rty::Sort::BitVec(rty::BvSize::Infer(<span class="kw">_</span>)) =&gt; <span class="prelude-val">Err</span>(()),
             <span class="kw">_ </span>=&gt; s.try_super_fold_with(<span class="self">self</span>),
         }
     }

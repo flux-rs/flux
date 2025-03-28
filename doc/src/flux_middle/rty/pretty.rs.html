@@ -884,7 +884,7 @@
             Sort::Real =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"real"</span>),
             Sort::Str =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"str"</span>),
             Sort::Char =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"char"</span>),
-            Sort::BitVec(size) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"bitvec({:?})"</span>, size),
+            Sort::BitVec(size) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"bitvec&lt;{:?}&gt;"</span>, size),
             Sort::Loc =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"loc"</span>),
             Sort::Var(n) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"@{}"</span>, ^n.index()),
             Sort::Func(sort) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, sort),

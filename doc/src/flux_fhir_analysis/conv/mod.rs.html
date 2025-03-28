@@ -2809,7 +2809,8 @@
 <a href="#2808" id="2808">2808</a>
 <a href="#2809" id="2809">2809</a>
 <a href="#2810" id="2810">2810</a>
-<a href="#2811" id="2811">2811</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -5561,6 +5562,7 @@
     #[diag(fhir_analysis_invalid_bitvector_constant, code = E0999)]
     </span><span class="kw">pub struct </span>InvalidBitVectorConstant {
         <span class="attr">#[primary_span]
+        #[label]
         </span>span: Span,
         sort: Sort,
     }
