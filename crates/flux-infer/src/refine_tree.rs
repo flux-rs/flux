@@ -67,7 +67,7 @@ impl RefineTree {
         Ok(self
             .root
             .borrow()
-            .to_fixpoint(cx, HashMap::new())?
+            .to_fixpoint(cx, HashMap::new(), 0)?
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
@@ -360,7 +360,8 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
-pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, HashSet<Name>)>;
+type BinderDepth = usize;
+pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, BinderDepth, HashSet<Name>)>;
 
 impl Node {
     fn simplify(&mut self, genv: GlobalEnv) {
@@ -423,14 +424,15 @@ impl Node {
         &self,
         cx: &mut FixpointCtxt<Tag>,
         mut binder_deps: BinderDeps,
+        binder_depth: BinderDepth,
     ) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
             NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
-                children_to_fixpoint(cx, &self.children, binder_deps)?
+                children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)?
             }
 
             NodeKind::Root(params) => {
-                let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps)? else {
+                let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)? else {
                     return Ok(None);
                 };
                 let mut constr = children;
@@ -450,9 +452,9 @@ impl Node {
                 Some(constr)
             }
             NodeKind::ForAll(name, sort, bp) => {
-                binder_deps.insert(*name, (bp.clone(), HashSet::new()));
+                binder_deps.insert(*name, (bp.clone(), binder_depth, HashSet::new()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
-                    let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps)?
+                    let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps, binder_depth + 1)?
                     else {
                         return Ok(None);
                     };
@@ -472,7 +474,7 @@ impl Node {
                 // for assumptions inside of NodeKind::Head expressions) or is doing it
                 // only for NodeKind::Assumption sufficient?
                 let (mut bindings, pred) = cx.assumption_to_fixpoint(pred, &mut binder_deps)?;
-                let Some(cstr) = children_to_fixpoint(cx, &self.children, binder_deps)? else {
+                let Some(cstr) = children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)? else {
                     return Ok(None);
                 };
                 bindings.push(fixpoint::Bind {
@@ -509,12 +511,13 @@ fn children_to_fixpoint(
     cx: &mut FixpointCtxt<Tag>,
     children: &[NodePtr],
     binder_deps: BinderDeps,
+    binder_depth: BinderDepth,
 ) -> QueryResult<Option<fixpoint::Constraint>> {
     let mut children = children
         .iter()
         .filter_map(|node| {
             node.borrow()
-                .to_fixpoint(cx, binder_deps.clone())
+                .to_fixpoint(cx, binder_deps.clone(), binder_depth)
                 .transpose()
         })
         .try_collect_vec()?;
