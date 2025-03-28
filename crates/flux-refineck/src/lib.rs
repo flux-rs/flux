@@ -207,6 +207,7 @@ fn report_errors(
                 .collect(),
             // Omit span information in this debug print
             related_vars: format!("{:?}", vars_and_originators),
+            blame_var: format!("{:?}", err.blame_spans.2),
             pred: format!("{:?}", err.blame_spans.1),
         };
         genv.sess().emit_err(blame_span_err);
@@ -359,5 +360,6 @@ mod errors {
         pub blame_spans: Vec<BlameSpan>,
         pub related_vars: String,
         pub pred: String,
+        pub blame_var: String,
     }
 }
