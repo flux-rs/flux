@@ -260,12 +260,13 @@ pub enum Expr<T: Types> {
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
-    And(Vec<Expr<T>>),
-    Or(Vec<Expr<T>>),
+    And(Vec<Self>),
+    Or(Vec<Self>),
     Not(Box<Self>),
-    Imp(Box<[Expr<T>; 2]>),
-    Iff(Box<[Expr<T>; 2]>),
+    Imp(Box<[Self; 2]>),
+    Iff(Box<[Self; 2]>),
     Atom(BinRel, Box<[Self; 2]>),
+    Let(T::Var, Box<[Self; 2]>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {

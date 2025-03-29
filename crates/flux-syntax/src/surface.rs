@@ -507,6 +507,13 @@ pub enum ExprKind {
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
+    Block(Vec<LetDecl>, Box<Expr>),
+}
+
+#[derive(Debug)]
+pub struct LetDecl {
+    pub param: RefineParam,
+    pub init: Expr,
 }
 
 /// A [`Path`] but for refinement expressions

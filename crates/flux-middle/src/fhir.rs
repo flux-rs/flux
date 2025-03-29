@@ -978,7 +978,14 @@ pub enum ExprKind<'fhir> {
     BoundedQuant(QuantKind, RefineParam<'fhir>, Range, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
+    Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
     Err(ErrorGuaranteed),
+}
+
+#[derive(Clone, Copy)]
+pub struct LetDecl<'fhir> {
+    pub param: RefineParam<'fhir>,
+    pub init: Expr<'fhir>,
 }
 
 impl Expr<'_> {
@@ -1444,7 +1451,7 @@ impl fmt::Debug for QuantKind {
 
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
+        match self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
@@ -1486,6 +1493,12 @@ impl fmt::Debug for Expr<'_> {
                 write!(f, "{kind:?} {refine_param:?} in {}.. {} {{ {expr:?} }}", rng.start, rng.end)
             }
             ExprKind::Err(_) => write!(f, "err"),
+            ExprKind::Block(decls, body) => {
+                for decl in decls {
+                    write!(f, "let {:?} = {:?};", decl.param, decl.init)?;
+                }
+                write!(f, "{body:?}")
+            }
         }
     }
 }

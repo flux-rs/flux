@@ -201,6 +201,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Var(..)
             | fhir::ExprKind::Literal(..)
             | fhir::ExprKind::BoundedQuant(..)
+            | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
@@ -241,13 +242,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
-        match &expr.kind {
-            fhir::ExprKind::Var(var, _) => self.synth_path(var),
-            fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(*lit, expr)),
-            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, *op, e1, e2),
-            fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(*op, e),
+        match expr.kind {
+            fhir::ExprKind::Var(var, _) => self.synth_path(&var),
+            fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
+            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
+            fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(op, e),
             fhir::ExprKind::App(callee, args) => {
-                let sort = self.ensure_resolved_path(callee)?;
+                let sort = self.ensure_resolved_path(&callee)?;
                 let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee.fhir_id) else {
                     return Err(self.emit_err(errors::ExpectedFun::new(callee.span, &sort)));
                 };
@@ -271,22 +272,22 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(sort)
             }
             fhir::ExprKind::Dot(var, fld) => {
-                let sort = self.ensure_resolved_path(var)?;
+                let sort = self.ensure_resolved_path(&var)?;
                 match &sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
                         let (proj, sort) = sort_def
                             .struct_variant()
                             .field_by_name(sort_def.did(), sort_args, fld.name)
-                            .ok_or_else(|| self.emit_field_not_found(&sort, *fld))?;
+                            .ok_or_else(|| self.emit_field_not_found(&sort, fld))?;
                         self.wfckresults
                             .field_projs_mut()
                             .insert(expr.fhir_id, proj);
                         Ok(sort)
                     }
                     rty::Sort::Bool | rty::Sort::Int | rty::Sort::Real => {
-                        Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, *fld)))
+                        Err(self.emit_err(errors::InvalidPrimitiveDotAccess::new(&sort, fld)))
                     }
-                    _ => Err(self.emit_field_not_found(&sort, *fld)),
+                    _ => Err(self.emit_field_not_found(&sort, fld)),
                 }
             }
             fhir::ExprKind::Constructor(Some(path), field_exprs, spread) => {
@@ -312,10 +313,16 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     &sort_def,
                     &fresh_args,
                     field_exprs,
-                    spread,
+                    &spread,
                     &sort,
                 )?;
                 Ok(sort)
+            }
+            fhir::ExprKind::Block(decls, body) => {
+                for decl in decls {
+                    self.check_expr(&decl.init, &self.param_sort(decl.param.id))?;
+                }
+                self.synth_expr(body)
             }
             _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
         }

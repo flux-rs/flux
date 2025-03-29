@@ -1100,6 +1100,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.register_const_for_lambda(lam, scx);
                 fixpoint::Expr::Var(var.into())
             }
+            rty::ExprKind::Let(init, body) => {
+                debug_assert_eq!(body.vars().len(), 1);
+                let init = self.expr_to_fixpoint(init, scx)?;
+
+                self.local_var_env.push_layer_with_fresh_names(1);
+                let body = self.expr_to_fixpoint(body.skip_binder_ref(), scx)?;
+                let vars = self.local_var_env.pop_layer();
+
+                fixpoint::Expr::Let(vars[0].into(), Box::new([init, body]))
+            }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
             }

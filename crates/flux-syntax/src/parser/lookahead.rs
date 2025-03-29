@@ -127,7 +127,7 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
     }
 
     /// Like [`ParseCtxt::lookahead1`] but it records the expected token to construct an error in
-    /// case parsing can't proceed. If this method returns true, this [`Lookhead1`] object should be
+    /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
         self.expected.extend(t.display());
@@ -135,7 +135,7 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
     }
 
     /// Like [`ParseCtxt::advance_if`] but it records the expected token to construct an error in
-    /// case parsing can't proceed. If this method returns true, this [`Lookhead1`] object should be
+    /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
     pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
         self.expected.extend(t.display());

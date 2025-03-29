@@ -20,6 +20,20 @@ pub(crate) fn sep1<R>(
     Ok(items)
 }
 
+/// Parses a list of zero or more items. Parsing stops when the next token does *not* match
+/// the specified rule.
+pub(crate) fn repeat_while<P: Peek, R>(
+    cx: &mut ParseCtxt,
+    next: P,
+    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
+) -> ParseResult<Vec<R>> {
+    let mut items = vec![];
+    while cx.peek(next) {
+        items.push(parse(cx)?);
+    }
+    Ok(items)
+}
+
 /// Parses a list of zero or more items. Parsing continues until the requested `end` token
 /// is reached. This does not consume the end token.
 pub(crate) fn until<P: Peek, R>(
