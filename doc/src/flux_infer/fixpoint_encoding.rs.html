@@ -1563,7 +1563,17 @@
 <a href="#1562" id="1562">1562</a>
 <a href="#1563" id="1563">1563</a>
 <a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1565" id="1565">1565</a>
+<a href="#1566" id="1566">1566</a>
+<a href="#1567" id="1567">1567</a>
+<a href="#1568" id="1568">1568</a>
+<a href="#1569" id="1569">1569</a>
+<a href="#1570" id="1570">1570</a>
+<a href="#1571" id="1571">1571</a>
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -2664,6 +2674,16 @@
             rty::ExprKind::Abs(lam) =&gt; {
                 <span class="kw">let </span>var = <span class="self">self</span>.register_const_for_lambda(lam, scx);
                 fixpoint::Expr::Var(var.into())
+            }
+            rty::ExprKind::Let(init, body) =&gt; {
+                <span class="macro">debug_assert_eq!</span>(body.vars().len(), <span class="number">1</span>);
+                <span class="kw">let </span>init = <span class="self">self</span>.expr_to_fixpoint(init, scx)<span class="question-mark">?</span>;
+
+                <span class="self">self</span>.local_var_env.push_layer_with_fresh_names(<span class="number">1</span>);
+                <span class="kw">let </span>body = <span class="self">self</span>.expr_to_fixpoint(body.skip_binder_ref(), scx)<span class="question-mark">?</span>;
+                <span class="kw">let </span>vars = <span class="self">self</span>.local_var_env.pop_layer();
+
+                fixpoint::Expr::Let(vars[<span class="number">0</span>].into(), Box::new([init, body]))
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) =&gt; {
                 fixpoint::Expr::Var(fixpoint::Var::Itf(<span class="kw-2">*</span>itf))

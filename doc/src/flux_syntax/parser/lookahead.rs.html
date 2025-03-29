@@ -371,7 +371,7 @@
     }
 
     <span class="doccomment">/// Like [`ParseCtxt::lookahead1`] but it records the expected token to construct an error in
-    /// case parsing can't proceed. If this method returns true, this [`Lookhead1`] object should be
+    /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>peek&lt;T: Peek&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: T) -&gt; bool {
         <span class="self">self</span>.expected.extend(t.display());
@@ -379,7 +379,7 @@
     }
 
     <span class="doccomment">/// Like [`ParseCtxt::advance_if`] but it records the expected token to construct an error in
-    /// case parsing can't proceed. If this method returns true, this [`Lookhead1`] object should be
+    /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>advance_if&lt;T: Peek&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: T) -&gt; bool {
         <span class="self">self</span>.expected.extend(t.display());

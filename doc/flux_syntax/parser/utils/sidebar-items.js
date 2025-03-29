@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["angle","braces","brackets","delimited","opt_angle","parens","punctuated_delimited","punctuated_until","punctuated_with_trailing","sep1","until"]};
+window.SIDEBAR_ITEMS = {"fn":["angle","braces","brackets","delimited","opt_angle","parens","punctuated_delimited","punctuated_until","punctuated_with_trailing","repeat_while","sep1","until"]};

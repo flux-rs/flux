@@ -1120,7 +1120,33 @@
 <a href="#1119" id="1119">1119</a>
 <a href="#1120" id="1120">1120</a>
 <a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
 <span class="kw">mod </span>utils;
 
 <span class="kw">use </span>std::str::FromStr;
@@ -1128,7 +1154,7 @@
 <span class="kw">use </span>lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 <span class="kw">use </span>utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
-    punctuated_with_trailing, sep1, until,
+    punctuated_with_trailing, repeat_while, sep1, until,
 };
 
 <span class="kw">use crate</span>::{
@@ -1141,10 +1167,11 @@
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
-        GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
-        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
-        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, TraitAssocReft,
-        TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
+        Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
+        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
+        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        WhereBoundPredicate,
     },
 };
 
@@ -1222,7 +1249,7 @@
     cx.expect(Tok::RArrow)<span class="question-mark">?</span>;
     <span class="kw">let </span>output = parse_sort(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>body = <span class="kw">if </span>cx.peek(OpenDelim(Brace)) {
-        <span class="prelude-val">Some</span>(parse_block_expr(cx)<span class="question-mark">?</span>)
+        <span class="prelude-val">Some</span>(parse_block(cx)<span class="question-mark">?</span>)
     } <span class="kw">else </span>{
         cx.expect(Tok::Semi)<span class="question-mark">?</span>;
         <span class="prelude-val">None
@@ -1236,7 +1263,7 @@
     cx.expect(Tok::Qualifier)<span class="question-mark">?</span>;
     <span class="kw">let </span>name = parse_ident(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>params = parens(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
-    <span class="kw">let </span>expr = parse_block_expr(cx)<span class="question-mark">?</span>;
+    <span class="kw">let </span>expr = parse_block(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>hi = cx.hi();
     <span class="prelude-val">Ok</span>(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
 }
@@ -1255,7 +1282,7 @@
 
 <span class="doccomment">/// ```text
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -&gt; ⟨base_sort⟩ ;?
-///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -&gt; ⟨base_sort⟩ ⟨block_expr⟩
+///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -&gt; ⟨base_sort⟩ ⟨block⟩
 /// ```
 </span><span class="kw">fn </span>parse_trait_assoc_reft(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;TraitAssocReft&gt; {
     <span class="kw">let </span>lo = cx.lo();
@@ -1265,7 +1292,7 @@
     cx.expect(Tok::RArrow)<span class="question-mark">?</span>;
     <span class="kw">let </span>output = parse_base_sort(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>body = <span class="kw">if </span>cx.peek(OpenDelim(Brace)) {
-        <span class="prelude-val">Some</span>(parse_block_expr(cx)<span class="question-mark">?</span>)
+        <span class="prelude-val">Some</span>(parse_block(cx)<span class="question-mark">?</span>)
     } <span class="kw">else </span>{
         cx.advance_if(Tok::Semi);
         <span class="prelude-val">None
@@ -1279,7 +1306,7 @@
 }
 
 <span class="doccomment">/// ```text
-/// ⟨impl_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -&gt; ⟨base_sort⟩ ⟨block_expr⟩
+/// ⟨impl_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -&gt; ⟨base_sort⟩ ⟨block⟩
 /// ```
 </span><span class="kw">fn </span>parse_impl_assoc_reft(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;ImplAssocReft&gt; {
     <span class="kw">let </span>lo = cx.lo();
@@ -1288,7 +1315,7 @@
     <span class="kw">let </span>params = parens(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
     cx.expect(Tok::RArrow)<span class="question-mark">?</span>;
     <span class="kw">let </span>output = parse_base_sort(cx)<span class="question-mark">?</span>;
-    <span class="kw">let </span>body = parse_block_expr(cx)<span class="question-mark">?</span>;
+    <span class="kw">let </span>body = parse_block(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>hi = cx.hi();
     <span class="prelude-val">Ok</span>(ImplAssocReft { name, params, output, body, span: cx.mk_span(lo, hi) })
 }
@@ -1575,16 +1602,16 @@
 
 <span class="doccomment">/// ```text
 /// ⟨ty⟩ := _
-///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | ( ⟨ty⟩,* )
-///       | { ⟨ty⟩ | ⟨expr⟩ }
-///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+///       | { ⟨ty⟩ | ⟨block_expr⟩ }
+///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | &amp; mut? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
 ///       | ⟨bty⟩
 ///       | ⟨bty⟩ [ ⟨refine_arg⟩,* ]
-///       | ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+///       | ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 ///
 /// ⟨bty⟩ := ⟨path⟩ | ⟨qpath⟩ | [ ⟨ty⟩ ]
 /// ```
@@ -1606,13 +1633,13 @@
     } <span class="kw">else if </span>lookahead.peek(OpenDelim(Brace)) {
         delimited(cx, Brace, |cx| {
             <span class="kw">if </span>cx.peek2(AnyIdent, [Tok::Comma, Tok::Dot, Tok::Colon]) {
-                <span class="comment">// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+                <span class="comment">// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
                 </span>parse_general_exists(cx)
             } <span class="kw">else </span>{
-                <span class="comment">// { ⟨ty⟩ | ⟨expr⟩ }
+                <span class="comment">// { ⟨ty⟩ | ⟨block_expr⟩ }
                 </span><span class="kw">let </span>ty = parse_type(cx)<span class="question-mark">?</span>;
                 cx.expect(Tok::Caret)<span class="question-mark">?</span>;
-                <span class="kw">let </span>pred = parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>pred = parse_block_expr(cx)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(TyKind::Constr(pred, Box::new(ty)))
             }
         })<span class="question-mark">?
@@ -1674,19 +1701,19 @@
 }
 
 <span class="doccomment">/// ```text
-/// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+/// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 /// ```
 </span><span class="kw">fn </span>parse_general_exists(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;TyKind&gt; {
     <span class="kw">let </span>params = sep1(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">false</span>))<span class="question-mark">?</span>;
     cx.expect(Tok::Dot)<span class="question-mark">?</span>;
     <span class="kw">let </span>ty = parse_type(cx)<span class="question-mark">?</span>;
-    <span class="kw">let </span>pred = <span class="kw">if </span>cx.advance_if(Tok::Caret) { <span class="prelude-val">Some</span>(parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>) } <span class="kw">else </span>{ <span class="prelude-val">None </span>};
+    <span class="kw">let </span>pred = <span class="kw">if </span>cx.advance_if(Tok::Caret) { <span class="prelude-val">Some</span>(parse_block_expr(cx)<span class="question-mark">?</span>) } <span class="kw">else </span>{ <span class="prelude-val">None </span>};
     <span class="prelude-val">Ok</span>(TyKind::GeneralExists { params, ty: Box::new(ty), pred })
 }
 
 <span class="doccomment">/// ```text
 ///    ⟨bty⟩ [ ⟨refine_arg⟩,* ]
-/// |  ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+/// |  ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 /// |  ⟨bty⟩
 /// ```
 </span><span class="kw">fn </span>parse_bty_rhs(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, bty: BaseTy) -&gt; ParseResult&lt;Ty&gt; {
@@ -1698,7 +1725,7 @@
         <span class="kw">let </span>kind = TyKind::Indexed { bty, indices };
         <span class="prelude-val">Ok</span>(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
     } <span class="kw">else if </span>cx.peek(OpenDelim(Brace)) {
-        <span class="comment">// ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+        <span class="comment">// ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
         </span>parse_bty_exists(cx, bty)
     } <span class="kw">else </span>{
         <span class="comment">// ⟨bty⟩
@@ -1709,14 +1736,14 @@
 }
 
 <span class="doccomment">/// ```text
-/// ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+/// ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 /// ```
 </span><span class="kw">fn </span>parse_bty_exists(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, bty: BaseTy) -&gt; ParseResult&lt;Ty&gt; {
     <span class="kw">let </span>lo = bty.span.lo();
     delimited(cx, Brace, |cx| {
         <span class="kw">let </span>bind = parse_ident(cx)<span class="question-mark">?</span>;
         cx.expect(Tok::Colon)<span class="question-mark">?</span>;
-        <span class="kw">let </span>pred = parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>pred = parse_block_expr(cx)<span class="question-mark">?</span>;
         <span class="kw">let </span>hi = cx.hi();
         <span class="kw">let </span>kind = TyKind::Exists { bind, bty, pred };
         <span class="prelude-val">Ok</span>(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
@@ -2000,8 +2027,8 @@
 }
 
 <span class="doccomment">/// ```text
-/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
-///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
+/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
+///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
 /// ```
 </span><span class="kw">fn </span>parse_bounded_quantifier(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
     <span class="kw">let </span>lo = cx.lo();
@@ -2018,7 +2045,7 @@
     <span class="kw">let </span>start = parse_int(cx)<span class="question-mark">?</span>;
     cx.expect(Tok::DotDot)<span class="question-mark">?</span>;
     <span class="kw">let </span>end = parse_int(cx)<span class="question-mark">?</span>;
-    <span class="kw">let </span>body = parse_block_expr(cx)<span class="question-mark">?</span>;
+    <span class="kw">let </span>body = parse_block(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>hi = cx.hi();
     <span class="prelude-val">Ok</span>(Expr {
         kind: ExprKind::BoundedQuant(quant, param, start..end, Box::new(body)),
@@ -2069,7 +2096,7 @@
     <span class="prelude-val">Ok</span>(ExprPathSegment { ident: parse_ident(cx)<span class="question-mark">?</span>, node_id: cx.next_node_id() })
 }
 
-<span class="doccomment">/// `⟨if_expr⟩ := if ⟨expr⟩ ⟨block_expr⟩ ⟨ else if ⟨expr⟩ ⟨block_expr⟩ ⟩* else ⟨block_expr⟩`
+<span class="doccomment">/// `⟨if_expr⟩ := if ⟨expr⟩ ⟨block⟩ ⟨ else if ⟨expr⟩ ⟨block⟩ ⟩* else ⟨block⟩`
 ///
 /// The `⟨expr⟩` in conditions is parsed with `allow_struct = false`
 </span><span class="kw">fn </span>parse_if_expr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
@@ -2079,7 +2106,7 @@
         <span class="kw">let </span>lo = cx.lo();
         cx.expect(Tok::If)<span class="question-mark">?</span>;
         <span class="kw">let </span>cond = parse_expr(cx, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
-        <span class="kw">let </span>then_ = parse_block_expr(cx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>then_ = parse_block(cx)<span class="question-mark">?</span>;
         branches.push((lo, cond, then_));
         cx.expect(Tok::Else)<span class="question-mark">?</span>;
 
@@ -2087,7 +2114,7 @@
             <span class="kw">break</span>;
         }
     }
-    <span class="kw">let </span><span class="kw-2">mut </span>else_ = parse_block_expr(cx)<span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>else_ = parse_block(cx)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>hi = cx.hi();
     <span class="kw">while let </span><span class="prelude-val">Some</span>((lo, cond, then_)) = branches.pop() {
@@ -2100,9 +2127,34 @@
     <span class="prelude-val">Ok</span>(else_)
 }
 
-<span class="doccomment">/// ⟨block_expr⟩ := { ⟨expr⟩ }
+<span class="doccomment">/// ⟨block_expr⟩ = ⟨let_decl⟩* ⟨expr⟩
 </span><span class="kw">fn </span>parse_block_expr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
-    delimited(cx, Brace, |cx| parse_expr(cx, <span class="bool-val">true</span>))
+    <span class="kw">let </span>lo = cx.lo();
+    <span class="kw">let </span>decls = repeat_while(cx, Tok::Let, parse_let_decl)<span class="question-mark">?</span>;
+    <span class="kw">let </span>body = parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+    <span class="kw">let </span>hi = cx.hi();
+
+    <span class="kw">if </span>decls.is_empty() {
+        <span class="prelude-val">Ok</span>(body)
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>kind = ExprKind::Block(decls, Box::new(body));
+        <span class="prelude-val">Ok</span>(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
+    }
+}
+
+<span class="doccomment">/// ⟨let_decl⟩ := let ⟨refine_param⟩ = ⟨expr⟩ ;
+</span><span class="kw">fn </span>parse_let_decl(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;LetDecl&gt; {
+    cx.expect(Tok::Let)<span class="question-mark">?</span>;
+    <span class="kw">let </span>param = parse_refine_param(cx, <span class="bool-val">false</span>)<span class="question-mark">?</span>;
+    cx.expect(Tok::Eq)<span class="question-mark">?</span>;
+    <span class="kw">let </span>init = parse_expr(cx, <span class="bool-val">true</span>)<span class="question-mark">?</span>;
+    cx.expect(Tok::Semi)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(LetDecl { param, init })
+}
+
+<span class="doccomment">/// ⟨block⟩ := { ⟨let_decls⟩ ⟨expr⟩ }
+</span><span class="kw">fn </span>parse_block(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Expr&gt; {
+    delimited(cx, Brace, parse_block_expr)
 }
 
 <span class="doccomment">/// ```text

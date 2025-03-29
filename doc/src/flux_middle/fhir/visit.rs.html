@@ -570,7 +570,14 @@
 <a href="#569" id="569">569</a>
 <a href="#570" id="570">570</a>
 <a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a></pre></div><pre class="rust"><code><span class="kw">use super</span>::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
     Expr, ExprKind, FieldDef, FieldExpr, FluxItem, FnDecl, FnOutput, FnSig, ForeignItem,
     ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
@@ -1138,6 +1145,13 @@
         ExprKind::BoundedQuant(<span class="kw">_</span>, param, <span class="kw">_</span>, expr) =&gt; {
             vis.visit_refine_param(<span class="kw-2">&amp;</span>param);
             vis.visit_expr(expr);
+        }
+        ExprKind::Block(decls, body) =&gt; {
+            <span class="kw">for </span>decl <span class="kw">in </span>decls {
+                vis.visit_expr(<span class="kw-2">&amp;</span>decl.init);
+                vis.visit_refine_param(<span class="kw-2">&amp;</span>decl.param);
+            }
+            vis.visit_expr(body);
         }
         ExprKind::Err(<span class="kw">_</span>) =&gt; {}
     }

@@ -2810,7 +2810,17 @@
 <a href="#2809" id="2809">2809</a>
 <a href="#2810" id="2810">2810</a>
 <a href="#2811" id="2811">2811</a>
-<a href="#2812" id="2812">2812</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
+<a href="#2821" id="2821">2821</a>
+<a href="#2822" id="2822">2822</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4811,10 +4821,10 @@
     <span class="kw">fn </span>conv_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, env: <span class="kw-2">&amp;mut </span>Env, expr: <span class="kw-2">&amp;</span>fhir::Expr) -&gt; QueryResult&lt;rty::Expr&gt; {
         <span class="kw">let </span>fhir_id = expr.fhir_id;
         <span class="kw">let </span>espan = ESpan::new(expr.span);
-        <span class="kw">let </span>expr = <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
+        <span class="kw">let </span>expr = <span class="kw">match </span>expr.kind {
             fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; {
                 <span class="kw">match </span>var.res {
-                    ExprRes::Param(..) =&gt; env.lookup(var).to_expr(),
+                    ExprRes::Param(..) =&gt; env.lookup(<span class="kw-2">&amp;</span>var).to_expr(),
                     ExprRes::Const(def_id) =&gt; {
                         <span class="kw">if </span>P::HAS_ELABORATED_INFORMATION {
                             <span class="kw">let </span>info = <span class="self">self</span>.genv().constant_info(def_id)<span class="question-mark">?</span>;
@@ -4847,28 +4857,28 @@
                 }
             }
             fhir::ExprKind::Literal(lit) =&gt; {
-                rty::Expr::constant(<span class="self">self</span>.conv_lit(<span class="kw-2">*</span>lit, fhir_id, expr.span)<span class="question-mark">?</span>).at(espan)
+                rty::Expr::constant(<span class="self">self</span>.conv_lit(lit, fhir_id, expr.span)<span class="question-mark">?</span>).at(espan)
             }
             fhir::ExprKind::BinaryOp(op, e1, e2) =&gt; {
                 rty::Expr::binary_op(
-                    <span class="self">self</span>.conv_bin_op(<span class="kw-2">*</span>op, expr.fhir_id),
+                    <span class="self">self</span>.conv_bin_op(op, expr.fhir_id),
                     <span class="self">self</span>.conv_expr(env, e1)<span class="question-mark">?</span>,
                     <span class="self">self</span>.conv_expr(env, e2)<span class="question-mark">?</span>,
                 )
                 .at(espan)
             }
             fhir::ExprKind::UnaryOp(op, e) =&gt; {
-                rty::Expr::unary_op(conv_un_op(<span class="kw-2">*</span>op), <span class="self">self</span>.conv_expr(env, e)<span class="question-mark">?</span>).at(espan)
+                rty::Expr::unary_op(conv_un_op(op), <span class="self">self</span>.conv_expr(env, e)<span class="question-mark">?</span>).at(espan)
             }
             fhir::ExprKind::App(func, args) =&gt; {
-                rty::Expr::app(<span class="self">self</span>.conv_func(env, func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>).at(espan)
+                rty::Expr::app(<span class="self">self</span>.conv_func(env, <span class="kw-2">&amp;</span>func), <span class="self">self</span>.conv_exprs(env, args)<span class="question-mark">?</span>).at(espan)
             }
             fhir::ExprKind::Alias(alias, args) =&gt; {
                 <span class="kw">let </span>args = args
                     .iter()
                     .map(|arg| <span class="self">self</span>.conv_expr(env, arg))
                     .try_collect()<span class="question-mark">?</span>;
-                <span class="kw">let </span>alias = <span class="self">self</span>.conv_alias_reft(env, expr.fhir_id, alias)<span class="question-mark">?</span>;
+                <span class="kw">let </span>alias = <span class="self">self</span>.conv_alias_reft(env, expr.fhir_id, <span class="kw-2">&amp;</span>alias)<span class="question-mark">?</span>;
                 rty::Expr::alias(alias, args).at(espan)
             }
             fhir::ExprKind::IfThenElse(p, e1, e2) =&gt; {
@@ -4881,24 +4891,34 @@
             }
             fhir::ExprKind::Dot(var, <span class="kw">_</span>) =&gt; {
                 <span class="kw">let </span>proj = <span class="self">self</span>.results().field_proj(fhir_id);
-                rty::Expr::field_proj(env.lookup(var).to_expr(), proj)
+                rty::Expr::field_proj(env.lookup(<span class="kw-2">&amp;</span>var).to_expr(), proj)
             }
             fhir::ExprKind::Abs(params, body) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params);
-                env.push_layer(layer);
+                env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params));
                 <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
-                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
+                <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
                 <span class="kw">let </span>output = <span class="self">self</span>.results().node_sort(body.fhir_id);
-                <span class="kw">let </span>lam = rty::Lambda::bind_with_vars(pred, inputs, output);
+                <span class="kw">let </span>lam = rty::Lambda::bind_with_vars(pred, vars, output);
                 rty::Expr::abs(lam)
             }
+            fhir::ExprKind::Block(decls, body) =&gt; {
+                <span class="kw">for </span>decl <span class="kw">in </span>decls {
+                    env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, <span class="kw-2">&amp;</span>[decl.param]));
+                }
+                <span class="kw">let </span><span class="kw-2">mut </span>body = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
+                <span class="kw">for </span>decl <span class="kw">in </span>decls.iter().rev() {
+                    <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
+                    <span class="kw">let </span>init = <span class="self">self</span>.conv_expr(env, <span class="kw-2">&amp;</span>decl.init)<span class="question-mark">?</span>;
+                    body = rty::Expr::let_(init, rty::Binder::bind_with_vars(body, vars));
+                }
+                body
+            }
             fhir::ExprKind::BoundedQuant(kind, param, rng, body) =&gt; {
-                <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, <span class="kw-2">&amp;</span>[<span class="kw-2">*</span>param]);
-                env.push_layer(layer);
+                env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, <span class="kw-2">&amp;</span>[param]));
                 <span class="kw">let </span>pred = <span class="self">self</span>.conv_expr(env, body)<span class="question-mark">?</span>;
-                <span class="kw">let </span>inputs = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
-                <span class="kw">let </span>body = rty::Binder::bind_with_vars(pred, inputs);
-                rty::Expr::bounded_quant(<span class="kw-2">*</span>kind, <span class="kw-2">*</span>rng, body)
+                <span class="kw">let </span>vars = env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>;
+                <span class="kw">let </span>body = rty::Binder::bind_with_vars(pred, vars);
+                rty::Expr::bounded_quant(kind, rng, body)
             }
             fhir::ExprKind::Record(flds) =&gt; {
                 <span class="kw">let </span>def_id = <span class="self">self</span>.results().record_ctor(expr.fhir_id);
@@ -4917,10 +4937,10 @@
                 } <span class="kw">else </span>{
                     <span class="self">self</span>.results().record_ctor(expr.fhir_id)
                 };
-                <span class="kw">let </span>assns = <span class="self">self</span>.conv_constructor_exprs(def_id, env, exprs, spread)<span class="question-mark">?</span>;
+                <span class="kw">let </span>assns = <span class="self">self</span>.conv_constructor_exprs(def_id, env, exprs, <span class="kw-2">&amp;</span>spread)<span class="question-mark">?</span>;
                 rty::Expr::ctor_struct(def_id, assns)
             }
-            fhir::ExprKind::Err(err) =&gt; <span class="prelude-val">Err</span>(QueryErr::Emitted(<span class="kw-2">*</span>err))<span class="question-mark">?</span>,
+            fhir::ExprKind::Err(err) =&gt; <span class="prelude-val">Err</span>(QueryErr::Emitted(err))<span class="question-mark">?</span>,
         };
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.add_coercions(expr, fhir_id))
     }

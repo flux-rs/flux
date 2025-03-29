@@ -138,7 +138,21 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of parser combinators
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of parser combinators
 
 </span><span class="kw">use super</span>::{LAngle, RAngle, lookahead::Peek};
 <span class="kw">use crate</span>::{
@@ -155,6 +169,20 @@
 ) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>items = <span class="macro">vec!</span>[parse(cx)<span class="question-mark">?</span>];
     <span class="kw">while </span>cx.advance_if(sep) {
+        items.push(parse(cx)<span class="question-mark">?</span>);
+    }
+    <span class="prelude-val">Ok</span>(items)
+}
+
+<span class="doccomment">/// Parses a list of zero or more items. Parsing stops when the next token does *not* match
+/// the specified rule.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>repeat_while&lt;P: Peek, R&gt;(
+    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+    next: P,
+    <span class="kw-2">mut </span>parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>items = <span class="macro">vec!</span>[];
+    <span class="kw">while </span>cx.peek(next) {
         items.push(parse(cx)<span class="question-mark">?</span>);
     }
     <span class="prelude-val">Ok</span>(items)

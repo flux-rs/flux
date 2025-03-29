@@ -529,7 +529,30 @@
 <a href="#528" id="528">528</a>
 <a href="#529" id="529">529</a>
 <a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a></pre></div><pre class="rust"><code><span class="kw">use </span>rustc_span::symbol::Ident;
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a></pre></div><pre class="rust"><code><span class="doccomment">//! A visitor for types in [`surface`]
+//!
+//! In general there's no specific order except that [refinement parameters] should be
+//! visited in an order that matches their scope. Name resolution relies on this gurantee.
+//!
+//! [`surface`]: crate::surface
+//! [refinement parameters]: crate::surface::RefineParam
+</span><span class="kw">use </span>rustc_span::symbol::Ident;
 
 <span class="kw">use super</span>::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg, Ensures, EnumDef,
@@ -1049,6 +1072,15 @@
         ExprKind::BoundedQuant(<span class="kw">_</span>, i, <span class="kw">_</span>, e) =&gt; {
             vis.visit_refine_param(i);
             vis.visit_expr(e);
+        }
+        ExprKind::Block(decls, body) =&gt; {
+            <span class="kw">for </span>decl <span class="kw">in </span>decls {
+                <span class="comment">// the order here is important because the parameter is not in scope
+                // in the initializer
+                </span>vis.visit_expr(<span class="kw-2">&amp;</span>decl.init);
+                vis.visit_refine_param(<span class="kw-2">&amp;</span>decl.param);
+            }
+            vis.visit_expr(body);
         }
     }
 }
