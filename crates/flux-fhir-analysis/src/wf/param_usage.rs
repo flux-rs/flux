@@ -113,12 +113,8 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 self.check_func_params_uses(e2, false);
             }
             fhir::ExprKind::Literal(_) => {}
-            fhir::ExprKind::Dot(var, _) => {
-                if let fhir::ExprRes::Param(_, id) = var.res
-                    && let sort @ rty::Sort::Func(_) = &self.infcx.param_sort(id)
-                {
-                    self.errors.emit(InvalidParamPos::new(var.span, sort));
-                }
+            fhir::ExprKind::Dot(base, _) => {
+                self.check_func_params_uses(base, false);
             }
             fhir::ExprKind::Abs(_, body) => {
                 self.check_func_params_uses(body, true);

@@ -526,8 +526,8 @@ pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {
 pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
     match expr.kind {
         ExprKind::Var(path, _) => vis.visit_path_expr(&path),
-        ExprKind::Dot(path, _fld) => {
-            vis.visit_path_expr(&path);
+        ExprKind::Dot(base, _fld) => {
+            vis.visit_expr(base);
         }
         ExprKind::Literal(lit) => vis.visit_literal(&lit),
         ExprKind::BinaryOp(_op, e1, e2) => {

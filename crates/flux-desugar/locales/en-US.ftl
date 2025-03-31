@@ -10,9 +10,6 @@ desugar_int_too_large =
 desugar_unexpected_literal =
     unexpected literal
 
-desugar_invalid_dot_var =
-    unsupported field access in refinement
-
 desugar_invalid_constructor_path =
     invalid use of path in constructor
 
