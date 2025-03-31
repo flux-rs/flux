@@ -911,9 +911,6 @@ mod errors {
                             }
                         }
                     }
-                    ParseErrorKind::UnsupportedProj => {
-                        "expression not allowed in field projection".to_string()
-                    }
                     ParseErrorKind::CannotBeChained => "operator cannot be chained".to_string(),
                 });
             diag
