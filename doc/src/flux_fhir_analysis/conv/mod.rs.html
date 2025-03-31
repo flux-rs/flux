@@ -4889,9 +4889,9 @@
                 )
                 .at(espan)
             }
-            fhir::ExprKind::Dot(var, <span class="kw">_</span>) =&gt; {
+            fhir::ExprKind::Dot(base, <span class="kw">_</span>) =&gt; {
                 <span class="kw">let </span>proj = <span class="self">self</span>.results().field_proj(fhir_id);
-                rty::Expr::field_proj(env.lookup(<span class="kw-2">&amp;</span>var).to_expr(), proj)
+                rty::Expr::field_proj(<span class="self">self</span>.conv_expr(env, base)<span class="question-mark">?</span>, proj)
             }
             fhir::ExprKind::Abs(params, body) =&gt; {
                 env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, params));

@@ -1163,7 +1163,7 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ExprKind {
     Path(ExprPath),
-    Dot(ExprPath, Ident),
+    Dot(Box&lt;Expr&gt;, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box&lt;[Expr; <span class="number">2</span>]&gt;),
     UnaryOp(UnOp, Box&lt;Expr&gt;),

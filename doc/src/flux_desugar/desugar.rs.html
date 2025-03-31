@@ -1599,20 +1599,7 @@
 <a href="#1598" id="1598">1598</a>
 <a href="#1599" id="1599">1599</a>
 <a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
-<a href="#1605" id="1605">1605</a>
-<a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a>
-<a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a>
-<a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1601" id="1601">1601</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -2978,22 +2965,9 @@
             surface::ExprKind::UnaryOp(op, <span class="kw">box </span>e) =&gt; {
                 fhir::ExprKind::UnaryOp(<span class="kw-2">*</span>op, <span class="self">self</span>.genv().alloc(<span class="self">self</span>.desugar_expr(e)))
             }
-            surface::ExprKind::Dot(path, fld) =&gt; {
-                <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>path.node_id];
-                <span class="kw">if let </span>ExprRes::Param(..) = res {
-                    <span class="kw">let </span>segments = <span class="self">self
-                        </span>.genv()
-                        .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
-                    <span class="kw">let </span>path = fhir::PathExpr {
-                        segments,
-                        res,
-                        fhir_id: <span class="self">self</span>.next_fhir_id(),
-                        span: path.span,
-                    };
-                    fhir::ExprKind::Dot(path, <span class="kw-2">*</span>fld)
-                } <span class="kw">else </span>{
-                    fhir::ExprKind::Err(<span class="self">self</span>.emit(errors::InvalidDotVar { span: path.span }))
-                }
+            surface::ExprKind::Dot(base, fld) =&gt; {
+                <span class="kw">let </span>base = <span class="self">self</span>.desugar_expr(base);
+                fhir::ExprKind::Dot(<span class="self">self</span>.genv().alloc(base), <span class="kw-2">*</span>fld)
             }
             surface::ExprKind::Call(callee, args) =&gt; <span class="self">self</span>.desugar_call(callee, args),
             surface::ExprKind::AssocReft(..) =&gt; {

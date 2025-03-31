@@ -1038,8 +1038,8 @@
 <span class="kw">pub fn </span>walk_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, expr: <span class="kw-2">&amp;</span>Expr) {
     <span class="kw">match </span><span class="kw-2">&amp;</span>expr.kind {
         ExprKind::Path(qpath) =&gt; vis.visit_path_expr(qpath),
-        ExprKind::Dot(qpath, fld) =&gt; {
-            vis.visit_path_expr(qpath);
+        ExprKind::Dot(base, fld) =&gt; {
+            vis.visit_expr(base);
             vis.visit_ident(<span class="kw-2">*</span>fld);
         }
         ExprKind::Literal(lit) =&gt; {

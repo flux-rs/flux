@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["IntTooLarge","InvalidAliasReft","InvalidConstructorPath","InvalidDotVar","InvalidLoc","InvalidNumericSuffix","InvalidReflectedVariant","InvalidVariantRet","MultipleSpreadsInConstructor","UnexpectedLiteral","UnsupportedPosition"]};
+window.SIDEBAR_ITEMS = {"struct":["IntTooLarge","InvalidAliasReft","InvalidConstructorPath","InvalidLoc","InvalidNumericSuffix","InvalidReflectedVariant","InvalidVariantRet","MultipleSpreadsInConstructor","UnexpectedLiteral","UnsupportedPosition"]};

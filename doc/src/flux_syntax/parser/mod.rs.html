@@ -1144,9 +1144,7 @@
 <a href="#1143" id="1143">1143</a>
 <a href="#1144" id="1144">1144</a>
 <a href="#1145" id="1145">1145</a>
-<a href="#1146" id="1146">1146</a>
-<a href="#1147" id="1147">1147</a>
-<a href="#1148" id="1148">1148</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
+<a href="#1146" id="1146">1146</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
 <span class="kw">mod </span>utils;
 
 <span class="kw">use </span>std::str::FromStr;
@@ -1938,31 +1936,29 @@
 }
 
 <span class="doccomment">/// ```text
-/// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
-///                 |  ⟨atom⟩ ( ⟨expr⟩,* )
+/// ⟨trailer_expr⟩ :=  ⟨trailer⟩ . ⟨ident⟩
+///                 |  ⟨trailer⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
 </span><span class="kw">fn </span>parse_trailer_expr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, allow_struct: bool) -&gt; ParseResult&lt;Expr&gt; {
-    <span class="kw">let </span>atom = parse_atom(cx, allow_struct)<span class="question-mark">?</span>;
     <span class="kw">let </span>lo = cx.lo();
-    <span class="kw">let </span>kind = <span class="kw">if </span>cx.advance_if(Tok::Dot) {
-        <span class="comment">// ⟨epath⟩ . ⟨ident⟩
-        </span><span class="kw">let </span>field = parse_ident(cx)<span class="question-mark">?</span>;
-        <span class="kw">if let </span>ExprKind::Path(path) = atom.kind {
-            ExprKind::Dot(path, field)
+    <span class="kw">let </span><span class="kw-2">mut </span>e = parse_atom(cx, allow_struct)<span class="question-mark">?</span>;
+    <span class="kw">loop </span>{
+        <span class="kw">let </span>kind = <span class="kw">if </span>cx.advance_if(Tok::Dot) {
+            <span class="comment">// ⟨trailer⟩ . ⟨ident⟩
+            </span><span class="kw">let </span>field = parse_ident(cx)<span class="question-mark">?</span>;
+            ExprKind::Dot(Box::new(e), field)
+        } <span class="kw">else if </span>cx.peek(OpenDelim(Parenthesis)) {
+            <span class="comment">// ⟨trailer⟩ ( ⟨expr⟩,* )
+            </span><span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
+            ExprKind::Call(Box::new(e), args)
         } <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(cx.unsupported_proj(atom.span));
-        }
-    } <span class="kw">else if </span>cx.peek(OpenDelim(Parenthesis)) {
-        <span class="comment">// ⟨atom⟩ ( ⟨expr⟩,* )
-        </span><span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
-        ExprKind::Call(Box::new(atom), args)
-    } <span class="kw">else </span>{
-        <span class="comment">// ⟨atom⟩
-        </span><span class="kw">return </span><span class="prelude-val">Ok</span>(atom);
-    };
-    <span class="kw">let </span>hi = cx.hi();
-    <span class="prelude-val">Ok</span>(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
+            <span class="kw">break</span>;
+        };
+        <span class="kw">let </span>hi = cx.hi();
+        e = Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) };
+    }
+    <span class="prelude-val">Ok</span>(e)
 }
 
 <span class="doccomment">/// ```text

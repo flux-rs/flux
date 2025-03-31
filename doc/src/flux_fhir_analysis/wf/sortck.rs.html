@@ -927,7 +927,10 @@
 <a href="#926" id="926">926</a>
 <a href="#927" id="927">927</a>
 <a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1200,8 +1203,11 @@
                 <span class="self">self</span>.check_expr(e2, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(sort)
             }
-            fhir::ExprKind::Dot(var, fld) =&gt; {
-                <span class="kw">let </span>sort = <span class="self">self</span>.ensure_resolved_path(<span class="kw-2">&amp;</span>var)<span class="question-mark">?</span>;
+            fhir::ExprKind::Dot(base, fld) =&gt; {
+                <span class="kw">let </span>sort = <span class="self">self</span>.synth_expr(base)<span class="question-mark">?</span>;
+                <span class="kw">let </span>sort = <span class="self">self
+                    </span>.fully_resolve(<span class="kw-2">&amp;</span>sort)
+                    .map_err(|<span class="kw">_</span>| <span class="self">self</span>.emit_err(errors::CannotInferSort::new(base.span)))<span class="question-mark">?</span>;
                 <span class="kw">match </span><span class="kw-2">&amp;</span>sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) =&gt; {
                         <span class="kw">let </span>(proj, sort) = sort_def
