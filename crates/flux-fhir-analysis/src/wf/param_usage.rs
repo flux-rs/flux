@@ -53,20 +53,35 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
         self.errors.into_result()
     }
 
+    /// Insert params that are considered to be value determined to `xi`.
+    fn insert_value_determined(&mut self, expr: &fhir::Expr) {
+        match expr.kind {
+            fhir::ExprKind::Var(path, _) if let fhir::ExprRes::Param(_, id) = path.res => {
+                self.xi.insert(id, ());
+            }
+            fhir::ExprKind::Record(fields) => {
+                for field in fields {
+                    self.insert_value_determined(field);
+                }
+            }
+            fhir::ExprKind::Constructor(_, fields, _) => {
+                for field in fields {
+                    self.insert_value_determined(&field.expr);
+                }
+            }
+            _ => {}
+        }
+    }
+
     /// Checks that refinement parameters of function sort are used in allowed positions.
-    fn check_func_params_uses(
-        &mut self,
-        expr: &fhir::Expr,
-        is_top_level_conj: bool,
-        is_top_level_var: bool,
-    ) {
+    fn check_func_params_uses(&mut self, expr: &fhir::Expr, is_top_level_conj: bool) {
         match expr.kind {
             fhir::ExprKind::BinaryOp(bin_op, e1, e2) => {
-                let is_pred = is_top_level_conj && matches!(bin_op, fhir::BinOp::And);
-                self.check_func_params_uses(e1, is_pred, false);
-                self.check_func_params_uses(e2, is_pred, false);
+                let is_top_level_conj = is_top_level_conj && matches!(bin_op, fhir::BinOp::And);
+                self.check_func_params_uses(e1, is_top_level_conj);
+                self.check_func_params_uses(e2, is_top_level_conj);
             }
-            fhir::ExprKind::UnaryOp(_, e) => self.check_func_params_uses(e, false, false),
+            fhir::ExprKind::UnaryOp(_, e) => self.check_func_params_uses(e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
                     && let fhir::ExprRes::Param(_, id) = func.res
@@ -76,13 +91,13 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                         .emit(InvalidParamPos::new(func.span, &self.infcx.param_sort(id)));
                 }
                 for arg in args {
-                    self.check_func_params_uses(arg, false, false);
+                    self.check_func_params_uses(arg, false);
                 }
             }
             fhir::ExprKind::Alias(_, func_args) => {
                 // TODO(nilehmann) should we check the usage inside the `AliasPred`?
                 for arg in func_args {
-                    self.check_func_params_uses(arg, false, is_top_level_var);
+                    self.check_func_params_uses(arg, false);
                 }
             }
             fhir::ExprKind::Var(var, _) => {
@@ -91,16 +106,11 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 {
                     self.errors.emit(InvalidParamPos::new(var.span, &sort));
                 }
-                if let fhir::ExprRes::Param(_, id) = var.res
-                    && is_top_level_var
-                {
-                    self.xi.insert(id, ());
-                }
             }
             fhir::ExprKind::IfThenElse(e1, e2, e3) => {
-                self.check_func_params_uses(e1, false, false);
-                self.check_func_params_uses(e3, false, false);
-                self.check_func_params_uses(e2, false, false);
+                self.check_func_params_uses(e1, false);
+                self.check_func_params_uses(e3, false);
+                self.check_func_params_uses(e2, false);
             }
             fhir::ExprKind::Literal(_) => {}
             fhir::ExprKind::Dot(var, _) => {
@@ -111,20 +121,29 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 }
             }
             fhir::ExprKind::Abs(_, body) => {
-                self.check_func_params_uses(body, true, is_top_level_var);
+                self.check_func_params_uses(body, true);
             }
             fhir::ExprKind::BoundedQuant(_, _, _, body) => {
-                self.check_func_params_uses(body, false, false);
+                self.check_func_params_uses(body, false);
             }
             fhir::ExprKind::Record(fields) => {
                 for field in fields {
-                    self.check_func_params_uses(field, is_top_level_conj, is_top_level_var);
+                    self.check_func_params_uses(field, is_top_level_conj);
                 }
             }
-            fhir::ExprKind::Constructor(_path, exprs, _spread) => {
-                for expr in exprs {
-                    self.check_func_params_uses(&expr.expr, false, false);
+            fhir::ExprKind::Constructor(_, fields, spread) => {
+                if let Some(spread) = spread {
+                    self.check_func_params_uses(&spread.expr, false);
                 }
+                for field in fields {
+                    self.check_func_params_uses(&field.expr, false);
+                }
+            }
+            fhir::ExprKind::Block(decls, body) => {
+                for decl in decls {
+                    self.check_func_params_uses(&decl.init, false);
+                }
+                self.check_func_params_uses(body, false);
             }
             fhir::ExprKind::Err(_) => {
                 // an error has already been reported so we can just skip
@@ -132,6 +151,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
         }
     }
 
+    /// Check that Hindly parameters in `params` appear in a value determined position
     fn check_params_are_value_determined(&mut self, params: &[fhir::RefineParam]) {
         for param in params {
             let determined = self.xi.remove(param.id);
@@ -201,16 +221,15 @@ impl<'genv> fhir::visit::Visitor<'genv> for ParamUsesChecker<'_, 'genv, '_> {
             }
             fhir::TyKind::Indexed(bty, expr) => {
                 fhir::visit::walk_bty(self, bty);
-                self.check_func_params_uses(expr, false, true);
+                self.insert_value_determined(expr);
+                self.check_func_params_uses(expr, false);
             }
-            _ => {
-                fhir::visit::walk_ty(self, ty);
-            }
+            _ => fhir::visit::walk_ty(self, ty),
         }
     }
 
     fn visit_expr(&mut self, expr: &fhir::Expr) {
-        self.check_func_params_uses(expr, true, false);
+        self.check_func_params_uses(expr, true);
     }
 
     fn visit_path_segment(&mut self, segment: &fhir::PathSegment<'genv>) {

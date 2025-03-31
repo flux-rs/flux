@@ -567,6 +567,13 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             vis.visit_refine_param(&param);
             vis.visit_expr(expr);
         }
+        ExprKind::Block(decls, body) => {
+            for decl in decls {
+                vis.visit_expr(&decl.init);
+                vis.visit_refine_param(&decl.param);
+            }
+            vis.visit_expr(body);
+        }
         ExprKind::Err(_) => {}
     }
 }
