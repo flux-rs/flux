@@ -1581,7 +1581,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 args,
                 body,
                 out,
-                comment: Some(format!("def: {did:?}")),
+                comment: Some(format!("flux def: {}", did.name())),
             };
             res.insert(did, (info.rank, fun_decl));
         }

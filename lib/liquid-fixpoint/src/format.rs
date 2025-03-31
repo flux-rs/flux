@@ -365,7 +365,11 @@ impl<T: Types> fmt::Display for FunDecl<T> {
             }),
             self.out,
             self.body
-        )
+        )?;
+        if let Some(comment) = &self.comment {
+            write!(f, "  ;; {comment}")?;
+        }
+        Ok(())
     }
 }
 
