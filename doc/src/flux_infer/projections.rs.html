@@ -1094,7 +1094,7 @@
             }
             BaseTy::Alias(AliasKind::Projection, alias_ty) =&gt; {
                 <span class="kw">let </span>(changed, ctor) = <span class="self">self</span>.normalize_projection_ty(alias_ty)<span class="question-mark">?</span>;
-                <span class="kw">let </span>ty = ctor.replace_bound_reft(<span class="kw-2">&amp;</span>sty.idx);
+                <span class="kw">let </span>ty = ctor.replace_bound_reft(<span class="kw-2">&amp;</span>sty.idx).strengthen(<span class="kw-2">&amp;</span>sty.pred);
                 <span class="kw">if </span>changed { ty.try_fold_with(<span class="self">self</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(ty) }
             }
             <span class="kw">_ </span>=&gt; sty.try_super_fold_with(<span class="self">self</span>),
