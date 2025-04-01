@@ -1364,22 +1364,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             surface::ExprKind::UnaryOp(op, box e) => {
                 fhir::ExprKind::UnaryOp(*op, self.genv().alloc(self.desugar_expr(e)))
             }
-            surface::ExprKind::Dot(path, fld) => {
-                let res = self.resolver_output().expr_path_res_map[&path.node_id];
-                if let ExprRes::Param(..) = res {
-                    let segments = self
-                        .genv()
-                        .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
-                    let path = fhir::PathExpr {
-                        segments,
-                        res,
-                        fhir_id: self.next_fhir_id(),
-                        span: path.span,
-                    };
-                    fhir::ExprKind::Dot(path, *fld)
-                } else {
-                    fhir::ExprKind::Err(self.emit(errors::InvalidDotVar { span: path.span }))
-                }
+            surface::ExprKind::Dot(base, fld) => {
+                let base = self.desugar_expr(base);
+                fhir::ExprKind::Dot(self.genv().alloc(base), *fld)
             }
             surface::ExprKind::Call(callee, args) => self.desugar_call(callee, args),
             surface::ExprKind::AssocReft(..) => {

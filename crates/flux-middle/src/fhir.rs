@@ -967,7 +967,7 @@ pub struct Range {
 #[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
     Var(PathExpr<'fhir>, Option<ParamKind>),
-    Dot(PathExpr<'fhir>, Ident),
+    Dot(&'fhir Expr<'fhir>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),

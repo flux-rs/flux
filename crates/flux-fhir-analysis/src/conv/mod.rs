@@ -2067,9 +2067,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 )
                 .at(espan)
             }
-            fhir::ExprKind::Dot(var, _) => {
+            fhir::ExprKind::Dot(base, _) => {
                 let proj = self.results().field_proj(fhir_id);
-                rty::Expr::field_proj(env.lookup(&var).to_expr(), proj)
+                rty::Expr::field_proj(self.conv_expr(env, base)?, proj)
             }
             fhir::ExprKind::Abs(params, body) => {
                 env.push_layer(Layer::list(self.results(), 0, params));

@@ -271,8 +271,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e2, &sort)?;
                 Ok(sort)
             }
-            fhir::ExprKind::Dot(var, fld) => {
-                let sort = self.ensure_resolved_path(&var)?;
+            fhir::ExprKind::Dot(base, fld) => {
+                let sort = self.synth_expr(base)?;
+                let sort = self
+                    .fully_resolve(&sort)
+                    .map_err(|_| self.emit_err(errors::CannotInferSort::new(base.span)))?;
                 match &sort {
                     rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) => {
                         let (proj, sort) = sort_def

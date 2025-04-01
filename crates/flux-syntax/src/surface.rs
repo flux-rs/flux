@@ -497,7 +497,7 @@ pub enum QuantKind {
 #[derive(Debug)]
 pub enum ExprKind {
     Path(ExprPath),
-    Dot(ExprPath, Ident),
+    Dot(Box<Expr>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),

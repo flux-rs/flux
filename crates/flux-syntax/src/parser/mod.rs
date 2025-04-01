@@ -790,31 +790,29 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 }
 
 /// ```text
-/// ⟨trailer_expr⟩ :=  ⟨epath⟩ . ⟨ident⟩
-///                 |  ⟨atom⟩ ( ⟨expr⟩,* )
+/// ⟨trailer_expr⟩ :=  ⟨trailer⟩ . ⟨ident⟩
+///                 |  ⟨trailer⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
-    let atom = parse_atom(cx, allow_struct)?;
     let lo = cx.lo();
-    let kind = if cx.advance_if(Tok::Dot) {
-        // ⟨epath⟩ . ⟨ident⟩
-        let field = parse_ident(cx)?;
-        if let ExprKind::Path(path) = atom.kind {
-            ExprKind::Dot(path, field)
+    let mut e = parse_atom(cx, allow_struct)?;
+    loop {
+        let kind = if cx.advance_if(Tok::Dot) {
+            // ⟨trailer⟩ . ⟨ident⟩
+            let field = parse_ident(cx)?;
+            ExprKind::Dot(Box::new(e), field)
+        } else if cx.peek(OpenDelim(Parenthesis)) {
+            // ⟨trailer⟩ ( ⟨expr⟩,* )
+            let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
+            ExprKind::Call(Box::new(e), args)
         } else {
-            return Err(cx.unsupported_proj(atom.span));
-        }
-    } else if cx.peek(OpenDelim(Parenthesis)) {
-        // ⟨atom⟩ ( ⟨expr⟩,* )
-        let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
-        ExprKind::Call(Box::new(atom), args)
-    } else {
-        // ⟨atom⟩
-        return Ok(atom);
-    };
-    let hi = cx.hi();
-    Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
+            break;
+        };
+        let hi = cx.hi();
+        e = Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) };
+    }
+    Ok(e)
 }
 
 /// ```text

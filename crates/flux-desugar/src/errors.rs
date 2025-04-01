@@ -25,13 +25,6 @@ pub(super) struct InvalidConstructorPath {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_dot_var, code = E0999)]
-pub(super) struct InvalidDotVar {
-    #[primary_span]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_loc, code = E0999)]
 pub(super) struct InvalidLoc {
     #[primary_span]
