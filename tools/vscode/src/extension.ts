@@ -39,7 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
         fluxViewProvider.toggle();
         const editor = vscode.window.activeTextEditor;
         if (editor) {
-            infoProvider.runFlux(workspacePath, editor.document.fileName, () => { fluxViewProvider.updateView(); });
+            infoProvider.runFlux(editor.document.fileName, () => { fluxViewProvider.updateView(); });
         }
     });
     context.subscriptions.push(disposable);
@@ -64,14 +64,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Track the set of saved (updated) source files
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument((document) => {
-            fluxViewProvider.runFlux(workspacePath, document.fileName);
+            fluxViewProvider.runFlux(document.fileName);
         }
     ));
 
     // Track the set of opened files
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument((document) => {
-            fluxViewProvider.runFlux(workspacePath, document.fileName);
+            fluxViewProvider.runFlux(document.fileName);
         }
     ));
 
@@ -87,6 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
         infoProvider.loadFluxInfo()
             .then(() => fluxViewProvider.updateView())
     });
+
 
 }
 
@@ -206,9 +207,9 @@ class InfoProvider {
         return this.currentLine;
     }
 
-    public async runFlux(workspacePath: string, file: string, beforeLoad: () => void) {
+    public async runFlux(file: string, beforeLoad: () => void) {
         if (!file.endsWith('.rs')) { return; }
-
+        const workspacePath = this._workspacePath;
         const src = this.relFile(file);
         const lastFluxAt = this._ModifiedAt.get(src);
         const lastModifiedAt = getFileModificationTime(file);
@@ -289,7 +290,9 @@ function parseEnv(env: string): TypeEnv {
 class FluxViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _panel?: vscode.WebviewPanel;
+    private _currentFile?:string;
     private _currentLine: number = 0;
+    private _interactive: boolean = false;
     private _currentState : DisplayState = DisplayState.None;
     private _currentRcx : Rcx | undefined;
     private _currentEnv : TypeEnv | undefined;
@@ -299,13 +302,36 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _infoProvider: InfoProvider) {}
 
     private show() {
-        this._panel = vscode.window.createWebviewPanel(
+        const panel = vscode.window.createWebviewPanel(
                         'FluxInfoView',
                         'Flux',
                         vscode.ViewColumn.Beside,
                         { enableScripts: true,
                           retainContextWhenHidden: true
                         });
+        this._panel = panel;
+
+        // Handle messages from the webview
+        panel.webview.onDidReceiveMessage(
+          message => {
+            switch (message.command) {
+              case 'toggleClicked':
+                this._interactive = !this._interactive;
+                console.log("ooga booga", message.text, this._interactive);
+                this.updateView();
+                return;
+              case 'runCheck':
+                if (this._currentFile) {
+                    this.runFluxCheck(this._currentFile);
+                }
+                return;
+            }
+          },
+          undefined,
+          undefined,
+        );
+
+
         this._panel.onDidDispose(() => {
             this._panel = undefined;
         });
@@ -327,10 +353,17 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    public runFlux(workspacePath: string, file: string) {
-        this._infoProvider.runFlux(workspacePath, file, () => { this.updateView(); })
+    public runFluxCheck(file: string) {
+        this._infoProvider.runFlux(file, () => { this.updateView(); })
             .then(() => this._infoProvider.loadFluxInfo())
             .then(() => this.updateView());
+    }
+
+    public runFlux(file: string) {
+        this._currentFile = file;
+        if (!this._interactive) {
+            this.runFluxCheck(file)
+        }
     }
 
     public setPosition(editor: vscode.TextEditor) {
@@ -373,6 +406,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         const config = vscode.workspace.getConfiguration('editor');
         this._fontFamily = config.get<string>('fontFamily');
         this._fontSize = config.get<number>('fontSize');
+
 
         webviewView.webview.html = this._getHtmlForWebview();
     }
@@ -545,13 +579,113 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     color: #0000FF;
                     /* Blue for object keys */
                 }
+
+                .control-row {
+                    align-items: center;
+                    justify-content: center; /* Center items horizontally */
+                    width: 100%;
+                    padding: 10px 0; /* Add some vertical padding */
+                    background-color: var(--vscode-editor-background);
+                    border-bottom: 1px solid var(--vscode-panel-border); /* Optional: adds a subtle border */
+                }
+
+                .toggle-label {
+                  margin-right: 10px;
+                  font-weight: 500;
+                }
+                .toggle-switch {
+                  position: relative;
+                  display: inline-block;
+                  width: 48px;
+                  height: 24px;
+                  margin-right: 20px;
+                }
+                .toggle-switch input {
+                  opacity: 0;
+                  width: 0;
+                  height: 0;
+                }
+                .slider {
+                  position: absolute;
+                  cursor: pointer;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  background-color: var(--vscode-disabledForeground);
+                  transition: .3s;
+                  border-radius: 24px;
+                }
+                .slider:before {
+                  position: absolute;
+                  content: "";
+                  height: 16px;
+                  width: 16px;
+                  left: 4px;
+                  bottom: 4px;
+                  background-color: white;
+                  transition: .3s;
+                  border-radius: 50%;
+                }
+                input:checked + .slider {
+                  background-color: var(--vscode-button-background);
+                }
+                input:checked + .slider:before {
+                  transform: translateX(24px);
+                }
+                button {
+                  padding: 8px 16px;
+                  border-radius: 4px;
+                  font-weight: 500;
+                  outline: none;
+                  border: none;
+                  cursor: pointer;
+                }
+                button:focus {
+                  outline: 2px solid var(--vscode-focusBorder);
+                }
+                button.disabled {
+                  background-color: var(--vscode-disabledForeground);
+                  color: var(--vscode-editor-background);
+                  cursor: not-allowed;
+                }
+                button.enabled {
+                  background-color: var(--vscode-button-background);
+                  color: var(--vscode-button-foreground);
+                }
+                button.enabled:hover {
+                  background-color: var(--vscode-button-hoverBackground);
+                }
                 </style>
             </head>
             <body>
-                <div id="cursor-position">
+              <!-- <div class="kontrol-row">
+                <span class="toggle-label">Enable Feature:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="feature-toggle">
+                    <span class="slider"></span>
+                </label>
+                <button id="check-button" class="disabled" disabled>Perform Action</button>
+              </div> -->
+
+
+              <div id="cursor-position">
                     <table style="border-collapse: collapse">
                     <tr>
-                      <th>Line</th> <td>${this._currentLine}</t>
+                      <!-- <th>Interactive</th> -->
+                      <td colspan="2">
+                        <div class="control-row">
+                          <label class="toggle-switch">
+                            <input type="checkbox" id="interactive-toggle">
+                            <span class="slider"></span>
+                          </label>
+                          <button id="check-button" class="disabled" disabled>Check</button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <tr>
+                      <th>Line</th><td>${this._currentLine}</td> <td>${this._interactive}</td>
                     </tr>
                     </table>
 
@@ -568,6 +702,36 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                         e.stopPropagation();
                         element.classList.toggle('expanded');
                     });
+                });
+            });
+
+            const vscode = acquireVsCodeApi();
+            const toggleElement = document.getElementById('interactive-toggle');
+            const checkButton = document.getElementById('check-button');
+
+            const isInteractive = ${this._interactive};
+            toggleElement.checked = isInteractive;
+            checkButton.disabled = !isInteractive;
+            checkButton.className = isInteractive ? 'enabled' : 'disabled';
+
+            toggleElement.addEventListener('click', () => {
+              console.log("interactive toggled!");
+              vscode.postMessage({
+                  command: 'toggleClicked',
+                  text: toggleElement.checked
+              });
+              if (toggleElement.checked) {
+                checkButton.className = 'enabled';
+                checkButton.disabled = false;
+              } else {
+                checkButton.className = 'disabled';
+                checkButton.disabled = true;
+              }
+            });
+
+            checkButton.addEventListener('click', () => {
+                vscode.postMessage({
+                    command: 'runCheck'
                 });
             });
             </script>
@@ -607,11 +771,6 @@ type TypeEnvBind = {
   span: StmtSpan,
 }
 type TypeEnv = TypeEnvBind[];
-
-/*
-
-*/
-
 
 type RcxBind = {
     name: string | string[],
