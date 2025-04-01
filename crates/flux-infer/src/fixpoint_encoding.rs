@@ -433,13 +433,15 @@ where
 
         let kvars = self.kcx.into_fixpoint();
 
+        // We need to collect/translate the define-funs *before* we `assume_const_values` to
+        // pick up all the constants that appear in the bodies of the defined-funs
+        let define_funs = self.ecx.define_funs(&mut self.scx)?;
+
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
         let qualifiers = self
             .ecx
             .qualifiers_for(self.def_id.local_id(), &mut self.scx)?;
-
-        let define_funs = self.ecx.define_funs(&mut self.scx)?;
 
         let mut constants = self
             .ecx
