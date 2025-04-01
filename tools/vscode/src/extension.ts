@@ -659,20 +659,10 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                 </style>
             </head>
             <body>
-              <!-- <div class="kontrol-row">
-                <span class="toggle-label">Enable Feature:</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="feature-toggle">
-                    <span class="slider"></span>
-                </label>
-                <button id="check-button" class="disabled" disabled>Perform Action</button>
-              </div> -->
-
 
               <div id="cursor-position">
                     <table style="border-collapse: collapse">
                     <tr>
-                      <!-- <th>Interactive</th> -->
                       <td colspan="2">
                         <div class="control-row">
                           <label class="toggle-switch">
@@ -685,7 +675,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     </tr>
 
                     <tr>
-                      <th>Line</th><td>${this._currentLine}</td> <td>${this._interactive}</td>
+                      <th>Line</th><td>${this._currentLine}</td>
                     </tr>
                     </table>
 
