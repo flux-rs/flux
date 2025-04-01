@@ -93,7 +93,7 @@ impl Pretty for Sort {
             Sort::Real => w!(cx, f, "real"),
             Sort::Str => w!(cx, f, "str"),
             Sort::Char => w!(cx, f, "char"),
-            Sort::BitVec(size) => w!(cx, f, "bitvec({:?})", size),
+            Sort::BitVec(size) => w!(cx, f, "bitvec<{:?}>", size),
             Sort::Loc => w!(cx, f, "loc"),
             Sort::Var(n) => w!(cx, f, "@{}", ^n.index()),
             Sort::Func(sort) => w!(cx, f, "{:?}", sort),

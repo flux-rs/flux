@@ -1,6 +1,6 @@
 # Refined Vectors
 
-[Online demo](http://goto.ucsd.edu:8091/index.html#?demo=vectors.rs)
+[Online demo](https://flux.goto.ucsd.edu/index.html#?demo=vectors.rs)
 
 While `rustc` has a keen eye for spotting nasty bugs at
 compile time, it is not omniscient. We've all groaned in

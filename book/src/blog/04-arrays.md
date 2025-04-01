@@ -1,6 +1,6 @@
 # Arrays and Const Generics
 
-[Online demo](http://goto.ucsd.edu:8091/index.html#?demo=arrays.rs)
+[Online demo](https://flux.goto.ucsd.edu/index.html#?demo=arrays.rs)
 
 Rust has a built-in notion of _arrays_ : collections of objects of
 the same type `T` whose size is known at compile time. The fact that

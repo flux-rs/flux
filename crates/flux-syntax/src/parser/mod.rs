@@ -6,7 +6,7 @@ use std::str::FromStr;
 use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
-    punctuated_with_trailing, sep1, until,
+    punctuated_with_trailing, repeat_while, sep1, until,
 };
 
 use crate::{
@@ -19,10 +19,11 @@ use crate::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
-        GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LitKind, Mutability,
-        ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
-        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, TraitAssocReft,
-        TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
+        Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
+        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
+        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        WhereBoundPredicate,
     },
 };
 
@@ -100,7 +101,7 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     cx.expect(Tok::RArrow)?;
     let output = parse_sort(cx)?;
     let body = if cx.peek(OpenDelim(Brace)) {
-        Some(parse_block_expr(cx)?)
+        Some(parse_block(cx)?)
     } else {
         cx.expect(Tok::Semi)?;
         None
@@ -114,7 +115,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     cx.expect(Tok::Qualifier)?;
     let name = parse_ident(cx)?;
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
-    let expr = parse_block_expr(cx)?;
+    let expr = parse_block(cx)?;
     let hi = cx.hi();
     Ok(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
 }
@@ -133,7 +134,7 @@ pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Tra
 
 /// ```text
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ;?
-///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block_expr⟩
+///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
 /// ```
 fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
@@ -143,7 +144,7 @@ fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     cx.expect(Tok::RArrow)?;
     let output = parse_base_sort(cx)?;
     let body = if cx.peek(OpenDelim(Brace)) {
-        Some(parse_block_expr(cx)?)
+        Some(parse_block(cx)?)
     } else {
         cx.advance_if(Tok::Semi);
         None
@@ -157,7 +158,7 @@ pub(crate) fn parse_impl_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Impl
 }
 
 /// ```text
-/// ⟨impl_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block_expr⟩
+/// ⟨impl_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
 /// ```
 fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
     let lo = cx.lo();
@@ -166,7 +167,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
     cx.expect(Tok::RArrow)?;
     let output = parse_base_sort(cx)?;
-    let body = parse_block_expr(cx)?;
+    let body = parse_block(cx)?;
     let hi = cx.hi();
     Ok(ImplAssocReft { name, params, output, body, span: cx.mk_span(lo, hi) })
 }
@@ -453,16 +454,16 @@ fn parse_asyncness(cx: &mut ParseCtxt) -> Async {
 
 /// ```text
 /// ⟨ty⟩ := _
-///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+///       | { ⟨ident⟩ ⟨,⟨ident⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | ( ⟨ty⟩,* )
-///       | { ⟨ty⟩ | ⟨expr⟩ }
-///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+///       | { ⟨ty⟩ | ⟨block_expr⟩ }
+///       | { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 ///       | & mut? ⟨ty⟩
 ///       | [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 ///       | impl ⟨path⟩
 ///       | ⟨bty⟩
 ///       | ⟨bty⟩ [ ⟨refine_arg⟩,* ]
-///       | ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+///       | ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 ///
 /// ⟨bty⟩ := ⟨path⟩ | ⟨qpath⟩ | [ ⟨ty⟩ ]
 /// ```
@@ -484,13 +485,13 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
     } else if lookahead.peek(OpenDelim(Brace)) {
         delimited(cx, Brace, |cx| {
             if cx.peek2(AnyIdent, [Tok::Comma, Tok::Dot, Tok::Colon]) {
-                // { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+                // { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
                 parse_general_exists(cx)
             } else {
-                // { ⟨ty⟩ | ⟨expr⟩ }
+                // { ⟨ty⟩ | ⟨block_expr⟩ }
                 let ty = parse_type(cx)?;
                 cx.expect(Tok::Caret)?;
-                let pred = parse_expr(cx, true)?;
+                let pred = parse_block_expr(cx)?;
                 Ok(TyKind::Constr(pred, Box::new(ty)))
             }
         })?
@@ -552,19 +553,19 @@ fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
 }
 
 /// ```text
-/// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨expr⟩ }
+/// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 /// ```
 fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
     let params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
     cx.expect(Tok::Dot)?;
     let ty = parse_type(cx)?;
-    let pred = if cx.advance_if(Tok::Caret) { Some(parse_expr(cx, true)?) } else { None };
+    let pred = if cx.advance_if(Tok::Caret) { Some(parse_block_expr(cx)?) } else { None };
     Ok(TyKind::GeneralExists { params, ty: Box::new(ty), pred })
 }
 
 /// ```text
 ///    ⟨bty⟩ [ ⟨refine_arg⟩,* ]
-/// |  ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+/// |  ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 /// |  ⟨bty⟩
 /// ```
 fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
@@ -576,7 +577,7 @@ fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
         let kind = TyKind::Indexed { bty, indices };
         Ok(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
     } else if cx.peek(OpenDelim(Brace)) {
-        // ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+        // ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
         parse_bty_exists(cx, bty)
     } else {
         // ⟨bty⟩
@@ -587,14 +588,14 @@ fn parse_bty_rhs(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
 }
 
 /// ```text
-/// ⟨bty⟩ { ⟨ident⟩ : ⟨expr⟩ }
+/// ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 /// ```
 fn parse_bty_exists(cx: &mut ParseCtxt, bty: BaseTy) -> ParseResult<Ty> {
     let lo = bty.span.lo();
     delimited(cx, Brace, |cx| {
         let bind = parse_ident(cx)?;
         cx.expect(Tok::Colon)?;
-        let pred = parse_expr(cx, true)?;
+        let pred = parse_block_expr(cx)?;
         let hi = cx.hi();
         let kind = TyKind::Exists { bind, bty, pred };
         Ok(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
@@ -878,8 +879,8 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 }
 
 /// ```text
-/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
-///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block_expr⟩
+/// ⟨bounded_quant⟩ := forall ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
+///                  | exists ⟨refine_param⟩ in ⟨int⟩..⟨int⟩ ⟨block⟩
 /// ```
 fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
@@ -896,7 +897,7 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let start = parse_int(cx)?;
     cx.expect(Tok::DotDot)?;
     let end = parse_int(cx)?;
-    let body = parse_block_expr(cx)?;
+    let body = parse_block(cx)?;
     let hi = cx.hi();
     Ok(Expr {
         kind: ExprKind::BoundedQuant(quant, param, start..end, Box::new(body)),
@@ -947,7 +948,7 @@ fn parse_expr_path_segment(cx: &mut ParseCtxt) -> ParseResult<ExprPathSegment> {
     Ok(ExprPathSegment { ident: parse_ident(cx)?, node_id: cx.next_node_id() })
 }
 
-/// `⟨if_expr⟩ := if ⟨expr⟩ ⟨block_expr⟩ ⟨ else if ⟨expr⟩ ⟨block_expr⟩ ⟩* else ⟨block_expr⟩`
+/// `⟨if_expr⟩ := if ⟨expr⟩ ⟨block⟩ ⟨ else if ⟨expr⟩ ⟨block⟩ ⟩* else ⟨block⟩`
 ///
 /// The `⟨expr⟩` in conditions is parsed with `allow_struct = false`
 fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
@@ -957,7 +958,7 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
         let lo = cx.lo();
         cx.expect(Tok::If)?;
         let cond = parse_expr(cx, false)?;
-        let then_ = parse_block_expr(cx)?;
+        let then_ = parse_block(cx)?;
         branches.push((lo, cond, then_));
         cx.expect(Tok::Else)?;
 
@@ -965,7 +966,7 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
             break;
         }
     }
-    let mut else_ = parse_block_expr(cx)?;
+    let mut else_ = parse_block(cx)?;
 
     let hi = cx.hi();
     while let Some((lo, cond, then_)) = branches.pop() {
@@ -978,9 +979,34 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     Ok(else_)
 }
 
-/// ⟨block_expr⟩ := { ⟨expr⟩ }
+/// ⟨block_expr⟩ = ⟨let_decl⟩* ⟨expr⟩
 fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
-    delimited(cx, Brace, |cx| parse_expr(cx, true))
+    let lo = cx.lo();
+    let decls = repeat_while(cx, Tok::Let, parse_let_decl)?;
+    let body = parse_expr(cx, true)?;
+    let hi = cx.hi();
+
+    if decls.is_empty() {
+        Ok(body)
+    } else {
+        let kind = ExprKind::Block(decls, Box::new(body));
+        Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
+    }
+}
+
+/// ⟨let_decl⟩ := let ⟨refine_param⟩ = ⟨expr⟩ ;
+fn parse_let_decl(cx: &mut ParseCtxt) -> ParseResult<LetDecl> {
+    cx.expect(Tok::Let)?;
+    let param = parse_refine_param(cx, false)?;
+    cx.expect(Tok::Eq)?;
+    let init = parse_expr(cx, true)?;
+    cx.expect(Tok::Semi)?;
+    Ok(LetDecl { param, init })
+}
+
+/// ⟨block⟩ := { ⟨let_decls⟩ ⟨expr⟩ }
+fn parse_block(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    delimited(cx, Brace, parse_block_expr)
 }
 
 /// ```text

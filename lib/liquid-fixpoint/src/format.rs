@@ -318,6 +318,12 @@ impl<T: Types> fmt::Display for Expr<T> {
                 let [e1, e2] = &**exprs;
                 write!(f, "({rel} {e1} {e2})")
             }
+            Expr::Let(name, exprs) => {
+                // Fixpoint only support one binder per let expressions, but it parses a singleton
+                // list of binders to be forward-compatible
+                let [e1, e2] = &**exprs;
+                write!(f, "(let (({} {e1})) {e2})", name.display())
+            }
         }
     }
 }

@@ -1,3 +1,10 @@
+//! A visitor for types in [`surface`]
+//!
+//! In general there's no specific order except that [refinement parameters] should be
+//! visited in an order that matches their scope. Name resolution relies on this gurantee.
+//!
+//! [`surface`]: crate::surface
+//! [refinement parameters]: crate::surface::RefineParam
 use rustc_span::symbol::Ident;
 
 use super::{
@@ -518,6 +525,15 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::BoundedQuant(_, i, _, e) => {
             vis.visit_refine_param(i);
             vis.visit_expr(e);
+        }
+        ExprKind::Block(decls, body) => {
+            for decl in decls {
+                // the order here is important because the parameter is not in scope
+                // in the initializer
+                vis.visit_expr(&decl.init);
+                vis.visit_refine_param(&decl.param);
+            }
+            vis.visit_expr(body);
         }
     }
 }

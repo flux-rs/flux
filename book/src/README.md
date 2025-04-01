@@ -6,4 +6,4 @@ time.
 
 See the **examples**  -- listed in the summary on the left -- to learn about Refinement types and Rust.
 
-You can try it online [here](http://goto.ucsd.edu:8091/).
+You can try it online [here](https://flux.goto.ucsd.edu/).
