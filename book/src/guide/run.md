@@ -157,6 +157,7 @@ You can set various `env` variables to customize the behavior of `flux`.
   operations, default `0`. When set to `0`, it still checks for underflow on
   unsigned integer subtraction.
 - `FLUX_SOLVER=z3` Can be either `z3` or `cvc5`.
+- `FLUX_SMT_DEFINE_FUN=1` translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them away inside `flux`.
 
 ### Config file
 
