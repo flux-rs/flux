@@ -33,10 +33,11 @@
         <link rel="stylesheet" href="css/flux.css">
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc.js"></script>
@@ -46,8 +47,8 @@
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -61,7 +62,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -74,8 +76,8 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
@@ -111,6 +113,7 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
@@ -526,7 +529,7 @@ impl __FluxExternImplStructString {
 <li><code>#[flux_rs::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
 </ul>
 <p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
-<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
+<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference" id="fr-ignore-shorthand-1"><a href="#footnote-ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
 the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
 <p>Consider the following example:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -550,9 +553,6 @@ mod A {
 <span class="boring">}</span></code></pre></pre>
 <p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
 <p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
-<div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
-<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>).</p>
-</div>
 <h2 id="opaque"><a class="header" href="#opaque">Opaque</a></h2>
 <p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -602,7 +602,11 @@ help: if you'd like to use fields of `RMap`, try annotating this method with `#[
    | |________________________________^
    = note: fields of opaque structs can only be accessed inside trusted code
 <span class="boring">}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
+<hr>
+<ol class="footnote-definition"><li id="footnote-ignore-shorthand">
+<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="regression-tests"><a class="header" href="#regression-tests">Regression Tests</a></h2>
 <p>You can run the various regression tests in the <code>tests/pos</code> and <code>tests/neg</code> directories using
 <code>cargo xtask test</code></p>
@@ -742,6 +746,448 @@ python3  path/to/flux/tools/logreader.py
 <p>The definition in the <code>flux_middle::rustc</code> module correspond to simplified version of data structures in <code>rustc</code>. They can be understood as the currently supported subset of Rust. The process of going from a definition in <code>rustc_middle</code> into <code>flux_middle::rustc</code> is called <em>lowering</em> and it is implemented in <code>flux_middle::rustc::lowering</code>.</p>
 <h3 id="lifting-and-refining"><a class="header" href="#lifting-and-refining">Lifting and Refining</a></h3>
 <p>Besides the different translation between Flux intermediate representations, there are two ways to get a refined version from a rust type. The process of going from a type in <code>hir</code> into a type in <code>fhir</code> is called <em>lifting</em>, and it is implemented in <code>flux_middle::fhir::lift</code>. The process for going from a type in <code>flux_middle::rustc::ty</code> into a <code>flux_middle::rty</code> is called <em>refining</em>, and it is implemented <code>flux_middle::rty::refining</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="users-guide"><a class="header" href="#users-guide">User's Guide</a></h1>
+<p>A list of various <code>flux</code> features as illustrated by examples in the regression tests.</p>
+<h2 id="index-refinements"><a class="header" href="#index-refinements">Index Refinements</a></h2>
+<p>Of the form <code>i32[e]</code> (<code>i32</code> equal to <code>e</code>) values.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(bool[true]))]
+pub fn assert(_b: bool) {}
+
+pub fn test00() {
+    let x = 1;
+    let y = 2;
+    assert(x + 1 == y);
+}
+
+#[flux::sig(fn() -&gt; usize[5])]
+pub fn five() -&gt; usize {
+    let x = 2;
+    let y = 3;
+    x + y
+}
+
+#[flux::sig(fn(n:usize) -&gt; usize[n+1])]
+pub fn incr(n: usize) -&gt; usize {
+    n + 1
+}
+
+pub fn test01() {
+    let a = five();
+    let b = incr(a);
+    assert(b == 6);
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="existential-refinements"><a class="header" href="#existential-refinements">Existential Refinements</a></h2>
+<p>Of the form <code>i32{v: 0 &lt;= v}</code> (non-negative <code>i32</code>) values.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x:i32) -&gt; i32{v: v &gt; x})]
+pub fn inc(x: i32) -&gt; i32 {
+    x + 1
+}
+
+#[flux::sig(fn(x:i32) -&gt; i32{v: v &lt; x})]
+pub fn dec(x: i32) -&gt; i32 {
+    x - 1
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="combining-index-and-existential-refinements"><a class="header" href="#combining-index-and-existential-refinements">Combining Index and Existential Refinements</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(k: i32{0 &lt;= k}) -&gt; i32[0])]
+pub fn test(mut k: i32) -&gt; i32 {
+    while toss() &amp;&amp; k &lt; i32::MAX - 1 {
+        k += 1;
+    }
+    while k &gt; 0 {
+        k -= 1;
+    }
+    k
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="mutable-references"><a class="header" href="#mutable-references">Mutable References</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: &amp;mut i32{v: 0 &lt;= v}))]
+pub fn test4(x: &amp;mut i32) {
+    *x += 1;
+}
+<span class="boring">}</span></code></pre></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: &amp;mut i32{v: 0 &lt;= v}))]
+pub fn test4(x: &amp;mut i32) {
+    *x -= 1; //~ ERROR assignment might be unsafe
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="strong-references"><a class="header" href="#strong-references">Strong References</a></h2>
+<p>Like <code>&amp;mut T</code> but which allow <em>strong updates</em> via <code>ensures</code> clauses</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(x: &amp;strg i32[@n]) ensures x: i32[n+1])]
+pub fn inc(x: &amp;mut i32) {
+    *x += 1;
+}
+
+#[flux::sig(fn() -&gt; i32[1])]
+pub fn test_inc() -&gt; i32 {
+    let mut x = 0;
+    inc(&amp;mut x);
+    x
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="refined-vectors-rvec"><a class="header" href="#refined-vectors-rvec">Refined Vectors <code>rvec</code></a></h2>
+<p><code>RVec</code> specification</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span>#![allow(dead_code)]
+
+<span class="boring">fn main() {
+</span>pub mod rslice;
+
+#[macro_export]
+macro_rules! rvec {
+    () =&gt; { RVec::new() };
+    ($($e:expr),+$(,)?) =&gt; {{
+        let mut res = RVec::new();
+        $( res.push($e); )*
+        res
+    }};
+    ($elem:expr; $n:expr) =&gt; {{
+        RVec::from_elem_n($elem, $n)
+    }}
+}
+
+#[flux::opaque]
+#[flux::refined_by(len: int)]
+#[flux::invariant(0 &lt;= len)]
+pub struct RVec&lt;T&gt; {
+    inner: Vec&lt;T&gt;,
+}
+
+impl&lt;T&gt; RVec&lt;T&gt; {
+    #[flux::trusted]
+    #[flux::sig(fn() -&gt; RVec&lt;T&gt;[0])]
+    pub fn new() -&gt; Self {
+        Self { inner: Vec::new() }
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T) ensures self: RVec&lt;T&gt;[n+1])]
+    pub fn push(&amp;mut self, item: T) {
+        self.inner.push(item);
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
+    pub fn len(&amp;self) -&gt; usize {
+        self.inner.len()
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; bool[n == 0])]
+    pub fn is_empty(&amp;self) -&gt; bool {
+        self.inner.is_empty()
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
+    pub fn get(&amp;self, i: usize) -&gt; &amp;T {
+        &amp;self.inner[i]
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
+    pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
+        &amp;mut self.inner[i]
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n]) -&gt; T
+    		requires n &gt; 0
+            ensures self: RVec&lt;T&gt;[n-1])]
+    pub fn pop(&amp;mut self) -&gt; T {
+        self.inner.pop().unwrap()
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], a: usize{a &lt; n}, b: usize{b &lt; n}))]
+    pub fn swap(&amp;mut self, a: usize, b: usize) {
+        self.inner.swap(a, b);
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n]) -&gt; &amp;mut [T][n])]
+    pub fn as_mut_slice(&amp;mut self) -&gt; &amp;mut [T] {
+        self.inner.as_mut_slice()
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(arr:_) -&gt; RVec&lt;T&gt;[N])]
+    pub fn from_array&lt;const N: usize&gt;(arr: [T; N]) -&gt; Self {
+        Self { inner: Vec::from(arr) }
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(xs:&amp;[T][@n]) -&gt; RVec&lt;T&gt;[n])]
+    pub fn from_slice(xs: &amp;[T]) -&gt; Self
+    where
+        T: Clone,
+    {
+        Self { inner: Vec::from(xs) }
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(T, n: usize) -&gt; RVec&lt;T&gt;[n])]
+    pub fn from_elem_n(elem: T, n: usize) -&gt; Self
+    where
+        T: Copy,
+    {
+        let mut vec = Self::new();
+        let mut i = 0;
+        while i &lt; n {
+            vec.push(elem);
+            i += 1;
+        }
+        vec
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; RVec&lt;T&gt;[n])]
+    pub fn clone(&amp;self) -&gt; Self
+    where
+        T: Clone,
+    {
+        Self { inner: self.inner.clone() }
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], other: &amp;[T][@m]) ensures self: RVec&lt;T&gt;[n + m])]
+    pub fn extend_from_slice(&amp;mut self, other: &amp;[T])
+    where
+        T: Clone,
+    {
+        self.inner.extend_from_slice(other)
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn (&amp;RVec&lt;T&gt;[@n], F) -&gt; RVec&lt;U&gt;[n])]
+    pub fn map&lt;U, F&gt;(&amp;self, f: F) -&gt; RVec&lt;U&gt;
+    where
+        F: Fn(&amp;T) -&gt; U,
+    {
+        RVec { inner: self.inner.iter().map(f).collect() }
+    }
+
+    #[flux::trusted]
+    pub fn fold&lt;B, F&gt;(&amp;self, init: B, f: F) -&gt; B
+    where
+        F: FnMut(B, &amp;T) -&gt; B,
+    {
+        self.inner.iter().fold(init, f)
+    }
+}
+
+#[flux::opaque]
+pub struct RVecIter&lt;T&gt; {
+    vec: RVec&lt;T&gt;,
+    curr: usize,
+}
+
+impl&lt;T&gt; IntoIterator for RVec&lt;T&gt; {
+    type Item = T;
+    type IntoIter = RVecIter&lt;T&gt;;
+
+    // TODO: cannot get variant of opaque struct
+    #[flux::trusted]
+    #[flux::sig(fn(RVec&lt;T&gt;) -&gt; RVecIter&lt;T&gt;)]
+    fn into_iter(self) -&gt; RVecIter&lt;T&gt; {
+        RVecIter { vec: self, curr: 0 }
+    }
+}
+
+impl&lt;T&gt; Iterator for RVecIter&lt;T&gt; {
+    type Item = T;
+
+    // TODO: cannot get variant of opaque struct
+    #[flux::trusted]
+    #[flux::sig(fn(&amp;mut RVecIter&lt;T&gt;) -&gt; Option&lt;T&gt;)]
+    fn next(&amp;mut self) -&gt; Option&lt;T&gt; {
+        self.vec.inner.pop()
+    }
+}
+
+impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
+    type Output = T;
+
+    #[flux::trusted_impl]
+    #[flux::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
+    fn index(&amp;self, index: usize) -&gt; &amp;T {
+        self.get(index)
+    }
+}
+
+impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
+    #[flux::trusted_impl]
+    #[flux::sig(fn(&amp;mut RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;mut T)]
+    fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
+        self.get_mut(index)
+    }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><code>RVec</code> clients</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[path = "../../lib/rvec.rs"]
+mod rvec;
+use rvec::RVec;
+
+#[flux::sig(fn() -&gt; RVec&lt;i32&gt;[0])]
+pub fn test0() -&gt; RVec&lt;i32&gt; {
+    let mv = rvec![];
+    mv
+}
+
+#[flux::sig(fn() -&gt; RVec&lt;i32&gt;[5])]
+pub fn test1() -&gt; RVec&lt;i32&gt; {
+    rvec![ 12; 5 ]
+}
+
+#[flux::sig(fn(n:usize) -&gt; RVec&lt;i32&gt;[n])]
+pub fn test2(n: usize) -&gt; RVec&lt;i32&gt; {
+    rvec![ 12; n ]
+}
+
+pub fn test3() -&gt; usize {
+    let v = rvec![0, 1];
+    let r = v[0];
+    let r = r + v[1];
+    r
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Binary Search</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span>#![allow(unused_attributes)]
+
+<span class="boring">fn main() {
+</span>#[path = "../../lib/rvec.rs"]
+pub mod rvec;
+use rvec::RVec;
+
+// CREDIT: https://shane-o.dev/blog/binary-search-rust
+
+#[flux::sig(fn(i32, &amp;RVec&lt;i32&gt;) -&gt; usize)]
+pub fn binary_search(k: i32, items: &amp;RVec&lt;i32&gt;) -&gt; usize {
+    let size = items.len();
+    if size &lt;= 0 {
+        return size;
+    }
+
+    let mut low: usize = 0;
+    let mut high: usize = size - 1;
+
+    while low &lt;= high {
+        // SAFE   let middle = (high + low) / 2;
+        // UNSAFE let middle = high + ((high - low) / 2);
+        let middle = low + ((high - low) / 2);
+        let current = items[middle];
+        if current == k {
+            return middle;
+        }
+        if current &gt; k {
+            if middle == 0 {
+                return size;
+            }
+            high = middle - 1
+        }
+        if current &lt; k {
+            low = middle + 1
+        }
+    }
+    size
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Heapsort</strong></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[path = "../../lib/rvec.rs"]
+mod rvec;
+use rvec::RVec;
+
+#[flux::sig(fn(&amp;mut RVec&lt;i32&gt;[@n]) -&gt; i32)]
+pub fn heap_sort(vec: &amp;mut RVec&lt;i32&gt;) -&gt; i32 {
+    let len = vec.len();
+
+    if len &lt;= 0 {
+        return 0;
+    }
+
+    let mut start = len / 2;
+    while start &gt; 0 {
+        start -= 1;
+        shift_down(vec, start, len - 1);
+    }
+
+    let mut end = len;
+    while end &gt; 1 {
+        end -= 1;
+        vec.swap(0, end);
+        shift_down(vec, 0, end - 1);
+    }
+    0
+}
+
+#[flux::sig(fn(&amp;mut RVec&lt;i32&gt;[@len], usize{v : v &lt; len}, usize{v : v &lt; len}) -&gt; i32)]
+pub fn shift_down(vec: &amp;mut RVec&lt;i32&gt;, start: usize, end: usize) -&gt; i32 {
+    let mut root = start;
+    loop {
+        let mut child = root * 2 + 1;
+        if child &gt; end {
+            break;
+        } else {
+            if child + 1 &lt;= end {
+                let a = vec[child];
+                let b = vec[child + 1];
+                if a &lt; b {
+                    child += 1;
+                }
+            }
+            let a = vec[root];
+            let b = vec[child];
+            if a &lt; b {
+                vec.swap(root, child);
+                root = child;
+            } else {
+                break;
+            }
+        }
+    }
+    0
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="requires-clauses"><a class="header" href="#requires-clauses">Requires Clauses</a></h2>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[path = "../../lib/rvec.rs"]
+mod rvec;
+use rvec::RVec;
+
+#[flux::sig(
+    fn(&amp;mut RVec&lt;i32&gt;[@n], b:bool) -&gt; i32[0]
+    requires 2 &lt;= n
+)]
+pub fn test1(vec: &amp;mut RVec&lt;i32&gt;, b: bool) -&gt; i32 {
+    let r;
+    if b {
+        r = &amp;mut vec[0];
+    } else {
+        r = &amp;mut vec[1];
+    }
+    *r = 12;
+    0
+}
+<span class="boring">}</span></code></pre></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="introducing-flux"><a class="header" href="#introducing-flux">Introducing Flux</a></h1>
 <p><a href="https://flux.goto.ucsd.edu/?example=refinements.rs">Online demo</a></p>
 <p>Types bring order to code. For example, if a variable <code>i:usize</code>
@@ -863,7 +1309,7 @@ non-negative.</p>
 </tbody></table>
 </div>
 <p>Flux allows such specifications by pairing plain Rust types
-with <em>assertions</em> <sup class="footnote-reference"><a href="#1">1</a></sup> that constrain the value. For example, we can rewrite
+with <em>assertions</em> <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> that constrain the value. For example, we can rewrite
 <code>mk_10</code> with the output type <code>i32{v:0&lt;v}</code> that specifies a weaker property:
 the value returned by <code>mk_ten</code> is positive.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -926,11 +1372,12 @@ that describe the outputs that they produce.</p>
 sharing and updates, without sacrificing thread- or memory-safety. Next time,
 we'll see how Flux melds refinements and Rust's ownership to make refinements
 happily coexist with imperative code.</p>
-<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
 <p>These are not arbitrary Rust expressions but a subset of expressions
-from logics that can be efficiently decided by <a href="https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements">SMT Solvers</a></p>
-</div>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
+from logics that can be efficiently decided by <a href="https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements">SMT Solvers</a> <a href="#fr-1-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
 <p><a href="https://flux.goto.ucsd.edu/?example=ownership.rs">Online demo</a></p>
 <p><a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">Previously</a> we saw how to refine basic Rust
 types like <code>i32</code> and <code>bool</code> with <em>indices</em> and <em>constraints</em> to
@@ -984,7 +1431,7 @@ pub fn factorial(n: i32) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>In the above code, <code>i</code> and <code>r</code> start off at <code>0</code> and <code>1</code> but then
-Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference"><a href="#1">1</a></sup></p>
+Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
 <ul>
 <li><code>i</code> has type <code>i32{v:0&lt;=v &amp;&amp; v &lt; n}</code></li>
 <li><code>r</code> has type <code>i32{v:1&lt;=v &amp;&amp; i &lt;= v}</code></li>
@@ -1130,12 +1577,12 @@ know that <code>incr</code> actually <em>increments</em> the value of <code>p</c
 its patently obvious that it will succeed!</p>
 <img src="blog/../img/test_incr.gif" width="100%">
 <p>To verify <code>test_incr</code> we need a signature for <code>incr</code> that says
-that its <em>output</em> is indeed one greater<sup class="footnote-reference"><a href="#2">2</a></sup> than its input.
+that its <em>output</em> is indeed one greater<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> than its input.
 Flux extends Rust with the notion of <strong>strong references</strong>
 of the form <code>&amp;strg T</code> which refine Rust's <code>&amp;mut T</code> to grant
 <em>exclusive</em> access to the underlying <code>T</code>. Crucially, strong
 references also let us specify how the type is <em>updated</em> when
-the function exits<sup class="footnote-reference"><a href="#3">3</a></sup>. Thus, we can use strong references to
+the function exits<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>. Thus, we can use strong references to
 type <code>incr</code> as</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1160,16 +1607,17 @@ adds a <em>strong</em> (<code>&amp;strg T</code>) reference -- a special case of
 support the cases where the type itself is <em>changed</em> by a call.</p>
 <p>Next, we'll see how refinements and ownership yield a simple refined API
 for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
-<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>For those familiar with the term, these types are <em>loop invariants</em></p>
-</div>
-<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
-<p>Setting aside the issue of overflows for now</p>
-</div>
-<div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
-<p>Thereby allowing so-called <em>strong updates</em> in the type specifications</p>
-</div>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="refined-vectors"><a class="header" href="#refined-vectors">Refined Vectors</a></h1>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>For those familiar with the term, these types are <em>loop invariants</em> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Setting aside the issue of overflows for now <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p>Thereby allowing so-called <em>strong updates</em> in the type specifications <a href="#fr-3-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="refined-vectors"><a class="header" href="#refined-vectors">Refined Vectors</a></h1>
 <p><a href="https://flux.goto.ucsd.edu/index.html#?demo=vectors.rs">Online demo</a></p>
 <p>While <code>rustc</code> has a keen eye for spotting nasty bugs at
 compile time, it is not omniscient. We've all groaned in
@@ -1313,7 +1761,7 @@ pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
 <span class="boring">}</span></code></pre></pre>
 <p>With these refined <code>get</code> methods, flux can now spot the
 ``off-by-one'' error in the following code and accepts
-the fix <sup class="footnote-reference"><a href="#1">1</a></sup></p>
+the fix <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
 <img src="blog/../img/vec_sum.gif" width="100%">
 <p>Its a bit gross to use <code>get</code> and <code>get_mut</code> directly, so instead we implement
 the <code>Index</code> and <code>IndexMut</code> traits for <code>RVec</code> which allows us to use the
@@ -1437,10 +1885,11 @@ that ensures the safety of all accesses at compile time.</p>
 <p>Next time, we'll see how these mechanisms are <em>compositional</em>
 in that we can use standard type machinery to build up
 compound structures and APIs from simple ones.</p>
-<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>Why not use an iterator? We'll get there in due course!</p>
-</div>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="arrays-and-const-generics"><a class="header" href="#arrays-and-const-generics">Arrays and Const Generics</a></h1>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>Why not use an iterator? We'll get there in due course! <a href="#fr-1-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="arrays-and-const-generics"><a class="header" href="#arrays-and-const-generics">Arrays and Const Generics</a></h1>
 <p><a href="https://flux.goto.ucsd.edu/index.html#?demo=arrays.rs">Online demo</a></p>
 <p>Rust has a built-in notion of <em>arrays</em> : collections of objects of
 the same type <code>T</code> whose size is known at compile time. The fact that

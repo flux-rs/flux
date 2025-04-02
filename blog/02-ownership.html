@@ -32,10 +32,11 @@
         <link rel="stylesheet" href="../css/flux.css">
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "../";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc.js"></script>
@@ -45,8 +46,8 @@
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -60,7 +61,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -73,8 +75,8 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
@@ -110,6 +112,7 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
@@ -207,7 +210,7 @@ pub fn factorial(n: i32) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre></pre>
 <p>In the above code, <code>i</code> and <code>r</code> start off at <code>0</code> and <code>1</code> but then
-Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference"><a href="#1">1</a></sup></p>
+Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
 <ul>
 <li><code>i</code> has type <code>i32{v:0&lt;=v &amp;&amp; v &lt; n}</code></li>
 <li><code>r</code> has type <code>i32{v:1&lt;=v &amp;&amp; i &lt;= v}</code></li>
@@ -353,12 +356,12 @@ know that <code>incr</code> actually <em>increments</em> the value of <code>p</c
 its patently obvious that it will succeed!</p>
 <img src="../img/test_incr.gif" width="100%">
 <p>To verify <code>test_incr</code> we need a signature for <code>incr</code> that says
-that its <em>output</em> is indeed one greater<sup class="footnote-reference"><a href="#2">2</a></sup> than its input.
+that its <em>output</em> is indeed one greater<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> than its input.
 Flux extends Rust with the notion of <strong>strong references</strong>
 of the form <code>&amp;strg T</code> which refine Rust's <code>&amp;mut T</code> to grant
 <em>exclusive</em> access to the underlying <code>T</code>. Crucially, strong
 references also let us specify how the type is <em>updated</em> when
-the function exits<sup class="footnote-reference"><a href="#3">3</a></sup>. Thus, we can use strong references to
+the function exits<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>. Thus, we can use strong references to
 type <code>incr</code> as</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -383,16 +386,17 @@ adds a <em>strong</em> (<code>&amp;strg T</code>) reference -- a special case of
 support the cases where the type itself is <em>changed</em> by a call.</p>
 <p>Next, we'll see how refinements and ownership yield a simple refined API
 for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
-<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>For those familiar with the term, these types are <em>loop invariants</em></p>
-</div>
-<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
-<p>Setting aside the issue of overflows for now</p>
-</div>
-<div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
-<p>Thereby allowing so-called <em>strong updates</em> in the type specifications</p>
-</div>
-
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>For those familiar with the term, these types are <em>loop invariants</em> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Setting aside the issue of overflows for now <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p>Thereby allowing so-called <em>strong updates</em> in the type specifications <a href="#fr-3-1">↩</a></p>
+</li>
+</ol>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">

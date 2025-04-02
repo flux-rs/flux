@@ -32,10 +32,11 @@
         <link rel="stylesheet" href="../css/flux.css">
 
 
-        <!-- Provide site root to javascript -->
+        <!-- Provide site root and default themes to javascript -->
         <script>
-            var path_to_root = "../";
-            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc.js"></script>
@@ -45,8 +46,8 @@
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
-                var theme = localStorage.getItem('mdbook-theme');
-                var sidebar = localStorage.getItem('mdbook-sidebar');
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
 
                 if (theme.startsWith('"') && theme.endsWith('"')) {
                     localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
@@ -60,7 +61,8 @@
 
         <!-- Set the theme before any content is loaded, prevents flash -->
         <script>
-            var theme;
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
@@ -73,8 +75,8 @@
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
-            var sidebar = null;
-            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
@@ -110,6 +112,7 @@
                             <i class="fa fa-paint-brush"></i>
                         </button>
                         <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
                             <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
@@ -343,7 +346,7 @@ impl __FluxExternImplStructString {
 <li><code>#[flux_rs::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
 </ul>
 <p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
-<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference"><a href="#ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
+<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference" id="fr-ignore-shorthand-1"><a href="#footnote-ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
 the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
 <p>Consider the following example:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -367,9 +370,6 @@ mod A {
 <span class="boring">}</span></code></pre></pre>
 <p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
 <p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
-<div class="footnote-definition" id="ignore-shorthand"><sup class="footnote-definition-label">1</sup>
-<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>).</p>
-</div>
 <h2 id="opaque"><a class="header" href="#opaque">Opaque</a></h2>
 <p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -419,7 +419,11 @@ help: if you'd like to use fields of `RMap`, try annotating this method with `#[
    | |________________________________^
    = note: fields of opaque structs can only be accessed inside trusted code
 <span class="boring">}</span></code></pre></pre>
-
+<hr>
+<ol class="footnote-definition"><li id="footnote-ignore-shorthand">
+<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
+</li>
+</ol>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
