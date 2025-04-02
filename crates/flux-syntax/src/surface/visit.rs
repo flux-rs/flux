@@ -491,8 +491,8 @@ pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
         ExprKind::Path(qpath) => vis.visit_path_expr(qpath),
-        ExprKind::Dot(qpath, fld) => {
-            vis.visit_path_expr(qpath);
+        ExprKind::Dot(base, fld) => {
+            vis.visit_expr(base);
             vis.visit_ident(*fld);
         }
         ExprKind::Literal(lit) => {

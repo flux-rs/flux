@@ -8,7 +8,8 @@
 - [Run](guide/run.md)
 - [Specs](guide/specs.md)
 - [Develop](dev/develop.md)
-  - [Architecture](dev/architecture.md)
+- [Architecture](dev/architecture.md)
+- [Use](dev/use.md)
 
 # Examples
 
@@ -20,6 +21,6 @@
 - [Structs]()
 - [Enums]()
 
------------
+---
 
 [About](about.md)

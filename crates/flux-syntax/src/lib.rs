@@ -170,12 +170,8 @@ impl<'a> ParseCtxt<'a> {
         ParseError { kind, span: self.mk_span(lo, hi) }
     }
 
-    fn unsupported_proj(&self, span: Span) -> ParseError {
-        ParseError { kind: ParseErrorKind::UnsupportedProj, span }
-    }
-
     fn cannot_be_chained(&self, lo: BytePos, hi: BytePos) -> ParseError {
-        ParseError { kind: ParseErrorKind::UnsupportedProj, span: self.mk_span(lo, hi) }
+        ParseError { kind: ParseErrorKind::CannotBeChained, span: self.mk_span(lo, hi) }
     }
 }
 
@@ -190,6 +186,5 @@ pub struct ParseError {
 pub enum ParseErrorKind {
     UnexpectedToken { expected: Vec<&'static str> },
     UnexpectedEof,
-    UnsupportedProj,
     CannotBeChained,
 }

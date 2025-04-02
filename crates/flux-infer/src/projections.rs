@@ -406,7 +406,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
             }
             BaseTy::Alias(AliasKind::Projection, alias_ty) => {
                 let (changed, ctor) = self.normalize_projection_ty(alias_ty)?;
-                let ty = ctor.replace_bound_reft(&sty.idx);
+                let ty = ctor.replace_bound_reft(&sty.idx).strengthen(&sty.pred);
                 if changed { ty.try_fold_with(self) } else { Ok(ty) }
             }
             _ => sty.try_super_fold_with(self),
