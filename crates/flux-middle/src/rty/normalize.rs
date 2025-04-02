@@ -30,7 +30,7 @@ impl Default for NormalizedDefns {
     }
 }
 
-/// This type represents the what we know about a flux-def *after*
+/// This type represents what we know about a flux-def *after*
 /// normalization, i.e. after "inlining" all or some transitively
 /// called flux-defs.
 /// - When `FLUX_SMT_DEFINE_FUN=1` is set we inline
@@ -38,7 +38,7 @@ impl Default for NormalizedDefns {
 ///   be represented  as `define-fun` in SMTLIB but leave
 ///   all *monomorphic* flux-defs un-inlined.
 /// - When the above flag is not set, we replace *every* flux-def
-///   with its transitively inlined body
+///   with its (transitively) inlined body
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct NormalizeInfo {
     /// the actual definition, with the `Binder` representing the parameters
