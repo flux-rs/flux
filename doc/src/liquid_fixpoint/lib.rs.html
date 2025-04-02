@@ -427,7 +427,19 @@
 <a href="#426" id="426">426</a>
 <a href="#427" id="427">427</a>
 <a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 </span><span class="attr">#![cfg_attr(feature = <span class="string">"nightly"</span>, feature(rustc_private))]
@@ -545,6 +557,7 @@
             <span class="kw">pub type </span>Constraint = <span class="macro-nonterminal">$crate::Constraint</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>KVarDecl = <span class="macro-nonterminal">$crate::KVarDecl</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>ConstDecl = <span class="macro-nonterminal">$crate::ConstDecl</span>&lt;FixpointTypes&gt;;
+            <span class="kw">pub type </span>FunDecl = <span class="macro-nonterminal">$crate::FunDef</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Task = <span class="macro-nonterminal">$crate::Task</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Qualifier = <span class="macro-nonterminal">$crate::Qualifier</span>&lt;FixpointTypes&gt;;
             <span class="kw">pub type </span>Sort = <span class="macro-nonterminal">$crate::Sort</span>&lt;FixpointTypes&gt;;
@@ -579,11 +592,22 @@
 }
 
 <span class="attr">#[derive_where(Hash)]
+</span><span class="kw">pub struct </span>FunDef&lt;T: Types&gt; {
+    <span class="kw">pub </span>name: T::Var,
+    <span class="kw">pub </span>args: Vec&lt;(T::Var, Sort&lt;T&gt;)&gt;,
+    <span class="kw">pub </span>out: Sort&lt;T&gt;,
+    <span class="kw">pub </span>body: Expr&lt;T&gt;,
+    <span class="attr">#[derive_where(skip)]
+    </span><span class="kw">pub </span>comment: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="attr">#[derive_where(Hash)]
 </span><span class="kw">pub struct </span>Task&lt;T: Types&gt; {
     <span class="attr">#[derive_where(skip)]
     </span><span class="kw">pub </span>comments: Vec&lt;String&gt;,
     <span class="kw">pub </span>constants: Vec&lt;ConstDecl&lt;T&gt;&gt;,
     <span class="kw">pub </span>data_decls: Vec&lt;DataDecl&lt;T&gt;&gt;,
+    <span class="kw">pub </span>define_funs: Vec&lt;FunDef&lt;T&gt;&gt;,
     <span class="kw">pub </span>kvars: Vec&lt;KVarDecl&lt;T&gt;&gt;,
     <span class="kw">pub </span>constraint: Constraint&lt;T&gt;,
     <span class="kw">pub </span>qualifiers: Vec&lt;Qualifier&lt;T&gt;&gt;,

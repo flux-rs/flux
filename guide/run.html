@@ -272,6 +272,7 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
 unsigned integer subtraction.</li>
 <li><code>FLUX_SOLVER=z3</code> Can be either <code>z3</code> or <code>cvc5</code>.</li>
+<li><code>FLUX_SMT_DEFINE_FUN=1</code> translates <em>monomorphic</em> <code>defs</code> functions into SMT <code>define-fun</code> instead of inlining them away inside <code>flux</code>.</li>
 </ul>
 <h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
 <p>The config file is a <code>.toml</code> file that contains on each line the lowercase name

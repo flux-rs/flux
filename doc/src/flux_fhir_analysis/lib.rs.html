@@ -584,7 +584,10 @@
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
 <a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -684,8 +687,11 @@
         <span class="kw">let </span><span class="prelude-val">Ok</span>(defn) = conv::conv_defn(genv, func, <span class="kw-2">&amp;</span>wfckresults).emit(<span class="kw-2">&amp;</span>errors) <span class="kw">else </span>{
             <span class="kw">continue</span>;
         };
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = defn {
-            defns.push((func.def_id, defn));
+            <span class="comment">// inline all polymorphic definitions, as they cannot be `define-fun`ed in SMT
+            </span><span class="kw">let </span>inline = !genv.is_define_fun(func.def_id.to_def_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+            defns.push((func.def_id, defn, inline));
         }
     }
     errors.into_result()<span class="question-mark">?</span>;

@@ -188,7 +188,44 @@
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
 <a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
@@ -210,7 +247,7 @@
 <span class="attr">#[derive(TyEncodable, TyDecodable)]
 </span><span class="kw">pub struct </span>NormalizedDefns {
     krate: CrateNum,
-    defns: UnordMap&lt;FluxId&lt;DefIndex&gt;, Binder&lt;Expr&gt;&gt;,
+    defns: UnordMap&lt;FluxId&lt;DefIndex&gt;, NormalizeInfo&gt;,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>NormalizedDefns {
@@ -219,27 +256,50 @@
     }
 }
 
+<span class="doccomment">/// This type represents what we know about a flux-def *after*
+/// normalization, i.e. after "inlining" all or some transitively
+/// called flux-defs.
+/// - When `FLUX_SMT_DEFINE_FUN=1` is set we inline
+///   all *polymorphic* flux-defs, since they cannot
+///   be represented  as `define-fun` in SMTLIB but leave
+///   all *monomorphic* flux-defs un-inlined.
+/// - When the above flag is not set, we replace *every* flux-def
+///   with its (transitively) inlined body
+</span><span class="attr">#[derive(Clone, TyEncodable, TyDecodable)]
+</span><span class="kw">pub struct </span>NormalizeInfo {
+    <span class="doccomment">/// the actual definition, with the `Binder` representing the parameters
+    </span><span class="kw">pub </span>body: Binder&lt;Expr&gt;,
+    <span class="doccomment">/// whether or not this function is inlined (i.e. NOT represented as `define-fun`)
+    </span><span class="kw">pub </span>inline: bool,
+    <span class="doccomment">/// the rank of this defn in the topological sort of all the flux-defs, needed so
+    /// we can specify the `define-fun` in the correct order, without any "forward"
+    /// dependencies which the SMT solver cannot handle
+    </span><span class="kw">pub </span>rank: usize,
+}
+
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    defs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;FluxLocalDefId, Binder&lt;Expr&gt;&gt;&gt;,
+    defs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;FluxLocalDefId, NormalizeInfo&gt;&gt;,
 }
 
 <span class="kw">impl </span>NormalizedDefns {
     <span class="kw">pub fn </span>new(
         genv: GlobalEnv,
-        defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;)],
+        defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;, bool)],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;FluxLocalDefId&gt;&gt; {
         <span class="comment">// 1. Topologically sort the Defns
         </span><span class="kw">let </span>ds = toposort(defns)<span class="question-mark">?</span>;
 
         <span class="comment">// 2. Expand each defn in the sorted order
         </span><span class="kw">let </span><span class="kw-2">mut </span>normalized = UnordMap::default();
-        <span class="kw">for </span>i <span class="kw">in </span>ds {
-            <span class="kw">let </span>defn = <span class="kw-2">&amp;</span>defns[i];
-            <span class="kw">let </span>body = defn
-                .<span class="number">1
-                </span>.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(genv, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>normalized)));
-            normalized.insert(defn.<span class="number">0</span>, body);
+        <span class="kw">let </span><span class="kw-2">mut </span>ids = <span class="macro">vec!</span>[];
+        <span class="kw">for </span>(rank, i) <span class="kw">in </span>ds.iter().enumerate() {
+            <span class="kw">let </span>(id, body, inline) = <span class="kw-2">&amp;</span>defns[<span class="kw-2">*</span>i];
+            <span class="kw">let </span>body = body.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(genv, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>normalized)));
+
+            <span class="kw">let </span>info = NormalizeInfo { body: body.clone(), inline: <span class="kw-2">*</span>inline, rank };
+            ids.push(<span class="kw-2">*</span>id);
+            normalized.insert(<span class="kw-2">*</span>id, info);
         }
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             krate: LOCAL_CRATE,
@@ -250,7 +310,7 @@
         })
     }
 
-    <span class="kw">pub fn </span>func_defn(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxDefId) -&gt; Binder&lt;Expr&gt; {
+    <span class="kw">pub fn </span>func_info(<span class="kw-2">&amp;</span><span class="self">self</span>, did: FluxDefId) -&gt; NormalizeInfo {
         <span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.krate, did.krate());
         <span class="self">self</span>.defns.get(<span class="kw-2">&amp;</span>did.index()).unwrap().clone()
     }
@@ -260,7 +320,9 @@
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i &lt; j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-</span><span class="kw">fn </span>toposort(defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;)]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;usize&gt;, Vec&lt;FluxLocalDefId&gt;&gt; {
+</span><span class="kw">fn </span>toposort&lt;T&gt;(
+    defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;, T)],
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;usize&gt;, Vec&lt;FluxLocalDefId&gt;&gt; {
     <span class="comment">// 1. Make a Symbol to Index map
     </span><span class="kw">let </span>s2i: UnordMap&lt;FluxLocalDefId, usize&gt; = defns
         .iter()
@@ -291,7 +353,7 @@
     }
 }
 
-<span class="kw">fn </span>local_deps(body: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;) -&gt; FxIndexSet&lt;FluxLocalDefId&gt; {
+<span class="kw">pub fn </span>local_deps(body: <span class="kw-2">&amp;</span>Binder&lt;Expr&gt;) -&gt; FxIndexSet&lt;FluxLocalDefId&gt; {
     <span class="kw">struct </span>DepsVisitor(FxIndexSet&lt;FluxLocalDefId&gt;);
     <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>DepsVisitor {
         <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
@@ -313,7 +375,7 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        defs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;FluxLocalDefId, Binder&lt;Expr&gt;&gt;&gt;,
+        defs: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>UnordMap&lt;FluxLocalDefId, NormalizeInfo&gt;&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{ genv, defs }
     }
@@ -323,10 +385,22 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(defs) = <span class="self">self</span>.defs
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = did.as_local()
         {
-            defs.get(<span class="kw-2">&amp;</span>local_id).unwrap().clone()
+            defs.get(<span class="kw-2">&amp;</span>local_id).unwrap().body.clone()
         } <span class="kw">else </span>{
-            <span class="self">self</span>.genv.normalized_defn(did)
+            <span class="self">self</span>.genv.normalized_info(did).body
         }
+    }
+
+    <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
+    </span><span class="kw">fn </span>inline(<span class="kw-2">&amp;</span><span class="self">self</span>, did: <span class="kw-2">&amp;</span>FluxDefId) -&gt; bool {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(defs) = <span class="self">self</span>.defs
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = did.as_local()
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(info) = defs.get(<span class="kw-2">&amp;</span>local_id)
+        {
+            info.inline
+        } <span class="kw">else </span>{
+            <span class="bool-val">true
+        </span>}
     }
 
     <span class="kw">fn </span>at_base(expr: Expr, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
@@ -338,7 +412,7 @@
 
     <span class="kw">fn </span>app(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>Expr, args: <span class="kw-2">&amp;</span>[Expr], espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
         <span class="kw">match </span>func.kind() {
-            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) =&gt; {
+            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) <span class="kw">if </span><span class="self">self</span>.inline(did) =&gt; {
                 <span class="kw">let </span>res = <span class="self">self</span>.func_defn(<span class="kw-2">*</span>did).replace_bound_refts(args);
                 <span class="self">Self</span>::at_base(res, espan)
             }

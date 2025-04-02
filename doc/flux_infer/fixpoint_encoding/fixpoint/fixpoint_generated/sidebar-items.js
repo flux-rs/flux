@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["BinOp","BinRel","ThyFunc"],"struct":["FixpointTypes"],"type":["Bind","ConstDecl","Constant","Constraint","DataCtor","DataDecl","DataField","Expr","KVarDecl","Pred","Qualifier","Sort","SortCtor","Task"]};
+window.SIDEBAR_ITEMS = {"enum":["BinOp","BinRel","ThyFunc"],"struct":["FixpointTypes"],"type":["Bind","ConstDecl","Constant","Constraint","DataCtor","DataDecl","DataField","Expr","FunDecl","KVarDecl","Pred","Qualifier","Sort","SortCtor","Task"]};

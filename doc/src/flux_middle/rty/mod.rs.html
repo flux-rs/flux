@@ -2791,7 +2791,7 @@
 <span class="kw">pub mod </span>canonicalize;
 <span class="kw">mod </span>expr;
 <span class="kw">pub mod </span>fold;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>normalize;
+<span class="kw">pub mod </span>normalize;
 <span class="kw">mod </span>pretty;
 <span class="kw">pub mod </span>refining;
 <span class="kw">pub mod </span>region_matching;
@@ -2820,7 +2820,7 @@
     ty::{<span class="self">self</span>, VariantDef},
 };
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">pub use </span>normalize::NormalizedDefns;
+<span class="kw">pub use </span>normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 <span class="kw">use </span>refining::{Refine <span class="kw">as _</span>, Refiner};
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 <span class="kw">use </span>rustc_hir::{LangItem, Safety, def_id::DefId};
