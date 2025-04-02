@@ -2,21 +2,11 @@ use std::{fs, io, sync::Arc};
 
 use flux_config as config;
 use tracing::{Dispatch, Level};
-use tracing_subscriber::{
-    self, Registry, filter::FilterFn, fmt::writer::BoxMakeWriter, prelude::*,
-};
+use tracing_subscriber::{self, Registry, filter::Targets, fmt::writer::BoxMakeWriter, prelude::*};
 
 const CHECKER_FILE: &str = "checker";
 
 pub fn install() -> io::Result<()> {
-    let compact_filter = FilterFn::new(|metadata| {
-        let base =
-            metadata.target() == "flux_refineck::checker" && *metadata.level() <= Level::DEBUG;
-        // new
-        // if config::dump_file_checker_trace()
-        base
-    });
-
     if config::dump_checker_trace() {
         let log_dir = config::log_dir();
         fs::create_dir_all(log_dir)?;
@@ -25,7 +15,7 @@ pub fn install() -> io::Result<()> {
         let fmt_layer = tracing_subscriber::fmt::layer()
             .with_writer(writer)
             .json()
-            .with_filter(compact_filter);
+            .with_filter(Targets::new().with_target("flux_refineck::checker", Level::DEBUG));
         let dispatch = Dispatch::new(Registry::default().with(fmt_layer));
         dispatch.clone().init();
     }

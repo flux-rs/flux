@@ -11,12 +11,8 @@ pub fn check_def() -> &'static str {
     &CONFIG.check_def
 }
 
-pub fn dump_file_checker_trace() -> &'static str {
-    &CONFIG.dump_file_checker_trace
-}
-
 pub fn dump_checker_trace() -> bool {
-    CONFIG.dump_checker_trace || !CONFIG.dump_file_checker_trace.is_empty()
+    CONFIG.dump_checker_trace
 }
 
 pub fn dump_mir() -> bool {
@@ -76,7 +72,6 @@ struct Config {
     log_dir: PathBuf,
     dump_constraint: bool,
     dump_checker_trace: bool,
-    dump_file_checker_trace: String,
     dump_fhir: bool,
     dump_rty: bool,
     dump_mir: bool,
@@ -222,7 +217,6 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("log_dir", "./log/")?
             .set_default("dump_constraint", false)?
             .set_default("dump_checker_trace", false)?
-            .set_default("dump_file_checker_trace", "")?
             .set_default("dump_mir", false)?
             .set_default("dump_fhir", false)?
             .set_default("dump_rty", false)?
