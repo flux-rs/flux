@@ -9,7 +9,7 @@ mod binder;
 pub mod canonicalize;
 mod expr;
 pub mod fold;
-pub(crate) mod normalize;
+pub mod normalize;
 mod pretty;
 pub mod refining;
 pub mod region_matching;
@@ -38,7 +38,7 @@ use flux_rustc_bridge::{
     ty::{self, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::NormalizedDefns;
+pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{LangItem, Safety, def_id::DefId};

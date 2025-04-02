@@ -133,8 +133,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_defn(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
-        self.normalized_defns(did.krate()).func_defn(did).clone()
+    pub fn normalized_info(self, did: FluxDefId) -> rty::NormalizeInfo {
+        self.normalized_defns(did.krate()).func_info(did).clone()
     }
 
     pub fn normalized_defns(self, krate: CrateNum) -> Rc<rty::NormalizedDefns> {
@@ -159,6 +159,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn func_sort(self, def_id: FluxDefId) -> QueryResult<rty::PolyFuncSort> {
         self.inner.queries.func_sort(self, def_id)
+    }
+
+    pub fn is_define_fun(self, def_id: FluxDefId) -> QueryResult<bool> {
+        let is_mono = self.func_sort(def_id)?.params().len() == 0;
+        Ok(is_mono && flux_config::smt_define_fun())
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
