@@ -2,7 +2,7 @@ use std::{fs, io, sync::Arc};
 
 use flux_config as config;
 use tracing::{Dispatch, Level};
-use tracing_subscriber::{self, Registry, filter::Targets, fmt::writer::BoxMakeWriter, prelude::*};
+use tracing_subscriber::{Registry, filter::Targets, fmt::writer::BoxMakeWriter, prelude::*};
 
 const CHECKER_FILE: &str = "checker";
 
