@@ -4,6 +4,7 @@ import * as child_process from 'child_process';
 import * as process from 'node:process';
 import { promisify } from 'util';
 import * as fs from 'fs';
+import * as readline from 'readline';
 
 const checkerPath = "log/checker";
 
@@ -27,12 +28,12 @@ export function activate(context: vscode.ExtensionContext) {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) { return []; }
 
-	// This line of code wll only be executed once when your extension is activated
+    // This line of code wll only be executed once when your extension is activated
     const workspacePath = workspaceFolders[0].uri.fsPath;
-	console.log('Extension "flux" is now active in workspace:', workspacePath);
+    console.log('Extension "flux" is now active in workspace:', workspacePath);
 
     const infoProvider = new InfoProvider(workspacePath);
-	const fluxViewProvider = new FluxViewProvider(context.extensionUri, infoProvider);
+    const fluxViewProvider = new FluxViewProvider(context.extensionUri, infoProvider);
 
 
     let disposable = vscode.commands.registerCommand('Flux.toggle', () => {
@@ -45,35 +46,35 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 
     /************************************************************/
-	// Register a custom webview panel
+    // Register a custom webview panel
 
-	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider('fluxView', fluxViewProvider)
-	);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider('fluxView', fluxViewProvider)
+    );
 
-	// Listener to track cursor position
-	context.subscriptions.push(
-		vscode.window.onDidChangeTextEditorSelection((event) => {
-			if (event.textEditor) {
+    // Listener to track cursor position
+    context.subscriptions.push(
+        vscode.window.onDidChangeTextEditorSelection((event) => {
+            if (event.textEditor) {
                 fluxViewProvider.setPosition(event.textEditor);
-			}
+            }
             fluxViewProvider.updateView();
-		})
-	);
+        })
+    );
 
     // Track the set of saved (updated) source files
     context.subscriptions.push(
         vscode.workspace.onDidSaveTextDocument((document) => {
             fluxViewProvider.runFlux(document.fileName);
         }
-    ));
+        ));
 
     // Track the set of opened files
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument((document) => {
             fluxViewProvider.runFlux(document.fileName);
         }
-    ));
+        ));
 
 
 
@@ -131,9 +132,9 @@ async function runCargoFlux(workspacePath: string, file: string) {
     const logDir = path.join(workspacePath, 'log');
     const fluxEnv = {
         ...process.env,
-        FLUX_LOG_DIR : logDir,
-        FLUX_DUMP_CHECKER_TRACE : '1',
-        FLUX_CHECK_FILES : file,
+        FLUX_LOG_DIR: logDir,
+        FLUX_DUMP_CHECKER_TRACE: '1',
+        FLUX_CHECK_FILES: file,
     };
     const command = `cargo flux`;
     console.log("Running flux:", fluxEnv, command);
@@ -141,7 +142,7 @@ async function runCargoFlux(workspacePath: string, file: string) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }
 
 type LineMap = Map<number, LineInfo>;
 
@@ -149,18 +150,18 @@ enum Position { Start, End };
 
 class InfoProvider {
 
-    constructor(private readonly _workspacePath : string) {}
+    constructor(private readonly _workspacePath: string) { }
 
     private _StartMap: Map<string, LineMap> = new Map();
     private _EndMap: Map<string, LineMap> = new Map();
-    private _ModifiedAt : Map<string, Date> = new Map();
+    private _ModifiedAt: Map<string, Date> = new Map();
 
     currentFile?: string;
     currentLine: number = 0;
     currentColumn: number = 0;
     currentPosition: Position = Position.End;
 
-    private relFile(file: string) : string {
+    private relFile(file: string): string {
         return path.relative(this._workspacePath, file);
     }
 
@@ -173,12 +174,12 @@ class InfoProvider {
 
     // for the `Start` map we want the _first_ event for that line, while for the `End` map we want the _last_ event,
     // so we need to _reverse_ the array for the `Start` map
-    private positionMap(info: LineInfo[], pos: Position) : LineMap {
-         if (pos === Position.Start) {
-              info = info.slice().reverse();
-         }
+    private positionMap(info: LineInfo[], pos: Position): LineMap {
+        if (pos === Position.Start) {
+            info = info.slice().reverse();
+        }
         return new Map(info.filter(item => item.pos === pos).map(item => [item.line, item]));
-   }
+    }
 
     private updateInfo(fileName: string, fileInfo: LineInfo[]) {
         const startMap = this.positionMap(fileInfo, Position.Start);
@@ -187,7 +188,7 @@ class InfoProvider {
         this._EndMap.set(fileName, endMap);
     }
 
-    public getLineInfo() : LineInfo | 'loading' | undefined {
+    public getLineInfo(): LineInfo | 'loading' | undefined {
         const file = this.currentFile;
         const pos = this.currentPosition;
         const line = this.currentLine;
@@ -227,17 +228,17 @@ class InfoProvider {
         this._ModifiedAt.set(src, curAt);
         // note we use `file` for the ABSOLUTE path due to odd cargo workspace behavior
         await runCargoFlux(workspacePath, file)
-   }
+    }
 
     public async loadFluxInfo() {
-      try {
-          const lineInfos = await readFluxCheckerTrace();
-          lineInfos.forEach((lineInfo, fileName) => {
-              this.updateInfo(fileName, lineInfo);
-          });
-      } catch (error) {
-          vscode.window.showErrorMessage(`Failed to load line info: ${error}`);
-      }
+        try {
+            const lineInfos = await readFluxCheckerTrace();
+            lineInfos.forEach((lineInfo, fileName) => {
+                this.updateInfo(fileName, lineInfo);
+            });
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to load line info: ${error}`);
+        }
     }
 }
 
@@ -248,9 +249,9 @@ enum DisplayState {
 }
 
 function collapseBindings(bindings: RcxBind[]): RcxBind[] {
-    let sort  : string = '';
-    let names : string[] = [];
-    let binds : RcxBind[] = [];
+    let sort: string = '';
+    let names: string[] = [];
+    let binds: RcxBind[] = [];
     for (const bind of bindings) {
         if (typeof bind.name === 'string') {
             if (bind.sort === sort) {
@@ -258,20 +259,20 @@ function collapseBindings(bindings: RcxBind[]): RcxBind[] {
                 names.push(bind.name);
             } else {
                 // new sort
-                if (names.length > 0) { binds.push({name: names, sort: sort}) };
+                if (names.length > 0) { binds.push({ name: names, sort: sort }) };
                 names = [bind.name];
                 sort = bind.sort;
             }
         }
     }
-    if (names.length > 0) { binds.push({name: names, sort: sort}) };
+    if (names.length > 0) { binds.push({ name: names, sort: sort }) };
     return binds;
 }
 
 function parseRcx(rcx: string): Rcx {
     const rcxObj = JSON.parse(rcx);
     rcxObj.bindings = collapseBindings(rcxObj.bindings);
-    rcxObj.exprs = rcxObj.exprs.map((s:any) => parseNestedString(s));
+    rcxObj.exprs = rcxObj.exprs.map((s: any) => parseNestedString(s));
     return rcxObj;
 }
 
@@ -281,54 +282,69 @@ function parseNestedString(s: string): NestedString {
 
 function parseEnv(env: string): TypeEnv {
     return JSON.parse(env)
-            .filter((bind: TypeEnvBind) => bind.name)
-            .map((b:any) => {
-                return {name: b.name, kind: b.kind, ty: parseNestedString(b.ty), span: b.span};
-            });
+        .filter((bind: TypeEnvBind) => bind.name)
+        .map((b: any) => {
+            return { name: b.name, kind: b.kind, ty: parseNestedString(b.ty), span: b.span };
+        });
 }
 
 class FluxViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _panel?: vscode.WebviewPanel;
-    private _currentFile?:string;
+    private _currentFile?: string;
     private _currentLine: number = 0;
     private _interactive: boolean = false;
-    private _currentState : DisplayState = DisplayState.None;
-    private _currentRcx : Rcx | undefined;
-    private _currentEnv : TypeEnv | undefined;
+    private _currentState: DisplayState = DisplayState.None;
+    private _currentRcx: Rcx | undefined;
+    private _currentEnv: TypeEnv | undefined;
+    private _valuesExpanded: boolean = true;
+    private _typesExpanded: boolean = true;
+    private _constraintsExpanded: boolean = true;
     private _fontFamily: string | undefined = 'Arial';
     private _fontSize: number | undefined = 14;
 
-    constructor(private readonly _extensionUri: vscode.Uri, private readonly _infoProvider: InfoProvider) {}
+    constructor(private readonly _extensionUri: vscode.Uri, private readonly _infoProvider: InfoProvider) { }
 
     private show() {
         const panel = vscode.window.createWebviewPanel(
-                        'FluxInfoView',
-                        'Flux',
-                        vscode.ViewColumn.Beside,
-                        { enableScripts: true,
-                          retainContextWhenHidden: true
-                        });
+            'FluxInfoView',
+            'Flux',
+            vscode.ViewColumn.Beside,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true
+            });
         this._panel = panel;
 
         // Handle messages from the webview
         panel.webview.onDidReceiveMessage(
-          message => {
-            switch (message.command) {
-              case 'toggleClicked':
-                this._interactive = !this._interactive;
-                console.log("ooga booga", message.text, this._interactive);
-                this.updateView();
-                return;
-              case 'runCheck':
-                if (this._currentFile) {
-                    this.runFluxCheck(this._currentFile);
+            message => {
+                switch (message.command) {
+                    case 'valuesClicked':
+                        this._valuesExpanded = !this._valuesExpanded;
+                        this.updateView();
+                        return;
+                    case 'typesClicked':
+                        this._typesExpanded = !this._typesExpanded;
+                        this.updateView();
+                        return;
+                    case 'constraintsClicked':
+                        this._constraintsExpanded = !this._constraintsExpanded;
+                        this.updateView();
+                        return;
+                    case 'interactiveClicked':
+                        this._interactive = !this._interactive;
+                        this.updateView();
+                        return;
+                    case 'runCheck':
+                        if (this._currentFile) {
+                            this.runFluxCheck(this._currentFile);
+                        }
+                        return;
                 }
-                return;
-            }
-          },
-          undefined,
-          undefined,
+            },
+            undefined,
+            undefined,
         );
 
 
@@ -338,7 +354,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         this.updateView();
     }
 
-    private hide(){
+    private hide() {
         if (this._panel) {
             this._panel.dispose();
             this._panel = undefined;
@@ -406,38 +422,57 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
         const config = vscode.workspace.getConfiguration('editor');
         this._fontFamily = config.get<string>('fontFamily');
         this._fontSize = config.get<number>('fontSize');
-
-
         webviewView.webview.html = this._getHtmlForWebview();
     }
 
     private _getHtmlForInfo() {
-        const rcxBindings = this._currentRcx?.bindings.map(bind => {
-          const name = typeof bind.name === 'string' ? bind.name : bind.name.join(' ');
-          return `
+        let rcxBindings;
+        if (this._valuesExpanded) {
+            rcxBindings = this._currentRcx?.bindings.map(bind => {
+                const name = typeof bind.name === 'string' ? bind.name : bind.name.join(' ');
+                return `
             <tr>
                 <td><b style="color: #F26123">${name}</b> : ${bind.sort} </td>
             </tr>
           `;
-          }).join('');
+            }).join('')
+        } else {
+            rcxBindings = '';
+        };
 
-        const rcxExprs = this._currentRcx?.exprs.map(expr => `
+        let rcxExprs;
+        if (this._constraintsExpanded) {
+            rcxExprs = this._currentRcx?.exprs.map(expr => `
             <tr>
                 <td>${nestedStringHtml(expr)}</td>
             </tr>
           `).join('');
+        } else {
+            rcxExprs = '';
+        }
 
-        const envBindings = this._currentEnv?.map(bind => `
+        let envBindings;
+        if (this._typesExpanded) {
+            envBindings = this._currentEnv?.map(bind => `
             <tr>
                 <td style="vertical-align: top;"><b style="color: #F26123">${bind.name}</b></td>
                 <td>${nestedStringHtml(bind.ty)}</td>
             </tr>
           `).join('');
+        } else {
+            envBindings = '';
+        }
+
+        const valuesExpanded = this._valuesExpanded ? 'expanded' : '';
+        const constraintsExpanded = this._constraintsExpanded ? 'expanded' : '';
+        const typesExpanded = this._typesExpanded ? 'expanded' : '';
 
         return `
                     <table style="border-collapse: collapse">
                     <tr>
-                      <th style="color: green">Values</th>
+                      <th style="color: green">
+                        <div class="node toggleable ${valuesExpanded}" id="values-toggle">Values</div>
+                      </th>
                     </tr>
                     ${rcxBindings}
                     </table>
@@ -445,8 +480,11 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     <br>
 
                     <table>
+
                     <tr>
-                      <th style="color: purple">Constraints</th>
+                      <th style="color: purple">
+                        <div class="node toggleable ${constraintsExpanded}" id="constraints-toggle">Constraints</div>
+                      </th>
                     </tr>
                     ${rcxExprs}
                     </table>
@@ -455,8 +493,9 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
                     <table style="border-collapse: collapse">
                     <tr>
-                      <th style="color: blue">Types</th>
-                      <td></td>
+                      <th style="color: blue">
+                        <div class="node toggleable ${typesExpanded}" id="types-toggle">Types</div>
+                      </th>
                     </tr>
                     ${envBindings}
                     </table>
@@ -464,7 +503,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
     }
 
-    private _getHtmlForMessage(message:string) {
+    private _getHtmlForMessage(message: string) {
         return `
                     <table style="border-collapse: collapse">
                     <tr>
@@ -476,7 +515,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview() {
-        let body : string;
+        let body: string;
         if (this._currentState === DisplayState.Info) {
             body = this._getHtmlForInfo();
         } else if (this._currentState === DisplayState.Loading) {
@@ -656,6 +695,13 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                 button.enabled:hover {
                   background-color: var(--vscode-button-hoverBackground);
                 }
+                .toggle-container {
+                    display: flex;
+                    align-items: bottom;
+                    vertical-align: middle;
+                    gap: 10px;
+                    margin-bottom: 20px;
+                }
                 </style>
             </head>
             <body>
@@ -665,10 +711,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                     <tr>
                       <td colspan="2">
                         <div class="control-row">
-                          <label class="toggle-switch">
-                            <input type="checkbox" id="interactive-toggle">
-                            <span class="slider"></span>
-                          </label>
+                          <label class="toggle-switch"><input type="checkbox" id="interactive-toggle"><span class="slider"></span></label>
                           <button id="check-button" class="disabled" disabled>Check</button>
                         </div>
                       </td>
@@ -685,6 +728,9 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
                 </div>
 	        <script>
+
+            const vscode = acquireVsCodeApi();
+
             document.addEventListener('DOMContentLoaded', () => {
                 const toggleables = document.querySelectorAll('.toggleable');
                 toggleables.forEach((element, index) => {
@@ -692,25 +738,49 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                         e.stopPropagation();
                         element.classList.toggle('expanded');
                     });
+                    if (element.id == "values-toggle") {
+                       element.addEventListener('click', () => {
+                          console.log("values toggled!");
+                          vscode.postMessage({
+                            command: 'valuesClicked',
+                          });
+                       });
+                    };
+                    if (element.id == "constraints-toggle") {
+                       element.addEventListener('click', () => {
+                          console.log("constraints toggled!");
+                          vscode.postMessage({
+                            command: 'constraintsClicked',
+                          });
+                       });
+                    };
+                    if (element.id == "types-toggle") {
+                       element.addEventListener('click', () => {
+                          console.log("types toggled!");
+                          vscode.postMessage({
+                            command: 'typesClicked',
+                          });
+                       });
+                    };
                 });
             });
 
-            const vscode = acquireVsCodeApi();
-            const toggleElement = document.getElementById('interactive-toggle');
+
+            const interactiveElement = document.getElementById('interactive-toggle');
             const checkButton = document.getElementById('check-button');
 
             const isInteractive = ${this._interactive};
-            toggleElement.checked = isInteractive;
+            interactiveElement.checked = isInteractive;
             checkButton.disabled = !isInteractive;
             checkButton.className = isInteractive ? 'enabled' : 'disabled';
 
-            toggleElement.addEventListener('click', () => {
+            interactiveElement.addEventListener('click', () => {
               console.log("interactive toggled!");
               vscode.postMessage({
-                  command: 'toggleClicked',
-                  text: toggleElement.checked
+                  command: 'interactiveClicked',
+                  text: interactiveElement.checked
               });
-              if (toggleElement.checked) {
+              if (interactiveElement.checked) {
                 checkButton.className = 'enabled';
                 checkButton.disabled = false;
               } else {
@@ -731,6 +801,31 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     }
 }
 
+async function readEventsStreaming(logPath: string): Promise<any[]> {
+    const events: any[] = [];
+    const fileStream = fs.createReadStream(logPath);
+
+    // Create interface for reading line by line
+    const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity // Recognize all instances of CR LF as a single line break
+    });
+
+    for await (const line of rl) {
+        if (line.trim() === '') continue;
+
+        try {
+            events.push(JSON.parse(line));
+        } catch (error) {
+            console.error(`Error parsing line: ${line.substring(0, 100)}...`);
+            console.error(error);
+            throw error; // Uncomment to stop processing on first error
+        }
+    }
+
+    return events;
+}
+
 async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
     try {
         // Get the workspace folder
@@ -740,12 +835,8 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
         // Read the file using VS Code's file system API
         const workspacePath = workspaceFolders[0].uri.fsPath;
         const logPath = path.join(workspacePath, checkerPath);
-        const logUri = vscode.Uri.file(logPath);
-        const logData = await vscode.workspace.fs.readFile(logUri);
-        const logString = Buffer.from(logData).toString('utf8');
-
-        // Parse the logString
-        const data = parseEventLog(logString);
+        const events = await readEventsStreaming(logPath);
+        const data = parseEvents(events);
         return data;
     } catch (error) {
         vscode.window.showErrorMessage(`Failed to read line info: ${error}`);
@@ -755,10 +846,10 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
 
 // TODO: add local-info to TypeEnvBind
 type TypeEnvBind = {
-  name: string | null,
-  kind: string,
-  ty: NestedString,
-  span: StmtSpan,
+    name: string | null,
+    kind: string,
+    ty: NestedString,
+    span: StmtSpan,
 }
 type TypeEnv = TypeEnvBind[];
 
@@ -786,23 +877,23 @@ type LineInfo = {
     env: string;
 }
 
-function parseStatementSpan(span: string): StmtSpan | undefined {
-    if (span) {
-        const parts = span.split(':');
-        if (parts.length === 5) {
-            const end_col_str = parts[4].split(' ')[0];
-            const end_col = parseInt(end_col_str, 10);
-            return {
-                file: parts[0],
-                start_line: parseInt(parts[1], 10),
-                start_col: parseInt(parts[2], 10),
-                end_line: parseInt(parts[1], 10),
-                end_col: end_col,
-            };
-        }
-    }
-    return undefined;
-}
+// function parseStatementSpan(span: string): StmtSpan | undefined {
+//     if (span) {
+//         const parts = span.split(':');
+//         if (parts.length === 5) {
+//             const end_col_str = parts[4].split(' ')[0];
+//             const end_col = parseInt(end_col_str, 10);
+//             return {
+//                 file: parts[0],
+//                 start_line: parseInt(parts[1], 10),
+//                 start_col: parseInt(parts[2], 10),
+//                 end_line: parseInt(parts[1], 10),
+//                 end_col: end_col,
+//             };
+//         }
+//     }
+//     return undefined;
+// }
 
 function parseStatementSpanJSON(span: string): StmtSpan | undefined {
     if (span) {
@@ -814,22 +905,24 @@ function parseStatementSpanJSON(span: string): StmtSpan | undefined {
 
 function parseEvent(event: any): [string, LineInfo] | undefined {
     try {
-    const position = event.fields.event === 'statement_start' ? Position.Start : (event.fields.event === 'statement_end' ? Position.End : undefined);
-    if (position !== undefined && event.span.name === 'refine') {
-        const stmt_span = parseStatementSpanJSON(event.fields.stmt_span_json);
-        if (stmt_span && stmt_span.file) {
-            const info = {line: stmt_span.end_line, pos: position, rcx: event.fields.rcx_json, env: event.fields.env_json};
-            return [stmt_span.file, info];
+        const position = event.fields.event === 'statement_start' ? Position.Start : (event.fields.event === 'statement_end' ? Position.End : undefined);
+        if (position !== undefined && event.span.name === 'refine') {
+            const stmt_span = parseStatementSpanJSON(event.fields.stmt_span_json);
+            if (stmt_span && stmt_span.file) {
+                const info = { line: stmt_span.end_line, pos: position, rcx: event.fields.rcx_json, env: event.fields.env_json };
+                return [stmt_span.file, info];
+            }
         }
-    }
     } catch (error) {
         console.log(`Failed to parse event: ${error}`);
     }
     return undefined;
 }
 
-function parseEventLog(logString: string): Map<string, LineInfo[]> {
-    const events = logString.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+
+
+function parseEvents(events: any[]): Map<string, LineInfo[]> {
+    // const events = logString.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
     const res = new Map();
     events.forEach(event => {
         const eventInfo = parseEvent(event);
@@ -854,30 +947,30 @@ type NestedString = {
 
 // Sample data (you'd typically get this from somewhere else)
 const sampleData: NestedString =
-    {
-        key: '',
-        text: '{..}',
-        children: [
-            {
-                key: 'f1',
-                text: '10'
-            },
-            {
-                key: 'f2',
-                text: '20'
-            },
-            {
-                key: 'f3',
-                text: '{..}',
-                children: [
-                    { key: 'f4', text: '30' },
-                    { key: 'f5', text: '40' }
-                ]
-            },
-        ]
-    };
+{
+    key: '',
+    text: '{..}',
+    children: [
+        {
+            key: 'f1',
+            text: '10'
+        },
+        {
+            key: 'f2',
+            text: '20'
+        },
+        {
+            key: 'f3',
+            text: '{..}',
+            children: [
+                { key: 'f4', text: '30' },
+                { key: 'f5', text: '40' }
+            ]
+        },
+    ]
+};
 
-function nestedStringHtml(node: NestedString) : string {
+function nestedStringHtml(node: NestedString): string {
     const hasChildren = node.children && node.children.length > 0;
     const toggleable = hasChildren ? 'toggleable' : '';
     const labelclass = hasChildren ? ' has-children' : ' primitive';
