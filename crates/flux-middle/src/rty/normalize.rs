@@ -21,7 +21,6 @@ use crate::{
 pub struct NormalizedDefns {
     krate: CrateNum,
     defns: UnordMap<FluxId<DefIndex>, NormalizeInfo>,
-    // ids: Vec<FluxLocalDefId>,
 }
 
 impl Default for NormalizedDefns {
