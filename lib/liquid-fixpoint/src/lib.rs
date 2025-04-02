@@ -116,7 +116,7 @@ macro_rules! declare_types {
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
-            pub type FunDecl = $crate::FunDecl<FixpointTypes>;
+            pub type FunDecl = $crate::FunDef<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
@@ -151,7 +151,7 @@ pub struct ConstDecl<T: Types> {
 }
 
 #[derive_where(Hash)]
-pub struct FunDecl<T: Types> {
+pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub args: Vec<(T::Var, Sort<T>)>,
     pub out: Sort<T>,
@@ -166,7 +166,7 @@ pub struct Task<T: Types> {
     pub comments: Vec<String>,
     pub constants: Vec<ConstDecl<T>>,
     pub data_decls: Vec<DataDecl<T>>,
-    pub define_funs: Vec<FunDecl<T>>,
+    pub define_funs: Vec<FunDef<T>>,
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,

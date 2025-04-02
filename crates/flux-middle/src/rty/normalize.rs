@@ -30,10 +30,24 @@ impl Default for NormalizedDefns {
     }
 }
 
+/// This type represents the what we know about a flux-def *after*
+/// normalization, i.e. after "inlining" all or some transitively
+/// called flux-defs.
+/// - When `FLUX_SMT_DEFINE_FUN=1` is set we inline
+///   all *polymorphic* flux-defs, since they cannot
+///   be represented  as `define-fun` in SMTLIB but leave
+///   all *monomorphic* flux-defs un-inlined.
+/// - When the above flag is not set, we replace *every* flux-def
+///   with its transitively inlined body
 #[derive(Clone, TyEncodable, TyDecodable)]
 pub struct NormalizeInfo {
+    /// the actual definition, with the `Binder` representing the parameters
     pub body: Binder<Expr>,
+    /// whether or not this function is inlined (i.e. NOT represented as `define-fun`)
     pub inline: bool,
+    /// the rank of this defn in the topological sort of all the flux-defs, needed so
+    /// we can specify the `define-fun` in the correct order, without any "forward"
+    /// dependencies which the SMT solver cannot handle
     pub rank: usize,
 }
 
@@ -69,6 +83,7 @@ impl NormalizedDefns {
                 .collect(),
         })
     }
+
     pub fn func_info(&self, did: FluxDefId) -> NormalizeInfo {
         debug_assert_eq!(self.krate, did.krate());
         self.defns.get(&did.index()).unwrap().clone()

@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FixpointFmt, FunDecl, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
     constraint::DEFAULT_QUALIFIERS,
 };
 
@@ -360,7 +360,7 @@ impl<T: Types> fmt::Display for Qualifier<T> {
     }
 }
 
-impl<T: Types> fmt::Display for FunDecl<T> {
+impl<T: Types> fmt::Display for FunDef<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
