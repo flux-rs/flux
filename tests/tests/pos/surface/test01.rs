@@ -2,6 +2,18 @@
 mod rvec;
 use rvec::RVec;
 
+#[flux::sig(fn(&mut RVec<i32>[@n], bool) -> i32[0] requires n >= 2)]
+pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
+    let r;
+    if b {
+        r = &mut vec[0];
+    } else {
+        r = &mut vec[1];
+    }
+    *r = 12;
+    0
+}
+
 #[flux::sig(fn(b: bool, n:i32, m:i32{n < m}) -> i32{v: 0 <= v})]
 pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     let mut x = n;
@@ -15,19 +27,6 @@ pub fn test0(b: bool, n: i32, m: i32) -> i32 {
     *r += 1;
     *r - n
 }
-
-#[flux::sig(fn(&mut RVec<i32>[@n], bool) -> i32[0] requires n >= 2)]
-pub fn test1(vec: &mut RVec<i32>, b: bool) -> i32 {
-    let r;
-    if b {
-        r = &mut vec[0];
-    } else {
-        r = &mut vec[1];
-    }
-    *r = 12;
-    0
-}
-
 #[flux::sig(fn(bool) -> i32{v: v > 0})]
 pub fn test2(b: bool) -> i32 {
     let mut x = 1;
