@@ -75,6 +75,6 @@ refineck_blame_span_note =
     related variable `{$var}` defined here with originator `{$originator}`
 
 refineck_err_with_blame_spans =
-    failed to verfy predicate: `{$pred}`
-    blamed variable: `{$blame_var}`
-    related variables: `{$related_vars}`
+    failed to verify predicate: {$pred}
+    blamed variable: {$blame_var}
+    related variables: {$related_vars}
