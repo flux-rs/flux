@@ -1592,7 +1592,9 @@
 <a href="#1591" id="1591">1591</a>
 <a href="#1592" id="1592">1592</a>
 <a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -2265,6 +2267,7 @@
     Lifetime(Lifetime),
     Type(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
     Const(ConstArg),
+    Infer,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; GenericArg&lt;<span class="lifetime">'fhir</span>&gt; {
@@ -3014,6 +3017,7 @@
             GenericArg::Type(ty) =&gt; <span class="macro">write!</span>(f, <span class="string">"{ty:?}"</span>),
             GenericArg::Lifetime(lft) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lft:?}"</span>),
             GenericArg::Const(cst) =&gt; <span class="macro">write!</span>(f, <span class="string">"{cst:?}"</span>),
+            GenericArg::Infer =&gt; <span class="macro">write!</span>(f, <span class="string">"_"</span>),
         }
     }
 }

@@ -1599,7 +1599,10 @@
 <a href="#1598" id="1598">1598</a>
 <a href="#1599" id="1599">1599</a>
 <a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -2675,6 +2678,9 @@
         }
         <span class="kw">for </span>arg <span class="kw">in </span>args {
             <span class="kw">match </span><span class="kw-2">&amp;</span>arg.kind {
+                surface::GenericArgKind::Type(ty) <span class="kw">if </span><span class="macro">matches!</span>(ty.kind, surface::TyKind::Hole) =&gt; {
+                    fhir_args.push(fhir::GenericArg::Infer);
+                }
                 surface::GenericArgKind::Type(ty) =&gt; {
                     <span class="kw">let </span>ty = <span class="self">self</span>.desugar_ty(ty);
                     fhir_args.push(fhir::GenericArg::Type(<span class="self">self</span>.genv().alloc(ty)));

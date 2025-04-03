@@ -2820,7 +2820,32 @@
 <a href="#2819" id="2819">2819</a>
 <a href="#2820" id="2820">2820</a>
 <a href="#2821" id="2821">2821</a>
-<a href="#2822" id="2822">2822</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a>
+<a href="#2827" id="2827">2827</a>
+<a href="#2828" id="2828">2828</a>
+<a href="#2829" id="2829">2829</a>
+<a href="#2830" id="2830">2830</a>
+<a href="#2831" id="2831">2831</a>
+<a href="#2832" id="2832">2832</a>
+<a href="#2833" id="2833">2833</a>
+<a href="#2834" id="2834">2834</a>
+<a href="#2835" id="2835">2835</a>
+<a href="#2836" id="2836">2836</a>
+<a href="#2837" id="2837">2837</a>
+<a href="#2838" id="2838">2838</a>
+<a href="#2839" id="2839">2839</a>
+<a href="#2840" id="2840">2840</a>
+<a href="#2841" id="2841">2841</a>
+<a href="#2842" id="2842">2842</a>
+<a href="#2843" id="2843">2843</a>
+<a href="#2844" id="2844">2844</a>
+<a href="#2845" id="2845">2845</a>
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4590,9 +4615,34 @@
                 fhir::GenericArg::Const(cst) =&gt; {
                     into.push(rty::GenericArg::Const(<span class="self">self</span>.conv_const_arg(<span class="kw-2">*</span>cst)));
                 }
+                fhir::GenericArg::Infer =&gt; {
+                    into.push(<span class="self">self</span>.conv_generic_arg_hole(env, param, segment.ident.span)<span class="question-mark">?</span>);
+                }
             }
         }
         <span class="self">self</span>.fill_generic_args_defaults(def_id, into)
+    }
+
+    <span class="kw">fn </span>conv_generic_arg_hole(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        env: <span class="kw-2">&amp;mut </span>Env,
+        param: rty::GenericParamDef,
+        span: Span,
+    ) -&gt; QueryResult&lt;rty::GenericArg&gt; {
+        <span class="kw">match </span>param.kind {
+            rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Base { .. } =&gt; {
+                <span class="kw">let </span>ty = fhir::Ty { kind: fhir::TyKind::Infer, span };
+                <span class="prelude-val">Ok</span>(<span class="self">self</span>.conv_ty_to_generic_arg(env, <span class="kw-2">&amp;</span>param, <span class="kw-2">&amp;</span>ty)<span class="question-mark">?</span>)
+            }
+            rty::GenericParamDefKind::Const { .. } =&gt; {
+                <span class="kw">let </span>cst = fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span };
+                <span class="prelude-val">Ok</span>(rty::GenericArg::Const(<span class="self">self</span>.conv_const_arg(cst)))
+            }
+            rty::GenericParamDefKind::Lifetime =&gt; {
+                <span class="kw">let </span>re = rty::Region::ReVar(<span class="self">self</span>.next_region_vid());
+                <span class="prelude-val">Ok</span>(rty::GenericArg::Lifetime(re))
+            }
+        }
     }
 
     <span class="kw">fn </span>check_generic_arg_count(
