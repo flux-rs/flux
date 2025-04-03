@@ -125,11 +125,8 @@ impl TypeFolder for &Holes {
         }
     }
 
-    // TODO:const-hole
     fn fold_bty(&mut self, bty: &rty::BaseTy) -> rty::BaseTy {
-        let res = if let rty::BaseTy::Adt(adt_def, args) = bty
-        // && false
-        {
+        if let rty::BaseTy::Adt(adt_def, args) = bty {
             let args = args
                 .iter()
                 .map(|arg| {
@@ -149,8 +146,7 @@ impl TypeFolder for &Holes {
             rty::BaseTy::Adt(adt_def.clone(), args)
         } else {
             bty.super_fold_with(self)
-        };
-        res
+        }
     }
 
     fn fold_ty(&mut self, ty: &rty::Ty) -> rty::Ty {
