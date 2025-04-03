@@ -1768,6 +1768,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 fhir::GenericArg::Const(cst) => {
                     into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)));
                 }
+                fhir::GenericArg::Infer => todo!("fill the generic arg hole"),
             }
         }
         self.fill_generic_args_defaults(def_id, into)
