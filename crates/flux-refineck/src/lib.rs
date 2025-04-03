@@ -200,10 +200,10 @@ fn report_errors(
         let vars_and_originators: String = err.blame_spans.0.iter()
                                                           .map(|(name, bp, depth)| {
                                                               let origin_str = match bp {
-                                                                  Some(BinderProvenance {originator: origin, ..}) => format!("{:?}", origin),
+                                                                  Some(BinderProvenance {originator: origin, span}) => format!("({:?}, {:?})", origin, span),
                                                                   _ => "No provenance".to_string(),
                                                               };
-                                                              format!("({:?} (depth {}): {})", name, depth, origin_str)
+                                                              format!(r#"{{"name": "{:?}", "depth": {}, "origin": {:?}}}"#, name, depth, origin_str)
                                                           }).join(", ");
         let blame_span_err = errors::ErrWithBlameSpans {
             span,
@@ -225,9 +225,9 @@ fn report_errors(
                 })
                 .collect(),
             // Omit span information in this debug print
-            related_vars: format!("{:?}", vars_and_originators),
-            blame_var: format!("{:?}", err.blame_spans.2),
-            pred: format!("{:?}", err.blame_spans.1),
+            related_vars: format!("[{}]", vars_and_originators),
+            blame_var: format!(r#""{:?}""#, err.blame_spans.2),
+            pred: format!(r#""{:?}""#, err.blame_spans.1),
         };
         genv.sess().emit_err(blame_span_err);
     }
