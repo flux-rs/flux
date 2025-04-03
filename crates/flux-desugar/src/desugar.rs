@@ -1074,6 +1074,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         }
         for arg in args {
             match &arg.kind {
+                surface::GenericArgKind::Type(ty) if matches!(ty.kind, surface::TyKind::Hole) => {
+                    fhir_args.push(fhir::GenericArg::Infer)
+                }
                 surface::GenericArgKind::Type(ty) => {
                     let ty = self.desugar_ty(ty);
                     fhir_args.push(fhir::GenericArg::Type(self.genv().alloc(ty)));
