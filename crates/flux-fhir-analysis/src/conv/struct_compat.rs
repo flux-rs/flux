@@ -107,6 +107,7 @@ struct Zipper<'genv, 'tcx> {
 struct Holes {
     sorts: UnordMap<rty::SortVid, rty::Sort>,
     subset_tys: UnordMap<rty::TyVid, rty::SubsetTy>,
+    generic_args: UnordMap<rty::TyVid, rty::GenericArg>,
     types: UnordMap<rty::TyVid, rty::Ty>,
     regions: UnordMap<rty::RegionVid, rty::Region>,
     consts: UnordMap<rty::ConstVid, rty::Const>,
@@ -122,6 +123,34 @@ impl TypeFolder for &Holes {
         } else {
             sort.super_fold_with(self)
         }
+    }
+
+    // TODO:const-hole
+    fn fold_bty(&mut self, bty: &rty::BaseTy) -> rty::BaseTy {
+        let res = if let rty::BaseTy::Adt(adt_def, args) = bty
+        // && false
+        {
+            let args = args
+                .iter()
+                .map(|arg| {
+                    if let rty::GenericArg::Ty(ty) = arg
+                        && let rty::TyKind::Infer(vid) = ty.kind()
+                    {
+                        self.generic_args
+                            .get(vid)
+                            .cloned()
+                            .unwrap_or_else(|| bug!("unfilled generic arg hole {vid:?}"))
+                    } else {
+                        arg.try_fold_with(self)
+                            .unwrap_or_else(|err| bug!("error filling generic-arg hole {err:?}"))
+                    }
+                })
+                .collect();
+            rty::BaseTy::Adt(adt_def.clone(), args)
+        } else {
+            bty.super_fold_with(self)
+        };
+        res
     }
 
     fn fold_ty(&mut self, ty: &rty::Ty) -> rty::Ty {
@@ -387,6 +416,12 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             }
             (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) => {
                 self.zip_const(ct_a, ct_b)
+            }
+            (rty::GenericArg::Ty(ty_a), _) if let rty::TyKind::Infer(vid) = ty_a.kind() => {
+                assert_ne!(vid.as_u32(), 0);
+                let b = self.adjust_bvars(b);
+                self.holes.generic_args.insert(*vid, b);
+                Ok(())
             }
             _ => Err(Mismatch::new(a, b)),
         }

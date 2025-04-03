@@ -1848,7 +1848,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         ty: &rty::Ty,
     ) -> QueryResult<rty::TyOrBase> {
         match kind {
-            rty::GenericParamDefKind::Type { .. } => Ok(rty::TyOrBase::Ty(ty.clone())),
+            rty::GenericParamDefKind::Const { .. } | rty::GenericParamDefKind::Type { .. } => {
+                Ok(rty::TyOrBase::Ty(ty.clone()))
+            }
             rty::GenericParamDefKind::Base { .. } => {
                 Ok(rty::TyOrBase::Base(self.ty_to_subset_ty_ctor(span, ty)?))
             }
