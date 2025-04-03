@@ -671,6 +671,7 @@ pub enum GenericArg<'fhir> {
     Lifetime(Lifetime),
     Type(&'fhir Ty<'fhir>),
     Const(ConstArg),
+    Infer,
 }
 
 impl<'fhir> GenericArg<'fhir> {
@@ -1420,6 +1421,7 @@ impl fmt::Debug for GenericArg<'_> {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
             GenericArg::Const(cst) => write!(f, "{cst:?}"),
+            GenericArg::Infer => write!(f, "_"),
         }
     }
 }
