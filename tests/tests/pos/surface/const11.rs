@@ -11,3 +11,9 @@ pub struct S2 {
     #[field(S1<_>[gloop])]
     pub s1: S1<MY_N>,
 }
+
+#[flux_rs::refined_by(zoo: S1)]
+pub struct S3<const M: usize> {
+    #[field(S1<_>[zoo])]
+    pub s1: S1<M>,
+}
