@@ -1768,10 +1768,33 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 fhir::GenericArg::Const(cst) => {
                     into.push(rty::GenericArg::Const(self.conv_const_arg(*cst)));
                 }
-                fhir::GenericArg::Infer => todo!("fill the generic arg hole"),
+                fhir::GenericArg::Infer => {
+                    into.push(self.conv_generic_arg_hole(env, param, segment.ident.span)?);
+                }
             }
         }
         self.fill_generic_args_defaults(def_id, into)
+    }
+
+    fn conv_generic_arg_hole(
+        &mut self,
+        env: &mut Env,
+        param: rty::GenericParamDef,
+        span: Span,
+    ) -> QueryResult<rty::GenericArg> {
+        match param.kind {
+            rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Base { .. } => {
+                let ty = fhir::Ty { kind: fhir::TyKind::Infer, span };
+                Ok(self.conv_ty_to_generic_arg(env, &param, &ty)?)
+            }
+            rty::GenericParamDefKind::Const { .. } => {
+                let cst = fhir::ConstArg { kind: fhir::ConstArgKind::Infer, span };
+                Ok(rty::GenericArg::Const(self.conv_const_arg(cst)))
+            }
+            rty::GenericParamDefKind::Lifetime => {
+                span_bug!(span, "unexpected generic arg kind");
+            }
+        }
     }
 
     fn check_generic_arg_count(
