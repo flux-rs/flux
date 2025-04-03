@@ -1792,7 +1792,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::GenericArg::Const(self.conv_const_arg(cst)))
             }
             rty::GenericParamDefKind::Lifetime => {
-                span_bug!(span, "unexpected generic arg kind");
+                let re = rty::Region::ReVar(self.next_region_vid());
+                Ok(rty::GenericArg::Lifetime(re))
             }
         }
     }
