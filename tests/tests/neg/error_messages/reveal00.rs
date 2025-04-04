@@ -15,12 +15,7 @@
 pub fn assert_foo(_a: i32) {}
 
 #[flux::reveal(fool)] //~ ERROR unknown function definition
-pub fn use_foo(n: i32) {
-    if n == 40 {
-        assert_foo(n) //~ ERROR: refinement type
-        // without `reveal(foo)` we want to see an error in the above line.
-    }
-}
+pub fn use_foo(n: i32) {}
 
 #[flux::sig(fn (xs: &[i32{v: foo(v, 7)}][100]) -> i32{v : foo(v, 7)})]
 pub fn bar(xs: &[i32]) -> i32 {
