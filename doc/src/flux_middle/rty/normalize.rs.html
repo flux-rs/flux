@@ -399,8 +399,8 @@
         {
             info.inline
         } <span class="kw">else </span>{
-            <span class="bool-val">true
-        </span>}
+            <span class="self">self</span>.genv.normalized_info(<span class="kw-2">*</span>did).inline
+        }
     }
 
     <span class="kw">fn </span>at_base(expr: Expr, espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
