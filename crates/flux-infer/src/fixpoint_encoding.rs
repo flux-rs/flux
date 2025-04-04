@@ -70,7 +70,7 @@ pub mod fixpoint {
     #[derive(Hash, Copy, Clone)]
     pub enum Var {
         Underscore,
-        Global(GlobalVar),
+        Global(GlobalVar, Option<Symbol>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor {
@@ -90,7 +90,7 @@ pub mod fixpoint {
 
     impl From<GlobalVar> for Var {
         fn from(v: GlobalVar) -> Self {
-            Self::Global(v)
+            Self::Global(v, None)
         }
     }
 
@@ -103,7 +103,8 @@ pub mod fixpoint {
     impl Identifier for Var {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                Var::Global(v) => write!(f, "c{}", v.as_u32()),
+                Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
+                Var::Global(v, Some(sym)) => write!(f, "{}${}", sym, v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
@@ -372,7 +373,7 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
 
 type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
 
-type DefMap = FxIndexMap<FluxDefId, fixpoint::GlobalVar>;
+type DefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
 
 #[derive(Eq, Hash, PartialEq)]
 enum Key<'tcx> {
@@ -828,7 +829,7 @@ impl LocalVarEnv {
 }
 
 struct ConstInfo {
-    name: fixpoint::GlobalVar,
+    name: fixpoint::Var,
     sort: fixpoint::Sort,
     val: Option<rty::Expr>,
     comment: String,
@@ -836,11 +837,7 @@ struct ConstInfo {
 
 impl ConstInfo {
     fn into_fixpoint(self) -> fixpoint::ConstDecl {
-        fixpoint::ConstDecl {
-            name: fixpoint::Var::Global(self.name),
-            sort: self.sort,
-            comment: Some(self.comment),
-        }
+        fixpoint::ConstDecl { name: self.name, sort: self.sort, comment: Some(self.comment) }
     }
 }
 
@@ -1416,18 +1413,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn register_def(&mut self, def_id: FluxDefId) -> fixpoint::GlobalVar {
-        *self
-            .def_map
-            .entry(def_id)
-            .or_insert_with(|| self.global_var_gen.fresh())
+    fn register_def(&mut self, def_id: FluxDefId) -> fixpoint::Var {
+        *self.def_map.entry(def_id).or_insert_with(|| {
+            let id = self.global_var_gen.fresh();
+            fixpoint::Var::Global(id, Some(def_id.name()))
+        })
     }
 
-    fn register_uif(
-        &mut self,
-        def_id: FluxDefId,
-        scx: &mut SortEncodingCtxt,
-    ) -> fixpoint::GlobalVar {
+    fn register_uif(&mut self, def_id: FluxDefId, scx: &mut SortEncodingCtxt) -> fixpoint::Var {
         let key = Key::Uif(def_id);
         self.const_map
             .entry(key)
@@ -1441,7 +1434,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         fixpoint::Sort::Int
                     });
                 ConstInfo {
-                    name: self.global_var_gen.fresh(),
+                    name: fixpoint::Var::Global(self.global_var_gen.fresh(), Some(def_id.name())),
                     sort,
                     val: None,
                     comment: format!("uif: {def_id:?}"),
@@ -1455,7 +1448,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: DefId,
         scx: &mut SortEncodingCtxt,
         info: &rty::ConstantInfo,
-    ) -> fixpoint::GlobalVar {
+    ) -> fixpoint::Var {
         let key = Key::Const(def_id);
         self.const_map
             .entry(key)
@@ -1467,7 +1460,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 };
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 ConstInfo {
-                    name: self.global_var_gen.fresh(),
+                    name: fixpoint::Var::Global(self.global_var_gen.fresh(), None),
                     comment: format!("rust const: {} {val:?}", def_id_to_string(def_id)),
                     sort: scx.sort_to_fixpoint(&sort),
                     val,
@@ -1483,7 +1476,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         alias_reft: &rty::AliasReft,
         fsort: rty::FuncSort,
         scx: &mut SortEncodingCtxt,
-    ) -> fixpoint::GlobalVar {
+    ) -> fixpoint::Var {
         let tcx = self.genv.tcx();
         let args = alias_reft
             .args
@@ -1494,7 +1487,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .entry(key)
             .or_insert_with(|| {
                 let comment = format!("alias reft: {alias_reft:?}");
-                let name = self.global_var_gen.fresh();
+                let name = fixpoint::Var::Global(self.global_var_gen.fresh(), None);
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
                 ConstInfo { name, comment, sort, val: None }
@@ -1507,15 +1500,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn register_const_for_lambda(
         &mut self,
         lam: &rty::Lambda,
-
         scx: &mut SortEncodingCtxt,
-    ) -> fixpoint::GlobalVar {
+    ) -> fixpoint::Var {
         let key = Key::Lambda(lam.clone());
         self.const_map
             .entry(key)
             .or_insert_with(|| {
                 let comment = format!("lambda: {lam:?}");
-                let name = self.global_var_gen.fresh();
+                let name = fixpoint::Var::Global(self.global_var_gen.fresh(), None);
                 let sort = scx.func_sort_to_fixpoint(&lam.fsort().to_poly());
                 ConstInfo { name, comment, sort, val: None }
             })
@@ -1538,7 +1530,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             })
             .collect_vec();
         for (var, val) in const_infos {
-            let e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
+            let e1 = fixpoint::Expr::Var(var);
             let e2 = self.expr_to_fixpoint(&val, scx)?;
             let pred = fixpoint::Pred::Expr(e1.eq(e2));
             constraint = fixpoint::Constraint::ForAll(
@@ -1566,7 +1558,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::FunDecl>> {
         let reveals: FxHashSet<FluxDefId> = self.genv.reveals_for(def_id)?.collect();
-
         let mut res = FxHashMap::default();
         let mut wkl = self.def_map.keys().copied().collect_vec();
         while let Some(did) = wkl.pop() {
@@ -1591,13 +1582,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
             let revealed = reveals.contains(&did);
             let body = if info.hide && !revealed { None } else { Some(body) };
+            let name = did.name();
             let fun_decl = fixpoint::FunDecl {
-                name: fixpoint::Var::Global(var),
+                name: var,
                 arity,
                 args,
                 body,
                 out,
-                comment: Some(format!("flux def: {}", did.name())),
+                comment: Some(format!("flux def: {}", name)),
             };
             res.insert(did, (info.rank, fun_decl));
         }
