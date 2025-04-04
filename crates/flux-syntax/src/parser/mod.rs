@@ -99,22 +99,23 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     }
 }
 
-fn parse_pragma_hide(cx: &mut ParseCtxt) -> ParseResult<bool> {
-    if cx.advance_if(Tok::Pound) {
-        if cx.advance_if(Tok::OpenDelim(Delimiter::Bracket)) {
-            if cx.advance_if(Tok::Hide) {
-                if cx.advance_if(Tok::CloseDelim(Delimiter::Bracket)) {
-                    return Ok(true);
-                }
-            }
+fn advance_if_many(cx: &mut ParseCtxt, toks: &[crate::lexer::Token]) -> ParseResult<bool> {
+    for tok in toks {
+        if !cx.advance_if(*tok) {
+            return Ok(false);
         }
     }
-    Ok(false)
+    Ok(true)
+}
+
+fn advance_if_pragma(cx: &mut ParseCtxt, tok: crate::lexer::Token) -> ParseResult<bool> {
+    let toks =
+        [Tok::Pound, Tok::OpenDelim(Delimiter::Bracket), tok, Tok::CloseDelim(Delimiter::Bracket)];
+    advance_if_many(cx, &toks)
 }
 
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
-    // let hide = cx.advance_if(Tok::Hide);
-    let hide = parse_pragma_hide(cx)?;
+    let hide = advance_if_pragma(cx, Tok::Hide)?;
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;
