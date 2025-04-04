@@ -569,9 +569,16 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             .owner
             .as_local()
             .map_or(&[][..], |owner_id| &self.resolver_output.qualifier_res_map[&owner_id]);
+
+        let reveal_names = self
+            .owner
+            .as_local()
+            .map_or(&[][..], |owner_id| &self.resolver_output.reveal_res_map[&owner_id]);
+
         Ok((generics, fhir::FnSig {
             header,
             qualifiers: self.genv.alloc_slice(qual_names),
+            reveals: self.genv.alloc_slice(reveal_names),
             decl: self.genv.alloc(decl),
         }))
     }

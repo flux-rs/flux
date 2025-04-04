@@ -24,7 +24,7 @@ use flux_middle::{
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
 use rustc_data_structures::{
-    fx::{FxHashMap, FxIndexMap, FxIndexSet},
+    fx::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -431,17 +431,17 @@ where
         }
         let def_span = self.def_span();
 
+        let def_id = self.def_id.local_id();
+
         let kvars = self.kcx.into_fixpoint();
 
         // We need to collect/translate the define-funs *before* we `assume_const_values` to
         // pick up all the constants that appear in the bodies of the defined-funs
-        let define_funs = self.ecx.define_funs(&mut self.scx)?;
+        let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
 
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let qualifiers = self
-            .ecx
-            .qualifiers_for(self.def_id.local_id(), &mut self.scx)?;
+        let qualifiers = self.ecx.qualifiers_for(def_id, &mut self.scx)?;
 
         let mut constants = self
             .ecx
@@ -1560,7 +1560,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .try_collect()
     }
 
-    fn define_funs(&mut self, scx: &mut SortEncodingCtxt) -> QueryResult<Vec<fixpoint::FunDecl>> {
+    fn define_funs(
+        &mut self,
+        def_id: LocalDefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<Vec<fixpoint::FunDecl>> {
+        let reveals: FxHashSet<FluxDefId> = self.genv.reveals_for(def_id)?.collect();
+
         let mut res = FxHashMap::default();
         let mut wkl = self.def_map.keys().copied().collect_vec();
         while let Some(did) = wkl.pop() {
@@ -1583,7 +1589,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 wkl.push(dep.to_def_id());
             }
             let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
-            let body = if info.hide { None } else { Some(body) };
+            let revealed = reveals.contains(&did);
+            let body = if info.hide && !revealed { None } else { Some(body) };
             let fun_decl = fixpoint::FunDecl {
                 name: fixpoint::Var::Global(var),
                 arity,

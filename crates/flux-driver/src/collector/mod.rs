@@ -347,11 +347,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
 
         let qual_names: Option<surface::QualNames> = attrs.qual_names();
+
+        let reveal_names: Option<surface::RevealNames> = attrs.reveal_names();
+
         Ok(self
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names }))
+            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -429,6 +432,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }
             ("qualifiers", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)?
+            }
+            ("reveal", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_reveal_names, FluxAttrKind::RevealNames)?
             }
             ("defs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
@@ -556,6 +562,7 @@ enum FluxAttrKind {
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
+    RevealNames(surface::RevealNames),
     Items(Vec<surface::Item>),
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
@@ -645,6 +652,10 @@ impl FluxAttrs {
         read_attr!(self, QualNames)
     }
 
+    fn reveal_names(&mut self) -> Option<surface::RevealNames> {
+        read_attr!(self, RevealNames)
+    }
+
     fn ty_alias(&mut self) -> Option<surface::TyAlias> {
         read_attr!(self, TypeAlias)
     }
@@ -714,6 +725,7 @@ impl FluxAttrKind {
             FluxAttrKind::Generics(_) => attr_name!(Generics),
             FluxAttrKind::Items(_) => attr_name!(Items),
             FluxAttrKind::QualNames(_) => attr_name!(QualNames),
+            FluxAttrKind::RevealNames(_) => attr_name!(RevealNames),
             FluxAttrKind::Field(_) => attr_name!(Field),
             FluxAttrKind::Constant(_) => attr_name!(Constant),
             FluxAttrKind::Variant(_) => attr_name!(Variant),

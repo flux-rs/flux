@@ -485,6 +485,8 @@ pub struct FnSig<'fhir> {
     pub header: FnHeader,
     //// List of local qualifiers for this function
     pub qualifiers: &'fhir [FluxLocalDefId],
+    //// List of reveals for this function
+    pub reveals: &'fhir [FluxDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
@@ -1171,6 +1173,15 @@ pub enum SpecFuncKind {
     Uif(FluxDefId),
     /// User-defined functions with a body definition
     Def(FluxDefId),
+}
+
+impl SpecFuncKind {
+    pub fn def_id(&self) -> Option<FluxDefId> {
+        match self {
+            SpecFuncKind::Thy(_) => None,
+            SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) => Some(*flux_id),
+        }
+    }
 }
 
 impl<'fhir> Generics<'fhir> {

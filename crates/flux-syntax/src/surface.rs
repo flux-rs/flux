@@ -161,6 +161,11 @@ pub struct QualNames {
     pub names: Vec<Ident>,
 }
 
+#[derive(Debug, Default)]
+pub struct RevealNames {
+    pub names: Vec<Ident>,
+}
+
 #[derive(Debug)]
 pub struct RefineParam {
     pub ident: Ident,
@@ -238,6 +243,7 @@ pub struct TraitAssocReft {
 pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
+    pub reveal_names: Option<RevealNames>,
 }
 
 #[derive(Debug)]

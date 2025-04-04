@@ -157,6 +157,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .filter(move |qual| qual.global || names.contains(&qual.def_id)))
     }
 
+    pub fn reveals_for(self, did: LocalDefId) -> QueryResult<impl Iterator<Item = FluxDefId>> {
+        let reveals = self.map().fn_reveals_for(did)?;
+        Ok(reveals.iter().copied())
+    }
+
     pub fn func_sort(self, def_id: FluxDefId) -> QueryResult<rty::PolyFuncSort> {
         self.inner.queries.func_sort(self, def_id)
     }
@@ -586,6 +591,14 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         // This is called on adts when checking invariants
         if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
             Ok(fn_sig.qualifiers)
+        } else {
+            Ok(&[])
+        }
+    }
+
+    pub fn fn_reveals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxDefId]> {
+        if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
+            Ok(fn_sig.reveals)
         } else {
             Ok(&[])
         }

@@ -21,8 +21,8 @@ use crate::{
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
         Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
+        Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
 };
@@ -67,6 +67,11 @@ fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
     let names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)?;
     Ok(QualNames { names })
+}
+
+pub(crate) fn parse_reveal_names(cx: &mut ParseCtxt) -> ParseResult<RevealNames> {
+    let names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)?;
+    Ok(RevealNames { names })
 }
 
 pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
