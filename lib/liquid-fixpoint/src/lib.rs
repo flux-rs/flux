@@ -153,9 +153,11 @@ pub struct ConstDecl<T: Types> {
 #[derive_where(Hash)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
+    pub arity: usize,
     pub args: Vec<(T::Var, Sort<T>)>,
     pub out: Sort<T>,
-    pub body: Expr<T>,
+    // Optional body for uninterpreted ("hide") functions
+    pub body: Option<Expr<T>>,
     #[derive_where(skip)]
     pub comment: Option<String>,
 }

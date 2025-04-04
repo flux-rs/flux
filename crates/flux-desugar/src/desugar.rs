@@ -67,7 +67,7 @@ pub(crate) fn desugar_spec_func<'genv>(
         let params = spec_func.sort_vars.len();
         let sort = cx.desugar_sort(&spec_func.output, None);
         let args = cx.desugar_refine_params(&spec_func.params);
-        fhir::SpecFunc { def_id, params, args, sort, body }
+        fhir::SpecFunc { def_id, params, args, sort, body, hide: spec_func.hide }
     })
 }
 

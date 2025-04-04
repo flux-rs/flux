@@ -13,6 +13,9 @@
     }
 }]
 
+// NOTE: This test fails when we run with `FLUX_SMT_DEFINE_FUN=1`
+// as errors are reported in some other place than shown below.
+
 #[flux::sig(fn(x: i32{ chunky(x) }))] //~ NOTE inside this call
 fn assertp(_x: i32) {}
 

@@ -82,7 +82,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
 
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
-    if lookahead.peek(Tok::Fn) {
+    if lookahead.peek([Tok::Hide, Tok::Fn]) {
         parse_reft_func(cx).map(Item::FuncDef)
     } else if lookahead.peek([Tok::Local, Tok::Qualifier]) {
         parse_qualifier(cx).map(Item::Qualifier)
@@ -94,6 +94,7 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
 }
 
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
+    let hide = cx.advance_if(Tok::Hide);
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;
@@ -106,7 +107,7 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
         cx.expect(Tok::Semi)?;
         None
     };
-    Ok(SpecFunc { name, sort_vars, params, output, body })
+    Ok(SpecFunc { name, sort_vars, params, output, body, hide })
 }
 
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {

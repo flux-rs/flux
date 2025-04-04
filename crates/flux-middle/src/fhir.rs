@@ -1160,6 +1160,7 @@ pub struct SpecFunc<'fhir> {
     pub args: &'fhir [RefineParam<'fhir>],
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
+    pub hide: bool,
 }
 
 #[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]

@@ -102,7 +102,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
         if let Some(defn) = defn {
             // inline all polymorphic definitions, as they cannot be `define-fun`ed in SMT
             let inline = !genv.is_define_fun(func.def_id.to_def_id()).emit(&genv)?;
-            defns.push((func.def_id, defn, inline));
+            defns.push((func.def_id, defn, inline, func.hide));
         }
     }
     errors.into_result()?;

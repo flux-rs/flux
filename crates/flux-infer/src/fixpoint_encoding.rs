@@ -1130,14 +1130,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Var(self.register_uif(*def_id, scx).into())
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
-                if flux_config::smt_define_fun() {
-                    fixpoint::Expr::Var(self.register_def(*def_id).into())
-                } else {
-                    span_bug!(
-                        self.def_span,
-                        "unexpected global function `{def_id:?}`. Function must be normalized away at this point"
-                    )
-                }
+                fixpoint::Expr::Var(self.register_def(*def_id).into())
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
@@ -1575,21 +1568,25 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 continue;
             }
             let var = self.register_def(did);
-            let out = self
+
+            let (arity, out) = self
                 .genv
                 .func_sort(did)
-                .map(|sort| scx.func_sort_output_to_fixpoint(&sort))
+                .map(|sort| (sort.arity(), scx.func_sort_output_to_fixpoint(&sort)))
                 .unwrap_or_else(|err| {
                     self.errors.emit(err.at(self.def_span));
-                    fixpoint::Sort::Int
+                    (0, fixpoint::Sort::Int)
                 });
+
             let info = self.genv.normalized_info(did);
             for dep in rty::normalize::local_deps(&info.body) {
                 wkl.push(dep.to_def_id());
             }
             let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
+            let body = if info.hide { None } else { Some(body) };
             let fun_decl = fixpoint::FunDecl {
                 name: fixpoint::Var::Global(var),
+                arity,
                 args,
                 body,
                 out,
@@ -1602,13 +1599,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let decls = res
             .into_iter()
             .sorted_by(|(_, (rank1, _)), (_, (rank2, _))| rank1.cmp(rank2))
-            .filter_map(|(def_id, (_, decl))| {
-                let is_define = self.genv.is_define_fun(def_id).unwrap_or_else(|err| {
-                    self.errors.emit(err.at(self.def_span));
-                    false
-                });
-                if is_define { Some(decl) } else { None }
-            })
+            .map(|(_, (_, decl))| decl)
+            // .filter_map(|(def_id, (_, decl))| {
+            //     let is_define = self.genv.is_define_fun(def_id).unwrap_or_else(|err| {
+            //         self.errors.emit(err.at(self.def_span));
+            //         false
+            //     });
+            //     if is_define { Some(decl) } else { None }
+            // })
             .collect_vec();
 
         Ok(decls)

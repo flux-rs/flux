@@ -1071,6 +1071,14 @@ impl PolyFuncSort {
     pub fn instantiate(&self, args: &[SortArg]) -> FuncSort {
         self.fsort.fold_with(&mut SortSubst::new(args))
     }
+
+    pub fn arity(&self) -> usize {
+        self.params
+            .iter()
+            .filter(|kind| matches!(kind, SortParamKind::Sort))
+            .collect_vec()
+            .len()
+    }
 }
 
 /// An argument for a generic parameter in a [`Sort`] which can be either a generic sort or a
