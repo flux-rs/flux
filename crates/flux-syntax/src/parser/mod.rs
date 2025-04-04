@@ -4,6 +4,7 @@ mod utils;
 use std::str::FromStr;
 
 use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
+use rustc_ast::token::Delimiter;
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
     punctuated_with_trailing, repeat_while, sep1, until,
@@ -87,7 +88,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
 
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
-    if lookahead.peek([Tok::Hide, Tok::Fn]) {
+    if lookahead.peek([Tok::Pound, Tok::Fn]) {
         parse_reft_func(cx).map(Item::FuncDef)
     } else if lookahead.peek([Tok::Local, Tok::Qualifier]) {
         parse_qualifier(cx).map(Item::Qualifier)
@@ -98,8 +99,22 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     }
 }
 
+fn parse_pragma_hide(cx: &mut ParseCtxt) -> ParseResult<bool> {
+    if cx.advance_if(Tok::Pound) {
+        if cx.advance_if(Tok::OpenDelim(Delimiter::Bracket)) {
+            if cx.advance_if(Tok::Hide) {
+                if cx.advance_if(Tok::CloseDelim(Delimiter::Bracket)) {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
-    let hide = cx.advance_if(Tok::Hide);
+    // let hide = cx.advance_if(Tok::Hide);
+    let hide = parse_pragma_hide(cx)?;
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;

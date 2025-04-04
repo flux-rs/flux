@@ -1,10 +1,10 @@
 #![flux::defs {
-    hide
+    #[hide]
     fn mod33(n:int) -> int {
         n % 33
     }
 
-    hide
+    #[hide]
     fn foo(n:int, k:int) -> bool {
       mod33(n) == k
     }
