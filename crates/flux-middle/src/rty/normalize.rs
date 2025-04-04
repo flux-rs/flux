@@ -20,7 +20,7 @@ use crate::{
 #[derive(TyEncodable, TyDecodable)]
 pub struct NormalizedDefns {
     krate: CrateNum,
-    defns: UnordMap<FluxId<DefIndex>, NormalizeInfo>,
+    pub defns: UnordMap<FluxId<DefIndex>, NormalizeInfo>,
 }
 
 impl Default for NormalizedDefns {

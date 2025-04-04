@@ -236,6 +236,8 @@ pub trait TypeFoldable: TypeVisitable {
 
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
     fn normalize(&self, genv: GlobalEnv) -> Self {
+        // todo-use normalized defns from genv?
+        // let defns = genv.normalized_defns(LOCAL_CRATE);
         self.fold_with(&mut Normalizer::new(genv, None))
     }
 
