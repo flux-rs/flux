@@ -172,7 +172,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         {
             info.inline
         } else {
-            true
+            self.genv.normalized_info(*did).inline
         }
     }
 
