@@ -479,7 +479,12 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ErrorEmitter <span class="kw">as _</span>};
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
@@ -918,7 +923,12 @@
 
     <span class="kw">fn </span>lift_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fn_sig: hir::FnSig) -&gt; fhir::FnSig&lt;<span class="lifetime">'genv</span>&gt; {
         <span class="kw">let </span>decl = <span class="self">self</span>.lift_fn_decl_inner(fn_sig.span, fn_sig.decl);
-        fhir::FnSig { header: fn_sig.header, qualifiers: <span class="kw-2">&amp;</span>[], decl: <span class="self">self</span>.genv.alloc(decl) }
+        fhir::FnSig {
+            header: fn_sig.header,
+            qualifiers: <span class="kw-2">&amp;</span>[],
+            reveals: <span class="kw-2">&amp;</span>[],
+            decl: <span class="self">self</span>.genv.alloc(decl),
+        }
     }
 
     <span class="kw">pub fn </span>lift_foreign_item(

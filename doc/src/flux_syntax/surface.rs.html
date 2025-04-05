@@ -664,7 +664,17 @@
 <a href="#663" id="663">663</a>
 <a href="#664" id="664">664</a>
 <a href="#665" id="665">665</a>
-<a href="#666" id="666">666</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::{fmt, ops::Range};
 
@@ -728,6 +738,10 @@
     <span class="kw">pub </span>output: Sort,
     <span class="doccomment">/// Body of the function. If not present this definition corresponds to an uninterpreted function.
     </span><span class="kw">pub </span>body: <span class="prelude-ty">Option</span>&lt;Expr&gt;,
+    <span class="doccomment">/// Is this function "hidden" i.e. to be considered
+    /// as uninterpreted by default (only makes sense if `body` is_some ...)
+    /// as otherwise it is *always* uninterpreted.
+    </span><span class="kw">pub </span>hide: bool,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -823,6 +837,11 @@
     <span class="kw">pub </span>names: Vec&lt;Ident&gt;,
 }
 
+<span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">pub struct </span>RevealNames {
+    <span class="kw">pub </span>names: Vec&lt;Ident&gt;,
+}
+
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>RefineParam {
     <span class="kw">pub </span>ident: Ident,
@@ -900,6 +919,7 @@
 </span><span class="kw">pub struct </span>FnSpec {
     <span class="kw">pub </span>fn_sig: <span class="prelude-ty">Option</span>&lt;FnSig&gt;,
     <span class="kw">pub </span>qual_names: <span class="prelude-ty">Option</span>&lt;QualNames&gt;,
+    <span class="kw">pub </span>reveal_names: <span class="prelude-ty">Option</span>&lt;RevealNames&gt;,
 }
 
 <span class="attr">#[derive(Debug)]

@@ -488,7 +488,9 @@
 <a href="#487" id="487">487</a>
 <a href="#488" id="488">488</a>
 <a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 </span><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -901,6 +903,8 @@
     <span class="kw">pub </span>expr_path_res_map: UnordMap&lt;NodeId, fhir::ExprRes&gt;,
     <span class="doccomment">/// The resolved list of local qualifiers per function
     </span><span class="kw">pub </span>qualifier_res_map: UnordMap&lt;OwnerId, Vec&lt;def_id::FluxLocalDefId&gt;&gt;,
+    <span class="doccomment">/// The resolved list of local reveals per function
+    </span><span class="kw">pub </span>reveal_res_map: UnordMap&lt;OwnerId, Vec&lt;def_id::FluxDefId&gt;&gt;,
 }
 
 <span class="attr">#[extension(<span class="kw">pub trait </span>PlaceExt)]

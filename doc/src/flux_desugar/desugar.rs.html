@@ -1602,7 +1602,14 @@
 <a href="#1601" id="1601">1601</a>
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -1671,7 +1678,7 @@
         <span class="kw">let </span>params = spec_func.sort_vars.len();
         <span class="kw">let </span>sort = cx.desugar_sort(<span class="kw-2">&amp;</span>spec_func.output, <span class="prelude-val">None</span>);
         <span class="kw">let </span>args = cx.desugar_refine_params(<span class="kw-2">&amp;</span>spec_func.params);
-        fhir::SpecFunc { def_id, params, args, sort, body }
+        fhir::SpecFunc { def_id, params, args, sort, body, hide: spec_func.hide }
     })
 }
 
@@ -2173,9 +2180,16 @@
             </span>.owner
             .as_local()
             .map_or(<span class="kw-2">&amp;</span>[][..], |owner_id| <span class="kw-2">&amp;</span><span class="self">self</span>.resolver_output.qualifier_res_map[<span class="kw-2">&amp;</span>owner_id]);
+
+        <span class="kw">let </span>reveal_names = <span class="self">self
+            </span>.owner
+            .as_local()
+            .map_or(<span class="kw-2">&amp;</span>[][..], |owner_id| <span class="kw-2">&amp;</span><span class="self">self</span>.resolver_output.reveal_res_map[<span class="kw-2">&amp;</span>owner_id]);
+
         <span class="prelude-val">Ok</span>((generics, fhir::FnSig {
             header,
             qualifiers: <span class="self">self</span>.genv.alloc_slice(qual_names),
+            reveals: <span class="self">self</span>.genv.alloc_slice(reveal_names),
             decl: <span class="self">self</span>.genv.alloc(decl),
         }))
     }

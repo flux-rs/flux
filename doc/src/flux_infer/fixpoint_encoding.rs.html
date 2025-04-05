@@ -1653,7 +1653,15 @@
 <a href="#1652" id="1652">1652</a>
 <a href="#1653" id="1653">1653</a>
 <a href="#1654" id="1654">1654</a>
-<a href="#1655" id="1655">1655</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1655" id="1655">1655</a>
+<a href="#1656" id="1656">1656</a>
+<a href="#1657" id="1657">1657</a>
+<a href="#1658" id="1658">1658</a>
+<a href="#1659" id="1659">1659</a>
+<a href="#1660" id="1660">1660</a>
+<a href="#1661" id="1661">1661</a>
+<a href="#1662" id="1662">1662</a>
+<a href="#1663" id="1663">1663</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -1679,7 +1687,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>liquid_fixpoint::{FixpointResult, SmtSolver};
 <span class="kw">use </span>rustc_data_structures::{
-    fx::{FxHashMap, FxIndexMap, FxIndexSet},
+    fx::{FxHashMap, FxHashSet, FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
 <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
@@ -1725,7 +1733,7 @@
     <span class="attr">#[derive(Hash, Copy, Clone)]
     </span><span class="kw">pub enum </span>Var {
         Underscore,
-        Global(GlobalVar),
+        Global(GlobalVar, <span class="prelude-ty">Option</span>&lt;Symbol&gt;),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor {
@@ -1745,7 +1753,7 @@
 
     <span class="kw">impl </span>From&lt;GlobalVar&gt; <span class="kw">for </span>Var {
         <span class="kw">fn </span>from(v: GlobalVar) -&gt; <span class="self">Self </span>{
-            <span class="self">Self</span>::Global(v)
+            <span class="self">Self</span>::Global(v, <span class="prelude-val">None</span>)
         }
     }
 
@@ -1758,7 +1766,8 @@
     <span class="kw">impl </span>Identifier <span class="kw">for </span>Var {
         <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
             <span class="kw">match </span><span class="self">self </span>{
-                Var::Global(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"c{}"</span>, v.as_u32()),
+                Var::Global(v, <span class="prelude-val">None</span>) =&gt; <span class="macro">write!</span>(f, <span class="string">"c{}"</span>, v.as_u32()),
+                Var::Global(v, <span class="prelude-val">Some</span>(sym)) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}${}"</span>, sym, v.as_u32()),
                 Var::Local(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"a{}"</span>, v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) =&gt; {
                     <span class="macro">write!</span>(f, <span class="string">"mkadt{}${}"</span>, adt_id.as_u32(), variant_idx.as_u32())
@@ -1921,10 +1930,6 @@
         }
     }
 
-    <span class="kw">fn </span>func_sort_output_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: <span class="kw-2">&amp;</span>rty::PolyFuncSort) -&gt; fixpoint::Sort {
-        <span class="self">self</span>.sort_to_fixpoint(fsort.skip_binders().output())
-    }
-
     <span class="kw">fn </span>func_sort_to_fixpoint(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fsort: <span class="kw-2">&amp;</span>rty::PolyFuncSort) -&gt; fixpoint::Sort {
         <span class="kw">let </span>params = fsort.params().len();
         <span class="kw">let </span>fsort = fsort.skip_binders();
@@ -2027,7 +2032,7 @@
 
 <span class="kw">type </span>ConstMap&lt;<span class="lifetime">'tcx</span>&gt; = FxIndexMap&lt;Key&lt;<span class="lifetime">'tcx</span>&gt;, ConstInfo&gt;;
 
-<span class="kw">type </span>DefMap = FxIndexMap&lt;FluxDefId, fixpoint::GlobalVar&gt;;
+<span class="kw">type </span>DefMap = FxIndexMap&lt;FluxDefId, fixpoint::Var&gt;;
 
 <span class="attr">#[derive(Eq, Hash, PartialEq)]
 </span><span class="kw">enum </span>Key&lt;<span class="lifetime">'tcx</span>&gt; {
@@ -2086,17 +2091,17 @@
         }
         <span class="kw">let </span>def_span = <span class="self">self</span>.def_span();
 
+        <span class="kw">let </span>def_id = <span class="self">self</span>.def_id.local_id();
+
         <span class="kw">let </span>kvars = <span class="self">self</span>.kcx.into_fixpoint();
 
         <span class="comment">// We need to collect/translate the define-funs *before* we `assume_const_values` to
         // pick up all the constants that appear in the bodies of the defined-funs
-        </span><span class="kw">let </span>define_funs = <span class="self">self</span>.ecx.define_funs(<span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>(define_funs, <span class="kw-2">mut </span>define_constants) = <span class="self">self</span>.ecx.define_funs(def_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>constraint = <span class="self">self</span>.ecx.assume_const_values(constraint, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>qualifiers = <span class="self">self
-            </span>.ecx
-            .qualifiers_for(<span class="self">self</span>.def_id.local_id(), <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>qualifiers = <span class="self">self</span>.ecx.qualifiers_for(def_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>constants = <span class="self">self
             </span>.ecx
@@ -2104,6 +2109,7 @@
             .into_values()
             .map(ConstInfo::into_fixpoint)
             .collect_vec();
+        constants.append(<span class="kw-2">&amp;mut </span>define_constants);
 
         <span class="kw">for </span>rel <span class="kw">in </span>fixpoint::BinRel::INEQUALITIES {
             <span class="comment">// ∀a. a -&gt; a -&gt; bool
@@ -2163,9 +2169,16 @@
         {
             <span class="kw">return </span>result.clone();
         }
+        <span class="kw">if </span>config::verbose() {
+            <span class="macro">println!</span>(<span class="string">"TRACE:START:fixpoint: run_task_with_cache {key}"</span>);
+        };
         <span class="kw">let </span>result = task
             .run()
             .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint: {err:?}"</span>));
+
+        <span class="kw">if </span>config::verbose() {
+            <span class="macro">println!</span>(<span class="string">"TRACE:DONE:fixpoint: run_task_with_cache {key}"</span>);
+        };
 
         <span class="kw">if </span>config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
@@ -2483,7 +2496,7 @@
 }
 
 <span class="kw">struct </span>ConstInfo {
-    name: fixpoint::GlobalVar,
+    name: fixpoint::Var,
     sort: fixpoint::Sort,
     val: <span class="prelude-ty">Option</span>&lt;rty::Expr&gt;,
     comment: String,
@@ -2491,11 +2504,7 @@
 
 <span class="kw">impl </span>ConstInfo {
     <span class="kw">fn </span>into_fixpoint(<span class="self">self</span>) -&gt; fixpoint::ConstDecl {
-        fixpoint::ConstDecl {
-            name: fixpoint::Var::Global(<span class="self">self</span>.name),
-            sort: <span class="self">self</span>.sort,
-            comment: <span class="prelude-val">Some</span>(<span class="self">self</span>.comment),
-        }
+        fixpoint::ConstDecl { name: <span class="self">self</span>.name, sort: <span class="self">self</span>.sort, comment: <span class="prelude-val">Some</span>(<span class="self">self</span>.comment) }
     }
 }
 
@@ -2737,7 +2746,7 @@
             }
             rty::ExprKind::ConstDefId(did, info) =&gt; {
                 <span class="kw">let </span>var = <span class="self">self</span>.register_rust_const(<span class="kw-2">*</span>did, scx, info);
-                fixpoint::Expr::Var(var.into())
+                fixpoint::Expr::Var(var)
             }
             rty::ExprKind::App(func, args) =&gt; {
                 <span class="kw">let </span>func = <span class="self">self</span>.expr_to_fixpoint(func, scx)<span class="question-mark">?</span>;
@@ -2754,10 +2763,8 @@
             rty::ExprKind::Alias(alias_reft, args) =&gt; {
                 <span class="kw">let </span>sort = <span class="self">self</span>.genv.sort_of_assoc_reft(alias_reft.assoc_id)<span class="question-mark">?</span>;
                 <span class="kw">let </span>sort = sort.instantiate_identity();
-                <span class="kw">let </span>func = fixpoint::Expr::Var(
-                    <span class="self">self</span>.register_const_for_alias_reft(alias_reft, sort, scx)
-                        .into(),
-                );
+                <span class="kw">let </span>func =
+                    fixpoint::Expr::Var(<span class="self">self</span>.register_const_for_alias_reft(alias_reft, sort, scx));
                 <span class="kw">let </span>args = args
                     .iter()
                     .map(|expr| <span class="self">self</span>.expr_to_fixpoint(expr, scx))
@@ -2766,7 +2773,7 @@
             }
             rty::ExprKind::Abs(lam) =&gt; {
                 <span class="kw">let </span>var = <span class="self">self</span>.register_const_for_lambda(lam, scx);
-                fixpoint::Expr::Var(var.into())
+                fixpoint::Expr::Var(var)
             }
             rty::ExprKind::Let(init, body) =&gt; {
                 <span class="macro">debug_assert_eq!</span>(body.vars().len(), <span class="number">1</span>);
@@ -2782,17 +2789,10 @@
                 fixpoint::Expr::Var(fixpoint::Var::Itf(<span class="kw-2">*</span>itf))
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(def_id)) =&gt; {
-                fixpoint::Expr::Var(<span class="self">self</span>.register_uif(<span class="kw-2">*</span>def_id, scx).into())
+                fixpoint::Expr::Var(<span class="self">self</span>.register_uif(<span class="kw-2">*</span>def_id, scx))
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) =&gt; {
-                <span class="kw">if </span>flux_config::smt_define_fun() {
-                    fixpoint::Expr::Var(<span class="self">self</span>.register_def(<span class="kw-2">*</span>def_id).into())
-                } <span class="kw">else </span>{
-                    <span class="macro">span_bug!</span>(
-                        <span class="self">self</span>.def_span,
-                        <span class="string">"unexpected global function `{def_id:?}`. Function must be normalized away at this point"
-                    </span>)
-                }
+                fixpoint::Expr::Var(<span class="self">self</span>.register_def(<span class="kw-2">*</span>def_id))
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(<span class="kw">_</span>)
@@ -3078,18 +3078,14 @@
         }
     }
 
-    <span class="kw">fn </span>register_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: FluxDefId) -&gt; fixpoint::GlobalVar {
-        <span class="kw-2">*</span><span class="self">self
-            </span>.def_map
-            .entry(def_id)
-            .or_insert_with(|| <span class="self">self</span>.global_var_gen.fresh())
+    <span class="kw">fn </span>register_def(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: FluxDefId) -&gt; fixpoint::Var {
+        <span class="kw-2">*</span><span class="self">self</span>.def_map.entry(def_id).or_insert_with(|| {
+            <span class="kw">let </span>id = <span class="self">self</span>.global_var_gen.fresh();
+            fixpoint::Var::Global(id, <span class="prelude-val">Some</span>(def_id.name()))
+        })
     }
 
-    <span class="kw">fn </span>register_uif(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        def_id: FluxDefId,
-        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-    ) -&gt; fixpoint::GlobalVar {
+    <span class="kw">fn </span>register_uif(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: FluxDefId, scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt) -&gt; fixpoint::Var {
         <span class="kw">let </span>key = Key::Uif(def_id);
         <span class="self">self</span>.const_map
             .entry(key)
@@ -3103,7 +3099,7 @@
                         fixpoint::Sort::Int
                     });
                 ConstInfo {
-                    name: <span class="self">self</span>.global_var_gen.fresh(),
+                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">Some</span>(def_id.name())),
                     sort,
                     val: <span class="prelude-val">None</span>,
                     comment: <span class="macro">format!</span>(<span class="string">"uif: {def_id:?}"</span>),
@@ -3117,7 +3113,7 @@
         def_id: DefId,
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
         info: <span class="kw-2">&amp;</span>rty::ConstantInfo,
-    ) -&gt; fixpoint::GlobalVar {
+    ) -&gt; fixpoint::Var {
         <span class="kw">let </span>key = Key::Const(def_id);
         <span class="self">self</span>.const_map
             .entry(key)
@@ -3129,7 +3125,7 @@
                 };
                 <span class="kw">let </span>sort = <span class="self">self</span>.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 ConstInfo {
-                    name: <span class="self">self</span>.global_var_gen.fresh(),
+                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
                     comment: <span class="macro">format!</span>(<span class="string">"rust const: {} {val:?}"</span>, def_id_to_string(def_id)),
                     sort: scx.sort_to_fixpoint(<span class="kw-2">&amp;</span>sort),
                     val,
@@ -3145,7 +3141,7 @@
         alias_reft: <span class="kw-2">&amp;</span>rty::AliasReft,
         fsort: rty::FuncSort,
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-    ) -&gt; fixpoint::GlobalVar {
+    ) -&gt; fixpoint::Var {
         <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
         <span class="kw">let </span>args = alias_reft
             .args
@@ -3156,7 +3152,7 @@
             .entry(key)
             .or_insert_with(|| {
                 <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"alias reft: {alias_reft:?}"</span>);
-                <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
+                <span class="kw">let </span>name = fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>);
                 <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
                 ConstInfo { name, comment, sort, val: <span class="prelude-val">None </span>}
@@ -3169,15 +3165,14 @@
     </span><span class="kw">fn </span>register_const_for_lambda(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         lam: <span class="kw-2">&amp;</span>rty::Lambda,
-
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-    ) -&gt; fixpoint::GlobalVar {
+    ) -&gt; fixpoint::Var {
         <span class="kw">let </span>key = Key::Lambda(lam.clone());
         <span class="self">self</span>.const_map
             .entry(key)
             .or_insert_with(|| {
                 <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"lambda: {lam:?}"</span>);
-                <span class="kw">let </span>name = <span class="self">self</span>.global_var_gen.fresh();
+                <span class="kw">let </span>name = fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>);
                 <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.fsort().to_poly());
                 ConstInfo { name, comment, sort, val: <span class="prelude-val">None </span>}
             })
@@ -3200,7 +3195,7 @@
             })
             .collect_vec();
         <span class="kw">for </span>(var, val) <span class="kw">in </span>const_infos {
-            <span class="kw">let </span>e1 = fixpoint::Expr::Var(fixpoint::Var::Global(var));
+            <span class="kw">let </span>e1 = fixpoint::Expr::Var(var);
             <span class="kw">let </span>e2 = <span class="self">self</span>.expr_to_fixpoint(<span class="kw-2">&amp;</span>val, scx)<span class="question-mark">?</span>;
             <span class="kw">let </span>pred = fixpoint::Pred::Expr(e1.eq(e2));
             constraint = fixpoint::Constraint::ForAll(
@@ -3222,51 +3217,72 @@
             .try_collect()
     }
 
-    <span class="kw">fn </span>define_funs(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt) -&gt; QueryResult&lt;Vec&lt;fixpoint::FunDecl&gt;&gt; {
+    <span class="kw">fn </span>define_funs(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        def_id: LocalDefId,
+        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+    ) -&gt; QueryResult&lt;(Vec&lt;fixpoint::FunDecl&gt;, Vec&lt;fixpoint::ConstDecl&gt;)&gt; {
+        <span class="kw">let </span>reveals: FxHashSet&lt;FluxDefId&gt; = <span class="self">self</span>.genv.reveals_for(def_id)<span class="question-mark">?</span>.collect();
         <span class="kw">let </span><span class="kw-2">mut </span>res = FxHashMap::default();
         <span class="kw">let </span><span class="kw-2">mut </span>wkl = <span class="self">self</span>.def_map.keys().copied().collect_vec();
         <span class="kw">while let </span><span class="prelude-val">Some</span>(did) = wkl.pop() {
             <span class="kw">if </span>res.contains_key(<span class="kw-2">&amp;</span>did) {
                 <span class="kw">continue</span>;
             }
-            <span class="kw">let </span>var = <span class="self">self</span>.register_def(did);
-            <span class="kw">let </span>out = <span class="self">self
+            <span class="kw">let </span>name = <span class="self">self</span>.register_def(did);
+
+            <span class="kw">let </span>(sort, out) = <span class="self">self
                 </span>.genv
                 .func_sort(did)
-                .map(|sort| scx.func_sort_output_to_fixpoint(<span class="kw-2">&amp;</span>sort))
+                .map(|fsort| {
+                    <span class="kw">let </span>arity = fsort.arity();
+                    <span class="kw">let </span>fsort = fsort.skip_binders();
+                    <span class="kw">let </span>inputs = fsort
+                        .inputs()
+                        .iter()
+                        .map(|s| scx.sort_to_fixpoint(s))
+                        .collect_vec();
+                    <span class="kw">let </span>out = scx.sort_to_fixpoint(fsort.output());
+                    <span class="kw">let </span>sort = fixpoint::Sort::mk_func(arity, inputs, out.clone());
+                    (sort, out)
+                })
                 .unwrap_or_else(|err| {
                     <span class="self">self</span>.errors.emit(err.at(<span class="self">self</span>.def_span));
-                    fixpoint::Sort::Int
+                    (fixpoint::Sort::Int, fixpoint::Sort::Int)
                 });
             <span class="kw">let </span>info = <span class="self">self</span>.genv.normalized_info(did);
             <span class="kw">for </span>dep <span class="kw">in </span>rty::normalize::local_deps(<span class="kw-2">&amp;</span>info.body) {
                 wkl.push(dep.to_def_id());
             }
             <span class="kw">let </span>(args, body) = <span class="self">self</span>.body_to_fixpoint(<span class="kw-2">&amp;</span>info.body, scx)<span class="question-mark">?</span>;
-            <span class="kw">let </span>fun_decl = fixpoint::FunDecl {
-                name: fixpoint::Var::Global(var),
-                args,
-                body,
-                out,
-                comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"flux def: {}"</span>, did.name())),
+            <span class="kw">let </span>comment = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"flux def: {}"</span>, did.name()));
+            <span class="kw">let </span>revealed = reveals.contains(<span class="kw-2">&amp;</span>did);
+            <span class="kw">let </span>encoding = <span class="kw">if </span>info.hide &amp;&amp; !revealed {
+                <span class="prelude-val">Err</span>(fixpoint::ConstDecl { name, sort, comment })
+            } <span class="kw">else </span>{
+                <span class="prelude-val">Ok</span>(fixpoint::FunDecl { name, args, body, out, comment })
             };
-            res.insert(did, (info.rank, fun_decl));
+            res.insert(did, (info.rank, encoding));
         }
 
         <span class="comment">// we sort by rank so the definitions go out without any forward dependencies.
-        </span><span class="kw">let </span>decls = res
+        </span><span class="kw">let </span><span class="kw-2">mut </span>defs = <span class="macro">vec!</span>[];
+        <span class="kw">let </span><span class="kw-2">mut </span>consts = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>res = res
             .into_iter()
-            .sorted_by(|(<span class="kw">_</span>, (rank1, <span class="kw">_</span>)), (<span class="kw">_</span>, (rank2, <span class="kw">_</span>))| rank1.cmp(rank2))
-            .filter_map(|(def_id, (<span class="kw">_</span>, decl))| {
-                <span class="kw">let </span>is_define = <span class="self">self</span>.genv.is_define_fun(def_id).unwrap_or_else(|err| {
-                    <span class="self">self</span>.errors.emit(err.at(<span class="self">self</span>.def_span));
-                    <span class="bool-val">false
-                </span>});
-                <span class="kw">if </span>is_define { <span class="prelude-val">Some</span>(decl) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
-            })
-            .collect_vec();
+            .sorted_by(|(<span class="kw">_</span>, (rank1, <span class="kw">_</span>)), (<span class="kw">_</span>, (rank2, <span class="kw">_</span>))| rank1.cmp(rank2));
 
-        <span class="prelude-val">Ok</span>(decls)
+        <span class="kw">for </span>(<span class="kw">_</span>, (<span class="kw">_</span>, decl)) <span class="kw">in </span>res {
+            <span class="kw">match </span>decl {
+                <span class="prelude-val">Ok</span>(decl) =&gt; {
+                    defs.push(decl);
+                }
+                <span class="prelude-val">Err</span>(decl) =&gt; {
+                    consts.push(decl);
+                }
+            }
+        }
+        <span class="prelude-val">Ok</span>((defs, consts))
     }
 
     <span class="kw">fn </span>body_to_fixpoint(

@@ -1192,7 +1192,23 @@
 <a href="#1191" id="1191">1191</a>
 <a href="#1192" id="1192">1192</a>
 <a href="#1193" id="1193">1193</a>
-<a href="#1194" id="1194">1194</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
+<a href="#1194" id="1194">1194</a>
+<a href="#1195" id="1195">1195</a>
+<a href="#1196" id="1196">1196</a>
+<a href="#1197" id="1197">1197</a>
+<a href="#1198" id="1198">1198</a>
+<a href="#1199" id="1199">1199</a>
+<a href="#1200" id="1200">1200</a>
+<a href="#1201" id="1201">1201</a>
+<a href="#1202" id="1202">1202</a>
+<a href="#1203" id="1203">1203</a>
+<a href="#1204" id="1204">1204</a>
+<a href="#1205" id="1205">1205</a>
+<a href="#1206" id="1206">1206</a>
+<a href="#1207" id="1207">1207</a>
+<a href="#1208" id="1208">1208</a>
+<a href="#1209" id="1209">1209</a>
+<a href="#1210" id="1210">1210</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
 <span class="kw">mod </span>utils;
 
 <span class="kw">use </span>std::str::FromStr;
@@ -1215,8 +1231,8 @@
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
         Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
+        Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
 };
@@ -1263,6 +1279,11 @@
     <span class="prelude-val">Ok</span>(QualNames { names })
 }
 
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parse_reveal_names(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;RevealNames&gt; {
+    <span class="kw">let </span>names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(RevealNames { names })
+}
+
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parse_generics(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Generics&gt; {
     <span class="kw">let </span>lo = cx.lo();
     <span class="kw">let </span>params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)<span class="question-mark">?</span>;
@@ -1276,7 +1297,7 @@
 
 <span class="kw">fn </span>parse_flux_item(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Item&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>lookahead = cx.lookahead1();
-    <span class="kw">if </span>lookahead.peek(Tok::Fn) {
+    <span class="kw">if </span>lookahead.peek([Tok::Pound, Tok::Fn]) {
         parse_reft_func(cx).map(Item::FuncDef)
     } <span class="kw">else if </span>lookahead.peek([Tok::Local, Tok::Qualifier]) {
         parse_qualifier(cx).map(Item::Qualifier)
@@ -1287,7 +1308,18 @@
     }
 }
 
+<span class="kw">fn </span>parse_hide_attr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;bool&gt; {
+    <span class="kw">if </span>!cx.advance_if(Tok::Pound) {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
+    }
+    cx.expect(Tok::OpenDelim(Bracket))<span class="question-mark">?</span>;
+    cx.expect(<span class="string">"hide"</span>)<span class="question-mark">?</span>;
+    cx.expect(Tok::CloseDelim(Bracket))<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+}
+
 <span class="kw">fn </span>parse_reft_func(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;SpecFunc&gt; {
+    <span class="kw">let </span>hide = parse_hide_attr(cx)<span class="question-mark">?</span>;
     cx.expect(Tok::Fn)<span class="question-mark">?</span>;
     <span class="kw">let </span>name = parse_ident(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>sort_vars = opt_angle(cx, Comma, parse_ident)<span class="question-mark">?</span>;
@@ -1300,7 +1332,7 @@
         cx.expect(Tok::Semi)<span class="question-mark">?</span>;
         <span class="prelude-val">None
     </span>};
-    <span class="prelude-val">Ok</span>(SpecFunc { name, sort_vars, params, output, body })
+    <span class="prelude-val">Ok</span>(SpecFunc { name, sort_vars, params, output, body, hide })
 }
 
 <span class="kw">fn </span>parse_qualifier(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Qualifier&gt; {

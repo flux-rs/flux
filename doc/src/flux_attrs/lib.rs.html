@@ -195,7 +195,14 @@
 <a href="#194" id="194">194</a>
 <a href="#195" id="195">195</a>
 <a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a></pre></div><pre class="rust"><code><span class="attr">#[cfg(not(flux_sysroot))]
 </span><span class="kw">use </span>attr_dummy <span class="kw">as </span>attr_impl;
 <span class="attr">#[cfg(flux_sysroot)]
 </span><span class="kw">use </span>attr_sysroot <span class="kw">as </span>attr_impl;
@@ -219,6 +226,11 @@
 <span class="attr">#[proc_macro_attribute]
 </span><span class="kw">pub fn </span>qualifiers(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
     attr_impl::qualifiers(attr, tokens)
+}
+
+<span class="attr">#[proc_macro_attribute]
+</span><span class="kw">pub fn </span>reveal(attr: TokenStream, tokens: TokenStream) -&gt; TokenStream {
+    attr_impl::reveal(attr, tokens)
 }
 
 <span class="attr">#[proc_macro_attribute]
@@ -332,6 +344,7 @@
         spec,
         sig,
         qualifiers,
+        reveal,
         constant,
         invariant,
         opaque,
@@ -378,6 +391,7 @@
         spec,
         sig,
         qualifiers,
+        reveal,
         invariant,
         constant,
         opaque,

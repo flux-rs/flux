@@ -1594,7 +1594,19 @@
 <a href="#1593" id="1593">1593</a>
 <a href="#1594" id="1594">1594</a>
 <a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -2081,6 +2093,8 @@
     <span class="kw">pub </span>header: FnHeader,
     <span class="comment">//// List of local qualifiers for this function
     </span><span class="kw">pub </span>qualifiers: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FluxLocalDefId],
+    <span class="comment">//// List of reveals for this function
+    </span><span class="kw">pub </span>reveals: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[FluxDefId],
     <span class="kw">pub </span>decl: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>FnDecl&lt;<span class="lifetime">'fhir</span>&gt;,
 }
 
@@ -2756,6 +2770,7 @@
     <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],
     <span class="kw">pub </span>sort: Sort&lt;<span class="lifetime">'fhir</span>&gt;,
     <span class="kw">pub </span>body: <span class="prelude-ty">Option</span>&lt;Expr&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
+    <span class="kw">pub </span>hide: bool,
 }
 
 <span class="attr">#[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]
@@ -2766,6 +2781,15 @@
     </span>Uif(FluxDefId),
     <span class="doccomment">/// User-defined functions with a body definition
     </span>Def(FluxDefId),
+}
+
+<span class="kw">impl </span>SpecFuncKind {
+    <span class="kw">pub fn </span>def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;FluxDefId&gt; {
+        <span class="kw">match </span><span class="self">self </span>{
+            SpecFuncKind::Thy(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+            SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>flux_id),
+        }
+    }
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'fhir</span>&gt; Generics&lt;<span class="lifetime">'fhir</span>&gt; {

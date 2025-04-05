@@ -981,7 +981,19 @@
 <a href="#980" id="980">980</a>
 <a href="#981" id="981">981</a>
 <a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a></pre></div><pre class="rust"><code><span class="kw">mod </span>extern_specs;
 
 <span class="kw">use </span>std::collections::HashMap;
 
@@ -1330,11 +1342,14 @@
         }
 
         <span class="kw">let </span>qual_names: <span class="prelude-ty">Option</span>&lt;surface::QualNames&gt; = attrs.qual_names();
+
+        <span class="kw">let </span>reveal_names: <span class="prelude-ty">Option</span>&lt;surface::RevealNames&gt; = attrs.reveal_names();
+
         <span class="prelude-val">Ok</span>(<span class="self">self
             </span>.specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names }))
+            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names }))
     }
 
     <span class="kw">fn </span>parse_attrs_and_report_dups(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: LocalDefId) -&gt; <span class="prelude-ty">Result</span>&lt;FluxAttrs&gt; {
@@ -1412,6 +1427,9 @@
             }
             (<span class="string">"qualifiers"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)<span class="question-mark">?
+            </span>}
+            (<span class="string">"reveal"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
+                <span class="self">self</span>.parse(dargs, ParseSess::parse_reveal_names, FluxAttrKind::RevealNames)<span class="question-mark">?
             </span>}
             (<span class="string">"defs"</span>, hir::AttrArgs::Delimited(dargs)) =&gt; {
                 <span class="self">self</span>.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)<span class="question-mark">?
@@ -1539,6 +1557,7 @@
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
     QualNames(surface::QualNames),
+    RevealNames(surface::RevealNames),
     Items(Vec&lt;surface::Item&gt;),
     TypeAlias(surface::TyAlias),
     Field(surface::Ty),
@@ -1628,6 +1647,10 @@
         <span class="macro">read_attr!</span>(<span class="self">self</span>, QualNames)
     }
 
+    <span class="kw">fn </span>reveal_names(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::RevealNames&gt; {
+        <span class="macro">read_attr!</span>(<span class="self">self</span>, RevealNames)
+    }
+
     <span class="kw">fn </span>ty_alias(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;surface::TyAlias&gt; {
         <span class="macro">read_attr!</span>(<span class="self">self</span>, TypeAlias)
     }
@@ -1697,6 +1720,7 @@
             FluxAttrKind::Generics(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Generics),
             FluxAttrKind::Items(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Items),
             FluxAttrKind::QualNames(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(QualNames),
+            FluxAttrKind::RevealNames(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(RevealNames),
             FluxAttrKind::Field(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Field),
             FluxAttrKind::Constant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Constant),
             FluxAttrKind::Variant(<span class="kw">_</span>) =&gt; <span class="macro">attr_name!</span>(Variant),
