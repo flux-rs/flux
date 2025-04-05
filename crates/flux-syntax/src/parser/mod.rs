@@ -729,7 +729,7 @@ fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<Ref
 }
 
 /// ```text
-/// ⟨mode⟩ := hrn | hdl
+/// ⟨mode⟩ := ⟨ hrn | hdl ⟩?
 /// ```
 fn parse_opt_param_mode(cx: &mut ParseCtxt) -> Option<ParamMode> {
     if cx.advance_if(Tok::Hrn) {
@@ -755,14 +755,19 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
             break;
         }
         cx.advance_by(ntokens);
-        if matches!(precedence, Precedence::Iff | Precedence::Implies | Precedence::Compare) {
-            if let ExprKind::BinaryOp(op, ..) = &lhs.kind {
-                if Precedence::of_binop(op) == precedence {
-                    return Err(cx.cannot_be_chained(lo, cx.hi()));
+        let next = match precedence.associativity() {
+            Associativity::Right => precedence,
+            Associativity::Left => precedence.next(),
+            Associativity::None => {
+                if let ExprKind::BinaryOp(op, ..) = &lhs.kind {
+                    if Precedence::of_binop(op) == precedence {
+                        return Err(cx.cannot_be_chained(lo, cx.hi()));
+                    }
                 }
+                precedence.next()
             }
-        }
-        let rhs = parse_binops(cx, precedence, allow_struct)?;
+        };
+        let rhs = parse_binops(cx, next, allow_struct)?;
         let span = lhs.span.to(rhs.span);
         lhs = Expr {
             kind: ExprKind::BinaryOp(op, Box::new([lhs, rhs])),
@@ -977,7 +982,7 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     Ok(else_)
 }
 
-/// ⟨block_expr⟩ = ⟨let_decl⟩* ⟨expr⟩
+/// `⟨block_expr⟩ = ⟨let_decl⟩* ⟨expr⟩`
 fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
     let decls = repeat_while(cx, Tok::Let, parse_let_decl)?;
@@ -992,7 +997,7 @@ fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     }
 }
 
-/// ⟨let_decl⟩ := let ⟨refine_param⟩ = ⟨expr⟩ ;
+/// `⟨let_decl⟩ := let ⟨refine_param⟩ = ⟨expr⟩ ;`
 fn parse_let_decl(cx: &mut ParseCtxt) -> ParseResult<LetDecl> {
     cx.expect(Tok::Let)?;
     let param = parse_refine_param(cx, false)?;
@@ -1002,7 +1007,7 @@ fn parse_let_decl(cx: &mut ParseCtxt) -> ParseResult<LetDecl> {
     Ok(LetDecl { param, init })
 }
 
-/// ⟨block⟩ := { ⟨let_decls⟩ ⟨expr⟩ }
+/// `⟨block⟩ := { ⟨let_decls⟩ ⟨expr⟩ }`
 fn parse_block(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     delimited(cx, Brace, parse_block_expr)
 }
@@ -1044,9 +1049,11 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
     Err(cx.unexpected_token(vec![std::any::type_name::<T>()]))
 }
 
+/// `text
 /// ⟨sort⟩ :=  ⟨base_sort⟩
 ///         |  ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
 ///         |  ⟨base_sort⟩ -> ⟨base_sort⟩
+/// ```
 fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
     if cx.peek(OpenDelim(Parenthesis)) {
         // ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
@@ -1067,10 +1074,12 @@ fn parse_sort(cx: &mut ParseCtxt) -> ParseResult<Sort> {
     }
 }
 
+/// ```text
 /// ⟨base_sort⟩ := bitvec < ⟨u32⟩ >
 ///              | ⟨sort_path⟩ < ⟨base_sort⟩,* >
 ///              | < ⟨ty⟩ as ⟨path⟩ > :: ⟨segment⟩
 /// ⟨sort_path⟩ := ⟨ident⟩ ⟨ :: ⟨ident⟩ ⟩* < (⟨base_sort⟩,*) >
+/// ```
 fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
     if cx.advance_if(Tok::BitVec) {
         // bitvec < ⟨u32⟩ >
@@ -1097,7 +1106,7 @@ fn parse_base_sort(cx: &mut ParseCtxt) -> ParseResult<BaseSort> {
 }
 
 // Reference: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Debug)]
 enum Precedence {
     /// <=>
     Iff,
@@ -1111,7 +1120,6 @@ enum Precedence {
     Compare,
     /// |
     BitOr,
-    #[expect(dead_code, reason = "leaving this here for when we support xor")]
     /// ^
     BitXor,
     /// &
@@ -1122,6 +1130,14 @@ enum Precedence {
     Sum,
     /// * / %
     Product,
+    /// unary - and !
+    Prefix,
+}
+
+enum Associativity {
+    Right,
+    Left,
+    None,
 }
 
 impl Precedence {
@@ -1141,6 +1157,38 @@ impl Precedence {
             BinOp::BitShl | BinOp::BitShr => Precedence::Shift,
             BinOp::Add | BinOp::Sub => Precedence::Sum,
             BinOp::Mul | BinOp::Div | BinOp::Mod => Precedence::Product,
+        }
+    }
+
+    fn next(self) -> Precedence {
+        match self {
+            Precedence::Iff => Precedence::Implies,
+            Precedence::Implies => Precedence::Or,
+            Precedence::Or => Precedence::And,
+            Precedence::And => Precedence::Compare,
+            Precedence::Compare => Precedence::BitOr,
+            Precedence::BitOr => Precedence::BitXor,
+            Precedence::BitXor => Precedence::BitAnd,
+            Precedence::BitAnd => Precedence::Shift,
+            Precedence::Shift => Precedence::Sum,
+            Precedence::Sum => Precedence::Product,
+            Precedence::Product => Precedence::Prefix,
+            Precedence::Prefix => Precedence::Prefix,
+        }
+    }
+
+    fn associativity(self) -> Associativity {
+        match self {
+            Precedence::Or
+            | Precedence::And
+            | Precedence::BitOr
+            | Precedence::BitXor
+            | Precedence::BitAnd
+            | Precedence::Shift
+            | Precedence::Sum
+            | Precedence::Product => Associativity::Left,
+            Precedence::Compare | Precedence::Iff => Associativity::None,
+            Precedence::Implies | Precedence::Prefix => Associativity::Right,
         }
     }
 }
