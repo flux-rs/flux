@@ -507,14 +507,14 @@ where
             return result.clone();
         }
         if config::verbose() {
-            println!("TRACE:START:fixpoint: run_task_with_cache {key}")
+            println!("TRACE:START:fixpoint: run_task_with_cache {key}");
         };
         let result = task
             .run()
             .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err:?}"));
 
         if config::verbose() {
-            println!("TRACE:DONE:fixpoint: run_task_with_cache {key}")
+            println!("TRACE:DONE:fixpoint: run_task_with_cache {key}");
         };
 
         if config::is_cache_enabled() {
@@ -1083,7 +1083,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::ExprKind::ConstDefId(did, info) => {
                 let var = self.register_rust_const(*did, scx, info);
-                fixpoint::Expr::Var(var.into())
+                fixpoint::Expr::Var(var)
             }
             rty::ExprKind::App(func, args) => {
                 let func = self.expr_to_fixpoint(func, scx)?;
@@ -1100,10 +1100,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Alias(alias_reft, args) => {
                 let sort = self.genv.sort_of_assoc_reft(alias_reft.assoc_id)?;
                 let sort = sort.instantiate_identity();
-                let func = fixpoint::Expr::Var(
-                    self.register_const_for_alias_reft(alias_reft, sort, scx)
-                        .into(),
-                );
+                let func =
+                    fixpoint::Expr::Var(self.register_const_for_alias_reft(alias_reft, sort, scx));
                 let args = args
                     .iter()
                     .map(|expr| self.expr_to_fixpoint(expr, scx))
@@ -1112,7 +1110,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::ExprKind::Abs(lam) => {
                 let var = self.register_const_for_lambda(lam, scx);
-                fixpoint::Expr::Var(var.into())
+                fixpoint::Expr::Var(var)
             }
             rty::ExprKind::Let(init, body) => {
                 debug_assert_eq!(body.vars().len(), 1);
@@ -1128,10 +1126,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(def_id)) => {
-                fixpoint::Expr::Var(self.register_uif(*def_id, scx).into())
+                fixpoint::Expr::Var(self.register_uif(*def_id, scx))
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
-                fixpoint::Expr::Var(self.register_def(*def_id).into())
+                fixpoint::Expr::Var(self.register_def(*def_id))
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)

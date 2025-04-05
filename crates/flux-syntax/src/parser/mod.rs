@@ -105,11 +105,10 @@ fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {
     cx.expect(Tok::OpenDelim(Bracket))?;
     cx.expect("hide")?;
     cx.expect(Tok::CloseDelim(Bracket))?;
-    return Ok(true);
+    Ok(true)
 }
 
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
-    // let hide = advance_if_pragma(cx, Tok::Hide)?;
     let hide = parse_hide_attr(cx)?;
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;

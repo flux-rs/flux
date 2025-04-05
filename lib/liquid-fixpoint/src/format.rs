@@ -362,32 +362,16 @@ impl<T: Types> fmt::Display for Qualifier<T> {
 
 impl<T: Types> fmt::Display for FunDef<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.body {
-            body => {
-                write!(
-                    f,
-                    "(define_fun {} ({}) {} ({}))",
-                    self.name.display(),
-                    self.args.iter().format_with(" ", |(name, sort), f| {
-                        f(&format_args!("({} {sort})", name.display()))
-                    }),
-                    self.out,
-                    body
-                )?;
-            } // None => {
-              //     write!(
-              //         f,
-              //         "(constant {} (func {} ({}) {}))",
-              //         self.name.display(),
-              //         self.arity,
-              //         self.args
-              //             .iter()
-              //             .format_with(" ", |(_name, sort), f| { f(&format_args!("{sort}")) }),
-              //         self.out,
-              //     )?;
-              // }
-        }
-
+        write!(
+            f,
+            "(define_fun {} ({}) {} ({}))",
+            self.name.display(),
+            self.args.iter().format_with(" ", |(name, sort), f| {
+                f(&format_args!("({} {sort})", name.display()))
+            }),
+            self.out,
+            self.body
+        )?;
         if let Some(comment) = &self.comment {
             write!(f, "  ;; {comment}")?;
         }
