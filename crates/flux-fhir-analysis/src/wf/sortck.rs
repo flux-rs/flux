@@ -355,7 +355,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
             ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
-                Ok(rty::Sort::Func(self.genv.func_sort(name).emit(&self.genv)?))
+                Ok(rty::Sort::Func(self.genv.func_sort(name)))
             }
             ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 Ok(rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()))

@@ -4,6 +4,7 @@ use std::{
 };
 
 use flux_arc_interner::List;
+use flux_common::bug;
 use flux_errors::{E0999, ErrorGuaranteed};
 use flux_rustc_bridge::{
     self, def_id_to_string,
@@ -132,7 +133,7 @@ pub struct Providers {
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
-    pub func_sort: fn(GlobalEnv, FluxLocalDefId) -> QueryResult<rty::PolyFuncSort>,
+    pub func_sort: fn(GlobalEnv, FluxLocalDefId) -> rty::PolyFuncSort,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
@@ -206,7 +207,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_type_of: Cache<DefId, QueryResult<ty::EarlyBinder<ty::Ty>>>,
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
-    func_sort: Cache<FluxDefId, QueryResult<rty::PolyFuncSort>>,
+    func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
@@ -397,11 +398,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn func_sort(
-        &self,
-        genv: GlobalEnv,
-        def_id: FluxDefId,
-    ) -> QueryResult<rty::PolyFuncSort> {
+    pub(crate) fn func_sort(&self, genv: GlobalEnv, def_id: FluxDefId) -> rty::PolyFuncSort {
         run_with_cache(&self.func_sort, def_id, || {
             dispatch_query_flux_id(
                 genv,
@@ -410,17 +407,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_sort)(genv, def_id.local_id())
                 },
-                |def_id| {
-                    Some(Err(query_bug!(
-                        def_id.parent(),
-                        "extern refinement functions are not yet implemented"
-                    )))
-                },
-                |def_id| {
-                    Err(query_bug!(
-                        def_id.parent(),
+                |_| bug!("extern refinement functions are not yet implemented"),
+                |_| {
+                    bug!(
                         "cannot generate default function sort, the refinement must be defined somewhere"
-                    ))
+                    )
                 },
             )
         })

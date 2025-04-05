@@ -1427,14 +1427,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let sort = self
-                    .genv
-                    .func_sort(def_id)
-                    .map(|sort| scx.func_sort_to_fixpoint(&sort))
-                    .unwrap_or_else(|err| {
-                        self.errors.emit(err.at(self.def_span));
-                        fixpoint::Sort::Int
-                    });
+                let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
                 ConstInfo {
                     name: fixpoint::Var::Global(self.global_var_gen.fresh(), Some(def_id.name())),
                     sort,
@@ -1568,25 +1561,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             let name = self.register_def(did);
 
-            let (sort, out) = self
-                .genv
-                .func_sort(did)
-                .map(|fsort| {
-                    let arity = fsort.arity();
-                    let fsort = fsort.skip_binders();
-                    let inputs = fsort
-                        .inputs()
-                        .iter()
-                        .map(|s| scx.sort_to_fixpoint(s))
-                        .collect_vec();
-                    let out = scx.sort_to_fixpoint(fsort.output());
-                    let sort = fixpoint::Sort::mk_func(arity, inputs, out.clone());
-                    (sort, out)
-                })
-                .unwrap_or_else(|err| {
-                    self.errors.emit(err.at(self.def_span));
-                    (fixpoint::Sort::Int, fixpoint::Sort::Int)
-                });
+            let (sort, out) = {
+                let fsort = self.genv.func_sort(did);
+                let arity = fsort.arity();
+                let fsort = fsort.skip_binders();
+                let inputs = fsort
+                    .inputs()
+                    .iter()
+                    .map(|s| scx.sort_to_fixpoint(s))
+                    .collect_vec();
+                let out = scx.sort_to_fixpoint(fsort.output());
+                let sort = fixpoint::Sort::mk_func(arity, inputs, out.clone());
+                (sort, out)
+            };
             let info = self.genv.normalized_info(did);
             for dep in rty::normalize::local_deps(&info.body) {
                 wkl.push(dep.to_def_id());

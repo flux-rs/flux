@@ -71,9 +71,14 @@ fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtS
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-fn func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -> QueryResult<rty::PolyFuncSort> {
+fn func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -> rty::PolyFuncSort {
     let func = genv.map().spec_func(def_id).unwrap();
-    conv::conv_func_decl(genv, func)
+    match conv::conv_func_decl(genv, func).emit(&genv) {
+        Ok(normalized) => normalized,
+        Err(err) => {
+            genv.sess().abort(err);
+        }
+    }
 }
 
 fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {
@@ -101,7 +106,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
 
         if let Some(defn) = defn {
             // inline all polymorphic definitions, as they cannot be `define-fun`ed in SMT
-            let inline = !genv.is_define_fun(func.def_id.to_def_id()).emit(&genv)?;
+            let inline = !genv.is_define_fun(func.def_id.to_def_id());
             defns.push((func.def_id, defn, inline, func.hide));
         }
     }
