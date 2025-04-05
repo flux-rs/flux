@@ -3,8 +3,6 @@ use std::{fs::File, path::PathBuf};
 use flux_config as config;
 use rustc_hash::FxHashMap;
 
-use crate::verbose;
-
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct QueryVal<R> {
     constr_hash: u64,
