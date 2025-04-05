@@ -98,21 +98,6 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     }
 }
 
-// fn advance_if_many(cx: &mut ParseCtxt, toks: &[crate::lexer::Token]) -> ParseResult<bool> {
-//     for tok in toks {
-//         if !cx.advance_if(*tok) {
-//             return Ok(false);
-//         }
-//     }
-//     Ok(true)
-// }
-
-// fn advance_if_pragma(cx: &mut ParseCtxt, tok: crate::lexer::Token) -> ParseResult<bool> {
-//     let toks =
-//         [Tok::Pound, Tok::OpenDelim(Delimiter::Bracket), tok, Tok::CloseDelim(Delimiter::Bracket)];
-//     advance_if_many(cx, &toks)
-// }
-
 fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {
     if !cx.advance_if(Tok::Pound) {
         return Ok(false);
