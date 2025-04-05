@@ -60,7 +60,7 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 impl NormalizedDefns {
     pub fn new(
         genv: GlobalEnv,
-        defns: &[(FluxLocalDefId, Binder<Expr>, bool, bool)],
+        defns: &[(FluxLocalDefId, Binder<Expr>, bool)],
     ) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
@@ -69,10 +69,11 @@ impl NormalizedDefns {
         let mut normalized = UnordMap::default();
         let mut ids = vec![];
         for (rank, i) in ds.iter().enumerate() {
-            let (id, body, inline, hide) = &defns[*i];
+            let (id, body, hide) = &defns[*i];
             let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized)));
 
-            let info = NormalizeInfo { body: body.clone(), inline: *inline, rank, hide: *hide };
+            let inline = genv.should_inline_fun(id.to_def_id());
+            let info = NormalizeInfo { body: body.clone(), inline, rank, hide: *hide };
             ids.push(*id);
             normalized.insert(*id, info);
         }
@@ -95,8 +96,8 @@ impl NormalizedDefns {
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort<T1, T2>(
-    defns: &[(FluxLocalDefId, Binder<Expr>, T1, T2)],
+fn toposort<T>(
+    defns: &[(FluxLocalDefId, Binder<Expr>, T)],
 ) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
