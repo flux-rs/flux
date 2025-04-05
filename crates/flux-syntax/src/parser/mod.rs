@@ -21,8 +21,8 @@ use crate::{
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
         Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
+        Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
 };
@@ -69,6 +69,11 @@ pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
     Ok(QualNames { names })
 }
 
+pub(crate) fn parse_reveal_names(cx: &mut ParseCtxt) -> ParseResult<RevealNames> {
+    let names = punctuated_until(cx, Comma, Tok::Eof, parse_ident)?;
+    Ok(RevealNames { names })
+}
+
 pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
     let lo = cx.lo();
     let params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)?;
@@ -82,7 +87,7 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
 
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
-    if lookahead.peek(Tok::Fn) {
+    if lookahead.peek([Tok::Pound, Tok::Fn]) {
         parse_reft_func(cx).map(Item::FuncDef)
     } else if lookahead.peek([Tok::Local, Tok::Qualifier]) {
         parse_qualifier(cx).map(Item::Qualifier)
@@ -93,7 +98,18 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     }
 }
 
+fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {
+    if !cx.advance_if(Tok::Pound) {
+        return Ok(false);
+    }
+    cx.expect(Tok::OpenDelim(Bracket))?;
+    cx.expect("hide")?;
+    cx.expect(Tok::CloseDelim(Bracket))?;
+    Ok(true)
+}
+
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
+    let hide = parse_hide_attr(cx)?;
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;
@@ -106,7 +122,7 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
         cx.expect(Tok::Semi)?;
         None
     };
-    Ok(SpecFunc { name, sort_vars, params, output, body })
+    Ok(SpecFunc { name, sort_vars, params, output, body, hide })
 }
 
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {

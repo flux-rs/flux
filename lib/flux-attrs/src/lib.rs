@@ -25,6 +25,11 @@ pub fn qualifiers(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn reveal(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::reveal(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn refined_by(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::refined_by(attr, tokens)
 }
@@ -135,6 +140,7 @@ mod attr_sysroot {
         spec,
         sig,
         qualifiers,
+        reveal,
         constant,
         invariant,
         opaque,
@@ -181,6 +187,7 @@ mod attr_dummy {
         spec,
         sig,
         qualifiers,
+        reveal,
         invariant,
         constant,
         opaque,

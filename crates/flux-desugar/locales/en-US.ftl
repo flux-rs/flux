@@ -70,6 +70,9 @@ desugar_illegal_binder =
 desugar_unknown_qualifier =
     unknown qualifier
 
+desugar_unknown_reveal_definition =
+    unknown function definition
+
 
 # Lifting Errors
 

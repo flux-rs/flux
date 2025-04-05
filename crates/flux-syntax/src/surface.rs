@@ -62,6 +62,10 @@ pub struct SpecFunc {
     pub output: Sort,
     /// Body of the function. If not present this definition corresponds to an uninterpreted function.
     pub body: Option<Expr>,
+    /// Is this function "hidden" i.e. to be considered
+    /// as uninterpreted by default (only makes sense if `body` is_some ...)
+    /// as otherwise it is *always* uninterpreted.
+    pub hide: bool,
 }
 
 #[derive(Debug)]
@@ -157,6 +161,11 @@ pub struct QualNames {
     pub names: Vec<Ident>,
 }
 
+#[derive(Debug, Default)]
+pub struct RevealNames {
+    pub names: Vec<Ident>,
+}
+
 #[derive(Debug)]
 pub struct RefineParam {
     pub ident: Ident,
@@ -234,6 +243,7 @@ pub struct TraitAssocReft {
 pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
+    pub reveal_names: Option<RevealNames>,
 }
 
 #[derive(Debug)]

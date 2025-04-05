@@ -323,6 +323,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
         if let Some(owner_id) = owner_id.as_local() {
             self.resolve_qualifiers(owner_id, fn_spec.qual_names.as_ref())?;
+            self.resolve_reveals(owner_id, fn_spec.reveal_names.as_ref())?;
         }
         if let Some(fn_sig) = &fn_spec.fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {
@@ -351,6 +352,29 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             }
         }
         self.output.qualifier_res_map.insert(owner_id, qualifiers);
+        Ok(())
+    }
+
+    fn resolve_reveals(
+        &mut self,
+        owner_id: OwnerId,
+        reveals: Option<&surface::RevealNames>,
+    ) -> Result {
+        let reveal_names = reveals.map_or(&[][..], |q| &q.names[..]);
+        let mut reveals = Vec::with_capacity(reveal_names.len());
+        for reveal in reveal_names {
+            if let Some(spec) = self.func_decls.get(&reveal.name)
+                && let Some(def_id) = spec.def_id()
+            {
+                reveals.push(def_id);
+            } else {
+                return Err(self
+                    .genv
+                    .sess()
+                    .emit_err(errors::UnknownRevealDefinition::new(reveal.span)));
+            }
+        }
+        self.output.reveal_res_map.insert(owner_id, reveals);
         Ok(())
     }
 
@@ -919,7 +943,20 @@ mod errors {
     }
 
     impl UnknownQualifier {
-        pub(super) fn new(span: Span) -> UnknownQualifier {
+        pub(super) fn new(span: Span) -> Self {
+            Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_unknown_reveal_definition, code = E0999)]
+    pub(super) struct UnknownRevealDefinition {
+        #[primary_span]
+        span: Span,
+    }
+
+    impl UnknownRevealDefinition {
+        pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
     }

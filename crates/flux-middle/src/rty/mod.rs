@@ -1071,6 +1071,14 @@ impl PolyFuncSort {
     pub fn instantiate(&self, args: &[SortArg]) -> FuncSort {
         self.fsort.fold_with(&mut SortSubst::new(args))
     }
+
+    pub fn arity(&self) -> usize {
+        self.params
+            .iter()
+            .filter(|kind| matches!(kind, SortParamKind::Sort))
+            .collect_vec()
+            .len()
+    }
 }
 
 /// An argument for a generic parameter in a [`Sort`] which can be either a generic sort or a
@@ -1931,7 +1939,7 @@ impl SubsetTyCtor {
 /// interpreted as type constructors. They have two key properties that makes them suitable
 /// for this:
 ///
-/// 1. **Syntacitc Restriction**: Subset types are syntactically restricted, making it easier to
+/// 1. **Syntactic Restriction**: Subset types are syntactically restricted, making it easier to
 ///    relate them structurally (e.g., for subtyping). For instance, given two types `S<λv. T1>` and
 ///    `S<λ. T2>`, if `T1` and `T2` are subset types, we know they match structurally (at least
 ///    shallowly). In particularly, the syntactic restriction rules out complex types like

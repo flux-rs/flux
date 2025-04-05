@@ -48,6 +48,8 @@ pub struct NormalizeInfo {
     /// we can specify the `define-fun` in the correct order, without any "forward"
     /// dependencies which the SMT solver cannot handle
     pub rank: usize,
+    /// whether or not this function is uninterpreted by default
+    pub hide: bool,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
@@ -58,7 +60,7 @@ pub(super) struct Normalizer<'a, 'genv, 'tcx> {
 impl NormalizedDefns {
     pub fn new(
         genv: GlobalEnv,
-        defns: &[(FluxLocalDefId, Binder<Expr>, bool)],
+        defns: &[(FluxLocalDefId, Binder<Expr>, bool, bool)],
     ) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
         let ds = toposort(defns)?;
@@ -67,10 +69,10 @@ impl NormalizedDefns {
         let mut normalized = UnordMap::default();
         let mut ids = vec![];
         for (rank, i) in ds.iter().enumerate() {
-            let (id, body, inline) = &defns[*i];
+            let (id, body, inline, hide) = &defns[*i];
             let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized)));
 
-            let info = NormalizeInfo { body: body.clone(), inline: *inline, rank };
+            let info = NormalizeInfo { body: body.clone(), inline: *inline, rank, hide: *hide };
             ids.push(*id);
             normalized.insert(*id, info);
         }
@@ -93,8 +95,8 @@ impl NormalizedDefns {
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort<T>(
-    defns: &[(FluxLocalDefId, Binder<Expr>, T)],
+fn toposort<T1, T2>(
+    defns: &[(FluxLocalDefId, Binder<Expr>, T1, T2)],
 ) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
@@ -166,14 +168,15 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
 
     #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
     fn inline(&self, did: &FluxDefId) -> bool {
-        if let Some(defs) = self.defs
+        let info = if let Some(defs) = self.defs
             && let Some(local_id) = did.as_local()
             && let Some(info) = defs.get(&local_id)
         {
-            info.inline
+            info
         } else {
-            self.genv.normalized_info(*did).inline
-        }
+            &self.genv.normalized_info(*did)
+        };
+        info.inline && !info.hide
     }
 
     fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {

@@ -79,6 +79,14 @@ impl ParseSess {
         parser::parse_qual_names(&mut self.cx(tokens, span))
     }
 
+    pub fn parse_reveal_names(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<surface::RevealNames> {
+        parser::parse_reveal_names(&mut self.cx(tokens, span))
+    }
+
     pub fn parse_flux_item(
         &mut self,
         tokens: &TokenStream,

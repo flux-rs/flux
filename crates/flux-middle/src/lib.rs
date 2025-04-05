@@ -411,6 +411,8 @@ pub struct ResolverOutput {
     pub expr_path_res_map: UnordMap<NodeId, fhir::ExprRes>,
     /// The resolved list of local qualifiers per function
     pub qualifier_res_map: UnordMap<OwnerId, Vec<def_id::FluxLocalDefId>>,
+    /// The resolved list of local reveals per function
+    pub reveal_res_map: UnordMap<OwnerId, Vec<def_id::FluxDefId>>,
 }
 
 #[extension(pub trait PlaceExt)]
