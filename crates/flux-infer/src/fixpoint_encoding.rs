@@ -506,7 +506,7 @@ where
         let cache_result = cache.lookup(&key, hash);
 
         verbose!(
-            "TRACE:ENTER:run_task_with_cache [cache_enabled = {cache_enabled}]: {key} / {hash} => {}]",
+            "TRACE:ENTER:run_task_with_cache [{cache_enabled}]: {key} / {hash} => {}]",
             cache_result.is_some()
         );
         if cache_enabled && let Some(result) = cache_result {

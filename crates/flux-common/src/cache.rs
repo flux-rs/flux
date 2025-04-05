@@ -27,7 +27,6 @@ impl<R> QueryCache<R> {
     }
 
     pub fn insert(&mut self, key: String, constr_hash: u64, result: R) {
-        verbose!("TRACE: Inserting into cache: {key} ==> {constr_hash}");
         let val = QueryVal { constr_hash, result };
         self.entries.insert(key, val);
     }
