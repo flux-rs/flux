@@ -4,7 +4,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::Symbol;
 
 /// An id for a Flux-specific item that doesn't have a corresponding Rust item and thus, we cannot
-/// be identified with a [`DefId`]. This includes, for example, associated refinements, qualifiers
+/// identify it with a [`DefId`]. This includes, for example, associated refinements, qualifiers
 /// and refinement functions.
 ///
 /// # Type-level invariant
