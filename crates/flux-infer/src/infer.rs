@@ -166,6 +166,12 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
     }
 }
 
+#[derive(Debug, Hash, Clone, Copy)]
+pub enum QueryKind {
+    ImplVC,
+    RefineVC,
+}
+
 impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn infcx<'a>(
         &'a mut self,
@@ -197,6 +203,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         cache: &mut FixQueryCache,
         def_id: MaybeExternId,
         ext: &'static str,
+        kind: QueryKind,
     ) -> QueryResult<Vec<Tag>> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
@@ -224,7 +231,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, cstr, self.opts.scrape_quals, backend)
+        fcx.check(cache, cstr, kind, self.opts.scrape_quals, backend)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {

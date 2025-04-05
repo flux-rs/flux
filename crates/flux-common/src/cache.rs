@@ -3,6 +3,8 @@ use std::{fs::File, path::PathBuf};
 use flux_config as config;
 use rustc_hash::FxHashMap;
 
+use crate::verbose;
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct QueryVal<R> {
     constr_hash: u64,
@@ -25,6 +27,7 @@ impl<R> QueryCache<R> {
     }
 
     pub fn insert(&mut self, key: String, constr_hash: u64, result: R) {
+        verbose!("TRACE: Inserting into cache: {key} ==> {constr_hash}");
         let val = QueryVal { constr_hash, result };
         self.entries.insert(key, val);
     }

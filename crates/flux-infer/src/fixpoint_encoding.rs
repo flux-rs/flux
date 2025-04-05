@@ -9,7 +9,7 @@ use flux_common::{
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
-    span_bug, tracked_span_bug,
+    span_bug, tracked_span_bug, verbose,
 };
 use flux_config::{self as config};
 use flux_errors::Errors;
@@ -418,6 +418,7 @@ where
         mut self,
         cache: &mut FixQueryCache,
         constraint: fixpoint::Constraint,
+        kind: crate::infer::QueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
     ) -> QueryResult<Vec<Tag>> {
@@ -480,7 +481,7 @@ where
             dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        let task_key = self.genv.tcx().def_path_str(self.def_id);
+        let task_key = format!("{}###{:?}", self.genv.tcx().def_path_str(self.def_id), kind);
 
         match Self::run_task_with_cache(task, task_key, cache) {
             FixpointResult::Safe(_) => Ok(vec![]),
@@ -501,21 +502,21 @@ where
         cache: &mut FixQueryCache,
     ) -> FixpointResult<TagIdx> {
         let hash = task.hash_with_default();
-        if config::is_cache_enabled()
-            && let Some(result) = cache.lookup(&key, hash)
-        {
+        let cache_enabled = config::is_cache_enabled();
+        let cache_result = cache.lookup(&key, hash);
+
+        verbose!(
+            "TRACE:ENTER:run_task_with_cache [cache_enabled = {cache_enabled}]: {key} / {hash} => {}]",
+            cache_result.is_some()
+        );
+        if cache_enabled && let Some(result) = cache_result {
             return result.clone();
         }
-        if config::verbose() {
-            println!("TRACE:START:fixpoint: run_task_with_cache {key}");
-        };
+        verbose!("TRACE:START:run_task_with_cache: {key}");
         let result = task
             .run()
             .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err:?}"));
-
-        if config::verbose() {
-            println!("TRACE:DONE:fixpoint: run_task_with_cache {key}");
-        };
+        verbose!("TRACE:DONE:run_task_with_cache {key}");
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());

@@ -5,6 +5,7 @@
 Flux is a refinement type checker for Rust.
 
 # Help and Discussions
+
 If you need help using Flux or would like to discuss, you can post on the discussions forum or join
 our [Zulip chat](https://flux-rs.zulipchat.com/)!
 
