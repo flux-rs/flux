@@ -267,10 +267,6 @@ impl SortEncodingCtxt {
         }
     }
 
-    // CUT fn func_sort_output_to_fixpoint(&mut self, fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
-    // CUT     self.sort_to_fixpoint(fsort.skip_binders().output())
-    // CUT }
-
     fn func_sort_to_fixpoint(&mut self, fsort: &rty::PolyFuncSort) -> fixpoint::Sort {
         let params = fsort.params().len();
         let fsort = fsort.skip_binders();
@@ -1593,16 +1589,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.errors.emit(err.at(self.def_span));
                     (fixpoint::Sort::Int, fixpoint::Sort::Int)
                 });
-
-            // let (arity, out) = self
-            //     .genv
-            //     .func_sort(did)
-            //     .map(|sort| (sort.arity(), scx.func_sort_output_to_fixpoint(&sort)))
-            //     .unwrap_or_else(|err| {
-            //         self.errors.emit(err.at(self.def_span));
-            //         (0, fixpoint::Sort::Int)
-            //     });
-
             let info = self.genv.normalized_info(did);
             for dep in rty::normalize::local_deps(&info.body) {
                 wkl.push(dep.to_def_id());
