@@ -60,15 +60,6 @@ macro_rules! tracked_span_bug {
 }
 
 #[macro_export]
-macro_rules! verbose {
-    ($($arg:tt)*) => {{
-        if (config::verbose()) {
-            println!($($arg)*);
-        }
-    }};
-}
-
-#[macro_export]
 macro_rules! bug {
     () => ( $crate::bug!("impossible case reached") );
     ($msg:expr) => ({ $crate::bug::bug_fmt(::std::format_args!($msg)) });

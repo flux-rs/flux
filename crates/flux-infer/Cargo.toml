@@ -3,6 +3,9 @@ edition.workspace = true
 name = "flux-infer"
 version = "0.1.0"
 
+
+
+
 [dependencies]
 flux-common.workspace = true
 flux-config.workspace = true

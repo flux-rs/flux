@@ -9,7 +9,7 @@ use flux_common::{
     dbg,
     index::{IndexGen, IndexVec},
     iter::IterExt,
-    span_bug, tracked_span_bug, verbose,
+    span_bug, tracked_span_bug,
 };
 use flux_config::{self as config};
 use flux_errors::Errors;
@@ -502,21 +502,15 @@ where
         cache: &mut FixQueryCache,
     ) -> FixpointResult<TagIdx> {
         let hash = task.hash_with_default();
-        let cache_enabled = config::is_cache_enabled();
-        let cache_result = cache.lookup(&key, hash);
 
-        verbose!(
-            "TRACE:ENTER:run_task_with_cache [{cache_enabled}]: {key} / {hash} => {}]",
-            cache_result.is_some()
-        );
-        if cache_enabled && let Some(result) = cache_result {
+        if config::is_cache_enabled()
+            && let Some(result) = cache.lookup(&key, hash)
+        {
             return result.clone();
         }
-        verbose!("TRACE:START:run_task_with_cache: {key}");
         let result = task
             .run()
             .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err:?}"));
-        verbose!("TRACE:DONE:run_task_with_cache {key}");
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
