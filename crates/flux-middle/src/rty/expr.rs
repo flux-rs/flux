@@ -22,8 +22,8 @@ use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundReftKind, BoundVariableKinds, ConstantInfo, FuncSort, GenericArgs,
-    GenericArgsExt as _, IntTy, Sort, UintTy,
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _,
+    IntTy, Sort, UintTy,
 };
 use crate::{
     big_int::BigInt,
@@ -231,8 +231,8 @@ impl Expr {
         ExprKind::Constant(c).intern()
     }
 
-    pub fn const_def_id(c: DefId, info: ConstantInfo) -> Expr {
-        ExprKind::ConstDefId(c, info).intern()
+    pub fn const_def_id(c: DefId) -> Expr {
+        ExprKind::ConstDefId(c).intern()
     }
 
     pub fn const_generic(param: ParamConst) -> Expr {
@@ -662,7 +662,7 @@ pub enum ExprKind {
     Var(Var),
     Local(Local),
     Constant(Constant),
-    ConstDefId(DefId, ConstantInfo),
+    ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
@@ -1229,7 +1229,7 @@ pub(crate) mod pretty {
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
-                ExprKind::ConstDefId(did, _) => w!(cx, f, "{}", ^def_id_to_string(*did)),
+                ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {

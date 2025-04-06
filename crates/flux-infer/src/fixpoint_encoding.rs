@@ -367,7 +367,7 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
     }
 }
 
-type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, ConstInfo>;
+type ConstMap<'tcx> = FxIndexMap<Key<'tcx>, fixpoint::ConstDecl>;
 
 type DefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
 
@@ -432,21 +432,15 @@ where
 
         let kvars = self.kcx.into_fixpoint();
 
-        // We need to collect/translate the define-funs *before* we `assume_const_values` to
-        // pick up all the constants that appear in the bodies of the defined-funs
-        let (define_funs, mut define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-
-        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
-
+        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
         let qualifiers = self.ecx.qualifiers_for(def_id, &mut self.scx)?;
 
-        let mut constants = self
-            .ecx
-            .const_map
-            .into_values()
-            .map(ConstInfo::into_fixpoint)
-            .collect_vec();
-        constants.append(&mut define_constants);
+        // Assuming values should happen after all encoding is done so we are sure we've collected
+        // all constants.
+        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
+
+        let mut constants = self.ecx.const_map.into_values().collect_vec();
+        constants.extend(define_constants);
 
         for rel in fixpoint::BinRel::INEQUALITIES {
             // ∀a. a -> a -> bool
@@ -462,7 +456,7 @@ where
             });
         }
 
-        // We are done encoding. Check if there are any errors.
+        // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.into_result()?;
 
         let task = fixpoint::Task {
@@ -832,19 +826,6 @@ impl LocalVarEnv {
     }
 }
 
-struct ConstInfo {
-    name: fixpoint::Var,
-    sort: fixpoint::Sort,
-    val: Option<rty::Expr>,
-    comment: String,
-}
-
-impl ConstInfo {
-    fn into_fixpoint(self) -> fixpoint::ConstDecl {
-        fixpoint::ConstDecl { name: self.name, sort: self.sort, comment: Some(self.comment) }
-    }
-}
-
 impl FixpointKVar {
     fn new(sorts: Vec<fixpoint::Sort>, orig: rty::KVid) -> Self {
         Self { sorts, orig }
@@ -1081,8 +1062,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
                 self.variant_to_fixpoint(scx, did, *idx)
             }
-            rty::ExprKind::ConstDefId(did, info) => {
-                let var = self.define_const_for_rust_const(*did, scx, info);
+            rty::ExprKind::ConstDefId(did) => {
+                let var = self.define_const_for_rust_const(*did, scx);
                 fixpoint::Expr::Var(var)
             }
             rty::ExprKind::App(func, args) => {
@@ -1432,11 +1413,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .entry(key)
             .or_insert_with(|| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
-                ConstInfo {
+                fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(self.global_var_gen.fresh(), Some(def_id.name())),
                     sort,
-                    val: None,
-                    comment: format!("uif: {def_id:?}"),
+                    comment: Some(format!("uif: {def_id:?}")),
                 }
             })
             .name
@@ -1446,23 +1426,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: DefId,
         scx: &mut SortEncodingCtxt,
-        info: &rty::ConstantInfo,
     ) -> fixpoint::Var {
         let key = Key::Const(def_id);
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                // generate and insert to `const_map`
-                let val = match info {
-                    rty::ConstantInfo::Uninterpreted => None,
-                    rty::ConstantInfo::Interpreted(expr, _) => Some(expr.clone()),
-                };
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
-                ConstInfo {
+                fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(self.global_var_gen.fresh(), None),
-                    comment: format!("rust const: {} {val:?}", def_id_to_string(def_id)),
                     sort: scx.sort_to_fixpoint(&sort),
-                    val,
+                    comment: Some(format!("rust const: {}", def_id_to_string(def_id))),
                 }
             })
             .name
@@ -1485,11 +1458,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let comment = format!("alias reft: {alias_reft:?}");
+                let comment = Some(format!("alias reft: {alias_reft:?}"));
                 let name = fixpoint::Var::Global(self.global_var_gen.fresh(), None);
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
-                ConstInfo { name, comment, sort, val: None }
+                fixpoint::ConstDecl { name, comment, sort }
             })
             .name
     }
@@ -1505,10 +1478,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let comment = format!("lambda: {lam:?}");
+                let comment = Some(format!("lambda: {lam:?}"));
                 let name = fixpoint::Var::Global(self.global_var_gen.fresh(), None);
                 let sort = scx.func_sort_to_fixpoint(&lam.fsort().to_poly());
-                ConstInfo { name, comment, sort, val: None }
+                fixpoint::ConstDecl { name, comment, sort }
             })
             .name
     }
@@ -1518,24 +1491,30 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         mut constraint: fixpoint::Constraint,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Constraint> {
-        let const_infos = self
-            .const_map
-            .values()
-            .filter_map(|const_info| {
-                const_info
-                    .val
-                    .as_ref()
-                    .map(|val| (const_info.name, val.clone()))
-            })
-            .collect_vec();
-        for (var, val) in const_infos {
-            let e1 = fixpoint::Expr::Var(var);
-            let e2 = self.expr_to_fixpoint(&val, scx)?;
-            let pred = fixpoint::Pred::Expr(e1.eq(e2));
-            constraint = fixpoint::Constraint::ForAll(
-                fixpoint::Bind { name: fixpoint::Var::Underscore, sort: fixpoint::Sort::Int, pred },
-                Box::new(constraint),
-            );
+        // Encoding the value for a constant could in theory define more constants for which
+        // we need to assume values, so we iterate until there are no more constants.
+        let mut idx = 0;
+        while let Some((key, const_)) = self.const_map.get_index(idx) {
+            idx += 1;
+
+            let Key::Const(def_id) = key else { continue };
+            let info = self.genv.constant_info(def_id)?;
+            match info {
+                rty::ConstantInfo::Uninterpreted => {}
+                rty::ConstantInfo::Interpreted(val, _) => {
+                    let e1 = fixpoint::Expr::Var(const_.name);
+                    let e2 = self.expr_to_fixpoint(&val, scx)?;
+                    let pred = fixpoint::Pred::Expr(e1.eq(e2));
+                    constraint = fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: fixpoint::Var::Underscore,
+                            sort: fixpoint::Sort::Int,
+                            pred,
+                        },
+                        Box::new(constraint),
+                    );
+                }
+            }
         }
         Ok(constraint)
     }
@@ -1566,10 +1545,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             if !seen.insert(did) {
                 continue;
             }
-            let info = self.genv.normalized_info(did);
             let name = self.register_def(did);
-            let revealed = reveals.contains(&did);
             let comment = format!("flux def: {did:?}");
+
+            let info = self.genv.normalized_info(did);
+            let revealed = reveals.contains(&did);
             if info.hide && !revealed {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(did));
                 consts.push(fixpoint::ConstDecl { name, sort, comment: Some(comment) });
