@@ -1299,7 +1299,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     /// Where `<=` is the (interpreted) less than or equal relation between integers and `le` is
     /// an uninterpreted relation between ([the encoding] of) lambdas.
     ///
-    /// [the encoding]: Self::register_const_for_lambda
+    /// [the encoding]: Self::define_const_for_lambda
     fn bin_rel_to_fixpoint(
         &mut self,
         sort: &rty::Sort,
@@ -1554,7 +1554,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(did));
                 consts.push(fixpoint::ConstDecl { name, sort, comment: Some(comment) });
             } else {
-                let out = scx.sort_to_fixpoint(&self.genv.func_sort(did).expect_mono().output());
+                let out = scx.sort_to_fixpoint(self.genv.func_sort(did).expect_mono().output());
                 let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
                 let fun_def = fixpoint::FunDef { name, args, body, out, comment: Some(comment) };
                 defs.push((info.rank, fun_def));
