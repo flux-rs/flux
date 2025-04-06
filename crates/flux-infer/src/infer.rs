@@ -172,6 +172,15 @@ pub enum QueryKind {
     RefineVC,
 }
 
+impl fmt::Display for QueryKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QueryKind::ImplVC => write!(f, "sub.fluxc"),
+            QueryKind::RefineVC => write!(f, "fluxc"),
+        }
+    }
+}
+
 impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn infcx<'a>(
         &'a mut self,
@@ -202,19 +211,20 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         self,
         cache: &mut FixQueryCache,
         def_id: MaybeExternId,
-        ext: &'static str,
         kind: QueryKind,
     ) -> QueryResult<Vec<Tag>> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
 
+        let ext = format!("{kind}");
+
         let mut refine_tree = self.refine_tree;
 
         refine_tree.replace_evars(&evars).unwrap();
 
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
+            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), &ext, &refine_tree).unwrap();
         }
         refine_tree.simplify(self.genv);
         if config::dump_constraint() {

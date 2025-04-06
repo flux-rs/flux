@@ -77,7 +77,7 @@ fn check_invariant(
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let errors = infcx_root
-        .execute_fixpoint_query(cache, def_id, "fluxc", QueryKind::RefineVC)
+        .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
         .emit(&genv)?;
 
     if errors.is_empty() { Ok(()) } else { Err(genv.sess().emit_err(errors::Invalid { span })) }
