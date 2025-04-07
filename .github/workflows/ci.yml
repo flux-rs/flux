@@ -103,7 +103,7 @@ jobs:
 
       - name: Install CVC5
         run: |
-          wget https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.0/cvc5-Linux-x86_64-static.zip
+          wget https://github.com/cvc5/cvc5/releases/download/cvc5-1.2.1/cvc5-Linux-x86_64-static.zip
           unzip cvc5-Linux-x86_64-static.zip
           rm -f cvc5-Linux-x86_64-static.zip
           sudo cp cvc5-Linux-x86_64-static/bin/cvc5 /usr/local/bin
