@@ -2844,8 +2844,7 @@
 <a href="#2843" id="2843">2843</a>
 <a href="#2844" id="2844">2844</a>
 <a href="#2845" id="2845">2845</a>
-<a href="#2846" id="2846">2846</a>
-<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2846" id="2846">2846</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -4877,8 +4876,7 @@
                     ExprRes::Param(..) =&gt; env.lookup(<span class="kw-2">&amp;</span>var).to_expr(),
                     ExprRes::Const(def_id) =&gt; {
                         <span class="kw">if </span>P::HAS_ELABORATED_INFORMATION {
-                            <span class="kw">let </span>info = <span class="self">self</span>.genv().constant_info(def_id)<span class="question-mark">?</span>;
-                            rty::Expr::const_def_id(def_id, info).at(espan)
+                            rty::Expr::const_def_id(def_id).at(espan)
                         } <span class="kw">else </span>{
                             <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv().sort_of_def_id(def_id)<span class="question-mark">? </span><span class="kw">else </span>{
                                 <span class="macro">span_bug!</span>(expr.span, <span class="string">"missing sort for const {def_id:?}"</span>);

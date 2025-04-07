@@ -228,7 +228,8 @@
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
@@ -290,7 +291,7 @@
 <span class="kw">impl </span>NormalizedDefns {
     <span class="kw">pub fn </span>new(
         genv: GlobalEnv,
-        defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;, bool, bool)],
+        defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;, bool)],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Vec&lt;FluxLocalDefId&gt;&gt; {
         <span class="comment">// 1. Topologically sort the Defns
         </span><span class="kw">let </span>ds = toposort(defns)<span class="question-mark">?</span>;
@@ -299,10 +300,11 @@
         </span><span class="kw">let </span><span class="kw-2">mut </span>normalized = UnordMap::default();
         <span class="kw">let </span><span class="kw-2">mut </span>ids = <span class="macro">vec!</span>[];
         <span class="kw">for </span>(rank, i) <span class="kw">in </span>ds.iter().enumerate() {
-            <span class="kw">let </span>(id, body, inline, hide) = <span class="kw-2">&amp;</span>defns[<span class="kw-2">*</span>i];
+            <span class="kw">let </span>(id, body, hide) = <span class="kw-2">&amp;</span>defns[<span class="kw-2">*</span>i];
             <span class="kw">let </span>body = body.fold_with(<span class="kw-2">&amp;mut </span>Normalizer::new(genv, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>normalized)));
 
-            <span class="kw">let </span>info = NormalizeInfo { body: body.clone(), inline: <span class="kw-2">*</span>inline, rank, hide: <span class="kw-2">*</span>hide };
+            <span class="kw">let </span>inline = genv.should_inline_fun(id.to_def_id());
+            <span class="kw">let </span>info = NormalizeInfo { body: body.clone(), inline, rank, hide: <span class="kw-2">*</span>hide };
             ids.push(<span class="kw-2">*</span>id);
             normalized.insert(<span class="kw-2">*</span>id, info);
         }
@@ -325,8 +327,8 @@
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i &lt; j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-</span><span class="kw">fn </span>toposort&lt;T1, T2&gt;(
-    defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;, T1, T2)],
+</span><span class="kw">fn </span>toposort&lt;T&gt;(
+    defns: <span class="kw-2">&amp;</span>[(FluxLocalDefId, Binder&lt;Expr&gt;, T)],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;usize&gt;, Vec&lt;FluxLocalDefId&gt;&gt; {
     <span class="comment">// 1. Make a Symbol to Index map
     </span><span class="kw">let </span>s2i: UnordMap&lt;FluxLocalDefId, usize&gt; = defns

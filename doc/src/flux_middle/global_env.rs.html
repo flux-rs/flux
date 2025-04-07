@@ -803,13 +803,13 @@
         <span class="prelude-val">Ok</span>(reveals.iter().copied())
     }
 
-    <span class="kw">pub fn </span>func_sort(<span class="self">self</span>, def_id: FluxDefId) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+    <span class="kw">pub fn </span>func_sort(<span class="self">self</span>, def_id: FluxDefId) -&gt; rty::PolyFuncSort {
         <span class="self">self</span>.inner.queries.func_sort(<span class="self">self</span>, def_id)
     }
 
-    <span class="kw">pub fn </span>is_define_fun(<span class="self">self</span>, def_id: FluxDefId) -&gt; QueryResult&lt;bool&gt; {
-        <span class="kw">let </span>is_mono = <span class="self">self</span>.func_sort(def_id)<span class="question-mark">?</span>.params().len() == <span class="number">0</span>;
-        <span class="prelude-val">Ok</span>(is_mono &amp;&amp; flux_config::smt_define_fun())
+    <span class="kw">pub fn </span>should_inline_fun(<span class="self">self</span>, def_id: FluxDefId) -&gt; bool {
+        <span class="kw">let </span>is_poly = <span class="self">self</span>.func_sort(def_id).params().len() &gt; <span class="number">0</span>;
+        is_poly || !flux_config::smt_define_fun()
     }
 
     <span class="kw">pub fn </span>variances_of(<span class="self">self</span>, did: DefId) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>[Variance] {
@@ -1237,7 +1237,7 @@
         }
     }
 
-    <span class="kw">pub fn </span>fn_reveals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[FluxDefId]&gt; {
+    <span class="kw">fn </span>fn_reveals_for(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>[FluxDefId]&gt; {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(fn_sig) = <span class="self">self</span>.expect_owner_node(def_id)<span class="question-mark">?</span>.fn_sig() {
             <span class="prelude-val">Ok</span>(fn_sig.reveals)
         } <span class="kw">else </span>{

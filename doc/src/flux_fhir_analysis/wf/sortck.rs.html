@@ -1287,7 +1287,7 @@
             ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int), <span class="comment">// TODO: generalize generic-const sorts
             </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
             ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) =&gt; {
-                <span class="prelude-val">Ok</span>(rty::Sort::Func(<span class="self">self</span>.genv.func_sort(name).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">?</span>))
+                <span class="prelude-val">Ok</span>(rty::Sort::Func(<span class="self">self</span>.genv.func_sort(name)))
             }
             ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) =&gt; {
                 <span class="prelude-val">Ok</span>(rty::Sort::Func(THEORY_FUNCS.get(<span class="kw-2">&amp;</span>itf).unwrap().sort.clone()))

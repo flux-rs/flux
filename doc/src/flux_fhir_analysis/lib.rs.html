@@ -587,7 +587,10 @@
 <a href="#586" id="586">586</a>
 <a href="#587" id="587">587</a>
 <a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -660,9 +663,14 @@
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-<span class="kw">fn </span>func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -&gt; QueryResult&lt;rty::PolyFuncSort&gt; {
+<span class="kw">fn </span>func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -&gt; rty::PolyFuncSort {
     <span class="kw">let </span>func = genv.map().spec_func(def_id).unwrap();
-    conv::conv_func_decl(genv, func)
+    <span class="kw">match </span>conv::conv_func_decl(genv, func).emit(<span class="kw-2">&amp;</span>genv) {
+        <span class="prelude-val">Ok</span>(normalized) =&gt; normalized,
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            genv.sess().abort(err);
+        }
+    }
 }
 
 <span class="kw">fn </span>normalized_defns(genv: GlobalEnv) -&gt; rty::NormalizedDefns {
@@ -689,9 +697,7 @@
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = defn {
-            <span class="comment">// inline all polymorphic definitions, as they cannot be `define-fun`ed in SMT
-            </span><span class="kw">let </span>inline = !genv.is_define_fun(func.def_id.to_def_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-            defns.push((func.def_id, defn, inline, func.hide));
+            defns.push((func.def_id, defn, func.hide));
         }
     }
     errors.into_result()<span class="question-mark">?</span>;
