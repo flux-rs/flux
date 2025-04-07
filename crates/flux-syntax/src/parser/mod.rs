@@ -1065,7 +1065,7 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
     Err(cx.unexpected_token(vec![std::any::type_name::<T>()]))
 }
 
-/// `text
+/// ```text
 /// ⟨sort⟩ :=  ⟨base_sort⟩
 ///         |  ( ⟨base_sort⟩,* ) -> ⟨base_sort⟩
 ///         |  ⟨base_sort⟩ -> ⟨base_sort⟩

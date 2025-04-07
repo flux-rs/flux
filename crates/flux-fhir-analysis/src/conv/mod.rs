@@ -2030,8 +2030,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     ExprRes::Param(..) => env.lookup(&var).to_expr(),
                     ExprRes::Const(def_id) => {
                         if P::HAS_ELABORATED_INFORMATION {
-                            let info = self.genv().constant_info(def_id)?;
-                            rty::Expr::const_def_id(def_id, info).at(espan)
+                            rty::Expr::const_def_id(def_id).at(espan)
                         } else {
                             let Some(sort) = self.genv().sort_of_def_id(def_id)? else {
                                 span_bug!(expr.span, "missing sort for const {def_id:?}");

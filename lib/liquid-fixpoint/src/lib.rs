@@ -116,7 +116,7 @@ macro_rules! declare_types {
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
-            pub type FunDecl = $crate::FunDef<FixpointTypes>;
+            pub type FunDef = $crate::FunDef<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;

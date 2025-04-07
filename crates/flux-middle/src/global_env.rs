@@ -162,13 +162,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(reveals.iter().copied())
     }
 
-    pub fn func_sort(self, def_id: FluxDefId) -> QueryResult<rty::PolyFuncSort> {
+    pub fn func_sort(self, def_id: FluxDefId) -> rty::PolyFuncSort {
         self.inner.queries.func_sort(self, def_id)
     }
 
-    pub fn is_define_fun(self, def_id: FluxDefId) -> QueryResult<bool> {
-        let is_mono = self.func_sort(def_id)?.params().len() == 0;
-        Ok(is_mono && flux_config::smt_define_fun())
+    pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
+        let is_poly = self.func_sort(def_id).params().len() > 0;
+        is_poly || !flux_config::smt_define_fun()
     }
 
     pub fn variances_of(self, did: DefId) -> &'tcx [Variance] {
@@ -596,7 +596,7 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn fn_reveals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxDefId]> {
+    fn fn_reveals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxDefId]> {
         if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
             Ok(fn_sig.reveals)
         } else {
