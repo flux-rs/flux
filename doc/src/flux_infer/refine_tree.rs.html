@@ -792,7 +792,11 @@
 <a href="#791" id="791">791</a>
 <a href="#792" id="792">792</a>
 <a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -811,6 +815,7 @@
     },
 };
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>rustc_middle::ty::TyCtxt;
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use crate</span>::{
@@ -951,19 +956,21 @@
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hoister(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hoister&lt;<span class="lifetime">'tcx</span>&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
         assume_invariants: AssumeInvariants,
-    ) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'a</span>&gt;&gt; {
-        Hoister::with_delegate(Unpacker { cursor: <span class="self">self</span>, assume_invariants }).transparent()
+    ) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
+        Hoister::with_delegate(Unpacker { tcx, cursor: <span class="self">self</span>, assume_invariants }).transparent()
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
-        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tcx: TyCtxt, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
+        <span class="kw">struct </span>Visitor&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'tcx</span>&gt; {
+            tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
             cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor&lt;<span class="lifetime">'b</span>&gt;,
             overflow_checking: bool,
         }
-        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+        <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>Visitor&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
             <span class="kw">fn </span>visit_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, bty: <span class="kw-2">&amp;</span>BaseTy) -&gt; ControlFlow&lt;!&gt; {
                 <span class="kw">match </span>bty {
                     BaseTy::Adt(adt_def, substs) <span class="kw">if </span>adt_def.is_box() =&gt; substs.visit_with(<span class="self">self</span>),
@@ -977,7 +984,7 @@
                 <span class="kw">if let </span>TyKind::Indexed(bty, idx) = ty.kind()
                     &amp;&amp; !idx.has_escaping_bvars()
                 {
-                    <span class="kw">for </span>invariant <span class="kw">in </span>bty.invariants(<span class="self">self</span>.overflow_checking) {
+                    <span class="kw">for </span>invariant <span class="kw">in </span>bty.invariants(<span class="self">self</span>.tcx, <span class="self">self</span>.overflow_checking) {
                         <span class="kw">let </span>invariant = invariant.apply(idx);
                         <span class="self">self</span>.cursor.assume_pred(<span class="kw-2">&amp;</span>invariant);
                     }
@@ -985,7 +992,7 @@
                 ty.super_visit_with(<span class="self">self</span>)
             }
         }
-        ty.visit_with(<span class="kw-2">&amp;mut </span>Visitor { cursor: <span class="self">self</span>, overflow_checking });
+        ty.visit_with(<span class="kw-2">&amp;mut </span>Visitor { tcx, cursor: <span class="self">self</span>, overflow_checking });
     }
 }
 
@@ -1147,17 +1154,18 @@
     }
 }
 
-<span class="kw">pub struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>&gt; {
+<span class="kw">pub struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'tcx</span>&gt; {
+    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor&lt;<span class="lifetime">'b</span>&gt;,
     assume_invariants: AssumeInvariants,
 }
 
-<span class="kw">impl </span>HoisterDelegate <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>HoisterDelegate <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
         <span class="kw">let </span>ty =
             ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(<span class="self">self</span>.cursor.define_var(sort)));
         <span class="kw">if let </span>AssumeInvariants::Yes { check_overflow } = <span class="self">self</span>.assume_invariants {
-            <span class="self">self</span>.cursor.assume_invariants(<span class="kw-2">&amp;</span>ty, check_overflow);
+            <span class="self">self</span>.cursor.assume_invariants(<span class="self">self</span>.tcx, <span class="kw-2">&amp;</span>ty, check_overflow);
         }
         ty
     }

@@ -262,7 +262,19 @@
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::slice;
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::slice;
 
 <span class="kw">pub use </span>flux_arc_interner::{List, impl_slice_internable};
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -319,8 +331,20 @@
     </span>}
 }
 
+<span class="kw">impl</span>&lt;I: IntoIterator&gt; EarlyBinder&lt;I&gt; {
+    <span class="kw">pub fn </span>iter_identity(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = I::Item&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.into_iter()
+    }
+}
+
 <span class="kw">impl</span>&lt;T: TypeFoldable&gt; EarlyBinder&lt;T&gt; {
     <span class="kw">pub fn </span>instantiate(<span class="self">self</span>, tcx: TyCtxt, args: <span class="kw-2">&amp;</span>[GenericArg], refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
+        <span class="self">self</span>.as_ref().instantiate_ref(tcx, args, refine_args)
+    }
+}
+
+<span class="kw">impl</span>&lt;T: TypeFoldable&gt; EarlyBinder&lt;<span class="kw-2">&amp;</span>T&gt; {
+    <span class="kw">pub fn </span>instantiate_ref(<span class="self">self</span>, tcx: TyCtxt, args: <span class="kw-2">&amp;</span>[GenericArg], refine_args: <span class="kw-2">&amp;</span>[Expr]) -&gt; T {
         <span class="self">self</span>.<span class="number">0
             </span>.try_fold_with(<span class="kw-2">&amp;mut </span>subst::GenericsSubstFolder::new(
                 subst::GenericArgsDelegate(args, tcx),

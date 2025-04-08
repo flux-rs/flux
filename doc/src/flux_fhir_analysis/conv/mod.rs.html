@@ -3447,7 +3447,7 @@
 
             <span class="kw">let </span>requires = adt_def
                 .invariants()
-                .iter()
+                .iter_identity()
                 .map(|inv| inv.apply(<span class="kw-2">&amp;</span>idx))
                 .collect();
 

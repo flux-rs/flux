@@ -1073,7 +1073,11 @@
 <a href="#1072" id="1072">1072</a>
 <a href="#1073" id="1073">1073</a>
 <a href="#1074" id="1074">1074</a>
-<a href="#1075" id="1075">1075</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1501,16 +1505,20 @@
         <span class="self">self</span>.cursor.marker()
     }
 
-    <span class="kw">pub fn </span>hoister(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assume_invariants: bool) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'infcx</span>&gt;&gt; {
-        <span class="self">self</span>.cursor.hoister(<span class="kw">if </span>assume_invariants {
-            AssumeInvariants::yes(<span class="self">self</span>.check_overflow)
-        } <span class="kw">else </span>{
-            AssumeInvariants::No
-        })
+    <span class="kw">pub fn </span>hoister(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assume_invariants: bool) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
+        <span class="self">self</span>.cursor.hoister(
+            <span class="self">self</span>.genv.tcx(),
+            <span class="kw">if </span>assume_invariants {
+                AssumeInvariants::yes(<span class="self">self</span>.check_overflow)
+            } <span class="kw">else </span>{
+                AssumeInvariants::No
+            },
+        )
     }
 
     <span class="kw">pub fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
-        <span class="self">self</span>.cursor.assume_invariants(ty, <span class="self">self</span>.check_overflow);
+        <span class="self">self</span>.cursor
+            .assume_invariants(<span class="self">self</span>.genv.tcx(), ty, <span class="self">self</span>.check_overflow);
     }
 
     <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
