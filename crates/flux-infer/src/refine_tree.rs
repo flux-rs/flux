@@ -17,6 +17,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
+use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
 use crate::{
@@ -157,19 +158,21 @@ impl<'a> Cursor<'a> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn hoister(
+    pub(crate) fn hoister<'tcx>(
         &mut self,
+        tcx: TyCtxt<'tcx>,
         assume_invariants: AssumeInvariants,
-    ) -> Hoister<Unpacker<'_, 'a>> {
-        Hoister::with_delegate(Unpacker { cursor: self, assume_invariants }).transparent()
+    ) -> Hoister<Unpacker<'_, 'a, 'tcx>> {
+        Hoister::with_delegate(Unpacker { tcx, cursor: self, assume_invariants }).transparent()
     }
 
-    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
-        struct Visitor<'a, 'b> {
+    pub(crate) fn assume_invariants(&mut self, tcx: TyCtxt, ty: &Ty, overflow_checking: bool) {
+        struct Visitor<'a, 'b, 'tcx> {
+            tcx: TyCtxt<'tcx>,
             cursor: &'a mut Cursor<'b>,
             overflow_checking: bool,
         }
-        impl TypeVisitor for Visitor<'_, '_> {
+        impl TypeVisitor for Visitor<'_, '_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
                 match bty {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
@@ -183,7 +186,7 @@ impl<'a> Cursor<'a> {
                 if let TyKind::Indexed(bty, idx) = ty.kind()
                     && !idx.has_escaping_bvars()
                 {
-                    for invariant in bty.invariants(self.overflow_checking) {
+                    for invariant in bty.invariants(self.tcx, self.overflow_checking) {
                         let invariant = invariant.apply(idx);
                         self.cursor.assume_pred(&invariant);
                     }
@@ -191,7 +194,7 @@ impl<'a> Cursor<'a> {
                 ty.super_visit_with(self)
             }
         }
-        ty.visit_with(&mut Visitor { cursor: self, overflow_checking });
+        ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_checking });
     }
 }
 
@@ -353,17 +356,18 @@ impl AssumeInvariants {
     }
 }
 
-pub struct Unpacker<'a, 'b> {
+pub struct Unpacker<'a, 'b, 'tcx> {
+    tcx: TyCtxt<'tcx>,
     cursor: &'a mut Cursor<'b>,
     assume_invariants: AssumeInvariants,
 }
 
-impl HoisterDelegate for Unpacker<'_, '_> {
+impl HoisterDelegate for Unpacker<'_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
         let ty =
             ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.cursor.define_var(sort)));
         if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
-            self.cursor.assume_invariants(&ty, check_overflow);
+            self.cursor.assume_invariants(self.tcx, &ty, check_overflow);
         }
         ty
     }

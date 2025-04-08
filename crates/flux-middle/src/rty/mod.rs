@@ -1694,14 +1694,21 @@ impl BaseTy {
         }
     }
 
-    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
-        match self {
-            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
-            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
-            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
-            BaseTy::Slice(_) => slice_invariants(overflow_checking),
-            _ => &[],
-        }
+    pub fn invariants(
+        &self,
+        tcx: TyCtxt,
+        overflow_checking: bool,
+    ) -> impl Iterator<Item = Invariant> {
+        let (invariants, args) = match self {
+            BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder(), &args[..]),
+            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_checking), &[][..]),
+            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_checking), &[][..]),
+            BaseTy::Slice(_) => (slice_invariants(overflow_checking), &[][..]),
+            _ => (&[][..], &[][..]),
+        };
+        invariants
+            .iter()
+            .map(move |inv| EarlyBinder(inv).instantiate_ref(tcx, args, &[]))
     }
 
     pub fn to_ty(&self) -> Ty {
@@ -2468,8 +2475,8 @@ impl AdtDef {
         self.0.rustc.variant(idx)
     }
 
-    pub fn invariants(&self) -> &[Invariant] {
-        &self.0.invariants
+    pub fn invariants(&self) -> EarlyBinder<&[Invariant]> {
+        EarlyBinder(&self.0.invariants)
     }
 
     pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {
@@ -2479,10 +2486,6 @@ impl AdtDef {
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
     }
-
-    // pub fn is_reflected(&self) -> bool {
-    //     self.0.sort_def.is_reflected()
-    // }
 }
 
 impl<T> Opaqueness<T> {

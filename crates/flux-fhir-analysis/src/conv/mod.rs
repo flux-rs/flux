@@ -601,7 +601,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             let requires = adt_def
                 .invariants()
-                .iter()
+                .iter_identity()
                 .map(|inv| inv.apply(&idx))
                 .collect();
 
