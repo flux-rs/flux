@@ -35,7 +35,8 @@
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::rc::Rc;
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::rc::Rc;
 
 <span class="kw">use </span>rustc_hir::def_id::CrateNum;
 <span class="kw">use </span>rustc_span::def_id::DefId;
@@ -69,6 +70,7 @@
     ) -&gt; OptResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;;
     <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;;
     <span class="kw">fn </span>normalized_defns(<span class="kw-2">&amp;</span><span class="self">self</span>, krate: CrateNum) -&gt; Rc&lt;rty::NormalizedDefns&gt;;
+    <span class="kw">fn </span>func_sort(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxDefId) -&gt; <span class="prelude-ty">Option</span>&lt;rty::PolyFuncSort&gt;;
 }
 
 <span class="kw">pub type </span>CrateStoreDyn = <span class="kw">dyn </span>CrateStore;

@@ -687,8 +687,8 @@
 
     <span class="comment">// Collect and emit all errors
     </span><span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
-    <span class="kw">for </span>func <span class="kw">in </span>genv.map().spec_funcs() {
-        <span class="kw">let </span>item = fhir::FluxItem::Func(func);
+    <span class="kw">for </span>(<span class="kw">_</span>, item) <span class="kw">in </span>genv.map().flux_items() {
+        <span class="kw">let </span>fhir::FluxItem::Func(func) = item <span class="kw">else </span>{ <span class="kw">continue </span>};
         <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = wf::check_flux_item(genv, item).collect_err(<span class="kw-2">&amp;mut </span>errors) <span class="kw">else </span>{
             <span class="kw">continue</span>;
         };

@@ -1342,7 +1342,7 @@
                     <span class="comment">// refinement functions cannot be extern specs so we simply grab the local id
                     </span>(<span class="self">self</span>.providers.func_sort)(genv, def_id.local_id())
                 },
-                |<span class="kw">_</span>| <span class="macro">bug!</span>(<span class="string">"extern refinement functions are not yet implemented"</span>),
+                |def_id| genv.cstore().func_sort(def_id),
                 |<span class="kw">_</span>| {
                     <span class="macro">bug!</span>(
                         <span class="string">"cannot generate default function sort, the refinement must be defined somewhere"

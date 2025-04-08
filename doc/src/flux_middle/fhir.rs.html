@@ -1992,7 +1992,7 @@
 /// We should eventually get rid of this or change its name.
 </span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>FluxItems&lt;<span class="lifetime">'fhir</span>&gt; {
-    <span class="kw">pub </span>items: FxHashMap&lt;FluxLocalDefId, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
+    <span class="kw">pub </span>items: FxIndexMap&lt;FluxLocalDefId, FluxItem&lt;<span class="lifetime">'fhir</span>&gt;&gt;,
 }
 
 <span class="kw">impl </span>FluxItems&lt;<span class="lifetime">'_</span>&gt; {

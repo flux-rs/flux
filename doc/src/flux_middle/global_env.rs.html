@@ -635,11 +635,7 @@
 <a href="#634" id="634">634</a>
 <a href="#635" id="635">635</a>
 <a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#637" id="637">637</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -803,8 +799,10 @@
         <span class="prelude-val">Ok</span>(reveals.iter().copied())
     }
 
-    <span class="kw">pub fn </span>func_sort(<span class="self">self</span>, def_id: FluxDefId) -&gt; rty::PolyFuncSort {
-        <span class="self">self</span>.inner.queries.func_sort(<span class="self">self</span>, def_id)
+    <span class="kw">pub fn </span>func_sort(<span class="self">self</span>, def_id: <span class="kw">impl </span>IntoQueryParam&lt;FluxDefId&gt;) -&gt; rty::PolyFuncSort {
+        <span class="self">self</span>.inner
+            .queries
+            .func_sort(<span class="self">self</span>, def_id.into_query_param())
     }
 
     <span class="kw">pub fn </span>should_inline_fun(<span class="self">self</span>, def_id: FluxDefId) -&gt; bool {
@@ -1193,10 +1191,6 @@
         }
     }
 
-    <span class="kw">pub fn </span>get_flux_item(<span class="self">self</span>, def_id: FluxLocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.items.get(<span class="kw-2">&amp;</span>def_id).as_ref().copied()
-    }
-
     <span class="kw">pub fn </span>refinement_kind(
         <span class="self">self</span>,
         def_id: LocalDefId,
@@ -1209,10 +1203,8 @@
         <span class="prelude-val">Ok</span>(kind)
     }
 
-    <span class="kw">pub fn </span>spec_funcs(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {
-        <span class="self">self</span>.fhir.items.values().filter_map(|item| {
-            <span class="kw">if let </span>fhir::FluxItem::Func(defn) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>defn) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
-        })
+    <span class="kw">pub fn </span>flux_items(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (FluxLocalDefId, fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;)&gt; {
+        <span class="self">self</span>.fhir.items.iter().map(|(id, item)| (<span class="kw-2">*</span>id, <span class="kw-2">*</span>item))
     }
 
     <span class="kw">pub fn </span>spec_func(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: FluxLocalDefId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::SpecFunc&lt;<span class="lifetime">'genv</span>&gt;&gt; {

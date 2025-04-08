@@ -215,7 +215,13 @@
 <a href="#214" id="214">214</a>
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::bug;
 <span class="kw">use </span>rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 <span class="kw">use </span>rustc_macros::{Decodable, Encodable};
 <span class="kw">use </span>rustc_span::Symbol;
@@ -305,6 +311,12 @@
 <span class="kw">impl </span>FluxId&lt;MaybeExternId&gt; {
     <span class="kw">pub fn </span>local_id(<span class="self">self</span>) -&gt; FluxLocalDefId {
         FluxLocalDefId { parent: <span class="self">self</span>.parent.local_id(), name: <span class="self">self</span>.name }
+    }
+}
+
+<span class="kw">impl </span>rustc_middle::query::IntoQueryParam&lt;FluxDefId&gt; <span class="kw">for </span>FluxLocalDefId {
+    <span class="kw">fn </span>into_query_param(<span class="self">self</span>) -&gt; FluxDefId {
+        <span class="self">self</span>.to_def_id()
     }
 }
 
