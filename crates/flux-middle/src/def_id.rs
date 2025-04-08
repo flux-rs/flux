@@ -91,6 +91,12 @@ impl FluxId<MaybeExternId> {
     }
 }
 
+impl rustc_middle::query::IntoQueryParam<FluxDefId> for FluxLocalDefId {
+    fn into_query_param(self) -> FluxDefId {
+        self.to_def_id()
+    }
+}
+
 /// This enum serves as a type-level reminder that a local definition _may be_ a wrapper for an
 /// extern spec. This abstraction is not infallible, so one should be careful and decide in each
 /// situation whether to use the [_local id_] or the [_resolved id_].
