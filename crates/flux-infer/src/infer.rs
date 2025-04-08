@@ -866,7 +866,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a, sig_b);
+                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
                 Ok(())
             }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
