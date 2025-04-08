@@ -426,16 +426,20 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.marker()
     }
 
-    pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx>> {
-        self.cursor.hoister(if assume_invariants {
-            AssumeInvariants::yes(self.check_overflow)
-        } else {
-            AssumeInvariants::No
-        })
+    pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx, 'tcx>> {
+        self.cursor.hoister(
+            self.genv.tcx(),
+            if assume_invariants {
+                AssumeInvariants::yes(self.check_overflow)
+            } else {
+                AssumeInvariants::No
+            },
+        )
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
-        self.cursor.assume_invariants(ty, self.check_overflow);
+        self.cursor
+            .assume_invariants(self.genv.tcx(), ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {

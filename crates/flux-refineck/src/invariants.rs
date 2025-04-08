@@ -28,7 +28,7 @@ pub fn check_invariants(
     let opts = genv.infer_opts(def_id.local_id());
     adt_def
         .invariants()
-        .iter()
+        .iter_identity()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;

@@ -55,8 +55,20 @@ impl<T> EarlyBinder<T> {
     }
 }
 
+impl<I: IntoIterator> EarlyBinder<I> {
+    pub fn iter_identity(self) -> impl Iterator<Item = I::Item> {
+        self.0.into_iter()
+    }
+}
+
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
+        self.as_ref().instantiate_ref(tcx, args, refine_args)
+    }
+}
+
+impl<T: TypeFoldable> EarlyBinder<&T> {
+    pub fn instantiate_ref(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::GenericArgsDelegate(args, tcx),
