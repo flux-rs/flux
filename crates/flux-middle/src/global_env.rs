@@ -162,8 +162,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(reveals.iter().copied())
     }
 
-    pub fn func_sort(self, def_id: FluxDefId) -> rty::PolyFuncSort {
-        self.inner.queries.func_sort(self, def_id)
+    pub fn func_sort(self, def_id: impl IntoQueryParam<FluxDefId>) -> rty::PolyFuncSort {
+        self.inner
+            .queries
+            .func_sort(self, def_id.into_query_param())
     }
 
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
@@ -552,10 +554,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         }
     }
 
-    pub fn get_flux_item(self, def_id: FluxLocalDefId) -> Option<&'genv fhir::FluxItem<'genv>> {
-        self.fhir.items.get(&def_id).as_ref().copied()
-    }
-
     pub fn refinement_kind(
         self,
         def_id: LocalDefId,
@@ -568,10 +566,8 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         Ok(kind)
     }
 
-    pub fn spec_funcs(self) -> impl Iterator<Item = &'genv fhir::SpecFunc<'genv>> {
-        self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::Func(defn) = item { Some(*defn) } else { None }
-        })
+    pub fn flux_items(self) -> impl Iterator<Item = (FluxLocalDefId, fhir::FluxItem<'genv>)> {
+        self.fhir.items.iter().map(|(id, item)| (*id, *item))
     }
 
     pub fn spec_func(&self, def_id: FluxLocalDefId) -> Option<&'genv fhir::SpecFunc<'genv>> {

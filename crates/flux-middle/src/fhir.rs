@@ -384,7 +384,7 @@ pub type Arena = bumpalo::Bump;
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct FluxItems<'fhir> {
-    pub items: FxHashMap<FluxLocalDefId, FluxItem<'fhir>>,
+    pub items: FxIndexMap<FluxLocalDefId, FluxItem<'fhir>>,
 }
 
 impl FluxItems<'_> {

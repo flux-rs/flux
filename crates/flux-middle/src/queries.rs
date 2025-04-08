@@ -407,7 +407,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_sort)(genv, def_id.local_id())
                 },
-                |_| bug!("extern refinement functions are not yet implemented"),
+                |def_id| genv.cstore().func_sort(def_id),
                 |_| {
                     bug!(
                         "cannot generate default function sort, the refinement must be defined somewhere"

@@ -26,6 +26,7 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     cstore::{CrateStore, OptResult},
     def_id::{FluxDefId, FluxId},
+    fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty,
@@ -119,6 +120,7 @@ pub struct Tables<K: Eq + Hash> {
     variants: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     normalized_defns: Rc<rty::NormalizedDefns>,
+    func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
 }
 
 impl CStore {
@@ -251,6 +253,10 @@ impl CrateStore for CStore {
     fn normalized_defns(&self, krate: CrateNum) -> std::rc::Rc<rty::NormalizedDefns> {
         self.local_tables[&krate].normalized_defns.clone()
     }
+
+    fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
+        get!(self, func_sort, key)
+    }
 }
 
 impl CrateMetadata {
@@ -263,7 +269,7 @@ impl CrateMetadata {
             DefId::to_index,
             FluxDefId::to_index,
         );
-        local_tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+        encode_flux_defs(genv, &mut local_tables);
 
         let mut extern_tables = Tables::default();
         encode_def_ids(
@@ -275,6 +281,17 @@ impl CrateMetadata {
         );
 
         CrateMetadata { local_tables, extern_tables }
+    }
+}
+
+fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
+    tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+
+    for (def_id, item) in genv.map().flux_items() {
+        let fhir::FluxItem::Func(_) = item else { continue };
+        tables
+            .func_sort
+            .insert(def_id.local_def_index(), genv.func_sort(def_id));
     }
 }
 

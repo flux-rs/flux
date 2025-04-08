@@ -32,6 +32,7 @@ pub trait CrateStore {
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>;
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>>;
     fn normalized_defns(&self, krate: CrateNum) -> Rc<rty::NormalizedDefns>;
+    fn func_sort(&self, def_id: FluxDefId) -> Option<rty::PolyFuncSort>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

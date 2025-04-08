@@ -95,8 +95,8 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
 
     // Collect and emit all errors
     let mut errors = Errors::new(genv.sess());
-    for func in genv.map().spec_funcs() {
-        let item = fhir::FluxItem::Func(func);
+    for (_, item) in genv.map().flux_items() {
+        let fhir::FluxItem::Func(func) = item else { continue };
         let Some(wfckresults) = wf::check_flux_item(genv, item).collect_err(&mut errors) else {
             continue;
         };
