@@ -1366,8 +1366,8 @@ pub(crate) mod pretty {
                 ExprKind::Let(init, body) => {
                     let vars = body.vars();
                     cx.with_bound_vars(vars, || {
-                        cx.fmt_bound_vars(false, "let", vars, " = ", f)?;
-                        w!(cx, f, "{:?} in {:?}", init, body.skip_binder_ref())
+                        cx.fmt_bound_vars(false, "(let ", vars, " = ", f)?;
+                        w!(cx, f, "{:?} in {:?})", init, body.skip_binder_ref())
                     })
                 }
             }
