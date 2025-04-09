@@ -1185,7 +1185,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
-            _ => tracked_span_bug!("expected array or slice type"),
+            _ => tracked_span_bug!("expected array or slice type found `{ty:?}`"),
         };
 
         Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
