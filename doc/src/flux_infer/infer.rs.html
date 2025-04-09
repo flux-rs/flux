@@ -1945,7 +1945,7 @@
                 <span class="prelude-val">Ok</span>(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) =&gt; {
-                <span class="macro">tracked_span_assert_eq!</span>(sig_a, sig_b);
+                <span class="macro">tracked_span_assert_eq!</span>(sig_a.erase_regions(), sig_b.erase_regions());
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"incompatible base types: `{a:?}` - `{b:?}`"</span>))<span class="question-mark">?</span>,
