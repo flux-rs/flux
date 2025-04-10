@@ -1077,7 +1077,24 @@
 <a href="#1076" id="1076">1076</a>
 <a href="#1077" id="1077">1077</a>
 <a href="#1078" id="1078">1078</a>
-<a href="#1079" id="1079">1079</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1245,6 +1262,21 @@
     }
 }
 
+<span class="attr">#[derive(Debug, Hash, Clone, Copy)]
+</span><span class="kw">pub enum </span>QueryKind {
+    ImplVC,
+    RefineVC,
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>QueryKind {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            QueryKind::ImplVC =&gt; <span class="macro">write!</span>(f, <span class="string">"sub.fluxc"</span>),
+            QueryKind::RefineVC =&gt; <span class="macro">write!</span>(f, <span class="string">"fluxc"</span>),
+        }
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; InferCtxtRoot&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub fn </span>infcx&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span><span class="self">self</span>,
@@ -1275,18 +1307,20 @@
         <span class="self">self</span>,
         cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
         def_id: MaybeExternId,
-        ext: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+        kind: QueryKind,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
         <span class="kw">let </span>inner = <span class="self">self</span>.inner.into_inner();
         <span class="kw">let </span>kvars = inner.kvars;
         <span class="kw">let </span>evars = inner.evars;
+
+        <span class="kw">let </span>ext = <span class="macro">format!</span>(<span class="string">"{kind}"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>refine_tree = <span class="self">self</span>.refine_tree;
 
         refine_tree.replace_evars(<span class="kw-2">&amp;</span>evars).unwrap();
 
         <span class="kw">if </span>config::dump_constraint() {
-            dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), def_id.resolved_id(), ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
+            dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), def_id.resolved_id(), <span class="kw-2">&amp;</span>ext, <span class="kw-2">&amp;</span>refine_tree).unwrap();
         }
         refine_tree.simplify(<span class="self">self</span>.genv);
         <span class="kw">if </span>config::dump_constraint() {
@@ -1303,7 +1337,7 @@
             flux_config::SmtSolver::CVC5 =&gt; liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, cstr, <span class="self">self</span>.opts.scrape_quals, backend)
+        fcx.check(cache, cstr, kind, <span class="self">self</span>.opts.scrape_quals, backend)
     }
 
     <span class="kw">pub fn </span>split(<span class="self">self</span>) -&gt; (RefineTree, KVarGen) {

@@ -353,7 +353,7 @@
 <span class="kw">use </span>flux_common::{dbg, result::ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, SubtypeReason, Tag},
+    infer::{ConstrReason, QueryKind, SubtypeReason, Tag},
 };
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
@@ -420,7 +420,7 @@
     </span>{
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
         <span class="kw">let </span>errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, <span class="string">"sub.fluxc"</span>)
+            .execute_fixpoint_query(cache, def_id, QueryKind::ImplVC)
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint-subtyping"</span>);
         report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
@@ -449,7 +449,7 @@
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
         </span><span class="kw">let </span>errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, <span class="string">"fluxc"</span>)
+            .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
         report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;

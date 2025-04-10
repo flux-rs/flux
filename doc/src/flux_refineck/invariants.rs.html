@@ -100,7 +100,7 @@
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, Tag},
+    infer::{ConstrReason, GlobalEnvExt, QueryKind, Tag},
 };
 <span class="kw">use </span>flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty};
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
@@ -174,7 +174,7 @@
         rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     <span class="kw">let </span>errors = infcx_root
-        .execute_fixpoint_query(cache, def_id, <span class="string">"fluxc"</span>)
+        .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
         .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>errors.is_empty() { <span class="prelude-val">Ok</span>(()) } <span class="kw">else </span>{ <span class="prelude-val">Err</span>(genv.sess().emit_err(errors::Invalid { span })) }

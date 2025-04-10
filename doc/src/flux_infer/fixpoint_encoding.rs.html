@@ -1605,12 +1605,7 @@
 <a href="#1604" id="1604">1604</a>
 <a href="#1605" id="1605">1605</a>
 <a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a>
-<a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1607" id="1607">1607</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -2029,6 +2024,7 @@
         <span class="kw-2">mut </span><span class="self">self</span>,
         cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
         constraint: fixpoint::Constraint,
+        kind: <span class="kw">crate</span>::infer::QueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
@@ -2085,7 +2081,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.def_id.resolved_id(), <span class="string">"smt2"</span>, <span class="kw-2">&amp;</span>task).unwrap();
         }
 
-        <span class="kw">let </span>task_key = <span class="self">self</span>.genv.tcx().def_path_str(<span class="self">self</span>.def_id);
+        <span class="kw">let </span>task_key = <span class="macro">format!</span>(<span class="string">"{}###{:?}"</span>, <span class="self">self</span>.genv.tcx().def_path_str(<span class="self">self</span>.def_id), kind);
 
         <span class="kw">match </span><span class="self">Self</span>::run_task_with_cache(task, task_key, cache) {
             FixpointResult::Safe(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]),
@@ -2106,21 +2102,15 @@
         cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     ) -&gt; FixpointResult&lt;TagIdx&gt; {
         <span class="kw">let </span>hash = task.hash_with_default();
+
         <span class="kw">if </span>config::is_cache_enabled()
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(result) = cache.lookup(<span class="kw-2">&amp;</span>key, hash)
         {
             <span class="kw">return </span>result.clone();
         }
-        <span class="kw">if </span>config::verbose() {
-            <span class="macro">println!</span>(<span class="string">"TRACE:START:fixpoint: run_task_with_cache {key}"</span>);
-        };
         <span class="kw">let </span>result = task
             .run()
             .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint: {err:?}"</span>));
-
-        <span class="kw">if </span>config::verbose() {
-            <span class="macro">println!</span>(<span class="string">"TRACE:DONE:fixpoint: run_task_with_cache {key}"</span>);
-        };
 
         <span class="kw">if </span>config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
