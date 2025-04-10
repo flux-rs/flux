@@ -36,7 +36,7 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, SubtypeReason, Tag},
+    infer::{ConstrReason, QueryKind, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -103,7 +103,7 @@ pub fn check_fn(
     {
         tracing::info!("check_fn::refine-subtyping");
         let errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, "sub.fluxc")
+            .execute_fixpoint_query(cache, def_id, QueryKind::ImplVC)
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         report_fixpoint_errors(genv, local_id, errors)?;
@@ -132,7 +132,7 @@ pub fn check_fn(
 
         // PHASE 3: invoke fixpoint on the constraint
         let errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, "fluxc")
+            .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint");
         report_fixpoint_errors(genv, local_id, errors)?;
