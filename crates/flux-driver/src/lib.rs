@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns, let_chains)]
+#![feature(rustc_private, box_patterns, let_chains, hash_raw_entry)]
 
 extern crate rustc_ast;
 extern crate rustc_borrowck;

@@ -390,6 +390,8 @@ dependencies = [
  "flux-rustc-bridge",
  "flux-syntax",
  "itertools",
+ "serde",
+ "serde_json",
  "toml",
  "tracing",
  "tracing-subscriber",

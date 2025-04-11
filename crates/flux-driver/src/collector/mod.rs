@@ -1,4 +1,5 @@
 mod extern_specs;
+mod stats;
 
 use std::collections::HashMap;
 
@@ -25,6 +26,7 @@ use rustc_hir::{
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
+use stats::Stats;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -33,6 +35,7 @@ pub(crate) struct SpecCollector<'sess, 'tcx> {
     parse_sess: ParseSess,
     specs: Specs,
     errors: Errors<'sess>,
+    stats: Stats,
 }
 
 macro_rules! attr_name {
@@ -69,10 +72,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             parse_sess: ParseSess::default(),
             specs: Specs::default(),
             errors: Errors::new(sess),
+            stats: Default::default(),
         };
 
         let _ = collector.collect_crate();
         tcx.hir().walk_toplevel_module(&mut collector);
+
+        if config::stats() {
+            collector.stats.save(tcx).unwrap();
+        }
 
         collector.errors.into_result()?;
 
@@ -488,6 +496,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             _ => return Err(invalid_attr_err(self)),
         };
+        if config::stats() {
+            self.stats.add(self.tcx, segment.as_str(), &attr_item.args);
+        }
         Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
     }
 
