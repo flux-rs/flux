@@ -389,8 +389,8 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    /// [`DefId`] of the item being checked. This can be a function/method or an adt when checking
-    /// invariants.
+    /// Id of the item being checked. This is a [`MaybeExternId`] because we can be checking invariants for
+    /// an extern spec on an enum.
     def_id: MaybeExternId,
 }
 
@@ -429,13 +429,12 @@ where
             return Ok(vec![]);
         }
         let def_span = self.def_span();
-
-        let def_id = self.def_id.local_id();
+        let def_id = self.def_id;
 
         let kvars = self.kcx.into_fixpoint();
 
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-        let qualifiers = self.ecx.qualifiers_for(def_id, &mut self.scx)?;
+        let qualifiers = self.ecx.qualifiers_for(def_id.local_id(), &mut self.scx)?;
 
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
@@ -1534,10 +1533,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn define_funs(
         &mut self,
-        def_id: LocalDefId,
+        def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<(Vec<fixpoint::FunDef>, Vec<fixpoint::ConstDecl>)> {
-        let reveals: UnordSet<FluxDefId> = self.genv.reveals_for(def_id)?.collect();
+        let reveals: UnordSet<FluxDefId> = self.genv.reveals_for(def_id.local_id())?.collect();
         let mut consts = vec![];
         let mut defs = vec![];
 

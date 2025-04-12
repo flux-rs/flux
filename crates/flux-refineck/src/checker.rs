@@ -1877,9 +1877,9 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id::MaybeExternId, def_id_to_string, global_env::GlobalEnv};
+    use flux_middle::{def_id_to_string, global_env::GlobalEnv};
     use rustc_errors::Diagnostic;
-    use rustc_hir::def_id::DefId;
+    use rustc_hir::def_id::{DefId, LocalDefId};
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
@@ -1895,7 +1895,7 @@ pub(crate) mod errors {
             Self { kind: InferErr::OpaqueStruct(def_id), span }
         }
 
-        pub fn emit(self, genv: GlobalEnv, fn_def_id: MaybeExternId) -> ErrorGuaranteed {
+        pub fn emit(self, genv: GlobalEnv, fn_def_id: LocalDefId) -> ErrorGuaranteed {
             let dcx = genv.sess().dcx().handle();
             match self.kind {
                 InferErr::UnsolvedEvar(_) => {
