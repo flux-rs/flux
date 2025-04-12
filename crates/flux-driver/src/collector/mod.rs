@@ -1,5 +1,5 @@
+mod annot_stats;
 mod extern_specs;
-mod stats;
 
 use std::collections::HashMap;
 
@@ -78,7 +78,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let _ = collector.collect_crate();
         tcx.hir().walk_toplevel_module(&mut collector);
 
-        if config::stats() {
+        if config::annots() {
             collector.stats.save(tcx).unwrap();
         }
 
@@ -496,7 +496,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             _ => return Err(invalid_attr_err(self)),
         };
-        if config::stats() {
+        if config::annots() {
             self.stats.add(self.tcx, segment.as_str(), &attr_item.args);
         }
         Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
