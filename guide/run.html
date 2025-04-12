@@ -273,7 +273,8 @@ operations, default <code>0</code>. When set to <code>0</code>, it still checks 
 unsigned integer subtraction.</li>
 <li><code>FLUX_SOLVER=z3</code> Can be either <code>z3</code> or <code>cvc5</code>.</li>
 <li><code>FLUX_SMT_DEFINE_FUN=1</code> translates <em>monomorphic</em> <code>defs</code> functions into SMT <code>define-fun</code> instead of inlining them away inside <code>flux</code>.</li>
-<li><code>FLUX_STATS=1</code> Compute statistics about number and size of annotations. Dumps a file per crate to <code>FLUX_LOG_DIR</code>.</li>
+<li><code>FLUX_ANNOTS=1</code> Compute statistics about number and size of annotations. Dumps a file per crate to <code>FLUX_LOG_DIR</code>.</li>
+<li><code>FLUX_TIMINGS=1</code> Print statistics about time taked to analyze each fuction. Also dumps a file with the raw times for each function.</li>
 </ul>
 <h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
 <p>The config file is a <code>.toml</code> file that contains on each line the lowercase name

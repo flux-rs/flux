@@ -1605,7 +1605,11 @@
 <a href="#1604" id="1604">1604</a>
 <a href="#1605" id="1605">1605</a>
 <a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -1621,12 +1625,14 @@
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config};
 <span class="kw">use </span>flux_errors::Errors;
 <span class="kw">use </span>flux_middle::{
+    FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{<span class="self">self</span>, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
+    timings::{<span class="self">self</span>, TimingKind},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -1994,8 +2000,8 @@
     ecx: ExprEncodingCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     tags: IndexVec&lt;TagIdx, T&gt;,
     tags_inv: UnordMap&lt;T, TagIdx&gt;,
-    <span class="doccomment">/// [`DefId`] of the item being checked. This can be a function/method or an adt when checking
-    /// invariants.
+    <span class="doccomment">/// Id of the item being checked. This is a [`MaybeExternId`] because we can be checking invariants for
+    /// an extern spec on an enum.
     </span>def_id: MaybeExternId,
 }
 
@@ -2024,7 +2030,7 @@
         <span class="kw-2">mut </span><span class="self">self</span>,
         cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
         constraint: fixpoint::Constraint,
-        kind: <span class="kw">crate</span>::infer::QueryKind,
+        kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
     ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
@@ -2034,13 +2040,12 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
         }
         <span class="kw">let </span>def_span = <span class="self">self</span>.def_span();
-
-        <span class="kw">let </span>def_id = <span class="self">self</span>.def_id.local_id();
+        <span class="kw">let </span>def_id = <span class="self">self</span>.def_id;
 
         <span class="kw">let </span>kvars = <span class="self">self</span>.kcx.into_fixpoint();
 
         <span class="kw">let </span>(define_funs, define_constants) = <span class="self">self</span>.ecx.define_funs(def_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
-        <span class="kw">let </span>qualifiers = <span class="self">self</span>.ecx.qualifiers_for(def_id, <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>qualifiers = <span class="self">self</span>.ecx.qualifiers_for(def_id.local_id(), <span class="kw-2">&amp;mut </span><span class="self">self</span>.scx)<span class="question-mark">?</span>;
 
         <span class="comment">// Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
@@ -2081,9 +2086,7 @@
             dbg::dump_item_info(<span class="self">self</span>.genv.tcx(), <span class="self">self</span>.def_id.resolved_id(), <span class="string">"smt2"</span>, <span class="kw-2">&amp;</span>task).unwrap();
         }
 
-        <span class="kw">let </span>task_key = <span class="macro">format!</span>(<span class="string">"{}###{:?}"</span>, <span class="self">self</span>.genv.tcx().def_path_str(<span class="self">self</span>.def_id), kind);
-
-        <span class="kw">match </span><span class="self">Self</span>::run_task_with_cache(task, task_key, cache) {
+        <span class="kw">match </span><span class="self">Self</span>::run_task_with_cache(<span class="self">self</span>.genv, task, <span class="self">self</span>.def_id.resolved_id(), kind, cache) {
             FixpointResult::Safe(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]),
             FixpointResult::Unsafe(<span class="kw">_</span>, errors) =&gt; {
                 <span class="prelude-val">Ok</span>(errors
@@ -2097,10 +2100,14 @@
     }
 
     <span class="kw">fn </span>run_task_with_cache(
+        genv: GlobalEnv,
         task: fixpoint::Task,
-        key: String,
+        def_id: DefId,
+        kind: FixpointQueryKind,
         cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
     ) -&gt; FixpointResult&lt;TagIdx&gt; {
+        <span class="kw">let </span>key = kind.task_key(genv.tcx(), def_id);
+
         <span class="kw">let </span>hash = task.hash_with_default();
 
         <span class="kw">if </span>config::is_cache_enabled()
@@ -2108,9 +2115,10 @@
         {
             <span class="kw">return </span>result.clone();
         }
-        <span class="kw">let </span>result = task
-            .run()
-            .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint: {err:?}"</span>));
+        <span class="kw">let </span>result = timings::time_it(TimingKind::FixpointQuery(def_id, kind), || {
+            task.run()
+                .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint: {err:?}"</span>))
+        });
 
         <span class="kw">if </span>config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
@@ -3136,10 +3144,10 @@
 
     <span class="kw">fn </span>define_funs(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        def_id: LocalDefId,
+        def_id: MaybeExternId,
         scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
     ) -&gt; QueryResult&lt;(Vec&lt;fixpoint::FunDef&gt;, Vec&lt;fixpoint::ConstDecl&gt;)&gt; {
-        <span class="kw">let </span>reveals: UnordSet&lt;FluxDefId&gt; = <span class="self">self</span>.genv.reveals_for(def_id)<span class="question-mark">?</span>.collect();
+        <span class="kw">let </span>reveals: UnordSet&lt;FluxDefId&gt; = <span class="self">self</span>.genv.reveals_for(def_id.local_id())<span class="question-mark">?</span>.collect();
         <span class="kw">let </span><span class="kw-2">mut </span>consts = <span class="macro">vec!</span>[];
         <span class="kw">let </span><span class="kw-2">mut </span>defs = <span class="macro">vec!</span>[];
 

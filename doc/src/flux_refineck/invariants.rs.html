@@ -95,14 +95,18 @@
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config::InferOpts;
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, QueryKind, Tag},
+    infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-<span class="kw">use </span>flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty};
+<span class="kw">use </span>flux_middle::{
+    FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
+};
 <span class="kw">use </span>rustc_infer::infer::TyCtxtInferExt;
 <span class="kw">use </span>rustc_middle::ty::TypingMode;
 <span class="kw">use </span>rustc_span::{DUMMY_SP, Span};
@@ -174,7 +178,7 @@
         rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     <span class="kw">let </span>errors = infcx_root
-        .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
+        .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
         .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 
     <span class="kw">if </span>errors.is_empty() { <span class="prelude-val">Ok</span>(()) } <span class="kw">else </span>{ <span class="prelude-val">Err</span>(genv.sess().emit_err(errors::Invalid { span })) }

@@ -297,25 +297,7 @@
 <a href="#296" id="296">296</a>
 <a href="#297" id="297">297</a>
 <a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#299" id="299">299</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -353,14 +335,15 @@
 <span class="kw">use </span>flux_common::{dbg, result::ResultExt <span class="kw">as _</span>};
 <span class="kw">use </span>flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, QueryKind, SubtypeReason, Tag},
+    infer::{ConstrReason, SubtypeReason, Tag},
 };
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
+    FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
-    queries::QueryResult,
     rty::{<span class="self">self</span>, ESpan},
+    timings,
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
@@ -387,7 +370,7 @@
 <span class="kw">pub fn </span>check_fn(
     genv: GlobalEnv,
     cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
-    def_id: MaybeExternId,
+    def_id: LocalDefId,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
     <span class="kw">let </span>span = genv.tcx().def_span(def_id);
 
@@ -399,72 +382,53 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="comment">// Make sure we run conversion and report errors even if we skip the function for any of
-    // the reasons below
-    </span>force_conv(genv, def_id).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-
-    <span class="comment">// If this is a function wrapping an extern spec its body is irrelevant
-    </span><span class="kw">let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local() <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(()) };
-
     <span class="comment">// Skip trait methods without body
-    </span><span class="kw">if </span>genv.tcx().hir_node_by_def_id(local_id).body_id().is_none() {
+    </span><span class="kw">if </span>genv.tcx().hir_node_by_def_id(def_id).body_id().is_none() {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="kw">let </span>opts = genv.infer_opts(local_id);
+    <span class="kw">let </span>opts = genv.infer_opts(def_id);
 
     <span class="comment">// FIXME(nilehmann) we should move this check to `compare_impl_item`
-    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(infcx_root) = trait_impl_subtyping(genv, def_id, opts, span)
         .with_span(span)
         .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?
     </span>{
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine-subtyping"</span>);
         <span class="kw">let </span>errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, QueryKind::ImplVC)
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
         <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint-subtyping"</span>);
-        report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
+        report_fixpoint_errors(genv, def_id, errors)<span class="question-mark">?</span>;
     }
 
     <span class="comment">// Skip trusted functions
-    </span><span class="kw">if </span>genv.trusted(local_id) {
+    </span><span class="kw">if </span>genv.trusted(def_id) {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
-    <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-        <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, local_id)
+    timings::time_it(timings::TimingKind::CheckFn(def_id), || -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+        <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, def_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, opts)
+        </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, opts)
             .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
-        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::shape"</span>);
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
         </span><span class="kw">let </span>infcx_root =
-            Checker::run_in_refine_mode(genv, local_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, opts)
+            Checker::run_in_refine_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, opts)
                 .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
-        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::refine"</span>);
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
         </span><span class="kw">let </span>errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
             .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-        <span class="macro">tracing::info!</span>(<span class="string">"check_fn::fixpoint"</span>);
-        report_fixpoint_errors(genv, local_id, errors)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(())
+        report_fixpoint_errors(genv, def_id, errors)
     })<span class="question-mark">?</span>;
 
-    <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), local_id).in_scope(|| <span class="prelude-val">Ok</span>(()))
-}
-
-<span class="kw">fn </span>force_conv(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult {
-    genv.generics_of(def_id)<span class="question-mark">?</span>;
-    genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
-    genv.predicates_of(def_id)<span class="question-mark">?</span>;
-    genv.fn_sig(def_id)<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>(())
+    <span class="macro">dbg::check_fn_span!</span>(genv.tcx(), def_id).in_scope(|| <span class="prelude-val">Ok</span>(()))
 }
 
 <span class="kw">fn </span>call_error(genv: GlobalEnv, span: Span, dst_span: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; ErrorGuaranteed {

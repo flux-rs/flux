@@ -3814,9 +3814,9 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>errors {
     <span class="kw">use </span>flux_errors::{E0999, ErrorGuaranteed};
     <span class="kw">use </span>flux_infer::infer::InferErr;
-    <span class="kw">use </span>flux_middle::{def_id::MaybeExternId, def_id_to_string, global_env::GlobalEnv};
+    <span class="kw">use </span>flux_middle::{def_id_to_string, global_env::GlobalEnv};
     <span class="kw">use </span>rustc_errors::Diagnostic;
-    <span class="kw">use </span>rustc_hir::def_id::DefId;
+    <span class="kw">use </span>rustc_hir::def_id::{DefId, LocalDefId};
     <span class="kw">use </span>rustc_span::Span;
 
     <span class="kw">use </span><span class="kw">crate</span>::fluent_generated <span class="kw">as </span>fluent;
@@ -3832,7 +3832,7 @@
             <span class="self">Self </span>{ kind: InferErr::OpaqueStruct(def_id), span }
         }
 
-        <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: MaybeExternId) -&gt; ErrorGuaranteed {
+        <span class="kw">pub fn </span>emit(<span class="self">self</span>, genv: GlobalEnv, fn_def_id: LocalDefId) -&gt; ErrorGuaranteed {
             <span class="kw">let </span>dcx = genv.sess().dcx().handle();
             <span class="kw">match </span><span class="self">self</span>.kind {
                 InferErr::UnsolvedEvar(<span class="kw">_</span>) =&gt; {
