@@ -38,6 +38,7 @@ pub mod pretty;
 pub mod queries;
 pub mod rty;
 mod sort_of;
+pub mod timings;
 
 use std::sync::LazyLock;
 
@@ -60,6 +61,7 @@ use rustc_data_structures::{
 };
 use rustc_hir::OwnerId;
 use rustc_macros::extension;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{
     Symbol,
     def_id::{DefId, LocalDefId},
@@ -488,5 +490,34 @@ impl PlaceTy {
             ty::TyKind::Closure(_, args) => Ok(args.as_closure().upvar_tys()[f.index()].clone()),
             _ => Err(query_bug!("extracting field of non-tuple non-adt non-closure: {self:?}")),
         }
+    }
+}
+
+/// The different reasons we issue fixpoint queries. This is used to dissambiguate queries that
+/// are issued for the same item.
+///
+/// NOTE: This is defined here because it's also used in [`timings`]
+#[derive(Debug, Hash, Clone, Copy)]
+pub enum FixpointQueryKind {
+    /// Query issued when checking an impl method is a subtype of the trait
+    Impl,
+    /// Query issued to check the body of a function
+    Body,
+    /// Query issued to check an (enum) invariant is implied by the type definition
+    Invariant,
+}
+
+impl FixpointQueryKind {
+    pub fn ext(self) -> &'static str {
+        match self {
+            FixpointQueryKind::Impl => "sub.fluxc",
+            FixpointQueryKind::Body => "fluxc",
+            FixpointQueryKind::Invariant => "fluxc",
+        }
+    }
+
+    /// A string that uniquely identifies a query given an item `DefId`
+    pub fn task_key(self, tcx: TyCtxt, def_id: DefId) -> String {
+        format!("{}###{:?}", tcx.def_path_str(def_id), self)
     }
 }

@@ -3,7 +3,7 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
-use flux_middle::{Specs, fhir, global_env::GlobalEnv, queries::Providers};
+use flux_middle::{Specs, fhir, global_env::GlobalEnv, queries::Providers, timings};
 use flux_refineck as refineck;
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -37,7 +37,7 @@ impl Callbacks for FluxCallbacks {
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
         if self.verify {
-            self.verify(compiler, tcx);
+            timings::enter(tcx, || self.verify(compiler, tcx));
         }
 
         if self.full_compilation { Compilation::Continue } else { Compilation::Stop }

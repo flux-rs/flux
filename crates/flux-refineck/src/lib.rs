@@ -36,14 +36,16 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, QueryKind, SubtypeReason, Tag},
+    infer::{ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
+    FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, ESpan},
+    timings,
 };
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
@@ -103,7 +105,7 @@ pub fn check_fn(
     {
         tracing::info!("check_fn::refine-subtyping");
         let errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, QueryKind::ImplVC)
+            .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Impl)
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         report_fixpoint_errors(genv, local_id, errors)?;
@@ -114,7 +116,7 @@ pub fn check_fn(
         return Ok(());
     }
 
-    dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| -> Result<(), ErrorGuaranteed> {
+    timings::time_it(timings::TimingKind::CheckFn(local_id), || -> Result<(), ErrorGuaranteed> {
         let ghost_stmts = compute_ghost_statements(genv, local_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;
@@ -122,21 +124,17 @@ pub fn check_fn(
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, opts)
             .map_err(|err| err.emit(genv, def_id))?;
-        tracing::info!("check_fn::shape");
 
         // PHASE 2: generate refinement tree constraint
         let infcx_root =
             Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, opts)
                 .map_err(|err| err.emit(genv, def_id))?;
-        tracing::info!("check_fn::refine");
 
         // PHASE 3: invoke fixpoint on the constraint
         let errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
+            .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Body)
             .emit(&genv)?;
-        tracing::info!("check_fn::fixpoint");
-        report_fixpoint_errors(genv, local_id, errors)?;
-        Ok(())
+        report_fixpoint_errors(genv, local_id, errors)
     })?;
 
     dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| Ok(()))

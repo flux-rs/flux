@@ -14,12 +14,14 @@ use flux_common::{
 use flux_config::{self as config};
 use flux_errors::Errors;
 use flux_middle::{
+    FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{self, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
+    timings::{self, TimingKind},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -417,7 +419,7 @@ where
         mut self,
         cache: &mut FixQueryCache,
         constraint: fixpoint::Constraint,
-        kind: crate::infer::QueryKind,
+        kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
     ) -> QueryResult<Vec<Tag>> {
@@ -474,9 +476,7 @@ where
             dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        let task_key = format!("{}###{:?}", self.genv.tcx().def_path_str(self.def_id), kind);
-
-        match Self::run_task_with_cache(task, task_key, cache) {
+        match Self::run_task_with_cache(self.genv, task, self.def_id.resolved_id(), kind, cache) {
             FixpointResult::Safe(_) => Ok(vec![]),
             FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
@@ -490,10 +490,14 @@ where
     }
 
     fn run_task_with_cache(
+        genv: GlobalEnv,
         task: fixpoint::Task,
-        key: String,
+        def_id: DefId,
+        kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
     ) -> FixpointResult<TagIdx> {
+        let key = kind.task_key(genv.tcx(), def_id);
+
         let hash = task.hash_with_default();
 
         if config::is_cache_enabled()
@@ -501,9 +505,10 @@ where
         {
             return result.clone();
         }
-        let result = task
-            .run()
-            .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err:?}"));
+        let result = timings::time_it(TimingKind::FixpointQuery(def_id, kind), || {
+            task.run()
+                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err:?}"))
+        });
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
