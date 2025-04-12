@@ -158,7 +158,8 @@ You can set various `env` variables to customize the behavior of `flux`.
   unsigned integer subtraction.
 - `FLUX_SOLVER=z3` Can be either `z3` or `cvc5`.
 - `FLUX_SMT_DEFINE_FUN=1` translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them away inside `flux`.
-- `FLUX_STATS=1` Compute statistics about number and size of annotations. Dumps a file per crate to `FLUX_LOG_DIR`.
+- `FLUX_ANNOTS=1` Compute statistics about number and size of annotations. Dumps a file per crate to `FLUX_LOG_DIR`.
+- `FLUX_TIMINGS=1` Print statistics about time taked to analyze each fuction. Also dumps a file with the raw times for each function.
 
 ### Config file
 

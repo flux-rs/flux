@@ -3,7 +3,12 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
-use flux_middle::{Specs, fhir, global_env::GlobalEnv, queries::Providers};
+use flux_middle::{
+    Specs, fhir,
+    global_env::GlobalEnv,
+    queries::{Providers, QueryResult},
+    timings,
+};
 use flux_refineck as refineck;
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
@@ -37,7 +42,7 @@ impl Callbacks for FluxCallbacks {
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
         if self.verify {
-            self.verify(compiler, tcx);
+            timings::enter(tcx, || self.verify(compiler, tcx));
         }
 
         if self.full_compilation { Compilation::Continue } else { Compilation::Stop }
@@ -177,7 +182,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         match self.genv.def_kind(def_id) {
             DefKind::Fn | DefKind::AssocFn => {
-                refineck::check_fn(self.genv, &mut self.cache, def_id)
+                // Make sure we run conversion and report errors even if we skip the function
+                force_conv(self.genv, def_id.resolved_id()).emit(&self.genv)?;
+                let Some(local_id) = def_id.as_local() else { return Ok(()) };
+                refineck::check_fn(self.genv, &mut self.cache, local_id)
             }
             DefKind::Enum => {
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
@@ -224,6 +232,14 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             _ => Ok(()),
         }
     }
+}
+
+fn force_conv(genv: GlobalEnv, def_id: DefId) -> QueryResult {
+    genv.generics_of(def_id)?;
+    genv.refinement_generics_of(def_id)?;
+    genv.predicates_of(def_id)?;
+    genv.fn_sig(def_id)?;
+    Ok(())
 }
 
 #[expect(clippy::needless_lifetimes, reason = "we want to be explicit about lifetimes here")]

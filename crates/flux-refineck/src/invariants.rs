@@ -3,9 +3,11 @@ use flux_config::InferOpts;
 use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    infer::{ConstrReason, GlobalEnvExt, QueryKind, Tag},
+    infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty};
+use flux_middle::{
+    FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
+};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{DUMMY_SP, Span};
@@ -77,7 +79,7 @@ fn check_invariant(
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let errors = infcx_root
-        .execute_fixpoint_query(cache, def_id, QueryKind::RefineVC)
+        .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
         .emit(&genv)?;
 
     if errors.is_empty() { Ok(()) } else { Err(genv.sess().emit_err(errors::Invalid { span })) }

@@ -75,8 +75,12 @@ pub fn catch_bugs() -> bool {
     CONFIG.catch_bugs
 }
 
-pub fn stats() -> bool {
-    CONFIG.stats
+pub fn annots() -> bool {
+    CONFIG.annots
+}
+
+pub fn timings() -> bool {
+    CONFIG.timings
 }
 
 #[derive(Deserialize)]
@@ -98,7 +102,8 @@ struct Config {
     solver: SmtSolver,
     smt_define_fun: bool,
     verbose: bool,
-    stats: bool,
+    annots: bool,
+    timings: bool,
 }
 
 #[derive(Default)]
@@ -246,7 +251,8 @@ static CONFIG: LazyLock<Config> = LazyLock::new(|| {
             .set_default("solver", "z3")?
             .set_default("smt_define_fun", false)?
             .set_default("verbose", false)?
-            .set_default("stats", false)?;
+            .set_default("annots", false)?
+            .set_default("timings", false)?;
 
         // Config comes first, environment settings override it.
         if let Some(config_path) = CONFIG_PATH.as_ref() {
