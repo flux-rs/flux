@@ -3,6 +3,7 @@ mod extern_specs;
 
 use std::collections::HashMap;
 
+use annot_stats::Stats;
 use extern_specs::ExternSpecCollector;
 use flux_common::{
     iter::IterExt,
@@ -26,7 +27,6 @@ use rustc_hir::{
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
-use stats::Stats;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 

@@ -29,7 +29,7 @@ pub fn enter<R>(tcx: TyCtxt, f: impl FnOnce() -> R) -> R {
     let r = f();
     print_and_dump_report(tcx, start.elapsed(), std::mem::take(&mut *TIMINGS.lock().unwrap()))
         .unwrap();
-    return r;
+    r
 }
 
 #[derive(Serialize)]
@@ -193,9 +193,9 @@ struct Entry {
 #[serde(into = "u128")]
 struct ms(Duration);
 
-impl Into<u128> for ms {
-    fn into(self) -> u128 {
-        self.0.as_millis()
+impl From<ms> for u128 {
+    fn from(value: ms) -> Self {
+        value.0.as_millis()
     }
 }
 
@@ -203,33 +203,33 @@ fn fmt_duration(duration: Duration) -> String {
     let nanos = duration.as_nanos();
 
     if nanos < 1_000 {
-        return format!("{}ns", nanos);
+        format!("{}ns", nanos)
     } else if nanos < 1_000_000 {
-        return format!("{:.2}µs", nanos as f64 / 1_000.0);
+        format!("{:.2}µs", nanos as f64 / 1_000.0)
     } else if nanos < 1_000_000_000 {
-        return format!("{:.2}ms", nanos as f64 / 1_000_000.0);
+        format!("{:.2}ms", nanos as f64 / 1_000_000.0)
     } else if nanos < 60_000_000_000 {
-        return format!("{:.2}s", nanos as f64 / 1_000_000_000.0);
+        format!("{:.2}s", nanos as f64 / 1_000_000_000.0)
     } else {
         let seconds = duration.as_secs();
         let minutes = seconds / 60;
         let seconds_remainder = seconds % 60;
 
         if minutes < 60 {
-            return format!("{}m {}s", minutes, seconds_remainder);
+            format!("{}m {}s", minutes, seconds_remainder)
         } else {
             let hours = minutes / 60;
             let minutes_remainder = minutes % 60;
 
             if hours < 24 {
-                return format!("{}h {}m {}s", hours, minutes_remainder, seconds_remainder);
+                format!("{}h {}m {}s", hours, minutes_remainder, seconds_remainder)
             } else {
                 let days = hours / 24;
                 let hours_remainder = hours % 24;
-                return format!(
+                format!(
                     "{}d {}h {}m {}s",
                     days, hours_remainder, minutes_remainder, seconds_remainder
-                );
+                )
             }
         }
     }

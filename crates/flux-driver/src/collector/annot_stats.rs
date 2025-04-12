@@ -156,15 +156,13 @@ impl IntervalSet {
                 // Otherwise, we don't overlap, so just insert
                 self.map.insert(right + 1, (start, end));
             }
+        } else if self.map.is_empty() {
+            // Quite common in practice, and expensive to call memcpy
+            // with length zero.
+            self.map.push((start, end));
         } else {
-            if self.map.is_empty() {
-                // Quite common in practice, and expensive to call memcpy
-                // with length zero.
-                self.map.push((start, end));
-            } else {
-                self.map.insert(next, (start, end));
-            }
-        };
+            self.map.insert(next, (start, end));
+        }
     }
 
     fn iter_intervals(&self) -> impl Iterator<Item = (usize, usize)> {
