@@ -84,10 +84,10 @@ fn main() -> anyhow::Result<()> {
     let cmd = match Xtask::from_env() {
         Ok(cmd) => cmd,
         Err(err) => {
+            println!("{}", Xtask::HELP_);
             if err.is_help() {
                 std::process::exit(0);
             } else {
-                eprintln!("error: {err}\n");
                 println!("{}", Xtask::HELP_);
                 std::process::exit(2);
             }
