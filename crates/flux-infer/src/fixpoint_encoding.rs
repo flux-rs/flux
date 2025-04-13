@@ -106,7 +106,7 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
-                Var::Global(v, Some(sym)) => write!(f, "{}${}", sym, v.as_u32()),
+                Var::Global(v, Some(sym)) => write!(f, "f${}${}", sym, v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())

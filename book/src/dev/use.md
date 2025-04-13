@@ -70,6 +70,25 @@ Like `&mut T` but which allow _strong updates_ via `ensures` clauses
 
 ## Requires Clauses
 
+Used to specify preconditions in a single spot, if needed.
+
 ```rust
 {{#include ../../../tests/tests/pos/surface/test01_where.rs}}
+```
+
+## Requires with `forall`
+
+We allow a `forall` on the requires clauses, e.g.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/forall01.rs}}
+```
+
+
+## Pragma: `ignore`
+
+Used to tell `flux` to *ignore* (checking) a bunch of definitions.
+
+```rust
+{{#include ../../../tests/tests/neg/surface/ignore02.rs}}
 ```
