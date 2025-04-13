@@ -1170,6 +1170,7 @@ pub fn shift_down(vec: &amp;mut RVec&lt;i32&gt;, start: usize, end: usize) -&gt;
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="requires-clauses"><a class="header" href="#requires-clauses">Requires Clauses</a></h2>
+<p>Used to specify preconditions in a single spot, if needed.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[path = "../../lib/rvec.rs"]
@@ -1190,6 +1191,53 @@ pub fn test1(vec: &amp;mut RVec&lt;i32&gt;, b: bool) -&gt; i32 {
     *r = 12;
     0
 }
+<span class="boring">}</span></code></pre></pre>
+<h2 id="requires-with-forall"><a class="header" href="#requires-with-forall">Requires with <code>forall</code></a></h2>
+<p>We allow a <code>forall</code> on the requires clauses, e.g.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux::sig(fn(bool[true]))]
+fn assert(_: bool) {}
+#[flux::sig(
+    fn(x: i32)
+    requires forall y. y &gt;= 0 =&gt; y &gt; x
+)]
+fn requires_negative(x: i32) {
+    assert(x + 1 == 1 + x); // make sure there's something to check to avoid optimizing the entire constraint away
+}
+
+fn test2() {
+    requires_negative(-1);
+}
+<span class="boring">}</span></code></pre></pre>
+<h2 id="pragma-ignore"><a class="header" href="#pragma-ignore">Pragma: <code>ignore</code></a></h2>
+<p>Used to tell <code>flux</code> to <em>ignore</em> (checking) a bunch of definitions.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span>#![flux::ignore] // default to ignore for the entire crate
+
+<span class="boring">fn main() {
+</span>#[flux::ignore(no)] // include this module
+mod included {
+    #[flux::sig(fn(bool[true]))]
+    pub fn assert(_: bool) {}
+
+    pub fn test1() {
+        // we are indeed checking this code
+        assert(20 &lt; 10); //~ ERROR refinement type error
+    }
+
+    pub fn test2() {
+        // we cannot use an ignored function in included code
+        crate::ignored_fun(); //~ERROR use of ignored function
+    }
+}
+
+// bad refinement, but no error since we are ignoring this function
+#[flux::sig(fn(i32, i32))]
+pub fn malformed(_: i32) {}
+
+// an ignored function that cannot be used in included code
+pub fn ignored_fun() {}
 <span class="boring">}</span></code></pre></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="introducing-flux"><a class="header" href="#introducing-flux">Introducing Flux</a></h1>
 <p><a href="https://flux.goto.ucsd.edu/?example=refinements.rs">Online demo</a></p>
