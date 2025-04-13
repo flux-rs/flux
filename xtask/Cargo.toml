@@ -7,13 +7,13 @@ version = "0.1.0"
 
 [dependencies]
 anyhow.workspace = true
+cargo_metadata.workspace = true
 tests.workspace = true
 home.workspace = true
 
 opener = "0.6.1"
 xflags = "0.3.2"
 xshell = "0.2.7"
-cargo_metadata = "0.19.2"
 
 [lints]
 workspace = true

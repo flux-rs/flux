@@ -18,8 +18,11 @@ test = false
 
 [dependencies]
 anyhow.workspace = true
+cargo_metadata.workspace = true
 home.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
 toml.workspace = true
 
 [lints]
