@@ -1,5 +1,4 @@
 #[flux::sig(fn(bool[true]))]
-
 fn assert(_: bool) {}
 #[flux::sig(
     fn(x: i32)
