@@ -64,17 +64,165 @@
 <a href="#63" id="63">63</a>
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
-    env,
-    path::PathBuf,
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a></pre></div><pre class="rust"><code><span class="attr">#![feature(let_chains, os_str_display)]
+
+</span><span class="kw">use </span>std::{
+    <span class="self">self</span>, env,
+    io::{BufWriter, Write},
     process::{Command, exit},
 };
 
-<span class="kw">use </span>anyhow::Result;
-<span class="kw">use </span>flux_bin::utils::{
-    EXIT_ERR, FLUX_SYSROOT, LIB_PATH, get_flux_driver_path, get_rust_toolchain,
-    get_rustc_driver_lib_path, prepend_path_to_env_var, sysroot_dir,
+<span class="kw">use </span>anyhow::anyhow;
+<span class="kw">use </span>cargo_metadata::{Metadata, MetadataCommand};
+<span class="kw">use </span>flux_bin::{
+    FluxMetadata,
+    utils::{
+        EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
+        prepend_path_to_env_var, sysroot_dir,
+    },
 };
+<span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>tempfile::NamedTempFile;
 
 <span class="kw">fn </span>main() {
     <span class="kw">let </span>exit_code = <span class="kw">match </span>run() {
@@ -87,47 +235,179 @@
     exit(exit_code)
 }
 
-<span class="kw">fn </span>run() -&gt; <span class="prelude-ty">Result</span>&lt;i32&gt; {
-    <span class="kw">let </span>sysroot = sysroot_dir();
-    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
-    <span class="kw">let </span>rust_toolchain = get_rust_toolchain()<span class="question-mark">?</span>;
-    <span class="kw">let </span>ld_library_path = get_rustc_driver_lib_path(<span class="kw-2">&amp;</span>rust_toolchain)<span class="question-mark">?</span>;
-    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
+<span class="kw">fn </span>run() -&gt; anyhow::Result&lt;i32&gt; {
+    <span class="kw">let </span>toolchain = get_rust_toolchain()<span class="question-mark">?</span>;
 
-    <span class="comment">// Cargo can be called like `cargo [OPTIONS] flux`, so we skip all arguments until `flux` is
-    // found.
-    </span><span class="kw">let </span>args = env::args()
+    <span class="kw">let </span>metadata = MetadataCommand::new().exec()<span class="question-mark">?</span>;
+    <span class="kw">let </span>config_file = write_cargo_config(<span class="kw-2">&amp;</span>toolchain, metadata)<span class="question-mark">?</span>;
+
+    <span class="comment">// Cargo can be called like `cargo [OPTIONS] flux`, so we skip all arguments until `flux` is found.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>args = env::args()
         .skip_while(|arg| arg != <span class="string">"flux"</span>)
         .skip(<span class="number">1</span>)
         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-    <span class="kw">let </span>cargo_path = env::var(<span class="string">"CARGO_PATH"</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="string">"cargo"</span>.to_string());
-    <span class="kw">let </span>cargo_target = env::var(<span class="string">"CARGO_TARGET_DIR"</span>).unwrap_or_else(|<span class="kw">_</span>| <span class="string">"target"</span>.to_string());
-    <span class="kw">let </span>cargo_target = PathBuf::from_iter([cargo_target, <span class="string">"flux"</span>.to_string()]);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>cmd = Command::new(cargo_path);
-
-    <span class="comment">// Unless we are calling `cargo flux clean` append a check
+    <span class="comment">// Unless we are calling `cargo flux clean` add a `check`
     </span><span class="kw">match </span><span class="kw-2">&amp;</span>args[..] {
         [subcommand, ..] <span class="kw">if </span>subcommand == <span class="string">"clean" </span>=&gt; {}
         <span class="kw">_ </span>=&gt; {
-            cmd.arg(<span class="string">"check"</span>);
+            args.insert(<span class="number">0</span>, <span class="string">"check"</span>.to_string());
         }
     }
+    args.extend([<span class="string">"--profile"</span>.to_string(), <span class="string">"flux"</span>.to_string()]);
 
-    <span class="kw">let </span>exit_code = cmd
+    <span class="kw">let </span>exit_code = Command::new(<span class="string">"cargo"</span>)
+        .arg(<span class="macro">format!</span>(<span class="string">"+{toolchain}"</span>))
+        .arg(<span class="string">"-Zprofile-rustflags"</span>)
+        .arg(<span class="string">"--config"</span>)
+        .arg(config_file.path())
         .args(args)
-        .env(LIB_PATH, extended_lib_path)
-        .env(FLUX_SYSROOT, sysroot)
-        .env(<span class="string">"FLUX_BUILD_SYSROOT"</span>, <span class="string">"1"</span>)
-        .env(<span class="string">"FLUX_CARGO"</span>, <span class="string">"1"</span>)
-        .env(<span class="string">"RUST_TOOLCHAIN"</span>, rust_toolchain.clone())
-        .env(<span class="string">"RUSTUP_TOOLCHAIN"</span>, rust_toolchain)
-        .env(<span class="string">"RUSTC"</span>, flux_driver_path)
-        .env(<span class="string">"CARGO_TARGET_DIR"</span>, cargo_target)
         .status()<span class="question-mark">?
         </span>.code();
 
     <span class="prelude-val">Ok</span>(exit_code.unwrap_or(EXIT_ERR))
+}
+
+<span class="kw">fn </span>write_cargo_config(toolchain: <span class="kw-2">&amp;</span>str, metadata: Metadata) -&gt; anyhow::Result&lt;NamedTempFile&gt; {
+    <span class="kw">let </span>sysroot = sysroot_dir();
+    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>sysroot)<span class="question-mark">?</span>;
+    <span class="kw">let </span>ld_library_path = get_rustc_driver_lib_path(toolchain)<span class="question-mark">?</span>;
+    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>flux_flags: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt; = <span class="kw">if let </span><span class="prelude-val">Ok</span>(flags) = env::var(<span class="string">"FLUXFLAGS"</span>) {
+        <span class="prelude-val">Some</span>(flags.split(<span class="string">" "</span>).map(Into::into).collect())
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>};
+
+    <span class="kw">let </span>flux_toml = config::Config::builder()
+        .add_source(config::File::with_name(<span class="string">"flux.toml"</span>).required(<span class="bool-val">false</span>))
+        .build()<span class="question-mark">?</span>;
+
+    <span class="kw">if </span>flux_toml.get_bool(<span class="string">"enabled"</span>).is_ok() {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"`enabled` cannot be set in `flux.toml`"</span>));
+    }
+
+    <span class="kw">let </span><span class="kw-2">mut </span>file = NamedTempFile::new()<span class="question-mark">?</span>;
+    {
+        <span class="kw">let </span><span class="kw-2">mut </span>w = BufWriter::new(<span class="kw-2">&amp;mut </span>file);
+        <span class="macro">write!</span>(
+            w,
+            <span class="string">r#"
+[build]
+rustc = "{flux_driver}"
+
+[env]
+LIB_PATH = "{lib_path}"
+FLUX_BUILD_SYSROOT = "1"
+FLUX_CARGO = "1"
+
+[profile.flux]
+inherits = "dev"
+        "#</span>,
+            flux_driver = flux_driver_path.display(),
+            lib_path = extended_lib_path.display(),
+        )<span class="question-mark">?</span>;
+
+        <span class="kw">for </span>package <span class="kw">in </span>metadata.packages {
+            <span class="kw">let </span>flux_metadata: FluxMetadata = config::Config::builder()
+                .add_source(FluxMetadataSource::new(package.manifest_path, package.metadata))
+                .add_source(flux_toml.clone())
+                .build()<span class="question-mark">?
+                </span>.try_deserialize()<span class="question-mark">?</span>;
+
+            <span class="kw">if </span>flux_metadata.enabled {
+                <span class="macro">write!</span>(
+                    w,
+                    <span class="string">r#"
+[profile.flux.package."{}"]
+rustflags = [{:?}]
+                        "#</span>,
+                    package.id,
+                    flux_metadata
+                        .into_flags(<span class="kw-2">&amp;</span>metadata.target_directory)
+                        .iter()
+                        .chain(flux_flags.iter().flatten())
+                        .format(<span class="string">", "</span>)
+                )<span class="question-mark">?</span>;
+            }
+        }
+    }
+    <span class="prelude-val">Ok</span>(file)
+}
+
+<span class="attr">#[derive(Clone, Debug)]
+</span><span class="kw">struct </span>FluxMetadataSource {
+    origin: String,
+    value: serde_json::Value,
+}
+
+<span class="kw">impl </span>FluxMetadataSource {
+    <span class="kw">fn </span>new(origin: <span class="kw">impl </span>Into&lt;String&gt;, value: serde_json::Value) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ origin: origin.into(), value }
+    }
+}
+
+<span class="kw">impl </span>config::Source <span class="kw">for </span>FluxMetadataSource {
+    <span class="kw">fn </span>clone_into_box(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Box&lt;<span class="kw">dyn </span>config::Source + Send + Sync&gt; {
+        Box::new(<span class="self">self</span>.clone())
+    }
+
+    <span class="kw">fn </span>collect(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;config::Map&lt;String, config::Value&gt;, config::ConfigError&gt; {
+        <span class="kw">if let </span>serde_json::Value::Object(metadata) = <span class="kw-2">&amp;</span><span class="self">self</span>.value
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(flux_metadata) = metadata.get(<span class="string">"flux"</span>)
+        {
+            <span class="kw">let </span>config_value = serde_json_to_config(<span class="kw-2">&amp;</span>flux_metadata, <span class="kw-2">&amp;</span><span class="self">self</span>.origin)<span class="question-mark">?</span>;
+            <span class="kw">if let </span>config::ValueKind::Table(table) = config_value.kind {
+                <span class="prelude-val">Ok</span>(table)
+            } <span class="kw">else </span>{
+                <span class="prelude-val">Err</span>(config::ConfigError::Message(<span class="string">"expected a table"</span>.to_string()))
+            }
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Ok</span>(Default::default())
+        }
+    }
+}
+
+<span class="kw">fn </span>serde_json_to_config(
+    value: <span class="kw-2">&amp;</span>serde_json::Value,
+    origin: <span class="kw-2">&amp;</span>String,
+) -&gt; <span class="prelude-ty">Result</span>&lt;config::Value, config::ConfigError&gt; {
+    <span class="kw">let </span>kind = <span class="kw">match </span>value {
+        serde_json::Value::Null =&gt; config::ValueKind::Nil,
+        serde_json::Value::Bool(b) =&gt; config::ValueKind::Boolean(<span class="kw-2">*</span>b),
+        serde_json::Value::Number(number) =&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(n) = number.as_u128() {
+                config::ValueKind::U128(n)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(n) = number.as_i128() {
+                config::ValueKind::I128(n)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(n) = number.as_u64() {
+                config::ValueKind::U64(n)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(n) = number.as_i64() {
+                config::ValueKind::I64(n)
+            } <span class="kw">else if let </span><span class="prelude-val">Some</span>(n) = number.as_f64() {
+                config::ValueKind::Float(n)
+            } <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(config::ConfigError::Message(<span class="string">"invalid number"</span>.to_string()));
+            }
+        }
+        serde_json::Value::String(s) =&gt; config::ValueKind::String(s.to_string()),
+        serde_json::Value::Array(values) =&gt; {
+            config::ValueKind::Array(
+                values
+                    .iter()
+                    .map(|v| serde_json_to_config(v, origin))
+                    .try_collect()<span class="question-mark">?</span>,
+            )
+        }
+        serde_json::Value::Object(map) =&gt; {
+            config::ValueKind::Table(
+                map.iter()
+                    .map(|(k, v)| <span class="prelude-val">Ok</span>((k.to_string(), serde_json_to_config(v, origin)<span class="question-mark">?</span>)))
+                    .try_collect()<span class="question-mark">?</span>,
+            )
+        }
+    };
+    <span class="prelude-val">Ok</span>(config::Value::new(<span class="prelude-val">Some</span>(origin), kind))
 }
 </code></pre></div></section></main></body></html>

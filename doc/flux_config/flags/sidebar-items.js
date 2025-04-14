@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["FLUX_FLAG_PREFIX"],"enum":["Value"],"fn":["is_flux_arg","parse_bool","parse_check_files","parse_flux_arg","parse_opt_path_buf","parse_path_buf","parse_pointer_width","parse_solver","parse_string"],"static":["FLAGS"],"struct":["Flags","Paths"]};

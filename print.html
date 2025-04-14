@@ -288,60 +288,36 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 </code></pre>
 <p><strong>Note:</strong> Make sure to edit the paths in the above snippet to point to the correct locations on your machine.</p>
 <h2 id="configuration"><a class="header" href="#configuration">Configuration</a></h2>
-<h3 id="environment-variables"><a class="header" href="#environment-variables">Environment Variables</a></h3>
-<p>You can set various <code>env</code> variables to customize the behavior of <code>flux</code>.</p>
-<ul>
-<li><code>FLUX_CONFIG</code> tells <code>flux</code> where to find a config file for these settings.
-<ul>
-<li>By default, <code>flux</code> searches its directory for a <code>flux.toml</code> or <code>.flux.toml</code>.</li>
-</ul>
-</li>
-<li><code>FLUX_LOG_DIR=path/to/log/</code> sets the directory where constraints, timing and cache are saved. Defaults to <code>./log/</code>.</li>
-<li><code>FLUX_DUMP_CONSTRAINT=1</code> tell <code>flux</code> to dump constraints generated for each function.</li>
-<li><code>FLUX_DUMP_CHECKER_TRACE=1</code> saves the checker's trace (useful for debugging!)</li>
-<li><code>FLUX_DUMP_MIR=1</code> saves the low-level MIR for each analyzed function</li>
-<li><code>FLUX_POINTER_WIDTH=N</code> the size of (either <code>32</code> or <code>64</code>), used to determine if an integer cast is lossy (default <code>64</code>).</li>
-<li><code>FLUX_CHECK_DEF=name</code> only checks definitions containing <code>name</code> as a substring</li>
-<li><code>FLUX_CHECK_FILES=/absolute/path/to/file1.rs,/absolute/path/to/file2.rs</code> only checks the specified files</li>
-<li><code>FLUX_CACHE=1"</code> switches on query caching and saves the cache in <code>FLUX_CACHE_FILE</code></li>
-<li><code>FLUX_CACHE_FILE=file.json</code> customizes the cache file, default <code>FLUX_LOG_DIR/cache.json</code></li>
-<li><code>FLUX_CHECK_OVERFLOW=1</code> checks for over and underflow on arithmetic integer
-operations, default <code>0</code>. When set to <code>0</code>, it still checks for underflow on
-unsigned integer subtraction.</li>
-<li><code>FLUX_SOLVER=z3</code> Can be either <code>z3</code> or <code>cvc5</code>.</li>
-<li><code>FLUX_SMT_DEFINE_FUN=1</code> translates <em>monomorphic</em> <code>defs</code> functions into SMT <code>define-fun</code> instead of inlining them away inside <code>flux</code>.</li>
-<li><code>FLUX_ANNOTS=1</code> Compute statistics about number and size of annotations. Dumps a file per crate to <code>FLUX_LOG_DIR</code>.</li>
-<li><code>FLUX_TIMINGS=1</code> Print statistics about time taked to analyze each fuction. Also dumps a file with the raw times for each function.</li>
-</ul>
-<h3 id="config-file"><a class="header" href="#config-file">Config file</a></h3>
-<p>The config file is a <code>.toml</code> file that contains on each line the lowercase name
-of a <code>flux</code> command line flag without the <code>FLUX_</code> prefix. Set environment
-variables take priority over the config file.</p>
-<p>The config file should be in the project root.</p>
-<p>For example, suppose your project root contains the following <code>flux.toml</code>.</p>
-<pre><code class="language-toml">log_dir = "./log_dir"
-dump_mir = true
+<h3 id="flux-flags"><a class="header" href="#flux-flags">Flux Flags</a></h3>
+<p>The <code>flux</code> binary accepts configuration flags in the format <code>-Fname=value</code>. For boolean flags, the
+<code>value</code> can be one of <code>y</code>, <code>yes</code>, <code>on</code>, <code>true</code>, <code>n</code>, <code>no</code>, <code>off</code>, <code>false</code>. Alternatively, the <code>value</code>
+can be omitted which will default to <code>true</code>. For example, to set the solver to <code>cvc5</code> and enable
+qualifier scrapping:</p>
+<pre><code class="language-console">flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
+</code></pre>
+<p>For all avilable flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/enum.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/enum.Flags.html</a></p>
+<h3 id="cargo-projects"><a class="header" href="#cargo-projects">Cargo Projects</a></h3>
+<p>When working with a Cargo project, some of the <a href="guide/run.html#Flux-Flags">flags</a> can be configured in the
+<code>[package.metadata.flux]</code> table in <code>Cargo.toml</code>. For example, to enable query caching and set
+<code>cvc5</code> as the solver:</p>
+<pre><code class="language-toml"># Cargo.toml
+[package.metadata.flux]
+enabled = true
 cache = true
+solver = "cvc5"
 </code></pre>
-<p>and you run in the project root</p>
-<pre><code class="language-bash">FLUX_DUMP_MIR=1 cargo flux check
+<p>Additionally, <code>cargo flux</code> searches for a configuration file called <code>flux.toml</code> with the same format
+as the metadata table. The content of <code>flux.toml</code> takes precedence and it's  merged with the
+content of the <code>metadata</code> table. Note that the content of <code>flux.toml</code> will override the <code>metadata</code>
+for all crates, including dependencies. This behavior is likely to change in the future as we figure
+out what configurations make sense to have per package and which should only affect the current execution
+of <code>cargo flux</code>.</p>
+<p>You can see the format of the <code>metadata</code> in <a href="https://flux-rs.github.io/flux/doc/utils/struct.FluxMetadata.html">https://flux-rs.github.io/flux/doc/utils/struct.FluxMetadata.html</a>.</p>
+<h3 id="fluxflags-environement-variable"><a class="header" href="#fluxflags-environement-variable"><code>FLUXFLAGS</code> Environement Variable</a></h3>
+<p>When running <code>cargo flux</code>, flags defined in <code>FLUXFLAGS</code> will be passed to all <code>flux</code> invocations,
+for example, to print timing information for all crates checked by Flux:</p>
+<pre><code class="language-console">FLUXFLAGS="-Ftimings" cargo flux
 </code></pre>
-<p>then <code>flux</code> will create the directory <code>./log_dir/</code> and dump mir bodies inside.</p>
-<h3 id="crate-config"><a class="header" href="#crate-config">Crate Config</a></h3>
-<p>Some flags can be configured on a per-crate basis using the custom inner attribute <code>#![flux_rs::cfg]</code>.
-This annotation relies on the unstable custom inner attributes feature. To be able to use with a
-non-nightly compiler you have to put it under a <code>cfg_attr</code>.
-For example, to enable overflow checking:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
-<span class="boring">fn main() {
-</span><span class="boring">}</span></code></pre></pre>
-<p>The only flag supported now is overflow checking.</p>
-<h3 id="query-caching"><a class="header" href="#query-caching">Query Caching</a></h3>
-<p><code>FLUX_CACHE=1</code> persistently caches the safe fixpoint queries for each <code>DefId</code> in
-<code>FLUX_LOG_DIR/FLUX_CACHE_FILE</code>, and on subsequent runs, skips queries that are
-already in the cache, which considerably speeds up <code>cargo-flux check</code> on an
-entire crate.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specification-guide"><a class="header" href="#flux-specification-guide">Flux Specification Guide</a></h1>
 <p>This is a WIP guide to writing specifications in <code>flux</code>.</p>
 <h2 id="refinement-types"><a class="header" href="#refinement-types">Refinement Types</a></h2>

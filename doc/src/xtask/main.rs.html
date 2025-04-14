@@ -393,7 +393,26 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
@@ -433,6 +452,8 @@
         </span>cmd install {
             <span class="doccomment">/// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
             </span>optional --profile profile: Profile
+            <span class="doccomment">/// Do not build Flux libs
+            </span>optional --no-libs
         }
         <span class="doccomment">/// Uninstall Flux binaries and libraries
         </span>cmd uninstall { }
@@ -479,10 +500,10 @@
     <span class="kw">let </span>cmd = <span class="kw">match </span>Xtask::from_env() {
         <span class="prelude-val">Ok</span>(cmd) =&gt; cmd,
         <span class="prelude-val">Err</span>(err) =&gt; {
+            <span class="macro">println!</span>(<span class="string">"{}"</span>, Xtask::HELP_);
             <span class="kw">if </span>err.is_help() {
                 std::process::exit(<span class="number">0</span>);
             } <span class="kw">else </span>{
-                <span class="macro">eprintln!</span>(<span class="string">"error: {err}\n"</span>);
                 <span class="macro">println!</span>(<span class="string">"{}"</span>, Xtask::HELP_);
                 std::process::exit(<span class="number">2</span>);
             }
@@ -505,7 +526,7 @@
             <span class="kw">let </span>config = SysrootConfig {
                 profile: Profile::Dev,
                 dst: local_sysroot_dir()<span class="question-mark">?</span>,
-                force_build_libs: <span class="bool-val">true</span>,
+                build_libs: BuildLibs::Yes { force: <span class="bool-val">true </span>},
             };
             install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
@@ -516,8 +537,11 @@
 }
 
 <span class="kw">fn </span>test(sh: Shell, args: Test) -&gt; anyhow::Result&lt;()&gt; {
-    <span class="kw">let </span>config =
-        SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">false </span>};
+    <span class="kw">let </span>config = SysrootConfig {
+        profile: Profile::Dev,
+        dst: local_sysroot_dir()<span class="question-mark">?</span>,
+        build_libs: BuildLibs::Yes { force: <span class="bool-val">false </span>},
+    };
     <span class="kw">let </span>Test { filter } = args;
     <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.profile)<span class="question-mark">?</span>;
     install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
@@ -553,8 +577,11 @@
     input: PathBuf,
     flags: <span class="kw">impl </span>IntoIterator&lt;Item = String&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), anyhow::Error&gt; {
-    <span class="kw">let </span>config =
-        SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()<span class="question-mark">?</span>, force_build_libs: <span class="bool-val">false </span>};
+    <span class="kw">let </span>config = SysrootConfig {
+        profile: Profile::Dev,
+        dst: local_sysroot_dir()<span class="question-mark">?</span>,
+        build_libs: BuildLibs::Yes { force: <span class="bool-val">false </span>},
+    };
 
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
     <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.profile)<span class="question-mark">?</span>;
@@ -573,7 +600,7 @@
     <span class="kw">let </span>config = SysrootConfig {
         profile: args.profile(),
         dst: default_sysroot_dir(),
-        force_build_libs: <span class="bool-val">false</span>,
+        build_libs: <span class="kw">if </span>args.no_libs { BuildLibs::No } <span class="kw">else </span>{ BuildLibs::Yes { force: <span class="bool-val">false </span>} },
     };
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
     Command::new(<span class="string">"cargo"</span>)
@@ -625,7 +652,15 @@
     </span>profile: Profile,
     <span class="doccomment">/// Destination path for sysroot artifacts
     </span>dst: PathBuf,
-    force_build_libs: bool,
+    build_libs: BuildLibs,
+}
+
+<span class="doccomment">/// Whether to build Flux's libs
+</span><span class="kw">enum </span>BuildLibs {
+    <span class="doccomment">/// If `force` is true, forces a clean build
+    </span>Yes { force: bool },
+    <span class="doccomment">/// Do not build libs
+    </span>No,
 }
 
 <span class="kw">fn </span>install_sysroot(sh: <span class="kw-2">&amp;</span>Shell, config: <span class="kw-2">&amp;</span>SysrootConfig) -&gt; anyhow::Result&lt;()&gt; {
@@ -636,17 +671,20 @@
 
     <span class="kw">let </span>cargo_flux = build_binary(<span class="string">"cargo-flux"</span>, config.profile)<span class="question-mark">?</span>;
 
-    <span class="kw">if </span>config.force_build_libs {
-        Command::new(<span class="kw-2">&amp;</span>cargo_flux).args([<span class="string">"flux"</span>, <span class="string">"clean"</span>]).run()<span class="question-mark">?</span>;
+    <span class="kw">if let </span>BuildLibs::Yes { force } = config.build_libs {
+        <span class="kw">if </span>force {
+            Command::new(<span class="kw-2">&amp;</span>cargo_flux).args([<span class="string">"flux"</span>, <span class="string">"clean"</span>]).run()<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">let </span>artifacts = Command::new(cargo_flux)
+            .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
+            .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
+            .env(FLUX_SYSROOT_TEST, <span class="string">"1"</span>)
+            .run_with_cargo_metadata()<span class="question-mark">?</span>;
+
+        copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
     }
-
-    <span class="kw">let </span>artifacts = Command::new(cargo_flux)
-        .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
-        .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
-        .env(FLUX_SYSROOT_TEST, <span class="string">"1"</span>)
-        .run_with_cargo_metadata()<span class="question-mark">?</span>;
-
-    copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, <span class="kw-2">&amp;</span>config.dst)
+    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">fn </span>copy_artifacts(sh: <span class="kw-2">&amp;</span>Shell, artifacts: <span class="kw-2">&amp;</span>[Artifact], sysroot: <span class="kw-2">&amp;</span>Path) -&gt; anyhow::Result&lt;()&gt; {
