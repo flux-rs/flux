@@ -2,7 +2,13 @@
 pub use toml::Value;
 pub mod flags;
 
-use std::{fmt, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
+use std::{
+    fmt,
+    io::Read,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::LazyLock,
+};
 
 use flags::FLAGS;
 use serde::Deserialize;
@@ -40,18 +46,15 @@ pub fn log_dir() -> &'static PathBuf {
 }
 
 pub fn is_cache_enabled() -> bool {
-    FLAGS.cache
+    FLAGS.cache.is_some()
 }
 
 pub fn is_checked_file(file: &str) -> bool {
     FLAGS.check_files.is_checked_file(file)
 }
 
-pub fn cache_path() -> PathBuf {
-    FLAGS
-        .cache_path
-        .clone()
-        .unwrap_or_else(|| log_dir().join("cache.json"))
+pub fn cache_path() -> Option<&'static Path> {
+    FLAGS.cache.as_deref()
 }
 
 fn check_overflow() -> bool {

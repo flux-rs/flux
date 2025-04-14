@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, path::Path};
 
 use flux_config as config;
 use rustc_hash::FxHashMap;
@@ -34,9 +34,8 @@ impl<R> QueryCache<R> {
         if val.constr_hash == constr_hash { Some(&val.result) } else { None }
     }
 
-    fn path() -> Result<PathBuf, std::io::Error> {
-        if config::is_cache_enabled() {
-            let path = config::cache_path();
+    fn path() -> Result<&'static Path, std::io::Error> {
+        if let Some(path) = config::cache_path() {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
                 return Ok(path);

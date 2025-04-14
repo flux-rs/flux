@@ -6,7 +6,7 @@ use std::{
     process::{Command, exit},
 };
 
-use cargo_metadata::{Metadata, MetadataCommand};
+use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use flux_bin::utils::{
     EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
     prepend_path_to_env_var, sysroot_dir,
@@ -72,10 +72,10 @@ struct FluxMetadata {
 }
 
 impl FluxMetadata {
-    fn into_flags(self) -> Vec<String> {
+    fn into_flags(self, target_dir: &Utf8Path) -> Vec<String> {
         let mut flags = vec![];
-        if let Some(v) = self.cache {
-            flags.push(format!("-Fcache={v}"));
+        if let Some(true) = self.cache {
+            flags.push(format!("-Fcache={}", target_dir.join("FLUXCACHE")));
         }
         if let Some(v) = self.solver {
             flags.push(format!("-Fsolver={v}"));
@@ -146,7 +146,7 @@ rustflags = [{:?}]
                         "#,
                     package.id,
                     flux_metadata
-                        .into_flags()
+                        .into_flags(&metadata.target_directory)
                         .iter()
                         .chain(flux_flags.iter().flatten())
                         .format(", ")
