@@ -138,69 +138,47 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 
 ## Configuration
 
-### Environment Variables
+### Flux Flags
 
-You can set various `env` variables to customize the behavior of `flux`.
+The `flux` binary accepts configuration flags in the format `-Fname=value`. For boolean flags, the
+`value` can be one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`. Alternatively, the `value`
+can be omitted which will default to `true`. For example, to set the solver to `cvc5` and enable
+qualifier scrapping:
 
-- `FLUX_CONFIG` tells `flux` where to find a config file for these settings.
-  - By default, `flux` searches its directory for a `flux.toml` or `.flux.toml`.
-- `FLUX_LOG_DIR=path/to/log/` sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
-- `FLUX_DUMP_CONSTRAINT=1` tell `flux` to dump constraints generated for each function.
-- `FLUX_DUMP_CHECKER_TRACE=1` saves the checker's trace (useful for debugging!)
-- `FLUX_DUMP_MIR=1` saves the low-level MIR for each analyzed function
-- `FLUX_POINTER_WIDTH=N` the size of (either `32` or `64`), used to determine if an integer cast is lossy (default `64`).
-- `FLUX_CHECK_DEF=name` only checks definitions containing `name` as a substring
-- `FLUX_CHECK_FILES=/absolute/path/to/file1.rs,/absolute/path/to/file2.rs` only checks the specified files
-- `FLUX_CACHE=1"` switches on query caching and saves the cache in `FLUX_CACHE_FILE`
-- `FLUX_CACHE_FILE=file.json` customizes the cache file, default `FLUX_LOG_DIR/cache.json`
-- `FLUX_CHECK_OVERFLOW=1` checks for over and underflow on arithmetic integer
-  operations, default `0`. When set to `0`, it still checks for underflow on
-  unsigned integer subtraction.
-- `FLUX_SOLVER=z3` Can be either `z3` or `cvc5`.
-- `FLUX_SMT_DEFINE_FUN=1` translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them away inside `flux`.
-- `FLUX_ANNOTS=1` Compute statistics about number and size of annotations. Dumps a file per crate to `FLUX_LOG_DIR`.
-- `FLUX_TIMINGS=1` Print statistics about time taked to analyze each fuction. Also dumps a file with the raw times for each function.
+```console
+flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
+```
 
-### Config file
+For all avilable flags, see <https://flux-rs.github.io/flux/doc/flux_config/flags/enum.Flags.html>
 
-The config file is a `.toml` file that contains on each line the lowercase name
-of a `flux` command line flag without the `FLUX_` prefix. Set environment
-variables take priority over the config file.
+### Cargo Projects
 
-The config file should be in the project root.
-
-For example, suppose your project root contains the following `flux.toml`.
+When working with a Cargo project, some of the [flags](#Flux-Flags) can be configured in the
+`[package.metadata.flux]` table in `Cargo.toml`. For example, to enable query caching and set
+`cvc5` as the solver:
 
 ```toml
-log_dir = "./log_dir"
-dump_mir = true
+# Cargo.toml
+[package.metadata.flux]
+enabled = true
 cache = true
+solver = "cvc5"
 ```
 
-and you run in the project root
+Additionally, `cargo flux` searches for a configuration file called `flux.toml` with the same format
+as the metadata table. The content of `flux.toml` takes precedence and it's  merged with the
+content of the `metadata` table. Note that the content of `flux.toml` will override the `metadata`
+for all crates, including dependencies. This behavior is likely to change in the future as we figure
+out what configurations make sense to have per package and which should only affect the current execution
+of `cargo flux`.
 
-```bash
-FLUX_DUMP_MIR=1 cargo flux check
+You can see the format of the `metadata` in <https://flux-rs.github.io/flux/doc/utils/struct.FluxMetadata.html>.
+
+### `FLUXFLAGS` Environement Variable
+
+When running `cargo flux`, flags defined in `FLUXFLAGS` will be passed to all `flux` invocations,
+for example, to print timing information for all crates checked by Flux:
+
+```console
+FLUXFLAGS="-Ftimings" cargo flux
 ```
-
-then `flux` will create the directory `./log_dir/` and dump mir bodies inside.
-
-### Crate Config
-
-Some flags can be configured on a per-crate basis using the custom inner attribute `#![flux_rs::cfg]`.
-This annotation relies on the unstable custom inner attributes feature. To be able to use with a
-non-nightly compiler you have to put it under a `cfg_attr`.
-For example, to enable overflow checking:
-
-```rust
-#![cfg_attr(flux, flux_rs::cfg(check_overflow = true))]
-```
-
-The only flag supported now is overflow checking.
-
-### Query Caching
-
-`FLUX_CACHE=1` persistently caches the safe fixpoint queries for each `DefId` in
-`FLUX_LOG_DIR/FLUX_CACHE_FILE`, and on subsequent runs, skips queries that are
-already in the cache, which considerably speeds up `cargo-flux check` on an
-entire crate.
