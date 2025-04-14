@@ -75,10 +75,10 @@ fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<Nam
     };
 
     let flux_toml = config::Config::builder()
-        .add_source(config::File::with_name("flux.toml"))
+        .add_source(config::File::with_name("flux.toml").required(false))
         .build()?;
 
-    if flux_toml.get_bool("enabled")? {
+    if flux_toml.get_bool("enabled").is_ok() {
         return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
     }
 
