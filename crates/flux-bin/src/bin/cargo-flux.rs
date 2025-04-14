@@ -6,14 +6,16 @@ use std::{
     process::{Command, exit},
 };
 
-use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
-use flux_bin::utils::{
-    EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
-    prepend_path_to_env_var, sysroot_dir,
+use anyhow::anyhow;
+use cargo_metadata::{Metadata, MetadataCommand};
+use flux_bin::{
+    FluxMetadata,
+    utils::{
+        EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
+        prepend_path_to_env_var, sysroot_dir,
+    },
 };
-use flux_config::SmtSolver;
 use itertools::Itertools;
-use serde::Deserialize;
 use tempfile::NamedTempFile;
 
 fn main() {
@@ -60,39 +62,6 @@ fn run() -> anyhow::Result<i32> {
     Ok(exit_code.unwrap_or(EXIT_ERR))
 }
 
-#[derive(Deserialize, Debug, Default)]
-#[serde(default, deny_unknown_fields)]
-struct FluxMetadata {
-    enabled: bool,
-    cache: Option<bool>,
-    solver: Option<SmtSolver>,
-    scrape_quals: Option<bool>,
-    check_overflow: Option<bool>,
-    smt_define_fun: Option<bool>,
-}
-
-impl FluxMetadata {
-    fn into_flags(self, target_dir: &Utf8Path) -> Vec<String> {
-        let mut flags = vec![];
-        if let Some(true) = self.cache {
-            flags.push(format!("-Fcache={}", target_dir.join("FLUXCACHE")));
-        }
-        if let Some(v) = self.solver {
-            flags.push(format!("-Fsolver={v}"));
-        }
-        if let Some(v) = self.check_overflow {
-            flags.push(format!("-Fcheck-overflow={v}"));
-        }
-        if let Some(v) = self.scrape_quals {
-            flags.push(format!("-Fscrape-quals={v}"));
-        }
-        if let Some(v) = self.smt_define_fun {
-            flags.push(format!("-Fsmt-define-fun={v}"));
-        }
-        flags
-    }
-}
-
 fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<NamedTempFile> {
     let sysroot = sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
@@ -105,9 +74,13 @@ fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<Nam
         None
     };
 
-    let workspace_config = config::Config::builder()
+    let flux_toml = config::Config::builder()
         .add_source(config::File::with_name("flux.toml"))
         .build()?;
+
+    if flux_toml.get_bool("enabled")? {
+        return Err(anyhow!("`enabled` cannot be set in `flux.toml`"));
+    }
 
     let mut file = NamedTempFile::new()?;
     {
@@ -132,8 +105,8 @@ inherits = "dev"
 
         for package in metadata.packages {
             let flux_metadata: FluxMetadata = config::Config::builder()
-                .add_source(workspace_config.clone())
                 .add_source(FluxMetadataSource::new(package.manifest_path, package.metadata))
+                .add_source(flux_toml.clone())
                 .build()?
                 .try_deserialize()?;
 

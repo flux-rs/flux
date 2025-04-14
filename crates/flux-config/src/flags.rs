@@ -8,23 +8,44 @@ use crate::{PointerWidth, SmtSolver};
 const FLUX_FLAG_PREFIX: &str = "-F";
 
 pub struct Flags {
+    /// Sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
     pub log_dir: PathBuf,
+    /// Dump constraints generated for each function (debugging)
     pub dump_constraint: bool,
+    /// Saves the checker's trace (debugging)
     pub dump_checker_trace: bool,
+    /// Saves the `fhir` for each item (debugging)
     pub dump_fhir: bool,
+    /// Saves the the `fhir` (debugging)
     pub dump_rty: bool,
+    /// Saves the low-level MIR for each analyzed function (debugging)
     pub dump_mir: bool,
+    /// Saves the low-level MIR for each analyzed function (debugging)
     pub catch_bugs: bool,
+    /// Only checks definitions containing `name` as a substring
     pub check_def: String,
+    /// Only checks the specified files. Takes a list of comma separated paths
     pub check_files: Paths,
+    /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
+    /// (default `64`).
     pub pointer_width: PointerWidth,
+    /// If present switches on query caching and saves the cache in the provided path
     pub cache: Option<PathBuf>,
     pub verbose: bool,
+    /// Compute statistics about number and size of annotations. Dumps file to [`Self.log_dir`]
     pub annots: bool,
+    /// Print statistics about time taked to analyze each fuction. Also dumps a file with the raw
+    /// times for each function.
     pub timings: bool,
+    /// Default solver. Either `z3` or `cvc5`.
     pub solver: SmtSolver,
+    /// Enables qualifier scrapping in fixpoint
     pub scrape_quals: bool,
+    /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
+    /// away inside `flux`.
     pub smt_define_fun: bool,
+    /// If true checks for over and underflow on arithmetic integer operations, default `false`. When
+    /// set to `false`, it still checks for underflow on unsigned integer subtraction.
     pub check_overflow: bool,
 }
 
