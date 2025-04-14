@@ -2,7 +2,7 @@
 pub use toml::Value;
 pub mod flags;
 
-use std::{io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
+use std::{fmt, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
 use flags::FLAGS;
 use serde::Deserialize;
@@ -116,6 +116,15 @@ impl TryFrom<String> for SmtSolver {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.parse()
+    }
+}
+
+impl fmt::Display for SmtSolver {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SmtSolver::Z3 => write!(f, "z3"),
+            SmtSolver::CVC5 => write!(f, "cvc5"),
+        }
     }
 }
 
