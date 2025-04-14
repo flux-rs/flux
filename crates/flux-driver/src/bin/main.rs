@@ -10,6 +10,7 @@ use std::{
     process::exit,
 };
 
+use flux_config::flags;
 use flux_driver::callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, run_compiler};
 
@@ -45,6 +46,9 @@ fn main() -> io::Result<()> {
             args.push(arg);
         }
     }
+
+    // Remove all flux arguments
+    args.retain(|arg| !flags::is_flux_arg(arg));
 
     args.push("--sysroot".into());
     args.push(sysroot().expect("Flux Rust requires rustup to be built."));

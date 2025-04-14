@@ -17,9 +17,13 @@ test = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+flux-config.workspace = true
+
 anyhow.workspace = true
 cargo_metadata.workspace = true
+config.workspace = true
 home.workspace = true
+itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true

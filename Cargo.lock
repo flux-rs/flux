@@ -149,7 +149,6 @@ checksum = "595aae20e65c3be792d05818e8c63025294ac3cb7e200f11459063a352a6ef80"
 dependencies = [
  "pathdiff",
  "serde",
- "toml",
  "winnow",
 ]
 
@@ -329,7 +328,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
+ "config",
+ "flux-config",
  "home",
+ "itertools",
  "serde",
  "serde_json",
  "tempfile",
@@ -350,7 +352,6 @@ dependencies = [
 name = "flux-config"
 version = "0.1.0"
 dependencies = [
- "config",
  "serde",
  "toml",
 ]

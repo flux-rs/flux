@@ -12,6 +12,8 @@ use flux_bin::utils::{
     EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
     prepend_path_to_env_var, sysroot_dir,
 };
+use flux_config::SmtSolver;
+use itertools::Itertools;
 use serde::Deserialize;
 use tempfile::NamedTempFile;
 
@@ -49,6 +51,7 @@ fn run() -> Result<i32> {
 
     let exit_code = Command::new("cargo")
         .arg(format!("+{toolchain}"))
+        .arg("-Zprofile-rustflags")
         .arg("--config")
         .arg(config_file.path())
         .args(args)
@@ -82,6 +85,12 @@ fn write_cargo_config(toolchain: &str, cargo_metadata: Metadata) -> Result<Named
     let ld_library_path = get_rustc_driver_lib_path(toolchain)?;
     let extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)?;
 
+    let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
+        Some(flags.split(" ").map(Into::into).collect())
+    } else {
+        None
+    };
+
     let mut file = NamedTempFile::new()?;
     {
         let mut w = BufWriter::new(&mut file);
@@ -91,13 +100,13 @@ fn write_cargo_config(toolchain: &str, cargo_metadata: Metadata) -> Result<Named
 [build]
 rustc = "{flux_driver}"
 
-[profile.flux]
-inherits = "dev"
-
 [env]
 LIB_PATH = "{lib_path}"
 FLUX_BUILD_SYSROOT = "1"
 FLUX_CARGO = "1"
+
+[profile.flux]
+inherits = "dev"
         "#,
             flux_driver = flux_driver_path.display(),
             lib_path = extended_lib_path.display(),
@@ -108,13 +117,17 @@ FLUX_CARGO = "1"
             if let Some(flux_metadata) = package_metadata.flux
                 && flux_metadata.enabled
             {
-                write!(
-                    w,
-                    r#"
+                if let Some(flags) = &flux_flags {
+                    write!(
+                        w,
+                        r#"
 [profile.flux.package."{}"]
-                    "#,
-                    package.id
-                )?;
+rustflags = [{:?}]
+                        "#,
+                        package.id,
+                        flags.iter().format(", ")
+                    )?;
+                }
             }
         }
     }
