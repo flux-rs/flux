@@ -149,7 +149,7 @@ qualifier scrapping:
 flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 ```
 
-For all avilable flags, see <https://flux-rs.github.io/flux/doc/flux_config/flags/enum.Flags.html>
+For all avilable flags, see  <https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>
 
 ### Cargo Projects
 
@@ -172,7 +172,7 @@ for all crates, including dependencies. This behavior is likely to change in the
 out what configurations make sense to have per package and which should only affect the current execution
 of `cargo flux`.
 
-You can see the format of the `metadata` in <https://flux-rs.github.io/flux/doc/utils/struct.FluxMetadata.html>.
+You can see the format of the `metadata` in <https://flux-rs.github.io/flux/doc/flux_bin/struct.FluxMetadata.html>.
 
 ### `FLUXFLAGS` Environement Variable
 

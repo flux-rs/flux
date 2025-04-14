@@ -99,8 +99,8 @@ fn print_report(functions: &[(String, Duration)], total: Duration) {
     eprintln!("───────────────────── Timing Report ────────────────────────");
     eprintln!("Total running time: {:>40}", fmt_duration(total));
     eprintln!("Functions checked:  {:>40}", stats.count);
-    eprintln!("Max:                {:>40}", fmt_duration(stats.max));
     eprintln!("Min:                {:>40}", fmt_duration(stats.min));
+    eprintln!("Max:                {:>40}", fmt_duration(stats.max));
     eprintln!("Mean:               {:>40}", fmt_duration(stats.mean));
     eprintln!("Std. Dev.:          {:>40}", fmt_duration(stats.standard_deviation));
 

@@ -154,7 +154,6 @@ fn parse_flux_arg(arg: &str) -> Option<(&str, Option<&str>)> {
     if let Some((k, v)) = arg.split_once('=') { Some((k, Some(v))) } else { Some((arg, None)) }
 }
 
-#[must_use]
 fn parse_bool(slot: &mut bool, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some("y") | Some("yes") | Some("on") | Some("true") | None => {
@@ -173,7 +172,6 @@ fn parse_bool(slot: &mut bool, v: Option<&str>) -> Result<(), &'static str> {
     }
 }
 
-#[must_use]
 fn parse_path_buf(slot: &mut PathBuf, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
@@ -204,7 +202,6 @@ fn parse_solver(slot: &mut SmtSolver, v: Option<&str>) -> Result<(), &'static st
     }
 }
 
-#[must_use]
 fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {

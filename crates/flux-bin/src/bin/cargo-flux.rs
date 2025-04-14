@@ -151,7 +151,7 @@ impl config::Source for FluxMetadataSource {
         if let serde_json::Value::Object(metadata) = &self.value
             && let Some(flux_metadata) = metadata.get("flux")
         {
-            let config_value = serde_json_to_config(&flux_metadata, &self.origin)?;
+            let config_value = serde_json_to_config(flux_metadata, &self.origin)?;
             if let config::ValueKind::Table(table) = config_value.kind {
                 Ok(table)
             } else {
