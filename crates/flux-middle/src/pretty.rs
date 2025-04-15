@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::{cell::RefCell, fmt};
 
 use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_abi::FieldIdx;
+use flux_middle::rty::Name;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
@@ -195,6 +197,8 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
+    // Better names to give to free vars
+    pub free_var_substs: HashMap<Name, String>,
     pub env: BoundVarEnv,
 }
 
@@ -223,6 +227,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
+            free_var_substs: HashMap::default(),
             env: BoundVarEnv::default(),
         }
     }

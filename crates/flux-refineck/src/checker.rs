@@ -7,7 +7,7 @@ use flux_infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     projections::NormalizeExt as _,
-    refine_tree::{BinderOriginator, BinderProvenance, Marker, RefineCtxtTrace},
+    refine_tree::{BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace},
 };
 use flux_middle::{
     global_env::GlobalEnv,
@@ -677,8 +677,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let actuals = self
                     .check_operands(infcx, env, terminator_span, args)
                     .with_span(terminator_span)?;
+                let destination_name = self.body.local_names.get(&destination.local).copied();
+                let mut fn_def_id: Option<DefId> = None;
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
+                        fn_def_id = Some(*resolved_id);
                         let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
@@ -726,9 +729,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 };
 
+                // Possible HACK: get the string corresponding to the source
+                // let terminator_source_snippet = infcx.tcx().sess.source_map().span_to_snippet(terminator.source_info.span).ok();
+                //
+                let call_return = CallReturn::new(destination_name, fn_def_id);
+
                 let ret = infcx.unpack(
                     &ret,
-                    BinderProvenance::new(BinderOriginator::CallReturn).with_span(terminator_span),
+                    BinderProvenance::new(BinderOriginator::CallReturn(call_return)).with_span(terminator_span),
                 );
                 infcx.assume_invariants(&ret);
 

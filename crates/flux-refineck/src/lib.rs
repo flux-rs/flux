@@ -30,18 +30,20 @@ mod primops;
 mod queue;
 mod type_env;
 
+use std::collections::HashMap;
+
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError},
-    infer::{ConstrReason, SubtypeReason, Tag}, refine_tree::BinderProvenance,
+    infer::{ConstrReason, SubtypeReason, Tag}, refine_tree::{BinderOriginator, BinderProvenance, CallReturn},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
-    rty::{self, ESpan},
+    rty::{self, ESpan, Name},
     timings,
 };
 use itertools::Itertools;
@@ -219,6 +221,20 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
         span: genv.tcx().def_span(def_id),
         def_descr: genv.tcx().def_descr(def_id.to_def_id()),
     }))
+}
+
+fn add_substitution_for_binder_var(subst: &mut HashMap<Name, String>, var_name: Name, binder_provenance: BinderProvenance) {
+    match binder_provenance.originator {
+        BinderOriginator::FnArg(Some(arg_name)) => {
+            subst.insert(var_name, arg_name.to_string());
+        }
+        BinderOriginator::CallReturn(CallReturn {destination_name, ..}) => {
+            // Try the destination name first
+            // Then the span if it is a single line
+            // Otherwise, don't substitute
+        }
+        _ => {}
+    }
 }
 
 mod errors {
