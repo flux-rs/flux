@@ -729,9 +729,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 };
 
-                // Possible HACK: get the string corresponding to the source
-                // let terminator_source_snippet = infcx.tcx().sess.source_map().span_to_snippet(terminator.source_info.span).ok();
-                //
                 let call_return = CallReturn::new(destination_name, fn_def_id);
 
                 let ret = infcx.unpack(

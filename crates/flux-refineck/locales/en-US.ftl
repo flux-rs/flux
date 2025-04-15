@@ -75,7 +75,7 @@ refineck_impl_assoc_reft_final =
 # Blame spans (TBD)
 
 refineck_blame_span_note =
-    related variable `{$var}` defined here with originator `{$originator}`
+    `{$var}` defined here with originator `{$originator}`
 
 refineck_err_with_blame_spans =
     failed to verify predicate: {$pred}

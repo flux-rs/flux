@@ -30,7 +30,7 @@ mod primops;
 mod queue;
 mod type_env;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
@@ -41,16 +41,18 @@ use flux_infer::{
 use flux_macros::fluent_messages;
 use flux_middle::{
     FixpointQueryKind,
+    pretty,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
+    queries::QueryResult,
     rty::{self, ESpan, Name},
-    timings,
+    timings
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::Span;
+use rustc_span::{Span, BytePos};
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
 
@@ -178,14 +180,25 @@ fn report_errors(
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
+        let mut pred_pretty_cx = pretty::PrettyCx::default(genv);
         let vars_and_originators: String = err.blame_spans.0.iter()
                                                           .map(|(name, bp, depth)| {
                                                               let origin_str = match bp {
-                                                                  Some(BinderProvenance {originator: origin, span}) => format!("({:?}, {:?})", origin, span),
+                                                                  Some(bp@BinderProvenance {originator: origin, span}) => {
+                                                                      add_substitution_for_binder_var(genv, &mut pred_pretty_cx.free_var_substs, *name, bp);
+                                                                      format!("({:?}, {:?})", origin, span)
+                                                                  },
                                                                   _ => "No provenance".to_string(),
                                                               };
-                                                              format!(r#"{{"name": "{:?}", "depth": {}, "origin": {:?}}}"#, name, depth, origin_str)
+                                                              format!(r#"{{"name": "{:?}", "pretty_name": "{:?}", "depth": {}, "origin": {:?}}}"#,
+                                                                      name,
+                                                                      pred_pretty_cx.free_var_substs.get(&name),
+                                                                      depth,
+                                                                      origin_str)
                                                           }).join(", ");
+        // We populate the PrettyCx.free_var_substs so that when we pretty print
+        // the failing predicate, we give better names to the failing variables.
+        let pred_string = format!(r#""{:?}""#, pretty::with_cx!(&pred_pretty_cx, err.blame_spans.1));
         let blame_span_err = errors::ErrWithBlameSpans {
             span,
             // For now, swallow blame spans without emitting any errors
@@ -193,11 +206,16 @@ fn report_errors(
                 .blame_spans
                 .0
                 .iter()
-                .filter_map(|(name, bp, depth)| {
+                .filter_map(|(name, bp, _depth)| {
                     bp.clone().and_then(|bp| {
                         bp.span.map(|span| {
                             errors::BlameSpan {
-                                var: format!("{:?} (depth {})", name, depth),
+                                // Use the substituted name if it exists
+                                var: if let Some(subst) = pred_pretty_cx.free_var_substs.get(&name) {
+                                        format!("{}", subst)
+                                     } else {
+                                        format!("{:?}", name)
+                                     },
                                 span,
                                 originator: format!("{:?}", bp.originator),
                             }
@@ -208,7 +226,7 @@ fn report_errors(
             // Omit span information in this debug print
             related_vars: format!("[{}]", vars_and_originators),
             blame_var: format!(r#""{:?}""#, err.blame_spans.2),
-            pred: format!(r#""{:?}""#, err.blame_spans.1),
+            pred: pred_string,
         };
         genv.sess().emit_err(blame_span_err);
     }
@@ -223,18 +241,44 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
     }))
 }
 
-fn add_substitution_for_binder_var(subst: &mut HashMap<Name, String>, var_name: Name, binder_provenance: BinderProvenance) {
+// Returns whether we found a substitution for the var
+fn add_substitution_for_binder_var(genv: GlobalEnv, subst: &mut HashMap<Name, String>, var_name: Name, binder_provenance: &BinderProvenance) -> bool {
     match binder_provenance.originator {
         BinderOriginator::FnArg(Some(arg_name)) => {
             subst.insert(var_name, arg_name.to_string());
+            return true;
         }
         BinderOriginator::CallReturn(CallReturn {destination_name, ..}) => {
-            // Try the destination name first
-            // Then the span if it is a single line
-            // Otherwise, don't substitute
+            // First priority: use the name that the function call is bound to, e.g. if we write
+            //
+            // let x = foo()
+            //
+            // we will use `x` as the name for binder var for `foo()`
+            // (this doesn't handle shadowing or mutation)
+            if let Some(destination_name) = destination_name {
+                subst.insert(var_name, destination_name.to_string());
+                return true;
+            // Second priority: use the function call itself if it fits on a
+            // single line, e.g. if we have
+            //
+            // return foo()
+            //
+            // we will use `foo()` as the name for the binder var for `foo()`.
+            } else if let Some(span) = binder_provenance.span {
+                let source_snippet = genv.tcx().sess.source_map().span_to_snippet(span);
+                if let Ok(source_snippet) = source_snippet && !source_snippet.contains("\n") {
+                    subst.insert(var_name, source_snippet);
+                    return true;
+                }
+            }
+            // Otherwise: we will not rename the var.
+            //
+            // It may be that we do not have a span for it or that it spans
+            // multiple lines.
         }
         _ => {}
     }
+    false
 }
 
 mod errors {
