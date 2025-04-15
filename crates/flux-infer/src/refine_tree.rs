@@ -26,6 +26,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
+
 use serde::Serialize;
 
 use crate::{
