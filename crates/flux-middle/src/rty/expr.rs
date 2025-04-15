@@ -1444,7 +1444,13 @@ pub(crate) mod pretty {
             match self {
                 Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
                 Var::EarlyParam(var) => w!(cx, f, "{}", ^var.name),
-                Var::Free(name) => w!(cx, f, "{:?}", ^name),
+                Var::Free(name) => {
+                    if let Some(subst_name) = cx.free_var_substs.get(name) {
+                        w!(cx, f, "{}", ^subst_name)
+                    } else {
+                        w!(cx, f, "{:?}", ^name)
+                    }
+                }
                 Var::EVar(evar) => w!(cx, f, "{:?}", ^evar),
                 Var::ConstGeneric(param) => w!(cx, f, "{}", ^param.name),
             }
