@@ -556,6 +556,21 @@ pub trait TypeFoldable: TypeVisitable {
 
         self.fold_with(&mut RegionEraser)
     }
+
+    fn replace_free_vars(&self, f: &mut impl FnMut(Name) -> Option<Expr>) -> Self {
+        struct Folder<F>(F);
+        impl<F: FnMut(Name) -> Option<Expr>> TypeFolder for Folder<F> {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::Var(Var::Free(name)) = expr.kind() {
+                    if let Some(sol) = (self.0)(*name) { sol.clone() } else { expr.clone() }
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        self.fold_with(&mut Folder(f))
+    }
 }
 
 pub trait TypeSuperFoldable: TypeFoldable {
