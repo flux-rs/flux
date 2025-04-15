@@ -22,6 +22,7 @@ use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 use rustc_data_structures::fx::FxHashSet;
 use rustc_span::{Span, Symbol};
+
 use serde::Serialize;
 
 use crate::{

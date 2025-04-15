@@ -31,7 +31,6 @@ mod queue;
 mod type_env;
 
 use std::collections::{HashMap, HashSet};
-
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_config as config;
@@ -744,6 +743,7 @@ fn collect_binder_debug_info(
         })
         .collect()
 }
+
 
 mod errors {
     use flux_errors::E0999;
