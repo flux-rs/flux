@@ -19,6 +19,8 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
+use rustc_hir::def_id::DefId
+;
 use serde::Serialize;
 
 use crate::{
@@ -828,6 +830,33 @@ impl BinderProvenance {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct CallReturn {
+    // The name of the user variable that the function call is being assigned to,
+    // e.g. in
+    //
+    // ```
+    // let x = foo();
+    // ```
+    //
+    // This is `x`.
+    //
+    // Not all CallReturns are assigned to a variable.
+    pub destination_name: Option<Symbol>,
+    // The def_id of the function being called, if we can get it
+    // (right now we can't for CallKind::FnPtr)
+    pub def_id: Option<DefId>
+}
+
+impl CallReturn {
+    pub fn new(destination_name: Option<Symbol>, def_id: Option<DefId>) -> CallReturn {
+        CallReturn {
+            destination_name,
+            def_id,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum BinderOriginator {
     /// Subtyping check
     Sub(ConstrReason),
@@ -836,7 +865,7 @@ pub enum BinderOriginator {
     /// Function call
     Call,
     /// The return of a function call
-    CallReturn,
+    CallReturn(CallReturn),
     /// Argument from the definition of a function
     FnArg(Option<Symbol>),
     /// Unfold a local pointer
