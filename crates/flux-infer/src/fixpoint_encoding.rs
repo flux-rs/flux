@@ -1191,6 +1191,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::Sub(_) => fixpoint::ThyFunc::BvSub,
             rty::BinOp::Mul(_) => fixpoint::ThyFunc::BvMul,
             rty::BinOp::Div(_) => fixpoint::ThyFunc::BvUdiv,
+            rty::BinOp::Mod(_) => fixpoint::ThyFunc::BvUrem,
             rty::BinOp::BitAnd => fixpoint::ThyFunc::BvAnd,
             rty::BinOp::BitOr => fixpoint::ThyFunc::BvOr,
             rty::BinOp::BitShl => fixpoint::ThyFunc::BvShl,
