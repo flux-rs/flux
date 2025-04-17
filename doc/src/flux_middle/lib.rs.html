@@ -518,10 +518,7 @@
 <a href="#517" id="517">517</a>
 <a href="#518" id="518">518</a>
 <a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
+<a href="#520" id="520">520</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate contains common type definitions that are used by other crates.
 </span><span class="attr">#![feature(
     associated_type_defaults,
     box_patterns,
@@ -654,8 +651,7 @@
         ThyFunc::BvSge =&gt; <span class="string">"bv_sge"</span>,
         ThyFunc::BvUdiv =&gt; <span class="string">"bv_udiv"</span>,
         ThyFunc::BvSdiv =&gt; <span class="string">"bv_sdiv"</span>,
-        ThyFunc::BvUmod =&gt; <span class="string">"bv_umod"</span>,
-        ThyFunc::BvSmod =&gt; <span class="string">"bv_smod"</span>,
+
         ThyFunc::BvSrem =&gt; <span class="string">"bv_srem"</span>,
         ThyFunc::BvUrem =&gt; <span class="string">"bv_urem"</span>,
         ThyFunc::BvLshr =&gt; <span class="string">"bv_lshr"</span>,
@@ -733,8 +729,6 @@
         }
         ThyFunc::BvUdiv
         | ThyFunc::BvSdiv
-        | ThyFunc::BvUmod
-        | ThyFunc::BvSmod
         | ThyFunc::BvSrem
         | ThyFunc::BvUrem
         | ThyFunc::BvLshr

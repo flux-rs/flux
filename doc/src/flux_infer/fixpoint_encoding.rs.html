@@ -1609,7 +1609,8 @@
 <a href="#1608" id="1608">1608</a>
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -2802,6 +2803,7 @@
             rty::BinOp::Sub(<span class="kw">_</span>) =&gt; fixpoint::ThyFunc::BvSub,
             rty::BinOp::Mul(<span class="kw">_</span>) =&gt; fixpoint::ThyFunc::BvMul,
             rty::BinOp::Div(<span class="kw">_</span>) =&gt; fixpoint::ThyFunc::BvUdiv,
+            rty::BinOp::Mod(<span class="kw">_</span>) =&gt; fixpoint::ThyFunc::BvUrem,
             rty::BinOp::BitAnd =&gt; fixpoint::ThyFunc::BvAnd,
             rty::BinOp::BitOr =&gt; fixpoint::ThyFunc::BvOr,
             rty::BinOp::BitShl =&gt; fixpoint::ThyFunc::BvShl,

@@ -433,13 +433,7 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
+<a href="#435" id="435">435</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 </span><span class="attr">#![cfg_attr(feature = <span class="string">"nightly"</span>, feature(rustc_private))]
@@ -751,8 +745,6 @@
     BvSge,
     BvUdiv,
     BvSdiv,
-    BvUmod,
-    BvSmod,
     BvSrem,
     BvUrem,
     BvLshr,
@@ -791,7 +783,7 @@
 }
 
 <span class="kw">impl </span>ThyFunc {
-    <span class="kw">pub const </span>ALL: [ThyFunc; <span class="number">37</span>] = [
+    <span class="kw">pub const </span>ALL: [ThyFunc; <span class="number">35</span>] = [
         ThyFunc::StrLen,
         ThyFunc::IntToBv32,
         ThyFunc::Bv32ToInt,
@@ -808,8 +800,6 @@
         ThyFunc::BvSdiv,
         ThyFunc::BvUrem,
         ThyFunc::BvSrem,
-        ThyFunc::BvUmod,
-        ThyFunc::BvSmod,
         ThyFunc::BvAnd,
         ThyFunc::BvOr,
         ThyFunc::BvXor,
@@ -851,8 +841,6 @@
             ThyFunc::BvSge =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsge"</span>),
             ThyFunc::BvUdiv =&gt; <span class="macro">write!</span>(f, <span class="string">"bvudiv"</span>),
             ThyFunc::BvSdiv =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsdiv"</span>),
-            ThyFunc::BvUmod =&gt; <span class="macro">write!</span>(f, <span class="string">"bvumod"</span>),
-            ThyFunc::BvSmod =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsmod"</span>),
             ThyFunc::BvUrem =&gt; <span class="macro">write!</span>(f, <span class="string">"bvurem"</span>),
             ThyFunc::BvSrem =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsrem"</span>),
             ThyFunc::BvLshr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvlshr"</span>),
