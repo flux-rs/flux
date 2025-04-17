@@ -310,8 +310,6 @@ pub enum ThyFunc {
     BvSge,
     BvUdiv,
     BvSdiv,
-    BvUmod,
-    BvSmod,
     BvSrem,
     BvUrem,
     BvLshr,
@@ -350,7 +348,7 @@ pub enum ThyFunc {
 }
 
 impl ThyFunc {
-    pub const ALL: [ThyFunc; 37] = [
+    pub const ALL: [ThyFunc; 35] = [
         ThyFunc::StrLen,
         ThyFunc::IntToBv32,
         ThyFunc::Bv32ToInt,
@@ -367,8 +365,6 @@ impl ThyFunc {
         ThyFunc::BvSdiv,
         ThyFunc::BvUrem,
         ThyFunc::BvSrem,
-        ThyFunc::BvUmod,
-        ThyFunc::BvSmod,
         ThyFunc::BvAnd,
         ThyFunc::BvOr,
         ThyFunc::BvXor,
@@ -410,8 +406,6 @@ impl fmt::Display for ThyFunc {
             ThyFunc::BvSge => write!(f, "bvsge"),
             ThyFunc::BvUdiv => write!(f, "bvudiv"),
             ThyFunc::BvSdiv => write!(f, "bvsdiv"),
-            ThyFunc::BvUmod => write!(f, "bvumod"),
-            ThyFunc::BvSmod => write!(f, "bvsmod"),
             ThyFunc::BvUrem => write!(f, "bvurem"),
             ThyFunc::BvSrem => write!(f, "bvsrem"),
             ThyFunc::BvLshr => write!(f, "bvlshr"),

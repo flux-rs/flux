@@ -131,8 +131,7 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
         ThyFunc::BvSge => "bv_sge",
         ThyFunc::BvUdiv => "bv_udiv",
         ThyFunc::BvSdiv => "bv_sdiv",
-        ThyFunc::BvUmod => "bv_umod",
-        ThyFunc::BvSmod => "bv_smod",
+
         ThyFunc::BvSrem => "bv_srem",
         ThyFunc::BvUrem => "bv_urem",
         ThyFunc::BvLshr => "bv_lshr",
@@ -210,8 +209,6 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
         }
         ThyFunc::BvUdiv
         | ThyFunc::BvSdiv
-        | ThyFunc::BvUmod
-        | ThyFunc::BvSmod
         | ThyFunc::BvSrem
         | ThyFunc::BvUrem
         | ThyFunc::BvLshr
