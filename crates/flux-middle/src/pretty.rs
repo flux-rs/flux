@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::{cell::RefCell, fmt};
+use std::{cell::RefCell, collections::HashMap, fmt};
 
 use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
@@ -345,6 +344,10 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn hide_refinements(self, b: bool) -> Self {
         Self { hide_refinements: b, ..self }
+    }
+
+    pub fn with_free_var_substs(self, free_var_substs: HashMap<Name, String>) -> Self {
+        Self { free_var_substs, ..self }
     }
 }
 
