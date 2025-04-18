@@ -733,7 +733,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 let ret = infcx.unpack(
                     &ret,
-                    BinderProvenance::new(BinderOriginator::CallReturn(call_return)).with_span(terminator_span),
+                    BinderProvenance::new(BinderOriginator::CallReturn(call_return))
+                        .with_span(terminator_span),
                 );
                 infcx.assume_invariants(&ret);
 
