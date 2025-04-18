@@ -71,10 +71,17 @@ refineck_missing_assoc_reft =
 
 # Blame spans (TBD)
 
-refineck_blame_span_note =
-    `{$var}` defined here with originator `{$originator}`
+refineck_failing_constraint_note =
+    constraint that could not be proven: `{$constraint}`
 
-refineck_err_with_blame_spans =
-    failed to verify predicate: {$pred}
-    blamed variable: {$blame_var}
-    related variables: {$related_vars}
+refineck_blamed_var_note =
+    try adding a refinement to `{$var}`, defined here
+
+refineck_blamed_fn_note =
+    try adding a refinement to the function `{$fn_name}`
+
+refineck_var_span_note =
+    `{$var}` defined here
+
+refineck_related_fn_note =
+    related function `{$fn_name}` defined here
