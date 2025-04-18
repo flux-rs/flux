@@ -244,7 +244,7 @@ impl<T: Types> Task<T> {
             .arg(format!("--solver={}", self.solver))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()?;
         let mut stdin = None;
         std::mem::swap(&mut stdin, &mut child.stdin);
@@ -254,9 +254,17 @@ impl<T: Types> Task<T> {
         }
         let out = child.wait_with_output()?;
 
-        let result = serde_json::from_slice(&out.stdout)?;
-
-        Ok(result)
+        serde_json::from_slice(&out.stdout).map_err(|err| {
+            // If we fail to parse stdout fixpoint may have outputed something to stderr
+            // so use that for the error instead
+            if !out.stderr.is_empty() {
+                let stderr = std::str::from_utf8(&out.stderr)
+                    .unwrap_or("fixpoint exited with a non-zero return code");
+                io::Error::new(io::ErrorKind::Other, stderr)
+            } else {
+                err.into()
+            }
+        })
     }
 }
 
