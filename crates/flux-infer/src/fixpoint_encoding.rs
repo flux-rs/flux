@@ -24,7 +24,7 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, Name, SpecFuncKind,
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
         VariantIdx, fold::TypeFoldable as _, fold::TypeVisitable,
     },
 };
@@ -52,7 +52,7 @@ use crate::{
 };
 
 pub mod decoding;
-use crate::refine_tree::{BinderDeps, BinderProvenance};
+use crate::refine_tree::BinderDeps;
 
 pub mod fixpoint {
     use std::fmt;
@@ -496,7 +496,18 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
-pub type BlameSpans = (Vec<(Name, Option<BinderProvenance>, usize)>, rty::Expr, Option<Name>);
+// #[derive(Debug, Clone)]
+// pub struct BinderInfo {
+//     pub name: Name,
+//     pub provenance: Option<BinderProvenance>,
+//     pub depth: usize,
+// }
+
+#[derive(Debug, Clone)]
+pub struct BlameCtxt {
+    pub binder_deps: BinderDeps,
+    pub expr: rty::Expr,
+}
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
@@ -507,7 +518,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    blame_spans: HashMap<TagIdx, BlameSpans>,
+    blame_spans: HashMap<TagIdx, BlameCtxt>,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -515,11 +526,11 @@ pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 #[derive(Debug, Clone)]
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
-    pub blame_spans: BlameSpans,
+    pub blame_spans: BlameCtxt,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
-    pub fn new(tag: Tag, blame_spans: BlameSpans) -> Self {
+    pub fn new(tag: Tag, blame_spans: BlameCtxt) -> Self {
         Self { tag, blame_spans }
     }
 }
@@ -826,26 +837,33 @@ where
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
                 // Extract the spans from all of the vars related to the expression
                 // (including the vars in the expression).
-                let fvars = expr.fvars();
-                let max_depth_binder_in_expr = expr
-                    .fvars()
-                    .iter()
-                    .filter_map(|var| binder_deps.get(var).map(|(_bp, depth, _related_vars)| (depth, var)))
-                    .max()
-                    .map(|(_depth, var)| var.clone());
-                let blame_vars = fvars
-                    .iter()
-                    .filter_map(|var| binder_deps.get(var).map(|(_bp, _depth, related_vars)| related_vars))
-                    .flatten()
-                    .chain(&fvars)
-                    .copied();
-                let blame_var_spans = blame_vars
-                    .map(|var| {
-                        let (bp, depth, _) = &binder_deps[&var];
-                        (var, bp.clone(), *depth)
-                    })
-                    .collect();
-                self.blame_spans.insert(tag_idx, (blame_var_spans, expr.clone(), max_depth_binder_in_expr));
+
+                // TODO; move to error emission logic.
+                // let fvars = expr.fvars();
+                // let max_depth_binder_in_expr = expr
+                //     .fvars()
+                //     .iter()
+                //     .filter_map(|var| binder_deps.get(var).map(|(_bp, depth, _related_vars)| (depth, var)))
+                //     .max()
+                //     .map(|(_depth, var)| var.clone());
+                // let blame_vars = fvars
+                //     .iter()
+                //     .filter_map(|var| binder_deps.get(var).map(|(_bp, _depth, related_vars)| related_vars))
+                //     .flatten()
+                //     .chain(&fvars)
+                //     .copied();
+                // let blame_var_spans = blame_vars
+                //     .map(|var| {
+                //         let (bp, depth, _) = &binder_deps[&var];
+                //         BinderInfo {
+                //             name: var,
+                //             provenance: bp.clone(),
+                //             depth: *depth,
+                //         }
+                //     })
+                //     .collect();
+                self.blame_spans
+                    .insert(tag_idx, BlameCtxt { binder_deps, expr: expr.clone() });
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }

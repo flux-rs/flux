@@ -22,9 +22,8 @@ use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use rustc_hir::def_id::DefId;
 use rustc_span::{Span, Symbol};
-use rustc_hir::def_id::DefId
-;
 use serde::Serialize;
 
 use crate::{
@@ -473,7 +472,9 @@ impl Node {
             }
 
             NodeKind::Root(params) => {
-                let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)? else {
+                let Some(children) =
+                    children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)?
+                else {
                     return Ok(None);
                 };
                 let mut constr = children;
@@ -495,7 +496,8 @@ impl Node {
             NodeKind::ForAll(name, sort, bp) => {
                 binder_deps.insert(*name, (bp.clone(), binder_depth, HashSet::new()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
-                    let Some(children) = children_to_fixpoint(cx, &self.children, binder_deps, binder_depth + 1)?
+                    let Some(children) =
+                        children_to_fixpoint(cx, &self.children, binder_deps, binder_depth + 1)?
                     else {
                         return Ok(None);
                     };
@@ -515,7 +517,9 @@ impl Node {
                 // for assumptions inside of NodeKind::Head expressions) or is doing it
                 // only for NodeKind::Assumption sufficient?
                 let (mut bindings, pred) = cx.assumption_to_fixpoint(pred, &mut binder_deps)?;
-                let Some(cstr) = children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)? else {
+                let Some(cstr) =
+                    children_to_fixpoint(cx, &self.children, binder_deps, binder_depth)?
+                else {
                     return Ok(None);
                 };
                 bindings.push(fixpoint::Bind {
@@ -1136,15 +1140,12 @@ pub struct CallReturn {
     pub destination_name: Option<Symbol>,
     // The def_id of the function being called, if we can get it
     // (right now we can't for CallKind::FnPtr)
-    pub def_id: Option<DefId>
+    pub def_id: Option<DefId>,
 }
 
 impl CallReturn {
     pub fn new(destination_name: Option<Symbol>, def_id: Option<DefId>) -> CallReturn {
-        CallReturn {
-            destination_name,
-            def_id,
-        }
+        CallReturn { destination_name, def_id }
     }
 }
 
