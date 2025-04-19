@@ -60,6 +60,11 @@ pub struct Flags {
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
     pub ignore_default: bool,
     pub emit_lean_defs: bool,
+    /// Output debug information about the binders in each failing constraint. The intent
+    /// is for this to only be used by automated tools for evaluating error message quality.
+    /// When enabled, it suppresses the regular error notes about failing constraints and
+    /// related binders.
+    pub debug_binder_output: bool,
 }
 
 impl Default for Flags {
@@ -86,6 +91,7 @@ impl Default for Flags {
             trusted_default: false,
             ignore_default: false,
             emit_lean_defs: false,
+            debug_binder_output: false,
         }
     }
 }
@@ -118,10 +124,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
+            "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
             _ => {
-                eprintln!("error: unknown flux option: `{key}`");
-                process::exit(EXIT_FAILURE);
-            }
+            eprintln!("error: unknown flux option: `{key}`");
+            process::exit(EXIT_FAILURE);
+        }
         };
         if let Err(reason) = result {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");
