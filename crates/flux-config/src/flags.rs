@@ -64,6 +64,11 @@ pub struct Flags {
     pub emit_lean_defs: bool,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     pub no_panic: bool,
+    /// Output debug information about the binders in each failing constraint. The intent
+    /// is for this to only be used by automated tools for evaluating error message quality.
+    /// When enabled, it suppresses the regular error notes about failing constraints and
+    /// related binders.
+    pub debug_binder_output: bool,
 }
 
 impl Default for Flags {
@@ -92,6 +97,7 @@ impl Default for Flags {
             ignore_default: false,
             emit_lean_defs: false,
             no_panic: false,
+            debug_binder_output: false,
         }
     }
 }
@@ -126,10 +132,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
             "no-panic" => parse_bool(&mut flags.no_panic, value),
+            "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
             _ => {
-                eprintln!("error: unknown flux option: `{key}`");
-                process::exit(EXIT_FAILURE);
-            }
+        eprintln!("error: unknown flux option: `{key}`");
+        process::exit(EXIT_FAILURE);
+        }
         };
         if let Err(reason) = result {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");

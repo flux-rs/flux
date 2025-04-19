@@ -256,6 +256,10 @@ impl fmt::Display for OverflowMode {
     }
 }
 
+pub fn debug_binder_output() -> bool {
+    FLAGS.debug_binder_output
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum SmtSolver {
