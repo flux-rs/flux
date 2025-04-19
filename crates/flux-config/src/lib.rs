@@ -105,6 +105,10 @@ pub fn full_compilation() -> bool {
     FLAGS.full_compilation
 }
 
+pub fn debug_binder_output() -> bool {
+    FLAGS.debug_binder_output
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum SmtSolver {
