@@ -5,7 +5,7 @@ use std::vec::IntoIter;
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 
-// These assertions expect for the last one, should verify once we implement trait bounds properly
+// These assertions except for the last one, should verify once we implement trait bounds properly
 #[flux::sig(fn(it: IntoIter<i32{v: 5 <= v}>))]
 pub fn goo<I>(it: IntoIter<i32>) {
     for x in it {

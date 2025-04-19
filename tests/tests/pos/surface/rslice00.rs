@@ -1,6 +1,6 @@
 #[path = "../../lib/rvec.rs"]
 mod rvec;
-use rvec::{rslice::RSlice, RVec};
+use rvec::{RVec, rslice::RSlice};
 
 #[flux::sig(fn(&mut RVec<T>[10]))]
 fn test00<T>(vec: &mut RVec<T>) {

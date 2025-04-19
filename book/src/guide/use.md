@@ -1,6 +1,8 @@
 # User's Guide
 
-A list of various `flux` features as illustrated by examples in the regression tests.
+One day, this will be an actual user's guide.
+
+For now, it is a collection of various `flux` features as illustrated by examples from the regression tests.
 
 ## Index Refinements
 
@@ -45,6 +47,21 @@ Like `&mut T` but which allow _strong updates_ via `ensures` clauses
 {{#include ../../../tests/tests/pos/surface/test03.rs}}
 ```
 
+## Mixing Mutable and Strong References
+
+```rust
+{{#include ../../../tests/tests/pos/surface/local_ptr00.rs}}
+```
+
+## Refined Arrays
+
+`flux` supports _refined arrays_ of the form `[i32{v: 0 <= v}; 20]`
+denoting arrays of size `20` of non-negative `i32` values.
+
+```rust
+{{#include ../../../tests/tests/pos/array/array00.rs}}
+```
+
 ## Refined Vectors `rvec`
 
 `RVec` specification
@@ -71,6 +88,36 @@ Like `&mut T` but which allow _strong updates_ via `ensures` clauses
 {{#include ../../../tests/tests/pos/surface/heapsort.rs}}
 ```
 
+## Refined Slices
+
+```rust
+{{#include ../../../tests/tests/pos/surface/slice00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/rslice00.rs}}
+```
+
+## Refined `Vec`
+
+This uses `extern_spec` which is described in the [specifications guide](specs.md).
+
+**Standalone**
+
+```rust
+{{#include ../../../tests/tests/pos/vec/vec00.rs}}
+```
+
+**Associated Refinements** for indexing
+
+```rust
+{{#include ../../../tests/tests/lib/vec.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/neg/surface/vec02.rs}}
+```
+
 ## Named Function Signatures
 
 You can also write _named_ function signatures using the `spec`
@@ -84,12 +131,122 @@ Used to specify preconditions in a single spot, if needed.
 {{#include ../../../tests/tests/pos/surface/test01_where.rs}}
 ```
 
+## Refining Structs
+
+```rust
+{{#include ../../../tests/tests/pos/structs/dot01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/date.rs}}
+```
+
+### Invariants on Structs
+
+```rust
+{{#include ../../../tests/tests/pos/structs/invariant00.rs}}
+```
+
+with `const` generics
+
+```rust
+{{#include ../../../tests/tests/pos/surface/invariant_with_const_generic.rs}}
+```
+
+### Opaque Structs
+
+See the [specifications guide](specs.md) for more about the `opaque` annotation.
+
+```rust
+{{#include ../../../tests/tests/pos/structs/opaque-range.rs}}
+```
+
+## Refining Enums
+
+```rust
+{{#include ../../../tests/tests/pos/enums/opt01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/enums/pos00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/enums/list00.rs}}
+```
+
+### Invariants on Enums
+
+```rust
+{{#include ../../../tests/tests/pos/enums/invariant00.rs}}
+```
+
+### Reflecting Enums
+
+```rust
+{{#include ../../../tests/tests/neg/surface/reflect00.rs}}
+```
+
+## Field Syntax for Indices
+
+### Structs
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test00.rs}}
+```
+
+### Enums
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test01.rs}}
+```
+
+### Updates
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test03.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test04.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test05.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test11.rs}}
+```
+
+## Const
+
+You can use `int`-ish `const` in refinements e.g.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const07.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const08.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const10.rs}}
+```
+
 ## Requires with `forall`
 
 We allow a `forall` on the requires clauses, e.g.
 
 ```rust
 {{#include ../../../tests/tests/pos/surface/forall01.rs}}
+```
+
+## Refined Associated Types
+
+```rust
+{{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type00.rs}}
 ```
 
 ## Pragma: `ignore`
@@ -100,9 +257,23 @@ Used to tell `flux` to _ignore_ (checking) a bunch of definitions.
 {{#include ../../../tests/tests/neg/surface/ignore02.rs}}
 ```
 
+## Pragma: `should_fail`
+
+Used to tell `flux` to _expect_ a failure when checking a function.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/should_fail.rs}}
+```
+
 ## Const Generics
 
 `flux` lets you use Rust's const-generics inside refinements.
+
+**Refining Array Lengths**
+
+```rust
+{{#include ../../../tests/tests/neg/surface/const04.rs}}
+```
 
 **Refining Struct Fields**
 
@@ -137,9 +308,25 @@ You can define refined **type aliases** for Rust types.
 You can define **spec functions** that abstract complicated refinements into refinement-level
 functions, which can then be used in refinements.
 
+### Plain Expressions
+
 ```rust
 {{#include ../../../tests/tests/pos/surface/date.rs}}
 ```
+
+### `let` binders
+
+```rust
+{{#include ../../../tests/tests/pos/surface/let-exprs00.rs}}
+```
+
+### Bounded Quantification
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bounded_quant00.rs}}
+```
+
+### No Cycles!
 
 However, there should be no _cyclic dependencies_ in the function definitions.
 
@@ -189,20 +376,293 @@ environment variable.
 
 You can (sometimes!) use `_` in the `flux` signatures to omit the Rust components, e.g.
 
-**Function Signatures**
+### Function Signatures
 
 ```rust
 {{#include ../../../tests/tests/pos/surface/type_holes00.rs}}
 ```
 
-**Structs and Enums**
+### Structs and Enums
 
 ```rust
 {{#include ../../../tests/tests/pos/surface/type_holes01.rs}}
 ```
 
-**Type Aliases**
+### Type Aliases
 
 ```rust
 {{#include ../../../tests/tests/pos/surface/type_holes02.rs}}
+```
+
+### Generic Args
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const11.rs}}
+```
+
+## Closures
+
+```rust
+{{#include ../../../tests/tests/pos/surface/closure00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/closure02.rs}}
+```
+
+## Function Pointers
+
+```rust
+{{#include ../../../tests/tests/pos/surface/fndef00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/fndef01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/fndef02.rs}}
+```
+
+## Traits and Implementations
+
+```rust
+{{#include ../../../tests/tests/pos/surface/impl00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/impl01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/impl02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/refined_fn_in_trait_01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/trait-subtyping01.rs}}
+```
+
+## Impl Trait
+
+```rust
+{{#include ../../../tests/tests/pos/impl_trait/impl_trait00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/impl_trait/impl_trait01.rs}}
+```
+
+## Dynamic Trait Objects
+
+```rust
+{{#include ../../../tests/tests/neg/trait_objects/dyn01.rs}}
+```
+
+## Generic Refinements
+
+`flux` supports _generic refinements_ see [this paper for details](https://dl.acm.org/doi/10.1145/3704885)
+
+**Horn Refinements**
+
+```rust
+{{#include ../../../tests/tests/pos/abstract_refinements/test00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/abstract_refinements/test01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/abstract_refinements/test03.rs}}
+```
+
+**Hindley Refinements**
+
+TODO
+
+## Bitvector Refinements
+
+### Operators
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bitvec03.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bitvec_const02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bv_ord.rs}}
+```
+
+### Specification functions
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bitvec05.rs}}
+```
+
+### Extensions
+
+```rust
+{{#include ../../../tests/tests/neg/surface/bitvec02.rs}}
+```
+
+### Bitvector Constants
+
+```rust
+{{#include ../../../tests/tests/neg/surface/bitvec_const00.rs}}
+```
+
+## `char` Literals
+
+```rust
+{{#include ../../../tests/tests/pos/surface/char02.rs}}
+```
+
+## `String` Literals
+
+```rust
+{{#include ../../../tests/tests/neg/surface/str02.rs}}
+```
+
+## Extern Specs
+
+The `extern_spec` is used to provide `flux` signatures for functions defined in _external_ crates. See the [specifications guide](specs.md) for more details.
+
+### Functions
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_macro.rs}}
+```
+
+### Options
+
+```rust
+{{#include ../../../tests/tests/lib/option.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/enums/option00.rs}}
+```
+
+### Vec
+
+```rust
+{{#include ../../../tests/tests/lib/option.rs}}
+```
+
+### Structs
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_struct03.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl03.rs}}
+```
+
+### Impls
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl01.rs}}
+```
+
+### Traits
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_trait00.rs}}
+```
+
+### `for` loops with range `i..j`
+
+To see how `flux` handles `for i in 0..n` style loops:
+
+```rust
+{{#include ../../../tests/tests/pos/surface/for_range00.rs}}
+```
+
+## Associated Refinements
+
+### Basic
+
+```rust
+{{#include ../../../tests/tests/pos/surface/assoc_reft01.rs}}
+```
+
+### Check Subtyping at Impl
+
+```rust
+{{#include ../../../tests/tests/pos/surface/trait-subtyping08.rs}}
+```
+
+### Default
+
+```rust
+{{#include ../../../tests/tests/neg/surface/assoc_reft03.rs}}
+```
+
+### Use in Extern Spec
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_trait00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/lib/vec.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/lib/iter.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/iter02.rs}}
+```
+
+### Associated Types
+
+```rust
+{{#include ../../../tests/tests/neg/surface/assoc_reft02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/assoc_reft04.rs}}
+```
+
+### Refined Associated Types
+
+```rust
+{{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type01.rs}}
+```
+
+## Checking Overflows
+
+You can switch on overflow checking
+
+- _globally_ [with a flag](http://localhost:3000/guide/run.html?highlight=cache#flux-flags) or
+- _locally_ with an attribute as shown below
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow03.rs}}
 ```
