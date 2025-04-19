@@ -2,14 +2,17 @@
 
 [Introduction](README.md)
 
-# Guide
+# User's Guide
 
 - [Install](guide/install.md)
 - [Run](guide/run.md)
 - [Specs](guide/specs.md)
+- [Use](guide/use.md)
+
+# Developer's Guide
+
 - [Develop](dev/develop.md)
 - [Architecture](dev/architecture.md)
-- [Use](dev/use.md)
 
 # Examples
 
