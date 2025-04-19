@@ -57,6 +57,11 @@ pub struct Flags {
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
     /// don't typically have to set it manually.
     pub full_compilation: bool,
+    /// Output debug information about the binders in each failing constraint. The intent
+    /// is for this to only be used by automated tools for evaluating error message quality.
+    /// When enabled, it suppresses the regular error notes about failing constraints and
+    /// related binders.
+    pub debug_binder_output: bool,
 }
 
 impl Default for Flags {
@@ -80,8 +85,12 @@ impl Default for Flags {
             verbose: false,
             annots: false,
             timings: false,
+<<<<<<< HEAD
             verify: false,
             full_compilation: false,
+=======
+            debug_binder_output: false,
+>>>>>>> 938fd01478 (debug output for benchmarking)
         }
     }
 }
@@ -110,8 +119,12 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "check-def" => parse_string(&mut flags.check_def, value),
             "check-files" => parse_check_files(&mut flags.check_files, value),
+<<<<<<< HEAD
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
+=======
+            "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
+>>>>>>> 938fd01478 (debug output for benchmarking)
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

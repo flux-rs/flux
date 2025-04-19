@@ -35,6 +35,7 @@ use std::collections::{HashMap, HashSet};
 
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
+use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
@@ -53,7 +54,8 @@ use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{Diag, ErrorGuaranteed};
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::Span;
+use rustc_span::{Span, source_map::SourceMap, FileNameDisplayPreference};
+use serde::{Serialize, Serializer, ser::SerializeSeq};
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
 
@@ -227,78 +229,50 @@ fn report_errors(
 
         let (mut binders, subst) =
             binders_and_subst_from_expr(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps);
-        let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
-        err_diag.subdiagnostic(errors::FailingConstraint {
-            constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_spans.expr)),
-        });
-        if let Some(first_binder) = binders.pop() {
-            add_blame_var_diagnostic(genv, &mut err_diag, first_binder);
-        }
-        for binder in binders.into_iter().rev() {
-            add_related_var_diagnostic(genv, &mut err_diag, binder);
+        // Current heuristic:
+        //   * When we collect them, we sort the binders in order of how useful they are (least-to-most)
+        //   * The most useful binder is the blamed one
+        //   * The rest are related (we reverse the sort to emit them most-to-least useful)
+        let blamed_binders = if let Some(first_binder) = binders.pop() {
+            vec![first_binder]
+        } else {
+            Vec::new()
+        };
+        let related_binders: Vec<BinderInfo> = binders.into_iter().rev().collect();
+
+        if config::debug_binder_output() {
+            let binder_debug_infos = collect_binder_debug_info(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps, &subst);
+            let blame_spans = blamed_binders.into_iter().map(|binder_info| {
+                BlameSpanDebugInfo {
+                    binder_name: binder_info.name,
+                    blame_span: SimpleSpan::from_span(binder_info.span, genv.tcx().sess.source_map()),
+                    // We don't emit right now.
+                    suggested_refinement: None,
+                }
+            }).collect();
+            // Note that we don't need to bother collecting info on the rest of the related vars because
+            // we already got information on them from the binder_deps.
+            let constraint_debug_info = ConstraintDebugInfo {
+                constraint: err.blame_spans.expr,
+                binders: binder_debug_infos,
+                blame_spans,
+            };
+            let debug_str = format!("constraint_debug_info: {}", serde_json::to_string(&constraint_debug_info).unwrap());
+            err_diag.note(debug_str);
+        } else {
+            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
+            err_diag.subdiagnostic(errors::FailingConstraint {
+                constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_spans.expr)),
+            });
+            for blamed_binder in blamed_binders {
+                add_blame_var_diagnostic(genv, &mut err_diag, blamed_binder);
+            }
+            for related_binder in related_binders {
+                add_related_var_diagnostic(genv, &mut err_diag, related_binder);
+            }
         }
 
         e = Some(err_diag.emit());
-
-        // 1. [ ] Create a subdiagnostic for the provenance of a variable (could just modify BlameSpan)
-        // 2. [ ] Create a subdiagnostic for the variable we are suggesting to fix.
-        // 3. [ ] Create specialized subdiagnostics for the above for the different CallReturn and FnArg cases.
-        // 4. [x] Make a struct for the blame_spans field and in addition to everything being tracked
-        //        currently, also track a list of just the binders in the failing constraint (this is just expr.fvars()).
-        // 5. [ ] Write a heuristic function to pick a singular blame variable from the binders.
-        //        (for now, we can probably just pick the deepest one which is related to all of
-        //         the vars in the constraint)
-        // 6. [ ] Emit the friendly constraint as a note beneath the initial error.
-        // 7. [ ] Emit the suggested var to change next.
-        // 8. [ ] Emit the subdiagnostics identifying the variables in the constraint after (and only the variables in the constraint).
-        // let vars_and_originators: String = err.blame_spans.0.iter()
-        //                                                   .map(|(name, bp, depth)| {
-        //                                                       let origin_str = match bp {
-        //                                                           Some(bp@BinderProvenance {originator: origin, span}) => {
-        //                                                               add_substitution_for_binder_var(genv, &mut pred_pretty_cx.free_var_substs, *name, bp);
-        //                                                               format!("({:?}, {:?})", origin, span)
-        //                                                           },
-        //                                                           _ => "No provenance".to_string(),
-        //                                                       };
-        //                                                       format!(r#"{{"name": "{:?}", "pretty_name": "{:?}", "depth": {}, "origin": {:?}}}"#,
-        //                                                               name,
-        //                                                               pred_pretty_cx.free_var_substs.get(&name),
-        //                                                               depth,
-        //                                                               origin_str)
-        //                                                   }).join(", ");
-        // // We populate the PrettyCx.free_var_substs so that when we pretty print
-        // // the failing predicate, we give better names to the failing variables.
-        // let pred_string = format!(r#""{:?}""#, pretty::with_cx!(&pred_pretty_cx, err.blame_spans.1));
-        // let blame_span_err = errors::ErrWithBlameSpans {
-        //     span,
-        //     // For now, swallow blame spans without emitting any errors
-        //     blame_spans: err
-        //         .blame_spans
-        //         .0
-        //         .iter()
-        //         .filter_map(|(name, bp, _depth)| {
-        //             bp.clone().and_then(|bp| {
-        //                 bp.span.map(|span| {
-        //                     errors::BlameSpan {
-        //                         // Use the substituted name if it exists
-        //                         var: if let Some(subst) = pred_pretty_cx.free_var_substs.get(&name) {
-        //                                 format!("{}", subst)
-        //                              } else {
-        //                                 format!("{:?}", name)
-        //                              },
-        //                         span,
-        //                         originator: format!("{:?}", bp.originator),
-        //                     }
-        //                 })
-        //             })
-        //         })
-        //         .collect(),
-        //     // Omit span information in this debug print
-        //     related_vars: format!("[{}]", vars_and_originators),
-        //     blame_var: format!(r#""{:?}""#, err.blame_spans.2),
-        //     pred: pred_string,
-        // };
-        // genv.sess().emit_err(blame_span_err);
     }
 
     if let Some(e) = e { Err(e) } else { Ok(()) }
@@ -474,6 +448,144 @@ struct BinderInfo {
     related_vars: HashSet<Name>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct SimpleLoc {
+    /// 1-based line number.
+    pub line: usize,
+    /// 1-based character offset.
+    pub char: usize,
+    /// The source file name.
+    pub file: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+/// A simplified version of [`Span`] suitable for debug output.
+pub struct SimpleSpan {
+    pub start: SimpleLoc,
+    pub end: SimpleLoc,
+}
+
+impl SimpleSpan {
+    fn from_span(span: Span, sm: &SourceMap) -> Option<Self> {
+        if span.is_dummy() {
+            return None;
+        }
+
+        let start_loc_data = sm.lookup_char_pos(span.lo());
+        let end_loc_data = sm.lookup_char_pos(span.hi());
+
+        // `loc.col` is 0-based, so add 1 for a 1-based character offset.
+        let start = SimpleLoc {
+            file: start_loc_data.file.name.display(FileNameDisplayPreference::Short).to_string(),
+            line: start_loc_data.line,
+            char: start_loc_data.col.0 + 1,
+        };
+
+        let end = SimpleLoc {
+            file: end_loc_data.file.name.display(FileNameDisplayPreference::Short).to_string(),
+            line: end_loc_data.line,
+            char: end_loc_data.col.0 + 1,
+        };
+
+        Some(SimpleSpan { start, end })
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct SimpleFnInfo {
+    fn_name: String,
+    fn_span: Option<SimpleSpan>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BinderDebugInfo {
+    #[serde(serialize_with = "serialize_debug")]
+    name: Name,
+    pretty_name: Option<String>,
+    span: Option<SimpleSpan>,
+    #[serde(serialize_with = "serialize_debug")]
+    originator: Option<BinderOriginator>,
+    depth: usize,
+    #[serde(serialize_with = "serialize_set_debug")]
+    related_vars: HashSet<Name>,
+    in_constraint: bool,
+    related_function: Option<SimpleFnInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct BlameSpanDebugInfo {
+    #[serde(serialize_with = "serialize_debug")]
+    binder_name: Name,
+    /// The span where the fix goes (this is not always the binder's location)
+    blame_span: Option<SimpleSpan>,
+    /// What refinement does this need added to it?
+    suggested_refinement: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ConstraintDebugInfo {
+    #[serde(serialize_with = "serialize_debug")]
+    constraint: rty::Expr,
+    binders: Vec<BinderDebugInfo>,
+    blame_spans: Vec<BlameSpanDebugInfo>,
+}
+
+fn serialize_debug<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+where
+    T: std::fmt::Debug,
+    S: Serializer,
+{
+    serializer.serialize_str(&format!("{:?}", value))
+}
+
+fn serialize_set_debug<T, S>(
+    set: &HashSet<T>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    T: std::fmt::Debug,
+    S: Serializer,
+{
+    let mut seq = serializer.serialize_seq(Some(set.len()))?;
+
+    for name in set {
+        let name_debug_str = format!("{:?}", name);
+
+        seq.serialize_element(&name_debug_str)?;
+    }
+
+    seq.end()
+}
+
+fn collect_binder_debug_info(genv: GlobalEnv, expr: &rty::Expr, binder_deps: &BinderDeps, pretty_name_subst: &HashMap<Name, String>) -> Vec<BinderDebugInfo> {
+    let expr_vars = expr.fvars();
+    binder_deps.iter().map(|(name, (bp, depth, related_vars))| {
+        BinderDebugInfo {
+            name: *name,
+            pretty_name: pretty_name_subst.get(name).cloned(),
+            span: bp.clone().and_then(|bp| bp.span.and_then(|span| SimpleSpan::from_span(span, &genv.tcx().sess.source_map()))),
+            originator: bp.clone().map(|bp| bp.originator.clone()),
+            depth: *depth,
+            related_vars: related_vars.clone(),
+            in_constraint: expr_vars.contains(name),
+            related_function: bp.clone().and_then(|bp| match bp.originator {
+                BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) => {
+                    let fn_name = genv.tcx().def_path_str(def_id);
+                    let fn_span = genv
+                        .tcx()
+                        .def_ident_span(def_id)
+                        .unwrap_or_else(|| genv.tcx().def_span(def_id));
+                    Some(SimpleFnInfo {
+                        fn_name,
+                        fn_span: SimpleSpan::from_span(fn_span, &genv.tcx().sess.source_map())
+                    })
+                }
+                _ => None,
+            }),
+        }
+    }).collect()
+}
+
 mod errors {
     use flux_errors::E0999;
     use flux_macros::{Diagnostic, Subdiagnostic};
@@ -625,7 +737,7 @@ mod errors {
     }
 
     #[derive(Subdiagnostic)]
-    #[note(refineck_var_span_note)]
+    #[note(refineck_related_fn_note)]
     pub struct RelatedFn {
         #[primary_span]
         pub span: Span,
