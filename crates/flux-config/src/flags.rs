@@ -47,6 +47,11 @@ pub struct Flags {
     /// If true checks for over and underflow on arithmetic integer operations, default `false`. When
     /// set to `false`, it still checks for underflow on unsigned integer subtraction.
     pub check_overflow: bool,
+    /// Output debug information about the binders in each failing constraint. The intent
+    /// is for this to only be used by automated tools for evaluating error message quality.
+    /// When enabled, it suppresses the regular error notes about failing constraints and
+    /// related binders.
+    pub debug_binder_output: bool,
 }
 
 impl Default for Flags {
@@ -70,6 +75,7 @@ impl Default for Flags {
             verbose: false,
             annots: false,
             timings: false,
+            debug_binder_output: false,
         }
     }
 }
@@ -98,6 +104,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "check-def" => parse_string(&mut flags.check_def, value),
             "check-files" => parse_check_files(&mut flags.check_files, value),
+            "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(1);
