@@ -7,7 +7,7 @@ pub fn test00() {
     assert(x + 1 == y);
 }
 
-#[flux::sig(fn() -> usize[5])]
+#[flux::sig(fn five() -> usize[5])]
 pub fn five() -> usize {
     let x = 2;
     let y = 3;
