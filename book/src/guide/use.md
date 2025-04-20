@@ -446,6 +446,14 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 {{#include ../../../tests/tests/pos/surface/trait-subtyping01.rs}}
 ```
 
+### To Disable Subtyping at Impl
+
+You can disable subtyping checks at `impl` methods using the `trusted_impl` attribute
+
+```rust
+{{#include ../../../tests/tests/neg/surface/trait-subtyping03.rs}}
+```
+
 ## Impl Trait
 
 ```rust
