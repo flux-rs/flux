@@ -10,6 +10,10 @@ middle_query_invalid_generic_arg =
 middle_query_missing_assoc_reft =
     associated refinement `{$name}` is missing from implementation
 
+middle_query_incompatible_subtyping =
+    incompatible subtyping
+    .note = {$reason}
+
 middle_query_bug =
     internal flux error: {$location}
 

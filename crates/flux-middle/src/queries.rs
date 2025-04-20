@@ -77,6 +77,11 @@ pub enum QueryErr {
         trait_id: DefId,
         name: Symbol,
     },
+    IncompatibleSubtyping {
+        msg: String,
+        span: Span,
+        super_span: Option<Span>,
+    },
     /// Used to report bugs, typically this means executing an arm in a match we thought it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
     /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
@@ -850,6 +855,16 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.code(E0999);
                         diag
                     }
+                    QueryErr::IncompatibleSubtyping { msg, span, super_span } => {
+                        let mut diag =
+                            dcx.struct_span_err(span, fluent::middle_query_incompatible_subtyping);
+                        diag.arg("reason", msg);
+                        if let Some(super_span) = super_span {
+                            diag.span_label(super_span, "the incompatible super-type is here");
+                        }
+                        diag.code(E0999);
+                        diag
+                    }
                     QueryErr::Bug { def_id, location, msg } => {
                         let mut diag = dcx.struct_err(fluent::middle_query_bug);
                         if let Some(def_id) = def_id {
@@ -906,6 +921,18 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         let mut diag = dcx
                             .struct_span_err(self.span, fluent::middle_query_missing_assoc_reft_at);
                         diag.arg("name", name);
+                        diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::IncompatibleSubtyping { msg, super_span, .. } => {
+                        let mut diag = dcx.struct_span_err(
+                            self.span,
+                            fluent::middle_query_incompatible_subtyping,
+                        );
+                        diag.arg("reason", msg);
+                        if let Some(super_span) = super_span {
+                            diag.span_label(super_span, "the incompatible super-type is here");
+                        }
                         diag.code(E0999);
                         diag
                     }

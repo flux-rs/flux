@@ -228,6 +228,7 @@ fn check_fn_subtyping(
     sub_args: &[GenericArg],
     super_sig: &rty::PolyFnSig,
     span: Span,
+    super_span: Option<Span>,
 ) -> InferResult {
     let mut infcx = infcx.branch();
     let mut infcx = infcx.at(span);
@@ -261,7 +262,7 @@ fn check_fn_subtyping(
             infcx.assume_pred(requires);
         }
         for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
-            let reason = ConstrReason::Subtype(SubtypeReason::Input);
+            let reason = ConstrReason::Subtype(SubtypeReason::Input(super_span));
             infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
         }
         // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in
@@ -339,7 +340,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         genv.fn_sig(trait_method_id)?
             .instantiate(tcx, &trait_method_args, &trait_refine_args);
     let impl_sig = genv.fn_sig(impl_method_id)?;
-
+    let super_span = Some(tcx.def_span(trait_method_id));
     check_fn_subtyping(
         &mut infcx,
         &impl_method_id,
@@ -347,6 +348,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         &impl_method_args,
         &trait_fn_sig,
         span,
+        super_span,
     )?;
     Ok(Some(root_ctxt))
 }
@@ -777,12 +779,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
+        let super_span = callee_def_id.map(|id| tcx.def_span(id));
+
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
-        self.check_closure_clauses(infcx, &fn_clauses, span)?;
+        self.check_closure_clauses(infcx, &fn_clauses, span, super_span)?;
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -845,6 +849,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         fn_trait_pred: &FnTraitPredicate,
         span: Span,
+        super_span: Option<Span>,
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
@@ -866,7 +871,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, &oblig_sig, span)
+                check_fn_subtyping(infcx, def_id, sub_sig, args, &oblig_sig, span, super_span)
                     .with_span(span)?;
             }
             _ => {
@@ -883,12 +888,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         clauses: &[Binder<FnTraitPredicate>],
         span: Span,
+        super_span: Option<Span>,
     ) -> Result {
         for clause in clauses {
             // FIXME(nilehmann) we shouldn't be skipping this binder
             let clause = clause.skip_binder_ref();
 
-            self.check_fn_trait_clause(infcx, clause, span)?;
+            self.check_fn_trait_clause(infcx, clause, span, super_span)?;
         }
         Ok(())
     }
@@ -1333,7 +1339,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     let current_did = infcx.def_id;
                     let sub_sig = infcx.genv.fn_sig(*def_id)?;
                     // // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
-                    check_fn_subtyping(infcx, &current_did, sub_sig, args, super_sig, stmt_span)?;
+                    check_fn_subtyping(
+                        infcx,
+                        &current_did,
+                        sub_sig,
+                        args,
+                        super_sig,
+                        stmt_span,
+                        None,
+                    )?;
                     to
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")

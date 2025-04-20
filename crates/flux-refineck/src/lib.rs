@@ -148,7 +148,7 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
         let span = err.src_span;
         e = Some(match err.reason {
             ConstrReason::Call
-            | ConstrReason::Subtype(SubtypeReason::Input)
+            | ConstrReason::Subtype(SubtypeReason::Input(_))
             | ConstrReason::Subtype(SubtypeReason::Requires) => {
                 call_error(genv, span, err.dst_span)
             }

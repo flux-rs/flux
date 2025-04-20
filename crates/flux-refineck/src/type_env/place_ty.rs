@@ -860,11 +860,11 @@ fn fold(
         }
         TyKind::Downcast(adt, args, ty_, variant_idx, fields) => {
             if is_strg {
+                let did = adt.did();
                 let variant_sig = infcx
                     .genv
-                    .variant_sig(adt.did(), *variant_idx)?
+                    .variant_sig(did, *variant_idx)?
                     .expect("unexpected opaque struct");
-
                 let fields = fields
                     .iter()
                     .map(|ty| fold(bindings, infcx, ty, is_strg))

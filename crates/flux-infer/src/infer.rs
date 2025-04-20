@@ -53,10 +53,16 @@ impl Tag {
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
 pub enum SubtypeReason {
-    Input,
+    Input(Option<Span>),
     Output,
     Requires,
     Ensures,
+}
+
+impl SubtypeReason {
+    pub fn span(&self) -> Option<Span> {
+        if let SubtypeReason::Input(span) = self { *span } else { None }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash, Debug)]
@@ -73,6 +79,12 @@ pub enum ConstrReason {
     Overflow,
     Subtype(SubtypeReason),
     Other,
+}
+
+impl ConstrReason {
+    pub fn span(&self) -> Option<Span> {
+        if let ConstrReason::Subtype(reason) = self { reason.span() } else { None }
+    }
 }
 
 pub struct InferCtxtRoot<'genv, 'tcx> {
@@ -759,7 +771,14 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 Ok(())
             }
-            _ => Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?,
+            _ => {
+                Err(QueryErr::IncompatibleSubtyping {
+                    msg: format!("incompatible types: `{a:?}` - `{b:?}`"),
+                    span: self.span,
+                    super_span: self.reason.span(),
+                })?
+                // Err(query_bug!("incompatible types: `{a:?}` - `{b:?}`"))?
+            }
         }
     }
 
