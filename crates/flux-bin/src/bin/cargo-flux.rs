@@ -98,6 +98,7 @@ FLUX_CARGO = "1"
 
 [profile.flux]
 inherits = "dev"
+incremental = false
         "#,
             flux_driver = flux_driver_path.display(),
             lib_path = extended_lib_path.display(),

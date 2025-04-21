@@ -7,6 +7,9 @@ use crate::{PointerWidth, SmtSolver};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
+/// Exit status code used for invalid flags.
+pub const EXIT_FAILURE: i32 = 2;
+
 pub struct Flags {
     /// Sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
     pub log_dir: PathBuf,
@@ -100,7 +103,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "check-files" => parse_check_files(&mut flags.check_files, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
-                process::exit(1);
+                process::exit(EXIT_FAILURE);
             }
         };
         if let Err(reason) = result {

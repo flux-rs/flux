@@ -10,7 +10,7 @@ use std::{
     process::exit,
 };
 
-use flux_config::flags;
+use flux_config::flags::{self, EXIT_FAILURE};
 use flux_driver::callbacks::FluxCallbacks;
 use rustc_driver::{catch_with_exit_code, run_compiler};
 
@@ -28,27 +28,23 @@ fn main() -> io::Result<()> {
         rustc_driver::main();
     }
 
-    // HACK(nilehmann)
-    // Disable incremental compilation because that makes the borrow checker to not run
-    // and we fail to retrieve the mir.
-    let mut args = vec![];
+    // Remove all flux arguments
+    let mut args: Vec<String> = env::args().filter(|arg| !flags::is_flux_arg(arg)).collect();
+
+    // Report an error when passing `-C incremental=..` because that makes the borrow checker
+    // to not run and we fail to retrieve the mir.
     let mut is_codegen = false;
-    for arg in env::args() {
+    for arg in &args {
         if arg.starts_with("-C") || arg.starts_with("--codegen") {
             is_codegen = true;
-        } else if is_codegen && arg.starts_with("incremental=") {
-            is_codegen = false;
         } else {
-            if is_codegen {
-                args.push("-C".to_string());
-                is_codegen = false;
+            if is_codegen && arg.starts_with("incremental=") {
+                eprintln!("error: `flux-driver` cannot be called with `-C incremental=val`\n");
+                std::process::exit(EXIT_FAILURE);
             }
-            args.push(arg);
+            is_codegen = false;
         }
     }
-
-    // Remove all flux arguments
-    args.retain(|arg| !flags::is_flux_arg(arg));
 
     args.push("--sysroot".into());
     args.push(sysroot().expect("Flux Rust requires rustup to be built."));
