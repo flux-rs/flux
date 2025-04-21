@@ -433,7 +433,15 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a></pre></div><pre class="rust"><code><span class="doccomment">//! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
 </span><span class="attr">#![cfg_attr(feature = <span class="string">"nightly"</span>, feature(rustc_private))]
@@ -679,7 +687,7 @@
             .arg(<span class="macro">format!</span>(<span class="string">"--solver={}"</span>, <span class="self">self</span>.solver))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>stdin = <span class="prelude-val">None</span>;
         std::mem::swap(<span class="kw-2">&amp;mut </span>stdin, <span class="kw-2">&amp;mut </span>child.stdin);
@@ -689,9 +697,17 @@
         }
         <span class="kw">let </span>out = child.wait_with_output()<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>result = serde_json::from_slice(<span class="kw-2">&amp;</span>out.stdout)<span class="question-mark">?</span>;
-
-        <span class="prelude-val">Ok</span>(result)
+        serde_json::from_slice(<span class="kw-2">&amp;</span>out.stdout).map_err(|err| {
+            <span class="comment">// If we fail to parse stdout fixpoint may have outputed something to stderr
+            // so use that for the error instead
+            </span><span class="kw">if </span>!out.stderr.is_empty() {
+                <span class="kw">let </span>stderr = std::str::from_utf8(<span class="kw-2">&amp;</span>out.stderr)
+                    .unwrap_or(<span class="string">"fixpoint exited with a non-zero return code"</span>);
+                io::Error::new(io::ErrorKind::Other, stderr)
+            } <span class="kw">else </span>{
+                err.into()
+            }
+        })
     }
 }
 

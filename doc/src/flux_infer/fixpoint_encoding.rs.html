@@ -2118,7 +2118,7 @@
         }
         <span class="kw">let </span>result = timings::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             task.run()
-                .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint: {err:?}"</span>))
+                .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"failed to run fixpoint: {err}"</span>))
         });
 
         <span class="kw">if </span>config::is_cache_enabled() {
