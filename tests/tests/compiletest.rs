@@ -68,7 +68,6 @@ fn test_runner(_: &[&()]) {
     unsafe {
         // Force full compilation to make sure we generate artifacts when annotating tests with `@aux-build`
         env::set_var(FLUX_FULL_COMPILATION, "1");
-        env::set_var(FLUX_SYSROOT, &args.sysroot);
     }
 
     let path: PathBuf = ["tests", "pos"].iter().collect();
