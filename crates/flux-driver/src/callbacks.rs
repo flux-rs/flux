@@ -28,7 +28,6 @@ use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 #[derive(Default)]
 pub struct FluxCallbacks {
     pub full_compilation: bool,
-    pub verify: bool,
 }
 
 impl Callbacks for FluxCallbacks {
@@ -41,10 +40,7 @@ impl Callbacks for FluxCallbacks {
     }
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
-        if self.verify {
-            timings::enter(tcx, || self.verify(compiler, tcx));
-        }
-
+        timings::enter(tcx, || self.verify(compiler, tcx));
         if self.full_compilation { Compilation::Continue } else { Compilation::Stop }
     }
 }

@@ -89,6 +89,10 @@ pub fn timings() -> bool {
     FLAGS.timings
 }
 
+pub fn verify() -> bool {
+    FLAGS.verify
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum SmtSolver {

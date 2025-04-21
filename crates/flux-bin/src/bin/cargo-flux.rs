@@ -22,7 +22,7 @@ fn main() {
     let exit_code = match run() {
         Ok(code) => code,
         Err(e) => {
-            println!("Failed to run cargo-flux, error={e}");
+            println!("Failed to run `cargo-flux`, error={e}");
             EXIT_ERR
         }
     };
@@ -123,6 +123,8 @@ rustflags = [{:?}]
                         .into_flags(&metadata.target_directory)
                         .iter()
                         .chain(flux_flags.iter().flatten())
+                        .map(|s| s.as_ref())
+                        .chain(["-Fverify=on"])
                         .format(", ")
                 )?;
             }
