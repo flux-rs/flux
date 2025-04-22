@@ -204,7 +204,10 @@
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
 <a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a></pre></div><pre class="rust"><code><span class="attr">#![feature(let_chains, os_str_display)]
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a></pre></div><pre class="rust"><code><span class="attr">#![feature(let_chains, os_str_display)]
 
 </span><span class="kw">use </span>std::{
     <span class="self">self</span>, env,
@@ -228,7 +231,7 @@
     <span class="kw">let </span>exit_code = <span class="kw">match </span>run() {
         <span class="prelude-val">Ok</span>(code) =&gt; code,
         <span class="prelude-val">Err</span>(e) =&gt; {
-            <span class="macro">println!</span>(<span class="string">"Failed to run cargo-flux, error={e}"</span>);
+            <span class="macro">println!</span>(<span class="string">"Failed to run `cargo-flux`, error={e}"</span>);
             EXIT_ERR
         }
     };
@@ -304,6 +307,7 @@ FLUX_CARGO = "1"
 
 [profile.flux]
 inherits = "dev"
+incremental = false
         "#</span>,
             flux_driver = flux_driver_path.display(),
             lib_path = extended_lib_path.display(),
@@ -328,6 +332,8 @@ rustflags = [{:?}]
                         .into_flags(<span class="kw-2">&amp;</span>metadata.target_directory)
                         .iter()
                         .chain(flux_flags.iter().flatten())
+                        .map(|s| s.as_ref())
+                        .chain([<span class="string">"-Fverify=on"</span>, <span class="string">"-Ffull-compilation=on"</span>])
                         .format(<span class="string">", "</span>)
                 )<span class="question-mark">?</span>;
             }

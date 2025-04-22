@@ -268,13 +268,7 @@
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+<a href="#270" id="270">270</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 <span class="kw">use </span>flux_config <span class="kw">as </span>config;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>flux_infer::fixpoint_encoding::FixQueryCache;
@@ -302,10 +296,7 @@
 <span class="kw">use crate</span>::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 
 <span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>FluxCallbacks {
-    <span class="kw">pub </span>full_compilation: bool,
-    <span class="kw">pub </span>verify: bool,
-}
+</span><span class="kw">pub struct </span>FluxCallbacks;
 
 <span class="kw">impl </span>Callbacks <span class="kw">for </span>FluxCallbacks {
     <span class="kw">fn </span>config(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;mut </span>rustc_interface::interface::Config) {
@@ -317,11 +308,8 @@
     }
 
     <span class="kw">fn </span>after_analysis(<span class="kw-2">&amp;mut </span><span class="self">self</span>, compiler: <span class="kw-2">&amp;</span>Compiler, tcx: TyCtxt&lt;<span class="lifetime">'_</span>&gt;) -&gt; Compilation {
-        <span class="kw">if </span><span class="self">self</span>.verify {
-            timings::enter(tcx, || <span class="self">self</span>.verify(compiler, tcx));
-        }
-
-        <span class="kw">if </span><span class="self">self</span>.full_compilation { Compilation::Continue } <span class="kw">else </span>{ Compilation::Stop }
+        timings::enter(tcx, || <span class="self">self</span>.verify(compiler, tcx));
+        <span class="kw">if </span>config::full_compilation() { Compilation::Continue } <span class="kw">else </span>{ Compilation::Stop }
     }
 }
 

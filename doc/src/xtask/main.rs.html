@@ -586,7 +586,7 @@
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
     <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.profile)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::default_rustc_flags();
+    <span class="kw">let </span><span class="kw-2">mut </span>rustc_flags = tests::default_flags();
     rustc_flags.extend(flags);
 
     Command::new(flux)
