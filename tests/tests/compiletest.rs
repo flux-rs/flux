@@ -5,17 +5,19 @@ use std::{env, path::PathBuf};
 
 use compiletest_rs::{Config, common::Mode};
 use itertools::Itertools;
-use tests::default_flags;
+use tests::{FLUX_SYSROOT, default_flags};
 
 #[derive(Debug)]
 struct Args {
     filters: Vec<String>,
     flux: PathBuf,
+    sysroot: PathBuf,
 }
 
 impl Args {
     fn parse() -> Args {
         let mut filters = vec![];
+        let mut sysroot = None;
         let mut flux = None;
         for (arg, val) in env::args().tuple_windows() {
             match &arg[..] {
@@ -28,13 +30,22 @@ impl Args {
                     }
                     flux = Some(val);
                 }
+                "--sysroot" => {
+                    if sysroot.is_some() {
+                        panic!("option '--sysroot' given more than once");
+                    }
+                    sysroot = Some(val);
+                }
                 _ => {}
             }
         }
         let Some(flux) = flux else {
             panic!("option '--flux' must be provided");
         };
-        Args { filters, flux: PathBuf::from(flux) }
+        let Some(sysroot) = sysroot else {
+            panic!("option '--sysroot' must be provided");
+        };
+        Args { filters, flux: PathBuf::from(flux), sysroot: PathBuf::from(sysroot) }
     }
 }
 
@@ -53,6 +64,12 @@ fn test_runner(_: &[&()]) {
     config.clean_rmeta();
     config.clean_rlib();
     config.strict_headers = true;
+
+    // SAFETY: this is safe because this part of the code is single threaded
+    unsafe {
+        // Set the sysroot dir so the `flux` binary can find the correct `flux-driver.
+        env::set_var(FLUX_SYSROOT, args.sysroot);
+    }
 
     let path: PathBuf = ["tests", "pos"].iter().collect();
     if path.exists() {

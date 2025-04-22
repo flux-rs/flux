@@ -135,6 +135,7 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["test", "-p", "tests", "--"])
         .args(["--flux", flux.as_str()])
+        .args(["--sysroot".as_ref(), config.dst.as_os_str()])
         .map_opt(filter.as_ref(), |filter, cmd| {
             cmd.args(["--filter", filter]);
         })

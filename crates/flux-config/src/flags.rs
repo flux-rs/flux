@@ -11,7 +11,7 @@ const FLUX_FLAG_PREFIX: &str = "-F";
 pub const EXIT_FAILURE: i32 = 2;
 
 pub struct Flags {
-    /// Sets the directory where dumped data is save. Defaults to `./log/`.
+    /// Sets the directory to dump data. Defaults to `./log/`.
     pub log_dir: PathBuf,
     /// Only checks definitions containing `name` as a substring
     pub check_def: String,
