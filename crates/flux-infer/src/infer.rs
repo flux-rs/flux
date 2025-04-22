@@ -209,6 +209,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         refine_tree.replace_evars(&evars).unwrap();
 
+        let dump_cstr = config::dump_constraint();
+        println!("TRACE: exec-fp-query {def_id:?} {dump_cstr:?}");
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
         }
