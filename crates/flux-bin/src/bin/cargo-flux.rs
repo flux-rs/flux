@@ -124,7 +124,7 @@ rustflags = [{:?}]
                         .iter()
                         .chain(flux_flags.iter().flatten())
                         .map(|s| s.as_ref())
-                        .chain(["-Fverify=on"])
+                        .chain(["-Fverify=on", "-Ffull-compilation=on"])
                         .format(", ")
                 )?;
             }

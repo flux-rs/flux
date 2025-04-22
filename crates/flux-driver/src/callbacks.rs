@@ -26,9 +26,7 @@ use rustc_span::FileName;
 use crate::{DEFAULT_LOCALE_RESOURCES, collector::SpecCollector};
 
 #[derive(Default)]
-pub struct FluxCallbacks {
-    pub full_compilation: bool,
-}
+pub struct FluxCallbacks;
 
 impl Callbacks for FluxCallbacks {
     fn config(&mut self, config: &mut rustc_interface::interface::Config) {
@@ -41,7 +39,7 @@ impl Callbacks for FluxCallbacks {
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
         timings::enter(tcx, || self.verify(compiler, tcx));
-        if self.full_compilation { Compilation::Continue } else { Compilation::Stop }
+        if config::full_compilation() { Compilation::Continue } else { Compilation::Stop }
     }
 }
 

@@ -135,7 +135,6 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["test", "-p", "tests", "--"])
         .args(["--flux", flux.as_str()])
-        .args(["--sysroot".as_ref(), config.dst.as_os_str()])
         .map_opt(filter.as_ref(), |filter, cmd| {
             cmd.args(["--filter", filter]);
         })
@@ -172,7 +171,7 @@ fn run_inner(
     install_sysroot(sh, &config)?;
     let flux = build_binary("flux", config.profile)?;
 
-    let mut rustc_flags = tests::default_rustc_flags();
+    let mut rustc_flags = tests::default_flags();
     rustc_flags.extend(flags);
 
     Command::new(flux)

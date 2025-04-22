@@ -19,8 +19,6 @@ fn main() -> io::Result<()> {
         rustc_driver::main();
     }
 
-    let context = Context::new();
-
     logger::install()?;
 
     // Remove all flux arguments
@@ -49,10 +47,8 @@ fn main() -> io::Result<()> {
     args.push("-Zcrate-attr=register_tool(flux_tool)".to_string());
     args.push("--cfg=flux".to_string());
 
-    let mut callbacks = FluxCallbacks { full_compilation: context.full_compilation() };
-
     let exit_code = catch_with_exit_code(move || {
-        run_compiler(&args, &mut callbacks);
+        run_compiler(&args, &mut FluxCallbacks);
         Ok(())
     });
     exit(exit_code)
@@ -86,39 +82,4 @@ pub fn arg_value<'a, T: Deref<Target = str>>(
         }
     }
     None
-}
-
-/// The context in which `flux-driver` is being called.
-enum Context {
-    /// Called from `cargo flux`
-    CargoFlux,
-    /// Called from `flux` binary
-    Flux {
-        /// Whether full compilation if forced via `FLUX_FULL_COMPILATION`
-        force_full_compilation: bool,
-    },
-}
-
-impl Context {
-    fn new() -> Context {
-        if env::var("FLUX_CARGO").is_ok() {
-            Context::CargoFlux
-        } else {
-            let force_full_compilation = env_var_is("FLUX_FULL_COMPILATION", "1");
-            Context::Flux { force_full_compilation }
-        }
-    }
-
-    /// Whether to do a full compilation, i.e., continue after verification to generate artifacts.
-    /// We always do a full compilation when called from `cargo-flux`. When called from `flux`
-    /// we stop after verification so we don't generate artifacts unless full compilation is forced
-    /// via an environment variable.
-    fn full_compilation(&self) -> bool {
-        matches!(self, Context::CargoFlux { .. } | Context::Flux { force_full_compilation: true })
-    }
-}
-
-fn env_var_is(name: &str, test: &str) -> bool {
-    let Ok(val) = env::var(name) else { return false };
-    val == test
 }

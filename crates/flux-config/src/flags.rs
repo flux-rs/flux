@@ -51,9 +51,12 @@ pub struct Flags {
     /// Saves the low-level MIR for each analyzed function (debugging)
     pub catch_bugs: bool,
     /// Whether verification for the current crate is enabled. If false (the default), `flux-driver`
-    /// will behave exactly like `rustc`. This flag is managed by the `cargo-flux` and `flux` binaries,
+    /// will behave exactly like `rustc`. This flag is managed by the `cargo flux` and `flux` binaries,
     /// so you don't need to mess with it.
     pub verify: bool,
+    /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
+    /// don't typically have to set it manually.
+    pub full_compilation: bool,
 }
 
 impl Default for Flags {
@@ -78,6 +81,7 @@ impl Default for Flags {
             annots: false,
             timings: false,
             verify: false,
+            full_compilation: false,
         }
     }
 }
@@ -107,6 +111,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "check-def" => parse_string(&mut flags.check_def, value),
             "check-files" => parse_check_files(&mut flags.check_files, value),
             "verify" => parse_bool(&mut flags.verify, value),
+            "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
