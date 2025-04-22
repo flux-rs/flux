@@ -27,6 +27,13 @@ use crate::infer::InferCtxt;
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
 
+    fn normalize_projections_raw<'tcx>(
+        &self,
+        def_id: DefId,
+        genv: GlobalEnv<'_, 'tcx>,
+        region_infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> QueryResult<Self>;
+
     /// Normalize projections but only inside sorts
     fn normalize_sorts<'tcx>(
         &self,
@@ -37,9 +44,20 @@ pub trait NormalizeExt: TypeFoldable {
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
-    fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
-        let mut normalizer = Normalizer::new(infcx.branch())?;
+    fn normalize_projections_raw<'tcx>(
+        &self,
+        def_id: DefId,
+        genv: GlobalEnv<'_, 'tcx>,
+        region_infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> QueryResult<Self> {
+        let mut normalizer = Normalizer::new(genv, def_id, region_infcx)?;
         self.erase_regions().try_fold_with(&mut normalizer)
+    }
+
+    fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
+        self.normalize_projections_raw(infcx.def_id, infcx.genv, infcx.region_infcx)
+        // let mut normalizer = Normalizer::new_infcx(infcx.branch())?;
+        // self.erase_regions().try_fold_with(&mut normalizer)
     }
 
     fn normalize_sorts<'tcx>(
@@ -54,21 +72,26 @@ impl<T: TypeFoldable> NormalizeExt for T {
 }
 
 struct Normalizer<'infcx, 'genv, 'tcx> {
-    infcx: InferCtxt<'infcx, 'genv, 'tcx>,
+    // infcx: InferCtxt<'infcx, 'genv, 'tcx>,
+    genv: GlobalEnv<'genv, 'tcx>,
+    def_id: DefId,
     selcx: SelectionContext<'infcx, 'tcx>,
     param_env: List<Clause>,
 }
 
 impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
-    fn new(infcx: InferCtxt<'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
-        let param_env = infcx
-            .genv
-            .predicates_of(infcx.def_id)?
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: DefId,
+        region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> QueryResult<Self> {
+        let param_env = genv
+            .predicates_of(def_id)?
             .instantiate_identity()
             .predicates
             .clone();
-        let selcx = SelectionContext::new(infcx.region_infcx);
-        Ok(Normalizer { infcx, selcx, param_env })
+        let selcx = SelectionContext::new(region_infcx);
+        Ok(Normalizer { genv, def_id, selcx, param_env })
     }
 
     fn get_impl_id_of_alias_reft(&mut self, alias_reft: &AliasReft) -> QueryResult<Option<DefId>> {
@@ -319,11 +342,11 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
     }
 
     fn def_id(&self) -> DefId {
-        self.infcx.def_id
+        self.def_id
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
-        self.infcx.genv
+        self.genv
     }
 
     fn tcx(&self) -> TyCtxt<'tcx> {

@@ -209,8 +209,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         refine_tree.replace_evars(&evars).unwrap();
 
-        let dump_cstr = config::dump_constraint();
-        println!("TRACE: exec-fp-query {def_id:?} {dump_cstr:?}");
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
         }
@@ -483,11 +481,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(self.infcx)?;
-                let term = projection_pred
-                    .term
-                    .to_ty()
-                    .normalize_projections(self.infcx)?;
+                    .normalize_projections(self)?;
+                let term = projection_pred.term.to_ty().normalize_projections(self)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 self.subtyping(&impl_elem, &term, reason)?;

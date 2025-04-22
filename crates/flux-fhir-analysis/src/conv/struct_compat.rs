@@ -7,6 +7,7 @@ use std::{fmt, iter};
 
 use flux_common::bug;
 use flux_errors::Errors;
+use flux_infer::projections::NormalizeExt as _;
 use flux_middle::{
     def_id::MaybeExternId,
     fhir,
@@ -21,7 +22,9 @@ use flux_middle::{
 use flux_rustc_bridge::ty::{self, FieldIdx, VariantIdx};
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
-use rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst};
+use rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst, TypingMode};
+
+use crate::rustc_trait_selection::infer::TyCtxtInferExt;
 
 pub(crate) fn type_alias(
     genv: GlobalEnv,
@@ -57,6 +60,8 @@ pub(crate) fn fn_sig(
 
     let expected = Refiner::default_for_item(genv, def_id.resolved_id())?.refine(&rust_fn_sig)?;
 
+    // println!("TRACE: zipper ({def_id:?}) fn_sig   := {fn_sig:?}");
+    // println!("TRACE: zipper ({def_id:?}) expected := {expected:?}");
     let mut zipper = Zipper::new(genv, def_id);
     if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {
         zipper.emit_fn_sig_err(err, decl);
@@ -222,6 +227,21 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
     }
 
     fn zip_fn_sig(&mut self, a: &rty::FnSig, b: &rty::FnSig) -> Result<(), FnSigErr> {
+        let def_id = self.owner_id.resolved_id();
+        let region_infcx = self
+            .genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
+
+        let a = a
+            .normalize_projections_raw(def_id, self.genv, &region_infcx)
+            .map_err(|_| panic!("fixme-for-gods-sake (a)"))?;
+
+        let b = b
+            .normalize_projections_raw(def_id, self.genv, &region_infcx)
+            .map_err(|_| panic!("fixme-for-gods-sake (b)"))?;
+
         if a.inputs().len() != b.inputs().len() {
             Err(FnSigErr::ArgCountMismatch)?;
         }
