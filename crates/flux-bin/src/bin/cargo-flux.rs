@@ -22,7 +22,7 @@ fn main() {
     let exit_code = match run() {
         Ok(code) => code,
         Err(e) => {
-            println!("Failed to run cargo-flux, error={e}");
+            println!("Failed to run `cargo-flux`, error={e}");
             EXIT_ERR
         }
     };
@@ -98,6 +98,7 @@ FLUX_CARGO = "1"
 
 [profile.flux]
 inherits = "dev"
+incremental = false
         "#,
             flux_driver = flux_driver_path.display(),
             lib_path = extended_lib_path.display(),
@@ -122,6 +123,8 @@ rustflags = [{:?}]
                         .into_flags(&metadata.target_directory)
                         .iter()
                         .chain(flux_flags.iter().flatten())
+                        .map(|s| s.as_ref())
+                        .chain(["-Fverify=on", "-Ffull-compilation=on"])
                         .format(", ")
                 )?;
             }

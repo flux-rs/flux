@@ -32,8 +32,7 @@ fn run() -> Result<i32> {
         .args(env::args().skip(1))
         .arg("-L")
         .arg(sysroot)
-        .arg("--extern")
-        .arg("flux_rs")
+        .args(["--extern", "flux_rs", "-Fverify=on"])
         .env(LIB_PATH, extended_lib_path)
         .status()?
         .code();

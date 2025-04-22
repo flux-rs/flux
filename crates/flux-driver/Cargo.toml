@@ -26,7 +26,6 @@ flux-syntax.workspace = true
 flux-infer.workspace = true
 
 itertools.workspace = true
-toml.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

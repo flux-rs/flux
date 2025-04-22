@@ -7,21 +7,12 @@ use crate::{PointerWidth, SmtSolver};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
+/// Exit status code used for invalid flags.
+pub const EXIT_FAILURE: i32 = 2;
+
 pub struct Flags {
-    /// Sets the directory where constraints, timing and cache are saved. Defaults to `./log/`.
+    /// Sets the directory to dump data. Defaults to `./log/`.
     pub log_dir: PathBuf,
-    /// Dump constraints generated for each function (debugging)
-    pub dump_constraint: bool,
-    /// Saves the checker's trace (debugging)
-    pub dump_checker_trace: bool,
-    /// Saves the `fhir` for each item (debugging)
-    pub dump_fhir: bool,
-    /// Saves the the `fhir` (debugging)
-    pub dump_rty: bool,
-    /// Saves the low-level MIR for each analyzed function (debugging)
-    pub dump_mir: bool,
-    /// Saves the low-level MIR for each analyzed function (debugging)
-    pub catch_bugs: bool,
     /// Only checks definitions containing `name` as a substring
     pub check_def: String,
     /// Only checks the specified files. Takes a list of comma separated paths
@@ -47,6 +38,25 @@ pub struct Flags {
     /// If true checks for over and underflow on arithmetic integer operations, default `false`. When
     /// set to `false`, it still checks for underflow on unsigned integer subtraction.
     pub check_overflow: bool,
+    /// Dump constraints generated for each function (debugging)
+    pub dump_constraint: bool,
+    /// Saves the checker's trace (debugging)
+    pub dump_checker_trace: bool,
+    /// Saves the `fhir` for each item (debugging)
+    pub dump_fhir: bool,
+    /// Saves the the `fhir` (debugging)
+    pub dump_rty: bool,
+    /// Saves the low-level MIR for each analyzed function (debugging)
+    pub dump_mir: bool,
+    /// Saves the low-level MIR for each analyzed function (debugging)
+    pub catch_bugs: bool,
+    /// Whether verification for the current crate is enabled. If false (the default), `flux-driver`
+    /// will behave exactly like `rustc`. This flag is managed by the `cargo flux` and `flux` binaries,
+    /// so you don't need to mess with it.
+    pub verify: bool,
+    /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
+    /// don't typically have to set it manually.
+    pub full_compilation: bool,
 }
 
 impl Default for Flags {
@@ -70,6 +80,8 @@ impl Default for Flags {
             verbose: false,
             annots: false,
             timings: false,
+            verify: false,
+            full_compilation: false,
         }
     }
 }
@@ -98,9 +110,11 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "check-def" => parse_string(&mut flags.check_def, value),
             "check-files" => parse_check_files(&mut flags.check_files, value),
+            "verify" => parse_bool(&mut flags.verify, value),
+            "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
-                process::exit(1);
+                process::exit(EXIT_FAILURE);
             }
         };
         if let Err(reason) = result {
