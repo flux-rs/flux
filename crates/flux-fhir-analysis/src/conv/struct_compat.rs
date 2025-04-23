@@ -57,8 +57,6 @@ pub(crate) fn fn_sig(
 
     let expected = Refiner::default_for_item(genv, def_id.resolved_id())?.refine(&rust_fn_sig)?;
 
-    // println!("TRACE: zipper ({def_id:?}) fn_sig   := {fn_sig:?}");
-    // println!("TRACE: zipper ({def_id:?}) expected := {expected:?}");
     let mut zipper = Zipper::new(genv, def_id);
     if let Err(err) = zipper.zip_poly_fn_sig(fn_sig, &expected) {
         zipper.emit_fn_sig_err(err, decl);

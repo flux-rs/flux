@@ -2,8 +2,17 @@
 
 use std::ops::Index;
 
+#[path = "../../lib/option.rs"]
+mod option;
+
+#[path = "../../lib/slice.rs"]
+mod slice;
+
 #[path = "../../lib/vec.rs"]
 mod vec;
+
+#[path = "../../lib/iter.rs"]
+mod iter;
 
 // ---------------------------------------------------------------------------------------
 

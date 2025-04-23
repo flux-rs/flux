@@ -38,7 +38,7 @@ pub trait NormalizeExt: TypeFoldable {
 
 impl<T: TypeFoldable> NormalizeExt for T {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
-        let mut normalizer = Normalizer::new(infcx.genv, infcx.def_id, infcx.region_infcx)?;
+        let mut normalizer = Normalizer::new(infcx.branch())?;
         self.erase_regions().try_fold_with(&mut normalizer)
     }
 
@@ -54,25 +54,21 @@ impl<T: TypeFoldable> NormalizeExt for T {
 }
 
 struct Normalizer<'infcx, 'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    def_id: DefId,
+    infcx: InferCtxt<'infcx, 'genv, 'tcx>,
     selcx: SelectionContext<'infcx, 'tcx>,
     param_env: List<Clause>,
 }
 
 impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        def_id: DefId,
-        region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
-    ) -> QueryResult<Self> {
-        let param_env = genv
-            .predicates_of(def_id)?
+    fn new(infcx: InferCtxt<'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
+        let param_env = infcx
+            .genv
+            .predicates_of(infcx.def_id)?
             .instantiate_identity()
             .predicates
             .clone();
-        let selcx = SelectionContext::new(region_infcx);
-        Ok(Normalizer { genv, def_id, selcx, param_env })
+        let selcx = SelectionContext::new(infcx.region_infcx);
+        Ok(Normalizer { infcx, selcx, param_env })
     }
 
     fn get_impl_id_of_alias_reft(&mut self, alias_reft: &AliasReft) -> QueryResult<Option<DefId>> {
@@ -323,11 +319,11 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
     }
 
     fn def_id(&self) -> DefId {
-        self.def_id
+        self.infcx.def_id
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
-        self.genv
+        self.infcx.genv
     }
 
     fn tcx(&self) -> TyCtxt<'tcx> {
