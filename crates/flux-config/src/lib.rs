@@ -22,12 +22,10 @@ pub fn dump_checker_trace() -> bool {
 }
 
 pub fn dump_mir() -> bool {
-    // FLAGS.dump_mir
     true
 }
 
 pub fn dump_constraint() -> bool {
-    // FLAGS.dump_constraint
     true
 }
 
