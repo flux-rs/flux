@@ -18,21 +18,14 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{TyCtxt, TypingMode},
+    ty::TyCtxt,
 };
 use rustc_trait_selection::traits::SelectionContext;
 
-use crate::{infer::InferCtxt, rustc_infer::infer::TyCtxtInferExt};
+use crate::infer::InferCtxt;
 
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
-
-    fn normalize_projections_raw<'tcx>(
-        &self,
-        def_id: DefId,
-        genv: GlobalEnv<'_, 'tcx>,
-        region_infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-    ) -> QueryResult<Self>;
 
     /// Normalize projections but only inside sorts
     fn normalize_sorts<'tcx>(
@@ -41,29 +34,12 @@ pub trait NormalizeExt: TypeFoldable {
         genv: GlobalEnv<'_, 'tcx>,
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     ) -> QueryResult<Self>;
-
-    fn normalize_sorts_raw<'tcx>(
-        &self,
-        def_id: DefId,
-        genv: GlobalEnv<'_, 'tcx>,
-    ) -> QueryResult<Self>;
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
-    fn normalize_projections_raw<'tcx>(
-        &self,
-        def_id: DefId,
-        genv: GlobalEnv<'_, 'tcx>,
-        region_infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-    ) -> QueryResult<Self> {
-        let mut normalizer = Normalizer::new(genv, def_id, region_infcx)?;
-        self.erase_regions().try_fold_with(&mut normalizer)
-    }
-
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
-        self.normalize_projections_raw(infcx.def_id, infcx.genv, infcx.region_infcx)
-        // let mut normalizer = Normalizer::new_infcx(infcx.branch())?;
-        // self.erase_regions().try_fold_with(&mut normalizer)
+        let mut normalizer = Normalizer::new(infcx.genv, infcx.def_id, infcx.region_infcx)?;
+        self.erase_regions().try_fold_with(&mut normalizer)
     }
 
     fn normalize_sorts<'tcx>(
@@ -75,23 +51,9 @@ impl<T: TypeFoldable> NormalizeExt for T {
         let mut normalizer = SortNormalizer::new(def_id, genv, infcx);
         self.erase_regions().try_fold_with(&mut normalizer)
     }
-
-    fn normalize_sorts_raw<'tcx>(
-        &self,
-        def_id: DefId,
-        genv: GlobalEnv<'_, 'tcx>,
-    ) -> QueryResult<Self> {
-        let infcx = genv
-            .tcx()
-            .infer_ctxt()
-            .build(TypingMode::non_body_analysis());
-        let mut normalizer = SortNormalizer::new(def_id, genv, &infcx);
-        self.erase_regions().try_fold_with(&mut normalizer)
-    }
 }
 
 struct Normalizer<'infcx, 'genv, 'tcx> {
-    // infcx: InferCtxt<'infcx, 'genv, 'tcx>,
     genv: GlobalEnv<'genv, 'tcx>,
     def_id: DefId,
     selcx: SelectionContext<'infcx, 'tcx>,

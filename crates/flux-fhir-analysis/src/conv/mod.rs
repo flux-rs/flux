@@ -35,6 +35,7 @@ use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
 use rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
 use rustc_index::IndexVec;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
     ty::{self, AssocItem, AssocKind, BoundVar, TyCtxt},
@@ -46,6 +47,8 @@ use rustc_span::{
 use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
+
+use crate::conv::ty::TypingMode;
 
 /// Wrapper over a type implementing [`ConvPhase`]. We have this to implement most functionality as
 /// inherent methods instead of defining them as default implementation in the trait definition.
@@ -1159,6 +1162,21 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .find_by_name_and_kind(self.tcx(), assoc_name, assoc_kind, trait_def_id)
     }
 
+    fn normalize_sorts(&self, sort: rty::Sort) -> rty::Sort {
+        let genv = self.genv();
+        let infcx = genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
+        if let Some(def_id) = self.owner().def_id()
+            && let Ok(normalized_sort) = sort.normalize_sorts(def_id.into(), genv, &infcx)
+        {
+            normalized_sort
+        } else {
+            sort
+        }
+    }
+
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
             fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty)?.to_ty()),
@@ -1168,13 +1186,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
                 let idx = self.conv_expr(env, idx)?;
-                let mut sort = ty_ctor.sort();
-                if let Some(def_id) = self.owner().def_id()
-                    && let Ok(normalized_sort) =
-                        sort.normalize_sorts_raw(def_id.into(), self.genv())
-                {
-                    sort = normalized_sort;
-                }
+                let sort = self.normalize_sorts(ty_ctor.sort());
                 self.0.insert_bty_sort(fhir_id, sort);
                 Ok(ty_ctor.replace_bound_reft(&idx))
             }
