@@ -18,11 +18,11 @@ use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::TyCtxt,
+    ty::{TyCtxt, TypingMode},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
-use crate::infer::InferCtxt;
+use crate::{infer::InferCtxt, rustc_infer::infer::TyCtxtInferExt};
 
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
@@ -40,6 +40,12 @@ pub trait NormalizeExt: TypeFoldable {
         def_id: DefId,
         genv: GlobalEnv<'_, 'tcx>,
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    ) -> QueryResult<Self>;
+
+    fn normalize_sorts_raw<'tcx>(
+        &self,
+        def_id: DefId,
+        genv: GlobalEnv<'_, 'tcx>,
     ) -> QueryResult<Self>;
 }
 
@@ -67,6 +73,19 @@ impl<T: TypeFoldable> NormalizeExt for T {
         infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     ) -> QueryResult<Self> {
         let mut normalizer = SortNormalizer::new(def_id, genv, infcx);
+        self.erase_regions().try_fold_with(&mut normalizer)
+    }
+
+    fn normalize_sorts_raw<'tcx>(
+        &self,
+        def_id: DefId,
+        genv: GlobalEnv<'_, 'tcx>,
+    ) -> QueryResult<Self> {
+        let infcx = genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
+        let mut normalizer = SortNormalizer::new(def_id, genv, &infcx);
         self.erase_regions().try_fold_with(&mut normalizer)
     }
 }

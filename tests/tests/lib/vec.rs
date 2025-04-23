@@ -52,11 +52,3 @@ impl<T, A: Allocator> Vec<T, A> {
     #[flux::sig(fn(&Vec<T, A>[@n]) -> usize[n])]
     fn len(v: &Vec<T, A>) -> usize;
 }
-
-#[extern_spec]
-impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
-    #[flux::sig(fn(&Vec<T, A>[@n]) -> Iter<T>[0, n])]
-    fn into_iter(v: &'a Vec<T, A>) -> Iter<'a, T>;
-    // #[flux::sig(fn(&Vec<T, A>[@n]) -> Iter<T>[0, n])]
-    // fn into_iter(v: &'a Vec<T, A>) -> <&Vec<T, A> as IntoIterator>::IntoIter;
-}

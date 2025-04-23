@@ -1923,7 +1923,7 @@ impl SubsetTyCtor {
 /// [`BaseTy`], `e` a refinement index, and `p` a predicate.
 ///
 /// These are mainly found under a [`Binder`] with a single variable of the base type's sort. This
-/// can be interpreted as a type constructor or an existial type. For example, under a binder with a
+/// can be interpreted as a type constructor or an existential type. For example, under a binder with a
 /// variable `v` of sort `int`, we can interpret `{i32[v] | v > 0}` as:
 /// - A lambda `λv:int. {i32[v] | v > 0}` that "constructs" types when applied to ints, or
 /// - An existential type `∃v:int. {i32[v] | v > 0}`.

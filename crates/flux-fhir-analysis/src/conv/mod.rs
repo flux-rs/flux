@@ -12,6 +12,7 @@ pub mod struct_compat;
 use std::{borrow::Borrow, iter};
 
 use flux_common::{bug, iter::IterExt, span_bug};
+use flux_infer::projections::NormalizeExt;
 use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
@@ -1167,7 +1168,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
                 let idx = self.conv_expr(env, idx)?;
-                self.0.insert_bty_sort(fhir_id, ty_ctor.sort());
+                let mut sort = ty_ctor.sort();
+                if let Some(def_id) = self.owner().def_id()
+                    && let Ok(normalized_sort) =
+                        sort.normalize_sorts_raw(def_id.into(), self.genv())
+                {
+                    sort = normalized_sort;
+                }
+                self.0.insert_bty_sort(fhir_id, sort);
                 Ok(ty_ctor.replace_bound_reft(&idx))
             }
             fhir::TyKind::Exists(params, ty) => {

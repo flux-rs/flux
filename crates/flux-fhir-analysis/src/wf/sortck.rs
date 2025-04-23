@@ -3,6 +3,7 @@ use std::iter;
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
+use flux_infer::projections::NormalizeExt as _;
 use flux_middle::{
     THEORY_FUNCS,
     fhir::{self, ExprRes, FhirId, FluxOwnerId, SpecFuncKind, visit::Visitor as _},
@@ -25,6 +26,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
+    pub owner: FluxOwnerId,
     pub wfckresults: WfckResults,
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
@@ -45,6 +47,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Self {
             genv,
             wfckresults: WfckResults::new(owner),
+            owner,
             sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
@@ -796,6 +799,28 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
         vis.errors.into_result()
     }
 
+    fn infer_implicit_params_adt_args(
+        &mut self,
+        flds: &[fhir::Expr],
+        sort_def: &AdtSortDef,
+        sort_args: &[rty::Sort],
+        span: Span,
+    ) {
+        let sorts = sort_def.struct_variant().field_sorts(sort_args);
+        if flds.len() != sorts.len() {
+            self.errors.emit(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("type"),
+                sorts.len(),
+                flds.len(),
+            ));
+            return;
+        }
+        for (f, sort) in iter::zip(flds, &sorts) {
+            self.infer_implicit_params(f, sort);
+        }
+    }
+
     fn infer_implicit_params(&mut self, idx: &fhir::Expr, expected: &rty::Sort) {
         match idx.kind {
             fhir::ExprKind::Var(var, Some(_)) => {
@@ -805,26 +830,32 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
             }
             fhir::ExprKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
-                    let sorts = sort_def.struct_variant().field_sorts(sort_args);
-                    if flds.len() != sorts.len() {
+                    self.infer_implicit_params_adt_args(flds, sort_def, sort_args, idx.span);
+                } else {
+                    // let def_id = self.infcx.owner.def_id().unwrap();
+                    // let normalize_expected =
+                    //     expected.normalize_sorts_raw(def_id.to_def_id(), self.infcx.genv);
+                    // let is_adt =
+                    //     matches!(normalize_expected, Ok(rty::Sort::App(rty::SortCtor::Adt(..), _)));
+                    // println!(
+                    //     "TRACE: infer_implicit_params: expected {expected:?} ==> {normalize_expected:?} [{is_adt}]"
+                    // );
+                    // lets try to normalize here eh?
+                    if false
+                        && let Some(def_id) = self.infcx.owner.def_id()
+                        && let Ok(rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args)) =
+                            expected.normalize_sorts_raw(def_id.to_def_id(), self.infcx.genv)
+                    {
+                        self.infer_implicit_params_adt_args(flds, &sort_def, &sort_args, idx.span);
+                    } else {
+                        println!("TRACE: infer_implicit_params: expected {expected:?} vs {idx:?}");
                         self.errors.emit(errors::ArgCountMismatch::new(
                             Some(idx.span),
                             String::from("type"),
-                            sorts.len(),
+                            1,
                             flds.len(),
                         ));
-                        return;
                     }
-                    for (f, sort) in iter::zip(flds, &sorts) {
-                        self.infer_implicit_params(f, sort);
-                    }
-                } else {
-                    self.errors.emit(errors::ArgCountMismatch::new(
-                        Some(idx.span),
-                        String::from("type"),
-                        1,
-                        flds.len(),
-                    ));
                 }
             }
             _ => {}
