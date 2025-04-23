@@ -482,7 +482,10 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
                 let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
                     .normalize_projections(self.infcx)?;
-                let term = projection_pred.term.to_ty().normalize_projections(self)?;
+                let term = projection_pred
+                    .term
+                    .to_ty()
+                    .normalize_projections(self.infcx)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 self.subtyping(&impl_elem, &term, reason)?;
