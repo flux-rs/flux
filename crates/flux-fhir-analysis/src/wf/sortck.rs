@@ -531,14 +531,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     // FIXME(nilehmann) this is a bit of a hack. We should find a more robust way to do normalization
-    // for sort checking, including normalizing projections. [RJ: this is done now]
+    // for sort checking, including normalizing projections. [RJ: normalizing_projections is done now]
     // Maybe we can do lazy normalization. Once we do that maybe we can also stop
     // expanding aliases in `ConvCtxt::conv_sort`.
     pub(crate) fn normalize_sorts(&mut self) -> QueryResult {
         let genv = self.genv;
         for sort in self.sort_of_bty.values_mut() {
-            let sort1 = genv.deep_normalize_weak_alias_sorts(sort)?;
-            *sort = Self::normalize_projection_sort(genv, self.owner, sort1);
+            *sort = Self::normalize_projection_sort(genv, self.owner, sort.clone());
         }
         for fsort in self.sort_of_alias_reft.values_mut() {
             *fsort = genv.deep_normalize_weak_alias_sorts(fsort)?;
