@@ -1167,9 +1167,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
                 let idx = self.conv_expr(env, idx)?;
-                // let sort = self.normalize_sorts(ty_ctor.sort());
-                let sort = ty_ctor.sort();
-                self.0.insert_bty_sort(fhir_id, sort);
+                self.0.insert_bty_sort(fhir_id, ty_ctor.sort());
                 Ok(ty_ctor.replace_bound_reft(&idx))
             }
             fhir::TyKind::Exists(params, ty) => {
