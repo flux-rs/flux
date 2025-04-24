@@ -252,7 +252,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
                 }
             }
         }
-        self.infcx.normalize_weak_alias_sorts()
+        self.infcx.normalize_sorts()
     }
 
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {

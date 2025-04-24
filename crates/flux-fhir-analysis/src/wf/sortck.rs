@@ -3,6 +3,7 @@ use std::iter;
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
+use flux_infer::projections::NormalizeExt;
 use flux_middle::{
     THEORY_FUNCS,
     fhir::{self, ExprRes, FhirId, FluxOwnerId, SpecFuncKind, visit::Visitor as _},
@@ -17,14 +18,17 @@ use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashMap;
+use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, def_id::DefId, symbol::Ident};
 
 use super::errors;
+use crate::rustc_infer::infer::TyCtxtInferExt;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(super) struct InferCtxt<'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
+    pub owner: FluxOwnerId,
     pub wfckresults: WfckResults,
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
@@ -44,6 +48,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         sort_unification_table.new_key(None);
         Self {
             genv,
+            owner,
             wfckresults: WfckResults::new(owner),
             sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
@@ -507,15 +512,36 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .clone()
     }
 
+    fn normalize_projection_sort(
+        genv: GlobalEnv,
+        owner: FluxOwnerId,
+        sort: rty::Sort,
+    ) -> rty::Sort {
+        let infcx = genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
+        if let Some(def_id) = owner.def_id()
+            && let Ok(sort) = sort.normalize_sorts(def_id.into(), genv, &infcx)
+        {
+            sort
+        } else {
+            sort
+        }
+    }
+
     // FIXME(nilehmann) this is a bit of a hack. We should find a more robust way to do normalization
-    // for sort checking, including normalizing projections. Maybe we can do lazy normalization. Once
-    // we do that maybe we can also stop expanding aliases in `ConvCtxt::conv_sort`.
-    pub(crate) fn normalize_weak_alias_sorts(&mut self) -> QueryResult {
+    // for sort checking, including normalizing projections. [RJ: this is done now]
+    // Maybe we can do lazy normalization. Once we do that maybe we can also stop
+    // expanding aliases in `ConvCtxt::conv_sort`.
+    pub(crate) fn normalize_sorts(&mut self) -> QueryResult {
+        let genv = self.genv;
         for sort in self.sort_of_bty.values_mut() {
-            *sort = self.genv.deep_normalize_weak_alias_sorts(sort)?;
+            let sort1 = genv.deep_normalize_weak_alias_sorts(sort)?;
+            *sort = Self::normalize_projection_sort(genv, self.owner, sort1);
         }
         for fsort in self.sort_of_alias_reft.values_mut() {
-            *fsort = self.genv.deep_normalize_weak_alias_sorts(fsort)?;
+            *fsort = genv.deep_normalize_weak_alias_sorts(fsort)?;
         }
         Ok(())
     }
