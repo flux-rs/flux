@@ -686,7 +686,3 @@ fn normalize_projection_ty_with_rustc<'tcx>(
             .expect_base(),
     ))
 }
-
-fn test_map_slice(slice: &[u8]) -> Vec<u8> {
-    slice.iter().map(|n| n + 2).collect()
-}

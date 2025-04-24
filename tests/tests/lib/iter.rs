@@ -10,8 +10,16 @@ struct Iter<'a, T>;
 struct Enumerate<I>;
 
 #[extern_spec(std::iter)]
+#[refined_by(len: int)]
+struct Map<I, F>;
+
+#[extern_spec]
+#[flux::assoc(fn with_size(self: Self, n:int) -> bool { true })] // default: don't know!
+trait FromIterator<A> {}
+
+#[extern_spec(std::iter)]
 #[flux::generics(Self as base)]
-#[flux::assoc(fn size(self: Self) -> int { 0 - 1 })] // junk default!
+#[flux::assoc(fn size(self: Self) -> int { 0 - 1 })] // TODO: junk default; should use option or UIF
 #[flux::assoc(fn done(self: Self) -> bool )]
 #[flux::assoc(fn step(self: Self, other: Self) -> bool )]
 trait Iterator {
@@ -22,7 +30,24 @@ trait Iterator {
     fn enumerate(self) -> Enumerate<Self>
     where
         Self: Sized;
+
+    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[<Self as Iterator>::size(s)])]
+    fn map<B, F>(self, f: F) -> Map<Self, F>
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -> B;
+
+    #[flux::generics(B as base)]
+    #[flux::sig(fn (Self[@s]) -> B{v: <B as FromIterator<Self::Item>>::with_size(v, <Self as Iterator>::size(s))})]
+    fn collect<B: FromIterator<Self::Item>>(self) -> B
+    where
+        Self: Sized;
 }
+
+//    #[flux::sig(fn(Self[@s]) -> Map<Self, F>[<Self as Iterator>::size(s)])]
+//    fn collect<B: FromIterator<Self::Item>>(self) -> B
+//    where
+//        Self: Sized;
 
 #[extern_spec(std::slice)]
 #[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
