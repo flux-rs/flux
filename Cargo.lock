@@ -416,6 +416,7 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
+ "flux-infer",
  "flux-macros",
  "flux-middle",
  "flux-rustc-bridge",
