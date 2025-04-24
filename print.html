@@ -1183,7 +1183,7 @@ pub fn test_is_empty() {
 </span>use std::{
     alloc::{Allocator, Global},
     ops::{Index, IndexMut},
-    slice::SliceIndex,
+    slice::{Iter, SliceIndex},
 };
 
 use flux_rs::extern_spec;
@@ -1234,6 +1234,12 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 }
+
+#[extern_spec]
+impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
+    #[flux::sig(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
+    fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
+}
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![feature(allocator_api)]
@@ -1241,8 +1247,17 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
 <span class="boring">fn main() {
 </span>use std::ops::Index;
 
+#[path = "../../lib/option.rs"]
+mod option;
+
+#[path = "../../lib/slice.rs"]
+mod slice;
+
 #[path = "../../lib/vec.rs"]
 mod vec;
+
+#[path = "../../lib/iter.rs"]
+mod iter;
 
 // ---------------------------------------------------------------------------------------
 
@@ -3682,7 +3697,7 @@ fn test01(x: MyInt, y: MyInt) -&gt; bool {
 </span>use std::{
     alloc::{Allocator, Global},
     ops::{Index, IndexMut},
-    slice::SliceIndex,
+    slice::{Iter, SliceIndex},
 };
 
 use flux_rs::extern_spec;
@@ -3733,6 +3748,12 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 }
+
+#[extern_spec]
+impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
+    #[flux::sig(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
+    fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
+}
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3781,6 +3802,8 @@ impl&lt;I: Iterator&gt; Iterator for Enumerate&lt;I&gt; {
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![allow(unused)]
+#![feature(allocator_api)]
+
 <span class="boring">fn main() {
 </span>use std::{iter::Enumerate, slice::Iter};
 
@@ -3789,6 +3812,9 @@ mod option;
 
 #[path = "../../lib/slice.rs"]
 mod slice;
+
+#[path = "../../lib/vec.rs"]
+mod vec;
 
 #[path = "../../lib/iter.rs"]
 mod iter;

@@ -930,11 +930,37 @@
 <a href="#929" id="929">929</a>
 <a href="#930" id="930">930</a>
 <a href="#931" id="931">931</a>
-<a href="#932" id="932">932</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_errors::{ErrorGuaranteed, Errors};
+<span class="kw">use </span>flux_infer::projections::NormalizeExt;
 <span class="kw">use </span>flux_middle::{
     THEORY_FUNCS,
     fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, SpecFuncKind, visit::Visitor <span class="kw">as _</span>},
@@ -949,14 +975,17 @@
 <span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::Diagnostic;
 <span class="kw">use </span>rustc_hash::FxHashMap;
+<span class="kw">use </span>rustc_middle::ty::TypingMode;
 <span class="kw">use </span>rustc_span::{Span, def_id::DefId, symbol::Ident};
 
 <span class="kw">use </span><span class="kw">super</span>::errors;
+<span class="kw">use </span><span class="kw">crate</span>::rustc_infer::infer::TyCtxtInferExt;
 
 <span class="kw">type </span><span class="prelude-ty">Result</span>&lt;T = ()&gt; = std::result::Result&lt;T, ErrorGuaranteed&gt;;
 
 <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     <span class="kw">pub </span>genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    <span class="kw">pub </span>owner: FluxOwnerId,
     <span class="kw">pub </span>wfckresults: WfckResults,
     sort_unification_table: InPlaceUnificationTable&lt;rty::SortVid&gt;,
     num_unification_table: InPlaceUnificationTable&lt;rty::NumVid&gt;,
@@ -976,6 +1005,7 @@
         sort_unification_table.new_key(<span class="prelude-val">None</span>);
         <span class="self">Self </span>{
             genv,
+            owner,
             wfckresults: WfckResults::new(owner),
             sort_unification_table,
             num_unification_table: InPlaceUnificationTable::new(),
@@ -1439,15 +1469,35 @@
             .clone()
     }
 
+    <span class="kw">fn </span>normalize_projection_sort(
+        genv: GlobalEnv,
+        owner: FluxOwnerId,
+        sort: rty::Sort,
+    ) -&gt; rty::Sort {
+        <span class="kw">let </span>infcx = genv
+            .tcx()
+            .infer_ctxt()
+            .build(TypingMode::non_body_analysis());
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = owner.def_id()
+            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(sort) = sort.normalize_sorts(def_id.into(), genv, <span class="kw-2">&amp;</span>infcx)
+        {
+            sort
+        } <span class="kw">else </span>{
+            sort
+        }
+    }
+
     <span class="comment">// FIXME(nilehmann) this is a bit of a hack. We should find a more robust way to do normalization
-    // for sort checking, including normalizing projections. Maybe we can do lazy normalization. Once
-    // we do that maybe we can also stop expanding aliases in `ConvCtxt::conv_sort`.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalize_weak_alias_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; QueryResult {
+    // for sort checking, including normalizing projections. [RJ: normalizing_projections is done now]
+    // Maybe we can do lazy normalization. Once we do that maybe we can also stop
+    // expanding aliases in `ConvCtxt::conv_sort`.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>normalize_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; QueryResult {
+        <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">for </span>sort <span class="kw">in </span><span class="self">self</span>.sort_of_bty.values_mut() {
-            <span class="kw-2">*</span>sort = <span class="self">self</span>.genv.deep_normalize_weak_alias_sorts(sort)<span class="question-mark">?</span>;
+            <span class="kw-2">*</span>sort = <span class="self">Self</span>::normalize_projection_sort(genv, <span class="self">self</span>.owner, sort.clone());
         }
         <span class="kw">for </span>fsort <span class="kw">in </span><span class="self">self</span>.sort_of_alias_reft.values_mut() {
-            <span class="kw-2">*</span>fsort = <span class="self">self</span>.genv.deep_normalize_weak_alias_sorts(fsort)<span class="question-mark">?</span>;
+            <span class="kw-2">*</span>fsort = genv.deep_normalize_weak_alias_sorts(fsort)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }

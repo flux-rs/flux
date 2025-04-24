@@ -5,7 +5,7 @@
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A subset type is a simplified version of a type that has the form <code>{b[e] | p}</code> where <code>b</code> is a
 <a href="enum.BaseTy.html" title="enum flux_middle::rty::BaseTy"><code>BaseTy</code></a>, <code>e</code> a refinement index, and <code>p</code> a predicate.</p>
 <p>These are mainly found under a <a href="struct.Binder.html" title="struct flux_middle::rty::Binder"><code>Binder</code></a> with a single variable of the base type’s sort. This
-can be interpreted as a type constructor or an existial type. For example, under a binder with a
+can be interpreted as a type constructor or an existential type. For example, under a binder with a
 variable <code>v</code> of sort <code>int</code>, we can interpret <code>{i32[v] | v &gt; 0}</code> as:</p>
 <ul>
 <li>A lambda <code>λv:int. {i32[v] | v &gt; 0}</code> that “constructs” types when applied to ints, or</li>
