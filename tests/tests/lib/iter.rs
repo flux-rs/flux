@@ -11,6 +11,7 @@ struct Enumerate<I>;
 
 #[extern_spec(std::iter)]
 #[flux::generics(Self as base)]
+#[flux::assoc(fn size(self: Self) -> int { 0 - 1 })] // junk default!
 #[flux::assoc(fn done(self: Self) -> bool )]
 #[flux::assoc(fn step(self: Self, other: Self) -> bool )]
 trait Iterator {
@@ -24,6 +25,7 @@ trait Iterator {
 }
 
 #[extern_spec(std::slice)]
+#[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
 #[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
 #[flux::assoc(fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
 impl<'a, T> Iterator for Iter<'a, T> {
@@ -33,6 +35,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 #[extern_spec(std::iter)]
 #[flux::generics(I as base)]
+#[flux::assoc(fn size(x: Enumerate<I>) -> int { <I as Iterator>::size(x.inner) })]
 #[flux::assoc(fn done(x: Enumerate<I>) -> bool { <I as Iterator>::done(x.inner)})]
 #[flux::assoc(fn step(x: Enumerate<I>, y: Enumerate<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
 impl<I: Iterator> Iterator for Enumerate<I> {
