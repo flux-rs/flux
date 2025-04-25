@@ -44,11 +44,6 @@ trait Iterator {
         Self: Sized;
 }
 
-//    #[flux::sig(fn(Self[@s]) -> Map<Self, F>[<Self as Iterator>::size(s)])]
-//    fn collect<B: FromIterator<Self::Item>>(self) -> B
-//    where
-//        Self: Sized;
-
 #[extern_spec(std::slice)]
 #[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
 #[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]

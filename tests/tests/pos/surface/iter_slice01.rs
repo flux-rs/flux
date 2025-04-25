@@ -32,3 +32,8 @@ pub fn assert(_b: bool) {}
 fn test_map_slice(slice: &[u8]) -> Vec<u8> {
     slice.iter().map(|n| n + 2).collect()
 }
+
+// #[flux::sig(fn(slice: &[u8][@n]) -> Vec<u8>[n])]
+// fn test_iter_collect(slice: &[u8]) -> Vec<u8> {
+//     slice.into_iter().collect()
+// }
