@@ -309,23 +309,23 @@ fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnI
         .iter()
         .filter_map(|ens| if let Ensures::Type(ident, _, _) = ens { Some(ident) } else { None })
         .collect::<HashSet<_>>();
-    // 2. Walk over inputs and transform
+    // 2. Walk over inputs and transform references mentioned in ensures
     let mut res = vec![];
-    for input in inputs.into_iter() {
+    for input in inputs {
         if let FnInput::Ty(Some(ident), _, _) = &input
             && locs.contains(&ident)
         {
             // a known location: better be a mut or else, error!
             let FnInput::Ty(Some(ident), ty, id) = input else {
-                return Err(invalid_ident_err(&ident)); //panic!("Expected a mutable reference to a type")
+                return Err(invalid_ident_err(ident));
             };
             let TyKind::Ref(Mutability::Mut, inner_ty) = ty.kind else {
-                return Err(invalid_ident_err(&ident)); //panic!("Expected a mutable reference to a type")
+                return Err(invalid_ident_err(&ident));
             };
             res.push(FnInput::StrgRef(ident, *inner_ty, id));
         } else {
             // not a known location, leave unchanged
-            res.push(input)
+            res.push(input);
         }
     }
     Ok(res)
@@ -480,8 +480,7 @@ fn parse_fn_input(cx: &mut ParseCtxt) -> ParseResult<FnInput> {
             }
         } else {
             // ⟨ident⟩ : ⟨ty⟩
-            let ty = parse_type(cx)?;
-            Ok(FnInput::Ty(Some(bind), ty, cx.next_node_id()))
+            Ok(FnInput::Ty(Some(bind), parse_type(cx)?, cx.next_node_id()))
         }
     } else {
         // ⟨ty⟩
