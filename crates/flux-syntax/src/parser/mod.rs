@@ -1,7 +1,6 @@
 pub(crate) mod lookahead;
 mod utils;
-
-use std::str::FromStr;
+use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 use utils::{
@@ -10,7 +9,7 @@ use utils::{
 };
 
 use crate::{
-    ParseCtxt, ParseResult, Peek as _,
+    ParseCtxt, ParseError, ParseResult, Peek as _,
     lexer::{
         Delimiter::*,
         Token::{self as Tok, Caret, CloseDelim, Comma, OpenDelim},
@@ -300,6 +299,38 @@ fn parse_generic_param(cx: &mut ParseCtxt) -> ParseResult<GenericParam> {
     Ok(GenericParam { name, kind, node_id: cx.next_node_id() })
 }
 
+fn invalid_ident_err(ident: &Ident) -> ParseError {
+    ParseError { kind: crate::ParseErrorKind::InvalidBinding, span: ident.span }
+}
+
+fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnInput>> {
+    // 1. Gather ensures
+    let locs = ensures
+        .iter()
+        .filter_map(|ens| if let Ensures::Type(ident, _, _) = ens { Some(ident) } else { None })
+        .collect::<HashSet<_>>();
+    // 2. Walk over inputs and transform
+    let mut res = vec![];
+    for input in inputs.into_iter() {
+        if let FnInput::Ty(Some(ident), _, _) = &input
+            && locs.contains(&ident)
+        {
+            // a known location: better be a mut or else, error!
+            let FnInput::Ty(Some(ident), ty, id) = input else {
+                return Err(invalid_ident_err(&ident)); //panic!("Expected a mutable reference to a type")
+            };
+            let TyKind::Ref(Mutability::Mut, inner_ty) = ty.kind else {
+                return Err(invalid_ident_err(&ident)); //panic!("Expected a mutable reference to a type")
+            };
+            res.push(FnInput::StrgRef(ident, *inner_ty, id));
+        } else {
+            // not a known location, leave unchanged
+            res.push(input)
+        }
+    }
+    Ok(res)
+}
+
 /// ```text
 /// ⟨fn_sig⟩ := ⟨asyncness⟩ fn ⟨ident⟩?
 ///             ⟨ [ ⟨refine_param⟩,* ] ⟩?
@@ -322,6 +353,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let returns = parse_fn_ret(cx)?;
     let requires = parse_opt_requires(cx)?;
     let ensures = parse_opt_ensures(cx)?;
+    let inputs = mut_as_strg(inputs, &ensures)?;
     generics.predicates = parse_opt_where(cx)?;
     cx.expect(Tok::Eof)?;
     let hi = cx.hi();
@@ -448,7 +480,8 @@ fn parse_fn_input(cx: &mut ParseCtxt) -> ParseResult<FnInput> {
             }
         } else {
             // ⟨ident⟩ : ⟨ty⟩
-            Ok(FnInput::Ty(Some(bind), parse_type(cx)?, cx.next_node_id()))
+            let ty = parse_type(cx)?;
+            Ok(FnInput::Ty(Some(bind), ty, cx.next_node_id()))
         }
     } else {
         // ⟨ty⟩

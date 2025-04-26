@@ -935,6 +935,9 @@ mod errors {
                         }
                     }
                     ParseErrorKind::CannotBeChained => "operator cannot be chained".to_string(),
+                    ParseErrorKind::InvalidBinding => {
+                        "identifier must be a mutable reference".to_string()
+                    }
                 });
             diag
         }
