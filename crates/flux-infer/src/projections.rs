@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -82,7 +82,9 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
             tcx.param_env(def_id),
             alias_reft.to_rustc_trait_ref(tcx),
         );
-        match selcx.select(&trait_pred) {
+        let res = selcx.select(&trait_pred);
+        println!("TRACE: {trait_pred:?} => {res:?}");
+        match res {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
             Ok(_) => Ok(None),
             Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
@@ -103,16 +105,42 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
             let generics = self.tcx().generics_of(impl_def_id);
 
             let mut subst = TVarSubst::new(generics);
-            for (a, b) in iter::zip(&impl_trait_ref.args, &alias_reft.args) {
+            let alias_reft_args = alias_reft.args.try_fold_with(self)?;
+            println!("TRACE: nlz: {:?} => {alias_reft:?} [{impl_def_id:?}]", alias_reft.args);
+            // println!(
+            //     "TRACE: nlz: {} vs {} [{:?}]",
+            //     impl_trait_ref.args.len(),
+            //     alias_reft_args.len(),
+            //     generics.count(),
+            // );
+            for (a, b) in iter::zip(&impl_trait_ref.args, &alias_reft_args) {
                 subst.generic_args(a, b);
+                // println!("TRACE: nlz: subst: {a:?} => {b:?}");
             }
-            let args = subst.finish(self.tcx(), generics);
-
+            let args = subst.finish(self.tcx(), generics)?;
             self.genv()
                 .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
                 .instantiate(self.genv().tcx(), &args, &[])
                 .apply(refine_args)
                 .try_fold_with(self)
+
+            // // super-duper hack
+            // match args {
+            //     Ok(args) => {
+            //         self.genv()
+            //             .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
+            //             .instantiate(self.genv().tcx(), &args, &[])
+            //             .apply(refine_args)
+            //             .try_fold_with(self)
+            //     }
+            //     _ => {
+            //         self.genv()
+            //             .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
+            //             .instantiate_identity()
+            //             .apply(refine_args)
+            //             .try_fold_with(self)
+            //     }
+            // }
         } else {
             Ok(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }
@@ -239,7 +267,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
                 self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-                let args = subst.finish(self.tcx(), generics);
+                let args = subst.finish(self.tcx(), generics)?;
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = self
@@ -415,6 +443,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
         if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
+            println!("TRACE: normalizer/expr: {expr:?}");
             self.normalize_alias_reft(alias_pred, refine_args)
         } else {
             expr.try_super_fold_with(self)
@@ -538,19 +567,25 @@ impl TVarSubst {
         self,
         tcx: TyCtxt<'tcx>,
         generics: &'tcx rustc_middle::ty::Generics,
-    ) -> Vec<GenericArg> {
+    ) -> QueryResult<Vec<GenericArg>> {
         self.args
             .into_iter()
             .enumerate()
             .map(|(idx, arg)| {
                 if let Some(arg) = arg {
-                    arg
+                    Ok(arg)
                 } else {
                     let param = generics.param_at(idx, tcx);
-                    tracked_span_bug!("cannot infer substitution for param {param:?}");
+                    Err(QueryErr::bug(
+                        None, //self.def_id(),
+                        format!("cannot infer substitution for {param:?} at index {idx}"),
+                    ))
+                    // tracked_span_bug!(
+                    //     "cannot infer substitution for param {param:?} at index {idx}"
+                    // );
                 }
             })
-            .collect()
+            .try_collect_vec()
     }
 
     fn generic_args(&mut self, a: &GenericArg, b: &GenericArg) {

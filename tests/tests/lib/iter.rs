@@ -10,7 +10,7 @@ struct Iter<'a, T>;
 struct Enumerate<I>;
 
 #[extern_spec(std::iter)]
-#[refined_by(len: int)]
+#[refined_by(inner: I)]
 struct Map<I, F>;
 
 #[extern_spec]
@@ -31,7 +31,7 @@ trait Iterator {
     where
         Self: Sized;
 
-    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[<Self as Iterator>::size(s)])]
+    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[s])]
     fn map<B, F>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
@@ -63,3 +63,10 @@ impl<I: Iterator> Iterator for Enumerate<I> {
     ensures self: Enumerate<I>{next_s: curr_s.idx + 1 == next_s.idx && <I as Iterator>::step(curr_s.inner, next_s.inner)})]
     fn next(&mut self) -> Option<(usize, <I as Iterator>::Item)>;
 }
+
+#[extern_spec(std::iter)]
+#[flux::generics(I as base)]
+#[flux::assoc(fn size(x: Map<I>) -> int { <I as Iterator>::size(x.inner) })]
+#[flux::assoc(fn done(x: Map<I>) -> bool { <I as Iterator>::done(x.inner)})]
+#[flux::assoc(fn step(x: Map<I>, y: Enumerate<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
+impl<B, I: Iterator, F> Iterator for Map<I, F> {} // where F: FnMut(I::Item) -> B {}
