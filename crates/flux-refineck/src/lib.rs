@@ -225,8 +225,8 @@ fn report_errors(
             }
         };
 
-        let (mut binders, subst) =
-            binders_and_subst_from_expr(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps);
+        let mut binders = binders_from_expr(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps);
+        let subst = make_binder_subst(genv, &err.blame_spans.binder_deps);
         // Current heuristic:
         //   * When we collect them, we sort the binders in order of how useful they are (least-to-most)
         //   * The most useful binder is the blamed one
@@ -337,12 +337,11 @@ fn add_substitution_for_binder_var(
 // Sorting is done with the best given last.
 // Right now the heuristic for ordering binders is just to prefer the one defined
 // latest, but it will be improved eventually.
-fn binders_and_subst_from_expr(
+fn binders_from_expr(
     genv: GlobalEnv,
     expr: &rty::Expr,
     binder_deps: &BinderDeps,
-) -> (Vec<BinderInfo>, HashMap<Name, String>) {
-    let mut subst = HashMap::new();
+) -> Vec<BinderInfo> {
     let mut binders: Vec<BinderInfo> = expr
         .fvars()
         .iter()
@@ -354,8 +353,6 @@ fn binders_and_subst_from_expr(
                 .and_then(|(bp_opt, depth, related_vars)| {
                     // 2. Have a provenance.
                     bp_opt.as_ref().and_then(|bp| {
-                        // Collect the subst info.
-                        add_substitution_for_binder_var(genv, &mut subst, *name, bp);
                         // 3. Have a span
                         bp.span.map(|span| {
                             BinderInfo {
@@ -373,6 +370,23 @@ fn binders_and_subst_from_expr(
         .collect();
     binders.sort_by_key(|bi| bi.depth);
     (binders, subst)
+}
+
+fn make_binder_subst(
+    genv: GlobalEnv,
+    binder_deps: &BinderDeps,
+) -> (Vec<BinderInfo>, HashMap<Name, String>) {
+    let mut subst = HashMap::new();
+    binder_deps
+        .iter()
+        .map(|(bp_opt, depth, related_vars)| {
+            // 2. Have a provenance.
+            bp_opt.as_ref().and_then(|bp| {
+                // Collect the subst info.
+                add_substitution_for_binder_var(genv, &mut subst, *name, bp);
+            })
+        });
+    subst
 }
 
 fn add_blame_var_diagnostic<'a>(
