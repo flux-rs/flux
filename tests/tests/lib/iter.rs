@@ -18,8 +18,7 @@ struct Map<I, F>;
 trait FromIterator<A> {}
 
 #[extern_spec(std::iter)]
-#[flux::generics(Self as base)]
-#[flux::assoc(fn size(self: Self) -> int { 0 - 1 })] // TODO: junk default; should use option or UIF
+#[flux::assoc(fn size(self: Self) -> int)]
 #[flux::assoc(fn done(self: Self) -> bool )]
 #[flux::assoc(fn step(self: Self, other: Self) -> bool )]
 trait Iterator {
@@ -37,7 +36,6 @@ trait Iterator {
         Self: Sized,
         F: FnMut(Self::Item) -> B;
 
-    #[flux::generics(B as base)]
     #[flux::sig(fn (Self[@s]) -> B{v: <B as FromIterator<Self::Item>>::with_size(v, <Self as Iterator>::size(s))})]
     fn collect<B: FromIterator<Self::Item>>(self) -> B
     where
@@ -54,7 +52,6 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 
 #[extern_spec(std::iter)]
-#[flux::generics(I as base)]
 #[flux::assoc(fn size(x: Enumerate<I>) -> int { <I as Iterator>::size(x.inner) })]
 #[flux::assoc(fn done(x: Enumerate<I>) -> bool { <I as Iterator>::done(x.inner)})]
 #[flux::assoc(fn step(x: Enumerate<I>, y: Enumerate<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
@@ -65,7 +62,6 @@ impl<I: Iterator> Iterator for Enumerate<I> {
 }
 
 #[extern_spec(std::iter)]
-#[flux::generics(I as base)]
 #[flux::assoc(fn size(x: Map<I>) -> int { <I as Iterator>::size(x.inner) })]
 #[flux::assoc(fn done(x: Map<I>) -> bool { <I as Iterator>::done(x.inner)})]
 #[flux::assoc(fn step(x: Map<I>, y: Map<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
