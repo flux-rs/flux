@@ -68,5 +68,5 @@ impl<I: Iterator> Iterator for Enumerate<I> {
 #[flux::generics(I as base)]
 #[flux::assoc(fn size(x: Map<I>) -> int { <I as Iterator>::size(x.inner) })]
 #[flux::assoc(fn done(x: Map<I>) -> bool { <I as Iterator>::done(x.inner)})]
-#[flux::assoc(fn step(x: Map<I>, y: Enumerate<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
-impl<B, I: Iterator, F> Iterator for Map<I, F> {} // where F: FnMut(I::Item) -> B {}
+#[flux::assoc(fn step(x: Map<I>, y: Map<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
+impl<B, I: Iterator, F: FnMut(I::Item) -> B> Iterator for Map<I, F> {} // orig: where F: FnMut(I::Item) -> B {}
