@@ -520,6 +520,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         let infcx = genv
             .tcx()
             .infer_ctxt()
+            .with_next_trait_solver(true)
             .build(TypingMode::non_body_analysis());
         if let Some(def_id) = owner.def_id()
             && let Ok(sort) = sort.normalize_sorts(def_id.into(), genv, &infcx)

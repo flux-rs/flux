@@ -325,6 +325,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
     let rustc_infcx = genv
         .tcx()
         .infer_ctxt()
+        .with_next_trait_solver(true)
         .build(TypingMode::non_body_analysis());
 
     let mut root_ctxt = genv
