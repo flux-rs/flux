@@ -227,18 +227,23 @@ fn report_errors(
             }
         };
 
-        let mut binders = binders_from_expr(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps);
         let subst = make_binder_subst(genv, &err.blame_spans.binder_deps);
+        let binders = binders_from_expr(&subst, &err.blame_spans.expr, &err.blame_spans.binder_deps);
         // Current heuristic:
-        //   * When we collect them, we sort the binders in order of how useful they are (least-to-most)
-        //   * The most useful binder is the blamed one
+        //   * We examine each binder from the expression
+        //   * Binders are sorted in order of how useful they are (most-to-least)
+        //     - Right now this is by how deep they are in the generated flux expression
+        //   * We can blame a binder if
+        //     - It comes from a function (and has a function we can show a span for)
+        //     - It is a function argument
         //   * The rest are related (we reverse the sort to emit them most-to-least useful)
-        let blamed_binders = if let Some(first_binder) = binders.pop() {
-            vec![first_binder]
-        } else {
-            Vec::new()
-        };
-        let related_binders: Vec<BinderInfo> = binders.into_iter().rev().collect();
+        let (blamed_binders, related_binders) = split_binders(binders);
+        // let blamed_binders = if let Some(first_binder) = binders.pop() {
+        //     vec![first_binder]
+        // } else {
+        //     Vec::new()
+        // };
+        // let related_binders: Vec<BinderInfo> = binders.into_iter().rev().collect();
 
         if config::debug_binder_output() {
             let binder_debug_infos = collect_binder_debug_info(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps, &subst);
@@ -340,7 +345,7 @@ fn add_substitution_for_binder_var(
 // Right now the heuristic for ordering binders is just to prefer the one defined
 // latest, but it will be improved eventually.
 fn binders_from_expr(
-    genv: GlobalEnv,
+    subst: &HashMap<Name, String>,
     expr: &rty::Expr,
     binder_deps: &BinderDeps,
 ) -> Vec<BinderInfo> {
@@ -370,25 +375,42 @@ fn binders_from_expr(
                 })
         })
         .collect();
-    binders.sort_by_key(|bi| bi.depth);
-    (binders, subst)
+    binders.sort_by_key(|bi| std::cmp::Reverse(bi.depth));
+    binders
 }
 
 fn make_binder_subst(
     genv: GlobalEnv,
     binder_deps: &BinderDeps,
-) -> (Vec<BinderInfo>, HashMap<Name, String>) {
+) -> HashMap<Name, String> {
     let mut subst = HashMap::new();
     binder_deps
         .iter()
-        .map(|(bp_opt, depth, related_vars)| {
-            // 2. Have a provenance.
-            bp_opt.as_ref().and_then(|bp| {
-                // Collect the subst info.
+        .for_each(|(name, (bp_opt, _depth, _related_vars))| {
+            bp_opt.as_ref().map(|bp| {
                 add_substitution_for_binder_var(genv, &mut subst, *name, bp);
-            })
+            });
         });
     subst
+}
+
+/// Splits a list of binders into ones which we blame and ones which are just
+/// related.
+///
+/// Right now the heuristic is to blame any binder we _can_, which are:
+///   1. Function arguments
+///   2. The return values of functions
+fn split_binders(binders: Vec<BinderInfo>) -> (Vec<BinderInfo>, Vec<BinderInfo>) {
+    let mut blamed_binders = Vec::new();
+    let mut related_binders = Vec::new();
+    for binder in binders {
+        match binder.originator {
+            BinderOriginator::FnArg(_) => blamed_binders.push(binder),
+            BinderOriginator::CallReturn(CallReturn { def_id: Some(_), .. }) => blamed_binders.push(binder),
+            _ => related_binders.push(binder),
+        }
+    }
+    (blamed_binders, related_binders)
 }
 
 fn add_blame_var_diagnostic<'a>(
@@ -490,13 +512,13 @@ impl SimpleSpan {
 
         // `loc.col` is 0-based, so add 1 for a 1-based character offset.
         let start = SimpleLoc {
-            file: start_loc_data.file.name.display(FileNameDisplayPreference::Short).to_string(),
+            file: start_loc_data.file.name.display(FileNameDisplayPreference::Local).to_string(),
             line: start_loc_data.line,
             char: start_loc_data.col.0 + 1,
         };
 
         let end = SimpleLoc {
-            file: end_loc_data.file.name.display(FileNameDisplayPreference::Short).to_string(),
+            file: end_loc_data.file.name.display(FileNameDisplayPreference::Local).to_string(),
             line: end_loc_data.line,
             char: end_loc_data.col.0 + 1,
         };
