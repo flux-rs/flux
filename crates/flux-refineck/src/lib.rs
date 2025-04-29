@@ -246,9 +246,19 @@ fn report_errors(
         if config::debug_binder_output() {
             let binder_debug_infos = collect_binder_debug_info(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps, &subst);
             let blame_spans = blamed_binders.into_iter().map(|binder_info| {
+                let span = match binder_info.originator {
+                    BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) => {
+                        genv.tcx()
+                            .def_ident_span(def_id)
+                            .unwrap_or_else(|| genv.tcx().def_span(def_id))
+                    }
+                    _ => {
+                        binder_info.span
+                    }
+                };
                 BlameSpanDebugInfo {
                     binder_name: binder_info.name,
-                    blame_span: SimpleSpan::from_span(binder_info.span, genv.tcx().sess.source_map()),
+                    blame_span: SimpleSpan::from_span(span, genv.tcx().sess.source_map()),
                     // We don't emit right now.
                     suggested_refinement: None,
                 }
