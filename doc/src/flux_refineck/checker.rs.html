@@ -1935,7 +1935,8 @@
 <a href="#1934" id="1934">1934</a>
 <a href="#1935" id="1935">1935</a>
 <a href="#1936" id="1936">1936</a>
-<a href="#1937" id="1937">1937</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -2262,6 +2263,7 @@
     <span class="kw">let </span>rustc_infcx = genv
         .tcx()
         .infer_ctxt()
+        .with_next_trait_solver(<span class="bool-val">true</span>)
         .build(TypingMode::non_body_analysis());
 
     <span class="kw">let </span><span class="kw-2">mut </span>root_ctxt = genv

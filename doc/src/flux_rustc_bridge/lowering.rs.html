@@ -1220,7 +1220,10 @@
 <a href="#1219" id="1219">1219</a>
 <a href="#1220" id="1220">1220</a>
 <a href="#1221" id="1221">1221</a>
-<a href="#1222" id="1222">1222</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::result::ResultExt;
 <span class="kw">use </span>flux_errors::FluxSession;
 <span class="kw">use </span>itertools::Itertools;
@@ -1329,7 +1332,10 @@
     trait_ref: rustc_ty::TraitRef&lt;<span class="lifetime">'tcx</span>&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;(DefId, rustc_middle::ty::GenericArgsRef&lt;<span class="lifetime">'tcx</span>&gt;)&gt; {
     <span class="kw">let </span>param_env = tcx.param_env(def_id);
-    <span class="kw">let </span>infcx = tcx.infer_ctxt().build(TypingMode::non_body_analysis());
+    <span class="kw">let </span>infcx = tcx
+        .infer_ctxt()
+        .with_next_trait_solver(<span class="bool-val">true</span>)
+        .build(TypingMode::non_body_analysis());
     trait_ref_impl_id(tcx, <span class="kw-2">&amp;mut </span>SelectionContext::new(<span class="kw-2">&amp;</span>infcx), param_env, trait_ref)
 }
 

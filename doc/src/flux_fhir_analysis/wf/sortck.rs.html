@@ -955,7 +955,8 @@
 <a href="#954" id="954">954</a>
 <a href="#955" id="955">955</a>
 <a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>ena::unify::InPlaceUnificationTable;
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
@@ -1477,6 +1478,7 @@
         <span class="kw">let </span>infcx = genv
             .tcx()
             .infer_ctxt()
+            .with_next_trait_solver(<span class="bool-val">true</span>)
             .build(TypingMode::non_body_analysis());
         <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = owner.def_id()
             &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(sort) = sort.normalize_sorts(def_id.into(), genv, <span class="kw-2">&amp;</span>infcx)

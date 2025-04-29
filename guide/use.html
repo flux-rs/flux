@@ -776,14 +776,12 @@ where
 impl&lt;T&gt; SliceIndex&lt;[T]&gt; for usize {}
 
 #[extern_spec]
-#[flux::generics(I as base)]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
     #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
 
 #[extern_spec]
-#[flux::generics(I as base)]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
     #[flux::sig(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
@@ -811,6 +809,10 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
     #[flux::sig(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
     fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
 }
+
+#[extern_spec]
+#[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![feature(allocator_api)]
@@ -3290,14 +3292,12 @@ where
 impl&lt;T&gt; SliceIndex&lt;[T]&gt; for usize {}
 
 #[extern_spec]
-#[flux::generics(I as base)]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
     #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
 }
 
 #[extern_spec]
-#[flux::generics(I as base)]
 impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
     #[flux::sig(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
     fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
@@ -3325,6 +3325,10 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
     #[flux::sig(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
     fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
 }
+
+#[extern_spec]
+#[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3340,7 +3344,15 @@ struct Iter&lt;'a, T&gt;;
 struct Enumerate&lt;I&gt;;
 
 #[extern_spec(std::iter)]
-#[flux::generics(Self as base)]
+#[refined_by(inner: I)]
+struct Map&lt;I, F&gt;;
+
+#[extern_spec]
+#[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { true })] // default: don't know!
+trait FromIterator&lt;A&gt; {}
+
+#[extern_spec(std::iter)]
+#[flux::assoc(fn size(self: Self) -&gt; int)]
 #[flux::assoc(fn done(self: Self) -&gt; bool )]
 #[flux::assoc(fn step(self: Self, other: Self) -&gt; bool )]
 trait Iterator {
@@ -3351,9 +3363,21 @@ trait Iterator {
     fn enumerate(self) -&gt; Enumerate&lt;Self&gt;
     where
         Self: Sized;
+
+    #[flux::sig(fn(Self[@s], f: F) -&gt; Map&lt;Self, F&gt;[s])]
+    fn map&lt;B, F&gt;(self, f: F) -&gt; Map&lt;Self, F&gt;
+    where
+        Self: Sized,
+        F: FnMut(Self::Item) -&gt; B;
+
+    #[flux::sig(fn (Self[@s]) -&gt; B{v: &lt;B as FromIterator&lt;Self::Item&gt;&gt;::with_size(v, &lt;Self as Iterator&gt;::size(s))})]
+    fn collect&lt;B: FromIterator&lt;Self::Item&gt;&gt;(self) -&gt; B
+    where
+        Self: Sized;
 }
 
 #[extern_spec(std::slice)]
+#[flux::assoc(fn size(x: Iter) -&gt; int { x.len - x.idx })]
 #[flux::assoc(fn done(x: Iter) -&gt; bool { x.idx &gt;= x.len })]
 #[flux::assoc(fn step(x: Iter, y: Iter) -&gt; bool { x.idx + 1 == y.idx &amp;&amp; x.len == y.len})]
 impl&lt;'a, T&gt; Iterator for Iter&lt;'a, T&gt; {
@@ -3362,7 +3386,7 @@ impl&lt;'a, T&gt; Iterator for Iter&lt;'a, T&gt; {
 }
 
 #[extern_spec(std::iter)]
-#[flux::generics(I as base)]
+#[flux::assoc(fn size(x: Enumerate&lt;I&gt;) -&gt; int { &lt;I as Iterator&gt;::size(x.inner) })]
 #[flux::assoc(fn done(x: Enumerate&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::done(x.inner)})]
 #[flux::assoc(fn step(x: Enumerate&lt;I&gt;, y: Enumerate&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::step(x.inner, y.inner)})]
 impl&lt;I: Iterator&gt; Iterator for Enumerate&lt;I&gt; {
@@ -3370,6 +3394,12 @@ impl&lt;I: Iterator&gt; Iterator for Enumerate&lt;I&gt; {
     ensures self: Enumerate&lt;I&gt;{next_s: curr_s.idx + 1 == next_s.idx &amp;&amp; &lt;I as Iterator&gt;::step(curr_s.inner, next_s.inner)})]
     fn next(&amp;mut self) -&gt; Option&lt;(usize, &lt;I as Iterator&gt;::Item)&gt;;
 }
+
+#[extern_spec(std::iter)]
+#[flux::assoc(fn size(x: Map&lt;I&gt;) -&gt; int { &lt;I as Iterator&gt;::size(x.inner) })]
+#[flux::assoc(fn done(x: Map&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::done(x.inner)})]
+#[flux::assoc(fn step(x: Map&lt;I&gt;, y: Map&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::step(x.inner, y.inner)})]
+impl&lt;B, I: Iterator, F: FnMut(I::Item) -&gt; B&gt; Iterator for Map&lt;I, F&gt; {} // orig: where F: FnMut(I::Item) -&gt; B {}
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![allow(unused)]

@@ -804,7 +804,8 @@
 <a href="#803" id="803">803</a>
 <a href="#804" id="804">804</a>
 <a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a></pre></div><pre class="rust"><code><span class="doccomment">//! A simplified version of rust mir.
 
 </span><span class="kw">use </span>std::fmt;
 
@@ -1294,6 +1295,7 @@
 ) -&gt; rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt; {
     <span class="kw">let </span>infcx = tcx
         .infer_ctxt()
+        .with_next_trait_solver(<span class="bool-val">true</span>)
         .build(TypingMode::analysis_in_body(tcx, def_id));
     <span class="kw">for </span>info <span class="kw">in </span><span class="kw-2">&amp;</span>body_with_facts.region_inference_context.var_infos {
         infcx.next_region_var(info.origin);
