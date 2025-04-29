@@ -29,7 +29,6 @@ struct Zip<A, B>;
 struct Iter<'a, T>;
 
 #[flux_rs::extern_spec(std::iter)]
-#[flux_rs::generics(Self as base)]
 #[flux_rs::assoc(fn done(self: Self) -> bool  )]
 #[flux_rs::assoc(fn step(self: Self, other: Self) -> bool )]
 trait Iterator {
@@ -57,7 +56,6 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 
 #[flux_rs::extern_spec(core::iter)]
-#[generics(I as base)]
 #[flux_rs::assoc(fn done(r: Enumerate<I>) -> bool { <I as Iterator>::done(r.inner) } )]
 #[flux_rs::assoc(fn step(self: Enumerate<I>, other: Enumerate<I>) -> bool { self.idx + 1 == other.idx } )]
 impl<I: Iterator> Iterator for Enumerate<I> {
@@ -66,7 +64,6 @@ impl<I: Iterator> Iterator for Enumerate<I> {
 }
 
 #[flux_rs::extern_spec(core::iter)]
-#[generics(I as base)]
 #[flux_rs::assoc(fn done(r: Skip<I>) -> bool { <I as Iterator>::done(r.inner) } )]
 #[flux_rs::assoc(fn step(self: Skip<I>, other: Skip<I>) -> bool { <I as Iterator>::step(self.inner, other.inner) } )]
 impl<I: Iterator> Iterator for Skip<I> {
@@ -84,7 +81,6 @@ impl<A: Iterator, B: Iterator> Iterator for Zip<A, B> {
 }
 
 #[flux_rs::extern_spec(std::iter)]
-#[generics(Self as base)]
 trait IntoIterator {
     #[flux_rs::sig(fn(self: Self) -> Self::IntoIter)]
     fn into_iter(self) -> Self::IntoIter
@@ -93,7 +89,6 @@ trait IntoIterator {
 }
 
 #[flux_rs::extern_spec(core::ops)]
-#[generics(I as base)]
 impl<I: Iterator> IntoIterator for I {
     #[flux_rs::sig(fn(self: I[@s]) -> I[s])]
     fn into_iter(self) -> I;

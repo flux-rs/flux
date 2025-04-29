@@ -52,6 +52,7 @@ fn check_invariant(
     let region_infercx = genv
         .tcx()
         .infer_ctxt()
+        .with_next_trait_solver(true)
         .build(TypingMode::non_body_analysis());
 
     let mut infcx_root = try_query(|| {

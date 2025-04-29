@@ -1,6 +1,6 @@
 use std::iter;
 
-use flux_common::{bug, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -101,13 +101,15 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
                 .unwrap()
                 .skip_binder();
             let generics = self.tcx().generics_of(impl_def_id);
-
             let mut subst = TVarSubst::new(generics);
-            for (a, b) in iter::zip(&impl_trait_ref.args, &alias_reft.args) {
+            let alias_reft_args = alias_reft.args.try_fold_with(self)?;
+            // TODO(RJ): The code below duplicates the logic in `confirm_candidates` ...
+            for (a, b) in iter::zip(&impl_trait_ref.args, &alias_reft_args) {
                 subst.generic_args(a, b);
             }
-            let args = subst.finish(self.tcx(), generics);
+            self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
+            let args = subst.finish(self.tcx(), generics)?;
             self.genv()
                 .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
                 .instantiate(self.genv().tcx(), &args, &[])
@@ -239,7 +241,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
                 // 2. Gather the ProjectionPredicates and solve them see issue-808.rs
                 self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-                let args = subst.finish(self.tcx(), generics);
+                let args = subst.finish(self.tcx(), generics)?;
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
                 let assoc_type_id = self
@@ -538,19 +540,22 @@ impl TVarSubst {
         self,
         tcx: TyCtxt<'tcx>,
         generics: &'tcx rustc_middle::ty::Generics,
-    ) -> Vec<GenericArg> {
+    ) -> QueryResult<Vec<GenericArg>> {
         self.args
             .into_iter()
             .enumerate()
             .map(|(idx, arg)| {
                 if let Some(arg) = arg {
-                    arg
+                    Ok(arg)
                 } else {
                     let param = generics.param_at(idx, tcx);
-                    tracked_span_bug!("cannot infer substitution for param {param:?}");
+                    Err(QueryErr::bug(
+                        None,
+                        format!("cannot infer substitution for {param:?} at index {idx}"),
+                    ))
                 }
             })
-            .collect()
+            .try_collect_vec()
     }
 
     fn generic_args(&mut self, a: &GenericArg, b: &GenericArg) {
