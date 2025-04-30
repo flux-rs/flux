@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, iter};
+use std::{collections::hash_map::Entry, iter, vec};
 
 use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_config::{self as config, InferOpts};
@@ -964,6 +964,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
+        println!("TRACE: check_match: discr_ty = {discr_ty:?}");
         let (adt_def, place) = discr_ty.expect_discr();
 
         let mut successors = vec![];
@@ -1084,8 +1085,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // println!("TRACE: closure_kind_ty = {closure_kind_ty:?}");
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
+            let poly_sig = poly_sig.unpack_closure_sig();
             let poly_sig = self
-                .refine_with_holes(poly_sig)
+                .refine_with_holes(&poly_sig)
                 .with_span(stmt_span)?
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
             println!("TRACE: check_rvalue: {poly_sig:?}");
@@ -1110,7 +1112,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         };
 
         let mut vars = poly_sig.vars().clone().to_vec(); // vec![]; // TODO(RJ): should use the vars from the `poly_sig`?
-
+        let fn_sig = poly_sig.clone().skip_binder();
         let closure_ty = Ty::closure(closure_id.into(), tys, args, poly_sig.clone());
         let env_ty = match kind {
             ClosureKind::Fn => {
@@ -1131,21 +1133,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             ClosureKind::FnOnce => closure_ty,
         };
+        let mut inputs = vec![env_ty];
+
         // let inputs = std::iter::once(env_ty)
-        //     .chain(self.tupled_args.expect_tuple().iter().cloned())
-        //     .collect();
+        // .chain(self.tupled_args.expect_tuple().iter().cloned())
+        // .collect();
 
-        // let fn_sig = FnSig::new(
-        //     Safety::Safe,
-        //     abi::Abi::RustCall,
-        //     List::empty(),
-        //     inputs,
-        //     Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        // );
+        for ty in fn_sig.inputs() {
+            println!("TRACE: to_closure_sig: inputs = {ty:?}");
+            inputs.push(ty.clone());
+        }
+        let output = fn_sig.output().clone();
 
-        // let res = PolyFnSig::bind_with_vars(fn_sig, List::from(vars));
-        // println!("TRACE: FnTraitPredicate::to_closure_sig: res = {res:?}");
-        // res
+        let fn_sig = crate::rty::FnSig::new(
+            fn_sig.safety, // Safety::Safe,
+            fn_sig.abi,    // abi::Abi::RustCall,
+            crate::rty::List::empty(),
+            inputs.into(),
+            output, // Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+        );
+
+        PolyFnSig::bind_with_vars(fn_sig, rty::List::from(vars))
     }
 
     fn check_closure_body(

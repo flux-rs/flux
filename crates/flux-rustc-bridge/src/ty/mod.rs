@@ -136,6 +136,36 @@ pub struct FnSig {
 
 pub type PolyFnSig = Binder<FnSig>;
 
+impl PolyFnSig {
+    pub fn unpack_closure_sig(&self) -> Self {
+        let vars = self.vars().clone();
+        let fn_sig = self.clone().skip_binder();
+        let mut fn_inputs_and_output = fn_sig.inputs_and_output.to_vec();
+        let mut inputs_and_output: Vec<Ty> = vec![];
+        // get input, output
+        let output = fn_inputs_and_output
+            .pop()
+            .expect("closure signature should have at least two values");
+        let input = fn_inputs_and_output
+            .pop()
+            .expect("closure signature should have at least two values");
+        // unpack input
+        for ty in input.tuple_fields() {
+            inputs_and_output.push(ty.clone());
+        }
+        // add output
+        inputs_and_output.push(output);
+
+        let fn_sig = FnSig {
+            safety: fn_sig.safety,
+            abi: fn_sig.abi,
+            inputs_and_output: inputs_and_output.into(),
+        };
+
+        Binder::bind_with_vars(fn_sig, vars)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Ty(Interned<TyS>);
 
