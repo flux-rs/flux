@@ -1420,7 +1420,7 @@ impl Ty {
     }
 
     #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+    pub fn expect_tuple(&self) -> &[Ty] {
         if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
             tys
         } else {
@@ -2356,6 +2356,11 @@ impl FnSig {
 
     pub fn output(&self) -> Binder<FnOutput> {
         self.output.clone()
+    }
+
+    pub fn pack_closure_sig(self) -> Self {
+        let inputs = List::singleton(Ty::tuple(self.inputs));
+        FnSig { inputs, ..self }
     }
 }
 

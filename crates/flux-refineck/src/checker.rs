@@ -856,8 +856,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(closure_id, tys, args, poly_sig)) => {
-                todo!("TRACE: TODO:CLOSURE:1: use check_fn_subtyping")
+            Some(BaseTy::Closure(def_id, _, _, poly_sig)) => {
+                // todo!("TRACE: TODO:CLOSURE:1: use check_fn_subtyping")
+                let sub_sig = EarlyBinder(poly_sig.clone()); // .map(|sig| sig.pack_closure_sig()));
+                let oblig_sig = fn_trait_pred
+                    .fndef_poly_sig()
+                    .map(|sig| sig.pack_closure_sig());
+                println!("TRACE: check_fn_trait_clause: sub_sig ==> {sub_sig:?}");
+                println!("TRACE: check_fn_trait_clause: oblig_sig ==> {oblig_sig:?}");
+
+                let args =
+                    rty::GenericArg::identity_for_item(self.genv, *def_id).with_span(span)?;
+                // pub fn identity_for_item(genv: GlobalEnv, def_id: DefId) -> QueryResult<GenericArgs> {
+
+                check_fn_subtyping(infcx, def_id, sub_sig, &args, &oblig_sig, span)
+                    .with_span(span)?;
                 // TODO:CLOSURE:1 this should *also* use check_fn_subtyping
                 // (the checker::run against body has happened at closure-CREATION)
                 // #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
@@ -1133,16 +1146,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             ClosureKind::FnOnce => closure_ty,
         };
-        let mut inputs = vec![env_ty];
 
         // let inputs = std::iter::once(env_ty)
         // .chain(self.tupled_args.expect_tuple().iter().cloned())
         // .collect();
 
-        for ty in fn_sig.inputs() {
-            println!("TRACE: to_closure_sig: inputs = {ty:?}");
-            inputs.push(ty.clone());
-        }
+        let inputs = std::iter::once(env_ty)
+            .chain(fn_sig.inputs().iter().cloned())
+            .collect::<Vec<_>>();
         let output = fn_sig.output().clone();
 
         let fn_sig = crate::rty::FnSig::new(
@@ -1159,8 +1170,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_closure_body(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        env: &mut TypeEnv,
-        stmt_span: Span,
         did: &DefId,
         upvar_tys: &[Ty],
         args: &flux_rustc_bridge::ty::GenericArgs,
@@ -1192,7 +1201,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let (upvar_tys, poly_sig) =
             self.create_closure_template(infcx, env, stmt_span, args, operands)?;
         // (2) Check the closure body against the template
-        self.check_closure_body(infcx, env, stmt_span, did, &upvar_tys, args, &poly_sig)?;
+        self.check_closure_body(infcx, did, &upvar_tys, args, &poly_sig)?;
         // (3) Return the closure type
         Ok(Ty::closure(*did, upvar_tys, args, poly_sig))
     }
