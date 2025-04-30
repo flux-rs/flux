@@ -429,8 +429,8 @@ impl Pretty for BaseTy {
             BaseTy::Alias(kind, alias_ty) => fmt_alias_ty(cx, f, *kind, alias_ty),
             BaseTy::Array(ty, c) => w!(cx, f, "[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!(cx, f, "!"),
-            BaseTy::Closure(did, args, _) => {
-                w!(cx, f, "{:?}<{:?}>", did, args)
+            BaseTy::Closure(did, args, _, fn_sig) => {
+                w!(cx, f, "{:?}<{:?}>({:?})", did, args, fn_sig)
             }
             BaseTy::Coroutine(did, resume_ty, upvars) => {
                 w!(cx, f, "Coroutine({:?}, {:?})", did, resume_ty)?;

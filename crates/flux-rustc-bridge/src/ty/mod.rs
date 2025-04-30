@@ -603,6 +603,14 @@ impl ClosureArgs {
             _ => bug!("closure args missing synthetics"),
         }
     }
+
+    pub fn sig_as_fn_ptr_ty(&self) -> &Ty {
+        self.split().closure_sig_as_fn_ptr_ty.expect_type()
+    }
+
+    pub fn kind_ty(&self) -> &Ty {
+        self.split().closure_kind_ty.expect_type()
+    }
 }
 
 impl AdtDef {

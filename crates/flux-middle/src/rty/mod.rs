@@ -674,49 +674,6 @@ impl FnTraitPredicate {
 
         PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
-
-    pub fn to_closure_sig(
-        &self,
-        closure_id: DefId,
-        tys: List<Ty>,
-        args: &flux_rustc_bridge::ty::GenericArgs,
-    ) -> PolyFnSig {
-        let mut vars = vec![];
-
-        let closure_ty = Ty::closure(closure_id, tys, args);
-        let env_ty = match self.kind {
-            ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce => closure_ty,
-        };
-        let inputs = std::iter::once(env_ty)
-            .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect();
-
-        let fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::RustCall,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
-
-        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
-    }
 }
 
 #[derive(
@@ -1349,8 +1306,9 @@ impl Ty {
         did: DefId,
         tys: impl Into<List<Ty>>,
         args: &flux_rustc_bridge::ty::GenericArgs,
+        fn_sig: PolyFnSig,
     ) -> Ty {
-        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
+        BaseTy::Closure(did, tys.into(), args.clone(), fn_sig).to_ty()
     }
 
     pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
@@ -1548,7 +1506,7 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, PolyFnSig),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
@@ -1802,7 +1760,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(did, _, args) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
+            BaseTy::Closure(did, _, args, _) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()

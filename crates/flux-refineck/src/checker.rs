@@ -24,7 +24,7 @@ use flux_middle::{
     },
 };
 use flux_rustc_bridge::{
-    self,
+    self, ToRustc,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
         Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
@@ -52,6 +52,9 @@ use crate::{
     ghost_statements::{GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
+    rty::{
+        BoundRegion, BoundRegionKind, BoundVar, BoundVariableKind, ClosureKind, INNERMOST, ReBound,
+    },
     type_env::{
         BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, SpanTrace, TypeEnv, TypeEnvTrace,
     },
@@ -757,6 +760,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
+        println!("TRACE: check_call: generic_args = {generic_args:?}");
+        println!("TRACE: check_call: actuals = {actuals:?}");
 
         // Generate fresh inference variables for refinement arguments
         let refine_args = match callee_def_id {
@@ -778,11 +783,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
+        println!("TRACE: check_call: fn_clauses = {clauses:?}");
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
+
         self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
         // Instantiate function signature and normalize it
@@ -849,17 +856,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(closure_id, tys, args)) => {
-                #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
-                let local_closure_id = closure_id.expect_local();
-                let span = self.genv.tcx().def_span(local_closure_id);
-                let body = self.genv.mir(local_closure_id).with_span(span)?;
-                Checker::run(
-                    infcx.change_item(local_closure_id, &body.infcx),
-                    local_closure_id,
-                    self.inherited.reborrow(),
-                    fn_trait_pred.to_closure_sig(*closure_id, tys.clone(), args),
-                )?;
+            Some(BaseTy::Closure(closure_id, tys, args, poly_sig)) => {
+                todo!("TRACE: TODO:CLOSURE:1: use check_fn_subtyping")
+                // TODO:CLOSURE:1 this should *also* use check_fn_subtyping
+                // (the checker::run against body has happened at closure-CREATION)
+                // #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
+                // let local_closure_id = closure_id.expect_local();
+                // let span = self.genv.tcx().def_span(local_closure_id);
+                // let body = self.genv.mir(local_closure_id).with_span(span)?;
+                // Checker::run(
+                //     infcx.change_item(local_closure_id, &body.infcx),
+                //     local_closure_id,
+                //     self.inherited.reborrow(),
+                //     fn_trait_pred.to_closure_sig(*closure_id, tys.clone(), args),
+                // )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
@@ -871,6 +881,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(span)?;
             }
             _ => {
+                // TODO:CLOSURE:2
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
                 // but for now, we can skip as all the relevant types are unrefined.
                 // See issue-767.rs
@@ -888,7 +899,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         for clause in clauses {
             // FIXME(nilehmann) we shouldn't be skipping this binder
             let clause = clause.skip_binder_ref();
-
             self.check_fn_trait_clause(infcx, clause, span)?;
         }
         Ok(())
@@ -1039,6 +1049,146 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
+    fn create_closure_template(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        stmt_span: Span,
+        args: &flux_rustc_bridge::ty::GenericArgs,
+        operands: &[Operand],
+    ) -> Result<(Vec<Ty>, PolyFnSig)> {
+        let upvar_tys = self
+            .check_operands(infcx, env, stmt_span, operands)
+            .with_span(stmt_span)?
+            .into_iter()
+            .map(|ty| {
+                if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
+                    env.ptr_to_ref(
+                        &mut infcx.at(stmt_span),
+                        ConstrReason::Other,
+                        *re,
+                        path,
+                        PtrToRefBound::Infer,
+                    )
+                } else {
+                    Ok(ty.clone())
+                }
+            })
+            .try_collect_vec()
+            .with_span(stmt_span)?;
+
+        let closure_args = args.as_closure();
+        let ty = closure_args.sig_as_fn_ptr_ty();
+
+        // let closure_kind_ty = closure_parts.closure_kind_ty;
+        // println!("TRACE: closure_kind_ty = {closure_kind_ty:?}");
+
+        if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
+            let poly_sig = self
+                .refine_with_holes(poly_sig)
+                .with_span(stmt_span)?
+                .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+            println!("TRACE: check_rvalue: {poly_sig:?}");
+            Ok((upvar_tys, poly_sig))
+        } else {
+            bug!("check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}");
+        }
+    }
+
+    fn to_closure_sig(
+        &self,
+        closure_id: LocalDefId,
+        tys: &[Ty], // List<Ty>, // "upvar_tys"
+        args: &flux_rustc_bridge::ty::GenericArgs,
+        poly_sig: &PolyFnSig,
+    ) -> PolyFnSig {
+        let tcx = self.genv.tcx();
+        let closure_args = args.as_closure();
+        let kind_ty = closure_args.kind_ty().to_rustc(tcx);
+        let Some(kind) = kind_ty.to_opt_closure_kind() else {
+            bug!("to_closure_sig: expected closure kind, found {kind_ty:?}");
+        };
+
+        let mut vars = poly_sig.vars().clone().to_vec(); // vec![]; // TODO(RJ): should use the vars from the `poly_sig`?
+
+        let closure_ty = Ty::closure(closure_id.into(), tys, args, poly_sig.clone());
+        let env_ty = match kind {
+            ClosureKind::Fn => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - 1),
+                    kind: BoundRegionKind::ClosureEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+            }
+            ClosureKind::FnMut => {
+                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+                let br = BoundRegion {
+                    var: BoundVar::from_usize(vars.len() - 1),
+                    kind: BoundRegionKind::ClosureEnv,
+                };
+                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+            }
+            ClosureKind::FnOnce => closure_ty,
+        };
+        // let inputs = std::iter::once(env_ty)
+        //     .chain(self.tupled_args.expect_tuple().iter().cloned())
+        //     .collect();
+
+        // let fn_sig = FnSig::new(
+        //     Safety::Safe,
+        //     abi::Abi::RustCall,
+        //     List::empty(),
+        //     inputs,
+        //     Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+        // );
+
+        // let res = PolyFnSig::bind_with_vars(fn_sig, List::from(vars));
+        // println!("TRACE: FnTraitPredicate::to_closure_sig: res = {res:?}");
+        // res
+    }
+
+    fn check_closure_body(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        stmt_span: Span,
+        did: &DefId,
+        upvar_tys: &[Ty],
+        args: &flux_rustc_bridge::ty::GenericArgs,
+        poly_sig: &PolyFnSig,
+    ) -> Result {
+        let genv = self.genv;
+        let closure_id = did.expect_local();
+        let span = genv.tcx().def_span(closure_id);
+        let body = genv.mir(closure_id).with_span(span)?;
+        let closure_sig = self.to_closure_sig(closure_id, upvar_tys, args, poly_sig);
+        Checker::run(
+            infcx.change_item(closure_id, &body.infcx),
+            closure_id,
+            self.inherited.reborrow(),
+            closure_sig,
+        )
+    }
+
+    fn check_rvalue_closure(
+        &mut self,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        stmt_span: Span,
+        did: &DefId,
+        args: &flux_rustc_bridge::ty::GenericArgs,
+        operands: &[Operand],
+    ) -> Result<Ty> {
+        // (1) Create the closure template
+        let (upvar_tys, poly_sig) =
+            self.create_closure_template(infcx, env, stmt_span, args, operands)?;
+        // (2) Check the closure body against the template
+        self.check_closure_body(infcx, env, stmt_span, did, &upvar_tys, args, &poly_sig)?;
+        // (3) Return the closure type
+        Ok(Ty::closure(*did, upvar_tys, args, poly_sig))
+    }
+
     fn check_rvalue(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -1134,27 +1284,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(Ty::tuple(tys))
             }
             Rvalue::Aggregate(AggregateKind::Closure(did, args), operands) => {
-                let upvar_tys = self
-                    .check_operands(infcx, env, stmt_span, operands)
-                    .with_span(stmt_span)?
-                    .into_iter()
-                    .map(|ty| {
-                        if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
-                            env.ptr_to_ref(
-                                &mut infcx.at(stmt_span),
-                                ConstrReason::Other,
-                                *re,
-                                path,
-                                PtrToRefBound::Infer,
-                            )
-                        } else {
-                            Ok(ty.clone())
-                        }
-                    })
-                    .try_collect_vec()
-                    .with_span(stmt_span)?;
-
-                Ok(Ty::closure(*did, upvar_tys, args))
+                self.check_rvalue_closure(infcx, env, stmt_span, did, args, operands)
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
                 let args = args.as_coroutine();
@@ -1531,13 +1661,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &self.inherited.ghost_stmts[&self.def_id]
     }
 
-    fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
+    fn refine_default<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
         ty.refine(&self.default_refiner)
     }
 
-    fn refine_with_holes(&self, ty: &ty::Ty) -> QueryResult<Ty> {
+    fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
         ty.refine(&Refiner::with_holes(self.genv, self.def_id.to_def_id())?)
     }
+    // fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
+    //     ty.refine(&self.default_refiner)
+    // }
+
+    // fn refine_h_holes(&self, ty: &ty::Ty) -> QueryResult<Ty> {
+    //     ty.refine(&Refiner::with_holes(self.genv, self.def_id.to_def_id())?)
+    // }
 }
 
 fn instantiate_args_for_fun_call(
