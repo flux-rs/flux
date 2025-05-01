@@ -36,6 +36,7 @@ impl EVarStore {
         let Some(scope) = self.scopes.pop() else { return Ok(()) };
         for evid in scope {
             if let EVarState::Unsolved(..) = self.get(evid) {
+                panic!("pop_scope: {evid:?}");
                 return Err(evid);
             }
         }

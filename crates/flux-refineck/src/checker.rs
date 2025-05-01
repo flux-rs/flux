@@ -224,11 +224,27 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
+
+pub enum SubFn {
+    Poly(EarlyBinder<rty::PolyFnSig>, rty::GenericArgs),
+    Mono(rty::PolyFnSig),
+}
+
+impl SubFn {
+    pub fn as_ref(&self) -> &rty::PolyFnSig {
+        match self {
+            SubFn::Poly(sig, _) => sig.skip_binder_ref(),
+            SubFn::Mono(sig) => &sig,
+        }
+    }
+}
+
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,
-    sub_sig: EarlyBinder<rty::PolyFnSig>,
-    sub_args: &[GenericArg],
+    // sub_sig: EarlyBinder<rty::PolyFnSig>,
+    // sub_args: &[GenericArg],
+    sub_sig: SubFn,
     super_sig: &rty::PolyFnSig,
     span: Span,
 ) -> InferResult {
@@ -248,13 +264,21 @@ fn check_fn_subtyping(
         .collect_vec();
 
     let mut env = TypeEnv::empty();
-    let actuals = unfold_local_ptrs(&mut infcx, &mut env, &sub_sig, &actuals)?;
+    let actuals = unfold_local_ptrs(&mut infcx, &mut env, sub_sig.as_ref(), &actuals)?;
     let actuals = infer_under_mut_ref_hack(&mut infcx, &actuals[..], sub_sig.as_ref());
 
     let output = infcx.ensure_resolved_evars(|infcx| {
         // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
-        let refine_args = infcx.instantiate_refine_args(*def_id, sub_args)?;
-        let sub_sig = sub_sig.instantiate(tcx, sub_args, &refine_args);
+        // in subtyping_mono, skip next two steps...
+        let sub_sig = match sub_sig {
+            SubFn::Poly(early_sig, sub_args) => {
+                let refine_args = infcx.instantiate_refine_args(*def_id, &sub_args)?;
+                // println!("TRACE: check_fn_subtyping: sub_sig={sub_sig:?} sub_args={sub_args:?}, refine_args={refine_args:?}");
+                early_sig.instantiate(tcx, &sub_args, &refine_args)
+            }
+            SubFn::Mono(sig) => sig,
+        };
+        // ... jump right here.
         let sub_sig = sub_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(infcx)?;
@@ -343,15 +367,9 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         genv.fn_sig(trait_method_id)?
             .instantiate(tcx, &trait_method_args, &trait_refine_args);
     let impl_sig = genv.fn_sig(impl_method_id)?;
+    let sub_sig = SubFn::Poly(impl_sig, impl_method_args);
 
-    check_fn_subtyping(
-        &mut infcx,
-        &impl_method_id,
-        impl_sig,
-        &impl_method_args,
-        &trait_fn_sig,
-        span,
-    )?;
+    check_fn_subtyping(&mut infcx, &impl_method_id, sub_sig, &trait_fn_sig, span)?;
     Ok(Some(root_ctxt))
 }
 
@@ -384,11 +402,11 @@ fn find_trait_item(
 fn unfold_local_ptrs(
     infcx: &mut InferCtxt,
     env: &mut TypeEnv,
-    fn_sig: &EarlyBinder<PolyFnSig>,
+    fn_sig: &PolyFnSig,
     actuals: &[Ty],
 ) -> InferResult<Vec<Ty>> {
     // We *only* need to know whether each input is a &strg or not
-    let fn_sig = fn_sig.skip_binder_ref().skip_binder_ref();
+    let fn_sig = fn_sig.skip_binder_ref();
     let mut tys = vec![];
     for (actual, input) in izip!(actuals, fn_sig.inputs()) {
         let actual = if let (
@@ -754,14 +772,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let actuals = unfold_local_ptrs(infcx, env, &fn_sig, actuals).with_span(span)?;
-        let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.as_ref());
+        let actuals =
+            unfold_local_ptrs(infcx, env, &fn_sig.skip_binder_ref(), actuals).with_span(span)?;
+        let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
         infcx.push_evar_scope();
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
-        println!("TRACE: check_call: generic_args = {generic_args:?}");
-        println!("TRACE: check_call: actuals = {actuals:?}");
+        // println!("TRACE: check_call: generic_args = {generic_args:?}");
+        // println!("TRACE: check_call: actuals = {actuals:?}");
 
         // Generate fresh inference variables for refinement arguments
         let refine_args = match callee_def_id {
@@ -783,7 +802,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
-        println!("TRACE: check_call: fn_clauses = {clauses:?}");
+        // println!("TRACE: check_call: fn_clauses = {clauses:?}");
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
@@ -857,32 +876,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
             Some(BaseTy::Closure(def_id, _, _, poly_sig)) => {
-                // todo!("TRACE: TODO:CLOSURE:1: use check_fn_subtyping")
-                let sub_sig = EarlyBinder(poly_sig.clone()); // .map(|sig| sig.pack_closure_sig()));
                 let oblig_sig = fn_trait_pred
                     .fndef_poly_sig()
                     .map(|sig| sig.pack_closure_sig());
-                println!("TRACE: check_fn_trait_clause: sub_sig ==> {sub_sig:?}");
-                println!("TRACE: check_fn_trait_clause: oblig_sig ==> {oblig_sig:?}");
-
-                let args =
-                    rty::GenericArg::identity_for_item(self.genv, *def_id).with_span(span)?;
-                // pub fn identity_for_item(genv: GlobalEnv, def_id: DefId) -> QueryResult<GenericArgs> {
-
-                check_fn_subtyping(infcx, def_id, sub_sig, &args, &oblig_sig, span)
+                check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
                     .with_span(span)?;
-                // TODO:CLOSURE:1 this should *also* use check_fn_subtyping
-                // (the checker::run against body has happened at closure-CREATION)
-                // #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
-                // let local_closure_id = closure_id.expect_local();
-                // let span = self.genv.tcx().def_span(local_closure_id);
-                // let body = self.genv.mir(local_closure_id).with_span(span)?;
-                // Checker::run(
-                //     infcx.change_item(local_closure_id, &body.infcx),
-                //     local_closure_id,
-                //     self.inherited.reborrow(),
-                //     fn_trait_pred.to_closure_sig(*closure_id, tys.clone(), args),
-                // )?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
                 // Generates "function subtyping" obligations between the (super-type) `oblig_sig` in the `fn_trait_pred`
@@ -890,8 +888,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, sub_sig, args, &oblig_sig, span)
-                    .with_span(span)?;
+                check_fn_subtyping(
+                    infcx,
+                    def_id,
+                    SubFn::Poly(sub_sig, args.clone()),
+                    &oblig_sig,
+                    span,
+                )
+                .with_span(span)?;
             }
             _ => {
                 // TODO:CLOSURE:2
@@ -977,7 +981,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
-        println!("TRACE: check_match: discr_ty = {discr_ty:?}");
         let (adt_def, place) = discr_ty.expect_discr();
 
         let mut successors = vec![];
@@ -1094,16 +1097,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let closure_args = args.as_closure();
         let ty = closure_args.sig_as_fn_ptr_ty();
 
-        // let closure_kind_ty = closure_parts.closure_kind_ty;
-        // println!("TRACE: closure_kind_ty = {closure_kind_ty:?}");
-
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
+            // println!(
+            //     "TRACE: create_closure_template (0) => {poly_sig:?} | vars = {:?}",
+            //     poly_sig.vars()
+            // );
             let poly_sig = self
                 .refine_with_holes(&poly_sig)
                 .with_span(stmt_span)?
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-            println!("TRACE: check_rvalue: {poly_sig:?}");
+            // println!("TRACE: create_closure_template (1) => {poly_sig:?}");
             Ok((upvar_tys, poly_sig))
         } else {
             bug!("check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}");
@@ -1479,9 +1483,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
                     let current_did = infcx.def_id;
-                    let sub_sig = infcx.genv.fn_sig(*def_id)?;
-                    // // TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
-                    check_fn_subtyping(infcx, &current_did, sub_sig, args, super_sig, stmt_span)?;
+                    let sub_sig = SubFn::Poly(infcx.genv.fn_sig(*def_id)?, args.clone());
+                    // TODO:CLOSURE:2 TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
+                    check_fn_subtyping(infcx, &current_did, sub_sig, super_sig, stmt_span)?;
                     to
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")
@@ -1843,12 +1847,8 @@ fn is_indexed_mut_skipping_constr(ty: &Ty) -> bool {
 /// where the formal argument is of the form `&mut B[@n]`, e.g., the type of the first argument
 /// to `RVec::get_mut` is `&mut RVec<T>[@n]`. We should remove this after we implement opening of
 /// mutable references.
-fn infer_under_mut_ref_hack(
-    rcx: &mut InferCtxt,
-    actuals: &[Ty],
-    fn_sig: EarlyBinder<&PolyFnSig>,
-) -> Vec<Ty> {
-    iter::zip(actuals, fn_sig.skip_binder_ref().skip_binder_ref().inputs())
+fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFnSig) -> Vec<Ty> {
+    iter::zip(actuals, fn_sig.skip_binder_ref().inputs())
         .map(|(actual, formal)| {
             if let rty::Ref!(.., Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)

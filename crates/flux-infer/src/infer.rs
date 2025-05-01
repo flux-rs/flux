@@ -864,8 +864,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (BaseTy::Closure(did1, tys_a, ..), BaseTy::Closure(did2, tys_b, ..))
                 if did1 == did2 =>
             {
-                println!("TRACE:TODO:CLOSURE:1");
-                println!("TRACE: aha. closure {a:?} vs {b:?}");
+                // println!("TRACE:TODO:CLOSURE:1");
                 debug_assert_eq!(tys_a.len(), tys_b.len());
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.tys(infcx, ty_a, ty_b)?;
