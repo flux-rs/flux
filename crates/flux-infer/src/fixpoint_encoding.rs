@@ -875,10 +875,6 @@ impl KVarGen {
             return rty::Expr::hole(rty::HoleKind::Pred);
         }
 
-        // println!("TRACE: fresh {binders:?}");
-
-        // debug_assert!(last.iter().all(BoundVariableKind::is_refine));
-
         let args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, vars)| {
                 let debruijn = DebruijnIndex::from_usize(level);
