@@ -213,6 +213,23 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
     }
 }
 
+/// `SubFn` lets us reuse _most_ of the same code for `check_fn_subtyping` for both the case where
+/// we have an early-bound function signature (e.g., for a trait method???) and versions without,
+/// e.g. a plain closure against its FnTraitPredicate obligation.
+pub enum SubFn {
+    Poly(EarlyBinder<rty::PolyFnSig>, rty::GenericArgs),
+    Mono(rty::PolyFnSig),
+}
+
+impl SubFn {
+    pub fn as_ref(&self) -> &rty::PolyFnSig {
+        match self {
+            SubFn::Poly(sig, _) => sig.skip_binder_ref(),
+            SubFn::Mono(sig) => sig,
+        }
+    }
+}
+
 /// The function `check_fn_subtyping` does a function subtyping check between
 /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
 /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
@@ -225,26 +242,9 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 ///  fn g(x1:T1,...,xn:Tn) -> T {
 ///      f(x1,...,xn)
 ///  }
-
-pub enum SubFn {
-    Poly(EarlyBinder<rty::PolyFnSig>, rty::GenericArgs),
-    Mono(rty::PolyFnSig),
-}
-
-impl SubFn {
-    pub fn as_ref(&self) -> &rty::PolyFnSig {
-        match self {
-            SubFn::Poly(sig, _) => sig.skip_binder_ref(),
-            SubFn::Mono(sig) => &sig,
-        }
-    }
-}
-
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
     def_id: &DefId,
-    // sub_sig: EarlyBinder<rty::PolyFnSig>,
-    // sub_args: &[GenericArg],
     sub_sig: SubFn,
     super_sig: &rty::PolyFnSig,
     span: Span,
@@ -774,7 +774,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
 
         let actuals =
-            unfold_local_ptrs(infcx, env, &fn_sig.skip_binder_ref(), actuals).with_span(span)?;
+            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
         infcx.push_evar_scope();
 
@@ -1175,6 +1175,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         poly_sig: &PolyFnSig,
     ) -> Result {
         let genv = self.genv;
+        #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
         let closure_id = did.expect_local();
         let span = genv.tcx().def_span(closure_id);
         let body = genv.mir(closure_id).with_span(span)?;
