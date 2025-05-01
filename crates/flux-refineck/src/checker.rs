@@ -274,7 +274,6 @@ fn check_fn_subtyping(
         let sub_sig = match sub_sig {
             SubFn::Poly(early_sig, sub_args) => {
                 let refine_args = infcx.instantiate_refine_args(*def_id, &sub_args)?;
-                // println!("TRACE: check_fn_subtyping: sub_sig={sub_sig:?} sub_args={sub_args:?}, refine_args={refine_args:?}");
                 early_sig.instantiate(tcx, &sub_args, &refine_args)
             }
             SubFn::Mono(sig) => sig,
@@ -781,8 +780,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
-        println!("TRACE: check_call: generic_args = {generic_args:?}");
-        println!("TRACE: check_call: actuals = {actuals:?}");
+        // println!("TRACE: check_call: generic_args = {generic_args:?}");
+        // println!("TRACE: check_call: actuals = {actuals:?}");
 
         // Generate fresh inference variables for refinement arguments
         let refine_args = match callee_def_id {
@@ -810,7 +809,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
 
-        println!("TRACE: check_call: closure_clauses = {fn_clauses:?}");
+        // println!("TRACE: check_call: closure_clauses = {fn_clauses:?}");
         self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
         // Instantiate function signature and normalize it
@@ -881,9 +880,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let Some(poly_sig) = self.closures.get(def_id).cloned() else {
                     bug!("missing template for closure {def_id:?}");
                 };
-                let oblig_sig = fn_trait_pred
-                    .fndef_poly_sig()
-                    .map(|sig| sig.pack_closure_sig());
+                let oblig_sig = fn_trait_pred.fndef_poly_sig();
+                // println!("TRACE: check_fn_trait_clause: {poly_sig:?} <: {oblig_sig:?}");
                 check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
                     .with_span(span)?;
             }
@@ -1108,7 +1106,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // println!("TRACE: create_closure_template (1) => {poly_sig:?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-            println!("TRACE: create_closure_template (2) => {poly_sig:?}");
+            // println!("TRACE: create_closure_template (2) => {poly_sig:?}");
             Ok((upvar_tys, poly_sig))
         } else {
             bug!("check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}");
