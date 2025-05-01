@@ -77,6 +77,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
+    closures: FxHashMap<DefId, PolyFnSig>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -476,6 +477,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
+            closures: FxHashMap::default(),
         };
         ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
 
@@ -876,7 +878,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
             Some(BaseTy::Closure(def_id, _, _)) => {
-                let poly_sig: PolyFnSig = todo!("get poly_sig for closure {def_id:?}");
+                let Some(poly_sig) = self.closures.get(def_id).cloned() else {
+                    bug!("missing template for closure {def_id:?}");
+                };
                 let oblig_sig = fn_trait_pred
                     .fndef_poly_sig()
                     .map(|sig| sig.pack_closure_sig());
@@ -1067,7 +1071,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
-    fn create_closure_template(
+    fn closure_template(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
@@ -1195,11 +1199,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         operands: &[Operand],
     ) -> Result<Ty> {
         // (1) Create the closure template
-        let (upvar_tys, poly_sig) =
-            self.create_closure_template(infcx, env, stmt_span, args, operands)?;
+        let (upvar_tys, poly_sig) = self.closure_template(infcx, env, stmt_span, args, operands)?;
         // (2) Check the closure body against the template
         self.check_closure_body(infcx, did, &upvar_tys, args, &poly_sig)?;
-        // (3) Return the closure type
+        // (3) "Save" the closure type in the `closures` map
+        self.closures.insert(*did, poly_sig);
+        // (4) Return the closure type
         Ok(Ty::closure(*did, upvar_tys, args))
     }
 
