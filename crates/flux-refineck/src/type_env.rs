@@ -32,7 +32,7 @@ use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
-use rustc_span::{Span, Symbol};
+use rustc_span::{Span, Symbol, def_id::DefId};
 use rustc_type_ir::BoundVar;
 use serde::Serialize;
 
@@ -43,6 +43,7 @@ use super::rty::Sort;
 pub struct TypeEnv<'a> {
     bindings: PlacesTree,
     local_decls: &'a LocalDecls,
+    closures: UnordMap<DefId, Ty>,
 }
 
 pub struct BasicBlockEnvShape {
@@ -63,7 +64,11 @@ struct BasicBlockEnvData {
 
 impl<'a> TypeEnv<'a> {
     pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> TypeEnv<'a> {
-        let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
+        let mut env = TypeEnv {
+            bindings: PlacesTree::default(),
+            closures: UnordMap::default(),
+            local_decls: &body.local_decls,
+        };
 
         for requires in fn_sig.requires() {
             infcx.assume_pred(requires);
@@ -84,7 +89,11 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub fn empty() -> TypeEnv<'a> {
-        TypeEnv { bindings: PlacesTree::default(), local_decls: IndexSlice::empty() }
+        TypeEnv {
+            bindings: PlacesTree::default(),
+            closures: UnordMap::default(),
+            local_decls: IndexSlice::empty(),
+        }
     }
 
     fn alloc_with_ty(&mut self, local: Local, ty: Ty) {
@@ -418,6 +427,16 @@ impl flux_infer::infer::LocEnv for TypeEnv<'_> {
 
     fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc> {
         self.unfold_strg_ref(infcx, path, ty)
+    }
+
+    fn set_closure(&mut self, def_id: DefId, ty: Ty) {
+        if !self.closures.member(&def_id) {
+            self.closures.insert(&def_id, ty);
+        }
+    }
+
+    fn get_closure(&self, def_id: DefId) -> Option<Ty> {
+        todo!()
     }
 }
 

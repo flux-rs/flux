@@ -4,7 +4,6 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
-
 mod binder;
 pub mod canonicalize;
 mod expr;
@@ -14,7 +13,7 @@ mod pretty;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
 pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
@@ -61,6 +60,7 @@ use crate::{
     def_id::{FluxDefId, FluxLocalDefId},
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    pretty::{Pretty, PrettyCx},
     queries::QueryResult,
     rty::subst::SortSubst,
 };
@@ -658,6 +658,16 @@ pub struct FnTraitPredicate {
     pub tupled_args: Ty,
     pub output: Ty,
     pub kind: ClosureKind,
+}
+
+impl Pretty for FnTraitPredicate {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "self = {:?}, args = {:?}, output = {:?}, kind = {}",
+            self.self_ty, self.tupled_args, self.output, self.kind
+        )
+    }
 }
 
 impl FnTraitPredicate {

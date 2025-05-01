@@ -779,8 +779,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Replace holes in generic arguments with fresh inference variables
         let generic_args = infcx.instantiate_generic_args(generic_args);
-        // println!("TRACE: check_call: generic_args = {generic_args:?}");
-        // println!("TRACE: check_call: actuals = {actuals:?}");
+        println!("TRACE: check_call: generic_args = {generic_args:?}");
+        println!("TRACE: check_call: actuals = {actuals:?}");
 
         // Generate fresh inference variables for refinement arguments
         let refine_args = match callee_def_id {
@@ -802,13 +802,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
-        // println!("TRACE: check_call: fn_clauses = {clauses:?}");
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
 
+        println!("TRACE: check_call: closure_clauses = {fn_clauses:?}");
         self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
         // Instantiate function signature and normalize it
@@ -1099,15 +1099,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
-            // println!(
-            //     "TRACE: create_closure_template (0) => {poly_sig:?} | vars = {:?}",
-            //     poly_sig.vars()
-            // );
-            let poly_sig = self
-                .refine_with_holes(&poly_sig)
-                .with_span(stmt_span)?
-                .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+            let poly_sig = self.refine_with_holes(&poly_sig).with_span(stmt_span)?;
             // println!("TRACE: create_closure_template (1) => {poly_sig:?}");
+            let poly_sig = poly_sig
+                .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+            println!("TRACE: create_closure_template (2) => {poly_sig:?}");
             Ok((upvar_tys, poly_sig))
         } else {
             bug!("check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}");
@@ -1151,21 +1147,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             ClosureKind::FnOnce => closure_ty,
         };
 
-        // let inputs = std::iter::once(env_ty)
-        // .chain(self.tupled_args.expect_tuple().iter().cloned())
-        // .collect();
-
         let inputs = std::iter::once(env_ty)
             .chain(fn_sig.inputs().iter().cloned())
             .collect::<Vec<_>>();
         let output = fn_sig.output().clone();
 
         let fn_sig = crate::rty::FnSig::new(
-            fn_sig.safety, // Safety::Safe,
-            fn_sig.abi,    // abi::Abi::RustCall,
+            fn_sig.safety,
+            fn_sig.abi,
             crate::rty::List::empty(),
             inputs.into(),
-            output, // Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
+            output,
         );
 
         PolyFnSig::bind_with_vars(fn_sig, rty::List::from(vars))
