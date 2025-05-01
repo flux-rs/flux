@@ -622,10 +622,6 @@ pub trait LocEnv {
     fn unfold_strg_ref(&mut self, infcx: &mut InferCtxt, path: &Path, ty: &Ty) -> InferResult<Loc>;
 
     fn get(&self, path: &Path) -> Ty;
-
-    fn set_closure(&mut self, def_id: DefId, ty: Ty);
-
-    fn get_closure(&self, def_id: DefId) -> Option<Ty>;
 }
 
 struct DummyEnv;
@@ -648,14 +644,6 @@ impl LocEnv for DummyEnv {
 
     fn get(&self, _: &Path) -> Ty {
         bug!("call to `get` on `DummyEnv`")
-    }
-
-    fn set_closure(&mut self, def_id: DefId, ty: Ty) {
-        bug!("call to `set_closure` on `DummyEnv` for def_id {def_id:?} with ty {ty:?}")
-    }
-
-    fn get_closure(&self, def_id: DefId) -> Option<Ty> {
-        bug!("call to `get_closure` on `DummyEnv` for def_id {def_id:?}")
     }
 }
 

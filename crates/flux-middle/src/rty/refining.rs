@@ -218,17 +218,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     .iter()
                     .map(|ty| ty.refine(self))
                     .try_collect()?;
-                // TODO(RJ): gross duplication of code in `check_rvalue` ???
-                let ty = closure_args.sig_as_fn_ptr_ty();
-                if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_fn_sig) = ty.kind() {
-                    let fn_sig = poly_fn_sig.refine(self)?;
-                    rty::BaseTy::Closure(*did, upvar_tys, args.clone(), fn_sig)
-                } else {
-                    return Err(query_bug!(
-                        self.def_id,
-                        "expected fn_ptr ty for closure, got {ty:?}"
-                    ));
-                }
+                rty::BaseTy::Closure(*did, upvar_tys, args.clone())
             }
             ty::TyKind::Coroutine(did, args) => {
                 let args = args.as_coroutine();

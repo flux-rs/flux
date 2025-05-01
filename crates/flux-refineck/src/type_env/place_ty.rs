@@ -507,14 +507,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
                 fields[f.as_usize()] = fields[f.as_usize()].try_fold_with(self)?;
                 Ty::indexed(BaseTy::Tuple(fields.into()), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args, fn_sig), idx) => {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
                 let mut upvar_tys = upvar_tys.to_vec();
                 upvar_tys[f.as_usize()] = upvar_tys[f.as_usize()].try_fold_with(self)?;
-                let fn_sig = fn_sig.try_fold_with(self)?;
-                Ty::indexed(
-                    BaseTy::Closure(*def_id, upvar_tys.into(), args.clone(), fn_sig),
-                    idx.clone(),
-                )
+                Ty::indexed(BaseTy::Closure(*def_id, upvar_tys.into(), args.clone()), idx.clone())
             }
             TyKind::Indexed(BaseTy::Coroutine(def_id, resume_ty, upvar_tys), idx) => {
                 let mut upvar_tys = upvar_tys.to_vec();
@@ -663,10 +659,10 @@ where
                 let fields = self.fold_field_at(fields, f);
                 Ty::indexed(BaseTy::Tuple(fields), idx.clone())
             }
-            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args, fn_sig), idx) => {
+            TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
                 Ty::indexed(
-                    BaseTy::Closure(*def_id, upvar_tys, args.clone(), fn_sig.clone()), // TODO(RJ): Nico pls check!
+                    BaseTy::Closure(*def_id, upvar_tys, args.clone()), // TODO(RJ): Nico pls check!
                     idx.clone(),
                 )
             }

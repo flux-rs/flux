@@ -1316,9 +1316,8 @@ impl Ty {
         did: DefId,
         tys: impl Into<List<Ty>>,
         args: &flux_rustc_bridge::ty::GenericArgs,
-        fn_sig: PolyFnSig,
     ) -> Ty {
-        BaseTy::Closure(did, tys.into(), args.clone(), fn_sig).to_ty()
+        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
     pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
@@ -1516,7 +1515,7 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, PolyFnSig),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
@@ -1770,7 +1769,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(did, _, args, _) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
+            BaseTy::Closure(did, _, args) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()

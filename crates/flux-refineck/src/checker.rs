@@ -875,7 +875,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _, poly_sig)) => {
+            Some(BaseTy::Closure(def_id, _, _)) => {
+                let poly_sig: PolyFnSig = todo!("get poly_sig for closure {def_id:?}");
                 let oblig_sig = fn_trait_pred
                     .fndef_poly_sig()
                     .map(|sig| sig.pack_closure_sig());
@@ -1126,7 +1127,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut vars = poly_sig.vars().clone().to_vec(); // vec![]; // TODO(RJ): should use the vars from the `poly_sig`?
         let fn_sig = poly_sig.clone().skip_binder();
-        let closure_ty = Ty::closure(closure_id.into(), tys, args, poly_sig.clone());
+        let closure_ty = Ty::closure(closure_id.into(), tys, args);
         let env_ty = match kind {
             ClosureKind::Fn => {
                 vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
@@ -1199,7 +1200,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (2) Check the closure body against the template
         self.check_closure_body(infcx, did, &upvar_tys, args, &poly_sig)?;
         // (3) Return the closure type
-        Ok(Ty::closure(*did, upvar_tys, args, poly_sig))
+        Ok(Ty::closure(*did, upvar_tys, args))
     }
 
     fn check_rvalue(
