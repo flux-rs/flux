@@ -2366,11 +2366,6 @@ impl FnSig {
     pub fn output(&self) -> Binder<FnOutput> {
         self.output.clone()
     }
-
-    pub fn pack_closure_sig(self) -> Self {
-        let inputs = List::singleton(Ty::tuple(self.inputs));
-        FnSig { inputs, ..self }
-    }
 }
 
 impl<'tcx> ToRustc<'tcx> for FnSig {
