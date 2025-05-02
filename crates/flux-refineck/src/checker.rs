@@ -1,6 +1,6 @@
 use std::{collections::hash_map::Entry, iter, vec};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, tracked_span_bug};
+use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
