@@ -1680,13 +1680,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
         ty.refine(&Refiner::with_holes(self.genv, self.def_id.to_def_id())?)
     }
-    // fn refine_default(&self, ty: &ty::Ty) -> QueryResult<Ty> {
-    //     ty.refine(&self.default_refiner)
-    // }
-
-    // fn refine_h_holes(&self, ty: &ty::Ty) -> QueryResult<Ty> {
-    //     ty.refine(&Refiner::with_holes(self.genv, self.def_id.to_def_id())?)
-    // }
 }
 
 fn instantiate_args_for_fun_call(

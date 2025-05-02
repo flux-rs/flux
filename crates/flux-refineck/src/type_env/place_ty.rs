@@ -139,7 +139,7 @@ impl PlacesTree {
                 PlaceElem::Field(f) => {
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Tuple(fields), _)
-                        | TyKind::Indexed(BaseTy::Closure(_, fields, ..), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                         | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
                         | TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
@@ -196,7 +196,7 @@ impl PlacesTree {
                 PlaceElem::Field(f) => {
                     match ty.kind() {
                         TyKind::Indexed(BaseTy::Tuple(fields), _)
-                        | TyKind::Indexed(BaseTy::Closure(_, fields, ..), _)
+                        | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                         | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _)
                         | TyKind::Downcast(.., fields) => {
                             ty = fields[f.as_usize()].clone();
@@ -250,7 +250,7 @@ impl PlacesTree {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), _)
-                | TyKind::Indexed(BaseTy::Closure(_, fields, ..), _)
+                | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                 | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
                     ty = &fields[f.as_usize()];
                 }
@@ -318,7 +318,7 @@ impl PlacesTree {
             match ty.kind() {
                 TyKind::Downcast(.., fields)
                 | TyKind::Indexed(BaseTy::Tuple(fields), _)
-                | TyKind::Indexed(BaseTy::Closure(_, fields, ..), _)
+                | TyKind::Indexed(BaseTy::Closure(_, fields, _), _)
                 | TyKind::Indexed(BaseTy::Coroutine(_, _, fields), _) => {
                     for (idx, ty) in fields.iter().enumerate() {
                         proj.push(idx.into());
