@@ -670,7 +670,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
         let infcx = &mut infcx.branch();
-        infcx.cursor.push_trace(TypeTrace::tys(a, b));
+        // infcx.cursor.push_trace(TypeTrace::tys(a, b));
 
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
