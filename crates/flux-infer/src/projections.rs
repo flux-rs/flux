@@ -61,12 +61,9 @@ struct Normalizer<'infcx, 'genv, 'tcx> {
 
 impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
     fn new(infcx: InferCtxt<'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
-        let param_env = infcx
-            .genv
-            .predicates_of(infcx.def_id)?
-            .instantiate_identity()
-            .predicates
-            .clone();
+        let predicates = infcx.genv.predicates_of(infcx.def_id)?;
+        // println!("TRACE: Normalizer::new ({:?}) => {predicates:?})", infcx.def_id);
+        let param_env = predicates.instantiate_identity().predicates.clone();
         let selcx = SelectionContext::new(infcx.region_infcx);
         Ok(Normalizer { infcx, selcx, param_env })
     }
