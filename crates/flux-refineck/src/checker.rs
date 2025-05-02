@@ -877,7 +877,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match self_ty {
             Some(BaseTy::Closure(def_id, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
-                    bug!("missing template for closure {def_id:?}");
+                    span_bug!(span, "missing template for closure {def_id:?}");
                 };
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
                 check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
