@@ -878,7 +878,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match self_ty {
             Some(BaseTy::Closure(def_id, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
-                    bug!("missing template for closure {def_id:?}");
+                    span_bug!(span, "missing template for closure {def_id:?}");
                 };
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
                 check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
@@ -900,7 +900,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .with_span(span)?;
             }
             _ => {
-                // TODO:CLOSURE:2
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
                 // but for now, we can skip as all the relevant types are unrefined.
                 // See issue-767.rs
@@ -1624,7 +1623,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &self.inherited.ghost_stmts[&self.def_id]
     }
 
-    fn refine_default<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
+    fn refine_default<T: Refine>(&self, ty: &T) -> QueryResult<T::Output> {
         ty.refine(&self.default_refiner)
     }
 
