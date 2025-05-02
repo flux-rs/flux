@@ -899,7 +899,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .with_span(span)?;
             }
             _ => {
-                // TODO:CLOSURE:2
                 // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
                 // but for now, we can skip as all the relevant types are unrefined.
                 // See issue-767.rs
