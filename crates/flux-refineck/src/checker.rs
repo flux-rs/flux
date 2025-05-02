@@ -77,7 +77,6 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
-    closures: FxHashMap<DefId, PolyFnSig>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -86,18 +85,24 @@ struct Inherited<'ck, M> {
     /// signature
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
+    closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
 }
 
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+        closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode })
+        Ok(Self { ghost_stmts, mode, closures })
     }
 
     fn reborrow(&mut self) -> Inherited<M> {
-        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode }
+        Inherited {
+            ghost_stmts: self.ghost_stmts,
+            mode: &mut *self.mode,
+            closures: &mut self.closures,
+        }
     }
 }
 
@@ -148,6 +153,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+        closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
         opts: InferOpts,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
@@ -166,7 +172,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             })
             .with_span(span)?;
 
-            let inherited = Inherited::new(&mut mode, ghost_stmts)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
@@ -185,6 +191,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+        closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
@@ -203,7 +210,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
-            let inherited = Inherited::new(&mut mode, ghost_stmts)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv.fn_sig(def_id).with_span(span)?.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
@@ -476,7 +483,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
-            closures: FxHashMap::default(),
         };
         ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
 
@@ -874,7 +880,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
         match self_ty {
             Some(BaseTy::Closure(def_id, _, _)) => {
-                let Some(poly_sig) = self.closures.get(def_id).cloned() else {
+                let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     bug!("missing template for closure {def_id:?}");
                 };
                 let oblig_sig = fn_trait_pred.fndef_poly_sig();
@@ -1196,7 +1202,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (2) Check the closure body against the template
         self.check_closure_body(infcx, did, &upvar_tys, args, &poly_sig)?;
         // (3) "Save" the closure type in the `closures` map
-        self.closures.insert(*did, poly_sig);
+        self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
         Ok(Ty::closure(*did, upvar_tys, args))
     }
