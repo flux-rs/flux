@@ -14,7 +14,6 @@
 
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-
 extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_infer;
@@ -47,8 +46,8 @@ use flux_middle::{
     timings,
 };
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hash::FxHashMap;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
 
@@ -113,7 +112,7 @@ pub fn check_fn(
         let ghost_stmts = compute_ghost_statements(genv, def_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;
-        let mut closures = FxHashMap::default();
+        let mut closures = UnordMap::default();
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =
             Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts)

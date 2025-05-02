@@ -24,7 +24,7 @@ use flux_middle::{
     },
 };
 use flux_rustc_bridge::{
-    self, ToRustc,
+    self,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
         Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
@@ -52,9 +52,6 @@ use crate::{
     ghost_statements::{GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
-    rty::{
-        BoundRegion, BoundRegionKind, BoundVar, BoundVariableKind, ClosureKind, INNERMOST, ReBound,
-    },
     type_env::{
         BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, SpanTrace, TypeEnv, TypeEnvTrace,
     },
@@ -85,14 +82,18 @@ struct Inherited<'ck, M> {
     /// signature
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
-    closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
+
+    /// This map has the "templates" generated for the closures constructed (in [`check_rvalue_closure`]).
+    /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
+    /// we need to be careful and only use it in the correct scope.
+    closures: &'ck mut UnordMap<DefId, PolyFnSig>,
 }
 
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
+        closures: &'ck mut UnordMap<DefId, PolyFnSig>,
     ) -> Result<Self> {
         Ok(Self { ghost_stmts, mode, closures })
     }
@@ -149,7 +150,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
+        closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         opts: InferOpts,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
@@ -187,7 +188,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
-        closures: &'ck mut FxHashMap<DefId, PolyFnSig>,
+        closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
@@ -1074,10 +1075,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt_span: Span,
         args: &flux_rustc_bridge::ty::GenericArgs,
         operands: &[Operand],
-    ) -> Result<(Vec<Ty>, PolyFnSig)> {
+    ) -> InferResult<(Vec<Ty>, PolyFnSig)> {
         let upvar_tys = self
-            .check_operands(infcx, env, stmt_span, operands)
-            .with_span(stmt_span)?
+            .check_operands(infcx, env, stmt_span, operands)?
             .into_iter()
             .map(|ty| {
                 if let TyKind::Ptr(PtrKind::Mut(re), path) = ty.kind() {
@@ -1092,74 +1092,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     Ok(ty.clone())
                 }
             })
-            .try_collect_vec()
-            .with_span(stmt_span)?;
+            .try_collect_vec()?;
 
         let closure_args = args.as_closure();
         let ty = closure_args.sig_as_fn_ptr_ty();
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
-            let poly_sig = self.refine_with_holes(&poly_sig).with_span(stmt_span)?;
+            let poly_sig = self.refine_with_holes(&poly_sig)?;
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
             Ok((upvar_tys, poly_sig))
         } else {
             bug!("check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}");
         }
-    }
-
-    fn to_closure_sig(
-        &self,
-        closure_id: LocalDefId,
-        tys: &[Ty], // List<Ty>, // "upvar_tys"
-        args: &flux_rustc_bridge::ty::GenericArgs,
-        poly_sig: &PolyFnSig,
-    ) -> PolyFnSig {
-        let tcx = self.genv.tcx();
-        let closure_args = args.as_closure();
-        let kind_ty = closure_args.kind_ty().to_rustc(tcx);
-        let Some(kind) = kind_ty.to_opt_closure_kind() else {
-            bug!("to_closure_sig: expected closure kind, found {kind_ty:?}");
-        };
-
-        let mut vars = poly_sig.vars().clone().to_vec(); // vec![]; // TODO(RJ): should use the vars from the `poly_sig`?
-        let fn_sig = poly_sig.clone().skip_binder();
-        let closure_ty = Ty::closure(closure_id.into(), tys, args);
-        let env_ty = match kind {
-            ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce => closure_ty,
-        };
-
-        let inputs = std::iter::once(env_ty)
-            .chain(fn_sig.inputs().iter().cloned())
-            .collect::<Vec<_>>();
-        let output = fn_sig.output().clone();
-
-        let fn_sig = crate::rty::FnSig::new(
-            fn_sig.safety,
-            fn_sig.abi,
-            crate::rty::List::empty(),
-            inputs.into(),
-            output,
-        );
-
-        PolyFnSig::bind_with_vars(fn_sig, rty::List::from(vars))
     }
 
     fn check_closure_body(
@@ -1171,11 +1117,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         poly_sig: &PolyFnSig,
     ) -> Result {
         let genv = self.genv;
+        let tcx = genv.tcx();
         #[expect(clippy::disallowed_methods, reason = "closures cannot be extern speced")]
         let closure_id = did.expect_local();
-        let span = genv.tcx().def_span(closure_id);
+        let span = tcx.def_span(closure_id);
         let body = genv.mir(closure_id).with_span(span)?;
-        let closure_sig = self.to_closure_sig(closure_id, upvar_tys, args, poly_sig);
+        let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig);
         Checker::run(
             infcx.change_item(closure_id, &body.infcx),
             closure_id,
@@ -1194,7 +1141,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         operands: &[Operand],
     ) -> Result<Ty> {
         // (1) Create the closure template
-        let (upvar_tys, poly_sig) = self.closure_template(infcx, env, stmt_span, args, operands)?;
+        let (upvar_tys, poly_sig) = self
+            .closure_template(infcx, env, stmt_span, args, operands)
+            .with_span(stmt_span)?;
         // (2) Check the closure body against the template
         self.check_closure_body(infcx, did, &upvar_tys, args, &poly_sig)?;
         // (3) "Save" the closure type in the `closures` map
