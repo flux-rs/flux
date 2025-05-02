@@ -1840,10 +1840,10 @@ fn is_indexed_mut_skipping_constr(ty: &Ty) -> bool {
 fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFnSig) -> Vec<Ty> {
     iter::zip(actuals, fn_sig.skip_binder_ref().inputs())
         .map(|(actual, formal)| {
-            if let rty::Ref!(.., Mutability::Mut) = actual.kind()
+            if let rty::Ref!(re, deref_ty, Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
             {
-                rcx.hoister(false).hoist_inside_mut_refs(true).hoist(actual)
+                rty::Ty::mk_ref(*re, rcx.unpack(deref_ty), Mutability::Mut)
             } else {
                 actual.clone()
             }
