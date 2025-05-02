@@ -1080,7 +1080,25 @@
 <a href="#1079" id="1079">1079</a>
 <a href="#1080" id="1080">1080</a>
 <a href="#1081" id="1081">1081</a>
-<a href="#1082" id="1082">1082</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1095,7 +1113,9 @@
         <span class="self">self</span>, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
         Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
         Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyKind, Var, canonicalize::Hoister, fold::TypeFoldable,
+        Region, Sort, Ty, TyCtor, TyKind, Var,
+        canonicalize::{Hoister, HoisterDelegate},
+        fold::TypeFoldable,
     },
 };
 <span class="kw">use </span>itertools::{Itertools, izip};
@@ -1111,7 +1131,7 @@
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt <span class="kw">as _</span>,
-    refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
+    refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
 
 <span class="kw">pub type </span>InferResult&lt;T = ()&gt; = std::result::Result&lt;T, InferErr&gt;;
@@ -1511,15 +1531,11 @@
         <span class="self">self</span>.cursor.marker()
     }
 
-    <span class="kw">pub fn </span>hoister(<span class="kw-2">&amp;mut </span><span class="self">self</span>, assume_invariants: bool) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
-        <span class="self">self</span>.cursor.hoister(
-            <span class="self">self</span>.genv.tcx(),
-            <span class="kw">if </span>assume_invariants {
-                AssumeInvariants::yes(<span class="self">self</span>.check_overflow)
-            } <span class="kw">else </span>{
-                AssumeInvariants::No
-            },
-        )
+    <span class="kw">pub fn </span>hoister(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        assume_invariants: bool,
+    ) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
+        Hoister::with_delegate(Unpacker { infcx: <span class="self">self</span>, assume_invariants }).transparent()
     }
 
     <span class="kw">pub fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>Ty) {
@@ -1529,6 +1545,26 @@
 
     <span class="kw">fn </span>check_impl(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred1: <span class="kw">impl </span>Into&lt;Expr&gt;, pred2: <span class="kw">impl </span>Into&lt;Expr&gt;, tag: Tag) {
         <span class="self">self</span>.cursor.check_impl(pred1, pred2, tag);
+    }
+}
+
+<span class="kw">pub struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+    assume_invariants: bool,
+}
+
+<span class="kw">impl </span>HoisterDelegate <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
+        <span class="kw">let </span>ty =
+            ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(<span class="self">self</span>.infcx.define_var(sort)));
+        <span class="kw">if </span><span class="self">self</span>.assume_invariants {
+            <span class="self">self</span>.infcx.assume_invariants(<span class="kw-2">&amp;</span>ty);
+        }
+        ty
+    }
+
+    <span class="kw">fn </span>hoist_constr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: Expr) {
+        <span class="self">self</span>.infcx.assume_pred(pred);
     }
 }
 

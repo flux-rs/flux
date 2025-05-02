@@ -755,48 +755,7 @@
 <a href="#754" id="754">754</a>
 <a href="#755" id="755">755</a>
 <a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#757" id="757">757</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::RefCell,
     ops::ControlFlow,
     rc::{Rc, Weak},
@@ -809,8 +768,7 @@
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, Name, Sort, Ty, TyCtor, TyKind, Var,
-        canonicalize::{Hoister, HoisterDelegate},
+        BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -954,14 +912,6 @@
         <span class="self">self</span>.ptr
             .push_node(NodeKind::Assumption(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hoister&lt;<span class="lifetime">'tcx</span>&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-        assume_invariants: AssumeInvariants,
-    ) -&gt; Hoister&lt;Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'a</span>, <span class="lifetime">'tcx</span>&gt;&gt; {
-        Hoister::with_delegate(Unpacker { tcx, cursor: <span class="self">self</span>, assume_invariants }).transparent()
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_invariants(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tcx: TyCtxt, ty: <span class="kw-2">&amp;</span>Ty, overflow_checking: bool) {
@@ -1141,38 +1091,6 @@
     True,
     <span class="doccomment">/// Used for debugging. See [`TypeTrace`]
     </span>Trace(TypeTrace),
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">enum </span>AssumeInvariants {
-    Yes { check_overflow: bool },
-    No,
-}
-
-<span class="kw">impl </span>AssumeInvariants {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>yes(check_overflow: bool) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Yes { check_overflow }
-    }
-}
-
-<span class="kw">pub struct </span>Unpacker&lt;<span class="lifetime">'a</span>, <span class="lifetime">'b</span>, <span class="lifetime">'tcx</span>&gt; {
-    tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-    cursor: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>Cursor&lt;<span class="lifetime">'b</span>&gt;,
-    assume_invariants: AssumeInvariants,
-}
-
-<span class="kw">impl </span>HoisterDelegate <span class="kw">for </span>Unpacker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-    <span class="kw">fn </span>hoist_exists(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty_ctor: <span class="kw-2">&amp;</span>TyCtor) -&gt; Ty {
-        <span class="kw">let </span>ty =
-            ty_ctor.replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(<span class="self">self</span>.cursor.define_var(sort)));
-        <span class="kw">if let </span>AssumeInvariants::Yes { check_overflow } = <span class="self">self</span>.assume_invariants {
-            <span class="self">self</span>.cursor.assume_invariants(<span class="self">self</span>.tcx, <span class="kw-2">&amp;</span>ty, check_overflow);
-        }
-        ty
-    }
-
-    <span class="kw">fn </span>hoist_constr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: Expr) {
-        <span class="self">self</span>.cursor.assume_pred(pred);
-    }
 }
 
 <span class="kw">impl </span>std::ops::Index&lt;Name&gt; <span class="kw">for </span>Scope {

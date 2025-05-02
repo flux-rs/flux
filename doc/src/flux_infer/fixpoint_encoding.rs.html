@@ -1609,8 +1609,7 @@
 <a href="#1608" id="1608">1608</a>
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1611" id="1611">1611</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -1837,7 +1836,6 @@
                 <span class="kw">let </span>args = args.iter().map(|s| <span class="self">self</span>.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
-
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(variant) = sort_def.opt_struct_variant() {
                     <span class="kw">let </span>sorts = variant.field_sorts(args);
