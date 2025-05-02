@@ -1675,7 +1675,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &self.inherited.ghost_stmts[&self.def_id]
     }
 
-    fn refine_default<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
+    fn refine_default<T: Refine>(&self, ty: &T) -> QueryResult<T::Output> {
         ty.refine(&self.default_refiner)
     }
 
