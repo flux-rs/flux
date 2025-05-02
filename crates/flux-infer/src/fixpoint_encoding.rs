@@ -895,7 +895,11 @@ impl KVarGen {
         let [.., last] = binders else {
             return self.fresh_inner(0, [], encoding);
         };
-        self.fresh_inner(last.len(), args, encoding)
+        let num_self_args = last
+            .iter()
+            .filter(|var| matches!(var, rty::BoundVariableKind::Refine(..)))
+            .count();
+        self.fresh_inner(num_self_args, args, encoding)
     }
 
     fn fresh_inner<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr
