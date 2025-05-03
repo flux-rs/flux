@@ -139,29 +139,20 @@ pub type PolyFnSig = Binder<FnSig>;
 impl PolyFnSig {
     pub fn unpack_closure_sig(&self) -> Self {
         let vars = self.vars().clone();
-        let fn_sig = self.clone().skip_binder();
-        let mut fn_inputs_and_output = fn_sig.inputs_and_output.to_vec();
-        let mut inputs_and_output: Vec<Ty> = vec![];
-        // get input, output
-        let output = fn_inputs_and_output
-            .pop()
-            .expect("closure signature should have at least two values");
-        let input = fn_inputs_and_output
-            .pop()
-            .expect("closure signature should have at least two values");
-        // unpack input
-        for ty in input.tuple_fields() {
-            inputs_and_output.push(ty.clone());
-        }
-        // add output
-        inputs_and_output.push(output);
-
+        let fn_sig = self.skip_binder_ref();
+        let [input] = &fn_sig.inputs() else {
+            bug!("closure signature should have at least two values");
+        };
         let fn_sig = FnSig {
             safety: fn_sig.safety,
             abi: fn_sig.abi,
-            inputs_and_output: inputs_and_output.into(),
+            inputs_and_output: input
+                .tuple_fields()
+                .iter()
+                .cloned()
+                .chain([fn_sig.output().clone()])
+                .collect(),
         };
-
         Binder::bind_with_vars(fn_sig, vars)
     }
 }

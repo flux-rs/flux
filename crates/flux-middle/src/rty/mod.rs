@@ -34,7 +34,7 @@ pub use flux_rustc_bridge::ty::{
 use flux_rustc_bridge::{
     ToRustc,
     mir::Place,
-    ty::{self, VariantDef},
+    ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
 pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
@@ -57,6 +57,7 @@ pub use rustc_type_ir::{INNERMOST, TyVid};
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
+    LocalDefId,
     def_id::{FluxDefId, FluxLocalDefId},
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
@@ -684,6 +685,58 @@ impl FnTraitPredicate {
 
         PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
+}
+
+pub fn to_closure_sig(
+    tcx: TyCtxt,
+    closure_id: LocalDefId,
+    tys: &[Ty],
+    args: &flux_rustc_bridge::ty::GenericArgs,
+    poly_sig: &PolyFnSig,
+) -> PolyFnSig {
+    let closure_args = args.as_closure();
+    let kind_ty = closure_args.kind_ty().to_rustc(tcx);
+    let Some(kind) = kind_ty.to_opt_closure_kind() else {
+        bug!("to_closure_sig: expected closure kind, found {kind_ty:?}");
+    };
+
+    let mut vars = poly_sig.vars().clone().to_vec();
+    let fn_sig = poly_sig.clone().skip_binder();
+    let closure_ty = Ty::closure(closure_id.into(), tys, args);
+    let env_ty = match kind {
+        ClosureKind::Fn => {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            let br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - 1),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+        }
+        ClosureKind::FnMut => {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            let br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - 1),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+        }
+        ClosureKind::FnOnce => closure_ty,
+    };
+
+    let inputs = std::iter::once(env_ty)
+        .chain(fn_sig.inputs().iter().cloned())
+        .collect::<Vec<_>>();
+    let output = fn_sig.output().clone();
+
+    let fn_sig = crate::rty::FnSig::new(
+        fn_sig.safety,
+        fn_sig.abi,
+        crate::rty::List::empty(),
+        inputs.into(),
+        output,
+    );
+
+    PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
 #[derive(
