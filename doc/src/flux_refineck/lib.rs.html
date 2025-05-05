@@ -297,7 +297,14 @@
 <a href="#296" id="296">296</a>
 <a href="#297" id="297">297</a>
 <a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -313,7 +320,6 @@
 
 </span><span class="kw">extern crate </span>rustc_data_structures;
 <span class="kw">extern crate </span>rustc_errors;
-
 <span class="kw">extern crate </span>rustc_hir;
 <span class="kw">extern crate </span>rustc_index;
 <span class="kw">extern crate </span>rustc_infer;
@@ -346,6 +352,7 @@
     timings,
 };
 <span class="kw">use </span>itertools::Itertools;
+<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::def_id::LocalDefId;
 <span class="kw">use </span>rustc_span::Span;
@@ -411,15 +418,22 @@
         <span class="kw">let </span>ghost_stmts = compute_ghost_statements(genv, def_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
-
+        <span class="kw">let </span><span class="kw-2">mut </span>closures = UnordMap::default();
         <span class="comment">// PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        </span><span class="kw">let </span>shape_result = Checker::run_in_shape_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, opts)
-            .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>shape_result =
+            Checker::run_in_shape_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, <span class="kw-2">&amp;mut </span>closures, opts)
+                .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 2: generate refinement tree constraint
-        </span><span class="kw">let </span>infcx_root =
-            Checker::run_in_refine_mode(genv, def_id, <span class="kw-2">&amp;</span>ghost_stmts, shape_result, opts)
-                .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>infcx_root = Checker::run_in_refine_mode(
+            genv,
+            def_id,
+            <span class="kw-2">&amp;</span>ghost_stmts,
+            <span class="kw-2">&amp;mut </span>closures,
+            shape_result,
+            opts,
+        )
+        .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
 
         <span class="comment">// PHASE 3: invoke fixpoint on the constraint
         </span><span class="kw">let </span>errors = infcx_root

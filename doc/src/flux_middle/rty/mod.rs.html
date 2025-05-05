@@ -2783,13 +2783,32 @@
 <a href="#2782" id="2782">2782</a>
 <a href="#2783" id="2783">2783</a>
 <a href="#2784" id="2784">2784</a>
-<a href="#2785" id="2785">2785</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2785" id="2785">2785</a>
+<a href="#2786" id="2786">2786</a>
+<a href="#2787" id="2787">2787</a>
+<a href="#2788" id="2788">2788</a>
+<a href="#2789" id="2789">2789</a>
+<a href="#2790" id="2790">2790</a>
+<a href="#2791" id="2791">2791</a>
+<a href="#2792" id="2792">2792</a>
+<a href="#2793" id="2793">2793</a>
+<a href="#2794" id="2794">2794</a>
+<a href="#2795" id="2795">2795</a>
+<a href="#2796" id="2796">2796</a>
+<a href="#2797" id="2797">2797</a>
+<a href="#2798" id="2798">2798</a>
+<a href="#2799" id="2799">2799</a>
+<a href="#2800" id="2800">2800</a>
+<a href="#2801" id="2801">2801</a>
+<a href="#2802" id="2802">2802</a>
+<a href="#2803" id="2803">2803</a>
+<a href="#2804" id="2804">2804</a>
+<a href="#2805" id="2805">2805</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
-
 </span><span class="kw">mod </span>binder;
 <span class="kw">pub mod </span>canonicalize;
 <span class="kw">mod </span>expr;
@@ -2799,7 +2818,7 @@
 <span class="kw">pub mod </span>refining;
 <span class="kw">pub mod </span>region_matching;
 <span class="kw">pub mod </span>subst;
-<span class="kw">use </span>std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
+<span class="kw">use </span>std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
 <span class="kw">pub use </span>SortInfer::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
@@ -2820,7 +2839,7 @@
 <span class="kw">use </span>flux_rustc_bridge::{
     ToRustc,
     mir::Place,
-    ty::{<span class="self">self</span>, VariantDef},
+    ty::{<span class="self">self</span>, GenericArgsExt <span class="kw">as _</span>, VariantDef},
 };
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">pub use </span>normalize::{NormalizeInfo, NormalizedDefns, local_deps};
@@ -2843,9 +2862,11 @@
 <span class="kw">use </span><span class="self">self</span>::fold::TypeFoldable;
 <span class="kw">pub use </span><span class="kw">crate</span>::fhir::InferMode;
 <span class="kw">use crate</span>::{
+    LocalDefId,
     def_id::{FluxDefId, FluxLocalDefId},
     fhir::{<span class="self">self</span>, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    pretty::{Pretty, PrettyCx},
     queries::QueryResult,
     rty::subst::SortSubst,
 };
@@ -3445,6 +3466,16 @@
     <span class="kw">pub </span>kind: ClosureKind,
 }
 
+<span class="kw">impl </span>Pretty <span class="kw">for </span>FnTraitPredicate {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(
+            f,
+            <span class="string">"self = {:?}, args = {:?}, output = {:?}, kind = {}"</span>,
+            <span class="self">self</span>.self_ty, <span class="self">self</span>.tupled_args, <span class="self">self</span>.output, <span class="self">self</span>.kind
+        )
+    }
+}
+
 <span class="kw">impl </span>FnTraitPredicate {
     <span class="kw">pub fn </span>fndef_poly_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PolyFnSig {
         <span class="kw">let </span>inputs = <span class="self">self</span>.tupled_args.expect_tuple().iter().cloned().collect();
@@ -3459,49 +3490,58 @@
 
         PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
+}
 
-    <span class="kw">pub fn </span>to_closure_sig(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        closure_id: DefId,
-        tys: List&lt;Ty&gt;,
-        args: <span class="kw-2">&amp;</span>flux_rustc_bridge::ty::GenericArgs,
-    ) -&gt; PolyFnSig {
-        <span class="kw">let </span><span class="kw-2">mut </span>vars = <span class="macro">vec!</span>[];
+<span class="kw">pub fn </span>to_closure_sig(
+    tcx: TyCtxt,
+    closure_id: LocalDefId,
+    tys: <span class="kw-2">&amp;</span>[Ty],
+    args: <span class="kw-2">&amp;</span>flux_rustc_bridge::ty::GenericArgs,
+    poly_sig: <span class="kw-2">&amp;</span>PolyFnSig,
+) -&gt; PolyFnSig {
+    <span class="kw">let </span>closure_args = args.as_closure();
+    <span class="kw">let </span>kind_ty = closure_args.kind_ty().to_rustc(tcx);
+    <span class="kw">let </span><span class="prelude-val">Some</span>(kind) = kind_ty.to_opt_closure_kind() <span class="kw">else </span>{
+        <span class="macro">bug!</span>(<span class="string">"to_closure_sig: expected closure kind, found {kind_ty:?}"</span>);
+    };
 
-        <span class="kw">let </span>closure_ty = Ty::closure(closure_id, tys, args);
-        <span class="kw">let </span>env_ty = <span class="kw">match </span><span class="self">self</span>.kind {
-            ClosureKind::Fn =&gt; {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                <span class="kw">let </span>br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut =&gt; {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                <span class="kw">let </span>br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce =&gt; closure_ty,
-        };
-        <span class="kw">let </span>inputs = std::iter::once(env_ty)
-            .chain(<span class="self">self</span>.tupled_args.expect_tuple().iter().cloned())
-            .collect();
+    <span class="kw">let </span><span class="kw-2">mut </span>vars = poly_sig.vars().clone().to_vec();
+    <span class="kw">let </span>fn_sig = poly_sig.clone().skip_binder();
+    <span class="kw">let </span>closure_ty = Ty::closure(closure_id.into(), tys, args);
+    <span class="kw">let </span>env_ty = <span class="kw">match </span>kind {
+        ClosureKind::Fn =&gt; {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            <span class="kw">let </span>br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+        }
+        ClosureKind::FnMut =&gt; {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            <span class="kw">let </span>br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - <span class="number">1</span>),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+        }
+        ClosureKind::FnOnce =&gt; closure_ty,
+    };
 
-        <span class="kw">let </span>fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::RustCall,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
-        );
+    <span class="kw">let </span>inputs = std::iter::once(env_ty)
+        .chain(fn_sig.inputs().iter().cloned())
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    <span class="kw">let </span>output = fn_sig.output().clone();
 
-        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
-    }
+    <span class="kw">let </span>fn_sig = <span class="kw">crate</span>::rty::FnSig::new(
+        fn_sig.safety,
+        fn_sig.abi,
+        <span class="kw">crate</span>::rty::List::empty(),
+        inputs.into(),
+        output,
+    );
+
+    PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
 <span class="attr">#[derive(
@@ -4247,7 +4287,7 @@
     }
 
     <span class="attr">#[track_caller]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
+    </span><span class="kw">pub fn </span>expect_tuple(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[Ty] {
         <span class="kw">if let </span>TyKind::Indexed(BaseTy::Tuple(tys), <span class="kw">_</span>) = <span class="self">self</span>.kind() {
             tys
         } <span class="kw">else </span>{

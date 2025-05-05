@@ -2448,28 +2448,28 @@ pub fn test0(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
     c.map(|b| if b { 1 } else { 2 })
 }
 
-#[flux::sig(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:1 &lt;= v}&gt;)]
-pub fn test1(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
-    c.map(|b| if b { 1 } else { 2 })
-}
+// #[flux::sig(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:1 &lt;= v}&gt;)]
+// pub fn test1(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
+//     c.map(|b| if b { 1 } else { 2 })
+// }
 
-#[flux::sig(fn(c: Option&lt;bool[true]&gt;) -&gt; Option&lt;i32[1]&gt;)]
-pub fn test2(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
-    c.map(|b| if b { 1 } else { 2 })
-}
+// #[flux::sig(fn(c: Option&lt;bool[true]&gt;) -&gt; Option&lt;i32[1]&gt;)]
+// pub fn test2(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
+//     c.map(|b| if b { 1 } else { 2 })
+// }
 
-#[flux::sig(fn(n:usize) -&gt; usize[n + 2])]
-pub fn test3(n: usize) -&gt; usize {
-    checked_add(n, 1)
-        .and_then(|m| Some(m + 1))
-        .expect("overflow")
-}
+// #[flux::sig(fn(n:usize) -&gt; usize[n + 2])]
+// pub fn test3(n: usize) -&gt; usize {
+//     checked_add(n, 1)
+//         .and_then(|m| Some(m + 1))
+//         .expect("overflow")
+// }
 
-#[flux::trusted]
-#[flux::sig(fn(n:usize, m:usize) -&gt; Option&lt;usize[n + m]&gt;)]
-pub fn checked_add(n: usize, m: usize) -&gt; Option&lt;usize&gt; {
-    n.checked_add(m)
-}
+// #[flux::trusted]
+// #[flux::sig(fn(n:usize, m:usize) -&gt; Option&lt;usize[n + m]&gt;)]
+// pub fn checked_add(n: usize, m: usize) -&gt; Option&lt;usize&gt; {
+//     n.checked_add(m)
+// }
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

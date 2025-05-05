@@ -1609,7 +1609,9 @@
 <a href="#1608" id="1608">1608</a>
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a></pre></div><pre class="rust"><code><span class="doccomment">//! Encoding of the refinement tree into a fixpoint constraint.
 
 </span><span class="kw">use </span>std::{hash::Hash, iter};
 
@@ -1631,7 +1633,7 @@
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{<span class="self">self</span>, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
+    rty::{<span class="self">self</span>, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
     timings::{<span class="self">self</span>, TimingKind},
 };
 <span class="kw">use </span>itertools::Itertools;
@@ -2485,11 +2487,6 @@
             <span class="kw">return </span>rty::Expr::hole(rty::HoleKind::Pred);
         }
 
-        <span class="kw">let </span>[.., last] = binders <span class="kw">else </span>{
-            <span class="kw">return </span><span class="self">self</span>.fresh_inner(<span class="number">0</span>, [], encoding);
-        };
-
-        <span class="macro">debug_assert!</span>(last.iter().all(BoundVariableKind::is_refine));
         <span class="kw">let </span>args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, vars)| {
                 <span class="kw">let </span>debruijn = DebruijnIndex::from_usize(level);
@@ -2507,7 +2504,14 @@
             }),
             scope,
         );
-        <span class="self">self</span>.fresh_inner(last.len(), args, encoding)
+        <span class="kw">let </span>[.., last] = binders <span class="kw">else </span>{
+            <span class="kw">return </span><span class="self">self</span>.fresh_inner(<span class="number">0</span>, [], encoding);
+        };
+        <span class="kw">let </span>num_self_args = last
+            .iter()
+            .filter(|var| <span class="macro">matches!</span>(var, rty::BoundVariableKind::Refine(..)))
+            .count();
+        <span class="self">self</span>.fresh_inner(num_self_args, args, encoding)
     }
 
     <span class="kw">fn </span>fresh_inner&lt;A&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, self_args: usize, args: A, encoding: KVarEncoding) -&gt; rty::Expr

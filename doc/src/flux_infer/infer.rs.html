@@ -1097,8 +1097,7 @@
 <a href="#1096" id="1096">1096</a>
 <a href="#1097" id="1097">1097</a>
 <a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a>
-<a href="#1100" id="1100">1100</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1099" id="1099">1099</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1788,8 +1787,7 @@
 
     <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) -&gt; InferResult {
         <span class="kw">let </span>infcx = <span class="kw-2">&amp;mut </span>infcx.branch();
-
-        <span class="comment">// infcx.push_trace(TypeTrace::tys(a, b));
+        <span class="comment">// infcx.cursor.push_trace(TypeTrace::tys(a, b));
 
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a &gt; b})} &lt;: ∃a,b. ({i32[a] | b &lt; a}, i32[b])
