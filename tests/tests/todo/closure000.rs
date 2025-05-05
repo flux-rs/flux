@@ -6,6 +6,16 @@ where
     frog(99)
 }
 
+#[flux::sig(fn (frog: F) -> i32{v:0<=v} where F: FnOnce(i32{v:1000 <= v}) -> i32{v:0 <= v})]
+fn test001_err<F>(frog: F) -> i32
+where
+    F: FnOnce(i32) -> i32,
+{
+    frog(99) //~ ERROR refinement type
+}
+
+// -------------------------------------------------------------------------
+
 // fn test001_client() {
 //     test001(|x| x);
 // }

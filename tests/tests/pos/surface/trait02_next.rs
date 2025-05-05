@@ -11,6 +11,6 @@ where
     }
 }
 
-pub fn baz() {
-    foo(1, Some(2).into_iter())
-}
+// pub fn baz() {
+//     foo(1, Some(2).into_iter())
+// }

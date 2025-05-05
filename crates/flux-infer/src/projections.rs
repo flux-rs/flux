@@ -259,13 +259,35 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
         }
     }
 
+    fn assemble_candidates_from_predicates(
+        &mut self,
+        predicates: &List<Clause>,
+        obligation: &AliasTy,
+        ctor: fn(ProjectionPredicate) -> Candidate,
+        candidates: &mut Vec<Candidate>,
+    ) {
+        let tcx = self.tcx();
+        let rustc_obligation = obligation.to_rustc(tcx);
+
+        for predicate in predicates {
+            if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
+                // FIXME(nilehmann) make this matching resilient with respect to syntactic differences
+                // in refinements
+                if pred.projection_ty.to_rustc(tcx) == rustc_obligation {
+                    println!("TRACE: assemble_candidates: matched {obligation:?} => {pred:?}");
+                    candidates.push(ctor(pred.clone()));
+                }
+            }
+        }
+    }
     fn assemble_candidates_from_param_env(
-        &self,
+        &mut self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) {
-        assemble_candidates_from_predicates(
-            &self.param_env,
+        let predicates = self.param_env.clone();
+        self.assemble_candidates_from_predicates(
+            &predicates,
             obligation,
             Candidate::ParamEnv,
             candidates,
@@ -273,7 +295,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
     }
 
     fn assemble_candidates_from_trait_def(
-        &self,
+        &mut self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
@@ -286,7 +308,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
                 &alias_ty.args,
                 &alias_ty.refine_args,
             );
-            assemble_candidates_from_predicates(
+            self.assemble_candidates_from_predicates(
                 &bounds,
                 obligation,
                 Candidate::TraitDef,
@@ -331,23 +353,6 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
 
     fn rustc_param_env(&self) -> rustc_middle::ty::ParamEnv<'tcx> {
         self.selcx.tcx().param_env(self.def_id())
-    }
-}
-
-fn assemble_candidates_from_predicates(
-    predicates: &[Clause],
-    obligation: &AliasTy,
-    ctor: fn(ProjectionPredicate) -> Candidate,
-    candidates: &mut Vec<Candidate>,
-) {
-    for predicate in predicates {
-        if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
-            // FIXME(nilehmann) make this matching resilient with respect to syntactic differences
-            // in refinements
-            if &pred.projection_ty == obligation {
-                candidates.push(ctor(pred.clone()));
-            }
-        }
     }
 }
 

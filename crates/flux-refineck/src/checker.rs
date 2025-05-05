@@ -804,7 +804,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
-        println!("TRACE: checking call to {callee_def_id:?} with clauses {clauses:?}");
+        // println!("TRACE: check_call (00) {callee_def_id:?} ====> {clauses:?}");
 
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
@@ -814,12 +814,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
+        // println!("TRACE: check_call (0) {callee_def_id:?} ====> {generic_args:?}");
+
+        // println!("TRACE: check_call (1) {callee_def_id:?} ====> {fn_sig:?}");
+
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(infcx)
-            .with_span(span)?;
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
+
+        // println!("TRACE: check_call (2) {callee_def_id:?} ====> {fn_sig:?}");
+
+        let fn_sig = fn_sig.normalize_projections(infcx).with_span(span)?;
+
+        // println!("TRACE: check_call (3) {callee_def_id:?} ====> {fn_sig:?}");
 
         let mut at = infcx.at(span);
 
@@ -1710,9 +1718,13 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
             if tcx.require_lang_item(LangItem::Sized, None) == trait_id {
                 continue;
             }
+            if tcx.require_lang_item(LangItem::Tuple, None) == trait_id {
+                continue;
+            }
             if tcx.require_lang_item(LangItem::Copy, None) == trait_id {
                 continue;
             }
+
             if tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
                 continue;
             }
