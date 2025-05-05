@@ -322,7 +322,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let returns = parse_fn_ret(cx)?;
     let requires = parse_opt_requires(cx)?;
     let ensures = parse_opt_ensures(cx)?;
-    generics.predicates = parse_opt_where(cx)?;
+    generics.predicates = dbg!(parse_opt_where(cx)?);
     cx.expect(Tok::Eof)?;
     let hi = cx.hi();
     Ok(FnSig {
