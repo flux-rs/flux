@@ -225,7 +225,6 @@ impl SortEncodingCtxt {
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
-
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
                 if let Some(variant) = sort_def.opt_struct_variant() {
                     let sorts = variant.field_sorts(args);

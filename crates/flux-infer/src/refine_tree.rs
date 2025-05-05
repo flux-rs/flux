@@ -11,8 +11,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, Name, Sort, Ty, TyCtor, TyKind, Var,
-        canonicalize::{Hoister, HoisterDelegate},
+        BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -156,14 +155,6 @@ impl<'a> Cursor<'a> {
         self.ptr
             .push_node(NodeKind::Assumption(pred1.into()))
             .push_node(NodeKind::Head(pred2.into(), tag));
-    }
-
-    pub(crate) fn hoister<'tcx>(
-        &mut self,
-        tcx: TyCtxt<'tcx>,
-        assume_invariants: AssumeInvariants,
-    ) -> Hoister<Unpacker<'_, 'a, 'tcx>> {
-        Hoister::with_delegate(Unpacker { tcx, cursor: self, assume_invariants }).transparent()
     }
 
     pub(crate) fn assume_invariants(&mut self, tcx: TyCtxt, ty: &Ty, overflow_checking: bool) {
@@ -343,38 +334,6 @@ enum NodeKind {
     True,
     /// Used for debugging. See [`TypeTrace`]
     Trace(TypeTrace),
-}
-
-pub(crate) enum AssumeInvariants {
-    Yes { check_overflow: bool },
-    No,
-}
-
-impl AssumeInvariants {
-    pub(crate) fn yes(check_overflow: bool) -> Self {
-        Self::Yes { check_overflow }
-    }
-}
-
-pub struct Unpacker<'a, 'b, 'tcx> {
-    tcx: TyCtxt<'tcx>,
-    cursor: &'a mut Cursor<'b>,
-    assume_invariants: AssumeInvariants,
-}
-
-impl HoisterDelegate for Unpacker<'_, '_, '_> {
-    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.cursor.define_var(sort)));
-        if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
-            self.cursor.assume_invariants(self.tcx, &ty, check_overflow);
-        }
-        ty
-    }
-
-    fn hoist_constr(&mut self, pred: Expr) {
-        self.cursor.assume_pred(pred);
-    }
 }
 
 impl std::ops::Index<Name> for Scope {
