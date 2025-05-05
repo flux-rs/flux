@@ -4,7 +4,6 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
-
 mod binder;
 pub mod canonicalize;
 mod expr;
@@ -14,7 +13,7 @@ mod pretty;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
 pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
@@ -35,7 +34,7 @@ pub use flux_rustc_bridge::ty::{
 use flux_rustc_bridge::{
     ToRustc,
     mir::Place,
-    ty::{self, VariantDef},
+    ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
 pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
@@ -58,9 +57,11 @@ pub use rustc_type_ir::{INNERMOST, TyVid};
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
+    LocalDefId,
     def_id::{FluxDefId, FluxLocalDefId},
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
+    pretty::{Pretty, PrettyCx},
     queries::QueryResult,
     rty::subst::SortSubst,
 };
@@ -660,6 +661,16 @@ pub struct FnTraitPredicate {
     pub kind: ClosureKind,
 }
 
+impl Pretty for FnTraitPredicate {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "self = {:?}, args = {:?}, output = {:?}, kind = {}",
+            self.self_ty, self.tupled_args, self.output, self.kind
+        )
+    }
+}
+
 impl FnTraitPredicate {
     pub fn fndef_poly_sig(&self) -> PolyFnSig {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
@@ -674,49 +685,58 @@ impl FnTraitPredicate {
 
         PolyFnSig::bind_with_vars(fn_sig, List::empty())
     }
+}
 
-    pub fn to_closure_sig(
-        &self,
-        closure_id: DefId,
-        tys: List<Ty>,
-        args: &flux_rustc_bridge::ty::GenericArgs,
-    ) -> PolyFnSig {
-        let mut vars = vec![];
+pub fn to_closure_sig(
+    tcx: TyCtxt,
+    closure_id: LocalDefId,
+    tys: &[Ty],
+    args: &flux_rustc_bridge::ty::GenericArgs,
+    poly_sig: &PolyFnSig,
+) -> PolyFnSig {
+    let closure_args = args.as_closure();
+    let kind_ty = closure_args.kind_ty().to_rustc(tcx);
+    let Some(kind) = kind_ty.to_opt_closure_kind() else {
+        bug!("to_closure_sig: expected closure kind, found {kind_ty:?}");
+    };
 
-        let closure_ty = Ty::closure(closure_id, tys, args);
-        let env_ty = match self.kind {
-            ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::ClosureEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce => closure_ty,
-        };
-        let inputs = std::iter::once(env_ty)
-            .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect();
+    let mut vars = poly_sig.vars().clone().to_vec();
+    let fn_sig = poly_sig.clone().skip_binder();
+    let closure_ty = Ty::closure(closure_id.into(), tys, args);
+    let env_ty = match kind {
+        ClosureKind::Fn => {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            let br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - 1),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+        }
+        ClosureKind::FnMut => {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            let br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - 1),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+        }
+        ClosureKind::FnOnce => closure_ty,
+    };
 
-        let fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::RustCall,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
+    let inputs = std::iter::once(env_ty)
+        .chain(fn_sig.inputs().iter().cloned())
+        .collect::<Vec<_>>();
+    let output = fn_sig.output().clone();
 
-        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
-    }
+    let fn_sig = crate::rty::FnSig::new(
+        fn_sig.safety,
+        fn_sig.abi,
+        crate::rty::List::empty(),
+        inputs.into(),
+        output,
+    );
+
+    PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
 #[derive(
@@ -1462,7 +1482,7 @@ impl Ty {
     }
 
     #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+    pub fn expect_tuple(&self) -> &[Ty] {
         if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
             tys
         } else {

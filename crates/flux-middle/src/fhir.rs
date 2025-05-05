@@ -122,6 +122,7 @@ pub enum Node<'fhir> {
     OpaqueTy(&'fhir OpaqueTy<'fhir>),
     ForeignItem(&'fhir ForeignItem<'fhir>),
     AnonConst,
+    Expr,
 }
 
 impl<'fhir> Node<'fhir> {
@@ -133,6 +134,7 @@ impl<'fhir> Node<'fhir> {
             Node::ForeignItem(foreign_item) => Some(OwnerNode::ForeignItem(foreign_item)),
             Node::OpaqueTy(_) => None,
             Node::AnonConst => None,
+            Node::Expr => None,
         }
     }
 

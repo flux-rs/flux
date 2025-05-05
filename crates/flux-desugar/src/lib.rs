@@ -228,6 +228,9 @@ pub fn desugar<'genv>(
         rustc_hir::Node::AnonConst(..) => {
             nodes.insert(def_id, fhir::Node::AnonConst);
         }
+        rustc_hir::Node::Expr(..) => {
+            nodes.insert(def_id, fhir::Node::Expr);
+        }
         rustc_hir::Node::ForeignItem(foreign) => {
             let foreign_item = fhir::Node::ForeignItem(genv.alloc(cx.with_rust_item_ctxt(
                 owner_id,

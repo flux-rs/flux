@@ -20,7 +20,7 @@ use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
+    rty::{self, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
@@ -874,11 +874,6 @@ impl KVarGen {
             return rty::Expr::hole(rty::HoleKind::Pred);
         }
 
-        let [.., last] = binders else {
-            return self.fresh_inner(0, [], encoding);
-        };
-
-        debug_assert!(last.iter().all(BoundVariableKind::is_refine));
         let args = itertools::chain(
             binders.iter().rev().enumerate().flat_map(|(level, vars)| {
                 let debruijn = DebruijnIndex::from_usize(level);
@@ -896,7 +891,14 @@ impl KVarGen {
             }),
             scope,
         );
-        self.fresh_inner(last.len(), args, encoding)
+        let [.., last] = binders else {
+            return self.fresh_inner(0, [], encoding);
+        };
+        let num_self_args = last
+            .iter()
+            .filter(|var| matches!(var, rty::BoundVariableKind::Refine(..)))
+            .count();
+        self.fresh_inner(num_self_args, args, encoding)
     }
 
     fn fresh_inner<A>(&mut self, self_args: usize, args: A, encoding: KVarEncoding) -> rty::Expr

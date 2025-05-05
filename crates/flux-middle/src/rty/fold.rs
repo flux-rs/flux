@@ -743,7 +743,7 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Closure(_, _, _)
+            | BaseTy::Closure(..)
             | BaseTy::Never
             | BaseTy::Infer(_)
             | BaseTy::Foreign(_)
