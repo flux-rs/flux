@@ -662,7 +662,7 @@ where
             TyKind::Indexed(BaseTy::Closure(def_id, upvar_tys, args), idx) => {
                 let upvar_tys = self.fold_field_at(upvar_tys, f);
                 Ty::indexed(
-                    BaseTy::Closure(*def_id, upvar_tys, args.clone()), // TODO(RJ): Nico pls check!
+                    BaseTy::Closure(*def_id, upvar_tys, args.clone()),
                     idx.clone(),
                 )
             }
