@@ -32,19 +32,33 @@ fn test001_client_err() {
 //     f(99)
 // }
 
-// #[flux::sig(fn (f: F) -> i32{v:0<=v}
-//             where F: FnOnce(i32{v:0 <= v}, i32{v:0<=v})
-//         )]
-// fn test002<F>(f: F) -> i32
-// where
-//     F: FnOnce(i32, i32) -> i32,
-// {
-//     f(99, 100)
-// }
+#[flux::sig(fn (f: F) -> i32{v:0<=v}
+            where F: FnOnce(i32{v:0 <= v}, i32{v:0<=v}) -> i32{v:10<=v}
+        )]
+fn test002<F>(f: F) -> i32
+where
+    F: FnOnce(i32, i32) -> i32,
+{
+    f(99, 100)
+}
 
-// fn test002_client() {
-//     test002(|x, y| x + y);
-// }
+fn test002_client() {
+    test002(|x, y| x + y + 10);
+}
+
+#[flux::sig(fn (f: F) -> i32{v:10<=v}
+            where F: FnOnce(i32{v:0 <= v}, i32{v:0<=v}) -> i32{v:0<=v}
+        )]
+fn test002_err<F>(f: F) -> i32
+where
+    F: FnOnce(i32, i32) -> i32,
+{
+    f(99, 100) //~ ERROR refinement type
+}
+
+fn test002_client_err() {
+    test002(|x, y| x + y); //~ ERROR refinement type
+}
 
 // #[flux::sig(fn (f: F) -> i32[100]
 //             where F: FnOnce(i32[@k]) -> i32[k+1])]
