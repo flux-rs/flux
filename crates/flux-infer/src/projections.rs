@@ -14,11 +14,12 @@ use flux_middle::{
     },
 };
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
+use itertools::izip;
 use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::TyCtxt,
+    ty::{TyCtxt, Variance},
 };
 use rustc_trait_selection::traits::SelectionContext;
 
@@ -265,19 +266,21 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         }
     }
 
-    fn subtype_aliasty(&mut self, parent_id: DefId, lhs: &AliasTy, rhs: &AliasTy) -> InferResult {
+    fn subtype_aliasty(&mut self, parent_id: DefId, a: &AliasTy, b: &AliasTy) -> InferResult {
         let is_fn = self.tcx().is_fn_trait(parent_id);
-        println!("TRACE: subtype_aliasty: [{parent_id:?}]({is_fn:?}) ==> {lhs:?} <: {rhs:?}");
+        // println!("TRACE: subtype_aliasty (0): [{parent_id:?}]({is_fn:?}) ==> {a:?} <: {b:?}");
         if is_fn {
-            for (rhs_arg, lhs_arg) in rhs.args.iter().zip(lhs.args.iter()) {
-                if let (GenericArg::Ty(rhs_ty), GenericArg::Ty(lhs_ty)) = (rhs_arg, lhs_arg) {
-                    self.infcx
-                        .subtyping(rhs_ty, lhs_ty, crate::infer::ConstrReason::Predicate)?;
-                }
+            for (ty_a, ty_b) in izip!(a.args.iter().skip(1), b.args.iter().skip(1)) {
+                // println!("TRACE: subtype_aliasty (1): {ty_a:?} ~~~ {ty_b:?}");
+                self.infcx.subtyping_generic_args(
+                    Variance::Contravariant,
+                    ty_a,
+                    ty_b,
+                    crate::infer::ConstrReason::Predicate,
+                )?;
             }
         }
         Ok(())
-        // todo!("do subtyping on `args`");
     }
 
     fn assemble_candidates_from_predicates(

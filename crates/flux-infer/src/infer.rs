@@ -540,6 +540,19 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         Ok(sub.obligations)
     }
 
+    pub fn subtyping_generic_args(
+        &mut self,
+        variance: Variance,
+        a: &GenericArg,
+        b: &GenericArg,
+        reason: ConstrReason,
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+        let mut env = DummyEnv;
+        let mut sub = Sub::new(&mut env, reason, self.span);
+        sub.generic_args(self.infcx, variance, a, b)?;
+        Ok(sub.obligations)
+    }
+
     // FIXME(nilehmann) this is similar to `Checker::check_call`, but since is used from
     // `place_ty::fold` we cannot use that directly. We should try to unify them, because
     // there are a couple of things missing here (e.g., checking clauses on the struct definition).

@@ -14,12 +14,15 @@ where
     frog(99) //~ ERROR refinement type
 }
 
+fn test001_client() {
+    test001(|x| x);
+}
+
+fn test001_client_err() {
+    test001(|x| x - 1); //~ ERROR refinement type
+}
+
 // -------------------------------------------------------------------------
-
-// fn test001_client() {
-//     test001(|x| x);
-// }
-
 // #[flux::sig(fn (f: F) -> i32{v:0<=v}
 //             where F: FnOnce(i32{v:0 <= v}) -> i32{v:0 <= v})]
 // fn test0<F>(f: F) -> i32
