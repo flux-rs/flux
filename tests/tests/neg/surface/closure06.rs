@@ -15,34 +15,7 @@ where
     frog(99) //~ ERROR refinement type
 }
 
-#[flux::sig(fn () -> i32{v:10<=v})]
-pub fn test001_client() -> i32 {
-    test001(10, |x| x + 1)
-}
-
 #[flux::sig(fn () -> i32{v:20<=v})]
 pub fn test001_client_err() -> i32 {
     test001(20, |x| x - 1) //~ ERROR refinement type
 }
-
-// #[flux::sig(fn (f: F) -> i32[100]
-//             where F: FnOnce(i32[@k]) -> i32[k+1])]
-// fn test0<F>(f: F) -> i32
-// where
-//     F: FnOnce(i32) -> i32,
-// {
-//     f(99)
-// }
-
-// fn test0<F>(f: F) -> i32
-// where
-//     F: for<'apple> FnOnce(&'apple i32) -> &'apple i32,
-// {
-//     let z = 99;
-//     f(&z);
-//     z
-// }
-
-// fn client0_ok() {
-//     test0(|k| k);
-// }
