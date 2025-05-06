@@ -22,10 +22,10 @@ use rustc_middle::{
 };
 use rustc_trait_selection::traits::SelectionContext;
 
-use crate::infer::InferCtxt;
+use crate::infer::{InferCtxtAt, InferResult};
 
 pub trait NormalizeExt: TypeFoldable {
-    fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self>;
+    fn normalize_projections(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self>;
 
     /// Normalize projections but only inside sorts
     fn normalize_sorts<'tcx>(
@@ -37,8 +37,12 @@ pub trait NormalizeExt: TypeFoldable {
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
-    fn normalize_projections(&self, infcx: &mut InferCtxt) -> QueryResult<Self> {
-        let mut normalizer = Normalizer::new(infcx.branch())?;
+    fn normalize_projections(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self> {
+        let span = infcx.span;
+        let infcx = &mut infcx.infcx;
+        let mut infcx = infcx.branch();
+        let infcx = infcx.at(span);
+        let mut normalizer = Normalizer::new(infcx)?;
         self.erase_regions().try_fold_with(&mut normalizer)
     }
 
@@ -53,14 +57,14 @@ impl<T: TypeFoldable> NormalizeExt for T {
     }
 }
 
-struct Normalizer<'infcx, 'genv, 'tcx> {
-    infcx: InferCtxt<'infcx, 'genv, 'tcx>,
+struct Normalizer<'a, 'infcx, 'genv, 'tcx> {
+    infcx: InferCtxtAt<'a, 'infcx, 'genv, 'tcx>,
     selcx: SelectionContext<'infcx, 'tcx>,
     param_env: List<Clause>,
 }
 
-impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
-    fn new(infcx: InferCtxt<'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
+impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
+    fn new(infcx: InferCtxtAt<'a, 'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
         let predicates = infcx.genv.predicates_of(infcx.def_id)?;
         // println!("TRACE: Normalizer::new ({:?}) => {predicates:?})", infcx.def_id);
         let param_env = predicates.instantiate_identity().predicates.clone();
@@ -122,8 +126,10 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
         obligation: &AliasTy,
     ) -> QueryResult<(bool, SubsetTyCtor)> {
         let mut candidates = vec![];
-        self.assemble_candidates_from_param_env(obligation, &mut candidates);
-        self.assemble_candidates_from_trait_def(obligation, &mut candidates)?;
+        self.assemble_candidates_from_param_env(obligation, &mut candidates)
+            .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
+        self.assemble_candidates_from_trait_def(obligation, &mut candidates)
+            .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
 
         if candidates.is_empty() {
@@ -259,46 +265,62 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
         }
     }
 
+    fn subtype_aliasty(&mut self, parent_id: DefId, lhs: &AliasTy, rhs: &AliasTy) -> InferResult {
+        let is_fn = self.tcx().is_fn_trait(parent_id);
+        println!("TRACE: subtype_aliasty: [{parent_id:?}]({is_fn:?}) ==> {lhs:?} <: {rhs:?}");
+        if is_fn {
+            for (rhs_arg, lhs_arg) in rhs.args.iter().zip(lhs.args.iter()) {
+                if let (GenericArg::Ty(rhs_ty), GenericArg::Ty(lhs_ty)) = (rhs_arg, lhs_arg) {
+                    self.infcx
+                        .subtyping(rhs_ty, lhs_ty, crate::infer::ConstrReason::Predicate)?;
+                }
+            }
+        }
+        Ok(())
+        // todo!("do subtyping on `args`");
+    }
+
     fn assemble_candidates_from_predicates(
         &mut self,
         predicates: &List<Clause>,
         obligation: &AliasTy,
         ctor: fn(ProjectionPredicate) -> Candidate,
         candidates: &mut Vec<Candidate>,
-    ) {
+    ) -> InferResult {
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
-
         for predicate in predicates {
             if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
-                // FIXME(nilehmann) make this matching resilient with respect to syntactic differences
-                // in refinements
-                if pred.projection_ty.to_rustc(tcx) == rustc_obligation {
-                    println!("TRACE: assemble_candidates: matched {obligation:?} => {pred:?}");
+                let pred_projection_ty = pred.projection_ty.to_rustc(tcx);
+                if pred_projection_ty == rustc_obligation {
+                    let parent_def_id = pred_projection_ty.trait_ref(tcx).def_id;
+                    self.subtype_aliasty(parent_def_id, &pred.projection_ty, obligation)?;
                     candidates.push(ctor(pred.clone()));
                 }
             }
         }
+        Ok(())
     }
     fn assemble_candidates_from_param_env(
         &mut self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
-    ) {
+    ) -> InferResult {
         let predicates = self.param_env.clone();
         self.assemble_candidates_from_predicates(
             &predicates,
             obligation,
             Candidate::ParamEnv,
             candidates,
-        );
+        )?;
+        Ok(())
     }
 
     fn assemble_candidates_from_trait_def(
         &mut self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
-    ) -> QueryResult {
+    ) -> InferResult {
         if let GenericArg::Base(ctor) = &obligation.args[0]
             && let BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
@@ -313,7 +335,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
                 obligation,
                 Candidate::TraitDef,
                 candidates,
-            );
+            )?;
         }
         Ok(())
     }
@@ -356,7 +378,7 @@ impl<'infcx, 'genv, 'tcx> Normalizer<'infcx, 'genv, 'tcx> {
     }
 }
 
-impl FallibleTypeFolder for Normalizer<'_, '_, '_> {
+impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
     type Error = QueryErr;
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {

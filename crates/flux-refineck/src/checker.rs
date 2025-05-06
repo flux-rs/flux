@@ -318,7 +318,7 @@ fn check_fn_subtyping(
         infcx.subtyping(&output.ret, &super_output.ret, reason)?;
 
         // 6. Update state with Output "ensures" and check super ensures
-        env.assume_ensures(infcx, &output.ensures);
+        env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, &mut env, span)?;
         env.check_ensures(
             infcx,
@@ -453,10 +453,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
-
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
-            .normalize_projections(&mut infcx)
+            .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
@@ -825,7 +824,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // println!("TRACE: check_call (2) {callee_def_id:?} ====> {fn_sig:?}");
 
-        let fn_sig = fn_sig.normalize_projections(infcx).with_span(span)?;
+        let fn_sig = fn_sig
+            .normalize_projections(&mut infcx.at(span))
+            .with_span(span)?;
 
         // println!("TRACE: check_call (3) {callee_def_id:?} ====> {fn_sig:?}");
 
@@ -849,7 +850,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .fully_resolve_evars(&fn_sig.output)
             .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
 
-        env.assume_ensures(infcx, &output.ensures);
+        env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
         Ok(output.ret)
@@ -1609,7 +1610,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.fold(&mut infcx.at(span), place)?;
             }
             GhostStatement::Unfold(place) => {
-                env.unfold(&mut infcx.at(span), place)?;
+                env.unfold(infcx, place, span)?;
             }
             GhostStatement::Unblock(place) => env.unblock(infcx, place),
             GhostStatement::PtrToRef(place) => {
@@ -1824,7 +1825,7 @@ impl Mode for ShapeMode {
         ck: &mut Checker<'_, 'genv, 'tcx, ShapeMode>,
         _: InferCtxt<'_, 'genv, 'tcx>,
         env: TypeEnv,
-        _: Span,
+        span: Span,
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_envs = &mut ck.inherited.mode.bb_envs;
@@ -1832,7 +1833,7 @@ impl Mode for ShapeMode {
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
         let modified = match bb_envs.entry(ck.def_id).or_default().entry(target) {
-            Entry::Occupied(mut entry) => entry.get_mut().join(env),
+            Entry::Occupied(mut entry) => entry.get_mut().join(env, span),
             Entry::Vacant(entry) => {
                 let scope = marker_at_dominator(ck.body, &ck.markers, target)
                     .scope()
