@@ -803,8 +803,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             None => crate::rty::List::empty(),
         };
 
-        // println!("TRACE: check_call (00) {callee_def_id:?} ====> {clauses:?}");
-
         let (clauses, fn_clauses) = Clause::split_off_fn_trait_clauses(self.genv, &clauses);
         infcx
             .at(span)
@@ -813,22 +811,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         self.check_closure_clauses(infcx, &fn_clauses, span)?;
 
-        // println!("TRACE: check_call (0) {callee_def_id:?} ====> {generic_args:?}");
-
-        // println!("TRACE: check_call (1) {callee_def_id:?} ====> {fn_sig:?}");
-
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
-        // println!("TRACE: check_call (2) {callee_def_id:?} ====> {fn_sig:?}");
-
         let fn_sig = fn_sig
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
-
-        // println!("TRACE: check_call (3) {callee_def_id:?} ====> {fn_sig:?}");
 
         let mut at = infcx.at(span);
 

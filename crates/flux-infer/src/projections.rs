@@ -67,7 +67,6 @@ struct Normalizer<'a, 'infcx, 'genv, 'tcx> {
 impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     fn new(infcx: InferCtxtAt<'a, 'infcx, 'genv, 'tcx>) -> QueryResult<Self> {
         let predicates = infcx.genv.predicates_of(infcx.def_id)?;
-        // println!("TRACE: Normalizer::new ({:?}) => {predicates:?})", infcx.def_id);
         let param_env = predicates.instantiate_identity().predicates.clone();
         let selcx = SelectionContext::new(infcx.region_infcx);
         Ok(Normalizer { infcx, selcx, param_env })
@@ -268,10 +267,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
     fn subtype_aliasty(&mut self, parent_id: DefId, a: &AliasTy, b: &AliasTy) -> InferResult {
         let is_fn = self.tcx().is_fn_trait(parent_id);
-        // println!("TRACE: subtype_aliasty (0): [{parent_id:?}]({is_fn:?}) ==> {a:?} <: {b:?}");
         if is_fn {
+            // TODO: get `variances_of` from the `parent_id` trait?
             for (ty_a, ty_b) in izip!(a.args.iter().skip(1), b.args.iter().skip(1)) {
-                // println!("TRACE: subtype_aliasty (1): {ty_a:?} ~~~ {ty_b:?}");
                 self.infcx.subtyping_generic_args(
                     Variance::Contravariant,
                     ty_a,
