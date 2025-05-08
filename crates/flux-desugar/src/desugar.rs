@@ -258,8 +258,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             span_bug!(trait_ref.path.span, "desugar_alias_reft: unexpected qpath")
         };
         let span = path.span;
+
+        let params = self
+            .genv
+            .alloc_slice_fill_iter(self.implicit_params_to_params(trait_ref.node_id));
+
         fhir::PolyTraitRef {
             bound_generic_params: &[],
+            params,
             modifiers: fhir::TraitBoundModifier::None,
             trait_ref: path,
             span,
@@ -409,6 +415,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             let params = self
                 .genv
                 .alloc_slice_fill_iter(self.implicit_params_to_params(variant_def.node_id));
+
             Ok(fhir::VariantDef {
                 def_id: hir_variant.def_id,
                 params,
@@ -721,6 +728,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         );
         let bound = fhir::GenericBound::Trait(fhir::PolyTraitRef {
             bound_generic_params: &[],
+            params: &[],
             modifiers: fhir::TraitBoundModifier::None,
             trait_ref,
             span: trait_ref.span,

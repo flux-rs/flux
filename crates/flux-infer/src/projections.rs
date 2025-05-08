@@ -290,14 +290,15 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     ) -> InferResult {
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
+        let parent_def_id = rustc_obligation.trait_ref(tcx).def_id;
+
         for predicate in predicates {
-            if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
-                let pred_projection_ty = pred.projection_ty.to_rustc(tcx);
-                if pred_projection_ty == rustc_obligation {
-                    let parent_def_id = pred_projection_ty.trait_ref(tcx).def_id;
-                    self.subtype_aliasty(parent_def_id, &pred.projection_ty, obligation)?;
-                    candidates.push(ctor(pred.clone()));
-                }
+            if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder()
+                && pred.projection_ty.to_rustc(tcx) == rustc_obligation
+            {
+                todo!("handle binders in : {predicate:?}");
+                self.subtype_aliasty(parent_def_id, &pred.projection_ty, obligation)?;
+                candidates.push(ctor(pred.clone()));
             }
         }
         Ok(())

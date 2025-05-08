@@ -317,6 +317,7 @@ pub enum GenericBound<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct PolyTraitRef<'fhir> {
     pub bound_generic_params: &'fhir [GenericParam<'fhir>],
+    pub params: &'fhir [RefineParam<'fhir>],
     pub modifiers: TraitBoundModifier,
     pub trait_ref: Path<'fhir>,
     pub span: Span,

@@ -317,6 +317,11 @@ pub fn walk_variant<V: Visitor>(vis: &mut V, variant: &VariantDef) {
     }
 }
 
+pub fn walk_fn_trait_ref<V: Visitor>(vis: &mut V, in_arg: &GenericArg, out_arg: &GenericArg) {
+    vis.visit_generic_arg(in_arg);
+    vis.visit_generic_arg(out_arg);
+}
+
 pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     vis.visit_path(&ret.path);
     vis.visit_indices(&ret.indices);

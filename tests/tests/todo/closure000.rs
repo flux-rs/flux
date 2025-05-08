@@ -1,48 +1,19 @@
-#[flux::sig(fn (n:i32, frog: F) -> i32{v:n<=v} where F: FnOnce(i32{v:n <= v}) -> i32{v:n <= v})]
-pub fn test001<F>(n: i32, frog: F) -> i32
+// #[flux::sig(fn (i32[@noob]) -> i32[noob+1])]
+// pub fn inc(n: i32) -> i32 {
+//     n + 1
+// }
+
+// #[flux::refined_by(frog:int)]
+// pub enum Boogle {
+//     #[flux::variant({usize[@noob]} -> Boogle[noob])]
+//     MkBoogle(usize),
+// }
+
+#[flux::sig(fn (f: F) -> i32[100]
+            where F: FnOnce(i32[@king]) -> i32[king+1])]
+pub fn test0<F>(f: F) -> i32
 where
     F: FnOnce(i32) -> i32,
 {
-    let a = n + 1;
-    frog(a)
+    f(99)
 }
-
-#[flux::sig(fn (n:i32, frog: F) -> i32{v:n<=v} where F: FnOnce(i32{v:n <= v}) -> i32{v:n <= v})]
-pub fn test001_err<F>(n: i32, frog: F) -> i32
-where
-    F: FnOnce(i32) -> i32,
-{
-    frog(99) //~ ERROR refinement type
-}
-
-#[flux::sig(fn () -> i32{v:10<=v})]
-pub fn test001_client() -> i32 {
-    test001(10, |x| x + 1)
-}
-
-#[flux::sig(fn () -> i32{v:20<=v})]
-pub fn test001_client_err() -> i32 {
-    test001(20, |x| x - 1) //~ ERROR refinement type
-}
-
-// #[flux::sig(fn (f: F) -> i32[100]
-//             where F: FnOnce(i32[@k]) -> i32[k+1])]
-// fn test0<F>(f: F) -> i32
-// where
-//     F: FnOnce(i32) -> i32,
-// {
-//     f(99)
-// }
-
-// fn test0<F>(f: F) -> i32
-// where
-//     F: for<'apple> FnOnce(&'apple i32) -> &'apple i32,
-// {
-//     let z = 99;
-//     f(&z);
-//     z
-// }
-
-// fn client0_ok() {
-//     test0(|k| k);
-// }

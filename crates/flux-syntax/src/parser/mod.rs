@@ -658,7 +658,7 @@ fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
     let ident = parse_ident(cx)?;
     let in_arg = parse_fn_bound_input(cx)?;
     let out_arg = parse_fn_bound_output(cx)?;
-    let args = vec![in_arg, out_arg]; // inputs and output
+    let args = vec![in_arg, out_arg];
     let segment = PathSegment { ident, args, node_id: cx.next_node_id() };
     let hi = cx.hi();
     Ok(Path {
@@ -671,7 +671,7 @@ fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
 
 fn parse_generic_bounds(cx: &mut ParseCtxt) -> ParseResult<GenericBounds> {
     let path = if cx.peek(FnBoundLit) { parse_fn_bound_path(cx)? } else { parse_path(cx)? };
-    Ok(vec![TraitRef { path }])
+    Ok(vec![TraitRef { path, node_id: cx.next_node_id() }])
 }
 
 fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {
