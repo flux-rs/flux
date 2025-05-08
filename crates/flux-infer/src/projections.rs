@@ -4,6 +4,7 @@ use flux_common::{bug, iter::IterExt, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
+    rty,
     rty::{
         AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
         EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
@@ -265,20 +266,55 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         }
     }
 
-    fn subtype_aliasty(&mut self, parent_id: DefId, a: &AliasTy, b: &AliasTy) -> InferResult {
-        let is_fn = self.tcx().is_fn_trait(parent_id);
-        if is_fn {
-            // TODO: get `variances_of` from the `parent_id` trait?
-            for (ty_a, ty_b) in izip!(a.args.iter().skip(1), b.args.iter().skip(1)) {
-                self.infcx.subtyping_generic_args(
-                    Variance::Contravariant,
-                    ty_a,
-                    ty_b,
-                    crate::infer::ConstrReason::Predicate,
-                )?;
+    fn fn_subtype_projection_ty(
+        &mut self,
+        actual: Binder<ProjectionPredicate>,
+        oblig: &AliasTy,
+    ) -> InferResult<ProjectionPredicate> {
+        // Step 1: bs <- unpack(b1...)
+        println!("TRACE: fn_subtype_projection_ty: obligs(0) = {:?}", oblig.args);
+        let obligs: Vec<_> = oblig
+            .args
+            .iter()
+            .map(|arg| {
+                match arg {
+                    GenericArg::Ty(ty) => GenericArg::Ty(self.infcx.unpack(ty)),
+                    GenericArg::Base(ctor) => GenericArg::Ty(self.infcx.unpack(&ctor.to_ty())),
+                    _ => arg.clone(),
+                }
+            })
+            .collect();
+
+        println!("TRACE: fn_subtype_projection_ty: obligs(1) = {obligs:?}");
+
+        // Step 2: as <- fresh(a1...)
+        let actual = actual
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode| self.infcx.fresh_infer_var(sort, mode),
+            )
+            .normalize_projections(&mut self.infcx)?;
+
+        let actuals = actual.projection_ty.args.iter().map(|arg| {
+            match arg {
+                GenericArg::Base(ctor) => GenericArg::Ty(ctor.to_ty()),
+                _ => arg.clone(),
             }
+        });
+
+        // Step 3: bs <: as
+        for (a, b) in izip!(actuals.skip(1), obligs.iter().skip(1)) {
+            println!("TRACE: fn_subtype_projection_ty: a={a:?}, b={b:?}");
+            self.infcx.subtyping_generic_args(
+                Variance::Contravariant,
+                &a,
+                &b,
+                crate::infer::ConstrReason::Predicate,
+            )?;
         }
-        Ok(())
+
+        // Step 4: check all evars are solved, plug back into ProjectionPredicate
+        Ok(self.infcx.fully_resolve_evars(&actual))
     }
 
     fn assemble_candidates_from_predicates(
@@ -290,15 +326,18 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     ) -> InferResult {
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
-        let parent_def_id = rustc_obligation.trait_ref(tcx).def_id;
+        let parent_id = rustc_obligation.trait_ref(tcx).def_id;
 
         for predicate in predicates {
-            if let ClauseKind::Projection(pred) = predicate.kind_skipping_binder()
-                && pred.projection_ty.to_rustc(tcx) == rustc_obligation
+            if let Some(pred) = predicate.as_projection_clause()
+                && pred.skip_binder_ref().projection_ty.to_rustc(tcx) == rustc_obligation
             {
-                todo!("handle binders in : {predicate:?}");
-                self.subtype_aliasty(parent_def_id, &pred.projection_ty, obligation)?;
-                candidates.push(ctor(pred.clone()));
+                let pred = if self.tcx().is_fn_trait(parent_id) {
+                    self.fn_subtype_projection_ty(pred, obligation)?
+                } else {
+                    pred.skip_binder()
+                };
+                candidates.push(ctor(pred));
             }
         }
         Ok(())
