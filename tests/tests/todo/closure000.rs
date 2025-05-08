@@ -24,6 +24,11 @@ pub fn client0() -> i32 {
     test0(|z| z + 1)
 }
 
+// #[flux::sig(fn (i32[@kang]) -> i32[kang+1])]
+// pub fn bloah(n: i32) -> i32 {
+//     n + 1
+// }
+
 // fn client1<F>(f: F) -> i32[100]
 // where F: FnOnce(i32[@kong]) -> i32[kong+1]
 // {

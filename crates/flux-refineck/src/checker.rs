@@ -209,7 +209,9 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv.fn_sig(def_id).with_span(span)?.instantiate_identity();
+            let poly_sig = genv.fn_sig(def_id).with_span(span)?;
+            println!("TRACE: run_in_refine_mode (0) = {poly_sig:?}");
+            let poly_sig = poly_sig.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(root_ctxt)
@@ -220,6 +222,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 /// `SubFn` lets us reuse _most_ of the same code for `check_fn_subtyping` for both the case where
 /// we have an early-bound function signature (e.g., for a trait method???) and versions without,
 /// e.g. a plain closure against its FnTraitPredicate obligation.
+#[derive(Debug)]
 pub enum SubFn {
     Poly(EarlyBinder<rty::PolyFnSig>, rty::GenericArgs),
     Mono(rty::PolyFnSig),
@@ -257,9 +260,14 @@ fn check_fn_subtyping(
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
+    println!("TRACE: check_fn_subtyping (0): lhs = {sub_sig:?}");
+    println!("TRACE: check_fn_subtyping (1): rhs = {super_sig:?} ( {:?} )", super_sig.vars());
+
     let super_sig = super_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(&mut infcx)?;
+
+    println!("TRACE: check_fn_subtyping (2): rhs = {super_sig:?})");
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -311,8 +319,7 @@ fn check_fn_subtyping(
 
     // 4. OUTPUT subtyping (f_out <: g_out)
     infcx.ensure_resolved_evars(|infcx| {
-        let super_output = super_sig
-            .output()
+        let super_output = dbg!(super_sig.output())
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
         let reason = ConstrReason::Subtype(SubtypeReason::Output);
         infcx.subtyping(&output.ret, &super_output.ret, reason)?;
@@ -453,10 +460,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
+
+        println!("TRACE: checker::run (0) = {poly_sig:#?} ({:?})", poly_sig.vars());
+
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
+
+        println!("TRACE: checker::run (1) = {fn_sig:#?}");
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
 
@@ -809,7 +821,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
 
-        self.check_closure_clauses(infcx, &fn_clauses, span)?;
+        for fn_trait_pred in fn_clauses {
+            self.check_fn_trait_clause(infcx, &fn_trait_pred, span)?;
+        }
 
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
@@ -875,16 +889,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_fn_trait_clause(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        fn_trait_pred: &FnTraitPredicate,
+        poly_fn_trait_pred: &Binder<FnTraitPredicate>,
         span: Span,
     ) -> Result {
-        let self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
+        let self_ty = poly_fn_trait_pred
+            .skip_binder_ref()
+            .self_ty
+            .as_bty_skipping_existentials();
+        let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
             Some(BaseTy::Closure(def_id, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
-                let oblig_sig = fn_trait_pred.fndef_poly_sig();
                 check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
                     .with_span(span)?;
             }
@@ -893,7 +910,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
-                let oblig_sig = fn_trait_pred.fndef_poly_sig();
                 check_fn_subtyping(
                     infcx,
                     def_id,
@@ -912,19 +928,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    fn check_closure_clauses(
-        &mut self,
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        clauses: &[Binder<FnTraitPredicate>],
-        span: Span,
-    ) -> Result {
-        for clause in clauses {
-            // FIXME(nilehmann) we shouldn't be skipping this binder
-            let clause = clause.skip_binder_ref();
-            self.check_fn_trait_clause(infcx, clause, span)?;
-        }
-        Ok(())
-    }
+    // fn check_closure_clauses(
+    //     &mut self,
+    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    //     clauses: &[Binder<FnTraitPredicate>],
+    //     span: Span,
+    // ) -> Result {
+    //     for fn_trait_pred in clauses {
+    //         // FIXME(nilehmann) we shouldn't be skipping this binder
+    //         // println!("TRACE: check_closure_clauses clause = {clause:?}");
+    //         // let clause = clause.skip_binder_ref();
+    //         self.check_fn_trait_clause(infcx, fn_trait_pred, span)?;
+    //     }
+    //     Ok(())
+    // }
 
     fn check_assert(
         &mut self,

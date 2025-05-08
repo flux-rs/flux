@@ -39,6 +39,7 @@ where
     F2: FnMut(BoundRegion) -> Region,
 {
     fn replace_expr(&mut self, var: BoundReft) -> Expr {
+        println!("TRACE: replace_expr: {var:?}");
         (self.exprs)(var)
     }
 
