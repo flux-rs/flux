@@ -814,11 +814,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // Instantiate function signature and normalize it
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
+
+        println!("TRACE: normalized fn_sig (0) => {fn_sig:?}");
+
+        let fn_sig = fn_sig
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
 
-        println!("TRACE: normalized fn_sig => {fn_sig:?}");
+        println!("TRACE: normalized fn_sig (1) => {fn_sig:?}");
         let mut at = infcx.at(span);
 
         // Check requires predicates

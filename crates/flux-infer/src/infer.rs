@@ -308,6 +308,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         }
     }
 
+    /// Generate a fresh kvar in the _given_ [`Scope`] (similar method in [`InferCtxtRoot`]).
+    pub fn fresh_kvar_in_scope(
+        &self,
+        binders: &[BoundVariableKinds],
+        scope: &Scope,
+        encoding: KVarEncoding,
+    ) -> Expr {
+        let inner = &mut *self.inner.borrow_mut();
+        inner.kvars.fresh(binders, scope.iter(), encoding)
+    }
+
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
@@ -387,6 +398,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn cursor(&self) -> &Cursor<'infcx> {
         &self.cursor
     }
+
+    // pub fn scope(&self) -> Option<Scope> {
+    //     self.cursor.marker().scope()
+    // }
 }
 
 /// Methods that interact with the underlying [`Cursor`]

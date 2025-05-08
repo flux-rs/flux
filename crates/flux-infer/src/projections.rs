@@ -24,7 +24,11 @@ use rustc_middle::{
 };
 use rustc_trait_selection::traits::SelectionContext;
 
-use crate::infer::{InferCtxtAt, InferResult};
+use crate::{
+    fixpoint_encoding::KVarEncoding,
+    infer::{InferCtxtAt, InferResult},
+    refine_tree::Scope,
+};
 
 pub trait NormalizeExt: TypeFoldable {
     fn normalize_projections(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self>;
@@ -41,8 +45,8 @@ pub trait NormalizeExt: TypeFoldable {
 impl<T: TypeFoldable> NormalizeExt for T {
     fn normalize_projections(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self> {
         let span = infcx.span;
-        let infcx = &mut infcx.infcx;
-        let mut infcx = infcx.branch();
+        let infcx_orig = &mut infcx.infcx;
+        let mut infcx = infcx_orig.branch();
         let infcx = infcx.at(span);
         let mut normalizer = Normalizer::new(infcx)?;
         self.erase_regions().try_fold_with(&mut normalizer)
@@ -63,6 +67,7 @@ struct Normalizer<'a, 'infcx, 'genv, 'tcx> {
     infcx: InferCtxtAt<'a, 'infcx, 'genv, 'tcx>,
     selcx: SelectionContext<'infcx, 'tcx>,
     param_env: List<Clause>,
+    scope: Scope,
 }
 
 impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
@@ -70,7 +75,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let predicates = infcx.genv.predicates_of(infcx.def_id)?;
         let param_env = predicates.instantiate_identity().predicates.clone();
         let selcx = SelectionContext::new(infcx.region_infcx);
-        Ok(Normalizer { infcx, selcx, param_env })
+        let scope = infcx.cursor().marker().scope().unwrap();
+        Ok(Normalizer { infcx, selcx, param_env, scope })
     }
 
     fn get_impl_id_of_alias_reft(&mut self, alias_reft: &AliasReft) -> QueryResult<Option<DefId>> {
@@ -217,7 +223,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         obligation: &AliasTy,
     ) -> QueryResult<SubsetTyCtor> {
         match candidate {
-            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => Ok(pred.term),
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => {
+                println!("TRACE: move fn-subtype_projection_ty to here");
+                Ok(pred.term)
+            }
             Candidate::UserDefinedImpl(impl_def_id) => {
                 // Given a projection obligation
                 //     <IntoIter<{v. i32[v] | v > 0}, Global> as Iterator>::Item
@@ -287,34 +296,55 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
         println!("TRACE: fn_subtype_projection_ty: obligs(1) = {obligs:?}");
 
-        // Step 2: as <- fresh(a1...)
-        let actual = actual
-            .replace_bound_vars(
-                |_| rty::ReErased,
-                |sort, mode| self.infcx.fresh_infer_var(sort, mode),
-            )
-            .normalize_projections(&mut self.infcx)?;
+        let span = self.infcx.span;
+        let mut infcx = self.infcx.at(span);
 
-        let actuals = actual.projection_ty.args.iter().map(|arg| {
-            match arg {
-                GenericArg::Base(ctor) => GenericArg::Ty(ctor.to_ty()),
-                _ => arg.clone(),
+        let actual = infcx.ensure_resolved_evars(|infcx| {
+            // Step 2: as <- fresh(a1...)
+            let actual = actual
+                .replace_bound_vars(
+                    |_| rty::ReErased,
+                    |sort, mode| infcx.fresh_infer_var(sort, mode),
+                )
+                .normalize_projections(infcx)?;
+
+            let actuals = actual.projection_ty.args.iter().map(|arg| {
+                match arg {
+                    GenericArg::Base(ctor) => GenericArg::Ty(ctor.to_ty()),
+                    _ => arg.clone(),
+                }
+            });
+
+            // Step 3: bs <: as
+            for (a, b) in izip!(actuals.skip(1), obligs.iter().skip(1)) {
+                println!("TRACE: fn_subtype_projection_ty: a={a:?}, b={b:?}");
+                infcx.subtyping_generic_args(
+                    Variance::Contravariant,
+                    &a,
+                    &b,
+                    crate::infer::ConstrReason::Predicate,
+                )?;
             }
+            Ok(actual)
+        })?;
+        // Step 4: check all evars are solved, plug back into ProjectionPredicate
+        let actual = infcx.fully_resolve_evars(&actual);
+
+        // Step 5: generate "fresh" type for actual.term,
+        let oblig_term = actual.term.with_holes().replace_holes(|binders, kind| {
+            assert!(kind == rty::HoleKind::Pred);
+            let scope = &self.scope;
+            infcx.fresh_kvar_in_scope(binders, scope, KVarEncoding::Conj)
         });
 
-        // Step 3: bs <: as
-        for (a, b) in izip!(actuals.skip(1), obligs.iter().skip(1)) {
-            println!("TRACE: fn_subtype_projection_ty: a={a:?}, b={b:?}");
-            self.infcx.subtyping_generic_args(
-                Variance::Contravariant,
-                &a,
-                &b,
-                crate::infer::ConstrReason::Predicate,
-            )?;
-        }
-
-        // Step 4: check all evars are solved, plug back into ProjectionPredicate
-        Ok(self.infcx.fully_resolve_evars(&actual))
+        // Step 6: subtyping obligation on output
+        println!("TRACE: fn_subtype_projection_ty: output res = {actual:?}");
+        infcx.subtyping(
+            &actual.term.to_ty(),
+            &oblig_term.to_ty(),
+            crate::infer::ConstrReason::Predicate,
+        )?;
+        Ok(ProjectionPredicate { projection_ty: actual.projection_ty, term: oblig_term })
     }
 
     fn assemble_candidates_from_predicates(
@@ -324,6 +354,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         ctor: fn(ProjectionPredicate) -> Candidate,
         candidates: &mut Vec<Candidate>,
     ) -> InferResult {
+        println!("TRACE: assemble_candidates_from_predicates {}", candidates.len());
+
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
         let parent_id = rustc_obligation.trait_ref(tcx).def_id;
@@ -337,7 +369,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 } else {
                     pred.skip_binder()
                 };
-                candidates.push(ctor(pred));
+                let candidate = ctor(pred);
+                println!("TRACE: push_candidate {candidate:?}");
+                candidates.push(candidate);
             }
         }
         Ok(())
