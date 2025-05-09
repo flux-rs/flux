@@ -152,9 +152,6 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     }
 
     fn declare_param(&mut self, param: &fhir::RefineParam<'genv>) -> Result {
-        if param.name.as_str().starts_with("noob") {
-            panic!("TRACE: declare_param: {param:?}");
-        }
         let sort = self
             .as_conv_ctxt()
             .conv_sort(&param.sort)

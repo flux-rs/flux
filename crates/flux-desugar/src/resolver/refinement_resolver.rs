@@ -37,7 +37,7 @@ pub(crate) enum ScopeKind {
 
 impl ScopeKind {
     fn is_barrier(self) -> bool {
-        matches!(self, ScopeKind::FnInput | ScopeKind::FnTraitInput | ScopeKind::Variant)
+        matches!(self, ScopeKind::FnInput | ScopeKind::Variant)
     }
 }
 
@@ -164,21 +164,11 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
     fn visit_trait_ref(&mut self, trait_ref: &surface::TraitRef) {
         match trait_ref.as_fn_trait_ref() {
             Some((in_arg, out_arg)) => {
-                // self.with_scope(ScopeKind::Misc, |this| {
-                //     this.on_fn_trait_ref(in_arg, out_arg, trait_ref.node_id);
-                //     surface::visit::walk_fn_trait_ref(this, in_arg, out_arg);
-                // });
-
                 self.with_scope(ScopeKind::FnTraitInput, |this| {
                     this.on_fn_trait_input(&in_arg, trait_ref.node_id);
                     surface::visit::walk_generic_arg(this, &in_arg);
                     surface::visit::walk_generic_arg(this, &out_arg);
                 });
-                // self.visit_generic_arg(out_arg);
-                // self.with_scope(ScopeKind::Misc, |this| {
-                //     // this.on_fn_trait_output(&out_arg);
-                //     surface::visit::walk_generic_arg(this, &out_arg);
-                // });
             }
             None => {
                 self.with_scope(ScopeKind::Misc, |this| {
@@ -624,6 +614,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn try_resolve_param(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
         let res = self.find(ident)?;
+
         if let fhir::ParamKind::Error = res.kind() {
             self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
         }
@@ -744,9 +735,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                 .insert(param_id, (name, param_def.kind));
 
             if let Some(scope) = param_def.scope {
-                // CUT: if param_def.ident.name.as_str().starts_with("king") {
-                // CUT:     println!("TRACE: Adding param {:?} to scope {:?}", param_def.ident, scope);
-                // CUT: }
                 output
                     .implicit_params
                     .entry(scope)

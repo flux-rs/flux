@@ -200,7 +200,6 @@ where
                 f(sort, mode, kind)
             })
             .collect_vec();
-        println!("TRACE: replace_bound_refts_with: {exprs:?}");
         self.replace_bound_refts(&exprs)
     }
 }

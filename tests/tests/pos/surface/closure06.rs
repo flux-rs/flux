@@ -1,4 +1,5 @@
-#[flux::sig(fn (n:i32, frog: F) -> i32{v:n<=v} where F: FnOnce(i32{v:n <= v}) -> i32{v:n <= v})]
+#[flux::sig(fn (n:i32, frog: F) -> i32{v:n<=v}
+            where F: FnOnce(i32{v:n <= v}) -> i32{v:n <= v})]
 pub fn test001<F>(n: i32, frog: F) -> i32
 where
     F: FnOnce(i32) -> i32,

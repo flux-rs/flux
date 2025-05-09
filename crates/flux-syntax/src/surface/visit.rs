@@ -329,7 +329,6 @@ pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     vis.visit_async(&fn_sig.asyncness);
-    vis.visit_generics(&fn_sig.generics);
     walk_list!(vis, visit_refine_param, &fn_sig.params);
     for requires in &fn_sig.requires {
         walk_list!(vis, visit_refine_param, &requires.params);
@@ -337,6 +336,7 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     }
     walk_list!(vis, visit_fn_input, &fn_sig.inputs);
     vis.visit_fn_output(&fn_sig.output);
+    vis.visit_generics(&fn_sig.generics);
 }
 
 pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {

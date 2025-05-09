@@ -210,7 +210,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv.fn_sig(def_id).with_span(span)?;
-            println!("TRACE: run_in_refine_mode (0) = {poly_sig:?}");
             let poly_sig = poly_sig.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
@@ -224,14 +223,14 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
 /// e.g. a plain closure against its FnTraitPredicate obligation.
 #[derive(Debug)]
 pub enum SubFn {
-    Poly(EarlyBinder<rty::PolyFnSig>, rty::GenericArgs),
+    Poly(DefId, EarlyBinder<rty::PolyFnSig>, rty::GenericArgs),
     Mono(rty::PolyFnSig),
 }
 
 impl SubFn {
     pub fn as_ref(&self) -> &rty::PolyFnSig {
         match self {
-            SubFn::Poly(sig, _) => sig.skip_binder_ref(),
+            SubFn::Poly(_, sig, _) => sig.skip_binder_ref(),
             SubFn::Mono(sig) => sig,
         }
     }
@@ -251,7 +250,6 @@ impl SubFn {
 ///  }
 fn check_fn_subtyping(
     infcx: &mut InferCtxt,
-    def_id: &DefId,
     sub_sig: SubFn,
     super_sig: &rty::PolyFnSig,
     span: Span,
@@ -260,14 +258,9 @@ fn check_fn_subtyping(
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
-    println!("TRACE: check_fn_subtyping (0): lhs = {sub_sig:?}");
-    println!("TRACE: check_fn_subtyping (1): rhs = {super_sig:?} ( {:?} )", super_sig.vars());
-
     let super_sig = super_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
         .normalize_projections(&mut infcx)?;
-
-    println!("TRACE: check_fn_subtyping (2): rhs = {super_sig:?})");
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -284,8 +277,8 @@ fn check_fn_subtyping(
         // 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
         // in subtyping_mono, skip next two steps...
         let sub_sig = match sub_sig {
-            SubFn::Poly(early_sig, sub_args) => {
-                let refine_args = infcx.instantiate_refine_args(*def_id, &sub_args)?;
+            SubFn::Poly(def_id, early_sig, sub_args) => {
+                let refine_args = infcx.instantiate_refine_args(def_id, &sub_args)?;
                 early_sig.instantiate(tcx, &sub_args, &refine_args)
             }
             SubFn::Mono(sig) => sig,
@@ -319,7 +312,8 @@ fn check_fn_subtyping(
 
     // 4. OUTPUT subtyping (f_out <: g_out)
     infcx.ensure_resolved_evars(|infcx| {
-        let super_output = dbg!(super_sig.output())
+        let super_output = super_sig
+            .output()
             .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
         let reason = ConstrReason::Subtype(SubtypeReason::Output);
         infcx.subtyping(&output.ret, &super_output.ret, reason)?;
@@ -378,9 +372,9 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         genv.fn_sig(trait_method_id)?
             .instantiate(tcx, &trait_method_args, &trait_refine_args);
     let impl_sig = genv.fn_sig(impl_method_id)?;
-    let sub_sig = SubFn::Poly(impl_sig, impl_method_args);
+    let sub_sig = SubFn::Poly(impl_method_id, impl_sig, impl_method_args);
 
-    check_fn_subtyping(&mut infcx, &impl_method_id, sub_sig, &trait_fn_sig, span)?;
+    check_fn_subtyping(&mut infcx, sub_sig, &trait_fn_sig, span)?;
     Ok(Some(root_ctxt))
 }
 
@@ -461,14 +455,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let body = genv.mir(def_id).with_span(span)?;
 
-        println!("TRACE: checker::run (0) = {poly_sig:#?} ({:?})", poly_sig.vars());
-
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
-
-        println!("TRACE: checker::run (1) = {fn_sig:#?}");
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
 
@@ -679,7 +669,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ret = match kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } => {
                         let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
-
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
                             self.def_id.to_def_id(),
@@ -830,13 +819,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .instantiate(tcx, &generic_args, &refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
-        println!("TRACE: normalized fn_sig (0) => {fn_sig:?}");
-
         let fn_sig = fn_sig
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
 
-        println!("TRACE: normalized fn_sig (1) => {fn_sig:?}");
         let mut at = infcx.at(span);
 
         // Check requires predicates
@@ -902,7 +888,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
-                check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
+                check_fn_subtyping(infcx, SubFn::Mono(poly_sig.clone()), &oblig_sig, span)
                     .with_span(span)?;
             }
             Some(BaseTy::FnDef(def_id, args)) => {
@@ -912,36 +898,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let sub_sig = self.genv.fn_sig(def_id).with_span(span)?;
                 check_fn_subtyping(
                     infcx,
-                    def_id,
-                    SubFn::Poly(sub_sig, args.clone()),
+                    SubFn::Poly(*def_id, sub_sig, args.clone()),
                     &oblig_sig,
                     span,
                 )
                 .with_span(span)?;
             }
             _ => {
-                // TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
-                // but for now, we can skip as all the relevant types are unrefined.
+                // panic!("TRACE:missing subtyping {poly_fn_trait_pred:?}");
+                // TODO: When we allow refining closure/fn at the surface level,
+                // we would need to do some function subtyping here, but for now,
+                // we can skip as all the relevant types are unrefined.
                 // See issue-767.rs
             }
         }
         Ok(())
     }
-
-    // fn check_closure_clauses(
-    //     &mut self,
-    //     infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-    //     clauses: &[Binder<FnTraitPredicate>],
-    //     span: Span,
-    // ) -> Result {
-    //     for fn_trait_pred in clauses {
-    //         // FIXME(nilehmann) we shouldn't be skipping this binder
-    //         // println!("TRACE: check_closure_clauses clause = {clause:?}");
-    //         // let clause = clause.skip_binder_ref();
-    //         self.check_fn_trait_clause(infcx, fn_trait_pred, span)?;
-    //     }
-    //     Ok(())
-    // }
 
     fn check_assert(
         &mut self,
@@ -1445,9 +1417,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
                     let current_did = infcx.def_id;
-                    let sub_sig = SubFn::Poly(infcx.genv.fn_sig(*def_id)?, args.clone());
+                    let sub_sig =
+                        SubFn::Poly(current_did, infcx.genv.fn_sig(*def_id)?, args.clone());
                     // TODO:CLOSURE:2 TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
-                    check_fn_subtyping(infcx, &current_did, sub_sig, super_sig, stmt_span)?;
+                    check_fn_subtyping(infcx, sub_sig, super_sig, stmt_span)?;
                     to
                 } else {
                     tracked_span_bug!("invalid cast from `{from:?}` to `{to:?}`")

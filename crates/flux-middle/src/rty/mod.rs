@@ -674,16 +674,9 @@ impl Pretty for FnTraitPredicate {
 impl FnTraitPredicate {
     pub fn fndef_sig(&self) -> FnSig {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
-
-        FnSig::new(
-            Safety::Safe,
-            abi::Abi::Rust,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        )
-
-        // CUT PolyFnSig::bind_with_vars(fn_sig, List::empty())
+        let ret = self.output.clone().shift_in_escaping(1);
+        let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
+        FnSig::new(Safety::Safe, abi::Abi::Rust, List::empty(), inputs, output)
     }
 }
 
@@ -1174,8 +1167,7 @@ pub struct VariantSig {
 
 pub type PolyFnSig = Binder<FnSig>;
 
-// #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct FnSig {
     pub safety: Safety,
     pub abi: abi::Abi,

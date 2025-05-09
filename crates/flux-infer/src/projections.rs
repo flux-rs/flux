@@ -224,7 +224,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     ) -> QueryResult<SubsetTyCtor> {
         match candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => {
-                println!("TRACE: move fn-subtype_projection_ty to here");
+                // println!("TRACE: move fn-subtype_projection_ty to here");
                 Ok(pred.term)
             }
             Candidate::UserDefinedImpl(impl_def_id) => {
@@ -281,7 +281,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         oblig: &AliasTy,
     ) -> InferResult<ProjectionPredicate> {
         // Step 1: bs <- unpack(b1...)
-        println!("TRACE: fn_subtype_projection_ty: obligs(0) = {:?}", oblig.args);
         let obligs: Vec<_> = oblig
             .args
             .iter()
@@ -293,8 +292,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 }
             })
             .collect();
-
-        println!("TRACE: fn_subtype_projection_ty: obligs(1) = {obligs:?}");
 
         let span = self.infcx.span;
         let mut infcx = self.infcx.at(span);
@@ -317,7 +314,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
 
             // Step 3: bs <: as
             for (a, b) in izip!(actuals.skip(1), obligs.iter().skip(1)) {
-                println!("TRACE: fn_subtype_projection_ty: a={a:?}, b={b:?}");
                 infcx.subtyping_generic_args(
                     Variance::Contravariant,
                     &a,
@@ -338,7 +334,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         });
 
         // Step 6: subtyping obligation on output
-        println!("TRACE: fn_subtype_projection_ty: output res = {actual:?}");
         infcx.subtyping(
             &actual.term.to_ty(),
             &oblig_term.to_ty(),
@@ -354,8 +349,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         ctor: fn(ProjectionPredicate) -> Candidate,
         candidates: &mut Vec<Candidate>,
     ) -> InferResult {
-        println!("TRACE: assemble_candidates_from_predicates {}", candidates.len());
-
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
         let parent_id = rustc_obligation.trait_ref(tcx).def_id;
@@ -369,9 +362,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 } else {
                     pred.skip_binder()
                 };
-                let candidate = ctor(pred);
-                println!("TRACE: push_candidate {candidate:?}");
-                candidates.push(candidate);
+                candidates.push(ctor(pred));
             }
         }
         Ok(())

@@ -535,19 +535,6 @@ where
     }
 }
 
-impl TypeFoldable for crate::rty::FnSig {
-    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let requires = self.requires.try_fold_with(folder)?;
-        let inputs = self.inputs.try_fold_with(folder)?;
-        println!("TRACE: folding inputs: {:?} ==> {inputs:?}", self.inputs);
-        let output = self.output.try_fold_with(folder)?;
-        println!("TRACE: folding output: {:?} ==> {output:?}", self.output);
-        let out_ty = self.output.skip_binder_ref().ret.try_fold_with(folder)?;
-        println!("TRACE: folding out_ty: {out_ty:?}");
-        Ok(crate::rty::FnSig::new(self.safety, self.abi, requires, inputs, output))
-    }
-}
-
 impl TypeVisitable for VariantSig {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.fields.visit_with(visitor)?;
