@@ -87,7 +87,7 @@ pub struct Cursor<'a> {
     ptr: NodePtr,
 }
 
-impl<'a> Cursor<'a> {
+impl Cursor<'_> {
     /// Moves the cursor to the specified [marker]. If `clear_children` is `true`, all children of
     /// the node are removed after moving the cursor, invalidating any markers pointing to a node
     /// within those children.
