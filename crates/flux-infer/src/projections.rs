@@ -317,7 +317,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 infcx.subtyping_generic_args(
                     Variance::Contravariant,
                     &a,
-                    &b,
+                    b,
                     crate::infer::ConstrReason::Predicate,
                 )?;
             }
