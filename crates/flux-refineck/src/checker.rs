@@ -24,7 +24,7 @@ use flux_middle::{
     },
 };
 use flux_rustc_bridge::{
-    self,
+    self, ToRustc,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
         Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
@@ -872,6 +872,41 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
+    fn find_self_ty_fn_sig(
+        &self,
+        self_ty: rustc_middle::ty::Ty<'tcx>,
+        span: Span,
+    ) -> Result<PolyFnSig> {
+        let tcx = self.genv.tcx();
+        let predicates = self
+            .genv
+            .predicates_of(self.def_id)
+            .with_span(span)?
+            .instantiate_identity()
+            .predicates;
+
+        for predicate in &predicates {
+            if let Some(proj_clause) = predicate.as_projection_clause()
+                && let def_id = proj_clause.projection_def_id()
+                && let Some(kind) = self.genv.is_fn_output(def_id)
+                && proj_clause
+                    .self_ty()
+                    .skip_binder_ref()
+                    .to_ty()
+                    .to_rustc(tcx)
+                    == self_ty
+            {
+                return Ok(proj_clause.map(|proj_pred| {
+                    let self_ty = proj_pred.self_ty().to_ty();
+                    let tupled_args = proj_pred.projection_ty.args[1].expect_base().to_ty();
+                    let output = proj_pred.term.to_ty();
+                    FnTraitPredicate { kind, self_ty, tupled_args, output }.fndef_sig()
+                }));
+            }
+        }
+        bug!("yikes")
+    }
+
     fn check_fn_trait_clause(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -904,13 +939,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 )
                 .with_span(span)?;
             }
-            _ => {
-                // panic!("TRACE:missing subtyping {poly_fn_trait_pred:?}");
-                // TODO: When we allow refining closure/fn at the surface level,
-                // we would need to do some function subtyping here, but for now,
-                // we can skip as all the relevant types are unrefined.
-                // See issue-767.rs
+            Some(self_ty) => {
+                // Step 1. Find matching clause and turn it into a FnSig
+                let tcx = self.genv.tcx();
+                let self_ty = self_ty.to_rustc(tcx);
+                let sub_sig = self.find_self_ty_fn_sig(self_ty, span)?;
+                // Step 2. Issue the subtyping
+                check_fn_subtyping(infcx, SubFn::Mono(sub_sig), &oblig_sig, span)
+                    .with_span(span)?;
+                // CUT TODO: When we allow refining closure/fn at the surface level,
+                // CUT we would need to do some function subtyping here, but for now,
+                // CUT we can skip as all the relevant types are unrefined.
+                // CUT See issue-767.rs
             }
+            _ => {}
         }
         Ok(())
     }
@@ -1721,7 +1763,7 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
         }
         if let Some(proj_pred) = clause.as_projection_clause() {
             let assoc_id = proj_pred.item_def_id();
-            if genv.is_fn_once_output(assoc_id) {
+            if genv.is_fn_output(assoc_id).is_some() {
                 continue;
             }
         }

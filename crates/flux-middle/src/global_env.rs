@@ -22,7 +22,7 @@ use crate::{
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
-        self,
+        self, ClosureKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -413,11 +413,24 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn is_fn_once_output(&self, def_id: DefId) -> bool {
-        self.tcx()
-            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
-            == def_id
+    pub fn is_fn_output(&self, def_id: DefId) -> Option<ClosureKind> {
+        let tcx = self.tcx();
+        let assoc_item = tcx.opt_associated_item(def_id)?;
+        let trait_def_id = assoc_item.trait_container(tcx)?;
+        self.tcx().fn_trait_kind_from_def_id(trait_def_id)
+        // if self
+        //     .tcx()
+        //     .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
+        //     == def_id
+        // {
+        //     return Some(ClosureKind::FnOnce);
+        // }
+        // None
     }
+
+    // CUT pub fn is_fn_trait_output(&self, def_id: DefId) -> bool {
+    // CUT     self.is_fn_once_output(def_id) || self.is_fn_mut_output(def_id) || self.is_fn_output(def_id)
+    // CUT }
 
     /// Iterator over all local def ids that are not a extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {
