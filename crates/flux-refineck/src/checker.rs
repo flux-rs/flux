@@ -954,7 +954,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }));
             }
         }
-        bug!("yikes")
+        span_bug!(
+            span,
+            "cannot find self_ty_fn_sig for {:?} with self_ty = {self_ty:?}",
+            self.def_id
+        );
     }
 
     fn check_fn_trait_clause(
@@ -989,6 +993,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 )
                 .with_span(span)?;
             }
+            Some(BaseTy::FnPtr(sub_sig)) => {
+                check_fn_subtyping(infcx, SubFn::Mono(sub_sig.clone()), &oblig_sig, span)
+                    .with_span(span)?;
+            }
+
             Some(self_ty) => {
                 // Step 1. Find matching clause and turn it into a FnSig
                 let tcx = self.genv.tcx();

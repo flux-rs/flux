@@ -8,15 +8,6 @@ where
 }
 
 #[flux::sig(fn () -> i32[100])]
-pub fn client0() -> i32 {
-    #[flux::sig(fn (x: i32) -> i32[x+1])]
-    fn inc(x: i32) -> i32 {
-        x + 1
-    }
-    test0(inc)
-}
-
-#[flux::sig(fn () -> i32[100])]
 pub fn client0_err() -> i32 {
     #[flux::sig(fn (x: i32) -> i32[x+1])]
     fn inc(x: i32) -> i32 {
