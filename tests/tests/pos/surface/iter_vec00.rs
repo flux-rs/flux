@@ -42,3 +42,25 @@ fn test_iter_for_loop_vec2(vec: &Vec<u8>) -> Vec<u8> {
     }
     res
 }
+
+// ----------------------------------------------------------
+
+// trait MyEnum: Iterator {
+//     fn my_enum<F, B>(&self, f: F) -> Vec<B>
+//     where
+//         F: FnMut(Self::Item) -> B;
+// }
+
+// impl<'a, A> MyEnum for Iter<'a, A> {
+//     fn my_enum<F, B>(&self, f: F) -> Vec<B>
+//     where
+//         for<'a> F: FnMut(&'a A) -> B,
+//     {
+//         todo!()
+//         // let mut res = Vec::new();
+//         // for v in self {
+//         //     res.push(f(v));
+//         // }
+//         // res
+//     }
+// }

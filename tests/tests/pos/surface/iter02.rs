@@ -61,3 +61,10 @@ pub fn test_enumer3(slice: &[usize]) {
         assert(idx < slice.len())
     }
 }
+
+#[flux::sig(fn(&[usize][@n]) )]
+pub fn test_enumer4(slice: &[usize]) {
+    for (idx, _) in slice.iter().enumerate() {
+        assert(idx < slice.len())
+    }
+}

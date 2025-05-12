@@ -18,9 +18,10 @@ struct Map<I, F>;
 trait FromIterator<A> {}
 
 #[extern_spec(std::iter)]
+#[flux::assoc(fn valid_item(item: Self::Item) -> bool { true })]
 #[flux::assoc(fn size(self: Self) -> int)]
-#[flux::assoc(fn done(self: Self) -> bool )]
-#[flux::assoc(fn step(self: Self, other: Self) -> bool )]
+#[flux::assoc(fn done(self: Self) -> bool)]
+#[flux::assoc(fn step(self: Self, other: Self) -> bool)]
 trait Iterator {
     #[flux::sig(fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)})]
     fn next(&mut self) -> Option<Self::Item>;
@@ -66,3 +67,19 @@ impl<I: Iterator> Iterator for Enumerate<I> {
 #[flux::assoc(fn done(x: Map<I>) -> bool { <I as Iterator>::done(x.inner)})]
 #[flux::assoc(fn step(x: Map<I>, y: Map<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
 impl<B, I: Iterator, F: FnMut(I::Item) -> B> Iterator for Map<I, F> {} // orig: where F: FnMut(I::Item) -> B {}
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+#[flux_rs::extern_spec(std::iter)]
+trait IntoIterator {
+    #[flux_rs::sig(fn(self: Self) -> Self::IntoIter)]
+    fn into_iter(self) -> Self::IntoIter
+    where
+        Self: Sized;
+}
+
+#[flux_rs::extern_spec(core::ops)]
+impl<I: Iterator> IntoIterator for I {
+    #[flux_rs::sig(fn(self: I[@s]) -> I[s])]
+    fn into_iter(self) -> I;
+}
