@@ -261,7 +261,7 @@ fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
             .into_iter()
             .partition(|pred| matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)));
         if let Some(hole) = holes.pop() {
-            preds.push(hole)
+            preds.push(hole);
         }
         rty::FnSig::new(
             fn_sig.safety,
