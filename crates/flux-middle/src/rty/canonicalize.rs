@@ -36,8 +36,8 @@ use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
-    TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, PolyFnSig, SubsetTy, Ty,
+    TyCtor, TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
 
@@ -134,6 +134,10 @@ impl<D> Hoister<D> {
 impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
+    }
+
+    pub fn hoist_fn_sig(&mut self, sig: &PolyFnSig) -> PolyFnSig {
+        sig.fold_with(self)
     }
 }
 

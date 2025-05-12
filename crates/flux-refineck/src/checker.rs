@@ -19,6 +19,7 @@ use flux_middle::{
         PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
+        canonicalize::{Hoister, LocalHoister},
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -234,6 +235,50 @@ impl SubFn {
             SubFn::Mono(sig) => sig,
         }
     }
+}
+
+/// The function `hoist_with_binders` uses the `LocalHoister` machinery to convert
+/// a (closure) function template _without_ binders, e.g. `fn ({v.i32 | *}) -> {v.i32|*})`
+/// into one _with_ input binders, e.g. `forall <a:int>. fn ({i32[a]|*}) -> {v.i32|*}`
+/// after which the hole-filling machinery can be used to fill in the holes.
+/// This lets us get "dependent signatures" where the output can refer to the input.
+/// e.g. see `tests/pos/surface/closure09.rs`
+fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
+    // println!("TRACE: hoist_input_binders (0): {poly_sig:?}");
+    let original_vars = poly_sig.vars();
+    let fn_sig = poly_sig.skip_binder_ref();
+
+    let mut delegate = LocalHoister::default();
+    let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+
+    let inputs = fn_sig
+        .inputs()
+        .iter()
+        .map(|ty| hoister.hoist(ty))
+        .collect_vec();
+
+    let hoisted_sig = delegate.bind(|_vars, requires| {
+        rty::FnSig::new(
+            fn_sig.safety,
+            fn_sig.abi,
+            requires.into(),
+            inputs.into(),
+            fn_sig.output().clone(),
+        )
+    });
+
+    // Bit ugly, but we need to prefix the `original_vars` to the `hoisted_vars` (?)
+    let hoisted_vars = hoisted_sig.vars().clone();
+    let hoisted_sig = hoisted_sig.skip_binder();
+    let vars = original_vars
+        .into_iter()
+        .chain(hoisted_vars.into_iter())
+        .map(|var| var.clone())
+        .collect_vec();
+
+    let res = Binder::bind_with_vars(hoisted_sig, vars.into());
+    // println!("TRACE: hoist_input_binders (1): {res:?}");
+    res
 }
 
 /// The function `check_fn_subtyping` does a function subtyping check between
@@ -1133,9 +1178,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
+            // println!("TRACE: closure_template (0): {poly_sig:#?}");
             let poly_sig = self.refine_with_holes(&poly_sig)?;
+            // println!("TRACE: closure_template (1): {poly_sig:#?}");
+            let poly_sig = hoist_input_binders(&poly_sig); // infcx.hoister(false).hoist_fn_sig(&poly_sig);
+            // println!("TRACE: closure_template (2): {poly_sig:#?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+            // println!("TRACE: closure_template (3): {poly_sig:#?}");
+
             Ok((upvar_tys, poly_sig))
         } else {
             bug!("check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}");

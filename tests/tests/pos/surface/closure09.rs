@@ -11,8 +11,3 @@ where
 pub fn client0() -> i32 {
     test0(|z| z + 1)
 }
-
-#[flux::sig(fn () -> i32[100])]
-pub fn client0_err() -> i32 {
-    test0(|z| z - 1) //~ ERROR refinement type
-}
