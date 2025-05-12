@@ -222,10 +222,20 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         candidate: Candidate,
         obligation: &AliasTy,
     ) -> QueryResult<SubsetTyCtor> {
+        let tcx = self.tcx();
         match candidate {
             Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) => {
-                // println!("TRACE: move fn-subtype_projection_ty to here");
-                Ok(pred.term)
+                let rustc_obligation = obligation.to_rustc(tcx);
+                let parent_id = rustc_obligation.trait_ref(tcx).def_id;
+                // Do fn-subtyping if the candidate was a fn-trait
+                if tcx.is_fn_trait(parent_id) {
+                    let res = self
+                        .fn_subtype_projection_ty(pred, obligation)
+                        .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
+                    Ok(res)
+                } else {
+                    Ok(pred.skip_binder().term)
+                }
             }
             Candidate::UserDefinedImpl(impl_def_id) => {
                 // Given a projection obligation
@@ -257,15 +267,13 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 let args = subst.finish(self.tcx(), generics)?;
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
-                let assoc_type_id = self
-                    .tcx()
+                let assoc_type_id = tcx
                     .associated_items(impl_def_id)
                     .in_definition_order()
                     .find(|item| item.trait_item_def_id == Some(obligation.def_id))
                     .map(|item| item.def_id)
                     .unwrap();
 
-                let tcx = self.tcx();
                 Ok(self
                     .genv()
                     .type_of(assoc_type_id)?
@@ -279,7 +287,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         &mut self,
         actual: Binder<ProjectionPredicate>,
         oblig: &AliasTy,
-    ) -> InferResult<ProjectionPredicate> {
+    ) -> InferResult<SubsetTyCtor> {
         // Step 1: bs <- unpack(b1...)
         let obligs: Vec<_> = oblig
             .args
@@ -339,29 +347,31 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             &oblig_term.to_ty(),
             crate::infer::ConstrReason::Predicate,
         )?;
-        Ok(ProjectionPredicate { projection_ty: actual.projection_ty, term: oblig_term })
+        // Ok(ProjectionPredicate { projection_ty: actual.projection_ty, term: oblig_term })
+        Ok(oblig_term)
     }
 
     fn assemble_candidates_from_predicates(
         &mut self,
         predicates: &List<Clause>,
         obligation: &AliasTy,
-        ctor: fn(ProjectionPredicate) -> Candidate,
+        ctor: fn(Binder<ProjectionPredicate>) -> Candidate,
         candidates: &mut Vec<Candidate>,
     ) -> InferResult {
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
-        let parent_id = rustc_obligation.trait_ref(tcx).def_id;
+        // let parent_id = rustc_obligation.trait_ref(tcx).def_id;
 
         for predicate in predicates {
             if let Some(pred) = predicate.as_projection_clause()
                 && pred.skip_binder_ref().projection_ty.to_rustc(tcx) == rustc_obligation
             {
-                let pred = if self.tcx().is_fn_trait(parent_id) {
-                    self.fn_subtype_projection_ty(pred, obligation)?
-                } else {
-                    pred.skip_binder()
-                };
+                // let pred = if self.tcx().is_fn_trait(parent_id) {
+                //     todo!("fn_subtype_projection_ty shenanigans")
+                //     // self.fn_subtype_projection_ty(pred, obligation)?
+                // } else {
+                //     pred
+                // };
                 candidates.push(ctor(pred));
             }
         }
@@ -524,8 +534,8 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 #[derive(Debug)]
 pub enum Candidate {
     UserDefinedImpl(DefId),
-    ParamEnv(ProjectionPredicate),
-    TraitDef(ProjectionPredicate),
+    ParamEnv(Binder<ProjectionPredicate>),
+    TraitDef(Binder<ProjectionPredicate>),
 }
 
 #[derive(Debug)]
