@@ -3,7 +3,7 @@ mod utils;
 
 use std::str::FromStr;
 
-use lookahead::{AnyIdent, AnyLit, FnBoundLit, LAngle, RAngle};
+use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 use rustc_span::sym::Output;
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
@@ -670,7 +670,8 @@ fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
 }
 
 fn parse_generic_bounds(cx: &mut ParseCtxt) -> ParseResult<GenericBounds> {
-    let path = if cx.peek(FnBoundLit) { parse_fn_bound_path(cx)? } else { parse_path(cx)? };
+    let is_fn = cx.peek(["FnOnce", "FnMut", "Fn"]);
+    let path = if is_fn { parse_fn_bound_path(cx)? } else { parse_path(cx)? };
     Ok(vec![TraitRef { path, node_id: cx.next_node_id() }])
 }
 

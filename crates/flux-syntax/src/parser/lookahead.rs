@@ -39,18 +39,6 @@ impl Peek for AnyIdent {
     }
 }
 
-#[derive(Clone, Copy)]
-pub(crate) struct FnBoundLit;
-impl Peek for FnBoundLit {
-    fn matches(self, tok: Token) -> bool {
-        matches!(tok, Token::Ident(sym) if sym.as_str() == "FnOnce" || sym.as_str() == "FnMut" || sym.as_str() == "Fn")
-    }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        ["FnOnce", "FnMut", "Fn"].into_iter()
-    }
-}
-
 /// A struct that can be used to match any literal
 #[derive(Clone, Copy)]
 pub(crate) struct AnyLit;
