@@ -733,7 +733,7 @@ pub fn to_closure_sig(
     let fn_sig = crate::rty::FnSig::new(
         fn_sig.safety,
         fn_sig.abi,
-        crate::rty::List::empty(),
+        fn_sig.requires.clone(), // crate::rty::List::empty(),
         inputs.into(),
         output,
     );

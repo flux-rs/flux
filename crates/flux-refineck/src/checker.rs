@@ -15,8 +15,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        ExprKind, FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, HoleKind, Int,
+        IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
@@ -245,10 +245,9 @@ impl SubFn {
 /// e.g. see `tests/pos/surface/closure09.rs`
 fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
     // println!("TRACE: hoist_input_binders (0): {poly_sig:?}");
-    let original_vars = poly_sig.vars();
+    let original_vars = poly_sig.vars().to_vec();
     let fn_sig = poly_sig.skip_binder_ref();
-
-    let mut delegate = LocalHoister::default();
+    let mut delegate = LocalHoister::new(original_vars);
     let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
     let inputs = fn_sig
@@ -257,28 +256,34 @@ fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
         .map(|ty| hoister.hoist(ty))
         .collect_vec();
 
-    let hoisted_sig = delegate.bind(|_vars, requires| {
+    delegate.bind(|_vars, preds| {
+        let (mut holes, mut preds): (Vec<_>, Vec<_>) = preds
+            .into_iter()
+            .partition(|pred| matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)));
+        if let Some(hole) = holes.pop() {
+            preds.push(hole)
+        }
         rty::FnSig::new(
             fn_sig.safety,
             fn_sig.abi,
-            requires.into(),
+            preds.into(),
             inputs.into(),
             fn_sig.output().clone(),
         )
-    });
+    })
 
-    // Bit ugly, but we need to prefix the `original_vars` to the `hoisted_vars` (?)
-    let hoisted_vars = hoisted_sig.vars().clone();
-    let hoisted_sig = hoisted_sig.skip_binder();
-    let vars = original_vars
-        .into_iter()
-        .chain(hoisted_vars.into_iter())
-        .map(|var| var.clone())
-        .collect_vec();
+    // // Bit ugly, but we need to prefix the `original_vars` to the `hoisted_vars` (?)
+    // let hoisted_vars = hoisted_sig.vars().clone();
+    // let hoisted_sig = hoisted_sig.skip_binder();
+    // let vars = original_vars
+    //     .into_iter()
+    //     .chain(hoisted_vars.into_iter())
+    //     .map(|var| var.clone())
+    //     .collect_vec();
 
-    let res = Binder::bind_with_vars(hoisted_sig, vars.into());
-    // println!("TRACE: hoist_input_binders (1): {res:?}");
-    res
+    // let res = Binder::bind_with_vars(hoisted_sig, vars.into());
+    // // println!("TRACE: hoist_input_binders (1): {res:?}");
+    // res
 }
 
 /// The function `check_fn_subtyping` does a function subtyping check between
@@ -1181,7 +1186,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // println!("TRACE: closure_template (0): {poly_sig:#?}");
             let poly_sig = self.refine_with_holes(&poly_sig)?;
             // println!("TRACE: closure_template (1): {poly_sig:#?}");
-            let poly_sig = hoist_input_binders(&poly_sig); // infcx.hoister(false).hoist_fn_sig(&poly_sig);
+            let poly_sig = hoist_input_binders(&poly_sig);
             // println!("TRACE: closure_template (2): {poly_sig:#?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));

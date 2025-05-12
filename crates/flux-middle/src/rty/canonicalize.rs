@@ -204,6 +204,10 @@ pub struct LocalHoister {
 }
 
 impl LocalHoister {
+    pub fn new(vars: Vec<BoundVariableKind>) -> Self {
+        LocalHoister { vars, preds: vec![] }
+    }
+
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
         let vars = List::from_vec(self.vars);
         Binder::bind_with_vars(f(vars.clone(), self.preds), vars)
