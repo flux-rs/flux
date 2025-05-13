@@ -707,13 +707,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let tcx = self.genv().tcx();
         let predicates = tcx.predicates_of(def_id);
         let unrefined_clauses = predicates.predicates;
+        // println!("TRACE: match_clauses {def_id:?} (unrefined) => {unrefined_clauses:#?}");
+        // println!("TRACE: match_clauses {def_id:?} (refined)   => {refined_clauses:#?}");
 
         // For each *refined clause* at index `j` find a corrresponding *unrefined clause* at index
         // `i` and save a mapping `i -> j`.
         let mut map = UnordMap::default();
         for (j, clause) in refined_clauses.iter().enumerate() {
+            let kind = clause.kind();
+            let vars = kind.vars();
             let clause = clause.to_rustc(tcx);
             let Some((i, _)) = unrefined_clauses.iter().find_position(|it| it.0 == clause) else {
+                panic!("TRACE: cannot match predicate {j:?} ==> {clause:?} [{vars:?}]");
                 self.emit_fail_to_match_predicates(def_id)?;
             };
             if map.insert(i, j).is_some() {

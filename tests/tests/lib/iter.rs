@@ -18,7 +18,6 @@ struct Map<I, F>;
 trait FromIterator<A> {}
 
 #[extern_spec(std::iter)]
-#[flux::assoc(fn valid_item(item: Self::Item) -> bool { true })]
 #[flux::assoc(fn size(self: Self) -> int)]
 #[flux::assoc(fn done(self: Self) -> bool)]
 #[flux::assoc(fn step(self: Self, other: Self) -> bool)]
