@@ -1208,10 +1208,41 @@
 <a href="#1207" id="1207">1207</a>
 <a href="#1208" id="1208">1208</a>
 <a href="#1209" id="1209">1209</a>
-<a href="#1210" id="1210">1210</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
+<a href="#1210" id="1210">1210</a>
+<a href="#1211" id="1211">1211</a>
+<a href="#1212" id="1212">1212</a>
+<a href="#1213" id="1213">1213</a>
+<a href="#1214" id="1214">1214</a>
+<a href="#1215" id="1215">1215</a>
+<a href="#1216" id="1216">1216</a>
+<a href="#1217" id="1217">1217</a>
+<a href="#1218" id="1218">1218</a>
+<a href="#1219" id="1219">1219</a>
+<a href="#1220" id="1220">1220</a>
+<a href="#1221" id="1221">1221</a>
+<a href="#1222" id="1222">1222</a>
+<a href="#1223" id="1223">1223</a>
+<a href="#1224" id="1224">1224</a>
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
+<a href="#1234" id="1234">1234</a>
+<a href="#1235" id="1235">1235</a>
+<a href="#1236" id="1236">1236</a>
+<a href="#1237" id="1237">1237</a>
+<a href="#1238" id="1238">1238</a>
+<a href="#1239" id="1239">1239</a>
+<a href="#1240" id="1240">1240</a>
+<a href="#1241" id="1241">1241</a>
+<a href="#1242" id="1242">1242</a></pre></div><pre class="rust"><code><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
 <span class="kw">mod </span>utils;
-
-<span class="kw">use </span>std::str::FromStr;
+<span class="kw">use </span>std::{collections::HashSet, str::FromStr, vec};
 
 <span class="kw">use </span>lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
 <span class="kw">use </span>utils::{
@@ -1220,7 +1251,7 @@
 };
 
 <span class="kw">use crate</span>::{
-    ParseCtxt, ParseResult, Peek <span class="kw">as _</span>,
+    ParseCtxt, ParseError, ParseResult, Peek <span class="kw">as _</span>,
     lexer::{
         Delimiter::<span class="kw-2">*</span>,
         Token::{<span class="self">self </span><span class="kw">as </span>Tok, Caret, CloseDelim, Comma, OpenDelim},
@@ -1510,6 +1541,38 @@
     <span class="prelude-val">Ok</span>(GenericParam { name, kind, node_id: cx.next_node_id() })
 }
 
+<span class="kw">fn </span>invalid_ident_err(ident: <span class="kw-2">&amp;</span>Ident) -&gt; ParseError {
+    ParseError { kind: <span class="kw">crate</span>::ParseErrorKind::InvalidBinding, span: ident.span }
+}
+
+<span class="kw">fn </span>mut_as_strg(inputs: Vec&lt;FnInput&gt;, ensures: <span class="kw-2">&amp;</span>[Ensures]) -&gt; ParseResult&lt;Vec&lt;FnInput&gt;&gt; {
+    <span class="comment">// 1. Gather ensures
+    </span><span class="kw">let </span>locs = ensures
+        .iter()
+        .filter_map(|ens| <span class="kw">if let </span>Ensures::Type(ident, <span class="kw">_</span>, <span class="kw">_</span>) = ens { <span class="prelude-val">Some</span>(ident) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
+        .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+    <span class="comment">// 2. Walk over inputs and transform references mentioned in ensures
+    </span><span class="kw">let </span><span class="kw-2">mut </span>res = <span class="macro">vec!</span>[];
+    <span class="kw">for </span>input <span class="kw">in </span>inputs {
+        <span class="kw">if let </span>FnInput::Ty(<span class="prelude-val">Some</span>(ident), <span class="kw">_</span>, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>input
+            &amp;&amp; locs.contains(<span class="kw-2">&amp;</span>ident)
+        {
+            <span class="comment">// a known location: better be a mut or else, error!
+            </span><span class="kw">let </span>FnInput::Ty(<span class="prelude-val">Some</span>(ident), ty, id) = input <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_ident_err(ident));
+            };
+            <span class="kw">let </span>TyKind::Ref(Mutability::Mut, inner_ty) = ty.kind <span class="kw">else </span>{
+                <span class="kw">return </span><span class="prelude-val">Err</span>(invalid_ident_err(<span class="kw-2">&amp;</span>ident));
+            };
+            res.push(FnInput::StrgRef(ident, <span class="kw-2">*</span>inner_ty, id));
+        } <span class="kw">else </span>{
+            <span class="comment">// not a known location, leave unchanged
+            </span>res.push(input);
+        }
+    }
+    <span class="prelude-val">Ok</span>(res)
+}
+
 <span class="doccomment">/// ```text
 /// ⟨fn_sig⟩ := ⟨asyncness⟩ fn ⟨ident⟩?
 ///             ⟨ [ ⟨refine_param⟩,* ] ⟩?
@@ -1532,6 +1595,7 @@
     <span class="kw">let </span>returns = parse_fn_ret(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>requires = parse_opt_requires(cx)<span class="question-mark">?</span>;
     <span class="kw">let </span>ensures = parse_opt_ensures(cx)<span class="question-mark">?</span>;
+    <span class="kw">let </span>inputs = mut_as_strg(inputs, <span class="kw-2">&amp;</span>ensures)<span class="question-mark">?</span>;
     generics.predicates = parse_opt_where(cx)<span class="question-mark">?</span>;
     cx.expect(Tok::Eof)<span class="question-mark">?</span>;
     <span class="kw">let </span>hi = cx.hi();
