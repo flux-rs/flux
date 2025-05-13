@@ -14,9 +14,9 @@ use flux_middle::{
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, EVid, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EVid, EarlyBinder,
+        Expr, FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability,
+        Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
@@ -684,7 +684,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             fn_sig,
                             &generic_args,
                             &actuals,
-                        )?.0
+                        )?
+                        .0
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
                         let ty = self
@@ -700,7 +701,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                                 EarlyBinder(fn_sig.clone()),
                                 &[],
                                 &actuals,
-                            )?.0
+                            )?
+                            .0
                         } else {
                             bug!("TODO: fnptr call {ty:?}")
                         }
@@ -822,7 +824,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(infcx)
             .with_span(span)?;
-        let evars: FxIndexSet<EVid> = fn_sig.inputs().iter().flat_map(|input| input.evars()).collect();
+        let evars: FxIndexSet<EVid> = fn_sig
+            .inputs()
+            .iter()
+            .flat_map(|input| input.evars())
+            .collect();
 
         let mut at = infcx.at(span);
 
@@ -839,10 +845,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         infcx.pop_evar_scope().with_span(span)?;
         env.fully_resolve_evars(infcx);
-        let solved_evars =
-            evars.iter().map(|evar| {
-                infcx.fully_resolve_evars(&rty::Expr::evar(*evar))
-            }).collect_vec();
+        let solved_evars = evars
+            .iter()
+            .map(|evar| infcx.fully_resolve_evars(&rty::Expr::evar(*evar)))
+            .collect_vec();
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
@@ -1238,7 +1244,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let args =
                     instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
                         .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals).map(|(ret_ty, _args)| ret_ty)
+                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
+                    .map(|(ret_ty, _args)| ret_ty)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self
