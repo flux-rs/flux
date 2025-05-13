@@ -229,7 +229,7 @@ impl PolyFnSig {
     pub fn hoist_input_binders(&self) -> Self {
         let original_vars = self.vars().to_vec();
         let fn_sig = self.skip_binder_ref();
-        let mut delegate = LocalHoister { vars: original_vars, preds: vec![] };
+        let mut delegate = LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec() };
         let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
         let inputs = fn_sig
