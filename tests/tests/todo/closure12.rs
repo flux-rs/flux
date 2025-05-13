@@ -3,10 +3,10 @@
 #![feature(step_trait, allocator_api)]
 #![allow(unused)]
 
-#[path = "../../lib/vec.rs"]
+#[path = "../lib/vec.rs"]
 mod vec;
 
-#[path = "../../lib/iterator.rs"]
+#[path = "../lib/iterator.rs"]
 mod iterator;
 
 #[flux_rs::sig(fn (bool[true]))]
