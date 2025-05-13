@@ -24,6 +24,7 @@ struct Skip<I>;
 struct Zip<A, B>;
 
 #[flux_rs::extern_spec(core::ops)]
+#[flux_rs::assoc(fn valid_item(self: Range<A>, item: <Range<A> as Iterator>::Item) -> bool { self.start <= item && item < self.end })]
 #[flux_rs::assoc(fn size(self: Range<A>) -> int { <A as Step>::size(self.start, self.end) })]
 #[flux_rs::assoc(fn done(self: Range<A>) -> bool { <A as Step>::size(self.start, self.end) <= 0})]
 #[flux_rs::assoc(fn step(self: Range<A>, other: Range<A>) -> bool { <A as Step>::can_step_forward(self.start, 1) => other.start == <A as Step>::step_forward(self.start, 1) } )]

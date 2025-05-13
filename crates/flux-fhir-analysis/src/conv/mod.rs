@@ -714,11 +714,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         // `i` and save a mapping `i -> j`.
         let mut map = UnordMap::default();
         for (j, clause) in refined_clauses.iter().enumerate() {
-            let kind = clause.kind();
-            let vars = kind.vars();
             let clause = clause.to_rustc(tcx);
             let Some((i, _)) = unrefined_clauses.iter().find_position(|it| it.0 == clause) else {
-                panic!("TRACE: cannot match predicate {j:?} ==> {clause:?} [{vars:?}]");
                 self.emit_fail_to_match_predicates(def_id)?;
             };
             if map.insert(i, j).is_some() {
@@ -2848,4 +2845,11 @@ mod errors {
         #[primary_span]
         pub(super) span: Span,
     }
+}
+
+fn dot2(vec1: &Vec<i32>, vec2: &Vec<i32>) -> i32 {
+    let n = vec1.len();
+    let mut res = 0;
+    (0..n).for_each(|i| res += vec1[i] * vec2[i]);
+    res
 }
