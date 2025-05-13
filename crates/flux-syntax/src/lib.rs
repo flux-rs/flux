@@ -195,4 +195,5 @@ pub enum ParseErrorKind {
     UnexpectedToken { expected: Vec<&'static str> },
     UnexpectedEof,
     CannotBeChained,
+    InvalidBinding,
 }
