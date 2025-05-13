@@ -14,12 +14,12 @@ use flux_middle::{
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
+        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, EVid, Expr,
         FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
         PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
         refining::{Refine, Refiner},
     },
 };
@@ -33,7 +33,7 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _},
 };
 use itertools::{Itertools, izip};
-use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
+use rustc_data_structures::{fx::FxIndexSet, graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     LangItem,
@@ -684,7 +684,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             fn_sig,
                             &generic_args,
                             &actuals,
-                        )?
+                        )?.0
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
                         let ty = self
@@ -700,7 +700,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                                 EarlyBinder(fn_sig.clone()),
                                 &[],
                                 &actuals,
-                            )?
+                            )?.0
                         } else {
                             bug!("TODO: fnptr call {ty:?}")
                         }
@@ -763,6 +763,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     #[expect(clippy::too_many_arguments)]
+    /// Returns (resolved output type, resolved refinement arguments)
+    ///
+    /// The refinement arguments includes both EarlyBound and late Bound
+    /// parameters.
     fn check_call(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -772,7 +776,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<Ty> {
+    ) -> Result<(Ty, Vec<Expr>)> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
@@ -818,6 +822,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .normalize_projections(infcx)
             .with_span(span)?;
+        let evars: FxIndexSet<EVid> = fn_sig.inputs().iter().flat_map(|input| input.evars()).collect();
 
         let mut at = infcx.at(span);
 
@@ -834,6 +839,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         infcx.pop_evar_scope().with_span(span)?;
         env.fully_resolve_evars(infcx);
+        let solved_evars =
+            evars.iter().map(|evar| {
+                infcx.fully_resolve_evars(&rty::Expr::evar(*evar))
+            }).collect_vec();
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
@@ -842,7 +851,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.assume_ensures(infcx, &output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
-        Ok(output.ret)
+        Ok((output.ret, solved_evars))
     }
 
     fn check_coroutine_obligations(
@@ -1229,7 +1238,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let args =
                     instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
                         .with_span(stmt_span)?;
-                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
+                self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals).map(|(ret_ty, _args)| ret_ty)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self

@@ -32,13 +32,12 @@
 //! [constraint predicates]: TyKind::Constr
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
+use itertools::Itertools;
 use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
-    TyKind, TyOrBase,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable}, BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig, SubsetTy, Ty, TyCtor, TyKind, TyOrBase
 };
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
@@ -218,6 +217,34 @@ impl HoisterDelegate for &mut LocalHoister {
 
     fn hoist_constr(&mut self, pred: Expr) {
         self.preds.push(pred);
+    }
+}
+
+impl PolyFnSig {
+    /// Convert a function signature with existentials to one where they are all
+    /// bound at the top level. Performs a transparent (i.e. not shallow)
+    /// canonicalization.
+    pub fn hoist_input_binders(&self) -> Self {
+        let original_vars = self.vars().to_vec();
+        let fn_sig = self.skip_binder_ref();
+        let mut delegate = LocalHoister { vars: original_vars, preds: vec![] };
+        let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+
+        let inputs = fn_sig
+            .inputs()
+            .iter()
+            .map(|ty| hoister.hoist(ty))
+            .collect_vec();
+
+        delegate.bind(|_vars, preds| {
+            FnSig::new(
+                fn_sig.safety,
+                fn_sig.abi,
+                preds.into(),
+                inputs.into(),
+                fn_sig.output().clone(),
+            )
+        })
     }
 }
 

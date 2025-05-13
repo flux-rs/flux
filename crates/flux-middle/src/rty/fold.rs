@@ -6,6 +6,7 @@ use std::ops::ControlFlow;
 use flux_arc_interner::{Internable, List};
 use flux_common::bug;
 use itertools::Itertools;
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -218,6 +219,23 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectFreeVars(FxHashSet::default());
+        self.visit_with(&mut collector);
+        collector.0
+    }
+
+    fn evars(&self) -> FxIndexSet<EVid> {
+        struct CollectEVars(FxIndexSet<EVid>);
+
+        impl TypeVisitor for CollectEVars {
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::EVar(evid)) = e.kind() {
+                    self.0.insert(*evid);
+                }
+                e.super_visit_with(self)
+            }
+        }
+
+        let mut collector = CollectEVars(FxIndexSet::default());
         self.visit_with(&mut collector);
         collector.0
     }
