@@ -2846,10 +2846,3 @@ mod errors {
         pub(super) span: Span,
     }
 }
-
-fn dot2(vec1: &Vec<i32>, vec2: &Vec<i32>) -> i32 {
-    let n = vec1.len();
-    let mut res = 0;
-    (0..n).for_each(|i| res += vec1[i] * vec2[i]);
-    res
-}
