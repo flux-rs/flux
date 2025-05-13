@@ -6,7 +6,6 @@ use std::ops::ControlFlow;
 use flux_arc_interner::{Internable, List};
 use flux_common::bug;
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexSet;
 use rustc_hash::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 

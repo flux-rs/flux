@@ -14,12 +14,12 @@ use flux_middle::{
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EVid, EarlyBinder,
-        Expr, FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability,
-        Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
 };
@@ -33,7 +33,7 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _},
 };
 use itertools::{Itertools, izip};
-use rustc_data_structures::{fx::FxIndexSet, graph::dominators::Dominators, unord::UnordMap};
+use rustc_data_structures::{graph::dominators::Dominators, unord::UnordMap};
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{
     LangItem,
@@ -827,14 +827,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut late_refine_args = vec![];
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| {
-                let var = infcx.fresh_infer_var(sort, mode);
-                late_refine_args.push(var.clone());
-                var
-            })
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode| {
+                    let var = infcx.fresh_infer_var(sort, mode);
+                    late_refine_args.push(var.clone());
+                    var
+                },
+            )
             .normalize_projections(infcx)
             .with_span(span)?;
-
 
         let mut at = infcx.at(span);
 
@@ -861,8 +863,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         Ok(ResolvedCall {
             output: output.ret,
-            _early_args: early_refine_args.into_iter().map(|arg| infcx.fully_resolve_evars(arg)).collect(),
-            _late_args: late_refine_args.into_iter().map(|arg| infcx.fully_resolve_evars(&arg)).collect(),
+            _early_args: early_refine_args
+                .into_iter()
+                .map(|arg| infcx.fully_resolve_evars(arg))
+                .collect(),
+            _late_args: late_refine_args
+                .into_iter()
+                .map(|arg| infcx.fully_resolve_evars(&arg))
+                .collect(),
         })
     }
 
