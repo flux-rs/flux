@@ -221,23 +221,6 @@ pub trait TypeVisitable: Sized {
         self.visit_with(&mut collector);
         collector.0
     }
-
-    // fn evars(&self) -> FxIndexSet<EVid> {
-    //     struct CollectEVars(FxIndexSet<EVid>);
-
-    //     impl TypeVisitor for CollectEVars {
-    //         fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
-    //             if let ExprKind::Var(Var::EVar(evid)) = e.kind() {
-    //                 self.0.insert(*evid);
-    //             }
-    //             e.super_visit_with(self)
-    //         }
-    //     }
-
-    //     let mut collector = CollectEVars(FxIndexSet::default());
-    //     self.visit_with(&mut collector);
-    //     collector.0
-    // }
 }
 
 pub trait TypeSuperVisitable: TypeVisitable {
