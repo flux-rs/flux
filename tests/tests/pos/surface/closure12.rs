@@ -5,10 +5,10 @@
 
 use flux_rs::attrs::*;
 
-#[path = "../lib/vec.rs"]
+#[path = "../../lib/vec.rs"]
 mod vec;
 
-#[path = "../lib/iterator.rs"]
+#[path = "../../lib/iterator.rs"]
 mod iterator;
 
 #[spec(fn (bool[true]))]
@@ -30,25 +30,10 @@ fn test_map() -> Vec<i32> {
     (0..10).map(|i| foo(i)).collect()
 }
 
-fn test_map_err() -> Vec<i32> {
-    #[spec(fn (i32{v: 100 <= v}) -> i32{v: 0 < v})]
-    fn bar(x: i32) -> i32 {
-        x + 1
-    }
-    (0..10).map(|i| bar(i)).collect() //~ ERROR refinement type
-}
-
 fn test_foreach() {
     (0..10).for_each(|i| {
         assert(0 <= i);
         assert(i < 10)
-    })
-}
-
-fn test_foreach_err() {
-    (0..100).for_each(|i| {
-        assert(0 <= i);
-        assert(i < 10) //~ ERROR refinement type
     })
 }
 
