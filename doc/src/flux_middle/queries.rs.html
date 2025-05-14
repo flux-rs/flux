@@ -933,7 +933,8 @@
 <a href="#932" id="932">932</a>
 <a href="#933" id="933">933</a>
 <a href="#934" id="934">934</a>
-<a href="#935" id="935">935</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     cell::{OnceCell, RefCell},
     rc::Rc,
 };
@@ -1669,7 +1670,8 @@
                     <span class="kw">let </span>fn_sig = genv
                         .lower_fn_sig(def_id)<span class="question-mark">?
                         </span>.skip_binder()
-                        .refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+                        .refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>)<span class="question-mark">?
+                        </span>.hoist_input_binders();
                     <span class="prelude-val">Ok</span>(rty::EarlyBinder(fn_sig))
                 },
             )

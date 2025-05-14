@@ -2024,7 +2024,37 @@
 <a href="#2023" id="2023">2023</a>
 <a href="#2024" id="2024">2024</a>
 <a href="#2025" id="2025">2025</a>
-<a href="#2026" id="2026">2026</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, vec};
+<a href="#2026" id="2026">2026</a>
+<a href="#2027" id="2027">2027</a>
+<a href="#2028" id="2028">2028</a>
+<a href="#2029" id="2029">2029</a>
+<a href="#2030" id="2030">2030</a>
+<a href="#2031" id="2031">2031</a>
+<a href="#2032" id="2032">2032</a>
+<a href="#2033" id="2033">2033</a>
+<a href="#2034" id="2034">2034</a>
+<a href="#2035" id="2035">2035</a>
+<a href="#2036" id="2036">2036</a>
+<a href="#2037" id="2037">2037</a>
+<a href="#2038" id="2038">2038</a>
+<a href="#2039" id="2039">2039</a>
+<a href="#2040" id="2040">2040</a>
+<a href="#2041" id="2041">2041</a>
+<a href="#2042" id="2042">2042</a>
+<a href="#2043" id="2043">2043</a>
+<a href="#2044" id="2044">2044</a>
+<a href="#2045" id="2045">2045</a>
+<a href="#2046" id="2046">2046</a>
+<a href="#2047" id="2047">2047</a>
+<a href="#2048" id="2048">2048</a>
+<a href="#2049" id="2049">2049</a>
+<a href="#2050" id="2050">2050</a>
+<a href="#2051" id="2051">2051</a>
+<a href="#2052" id="2052">2052</a>
+<a href="#2053" id="2053">2053</a>
+<a href="#2054" id="2054">2054</a>
+<a href="#2055" id="2055">2055</a>
+<a href="#2056" id="2056">2056</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, vec};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -2113,6 +2143,15 @@
     /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
     /// we need to be careful and only use it in the correct scope.
     </span>closures: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span><span class="kw-2">mut </span>UnordMap&lt;DefId, PolyFnSig&gt;,
+}
+
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">struct </span>ResolvedCall {
+    output: Ty,
+    <span class="doccomment">/// The refine arguments given to the call
+    </span>_early_args: Vec&lt;Expr&gt;,
+    <span class="doccomment">/// The refine arguments given to the call
+    </span>_late_args: Vec&lt;Expr&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'ck</span>, M: Mode&gt; Inherited&lt;<span class="lifetime">'ck</span>, M&gt; {
@@ -2711,7 +2750,8 @@
                             <span class="kw-2">&amp;</span>generic_args,
                             <span class="kw-2">&amp;</span>actuals,
                         )<span class="question-mark">?
-                    </span>}
+                        </span>.output
+                    }
                     mir::CallKind::FnPtr { operand, .. } =&gt; {
                         <span class="kw">let </span>ty = <span class="self">self
                             </span>.check_operand(infcx, env, terminator_span, operand)
@@ -2727,7 +2767,8 @@
                                 <span class="kw-2">&amp;</span>[],
                                 <span class="kw-2">&amp;</span>actuals,
                             )<span class="question-mark">?
-                        </span>} <span class="kw">else </span>{
+                            </span>.output
+                        } <span class="kw">else </span>{
                             <span class="macro">bug!</span>(<span class="string">"TODO: fnptr call {ty:?}"</span>)
                         }
                     }
@@ -2798,7 +2839,7 @@
         fn_sig: EarlyBinder&lt;PolyFnSig&gt;,
         generic_args: <span class="kw-2">&amp;</span>[GenericArg],
         actuals: <span class="kw-2">&amp;</span>[Ty],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Ty&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ResolvedCall&gt; {
         <span class="kw">let </span>genv = <span class="self">self</span>.genv;
         <span class="kw">let </span>tcx = genv.tcx();
 
@@ -2811,7 +2852,7 @@
         </span><span class="kw">let </span>generic_args = infcx.instantiate_generic_args(generic_args);
 
         <span class="comment">// Generate fresh inference variables for refinement arguments
-        </span><span class="kw">let </span>refine_args = <span class="kw">match </span>callee_def_id {
+        </span><span class="kw">let </span>early_refine_args = <span class="kw">match </span>callee_def_id {
             <span class="prelude-val">Some</span>(callee_def_id) =&gt; {
                 infcx
                     .instantiate_refine_args(callee_def_id, <span class="kw-2">&amp;</span>generic_args)
@@ -2825,7 +2866,7 @@
                 genv.predicates_of(callee_def_id)
                     .with_span(span)<span class="question-mark">?
                     </span>.predicates()
-                    .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
+                    .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>early_refine_args)
             }
             <span class="prelude-val">None </span>=&gt; <span class="kw">crate</span>::rty::List::empty(),
         };
@@ -2839,9 +2880,17 @@
         <span class="self">self</span>.check_closure_clauses(infcx, <span class="kw-2">&amp;</span>fn_clauses, span)<span class="question-mark">?</span>;
 
         <span class="comment">// Instantiate function signature and normalize it
-        </span><span class="kw">let </span>fn_sig = fn_sig
-            .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>refine_args)
-            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+        </span><span class="kw">let </span><span class="kw-2">mut </span>late_refine_args = <span class="macro">vec!</span>[];
+        <span class="kw">let </span>fn_sig = fn_sig
+            .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>early_refine_args)
+            .replace_bound_vars(
+                |<span class="kw">_</span>| rty::ReErased,
+                |sort, mode| {
+                    <span class="kw">let </span>var = infcx.fresh_infer_var(sort, mode);
+                    late_refine_args.push(var.clone());
+                    var
+                },
+            )
             .normalize_projections(infcx)
             .with_span(span)<span class="question-mark">?</span>;
 
@@ -2868,7 +2917,17 @@
         env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures);
         fold_local_ptrs(infcx, env, span).with_span(span)<span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(output.ret)
+        <span class="prelude-val">Ok</span>(ResolvedCall {
+            output: output.ret,
+            _early_args: early_refine_args
+                .into_iter()
+                .map(|arg| infcx.fully_resolve_evars(arg))
+                .collect(),
+            _late_args: late_refine_args
+                .into_iter()
+                .map(|arg| infcx.fully_resolve_evars(<span class="kw-2">&amp;</span>arg))
+                .collect(),
+        })
     }
 
     <span class="kw">fn </span>check_coroutine_obligations(
@@ -3256,6 +3315,7 @@
                     instantiate_args_for_constructor(genv, <span class="self">self</span>.def_id.to_def_id(), <span class="kw-2">*</span>def_id, args)
                         .with_span(stmt_span)<span class="question-mark">?</span>;
                 <span class="self">self</span>.check_call(infcx, env, stmt_span, <span class="prelude-val">Some</span>(<span class="kw-2">*</span>def_id), sig, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>actuals)
+                    .map(|resolved_call| resolved_call.output)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) =&gt; {
                 <span class="kw">let </span>args = <span class="self">self

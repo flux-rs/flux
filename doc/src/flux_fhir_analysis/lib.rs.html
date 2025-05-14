@@ -590,7 +590,8 @@
 <a href="#589" id="589">589</a>
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -1104,6 +1105,7 @@
         .into_conv_ctxt()
         .conv_fn_sig(def_id, fhir_fn_sig)<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, <span class="kw-2">&amp;</span>fn_sig, def_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>fn_sig = fn_sig.hoist_input_binders();
 
     <span class="kw">if </span>config::dump_rty() {
         <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;

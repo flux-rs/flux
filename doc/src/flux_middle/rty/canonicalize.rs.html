@@ -353,7 +353,36 @@
 <a href="#352" id="352">352</a>
 <a href="#353" id="353">353</a>
 <a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a></pre></div><pre class="rust"><code><span class="doccomment">//! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a></pre></div><pre class="rust"><code><span class="doccomment">//! A canonical type is a type where all [existentials] and [constraint predicates] are *hoisted* to
 //! the top level. For example, the canonical version of `∃a. {∃b. i32[a + b] | b &gt; 0}` is
 //! `∃a,b. {i32[a + b] | b &gt; 0}`.
 //!
@@ -387,12 +416,13 @@
 //! [constraint predicates]: TyKind::Constr
 </span><span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_macros::{TypeFoldable, TypeVisitable};
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_ast::Mutability;
 <span class="kw">use </span>rustc_type_ir::{BoundVar, INNERMOST};
 
 <span class="kw">use super</span>::{
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
-    TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
+    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
 
@@ -573,6 +603,34 @@
 
     <span class="kw">fn </span>hoist_constr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: Expr) {
         <span class="self">self</span>.preds.push(pred);
+    }
+}
+
+<span class="kw">impl </span>PolyFnSig {
+    <span class="doccomment">/// Convert a function signature with existentials to one where they are all
+    /// bound at the top level. Performs a transparent (i.e. not shallow)
+    /// canonicalization.
+    </span><span class="kw">pub fn </span>hoist_input_binders(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>original_vars = <span class="self">self</span>.vars().to_vec();
+        <span class="kw">let </span>fn_sig = <span class="self">self</span>.skip_binder_ref();
+        <span class="kw">let </span><span class="kw-2">mut </span>delegate = LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec() };
+        <span class="kw">let </span><span class="kw-2">mut </span>hoister = Hoister::with_delegate(<span class="kw-2">&amp;mut </span>delegate).transparent();
+
+        <span class="kw">let </span>inputs = fn_sig
+            .inputs()
+            .iter()
+            .map(|ty| hoister.hoist(ty))
+            .collect_vec();
+
+        delegate.bind(|_vars, preds| {
+            FnSig::new(
+                fn_sig.safety,
+                fn_sig.abi,
+                preds.into(),
+                inputs.into(),
+                fn_sig.output().clone(),
+            )
+        })
     }
 }
 
