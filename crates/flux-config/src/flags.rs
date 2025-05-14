@@ -85,12 +85,9 @@ impl Default for Flags {
             verbose: false,
             annots: false,
             timings: false,
-<<<<<<< HEAD
             verify: false,
             full_compilation: false,
-=======
             debug_binder_output: false,
->>>>>>> 938fd01478 (debug output for benchmarking)
         }
     }
 }
@@ -119,12 +116,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "check-def" => parse_string(&mut flags.check_def, value),
             "check-files" => parse_check_files(&mut flags.check_files, value),
-<<<<<<< HEAD
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
-=======
             "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
->>>>>>> 938fd01478 (debug output for benchmarking)
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
