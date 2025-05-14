@@ -31,7 +31,7 @@ trait Iterator {
     where
         Self: Sized;
 
-    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[s])]
+    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[s] where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> B)]
     fn map<B, F>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
