@@ -84,3 +84,9 @@ fn add(x: &Vec<i32>, y: &Vec<i32>) -> Vec<i32> {
     assert(x.len() == y.len());
     fill_vec_index(x.len(), |i| x[i] + y[i])
 }
+
+#[spec(fn(n:usize) -> Vec<i32{v:0<=v}>[n])]
+fn test_vec_of_nat(n: usize) -> Vec<i32> {
+    fill_vec_index(n, |i| 10)
+    // BOO; doesn't work? Maybe `collect` "hides parametricity?" (0..n).map(|_| 10).collect()
+}
