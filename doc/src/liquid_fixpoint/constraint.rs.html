@@ -313,19 +313,41 @@
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::LazyLock;
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::LazyLock;
 
 <span class="kw">use </span>derive_where::derive_where;
 
 <span class="kw">use crate</span>::{DefaultTypes, Types};
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static </span>DEFAULT_QUALIFIERS: LazyLock&lt;[Qualifier&lt;DefaultTypes&gt;; <span class="number">11</span>]&gt; =
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">static </span>DEFAULT_QUALIFIERS: LazyLock&lt;[Qualifier&lt;DefaultTypes&gt;; <span class="number">13</span>]&gt; =
     LazyLock::new(|| {
         <span class="comment">// -----
         // UNARY
         // -----
-
-        // (qualif EqZero ((v int)) (v == 0))
+        // (qualif EqTrue ((v bool)) (v))
+        </span><span class="kw">let </span>eqtrue = Qualifier {
+            args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::&lt;DefaultTypes&gt;::Bool)],
+            body: Expr::Var(<span class="string">"v"</span>),
+            name: String::from(<span class="string">"EqTrue"</span>),
+        };
+        <span class="comment">// (qualif EqFalse ((v bool)) (!v))
+        </span><span class="kw">let </span>eqfalse = Qualifier {
+            args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::&lt;DefaultTypes&gt;::Bool)],
+            body: Expr::Neg(Box::new(Expr::Var(<span class="string">"v"</span>))),
+            name: String::from(<span class="string">"EqFalse"</span>),
+        };
+        <span class="comment">// (qualif EqZero ((v int)) (v == 0))
         </span><span class="kw">let </span>eqzero = Qualifier {
             args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::Int)],
             body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var(<span class="string">"v"</span>), Expr::int(<span class="number">0</span>)])),
@@ -412,7 +434,7 @@
             name: String::from(<span class="string">"Le1"</span>),
         };
 
-        [eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+        [eqtrue, eqfalse, eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
     });
 
 <span class="attr">#[derive_where(Hash)]
