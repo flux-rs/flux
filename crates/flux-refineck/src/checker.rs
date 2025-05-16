@@ -90,6 +90,15 @@ struct Inherited<'ck, M> {
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
 }
 
+#[derive(Debug)]
+struct ResolvedCall {
+    output: Ty,
+    /// The refine arguments given to the call
+    _early_args: Vec<Expr>,
+    /// The refine arguments given to the call
+    _late_args: Vec<Expr>,
+}
+
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
@@ -735,6 +744,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                             &generic_args,
                             &actuals,
                         )?
+                        .output
                     }
                     mir::CallKind::FnPtr { operand, .. } => {
                         let ty = self
@@ -751,6 +761,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                                 &[],
                                 &actuals,
                             )?
+                            .output
                         } else {
                             bug!("TODO: fnptr call {ty:?}")
                         }
@@ -822,7 +833,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         fn_sig: EarlyBinder<PolyFnSig>,
         generic_args: &[GenericArg],
         actuals: &[Ty],
-    ) -> Result<Ty> {
+    ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
@@ -835,7 +846,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let generic_args = infcx.instantiate_generic_args(generic_args);
 
         // Generate fresh inference variables for refinement arguments
-        let refine_args = match callee_def_id {
+        let early_refine_args = match callee_def_id {
             Some(callee_def_id) => {
                 infcx
                     .instantiate_refine_args(callee_def_id, &generic_args)
@@ -849,7 +860,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 genv.predicates_of(callee_def_id)
                     .with_span(span)?
                     .predicates()
-                    .instantiate(tcx, &generic_args, &refine_args)
+                    .instantiate(tcx, &generic_args, &early_refine_args)
             }
             None => crate::rty::List::empty(),
         };
@@ -865,8 +876,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
 
         // Instantiate function signature and normalize it
+        let late_refine_args = vec![];
         let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &refine_args)
+            .instantiate(tcx, &generic_args, &early_refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
         let fn_sig = fn_sig
@@ -896,7 +908,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
-        Ok(output.ret)
+        Ok(ResolvedCall {
+            output: output.ret,
+            _early_args: early_refine_args
+                .into_iter()
+                .map(|arg| infcx.fully_resolve_evars(arg))
+                .collect(),
+            _late_args: late_refine_args
+                .into_iter()
+                .map(|arg| infcx.fully_resolve_evars(&arg))
+                .collect(),
+        })
     }
 
     fn check_coroutine_obligations(
@@ -1330,6 +1352,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
                         .with_span(stmt_span)?;
                 self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
+                    .map(|resolved_call| resolved_call.output)
             }
             Rvalue::Aggregate(AggregateKind::Array(arr_ty), operands) => {
                 let args = self
