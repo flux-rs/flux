@@ -4,12 +4,23 @@ use derive_where::derive_where;
 
 use crate::{DefaultTypes, Types};
 
-pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 11]> =
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 13]> =
     LazyLock::new(|| {
         // -----
         // UNARY
         // -----
-
+        // (qualif EqTrue ((v bool)) (v))
+        let eqtrue = Qualifier {
+            args: vec![("v", Sort::<DefaultTypes>::Bool)],
+            body: Expr::Var("v"),
+            name: String::from("EqTrue"),
+        };
+        // (qualif EqFalse ((v bool)) (!v))
+        let eqfalse = Qualifier {
+            args: vec![("v", Sort::<DefaultTypes>::Bool)],
+            body: Expr::Neg(Box::new(Expr::Var("v"))),
+            name: String::from("EqFalse"),
+        };
         // (qualif EqZero ((v int)) (v == 0))
         let eqzero = Qualifier {
             args: vec![("v", Sort::Int)],
@@ -97,7 +108,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 11]> =
             name: String::from("Le1"),
         };
 
-        [eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+        [eqtrue, eqfalse, eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
     });
 
 #[derive_where(Hash)]
