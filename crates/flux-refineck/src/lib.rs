@@ -156,9 +156,8 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
         e = Some(match err.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
-            | ConstrReason::Subtype(SubtypeReason::Requires) => {
-                call_error(genv, span, err.dst_span)
-            }
+            | ConstrReason::Subtype(SubtypeReason::Requires)
+            | ConstrReason::Predicate => call_error(genv, span, err.dst_span),
             ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)

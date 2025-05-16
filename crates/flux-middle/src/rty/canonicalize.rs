@@ -136,6 +136,10 @@ impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
     }
+
+    pub fn hoist_fn_sig(&mut self, sig: &PolyFnSig) -> PolyFnSig {
+        sig.fold_with(self)
+    }
 }
 
 impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
@@ -201,6 +205,10 @@ pub struct LocalHoister {
 }
 
 impl LocalHoister {
+    pub fn new(vars: Vec<BoundVariableKind>) -> Self {
+        LocalHoister { vars, preds: vec![] }
+    }
+
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
         let vars = List::from_vec(self.vars);
         Binder::bind_with_vars(f(vars.clone(), self.preds), vars)

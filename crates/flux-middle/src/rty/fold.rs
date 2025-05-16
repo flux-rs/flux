@@ -12,7 +12,7 @@ use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
     OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind, normalize::Normalizer,
+    TyKind, TyOrBase, normalize::Normalizer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -588,6 +588,15 @@ impl TypeFoldable for Ensures {
     }
 }
 
+impl TypeVisitable for super::TyOrBase {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            Self::Ty(ty) => ty.visit_with(visitor),
+            Self::Base(bty) => bty.visit_with(visitor),
+        }
+    }
+}
+
 impl TypeVisitable for Ty {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         visitor.visit_ty(self)
@@ -807,6 +816,14 @@ impl TypeVisitable for SubsetTy {
         self.bty.visit_with(visitor)?;
         self.idx.visit_with(visitor)?;
         self.pred.visit_with(visitor)
+    }
+}
+impl TypeFoldable for TyOrBase {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            Self::Ty(ty) => Ok(Self::Ty(ty.try_fold_with(folder)?)),
+            Self::Base(bty) => Ok(Self::Base(bty.try_fold_with(folder)?)),
+        }
     }
 }
 

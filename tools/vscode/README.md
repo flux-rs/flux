@@ -9,6 +9,7 @@ VS Code extension with language support for flux rust intermediate representatio
 ```bash
 $ npm install -g typescript
 $ npm install -g vsce
+$ npm install --save-dev @types/vscode
 $ vsce package
 ```
 
