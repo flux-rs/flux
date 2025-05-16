@@ -852,6 +852,22 @@ impl BinderProvenance {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RefineParams {
+    /// The early parameters as vars
+    ///
+    /// Technically the type is more specific (it's always a Var::EarlyParam)
+    pub early_params: Vec<Var>,
+    /// The refine arguments given to the call
+    pub early_args: Vec<Expr>,
+    /// The late parameters as vars
+    ///
+    /// Technically the type is more specific (it's always a Var::Bound)
+    pub late_params: Vec<Var>,
+    /// The refine arguments given to the call
+    pub late_args: Vec<Expr>,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CallReturn {
     // The name of the user variable that the function call is being assigned to,
@@ -868,11 +884,13 @@ pub struct CallReturn {
     // The def_id of the function being called, if we can get it
     // (right now we can't for CallKind::FnPtr)
     pub def_id: Option<DefId>,
+    /// The refinement arguments passed in this invocation
+    pub refine_params: RefineParams,
 }
 
 impl CallReturn {
-    pub fn new(destination_name: Option<Symbol>, def_id: Option<DefId>) -> CallReturn {
-        CallReturn { destination_name, def_id }
+    pub fn new(destination_name: Option<Symbol>, def_id: Option<DefId>, refine_params: RefineParams) -> CallReturn {
+        CallReturn { destination_name, def_id, refine_params }
     }
 }
 
