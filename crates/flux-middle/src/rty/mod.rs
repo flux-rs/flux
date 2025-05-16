@@ -23,7 +23,7 @@ pub use expr::{
     SpecFuncKind, UnOp, Var,
 };
 pub use flux_arc_interner::List;
-use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, SliceInternable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_config::OverflowMode;
 use flux_macros::{TypeFoldable, TypeVisitable};
@@ -2144,6 +2144,17 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
     }
 }
 
+pub fn for_refine_arg<F, T>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<Vec<T>>
+    where
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<T>,
+{
+    let reft_generics = genv.refinement_generics_of(def_id)?;
+    let count = reft_generics.count();
+    let mut args = Vec::with_capacity(count);
+    reft_generics.fill_item(genv, &mut args, &mut mk)?;
+    Ok(args)
+}
+
 pub type RefineArgs = List<Expr>;
 
 #[extension(pub trait RefineArgsExt)]
@@ -2157,15 +2168,11 @@ impl RefineArgs {
         })
     }
 
-    fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<RefineArgs>
+    fn for_item<F>(genv: GlobalEnv, def_id: DefId, mk: F) -> QueryResult<RefineArgs>
     where
         F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<Expr>,
     {
-        let reft_generics = genv.refinement_generics_of(def_id)?;
-        let count = reft_generics.count();
-        let mut args = Vec::with_capacity(count);
-        reft_generics.fill_item(genv, &mut args, &mut mk)?;
-        Ok(List::from_vec(args))
+        Ok(List::from(for_refine_arg(genv, def_id, mk)?))
     }
 }
 

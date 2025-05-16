@@ -264,7 +264,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             let actual = actual
                 .replace_bound_vars(
                     |_| rty::ReErased,
-                    |sort, mode| infcx.fresh_infer_var(sort, mode),
+                    |_, _, sort, mode| infcx.fresh_infer_var(sort, mode),
                 )
                 .deeply_normalize(infcx)?;
 
