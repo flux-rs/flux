@@ -4,19 +4,9 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    FixpointQueryKind,
-    def_id::MaybeExternId,
-    global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult},
-    query_bug,
-    rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyCtor, TyKind, Var,
-        canonicalize::{Hoister, HoisterDelegate},
-        fold::TypeFoldable,
-    },
+    def_id::MaybeExternId, global_env::GlobalEnv, queries::{QueryErr, QueryResult}, query_bug, rty::{
+        self, canonicalize::{Hoister, HoisterDelegate}, fold::TypeFoldable, for_refine_arg, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, EarlyReftParam, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var
+    }, FixpointQueryKind
 };
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -272,6 +262,19 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
             Ok(self.fresh_infer_var(&param.sort, param.mode))
+        })?)
+    }
+
+    pub fn params_for_refine_args(
+        &mut self,
+        callee_def_id: DefId,
+    ) -> InferResult<Vec<Var>> {
+        Ok(for_refine_arg(self.genv, callee_def_id, |param, index| {
+            let var = Var::EarlyParam(EarlyReftParam {
+                index: index as u32,
+                name: param.name(),
+            });
+            Ok(var)
         })?)
     }
 
