@@ -14,7 +14,7 @@ pub(super) struct BoundVarReplacer<D> {
 }
 
 pub trait BoundVarReplacerDelegate {
-    fn replace_expr(&mut self, var: BoundReft) -> Expr;
+    fn replace_expr(&mut self, idx: DebruijnIndex, var: BoundReft) -> Expr;
     fn replace_region(&mut self, br: BoundRegion) -> Region;
 }
 
@@ -25,7 +25,7 @@ pub(crate) struct FnMutDelegate<F1, F2> {
 
 impl<F1, F2> FnMutDelegate<F1, F2>
 where
-    F1: FnMut(BoundReft) -> Expr,
+    F1: FnMut(DebruijnIndex, BoundReft) -> Expr,
     F2: FnMut(BoundRegion) -> Region,
 {
     pub(crate) fn new(exprs: F1, regions: F2) -> Self {
@@ -35,11 +35,11 @@ where
 
 impl<F1, F2> BoundVarReplacerDelegate for FnMutDelegate<F1, F2>
 where
-    F1: FnMut(BoundReft) -> Expr,
+    F1: FnMut(DebruijnIndex, BoundReft) -> Expr,
     F2: FnMut(BoundRegion) -> Region,
 {
-    fn replace_expr(&mut self, var: BoundReft) -> Expr {
-        (self.exprs)(var)
+    fn replace_expr(&mut self, idx: DebruijnIndex, var: BoundReft) -> Expr {
+        (self.exprs)(idx, var)
     }
 
     fn replace_region(&mut self, br: BoundRegion) -> Region {
@@ -73,7 +73,7 @@ where
                 Ordering::Less => Expr::bvar(*debruijn, breft.var, breft.kind),
                 Ordering::Equal => {
                     self.delegate
-                        .replace_expr(*breft)
+                        .replace_expr(*debruijn, *breft)
                         .shift_in_escaping(self.current_index.as_u32())
                 }
                 Ordering::Greater => Expr::bvar(debruijn.shifted_out(1), breft.var, breft.kind),
