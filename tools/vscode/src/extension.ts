@@ -15,7 +15,7 @@ export function activate(context: vscode.ExtensionContext) {
   const rustAnalyzerConfig = vscode.workspace.getConfiguration("rust-analyzer");
   rustAnalyzerConfig
     .update("server.extraEnv", {
-      FLUXFLAGS: "-Fdump_checker_trace",
+      FLUXFLAGS: "-Fdump-checker-trace",
     })
     .then(() => {
       return rustAnalyzerConfig.update(
