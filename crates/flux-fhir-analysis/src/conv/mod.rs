@@ -707,6 +707,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let tcx = self.genv().tcx();
         let predicates = tcx.predicates_of(def_id);
         let unrefined_clauses = predicates.predicates;
+        // println!("TRACE: match_clauses {def_id:?} (unrefined) => {unrefined_clauses:#?}");
+        // println!("TRACE: match_clauses {def_id:?} (refined)   => {refined_clauses:#?}");
 
         // For each *refined clause* at index `j` find a corrresponding *unrefined clause* at index
         // `i` and save a mapping `i -> j`.
@@ -1066,7 +1068,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let generic_params = &poly_trait_ref.bound_generic_params;
-        let layer = Layer::list(self.results(), generic_params.len() as u32, &[]);
+        let layer = Layer::list(self.results(), generic_params.len() as u32, poly_trait_ref.params);
         env.push_layer(layer);
 
         let trait_id = poly_trait_ref.trait_def_id();

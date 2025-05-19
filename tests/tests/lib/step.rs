@@ -15,6 +15,7 @@ trait Step {
     #![reft(
         fn can_step_forward(start: Self, count: int) -> bool;
         fn step_forward(start: Self, count: int) -> Self;
+        fn size(lo: Self, hi: Self) -> int;
     )]
     //
 }
@@ -24,6 +25,7 @@ impl Step for usize {
     #![reft(
         fn can_step_forward(start: int, count: int) -> bool  { true }
         fn step_forward(start: int, count: int) -> int { start + count }
+        fn size(lo: int, hi: int) -> int { hi - lo }
     )]
     //
 }
@@ -33,6 +35,7 @@ impl Step for i32 {
     #![reft(
         fn can_step_forward(start: int, count: int) -> bool  { true }
         fn step_forward(start: int, count: int) -> int { start + count }
+        fn size(lo: int, hi: int) -> int { hi - lo }
     )]
     //
 }

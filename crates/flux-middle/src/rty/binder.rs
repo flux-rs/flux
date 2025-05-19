@@ -131,6 +131,10 @@ impl<T> Binder<T> {
         Binder { vars: self.vars, value: f(self.value) }
     }
 
+    pub fn map_ref<U>(&self, f: impl FnOnce(&T) -> U) -> Binder<U> {
+        Binder { vars: self.vars.clone(), value: f(&self.value) }
+    }
+
     pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
         Ok(Binder { vars: self.vars, value: f(self.value)? })
     }

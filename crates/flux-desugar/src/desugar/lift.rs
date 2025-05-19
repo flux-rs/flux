@@ -94,6 +94,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         let trait_ref = self.lift_path(poly_trait_ref.trait_ref.path)?;
         Ok(fhir::PolyTraitRef {
             bound_generic_params,
+            params: &[],
             modifiers,
             trait_ref,
             span: poly_trait_ref.span,

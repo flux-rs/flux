@@ -18,9 +18,10 @@ struct Map<I, F>;
 trait FromIterator<A> {}
 
 #[extern_spec(std::iter)]
+#[flux::assoc(fn valid_item(self: Self, item: Self::Item) -> bool { true })]
 #[flux::assoc(fn size(self: Self) -> int)]
-#[flux::assoc(fn done(self: Self) -> bool )]
-#[flux::assoc(fn step(self: Self, other: Self) -> bool )]
+#[flux::assoc(fn done(self: Self) -> bool)]
+#[flux::assoc(fn step(self: Self, other: Self) -> bool)]
 trait Iterator {
     #[flux::sig(fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)})]
     fn next(&mut self) -> Option<Self::Item>;
@@ -30,11 +31,17 @@ trait Iterator {
     where
         Self: Sized;
 
-    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[s])]
+    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[s] where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> B)]
     fn map<B, F>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
         F: FnMut(Self::Item) -> B;
+
+    #[flux::sig(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
+    fn for_each<F>(self, f: F)
+    where
+        Self: Sized,
+        F: FnMut(Self::Item);
 
     #[flux::sig(fn (Self[@s]) -> B{v: <B as FromIterator<Self::Item>>::with_size(v, <Self as Iterator>::size(s))})]
     fn collect<B: FromIterator<Self::Item>>(self) -> B
@@ -66,3 +73,19 @@ impl<I: Iterator> Iterator for Enumerate<I> {
 #[flux::assoc(fn done(x: Map<I>) -> bool { <I as Iterator>::done(x.inner)})]
 #[flux::assoc(fn step(x: Map<I>, y: Map<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
 impl<B, I: Iterator, F: FnMut(I::Item) -> B> Iterator for Map<I, F> {} // orig: where F: FnMut(I::Item) -> B {}
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+#[flux_rs::extern_spec(std::iter)]
+trait IntoIterator {
+    #[flux_rs::sig(fn(self: Self) -> Self::IntoIter)]
+    fn into_iter(self) -> Self::IntoIter
+    where
+        Self: Sized;
+}
+
+#[flux_rs::extern_spec(core::ops)]
+impl<I: Iterator> IntoIterator for I {
+    #[flux_rs::sig(fn(self: I[@s]) -> I[s])]
+    fn into_iter(self) -> I;
+}

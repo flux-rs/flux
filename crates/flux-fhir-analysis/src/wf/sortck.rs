@@ -523,7 +523,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .with_next_trait_solver(true)
             .build(TypingMode::non_body_analysis());
         if let Some(def_id) = owner.def_id()
-            && let Ok(sort) = sort.normalize_sorts(def_id.into(), genv, &infcx)
+            && let def_id = genv.maybe_extern_id(def_id).resolved_id()
+            && let Ok(sort) = sort.normalize_sorts(def_id, genv, &infcx)
         {
             sort
         } else {
