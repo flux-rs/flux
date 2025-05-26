@@ -296,6 +296,10 @@ impl Expr {
         ExprKind::KVar(kvar).intern()
     }
 
+    pub fn wkvar(wkvar: WKVar) -> Expr {
+        ExprKind::WKVar(wkvar).intern()
+    }
+
     pub fn alias(alias: AliasReft, args: List<Expr>) -> Expr {
         ExprKind::Alias(alias, args).intern()
     }
@@ -690,6 +694,7 @@ pub enum ExprKind {
     PathProj(Expr, FieldIdx),
     IfThenElse(Expr, Expr, Expr),
     KVar(KVar),
+    WKVar(WKVar),
     Alias(AliasReft, List<Expr>),
     Let(Expr, Binder<Expr>),
     /// Function application. The syntax allows arbitrary expressions in function position, but in
@@ -809,6 +814,22 @@ pub struct KVar {
     pub args: List<Expr>,
 }
 
+/// Weak KVars right now are always associated with a function definition. This
+/// is because weak kvars can be put wherever we can validly add a refinement;
+/// in theory if Flux has support for putting refinements in other locations
+/// in the future, this definition may need to change.
+type WKVid = (DefId, KVid);
+
+/// A weak kvar is like a kvar with the exception that it infers the weakest
+/// condition necessary instead of the strongest condition. Due to the way we
+/// generate these kvars (on fn_sigs, rather than during constraint generation),
+/// they also in theory are global.
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+pub struct WKVar {
+    pub wkvid: WKVid,
+    pub args: List<Expr>,
+}
+
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct EarlyReftParam {
     pub index: u32,
@@ -874,6 +895,12 @@ impl KVar {
 
     fn scope(&self) -> &[Expr] {
         &self.args[self.self_args..]
+    }
+}
+
+impl WKVar {
+    pub fn new(def_id: DefId, kvid: KVid, args: Vec<Expr>) -> Self {
+        Self { wkvid: (def_id, kvid), args: List::from_vec(args) }
     }
 }
 
@@ -1345,6 +1372,9 @@ pub(crate) mod pretty {
                 ExprKind::KVar(kvar) => {
                     w!(cx, f, "{:?}", kvar)
                 }
+                ExprKind::WKVar(wkvar) => {
+                    w!(cx, f, "{:?}", wkvar)
+                }
                 ExprKind::Alias(alias, args) => {
                     w!(cx, f, "{:?}({:?})", alias, join!(", ", args))
                 }
@@ -1477,6 +1507,15 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for WKVar {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            // Since we reuse KVId, we need to make the serialization custom
+            w!(cx, f, "$wk{}_{:?}", ^self.wkvid.1.index(), ^self.wkvid.0)?;
+            w!(cx, f, "({:?})", join!(", ", &self.args))?;
+            Ok(())
+        }
+    }
+
     impl Pretty for Path {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             w!(cx, f, "{:?}", &self.loc)?;
@@ -1531,7 +1570,7 @@ pub(crate) mod pretty {
         }
     }
 
-    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
+    impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, WKVar, Lambda, AliasReft);
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
@@ -1596,6 +1635,7 @@ pub(crate) mod pretty {
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
                 | ExprKind::KVar(..) => debug_nested(cx, &e),
+                | ExprKind::WKVar(..) => debug_nested(cx, &e),
 
                 ExprKind::IfThenElse(p, e1, e2) => {
                     let p_d = p.fmt_nested(cx)?;
