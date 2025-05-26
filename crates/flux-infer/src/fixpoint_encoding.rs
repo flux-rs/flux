@@ -813,6 +813,9 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
+            rty::ExprKind::WKVar(wkvar) => {
+                todo!("weak kvar to fixpoint")
+            }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
                     .local_var_env
@@ -902,6 +905,9 @@ where
             }
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
+            }
+            rty::ExprKind::WKVar(wkvar) => {
+                todo!("weak kvar implementation")
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
@@ -1569,6 +1575,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
+            | rty::ExprKind::WKVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
