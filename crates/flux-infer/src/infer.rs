@@ -999,6 +999,9 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 infcx.check_impl(a, b, self.tag());
                 infcx.check_impl(b, a, self.tag());
             }
+            (ExprKind::WKVar(_), _) | (_, ExprKind::WKVar(_)) => {
+                todo!("weak kvar unimplemented")
+            }
             _ => {
                 infcx.unify_exprs(a, b);
                 let span = b.span();
