@@ -814,7 +814,8 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
             rty::ExprKind::WKVar(wkvar) => {
-                todo!("weak kvar to fixpoint")
+                // Don't emit anything to fixpoint for now
+                Ok(fixpoint::Constraint::TRUE)
             }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
@@ -907,7 +908,7 @@ where
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
-                todo!("weak kvar implementation")
+                // Don't emit anything to fixpoint for now
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound

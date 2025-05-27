@@ -1677,7 +1677,7 @@ pub(crate) mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             // Since we reuse KVId, we need to make the serialization custom.
             // Also we will not serialize the parameters for now.
-            w!(cx, f, "$wk{}_{:?}", ^self.wkvid.1.index(), ^self.wkvid.0)?;
+            w!(cx, f, "$wk{}_{:?}", ^self.wkvid.1.index(), ^cx.tcx().def_path_str(self.wkvid.0))?;
             w!(cx, f, "({:?})", join!(", ", &self.args))?;
             Ok(())
         }

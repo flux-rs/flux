@@ -597,7 +597,8 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
             let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            let fn_sig = fn_sig.hoist_input_binders();
+            let fn_sig = fn_sig.hoist_input_binders()
+                               .add_weak_kvars(def_id.local_id().into());
 
             if config::dump_rty() {
                 let generics = genv.generics_of(def_id)?;
@@ -627,6 +628,8 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 }
                 _ => return Err(query_bug!("invalid `DefKind` for ctor node")),
             };
+            // NOTE: we don't add weak kvars to these functions because they are
+            // accessor functions automatically generated for tuple constructors
             genv.variant_sig(adt_id, variant_idx)?
                 .map(|sig| sig.to_poly_fn_sig(None))
                 .ok_or_query_err(adt_id)
