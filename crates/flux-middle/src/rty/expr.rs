@@ -22,8 +22,7 @@ use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _,
-    IntTy, Sort, UintTy,
+    fold::FallibleTypeFolder, BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy
 };
 use crate::{
     big_int::BigInt,
@@ -35,7 +34,7 @@ use crate::{
     rty::{
         BoundVariableKind,
         fold::{
-            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
+            TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
         },
     },
@@ -818,16 +817,38 @@ pub struct KVar {
 /// is because weak kvars can be put wherever we can validly add a refinement;
 /// in theory if Flux has support for putting refinements in other locations
 /// in the future, this definition may need to change.
-type WKVid = (DefId, KVid);
+pub type WKVid = (DefId, KVid);
 
 /// A weak kvar is like a kvar with the exception that it infers the weakest
 /// condition necessary instead of the strongest condition. Due to the way we
 /// generate these kvars (on fn_sigs, rather than during constraint generation),
 /// they also in theory are global.
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct WKVar {
     pub wkvid: WKVid,
+    /// Names of the parameters (in the same order as args)
+    pub params: Vec<Var>,
+    /// Actuals passed to the weak kvar (in the same order as params)
     pub args: List<Expr>,
+}
+
+impl TypeVisitable for WKVar {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.wkvid.visit_with(visitor)?;
+        // NOTE: the params shouldn't need to be visited I think
+        self.args.visit_with(visitor)
+    }
+}
+
+impl TypeFoldable for WKVar {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        Ok(WKVar {
+            wkvid: self.wkvid.try_fold_with(folder)?,
+            // NOTE: the params shouldn't change because we want to track the original names
+            params: self.params.clone(),
+            args: self.args.try_fold_with(folder)?
+        })
+    }
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
@@ -899,14 +920,25 @@ impl KVar {
 }
 
 impl WKVar {
-    pub fn new(def_id: DefId, kvid: KVid, args: Vec<Expr>) -> Self {
-        Self { wkvid: (def_id, kvid), args: List::from_vec(args) }
+    pub fn new(def_id: DefId, kvid: KVid, params: Vec<Var>, args: Vec<Expr>) -> Self {
+        Self { wkvid: (def_id, kvid), params, args: List::from_vec(args) }
     }
 }
 
 impl Var {
     pub fn to_expr(&self) -> Expr {
         Expr::var(*self)
+    }
+
+    pub fn shift_in(&self, amount: u32) -> Self {
+        match self {
+            Var::Bound(idx, breft) => {
+                Var::Bound(idx.shifted_in(amount), breft.clone())
+            }
+            _ => {
+                self.clone()
+            }
+        }
     }
 }
 
@@ -1509,7 +1541,8 @@ pub(crate) mod pretty {
 
     impl Pretty for WKVar {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            // Since we reuse KVId, we need to make the serialization custom
+            // Since we reuse KVId, we need to make the serialization custom.
+            // Also we will not serialize the parameters for now.
             w!(cx, f, "$wk{}_{:?}", ^self.wkvid.1.index(), ^self.wkvid.0)?;
             w!(cx, f, "({:?})", join!(", ", &self.args))?;
             Ok(())

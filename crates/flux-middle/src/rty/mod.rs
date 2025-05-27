@@ -19,10 +19,10 @@ pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
-    ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
+    ExprKind, FieldProj, HoleKind, KVar, KVid, WKVar, WKVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
 };
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, SliceInternable};
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
