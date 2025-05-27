@@ -1222,9 +1222,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
+            rty::ExprKind::WKVar(_) => {
+                fixpoint::Expr::Constant(liquid_fixpoint::Constant::Boolean(true))
+            }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
-            | rty::ExprKind::WKVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_) => {
