@@ -514,7 +514,6 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
     let fn_sig = fn_sig.hoist_input_binders()
                        .add_weak_kvars(def_id.local_id().into());
-    println!("Updated fn sig: {:?}", fn_sig);
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
