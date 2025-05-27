@@ -737,7 +737,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders()
                         .add_weak_kvars(def_id);
-                    println!("Created fn sig: {:?}", fn_sig);
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )
