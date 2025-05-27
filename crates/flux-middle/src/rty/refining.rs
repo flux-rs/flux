@@ -503,7 +503,7 @@ impl rty::PolyFnSig {
             let mut params = late_vars.iter().chain(early_vars.iter()).cloned().collect_vec();
             // FIXME: we should have a better way to generate the KVid.
             let requires_wkvar = make_weak_kvar(def_id, rty::KVid::from(0 as usize), params.clone());
-            shift_in_vars(&mut params, fn_sig.output.vars().len() as u32);
+            shift_in_vars(&mut params);
             let output_binder_params = make_vars_from_bound_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
             params.extend(output_binder_params);
             let output = fn_sig.output.map(|output| {
@@ -529,11 +529,12 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
     use rty::Ty;
     use rty::Expr;
     match ty.kind() {
-        // Base cases: And the weak kvar onto the expression
-        Indexed(bty, expr) => {
+        // Base case: make a new constraint with the weak kvar
+        Indexed(_, _) => {
             let wkvar = make_weak_kvar(def_id, kvid, params);
-            Ty::indexed(bty.clone(), Expr::and(expr, Expr::wkvar(wkvar)))
+            Ty::constr(Expr::wkvar(wkvar), ty.clone())
         }
+        // Base case: And the weak kvar onto the expression
         Constr(expr, ty) => {
             let wkvar = make_weak_kvar(def_id, kvid, params);
             Ty::constr(Expr::and(expr, Expr::wkvar(wkvar)), ty.clone())
@@ -543,7 +544,7 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
         // since we're going under a binder.
         Exists(bound_ty) => {
             let bound_vars = bound_ty.vars();
-            shift_in_vars(&mut params, bound_vars.len() as u32);
+            shift_in_vars(&mut params);
             let exist_params = make_vars_from_bound_vars(bound_vars, bound_vars.len());
             params.extend(exist_params);
             Ty::exists(
@@ -559,9 +560,7 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
         Downcast(adt_def, generic_args, ty, variant_idx, fields) => {
             Ty::downcast(adt_def.clone(), generic_args.clone(), add_weak_kvar_to_ty(def_id, kvid, params, ty), variant_idx.clone(), fields.clone())
         }
-        // NOTE: We won't add a weak kvar to these types to be safe.
-        // In theory we could create a new Constr type with
-        // just the weak kvar. Perhaps this is the right approach?
+        // Uninteresting types: we just clone these since they're used in type checking
         Ptr(_, _) | Discr(_, _) | Param(_) | Uninit |
         Blocked(_) | Infer(_) => {
             ty.clone()
@@ -592,9 +591,9 @@ fn make_vars_from_bound_vars<'a, I, II>(vars: I, num_vars: usize) -> Vec<rty::Va
         .collect_vec()
 }
 
-fn shift_in_vars(vars: &mut Vec<rty::Var>, amount: u32) {
+fn shift_in_vars(vars: &mut Vec<rty::Var>) {
     for i in 0..vars.len() {
-        vars[i] = vars[i].shift_in(amount);
+        vars[i] = vars[i].shift_in(1);
     }
 
 }
