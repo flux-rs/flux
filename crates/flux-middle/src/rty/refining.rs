@@ -486,7 +486,7 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
 }
 
 impl rty::PolyFnSig {
-    pub fn add_weak_kvars(self, def_id: DefId) {
+    pub fn add_weak_kvars(self, def_id: DefId) -> Self {
         let num_vars = self.vars().len();
         let late_vars = make_vars_from_late_vars(self.vars(), num_vars);
         let early_vars = self.early_params().into_iter().map(|early_param| {
@@ -514,7 +514,7 @@ impl rty::PolyFnSig {
                 requires: fn_sig.requires.iter().cloned().chain(std::iter::once(rty::Expr::wkvar(requires_wkvar))).collect(),
                 output,
             }
-        });
+        })
     }
 }
 
