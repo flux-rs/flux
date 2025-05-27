@@ -19,11 +19,11 @@ pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, E
 use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
-    ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
+    ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, WKVar, WKVid, Lambda, Loc, Name, Path, Real,
     SpecFuncKind, UnOp, Var,
 };
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned, SliceInternable};
+use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_config::OverflowMode;
 use flux_macros::{TypeFoldable, TypeVisitable};
