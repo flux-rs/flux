@@ -488,7 +488,7 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
 impl rty::PolyFnSig {
     pub fn add_weak_kvars(self, def_id: DefId) -> Self {
         let num_vars = self.vars().len();
-        let late_vars = make_vars_from_late_vars(self.vars(), num_vars);
+        let late_vars = make_vars_from_bound_vars(self.vars(), num_vars);
         let early_vars = self.early_params().into_iter().map(|early_param| {
             rty::Var::EarlyParam(early_param)
         }).collect_vec();
@@ -498,7 +498,7 @@ impl rty::PolyFnSig {
             // FIXME: we should have a better way to generate the KVid.
             let requires_wkvar = make_weak_kvar(def_id, rty::KVid::from(0 as usize), params.clone());
             shift_in_vars(&mut params, fn_sig.output.vars().len() as u32);
-            let output_binder_params = make_vars_from_late_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
+            let output_binder_params = make_vars_from_bound_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
             params.extend(output_binder_params);
             let output = fn_sig.output.map(|output| {
                 rty::FnOutput {
@@ -538,7 +538,7 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
         Exists(bound_ty) => {
             let bound_vars = bound_ty.vars();
             shift_in_vars(&mut params, bound_vars.len() as u32);
-            let exist_params = make_vars_from_late_vars(bound_vars, bound_vars.len());
+            let exist_params = make_vars_from_bound_vars(bound_vars, bound_vars.len());
             params.extend(exist_params);
             Ty::exists(
                 bound_ty.clone().map(|ty| {
@@ -563,9 +563,13 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
     }
 }
 
-fn make_vars_from_late_vars<'a, I: IntoIterator<Item = &'a rty::BoundVariableKind>>(vars: I, num_vars: usize) -> Vec<rty::Var>
+fn make_vars_from_bound_vars<'a, I, II>(vars: I, num_vars: usize) -> Vec<rty::Var>
+    where
+    I: IntoIterator<IntoIter = II>,
+    II: DoubleEndedIterator<Item = &'a rty::BoundVariableKind>,
 {
     vars.into_iter()
+        .rev()
         .enumerate()
         .filter_map(|(i, var_kind)| {
             if let rty::BoundVariableKind::Refine(_, _, reft_kind) = var_kind {
