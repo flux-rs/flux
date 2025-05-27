@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::{Var, VariantSig, expr::HoleKind},
+    rty::{expr::HoleKind, EarlyReftParam, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -219,6 +219,23 @@ pub trait TypeVisitable: Sized {
 
         let mut collector = CollectFreeVars(FxHashSet::default());
         let _ = self.visit_with(&mut collector);
+        collector.0
+    }
+
+    fn early_params(&self) -> FxHashSet<EarlyReftParam> {
+        struct CollectEarlyParams(FxHashSet<EarlyReftParam>);
+
+        impl TypeVisitor for CollectEarlyParams {
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::EarlyParam(param)) = e.kind() {
+                    self.0.insert(*param);
+                }
+                e.super_visit_with(self)
+            }
+        }
+
+        let mut collector = CollectEarlyParams(FxHashSet::default());
+        self.visit_with(&mut collector);
         collector.0
     }
 }
