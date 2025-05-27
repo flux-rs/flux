@@ -11,7 +11,7 @@ use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
 use rustc_target::abi::VariantIdx;
 
-use super::{RefineArgsExt, fold::TypeFoldable};
+use super::{fold::{TypeFoldable, TypeVisitable}, RefineArgsExt};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -483,4 +483,29 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
             }
         })
         .collect()
+}
+
+impl rty::PolyFnSig {
+    pub fn add_weak_kvars(&mut self) {
+        let num_vars = self.vars().len();
+        let late_vars = self.vars()
+                             .iter()
+                             .enumerate()
+                             .filter_map(|(i, var_kind)| {
+                                 if let rty::BoundVariableKind::Refine(_, _, reft_kind) = var_kind {
+                                    let debruijn_index = rty::DebruijnIndex::from((num_vars - i) - 1);
+                                    let bound_reft = rty::BoundReft {
+                                        var: rty::BoundVar::from(i),
+                                        kind: *reft_kind,
+                                    };
+                                    Some(rty::Var::Bound(debruijn_index, bound_reft))
+                                 } else {
+                                     None
+                                 }
+        }).collect_vec();
+        let early_vars = self.early_params().into_iter().map(|early_param| {
+            rty::Var::EarlyParam(early_param)
+        }).collect_vec();
+
+    }
 }
