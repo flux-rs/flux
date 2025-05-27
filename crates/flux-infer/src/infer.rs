@@ -374,7 +374,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
     ) -> U
     where
-        T: TypeFoldable,
+        T: TypeFoldable + flux_middle::pretty::Pretty + std::fmt::Debug,
     {
         self.ensure_resolved_evars(|infcx| {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
