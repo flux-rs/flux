@@ -60,7 +60,7 @@ pub struct Flags {
     /// If true set defalut to trusted.
     pub trusted: bool,
     /// If true set defalut to ignore.
-    pub ignore: bool
+    pub ignore: bool,
 }
 
 impl Default for Flags {
