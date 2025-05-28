@@ -19,3 +19,4 @@ pub mod lean_encoding;
 pub mod lean_format;
 pub mod projections;
 pub mod refine_tree;
+pub mod wkvars;
