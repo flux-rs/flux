@@ -412,7 +412,10 @@
 <a href="#411" id="411">411</a>
 <a href="#412" id="412">412</a>
 <a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
@@ -673,7 +676,10 @@
 
     <span class="kw">if let </span>BuildLibs::Yes { force } = config.build_libs {
         <span class="kw">if </span>force {
-            Command::new(<span class="kw-2">&amp;</span>cargo_flux).args([<span class="string">"flux"</span>, <span class="string">"clean"</span>]).run()<span class="question-mark">?</span>;
+            Command::new(<span class="kw-2">&amp;</span>cargo_flux)
+                .args([<span class="string">"flux"</span>, <span class="string">"clean"</span>])
+                .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
+                .run()<span class="question-mark">?</span>;
         }
 
         <span class="kw">let </span>artifacts = Command::new(cargo_flux)
