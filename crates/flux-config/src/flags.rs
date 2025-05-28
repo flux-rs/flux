@@ -47,6 +47,10 @@ pub struct Flags {
     /// If true checks for over and underflow on arithmetic integer operations, default `false`. When
     /// set to `false`, it still checks for underflow on unsigned integer subtraction.
     pub check_overflow: bool,
+    /// If true set defalut to trusted.
+    pub trusted: bool,
+    /// If true set defalut to ignore.
+    pub ignore: bool
 }
 
 impl Default for Flags {
@@ -70,6 +74,8 @@ impl Default for Flags {
             verbose: false,
             annots: false,
             timings: false,
+            trusted: false,
+            ignore: false,
         }
     }
 }
@@ -98,6 +104,8 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "check-def" => parse_string(&mut flags.check_def, value),
             "check-files" => parse_check_files(&mut flags.check_files, value),
+            "trusted" => parse_bool(&mut flags.trusted, value),
+            "ignore" => parse_bool(&mut flags.ignore, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(1);
