@@ -38,7 +38,7 @@ use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
-    wkvars::WKVarInstantiator,
+    wkvars::{WKVarInstantiator, WKVarSubst},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -49,7 +49,7 @@ use flux_middle::{
     pretty,
     rty::{
         self, ESpan, Name,
-        fold::TypeVisitable,
+        fold::TypeVisitable, fold::TypeFolder,
     },
 };
 use itertools::Itertools;
@@ -483,11 +483,15 @@ fn add_fn_fix_diagnostic<'a>(
         .tcx()
         .def_ident_span(wkvid.0)
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
+    let fn_sig = genv.fn_sig(wkvid.0).unwrap();
+    let mut wkvar_subst = WKVarSubst {
+        wkvar_instantiations: [(wkvid, solution.clone())].into()
+    };
+    let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
     diag.subdiagnostic(errors::WKVarFnFix {
         span: fn_span,
         fn_name,
-        loc: format!("{:?}", wkvid.1),
-        fix: format!("{:?}", solution),
+        fix: format!("{:?}", solved_fn_sig),
     });
 }
 
@@ -897,7 +901,6 @@ mod errors {
         pub span: Span,
         pub fn_name: String,
         // FIXME: Render a proper fix rather than this hacky info.
-        pub loc: String,
         pub fix: String,
     }
 
