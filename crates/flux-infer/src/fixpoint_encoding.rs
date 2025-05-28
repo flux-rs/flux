@@ -804,7 +804,8 @@ where
                 Ok(fixpoint::Constraint::conj(cstrs))
             }
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) => {
-                let (bindings, assumption) = self.assumption_to_fixpoint(e1, &mut blame_analysis)?;
+                let (bindings, assumption) =
+                    self.assumption_to_fixpoint(e1, &mut blame_analysis)?;
                 let cstr = self.head_to_fixpoint(e2, mk_tag, blame_analysis)?;
                 Ok(fixpoint::Constraint::foralls(bindings, mk_implies(assumption, cstr)))
             }

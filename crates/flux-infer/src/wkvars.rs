@@ -1,8 +1,13 @@
 use std::collections::HashMap;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
-use flux_middle::global_env::Symbol;
-use flux_middle::rty::{self, fold::{FallibleTypeFolder, TypeSuperFoldable}};
+use flux_middle::{
+    global_env::Symbol,
+    rty::{
+        self,
+        fold::{FallibleTypeFolder, TypeSuperFoldable},
+    },
+};
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 pub struct WKVarInstantiator<'a> {
     /// Map from the actuals passed to this Weak KVar to its params
@@ -17,12 +22,14 @@ pub struct WKVarInstantiator<'a> {
 }
 
 impl<'a> FallibleTypeFolder for WKVarInstantiator<'a> {
-
     /// We fail instantiation if we can't replace all free variables;
     /// return the name of the first unreplaceable free variable found.
     type Error = rty::Var;
 
-    fn try_enter_binder(&mut self, _vars: &rty::BoundVariableKinds) {
+    fn try_enter_binder(
+        &mut self,
+        _vars: &rty::BoundVariableKinds,
+    ) {
         self.current_index.shift_in(1);
     }
 
@@ -51,7 +58,8 @@ impl<'a> FallibleTypeFolder for WKVarInstantiator<'a> {
             Err(var.clone())
         } else {
             let instantiated_expr = e.try_super_fold_with(self)?;
-            self.memo.insert(e.kind().clone(), instantiated_expr.clone());
+            self.memo
+                .insert(e.kind().clone(), instantiated_expr.clone());
             Ok(instantiated_expr)
         }
     }
@@ -61,8 +69,17 @@ impl<'a> WKVarInstantiator<'a> {
     /// If it succeeds: creates an expression that can replace the weak kvar,
     /// which when used as a refinement will produce the original expr in this
     /// branch after all substitutions have happened.
+    ///
+    /// FIXME: This does not properly deal with expressions that have bound variables:
+    /// if the expression has a bound variable, we might fail the instantiation
+    /// when it should succeed.
     pub fn try_instantiate_wkvar(wkvar: &rty::WKVar, expr: &rty::Expr) -> Option<rty::Expr> {
-        let args_to_param: HashMap<rty::ExprKind, rty::Var> = std::iter::zip(wkvar.args.iter().map(|arg| arg.kind()).cloned(), wkvar.params.iter().cloned()).into_iter().collect();
+        let args_to_param: HashMap<rty::ExprKind, rty::Var> = std::iter::zip(
+            wkvar.args.iter().map(|arg| arg.kind()).cloned(),
+            wkvar.params.iter().cloned(),
+        )
+        .into_iter()
+        .collect();
         let mut instantiator = WKVarInstantiator {
             args_to_param: &args_to_param,
             memo: &mut HashMap::new(),

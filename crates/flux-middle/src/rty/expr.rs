@@ -23,7 +23,8 @@ use rustc_span::{Span, Symbol};
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    fold::FallibleTypeFolder, BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _, IntTy, Sort, UintTy
+    BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _,
+    IntTy, Sort, UintTy, fold::FallibleTypeFolder,
 };
 use crate::{
     big_int::BigInt,
@@ -925,7 +926,7 @@ impl TypeFoldable for WKVar {
             wkvid: self.wkvid.try_fold_with(folder)?,
             // NOTE: the params shouldn't change because we want to track the original names
             params: self.params.clone(),
-            args: self.args.try_fold_with(folder)?
+            args: self.args.try_fold_with(folder)?,
         })
     }
 }
@@ -1011,12 +1012,8 @@ impl Var {
 
     pub fn shift_in(&self, amount: u32) -> Self {
         match self {
-            Var::Bound(idx, breft) => {
-                Var::Bound(idx.shifted_in(amount), breft.clone())
-            }
-            _ => {
-                self.clone()
-            }
+            Var::Bound(idx, breft) => Var::Bound(idx.shifted_in(amount), breft.clone()),
+            _ => self.clone(),
         }
     }
 }
@@ -1804,7 +1801,7 @@ pub(crate) mod pretty {
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
                 | ExprKind::InternalFunc(..) => debug_nested(cx, &e),
-                | ExprKind::WKVar(..) => debug_nested(cx, &e),
+                ExprKind::WKVar(..) => debug_nested(cx, &e),
                 ExprKind::KVar(kvar) => {
                     let kv = format!("{:?}", kvar.kvid);
                     let mut strs = vec![kv];

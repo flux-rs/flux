@@ -11,7 +11,10 @@ use rustc_abi::VariantIdx;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
 
-use super::{fold::{TypeFoldable, TypeVisitable}, RefineArgsExt};
+use super::{
+    RefineArgsExt,
+    fold::{TypeFoldable, TypeVisitable},
+};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -495,20 +498,33 @@ impl rty::PolyFnSig {
     pub fn add_weak_kvars(self, def_id: DefId) -> Self {
         let num_vars = self.vars().len();
         let late_vars = make_vars_from_bound_vars(self.vars(), num_vars);
-        let early_vars = self.early_params().into_iter().map(|early_param| {
-            rty::Var::EarlyParam(early_param)
-        }).collect_vec();
+        let early_vars = self
+            .early_params()
+            .into_iter()
+            .map(|early_param| rty::Var::EarlyParam(early_param))
+            .collect_vec();
         self.map(|fn_sig| {
             // We add a weak kvar to the requires and output (only).
-            let mut params = late_vars.iter().chain(early_vars.iter()).cloned().collect_vec();
+            let mut params = late_vars
+                .iter()
+                .chain(early_vars.iter())
+                .cloned()
+                .collect_vec();
             // FIXME: we should have a better way to generate the KVid.
-            let requires_wkvar = make_weak_kvar(def_id, rty::KVid::from(0 as usize), params.clone());
+            let requires_wkvar =
+                make_weak_kvar(def_id, rty::KVid::from(0 as usize), params.clone());
             shift_in_vars(&mut params);
-            let output_binder_params = make_vars_from_bound_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
+            let output_binder_params =
+                make_vars_from_bound_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
             params.extend(output_binder_params);
             let output = fn_sig.output.map(|output| {
                 rty::FnOutput {
-                    ret: add_weak_kvar_to_ty(def_id, rty::KVid::from(1 as usize), params.clone(), &output.ret),
+                    ret: add_weak_kvar_to_ty(
+                        def_id,
+                        rty::KVid::from(1 as usize),
+                        params.clone(),
+                        &output.ret,
+                    ),
                     ensures: output.ensures,
                 }
             });
@@ -517,17 +533,25 @@ impl rty::PolyFnSig {
                 safety: fn_sig.safety,
                 inputs: fn_sig.inputs,
                 // FIXME: why do we need to clone?
-                requires: fn_sig.requires.iter().cloned().chain(std::iter::once(rty::Expr::wkvar(requires_wkvar))).collect(),
+                requires: fn_sig
+                    .requires
+                    .iter()
+                    .cloned()
+                    .chain(std::iter::once(rty::Expr::wkvar(requires_wkvar)))
+                    .collect(),
                 output,
             }
         })
     }
 }
 
-fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>, ty: &rty::Ty) -> rty::Ty {
-    use rty::TyKind::*;
-    use rty::Ty;
-    use rty::Expr;
+fn add_weak_kvar_to_ty(
+    def_id: DefId,
+    kvid: rty::KVid,
+    mut params: Vec<rty::Var>,
+    ty: &rty::Ty,
+) -> rty::Ty {
+    use rty::{Expr, Ty, TyKind::*};
     match ty.kind() {
         // Base case: make a new constraint with the weak kvar
         Indexed(_, _) => {
@@ -538,7 +562,6 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
         Constr(expr, ty) => {
             let wkvar = make_weak_kvar(def_id, kvid, params);
             Ty::constr(Expr::and(expr, Expr::wkvar(wkvar)), ty.clone())
-
         }
         // This is the only recursive case where we need to update the params
         // since we're going under a binder.
@@ -548,28 +571,35 @@ fn add_weak_kvar_to_ty(def_id: DefId, kvid: rty::KVid, mut params: Vec<rty::Var>
             let exist_params = make_vars_from_bound_vars(bound_vars, bound_vars.len());
             params.extend(exist_params);
             Ty::exists(
-                bound_ty.clone().map(|ty| {
-                    add_weak_kvar_to_ty(def_id, kvid, params, &ty)
-                })
+                bound_ty
+                    .clone()
+                    .map(|ty| add_weak_kvar_to_ty(def_id, kvid, params, &ty)),
             )
         }
         // Straightforward recursive cases
         StrgRef(region, path, ty) => {
-            Ty::strg_ref(region.clone(), path.clone(), add_weak_kvar_to_ty(def_id, kvid, params, ty))
+            Ty::strg_ref(
+                region.clone(),
+                path.clone(),
+                add_weak_kvar_to_ty(def_id, kvid, params, ty),
+            )
         }
         Downcast(adt_def, generic_args, ty, variant_idx, fields) => {
-            Ty::downcast(adt_def.clone(), generic_args.clone(), add_weak_kvar_to_ty(def_id, kvid, params, ty), variant_idx.clone(), fields.clone())
+            Ty::downcast(
+                adt_def.clone(),
+                generic_args.clone(),
+                add_weak_kvar_to_ty(def_id, kvid, params, ty),
+                variant_idx.clone(),
+                fields.clone(),
+            )
         }
         // Uninteresting types: we just clone these since they're used in type checking
-        Ptr(_, _) | Discr(_, _) | Param(_) | Uninit |
-        Blocked(_) | Infer(_) => {
-            ty.clone()
-        }
+        Ptr(_, _) | Discr(_, _) | Param(_) | Uninit | Blocked(_) | Infer(_) => ty.clone(),
     }
 }
 
 fn make_vars_from_bound_vars<'a, I, II>(vars: I, num_vars: usize) -> Vec<rty::Var>
-    where
+where
     I: IntoIterator<IntoIter = II>,
     II: DoubleEndedIterator<Item = &'a rty::BoundVariableKind>,
 {
@@ -578,12 +608,9 @@ fn make_vars_from_bound_vars<'a, I, II>(vars: I, num_vars: usize) -> Vec<rty::Va
         .enumerate()
         .filter_map(|(i, var_kind)| {
             if let rty::BoundVariableKind::Refine(_, _, reft_kind) = var_kind {
-            let debruijn_index = rty::DebruijnIndex::from((num_vars - i) - 1);
-            let bound_reft = rty::BoundReft {
-                var: rty::BoundVar::from(i),
-                kind: *reft_kind,
-            };
-            Some(rty::Var::Bound(debruijn_index, bound_reft))
+                let debruijn_index = rty::DebruijnIndex::from((num_vars - i) - 1);
+                let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
+                Some(rty::Var::Bound(debruijn_index, bound_reft))
             } else {
                 None
             }
@@ -595,14 +622,9 @@ fn shift_in_vars(vars: &mut Vec<rty::Var>) {
     for i in 0..vars.len() {
         vars[i] = vars[i].shift_in(1);
     }
-
 }
 
 fn make_weak_kvar(def_id: DefId, kvid: rty::KVid, params: Vec<rty::Var>) -> rty::WKVar {
     let args = params.iter().map(|var| rty::Expr::var(*var)).collect();
-    rty::WKVar {
-        wkvid: (def_id, rty::KVid::from(kvid)),
-        params,
-        args,
-    }
+    rty::WKVar { wkvid: (def_id, rty::KVid::from(kvid)), params, args }
 }
