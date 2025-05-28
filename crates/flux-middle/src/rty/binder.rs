@@ -15,7 +15,9 @@ use rustc_span::Symbol;
 use rustc_type_ir::DebruijnIndex;
 
 use super::{
-    fold::TypeFoldable, subst::{self, BoundVarReplacer, FnMutDelegate}, BoundReft, Expr, GenericArg, InferMode, RefineParam, Sort
+    BoundReft, Expr, GenericArg, InferMode, RefineParam, Sort,
+    fold::TypeFoldable,
+    subst::{self, BoundVarReplacer, FnMutDelegate},
 };
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
