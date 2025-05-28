@@ -7,14 +7,22 @@ use flux_infer::{
         ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     projections::NormalizeExt as _,
-    refine_tree::{BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace, RefineParams},
+    refine_tree::{
+        BinderOriginator, BinderProvenance, CallReturn, Marker, RefineCtxtTrace, RefineParams,
+    },
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::{QueryResult, try_query},
-    query_bug, rty
+    queries::{try_query, QueryResult},
+    query_bug,
     rty::{
-        self, fold::{TypeFoldable, TypeFolder, TypeSuperFoldable}, refining::{Refine, Refiner}, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt, Region::ReStatic, Ty, TyKind, Uint, UintTy, Var, VariantIdx
+        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        Region::ReStatic,
+        Ty, TyKind, Uint, UintTy, Var, VariantIdx,
+        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+        refining::{Refine, Refiner},
     },
 };
 use flux_rustc_bridge::{
@@ -287,7 +295,10 @@ fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(|_| rty::ReErased, |_, _, sort, mode| infcx.fresh_infer_var(sort, mode))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |_, _, sort, mode| infcx.fresh_infer_var(sort, mode),
+            )
             .normalize_projections(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
@@ -459,7 +470,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let body = genv.mir(def_id).with_span(span)?;
 
         let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |_, _, sort, _| Expr::fvar(infcx.define_var(sort)))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |_, _, sort, _| Expr::fvar(infcx.define_var(sort)),
+            )
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
 
@@ -793,8 +807,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let actuals =
-            unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals, span).with_span(span)?;
+        let actuals = unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals, span)
+            .with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
         infcx.push_evar_scope();
 
@@ -888,7 +902,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .into_iter()
                     .map(|arg| infcx.fully_resolve_evars(&arg))
                     .collect(),
-            }})
+            },
+        })
     }
 
     fn check_coroutine_obligations(
@@ -1912,7 +1927,11 @@ fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFn
             if let rty::Ref!(re, deref_ty, Mutability::Mut) = actual.kind()
                 && is_indexed_mut_skipping_constr(formal)
             {
-                rty::Ty::mk_ref(*re, rcx.unpack(deref_ty, BinderProvenance::new(BinderOriginator::MutRefHack)), Mutability::Mut)
+                rty::Ty::mk_ref(
+                    *re,
+                    rcx.unpack(deref_ty, BinderProvenance::new(BinderOriginator::MutRefHack)),
+                    Mutability::Mut,
+                )
             } else {
                 actual.clone()
             }
