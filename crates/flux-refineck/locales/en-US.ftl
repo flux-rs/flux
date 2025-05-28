@@ -90,4 +90,4 @@ refineck_related_fn_note =
     related function `{$fn_name}` defined here
 
 refineck_wkvar_fn_fix_note =
-    suggestion: add the refinement `{$fix}` at wkvar {$loc} to `{$fn_name}`
+    suggestion: add to `{$fn_name}` the refinement `{$fix}`
