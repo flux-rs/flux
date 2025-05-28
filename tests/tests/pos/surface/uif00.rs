@@ -4,7 +4,7 @@
 
 #[flux::trusted]
 #[flux::sig(fn(x:i32) -> bool[valid(x)])]
-fn valid(x: i32) -> bool {
+fn is_valid(x: i32) -> bool {
     0 <= x && x <= 100
 }
 
@@ -15,7 +15,7 @@ fn bar(a: i32) -> i32 {
 
 #[flux::sig(fn(i32))]
 pub fn test(n: i32) {
-    let ok = valid(n);
+    let ok = is_valid(n);
     if ok {
         bar(n);
     }

@@ -792,7 +792,7 @@ pub struct KVar {
     pub args: List<Expr>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub struct EarlyReftParam {
     pub index: u32,
     pub name: Symbol,

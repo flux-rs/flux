@@ -13,7 +13,9 @@ use flux_middle::{
         self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
         Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
         Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyKind, Var, canonicalize::Hoister, fold::TypeFoldable,
+        Region, Sort, Ty, TyCtor, TyKind, Var,
+        canonicalize::{Hoister, HoisterDelegate},
+        fold::TypeFoldable,
     },
 };
 use itertools::{Itertools, izip};
@@ -29,7 +31,7 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
-    refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
+    refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -429,15 +431,11 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.marker()
     }
 
-    pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx, 'tcx>> {
-        self.cursor.hoister(
-            self.genv.tcx(),
-            if assume_invariants {
-                AssumeInvariants::yes(self.check_overflow)
-            } else {
-                AssumeInvariants::No
-            },
-        )
+    pub fn hoister(
+        &mut self,
+        assume_invariants: bool,
+    ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -447,6 +445,26 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.cursor.check_impl(pred1, pred2, tag);
+    }
+}
+
+pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
+    assume_invariants: bool,
+}
+
+impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
+        let ty =
+            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        if self.assume_invariants {
+            self.infcx.assume_invariants(&ty);
+        }
+        ty
+    }
+
+    fn hoist_constr(&mut self, pred: Expr) {
+        self.infcx.assume_pred(pred);
     }
 }
 
@@ -670,8 +688,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
         let infcx = &mut infcx.branch();
-
-        // infcx.push_trace(TypeTrace::tys(a, b));
+        // infcx.cursor.push_trace(TypeTrace::tys(a, b));
 
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])

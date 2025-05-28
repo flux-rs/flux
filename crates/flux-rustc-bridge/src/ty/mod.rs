@@ -136,6 +136,27 @@ pub struct FnSig {
 
 pub type PolyFnSig = Binder<FnSig>;
 
+impl PolyFnSig {
+    pub fn unpack_closure_sig(&self) -> Self {
+        let vars = self.vars().clone();
+        let fn_sig = self.skip_binder_ref();
+        let [input] = &fn_sig.inputs() else {
+            bug!("closure signature should have at least two values");
+        };
+        let fn_sig = FnSig {
+            safety: fn_sig.safety,
+            abi: fn_sig.abi,
+            inputs_and_output: input
+                .tuple_fields()
+                .iter()
+                .cloned()
+                .chain([fn_sig.output().clone()])
+                .collect(),
+        };
+        Binder::bind_with_vars(fn_sig, vars)
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Ty(Interned<TyS>);
 
@@ -602,6 +623,14 @@ impl ClosureArgs {
             }
             _ => bug!("closure args missing synthetics"),
         }
+    }
+
+    pub fn sig_as_fn_ptr_ty(&self) -> &Ty {
+        self.split().closure_sig_as_fn_ptr_ty.expect_type()
+    }
+
+    pub fn kind_ty(&self) -> &Ty {
+        self.split().closure_kind_ty.expect_type()
     }
 }
 

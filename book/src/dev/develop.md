@@ -133,3 +133,11 @@ cargo x install --debug
 FLUX_DUMP_CHECKER_TRACE=1 FLUX_CHECK_DEF=mickey cargo flux
 python3  path/to/flux/tools/logreader.py
 ```
+
+## Debugging Extern Specs
+
+To see the expanded code of an `extern_spec` macro, you can do
+
+```
+cargo x expand path/to/file.rs
+```

@@ -397,7 +397,6 @@ dependencies = [
  "itertools",
  "serde",
  "serde_json",
- "toml",
  "tracing",
  "tracing-subscriber",
 ]
@@ -417,6 +416,7 @@ dependencies = [
  "flux-common",
  "flux-config",
  "flux-errors",
+ "flux-infer",
  "flux-macros",
  "flux-middle",
  "flux-rustc-bridge",
@@ -532,9 +532,6 @@ dependencies = [
 [[package]]
 name = "flux-syntax"
 version = "0.1.0"
-dependencies = [
- "flux-macros",
-]
 
 [[package]]
 name = "getopts"

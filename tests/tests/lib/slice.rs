@@ -11,3 +11,9 @@ impl<T> [T] {
     #[flux::sig(fn(&[T][@n]) -> Iter<T>[0, n])]
     fn iter(v: &[T]) -> Iter<'_, T>;
 }
+
+#[extern_spec]
+impl<'a, T> IntoIterator for &'a [T] {
+    #[flux::sig(fn(&[T][@n]) -> Iter<T>[0, n])]
+    fn into_iter(v: &'a [T]) -> Iter<'a, T>;
+}

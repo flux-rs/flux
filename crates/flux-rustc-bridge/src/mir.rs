@@ -488,6 +488,7 @@ pub(crate) fn replicate_infer_ctxt<'tcx>(
 ) -> rustc_infer::infer::InferCtxt<'tcx> {
     let infcx = tcx
         .infer_ctxt()
+        .with_next_trait_solver(true)
         .build(TypingMode::analysis_in_body(tcx, def_id));
     for info in &body_with_facts.region_inference_context.var_infos {
         infcx.next_region_var(info.origin);

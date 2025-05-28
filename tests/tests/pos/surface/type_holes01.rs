@@ -1,4 +1,4 @@
-// Type holes in structts and enums
+// Type holes in structs and enums
 
 pub struct S {
     #[flux::field(Option<_>)]

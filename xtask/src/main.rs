@@ -172,7 +172,7 @@ fn run_inner(
     install_sysroot(sh, &config)?;
     let flux = build_binary("flux", config.profile)?;
 
-    let mut rustc_flags = tests::default_rustc_flags();
+    let mut rustc_flags = tests::default_flags();
     rustc_flags.extend(flags);
 
     Command::new(flux)

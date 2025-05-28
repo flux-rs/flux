@@ -15,7 +15,6 @@ pub fn my_unwrap<T>(x: Option<T>) -> T {
     }
 }
 
-#[flux::trusted]
 #[flux::sig(fn(T) -> Option<T>[true])]
 fn my_some<T>(x: T) -> Option<T> {
     Option::Some(x)

@@ -107,7 +107,10 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
     let param_env = tcx.param_env(def_id);
-    let infcx = tcx.infer_ctxt().build(TypingMode::non_body_analysis());
+    let infcx = tcx
+        .infer_ctxt()
+        .with_next_trait_solver(true)
+        .build(TypingMode::non_body_analysis());
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
 
