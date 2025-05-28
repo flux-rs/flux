@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use flux_middle::rty::{
         self,
-        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
+        fold::{FallibleTypeFolder, TypeFolder, TypeFoldable, TypeSuperFoldable},
     };
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
@@ -81,5 +81,22 @@ impl WKVarInstantiator<'_> {
             current_index: INNERMOST,
         };
         instantiator.try_fold_expr(expr).ok()
+    }
+}
+
+pub struct WKVarSubst {
+    pub wkvar_instantiations: HashMap<rty::WKVid, rty::Expr>,
+}
+
+impl TypeFolder for WKVarSubst {
+    fn fold_expr(&mut self, e: &rty::Expr) -> rty::Expr {
+        match e.kind() {
+            rty::ExprKind::WKVar(rty::WKVar{wkvid, ..}) if let Some(subst_e) = self.wkvar_instantiations.get(wkvid) => {
+                subst_e.clone()
+            }
+            _ => {
+                e.super_fold_with(self)
+            }
+        }
     }
 }
