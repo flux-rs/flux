@@ -21,7 +21,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        self, BoundVariableKind, ESpan, GenericArgsExt, Lambda, List, VariantIdx,
+        self, ESpan, GenericArgsExt, Lambda, List, VariantIdx,
         fold::TypeVisitable,
     },
     timings::{self, TimingKind},

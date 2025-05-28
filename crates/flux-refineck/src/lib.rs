@@ -31,10 +31,7 @@ mod primops;
 mod queue;
 mod type_env;
 
-use std::{
-    collections::{HashMap, HashSet},
-    ops::ControlFlow,
-};
+use std::collections::{HashMap, HashSet};
 
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
@@ -42,7 +39,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, BlameAnalysis, CallReturn},
+    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
     wkvars::WKVarInstantiator,
 };
 use flux_macros::fluent_messages;
@@ -53,10 +50,7 @@ use flux_middle::{
     pretty,
     rty::{
         self, ESpan, Name,
-        fold::{
-            FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
-            TypeVisitor,
-        },
+        fold::TypeVisitable,
     },
     timings,
 };
@@ -65,7 +59,6 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{Diag, ErrorGuaranteed};
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{FileNameDisplayPreference, Span, source_map::SourceMap};
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
@@ -429,9 +422,7 @@ fn make_binder_subst(genv: GlobalEnv, binder_deps: &BinderDeps) -> HashMap<Name,
     binder_deps
         .iter()
         .for_each(|(name, (bp_opt, _depth, _related_vars))| {
-            bp_opt.as_ref().map(|bp| {
-                add_substitution_for_binder_var(genv, &mut subst, *name, bp);
-            });
+            if let Some(bp) = bp_opt.as_ref() { add_substitution_for_binder_var(genv, &mut subst, *name, bp); }
         });
     subst
 }
@@ -449,7 +440,7 @@ fn split_binders(binders: Vec<BinderInfo>) -> (Vec<BinderInfo>, Vec<BinderInfo>)
         match binder.originator {
             BinderOriginator::FnArg(_) => blamed_binders.push(binder),
             BinderOriginator::CallReturn(CallReturn { def_id: Some(_), .. }) => {
-                blamed_binders.push(binder)
+                blamed_binders.push(binder);
             }
             _ => related_binders.push(binder),
         }
@@ -678,7 +669,7 @@ fn collect_binder_debug_info(
                 pretty_name: pretty_name_subst.get(name).cloned(),
                 span: bp.clone().and_then(|bp| {
                     bp.span
-                        .and_then(|span| SimpleSpan::from_span(span, &genv.tcx().sess.source_map()))
+                        .and_then(|span| SimpleSpan::from_span(span, genv.tcx().sess.source_map()))
                 }),
                 originator: bp.clone().map(|bp| bp.originator.clone()),
                 depth: *depth,
@@ -698,7 +689,7 @@ fn collect_binder_debug_info(
                                 fn_name,
                                 fn_span: SimpleSpan::from_span(
                                     fn_span,
-                                    &genv.tcx().sess.source_map(),
+                                    genv.tcx().sess.source_map(),
                                 ),
                             })
                         }
