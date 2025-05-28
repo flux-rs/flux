@@ -4,9 +4,20 @@ use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
-    def_id::MaybeExternId, global_env::GlobalEnv, queries::{QueryErr, QueryResult}, query_bug, rty::{
-        self, canonicalize::{Hoister, HoisterDelegate}, fold::TypeFoldable, for_refine_arg, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, EarlyReftParam, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var
-    }, FixpointQueryKind
+    FixpointQueryKind,
+    def_id::MaybeExternId,
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+    query_bug,
+    rty::{
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
+        Ctor, ESpan, EVid, EarlyBinder, EarlyReftParam, Expr, ExprKind, FieldProj, GenericArg,
+        HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind,
+        RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
+        canonicalize::{Hoister, HoisterDelegate},
+        fold::TypeFoldable,
+        for_refine_arg,
+    },
 };
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -21,9 +32,7 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCheckError, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
-    refine_tree::{
-        BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope,
-    },
+    refine_tree::{BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -265,15 +274,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         })?)
     }
 
-    pub fn params_for_refine_args(
-        &mut self,
-        callee_def_id: DefId,
-    ) -> InferResult<Vec<Var>> {
+    pub fn params_for_refine_args(&mut self, callee_def_id: DefId) -> InferResult<Vec<Var>> {
         Ok(for_refine_arg(self.genv, callee_def_id, |param, index| {
-            let var = Var::EarlyParam(EarlyReftParam {
-                index: index as u32,
-                name: param.name(),
-            });
+            let var = Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name() });
             Ok(var)
         })?)
     }
@@ -441,7 +444,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         assume_invariants: bool,
         binder_provenance: Option<BinderProvenance>,
     ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, binder_provenance }).transparent()
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, binder_provenance })
+            .transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -462,8 +466,13 @@ pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.cursor.define_var(sort, self.binder_provenance.clone())));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| {
+            Expr::fvar(
+                self.infcx
+                    .cursor
+                    .define_var(sort, self.binder_provenance.clone()),
+            )
+        });
         if self.assume_invariants {
             self.infcx.assume_invariants(&ty);
         }

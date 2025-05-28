@@ -19,10 +19,11 @@ pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
-    ExprKind, FieldProj, HoleKind, KVar, KVid, WKVar, WKVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
+    ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var, WKVar,
+    WKVid,
 };
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
@@ -1886,8 +1887,8 @@ impl<'tcx> ToRustc<'tcx> for AliasTy {
 }
 
 pub fn for_refine_arg<F, T>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<Vec<T>>
-    where
-        F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<T>,
+where
+    F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<T>,
 {
     let reft_generics = genv.refinement_generics_of(def_id)?;
     let count = reft_generics.count();

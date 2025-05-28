@@ -31,7 +31,10 @@ mod primops;
 mod queue;
 mod type_env;
 
-use std::{collections::{HashMap, HashSet}, ops::ControlFlow};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::ControlFlow,
+};
 
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
@@ -39,17 +42,29 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, BlameAnalysis, CallReturn}, wkvars::WKVarInstantiator,
+    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, BlameAnalysis, CallReturn},
+    wkvars::WKVarInstantiator,
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::MaybeExternId, global_env::GlobalEnv, pretty, rty::{self, fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor}, ESpan, Name}, timings, FixpointQueryKind
+    FixpointQueryKind,
+    def_id::MaybeExternId,
+    global_env::GlobalEnv,
+    pretty,
+    rty::{
+        self, ESpan, Name,
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
+        },
+    },
+    timings,
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{Diag, ErrorGuaranteed};
 use rustc_hir::def_id::LocalDefId;
-use rustc_span::{Span, source_map::SourceMap, FileNameDisplayPreference};
+use rustc_span::{FileNameDisplayPreference, Span, source_map::SourceMap};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
@@ -224,7 +239,11 @@ fn report_errors(
         };
 
         let subst = make_binder_subst(genv, &err.blame_ctx.blame_analysis.binder_deps);
-        let binders = binders_from_expr(&subst, &err.blame_ctx.expr, &err.blame_ctx.blame_analysis.binder_deps);
+        let binders = binders_from_expr(
+            &subst,
+            &err.blame_ctx.expr,
+            &err.blame_ctx.blame_analysis.binder_deps,
+        );
         // Current heuristic:
         //   * We examine each binder from the expression
         //   * Binders are sorted in order of how useful they are (most-to-least)
@@ -235,38 +254,46 @@ fn report_errors(
         //   * The rest are related (we reverse the sort to emit them most-to-least useful)
         let (blamed_binders, related_binders) = split_binders(binders);
 
-        let wkvar_solutions = err.blame_ctx
-                                 .blame_analysis
-                                 .wkvars
-                                 .iter()
-                                 .flat_map(|wkvar| {
-                                     WKVarInstantiator::try_instantiate_wkvar(wkvar, &err.blame_ctx.expr)
-                                         .map(|instantiated_expr| {
-                                             (wkvar.wkvid, instantiated_expr)
-                                     })
-                                 }).collect_vec();
+        let wkvar_solutions = err
+            .blame_ctx
+            .blame_analysis
+            .wkvars
+            .iter()
+            .flat_map(|wkvar| {
+                WKVarInstantiator::try_instantiate_wkvar(wkvar, &err.blame_ctx.expr)
+                    .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
+            })
+            .collect_vec();
 
         if config::debug_binder_output() {
             // FIXME: We don't render the wk kvar suggestions in the debug output.
-            let binder_debug_infos = collect_binder_debug_info(genv, &err.blame_ctx.expr, &err.blame_ctx.blame_analysis.binder_deps, &subst);
-            let blame_spans = blamed_binders.into_iter().map(|binder_info| {
-                let span = match binder_info.originator {
-                    BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) => {
-                        genv.tcx()
-                            .def_ident_span(def_id)
-                            .unwrap_or_else(|| genv.tcx().def_span(def_id))
+            let binder_debug_infos = collect_binder_debug_info(
+                genv,
+                &err.blame_ctx.expr,
+                &err.blame_ctx.blame_analysis.binder_deps,
+                &subst,
+            );
+            let blame_spans = blamed_binders
+                .into_iter()
+                .map(|binder_info| {
+                    let span = match binder_info.originator {
+                        BinderOriginator::CallReturn(CallReturn {
+                            def_id: Some(def_id), ..
+                        }) => {
+                            genv.tcx()
+                                .def_ident_span(def_id)
+                                .unwrap_or_else(|| genv.tcx().def_span(def_id))
+                        }
+                        _ => binder_info.span,
+                    };
+                    BlameSpanDebugInfo {
+                        binder_name: binder_info.name,
+                        blame_span: SimpleSpan::from_span(span, genv.tcx().sess.source_map()),
+                        // We don't emit right now.
+                        suggested_refinement: None,
                     }
-                    _ => {
-                        binder_info.span
-                    }
-                };
-                BlameSpanDebugInfo {
-                    binder_name: binder_info.name,
-                    blame_span: SimpleSpan::from_span(span, genv.tcx().sess.source_map()),
-                    // We don't emit right now.
-                    suggested_refinement: None,
-                }
-            }).collect();
+                })
+                .collect();
             // Note that we don't need to bother collecting info on the rest of the related vars because
             // we already got information on them from the binder_deps.
             let constraint_debug_info = ConstraintDebugInfo {
@@ -274,7 +301,10 @@ fn report_errors(
                 binders: binder_debug_infos,
                 blame_spans,
             };
-            let debug_str = format!("constraint_debug_info: {}", serde_json::to_string(&constraint_debug_info).unwrap());
+            let debug_str = format!(
+                "constraint_debug_info: {}",
+                serde_json::to_string(&constraint_debug_info).unwrap()
+            );
             err_diag.note(debug_str);
         } else {
             let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
@@ -394,10 +424,7 @@ fn binders_from_expr(
     binders
 }
 
-fn make_binder_subst(
-    genv: GlobalEnv,
-    binder_deps: &BinderDeps,
-) -> HashMap<Name, String> {
+fn make_binder_subst(genv: GlobalEnv, binder_deps: &BinderDeps) -> HashMap<Name, String> {
     let mut subst = HashMap::new();
     binder_deps
         .iter()
@@ -421,7 +448,9 @@ fn split_binders(binders: Vec<BinderInfo>) -> (Vec<BinderInfo>, Vec<BinderInfo>)
     for binder in binders {
         match binder.originator {
             BinderOriginator::FnArg(_) => blamed_binders.push(binder),
-            BinderOriginator::CallReturn(CallReturn { def_id: Some(_), .. }) => blamed_binders.push(binder),
+            BinderOriginator::CallReturn(CallReturn { def_id: Some(_), .. }) => {
+                blamed_binders.push(binder)
+            }
             _ => related_binders.push(binder),
         }
     }
@@ -498,7 +527,9 @@ fn add_related_var_diagnostic<'a>(
             .pretty_name
             .unwrap_or(format!("{:?}", binder_info.name)),
     });
-    if let BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) = binder_info.originator {
+    if let BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) =
+        binder_info.originator
+    {
         let fn_name = genv.tcx().def_path_str(def_id);
         let fn_span = genv
             .tcx()
@@ -546,13 +577,21 @@ impl SimpleSpan {
 
         // `loc.col` is 0-based, so add 1 for a 1-based character offset.
         let start = SimpleLoc {
-            file: start_loc_data.file.name.display(FileNameDisplayPreference::Local).to_string(),
+            file: start_loc_data
+                .file
+                .name
+                .display(FileNameDisplayPreference::Local)
+                .to_string(),
             line: start_loc_data.line,
             char: start_loc_data.col.0 + 1,
         };
 
         let end = SimpleLoc {
-            file: end_loc_data.file.name.display(FileNameDisplayPreference::Local).to_string(),
+            file: end_loc_data
+                .file
+                .name
+                .display(FileNameDisplayPreference::Local)
+                .to_string(),
             line: end_loc_data.line,
             char: end_loc_data.col.0 + 1,
         };
@@ -608,10 +647,7 @@ where
     serializer.serialize_str(&format!("{:?}", value))
 }
 
-fn serialize_set_debug<T, S>(
-    set: &HashSet<T>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
+fn serialize_set_debug<T, S>(set: &HashSet<T>, serializer: S) -> Result<S::Ok, S::Error>
 where
     T: std::fmt::Debug,
     S: Serializer,
@@ -627,33 +663,51 @@ where
     seq.end()
 }
 
-fn collect_binder_debug_info(genv: GlobalEnv, expr: &rty::Expr, binder_deps: &BinderDeps, pretty_name_subst: &HashMap<Name, String>) -> Vec<BinderDebugInfo> {
+fn collect_binder_debug_info(
+    genv: GlobalEnv,
+    expr: &rty::Expr,
+    binder_deps: &BinderDeps,
+    pretty_name_subst: &HashMap<Name, String>,
+) -> Vec<BinderDebugInfo> {
     let expr_vars = expr.fvars();
-    binder_deps.iter().map(|(name, (bp, depth, related_vars))| {
-        BinderDebugInfo {
-            name: *name,
-            pretty_name: pretty_name_subst.get(name).cloned(),
-            span: bp.clone().and_then(|bp| bp.span.and_then(|span| SimpleSpan::from_span(span, &genv.tcx().sess.source_map()))),
-            originator: bp.clone().map(|bp| bp.originator.clone()),
-            depth: *depth,
-            related_vars: related_vars.clone(),
-            in_constraint: expr_vars.contains(name),
-            related_function: bp.clone().and_then(|bp| match bp.originator {
-                BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) => {
-                    let fn_name = genv.tcx().def_path_str(def_id);
-                    let fn_span = genv
-                        .tcx()
-                        .def_ident_span(def_id)
-                        .unwrap_or_else(|| genv.tcx().def_span(def_id));
-                    Some(SimpleFnInfo {
-                        fn_name,
-                        fn_span: SimpleSpan::from_span(fn_span, &genv.tcx().sess.source_map())
-                    })
-                }
-                _ => None,
-            }),
-        }
-    }).collect()
+    binder_deps
+        .iter()
+        .map(|(name, (bp, depth, related_vars))| {
+            BinderDebugInfo {
+                name: *name,
+                pretty_name: pretty_name_subst.get(name).cloned(),
+                span: bp.clone().and_then(|bp| {
+                    bp.span
+                        .and_then(|span| SimpleSpan::from_span(span, &genv.tcx().sess.source_map()))
+                }),
+                originator: bp.clone().map(|bp| bp.originator.clone()),
+                depth: *depth,
+                related_vars: related_vars.clone(),
+                in_constraint: expr_vars.contains(name),
+                related_function: bp.clone().and_then(|bp| {
+                    match bp.originator {
+                        BinderOriginator::CallReturn(CallReturn {
+                            def_id: Some(def_id), ..
+                        }) => {
+                            let fn_name = genv.tcx().def_path_str(def_id);
+                            let fn_span = genv
+                                .tcx()
+                                .def_ident_span(def_id)
+                                .unwrap_or_else(|| genv.tcx().def_span(def_id));
+                            Some(SimpleFnInfo {
+                                fn_name,
+                                fn_span: SimpleSpan::from_span(
+                                    fn_span,
+                                    &genv.tcx().sess.source_map(),
+                                ),
+                            })
+                        }
+                        _ => None,
+                    }
+                }),
+            }
+        })
+        .collect()
 }
 
 mod errors {

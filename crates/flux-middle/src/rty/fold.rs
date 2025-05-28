@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::{expr::HoleKind, EarlyReftParam, Var, VariantSig},
+    rty::{EarlyReftParam, Var, VariantSig, expr::HoleKind},
 };
 
 pub trait TypeVisitor: Sized {

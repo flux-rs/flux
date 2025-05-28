@@ -9,15 +9,16 @@ use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{format_cx, PrettyCx, PrettyNested},
+    pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        self, fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor}, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var
+        self, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
+        fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
-use rustc_middle::ty::TyCtxt;
 use rustc_hir::def_id::DefId;
+use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
@@ -465,7 +466,9 @@ impl Node {
                 Some(constr)
             }
             NodeKind::ForAll(name, sort, bp) => {
-                blame_analysis.binder_deps.insert(*name, (bp.clone(), binder_depth, HashSet::new()));
+                blame_analysis
+                    .binder_deps
+                    .insert(*name, (bp.clone(), binder_depth, HashSet::new()));
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
                     let Some(children) =
                         children_to_fixpoint(cx, &self.children, blame_analysis, binder_depth + 1)?
@@ -880,7 +883,11 @@ pub struct CallReturn {
 }
 
 impl CallReturn {
-    pub fn new(destination_name: Option<Symbol>, def_id: Option<DefId>, refine_params: RefineParams) -> CallReturn {
+    pub fn new(
+        destination_name: Option<Symbol>,
+        def_id: Option<DefId>,
+        refine_params: RefineParams,
+    ) -> CallReturn {
         CallReturn { destination_name, def_id, refine_params }
     }
 }
