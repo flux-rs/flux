@@ -17,3 +17,4 @@ pub mod fixpoint_qualifiers;
 pub mod infer;
 pub mod projections;
 pub mod refine_tree;
+pub mod wkvars;
