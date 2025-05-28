@@ -29,15 +29,16 @@ mod primops;
 mod queue;
 mod type_env;
 
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, ops::ControlFlow};
+use itertools::Itertools;
 
 use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, SolutionTrace}, fixpoint_encoding::{FixQueryCache, FixpointCheckError},
+    fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
+    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, BlameAnalysis, CallReturn}, wkvars::WKVarInstantiator,
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -45,13 +46,14 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
-    rty::{self, ESpan, Name, fold::TypeVisitable},
     pretty,
+    rty::{self, ESpan, Name, fold::TypeVisitable},
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{Diag, ErrorGuaranteed};
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{Span, source_map::SourceMap, FileNameDisplayPreference};
+use rustc_type_ir::{DebruijnIndex, INNERMOST};
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
@@ -250,8 +252,8 @@ fn report_errors(
             }
         };
 
-        let subst = make_binder_subst(genv, &err.blame_spans.binder_deps);
-        let binders = binders_from_expr(&subst, &err.blame_spans.expr, &err.blame_spans.binder_deps);
+        let subst = make_binder_subst(genv, &err.blame_ctx.blame_analysis.binder_deps);
+        let binders = binders_from_expr(&subst, &err.blame_ctx.expr, &err.blame_ctx.blame_analysis.binder_deps);
         // Current heuristic:
         //   * We examine each binder from the expression
         //   * Binders are sorted in order of how useful they are (most-to-least)
@@ -261,15 +263,21 @@ fn report_errors(
         //     - It is a function argument
         //   * The rest are related (we reverse the sort to emit them most-to-least useful)
         let (blamed_binders, related_binders) = split_binders(binders);
-        // let blamed_binders = if let Some(first_binder) = binders.pop() {
-        //     vec![first_binder]
-        // } else {
-        //     Vec::new()
-        // };
-        // let related_binders: Vec<BinderInfo> = binders.into_iter().rev().collect();
+
+        let wkvar_solutions = err.blame_ctx
+                                 .blame_analysis
+                                 .wkvars
+                                 .iter()
+                                 .flat_map(|wkvar| {
+                                     WKVarInstantiator::try_instantiate_wkvar(wkvar, &err.blame_ctx.expr)
+                                         .map(|instantiated_expr| {
+                                             (wkvar.wkvid, instantiated_expr)
+                                     })
+                                 }).collect_vec();
 
         if config::debug_binder_output() {
-            let binder_debug_infos = collect_binder_debug_info(genv, &err.blame_spans.expr, &err.blame_spans.binder_deps, &subst);
+            // FIXME: We don't render the wk kvar suggestions in the debug output.
+            let binder_debug_infos = collect_binder_debug_info(genv, &err.blame_ctx.expr, &err.blame_ctx.blame_analysis.binder_deps, &subst);
             let blame_spans = blamed_binders.into_iter().map(|binder_info| {
                 let span = match binder_info.originator {
                     BinderOriginator::CallReturn(CallReturn { def_id: Some(def_id), .. }) => {
@@ -291,7 +299,7 @@ fn report_errors(
             // Note that we don't need to bother collecting info on the rest of the related vars because
             // we already got information on them from the binder_deps.
             let constraint_debug_info = ConstraintDebugInfo {
-                constraint: err.blame_spans.expr,
+                constraint: err.blame_ctx.expr,
                 binders: binder_debug_infos,
                 blame_spans,
             };
@@ -300,14 +308,17 @@ fn report_errors(
         } else {
             let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
             err_diag.subdiagnostic(errors::FailingConstraint {
-                constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_spans.expr)),
+                constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             });
-            for blamed_binder in blamed_binders {
-                add_blame_var_diagnostic(genv, &mut err_diag, blamed_binder);
+            for (wkvid, solution) in wkvar_solutions {
+                add_fn_fix_diagnostic(genv, &mut err_diag, wkvid, solution);
             }
-            for related_binder in related_binders {
-                add_related_var_diagnostic(genv, &mut err_diag, related_binder);
-            }
+            // for blamed_binder in blamed_binders {
+            //     add_blame_var_diagnostic(genv, &mut err_diag, blamed_binder);
+            // }
+            // for related_binder in related_binders {
+            //     add_related_var_diagnostic(genv, &mut err_diag, related_binder);
+            // }
         }
 
         e = Some(err_diag.emit());
@@ -444,6 +455,25 @@ fn split_binders(binders: Vec<BinderInfo>) -> (Vec<BinderInfo>, Vec<BinderInfo>)
         }
     }
     (blamed_binders, related_binders)
+}
+
+fn add_fn_fix_diagnostic<'a>(
+    genv: GlobalEnv<'a, '_>,
+    diag: &mut Diag<'a>,
+    wkvid: rty::WKVid,
+    solution: rty::Expr,
+) {
+    let fn_name = genv.tcx().def_path_str(wkvid.0);
+    let fn_span = genv
+        .tcx()
+        .def_ident_span(wkvid.0)
+        .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
+    diag.subdiagnostic(errors::WKVarFnFix {
+        span: fn_span,
+        fn_name,
+        loc: format!("{:?}", wkvid.1),
+        fix: format!("{:?}", solution),
+    });
 }
 
 fn add_blame_var_diagnostic<'a>(
@@ -818,6 +848,17 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub fn_name: String,
+    }
+
+    #[derive(Subdiagnostic)]
+    #[note(refineck_wkvar_fn_fix_note)]
+    pub struct WKVarFnFix {
+        #[primary_span]
+        pub span: Span,
+        pub fn_name: String,
+        // FIXME: Render a proper fix rather than this hacky info.
+        pub loc: String,
+        pub fix: String,
     }
 
     // refineck_err_with_blame_spans =
