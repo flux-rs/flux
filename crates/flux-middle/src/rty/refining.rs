@@ -10,6 +10,7 @@ use itertools::Itertools;
 use rustc_abi::VariantIdx;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
+use rustc_type_ir::INNERMOST;
 
 use super::{
     RefineArgsExt,
@@ -496,8 +497,7 @@ pub fn refine_bound_variables(vars: &[ty::BoundVariableKind]) -> List<rty::Bound
 
 impl rty::PolyFnSig {
     pub fn add_weak_kvars(self, def_id: DefId) -> Self {
-        let num_vars = self.vars().len();
-        let late_vars = make_vars_from_bound_vars(self.vars(), num_vars);
+        let late_vars = make_vars_from_bound_vars(self.vars());
         let early_vars = self
             .early_params()
             .into_iter()
@@ -515,7 +515,7 @@ impl rty::PolyFnSig {
                 make_weak_kvar(def_id, rty::KVid::from(0_usize), params.clone());
             shift_in_vars(&mut params);
             let output_binder_params =
-                make_vars_from_bound_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
+                make_vars_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
             let output = fn_sig.output.map(|output| {
                 rty::FnOutput {
@@ -568,7 +568,7 @@ fn add_weak_kvar_to_ty(
         Exists(bound_ty) => {
             let bound_vars = bound_ty.vars();
             shift_in_vars(&mut params);
-            let exist_params = make_vars_from_bound_vars(bound_vars, bound_vars.len());
+            let exist_params = make_vars_from_bound_vars(bound_vars);
             params.extend(exist_params);
             Ty::exists(
                 bound_ty
@@ -598,19 +598,17 @@ fn add_weak_kvar_to_ty(
     }
 }
 
-fn make_vars_from_bound_vars<'a, I, II>(vars: I, num_vars: usize) -> Vec<rty::Var>
+fn make_vars_from_bound_vars<'a, I, II>(vars: I) -> Vec<rty::Var>
 where
     I: IntoIterator<IntoIter = II>,
     II: DoubleEndedIterator<Item = &'a rty::BoundVariableKind>,
 {
     vars.into_iter()
-        .rev()
         .enumerate()
         .filter_map(|(i, var_kind)| {
             if let rty::BoundVariableKind::Refine(_, _, reft_kind) = var_kind {
-                let debruijn_index = rty::DebruijnIndex::from((num_vars - i) - 1);
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
-                Some(rty::Var::Bound(debruijn_index, bound_reft))
+                Some(rty::Var::Bound(INNERMOST, bound_reft))
             } else {
                 None
             }
