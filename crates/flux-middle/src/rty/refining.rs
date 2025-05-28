@@ -501,18 +501,18 @@ impl rty::PolyFnSig {
         let early_vars = self
             .early_params()
             .into_iter()
-            .map(|early_param| rty::Var::EarlyParam(early_param))
+            .map(rty::Var::EarlyParam)
             .collect_vec();
         self.map(|fn_sig| {
             // We add a weak kvar to the requires and output (only).
             let mut params = late_vars
                 .iter()
                 .chain(early_vars.iter())
-                .cloned()
+                .copied()
                 .collect_vec();
             // FIXME: we should have a better way to generate the KVid.
             let requires_wkvar =
-                make_weak_kvar(def_id, rty::KVid::from(0 as usize), params.clone());
+                make_weak_kvar(def_id, rty::KVid::from(0_usize), params.clone());
             shift_in_vars(&mut params);
             let output_binder_params =
                 make_vars_from_bound_vars(fn_sig.output.vars(), fn_sig.output.vars().len());
@@ -521,7 +521,7 @@ impl rty::PolyFnSig {
                 rty::FnOutput {
                     ret: add_weak_kvar_to_ty(
                         def_id,
-                        rty::KVid::from(1 as usize),
+                        rty::KVid::from(1_usize),
                         params.clone(),
                         &output.ret,
                     ),
@@ -579,7 +579,7 @@ fn add_weak_kvar_to_ty(
         // Straightforward recursive cases
         StrgRef(region, path, ty) => {
             Ty::strg_ref(
-                region.clone(),
+                *region,
                 path.clone(),
                 add_weak_kvar_to_ty(def_id, kvid, params, ty),
             )
@@ -589,7 +589,7 @@ fn add_weak_kvar_to_ty(
                 adt_def.clone(),
                 generic_args.clone(),
                 add_weak_kvar_to_ty(def_id, kvid, params, ty),
-                variant_idx.clone(),
+                *variant_idx,
                 fields.clone(),
             )
         }
@@ -618,13 +618,13 @@ where
         .collect_vec()
 }
 
-fn shift_in_vars(vars: &mut Vec<rty::Var>) {
-    for i in 0..vars.len() {
-        vars[i] = vars[i].shift_in(1);
+fn shift_in_vars(vars: &mut [rty::Var]) {
+    for var in vars.iter_mut() {
+        *var = var.shift_in(1);
     }
 }
 
 fn make_weak_kvar(def_id: DefId, kvid: rty::KVid, params: Vec<rty::Var>) -> rty::WKVar {
     let args = params.iter().map(|var| rty::Expr::var(*var)).collect();
-    rty::WKVar { wkvid: (def_id, rty::KVid::from(kvid)), params, args }
+    rty::WKVar { wkvid: (def_id, kvid), params, args }
 }
