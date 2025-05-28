@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 
-use flux_middle::{
-    global_env::Symbol,
-    rty::{
+use flux_middle::rty::{
         self,
         fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable},
-    },
-};
+    };
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 pub struct WKVarInstantiator<'a> {
@@ -21,7 +18,7 @@ pub struct WKVarInstantiator<'a> {
     current_index: DebruijnIndex,
 }
 
-impl<'a> FallibleTypeFolder for WKVarInstantiator<'a> {
+impl FallibleTypeFolder for WKVarInstantiator<'_> {
     /// We fail instantiation if we can't replace all free variables;
     /// return the name of the first unreplaceable free variable found.
     type Error = rty::Var;
@@ -54,7 +51,7 @@ impl<'a> FallibleTypeFolder for WKVarInstantiator<'a> {
 
         if let rty::ExprKind::Var(var) = e.kind() {
             // This is an escaping free var
-            Err(var.clone())
+            Err(*var)
         } else {
             let instantiated_expr = e.try_super_fold_with(self)?;
             self.memo
@@ -64,7 +61,7 @@ impl<'a> FallibleTypeFolder for WKVarInstantiator<'a> {
     }
 }
 
-impl<'a> WKVarInstantiator<'a> {
+impl WKVarInstantiator<'_> {
     /// If it succeeds: creates an expression that can replace the weak kvar,
     /// which when used as a refinement will produce the original expr in this
     /// branch after all substitutions have happened.
@@ -75,9 +72,8 @@ impl<'a> WKVarInstantiator<'a> {
     pub fn try_instantiate_wkvar(wkvar: &rty::WKVar, expr: &rty::Expr) -> Option<rty::Expr> {
         let args_to_param: HashMap<rty::ExprKind, rty::Var> = std::iter::zip(
             wkvar.args.iter().map(|arg| arg.kind()).cloned(),
-            wkvar.params.iter().cloned(),
+            wkvar.params.iter().copied(),
         )
-        .into_iter()
         .collect();
         let mut instantiator = WKVarInstantiator {
             args_to_param: &args_to_param,

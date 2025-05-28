@@ -933,8 +933,8 @@ impl Var {
 
     pub fn shift_in(&self, amount: u32) -> Self {
         match self {
-            Var::Bound(idx, breft) => Var::Bound(idx.shifted_in(amount), breft.clone()),
-            _ => self.clone(),
+            Var::Bound(idx, breft) => Var::Bound(idx.shifted_in(amount), *breft),
+            _ => *self,
         }
     }
 }
