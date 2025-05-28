@@ -85,3 +85,6 @@ refineck_var_span_note =
 
 refineck_related_fn_note =
     related function `{$fn_name}` defined here
+
+refineck_wkvar_fn_fix_note =
+    suggestion: add the refinement `{$fix}` at wkvar {$loc} to `{$fn_name}`

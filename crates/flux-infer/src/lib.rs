@@ -16,3 +16,4 @@ pub mod fixpoint_encoding;
 pub mod infer;
 pub mod projections;
 pub mod refine_tree;
+pub mod wkvars;
