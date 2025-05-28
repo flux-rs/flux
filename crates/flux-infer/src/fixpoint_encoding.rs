@@ -38,7 +38,7 @@ use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::refine_tree::BinderDeps;
+use crate::refine_tree::BlameAnalysis;
 
 pub mod fixpoint {
     use std::fmt;
@@ -393,7 +393,7 @@ enum ConstKey<'tcx> {
 
 #[derive(Debug, Clone)]
 pub struct BlameCtxt {
-    pub binder_deps: BinderDeps,
+    pub blame_analysis: BlameAnalysis,
     pub expr: rty::Expr,
 }
 
@@ -406,7 +406,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    blame_spans: HashMap<TagIdx, BlameCtxt>,
+    blame_ctx_map: HashMap<TagIdx, BlameCtxt>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we can be checking invariants for
     /// an extern spec on an enum.
     def_id: MaybeExternId,
@@ -416,12 +416,12 @@ pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
-    pub blame_spans: BlameCtxt,
+    pub blame_ctx: BlameCtxt,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
-    pub fn new(tag: Tag, blame_spans: BlameCtxt) -> Self {
-        Self { tag, blame_spans }
+    pub fn new(tag: Tag, blame_ctx: BlameCtxt) -> Self {
+        Self { tag, blame_ctx }
     }
 }
 
@@ -440,7 +440,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
-            blame_spans: HashMap::new(),
+            blame_ctx_map: HashMap::new(),
             def_id,
         }
     }
@@ -513,7 +513,7 @@ where
                     .map(|err| (err.tag, self.tags[err.tag]))
                     .unique()
                     .map(|(tag_idx, tag)| {
-                        FixpointCheckError::new(tag, self.blame_spans[&tag_idx].clone())
+                        FixpointCheckError::new(tag, self.blame_ctx_map[&tag_idx].clone())
                     })
                     .collect_vec())
             }
@@ -586,7 +586,7 @@ where
         &mut self,
         expr: &rty::Expr,
         mk_tag: impl Fn(Option<ESpan>) -> Tag + Copy,
-        mut binder_deps: BinderDeps,
+        mut blame_analysis: BlameAnalysis,
     ) -> QueryResult<fixpoint::Constraint>
     where
         Tag: std::fmt::Debug,
@@ -597,13 +597,13 @@ where
                 let cstrs = expr
                     .flatten_conjs()
                     .into_iter()
-                    .map(|e| self.head_to_fixpoint(e, mk_tag, binder_deps.clone()))
+                    .map(|e| self.head_to_fixpoint(e, mk_tag, blame_analysis.clone()))
                     .try_collect()?;
                 Ok(fixpoint::Constraint::conj(cstrs))
             }
             rty::ExprKind::BinaryOp(rty::BinOp::Imp, e1, e2) => {
-                let (bindings, assumption) = self.assumption_to_fixpoint(e1, &mut binder_deps)?;
-                let cstr = self.head_to_fixpoint(e2, mk_tag, binder_deps)?;
+                let (bindings, assumption) = self.assumption_to_fixpoint(e1, &mut blame_analysis)?;
+                let cstr = self.head_to_fixpoint(e2, mk_tag, blame_analysis)?;
                 Ok(fixpoint::Constraint::foralls(bindings, mk_implies(assumption, cstr)))
             }
             rty::ExprKind::KVar(kvar) => {
@@ -611,8 +611,11 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::WKVar(wkvar) => {
-                // Don't emit anything to fixpoint for now
+            rty::ExprKind::WKVar(_) => {
+                // Don't emit anything to fixpoint for this.
+                //
+                // If a weak kvar appears in this position, we shouldn't track it because
+                // it isn't an assumption. I'm pretty sure this is correct.
                 Ok(fixpoint::Constraint::TRUE)
             }
             rty::ExprKind::ForAll(pred) => {
@@ -620,7 +623,7 @@ where
                     .local_var_env
                     .push_layer_with_fresh_names(pred.vars().len());
                 let cstr =
-                    self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag, binder_deps)?;
+                    self.head_to_fixpoint(pred.as_ref().skip_binder(), mk_tag, blame_analysis)?;
                 let vars = self.ecx.local_var_env.pop_layer();
 
                 let bindings = iter::zip(vars, pred.vars())
@@ -639,33 +642,9 @@ where
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
                 // Extract the spans from all of the vars related to the expression
                 // (including the vars in the expression).
+                self.blame_ctx_map
+                    .insert(tag_idx, BlameCtxt { blame_analysis, expr: expr.clone() });
 
-                // TODO; move to error emission logic.
-                // let fvars = expr.fvars();
-                // let max_depth_binder_in_expr = expr
-                //     .fvars()
-                //     .iter()
-                //     .filter_map(|var| binder_deps.get(var).map(|(_bp, depth, _related_vars)| (depth, var)))
-                //     .max()
-                //     .map(|(_depth, var)| var.clone());
-                // let blame_vars = fvars
-                //     .iter()
-                //     .filter_map(|var| binder_deps.get(var).map(|(_bp, _depth, related_vars)| related_vars))
-                //     .flatten()
-                //     .chain(&fvars)
-                //     .copied();
-                // let blame_var_spans = blame_vars
-                //     .map(|var| {
-                //         let (bp, depth, _) = &binder_deps[&var];
-                //         BinderInfo {
-                //             name: var,
-                //             provenance: bp.clone(),
-                //             depth: *depth,
-                //         }
-                //     })
-                //     .collect();
-                self.blame_spans
-                    .insert(tag_idx, BlameCtxt { binder_deps, expr: expr.clone() });
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
@@ -679,13 +658,13 @@ where
     pub(crate) fn assumption_to_fixpoint(
         &mut self,
         pred: &rty::Expr,
-        binder_deps: &mut BinderDeps,
+        blame_analysis: &mut BlameAnalysis,
     ) -> QueryResult<(Vec<fixpoint::Bind>, fixpoint::Pred)> {
         // Convert assumption
         let mut bindings = vec![];
         let mut preds = vec![];
 
-        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds, binder_deps)?;
+        self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds, blame_analysis)?;
         Ok((bindings, fixpoint::Pred::and(preds)))
     }
 
@@ -695,18 +674,18 @@ where
         expr: &rty::Expr,
         bindings: &mut Vec<fixpoint::Bind>,
         preds: &mut Vec<fixpoint::Pred>,
-        binder_deps: &mut BinderDeps,
+        blame_analysis: &mut BlameAnalysis,
     ) -> QueryResult {
         match expr.kind() {
             rty::ExprKind::BinaryOp(rty::BinOp::And, e1, e2) => {
-                self.assumption_to_fixpoint_aux(e1, bindings, preds, binder_deps)?;
-                self.assumption_to_fixpoint_aux(e2, bindings, preds, binder_deps)?;
+                self.assumption_to_fixpoint_aux(e1, bindings, preds, blame_analysis)?;
+                self.assumption_to_fixpoint_aux(e2, bindings, preds, blame_analysis)?;
             }
             rty::ExprKind::KVar(kvar) => {
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
-                // Don't emit anything to fixpoint for now
+                blame_analysis.wkvars.push(wkvar.clone());
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
@@ -717,6 +696,10 @@ where
                 preds.push(fixpoint::Pred::TRUE);
             }
             _ => {
+                // NOTE: We might need to figure out how to skip weak kvars if they
+                // appear in the expression here because they may have free vars
+                // that will screw with this analysis.
+                //
                 // Add binder deps.
                 //
                 // We assume that for each predicate in the conjunction of the
@@ -737,7 +720,7 @@ where
                     // are reused for binders, we ensure that we don't
                     // initialize the dependencies if a name is missing. Perhaps
                     // it would be better to panic/error here.
-                    if let Some((_bp, _depth, deps)) = binder_deps.get_mut(fvar) {
+                    if let Some((_bp, _depth, deps)) = blame_analysis.binder_deps.get_mut(fvar) {
                         for fvar2 in &fvars {
                             if fvar != fvar2 {
                                 deps.insert(*fvar2);
