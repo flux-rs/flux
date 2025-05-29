@@ -476,7 +476,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
             .map(|trusted| trusted.to_bool())
-            .unwrap_or_else(|| config::is_trusted_enabled())
+            .unwrap_or_else(|| config::trusted_default())
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
@@ -505,7 +505,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn ignored(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
             .map(|ignored| ignored.to_bool())
-            .unwrap_or_else(|| config::is_ignore_enabled())
+            .unwrap_or_else(|| config::ignore_default())
     }
 
     /// Whether the function is marked with `#[flux::should_fail]`
