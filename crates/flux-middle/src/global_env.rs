@@ -475,7 +475,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
-            .is_some_and(|trusted| trusted.to_bool())
+            .map(|trusted| trusted.to_bool())
+            .unwrap_or_else(|| config::trusted_default())
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
@@ -503,7 +504,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// If no explicit annotation is found, return `false`.
     pub fn ignored(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
-            .is_some_and(|ignored| ignored.to_bool())
+            .map(|ignored| ignored.to_bool())
+            .unwrap_or_else(|| config::ignore_default())
     }
 
     /// Whether the function is marked with `#[flux::should_fail]`
