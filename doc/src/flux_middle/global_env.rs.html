@@ -635,7 +635,9 @@
 <a href="#634" id="634">634</a>
 <a href="#635" id="635">635</a>
 <a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{alloc, ptr, rc::Rc, slice};
 
 <span class="kw">use </span>flux_arc_interner::List;
 <span class="kw">use </span>flux_common::{bug, result::ErrorEmitter};
@@ -1112,7 +1114,8 @@
     /// If no explicit annotation is found, return `false`.
     </span><span class="kw">pub fn </span>trusted(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().trusted.get(<span class="kw-2">&amp;</span>did))
-            .is_some_and(|trusted| trusted.to_bool())
+            .map(|trusted| trusted.to_bool())
+            .unwrap_or_else(|| config::trusted_default())
     }
 
     <span class="kw">pub fn </span>trusted_impl(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
@@ -1140,7 +1143,8 @@
     /// If no explicit annotation is found, return `false`.
     </span><span class="kw">pub fn </span>ignored(<span class="self">self</span>, def_id: LocalDefId) -&gt; bool {
         <span class="self">self</span>.traverse_parents(def_id, |did| <span class="self">self</span>.collect_specs().ignores.get(<span class="kw-2">&amp;</span>did))
-            .is_some_and(|ignored| ignored.to_bool())
+            .map(|ignored| ignored.to_bool())
+            .unwrap_or_else(|| config::ignore_default())
     }
 
     <span class="doccomment">/// Whether the function is marked with `#[flux::should_fail]`
