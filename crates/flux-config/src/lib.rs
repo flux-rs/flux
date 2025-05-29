@@ -49,12 +49,12 @@ pub fn is_cache_enabled() -> bool {
     FLAGS.cache.is_some()
 }
 
-pub fn is_trusted_enabled() -> bool {
-    FLAGS.trusted
+pub fn trusted_default() -> bool {
+    FLAGS.trusted_default
 }
 
-pub fn is_ignore_enabled() -> bool {
-    FLAGS.ignore
+pub fn ignore_default() -> bool {
+    FLAGS.ignore_default
 }
 
 pub fn is_checked_file(file: &str) -> bool {

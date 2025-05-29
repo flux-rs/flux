@@ -57,10 +57,10 @@ pub struct Flags {
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
     /// don't typically have to set it manually.
     pub full_compilation: bool,
-    /// If true set defalut to trusted.
-    pub trusted: bool,
-    /// If true set defalut to ignore.
-    pub ignore: bool,
+    /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.
+    pub trusted_default: bool,
+    /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
+    pub ignore_default: bool,
 }
 
 impl Default for Flags {
@@ -86,8 +86,8 @@ impl Default for Flags {
             timings: false,
             verify: false,
             full_compilation: false,
-            trusted: false,
-            ignore: false,
+            trusted_default: false,
+            ignore_default: false,
         }
     }
 }

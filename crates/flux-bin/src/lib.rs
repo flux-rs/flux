@@ -18,6 +18,10 @@ pub struct FluxMetadata {
     pub check_overflow: Option<bool>,
     /// Enable overflow checking
     pub smt_define_fun: Option<bool>,
+    /// Set trusted trusted
+    pub default_trusted: Option<bool>,
+    /// Set trusted ignore
+    pub default_ignore: Option<bool>,
 }
 
 impl FluxMetadata {
@@ -37,6 +41,12 @@ impl FluxMetadata {
         }
         if let Some(v) = self.smt_define_fun {
             flags.push(format!("-Fsmt-define-fun={v}"));
+        }
+        if let Some(v) = self.default_trusted {
+            flags.push(format!("-Ftrusted={v}"));
+        }
+        if let Some(v) = self.default_ignore {
+            flags.push(format!("-Fignore={v}"));
         }
         flags
     }
