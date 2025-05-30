@@ -11,10 +11,10 @@ pub struct WKVarInstantiator<'a> {
     ///
     /// In theory this could be a Vec<rty::Var>, but the instantiator
     /// is configured right now to only return a single solution.
-    args_to_param: &'a HashMap<rty::ExprKind, rty::Var>,
+    args_to_param: &'a HashMap<rty::Expr, rty::Var>,
     /// In theory, this could (and probably should) map to multiple
     /// solutions, i.e. a Vec<rty::Expr>.
-    memo: &'a mut HashMap<rty::ExprKind, rty::Expr>,
+    memo: &'a mut HashMap<rty::Expr, rty::Expr>,
     current_index: DebruijnIndex,
 }
 
@@ -35,7 +35,7 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
     }
 
     fn try_fold_expr(&mut self, e: &rty::Expr) -> Result<rty::Expr, rty::Var> {
-        if let Some(instantiated_e) = self.memo.get(e.kind()) {
+        if let Some(instantiated_e) = self.memo.get(e) {
             return Ok(instantiated_e.clone());
         }
 
@@ -44,9 +44,9 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
         // going. We'll choose to be greedy and always substitute if possible,
         // which I think will guarantee a solution if it exists, but I am not
         // sure.
-        if let Some(param) = self.args_to_param.get(e.kind()) {
+        if let Some(param) = self.args_to_param.get(e) {
             let param_expr = rty::Expr::var(param.shift_in(self.current_index.as_u32()));
-            self.memo.insert(e.kind().clone(), param_expr.clone());
+            self.memo.insert(e.clone(), param_expr.clone());
             return Ok(param_expr);
         }
 
@@ -56,7 +56,7 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
         } else {
             let instantiated_expr = e.try_super_fold_with(self)?;
             self.memo
-                .insert(e.kind().clone(), instantiated_expr.clone());
+                .insert(e.clone(), instantiated_expr.clone());
             Ok(instantiated_expr)
         }
     }
@@ -71,8 +71,8 @@ impl WKVarInstantiator<'_> {
     /// if the expression has a bound variable, we might fail the instantiation
     /// when it should succeed.
     pub fn try_instantiate_wkvar(wkvar: &rty::WKVar, expr: &rty::Expr) -> Option<rty::Expr> {
-        let args_to_param: HashMap<rty::ExprKind, rty::Var> = std::iter::zip(
-            wkvar.args.iter().map(|arg| arg.kind()).cloned(),
+        let args_to_param: HashMap<rty::Expr, rty::Var> = std::iter::zip(
+            wkvar.args.iter().map(|arg| arg.erase_spans()),
             wkvar.params.iter().copied(),
         )
         .collect();
@@ -81,7 +81,7 @@ impl WKVarInstantiator<'_> {
             memo: &mut HashMap::new(),
             current_index: INNERMOST,
         };
-        instantiator.try_fold_expr(expr).ok()
+        instantiator.try_fold_expr(&expr.erase_spans()).ok()
     }
 }
 
