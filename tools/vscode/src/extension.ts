@@ -895,7 +895,7 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
     const data = parseEvents(events);
     return data;
   } catch (error) {
-    vscode.window.showErrorMessage(`Failed to read line info: ${error}`);
+    // vscode.window.showErrorMessage(`Failed to read line info: ${error}`);
     return new Map();
   }
 }

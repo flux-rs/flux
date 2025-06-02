@@ -167,7 +167,9 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
                 self.with_scope(ScopeKind::FnTraitInput, |this| {
                     this.on_fn_trait_input(in_arg, trait_ref.node_id);
                     surface::visit::walk_generic_arg(this, in_arg);
-                    surface::visit::walk_generic_arg(this, out_arg);
+                    this.with_scope(ScopeKind::Misc, |this| {
+                        surface::visit::walk_generic_arg(this, out_arg);
+                    });
                 });
             }
             None => {

@@ -83,11 +83,10 @@ pub(crate) trait LookupMode {
         adt: &AdtDef,
         args: &[GenericArg],
         idx: &Expr,
-        span: Span,
     ) -> Result<Vec<Ty>, Self::Error>;
 }
 
-struct Unfold<'a, 'infcx, 'genv, 'tcx>(&'a mut InferCtxt<'infcx, 'genv, 'tcx>);
+struct Unfold<'a, 'infcx, 'genv, 'tcx>(&'a mut InferCtxt<'infcx, 'genv, 'tcx>, Span);
 
 impl LookupMode for Unfold<'_, '_, '_, '_> {
     type Error = InferErr;
@@ -101,22 +100,15 @@ impl LookupMode for Unfold<'_, '_, '_, '_> {
         adt: &AdtDef,
         args: &[GenericArg],
         idx: &Expr,
-        span: Span,
     ) -> Result<Vec<Ty>, Self::Error> {
-        downcast_struct(self.0, adt, args, idx, span)
+        downcast_struct(self.0, adt, args, idx, self.1)
     }
 }
 
 struct NoUnfold;
 
 impl LookupMode for NoUnfold {
-    fn downcast_struct(
-        &mut self,
-        _: &AdtDef,
-        _: &[GenericArg],
-        _: &Expr,
-        _: Span,
-    ) -> Result<Vec<Ty>, !> {
+    fn downcast_struct(&mut self, _: &AdtDef, _: &[GenericArg], _: &Expr) -> Result<Vec<Ty>, !> {
         tracked_span_bug!("cannot unfold in `NoUnfold` mode")
     }
 
@@ -175,7 +167,6 @@ impl PlacesTree {
         &mut self,
         key: &impl LookupKey,
         mut mode: M,
-        span: Span,
     ) -> Result<LookupResult, M::Error> {
         let mut cursor = self.cursor_for(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
@@ -216,7 +207,7 @@ impl PlacesTree {
                             ty = fields[f.as_usize()].clone();
                         }
                         TyKind::Indexed(BaseTy::Adt(adt, args), idx) => {
-                            ty = mode.downcast_struct(adt, args, idx, span)?[f.as_usize()].clone();
+                            ty = mode.downcast_struct(adt, args, idx)?[f.as_usize()].clone();
                         }
                         _ => tracked_span_bug!("invalid field access `Field({f:?})` and `{ty:?}`"),
                     };
@@ -246,11 +237,11 @@ impl PlacesTree {
         key: &impl LookupKey,
         span: Span,
     ) -> InferResult<LookupResult> {
-        self.lookup_inner(key, Unfold(infcx), span)
+        self.lookup_inner(key, Unfold(infcx, span))
     }
 
-    pub(crate) fn lookup(&mut self, key: &impl LookupKey, span: Span) -> LookupResult {
-        self.lookup_inner(key, NoUnfold, span).into_ok()
+    pub(crate) fn lookup(&mut self, key: &impl LookupKey, _span: Span) -> LookupResult {
+        self.lookup_inner(key, NoUnfold).into_ok()
     }
 
     pub(crate) fn paths(&self) -> Vec<Path> {
