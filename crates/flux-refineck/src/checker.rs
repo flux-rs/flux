@@ -253,7 +253,6 @@ impl SubFn {
 /// This lets us get "dependent signatures" where the output can refer to the input.
 /// e.g. see `tests/pos/surface/closure09.rs`
 fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
-    // println!("TRACE: hoist_input_binders (0): {poly_sig:?}");
     let original_vars = poly_sig.vars().to_vec();
     let fn_sig = poly_sig.skip_binder_ref();
     let mut delegate = LocalHoister::new(original_vars);
@@ -265,13 +264,22 @@ fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
         .map(|ty| hoister.hoist(ty))
         .collect_vec();
 
-    delegate.bind(|_vars, preds| {
-        let (mut holes, mut preds): (Vec<_>, Vec<_>) = preds
-            .into_iter()
-            .partition(|pred| matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)));
-        if let Some(hole) = holes.pop() {
-            preds.push(hole);
-        }
+    delegate.bind(|_vars, mut preds| {
+        // let (mut holes, mut preds): (Vec<_>, Vec<_>) = preds
+        //     .into_iter()
+        //     .partition(|pred| matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)));
+        // if let Some(hole) = holes.pop() {
+        //     preds.push(hole);
+        // }
+        let mut keep_hole = true;
+        preds.retain(|pred| {
+            if let ExprKind::Hole(HoleKind::Pred) = pred.kind() {
+                std::mem::replace(&mut keep_hole, false)
+            } else {
+                true
+            }
+        });
+
         rty::FnSig::new(
             fn_sig.safety,
             fn_sig.abi,
@@ -280,19 +288,6 @@ fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
             fn_sig.output().clone(),
         )
     })
-
-    // // Bit ugly, but we need to prefix the `original_vars` to the `hoisted_vars` (?)
-    // let hoisted_vars = hoisted_sig.vars().clone();
-    // let hoisted_sig = hoisted_sig.skip_binder();
-    // let vars = original_vars
-    //     .into_iter()
-    //     .chain(hoisted_vars.into_iter())
-    //     .map(|var| var.clone())
-    //     .collect_vec();
-
-    // let res = Binder::bind_with_vars(hoisted_sig, vars.into());
-    // // println!("TRACE: hoist_input_binders (1): {res:?}");
-    // res
 }
 
 /// The function `check_fn_subtyping` does a function subtyping check between

@@ -136,10 +136,6 @@ impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
     }
-
-    pub fn hoist_fn_sig(&mut self, sig: &PolyFnSig) -> PolyFnSig {
-        sig.fold_with(self)
-    }
 }
 
 impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
