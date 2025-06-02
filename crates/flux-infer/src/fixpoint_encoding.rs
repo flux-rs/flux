@@ -72,7 +72,7 @@ pub mod fixpoint {
         pub struct AdtId {}
     }
 
-    #[derive(Hash, Copy, Clone)]
+    #[derive(Hash, Copy, Clone, Debug, PartialEq)]
     pub enum Var {
         Underscore,
         Global(GlobalVar, Option<Symbol>),
@@ -135,7 +135,7 @@ pub mod fixpoint {
         }
     }
 
-    #[derive(Clone, Hash)]
+    #[derive(Clone, Hash, Debug)]
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
@@ -154,7 +154,7 @@ pub mod fixpoint {
         }
     }
 
-    #[derive(Hash)]
+    #[derive(Hash, Clone, Debug)]
     pub struct SymStr(pub Symbol);
 
     impl FixpointFmt for SymStr {

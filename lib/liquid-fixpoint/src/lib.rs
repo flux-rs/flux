@@ -11,11 +11,15 @@ extern crate rustc_serialize;
 extern crate rustc_span;
 
 mod constraint;
+mod cstr2smt2;
 mod format;
+mod graph;
+mod parser;
+mod sexp;
 
 use std::{
     collections::hash_map::DefaultHasher,
-    fmt,
+    fmt::{self, Debug},
     hash::{Hash, Hasher},
     io::{self, BufWriter, Write as IOWrite},
     process::{Command, Stdio},
@@ -26,18 +30,20 @@ pub use constraint::{
     BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
     Qualifier, Sort, SortCtor,
 };
+pub use cstr2smt2::is_constraint_satisfiable;
 use derive_where::derive_where;
+pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};
 
 pub trait Types {
-    type Sort: Identifier + Hash + Clone;
-    type KVar: Identifier + Hash;
-    type Var: Identifier + Hash;
-    type Decimal: FixpointFmt + Hash;
-    type String: FixpointFmt + Hash;
-    type Tag: fmt::Display + FromStr + Hash;
+    type Sort: Identifier + Hash + Clone + Debug;
+    type KVar: Identifier + Hash + Clone + Debug + Eq;
+    type Var: Identifier + Hash + Clone + Debug + PartialEq;
+    type Decimal: FixpointFmt + Hash + Clone + Debug;
+    type String: FixpointFmt + Hash + Clone + Debug;
+    type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
 }
 
 pub trait FixpointFmt: Sized {
@@ -219,12 +225,12 @@ pub struct Stats {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CrashInfo(Vec<serde_json::Value>);
 
-#[derive_where(Hash)]
+#[derive_where(Debug, Clone, Hash)]
 pub struct KVarDecl<T: Types> {
-    kvid: T::KVar,
-    sorts: Vec<Sort<T>>,
+    pub kvid: T::KVar,
+    pub sorts: Vec<Sort<T>>,
     #[derive_where(skip)]
-    comment: String,
+    pub comment: String,
 }
 
 impl<T: Types> Task<T> {
