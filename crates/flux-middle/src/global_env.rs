@@ -413,24 +413,26 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
+    /// Nico notes that that the `Output` associated type is defined in `FnOnce`,
+    /// and `Fn`/`FnMut` inherit it, so this should suffice to check if the `def_id`
+    /// corresponds to `LangItem::FnOnceOutput`. However, we may need to do some extra
+    /// work to get the correct `ClosureKind`?
     pub fn is_fn_output(&self, def_id: DefId) -> Option<ClosureKind> {
-        let tcx = self.tcx();
-        let assoc_item = tcx.opt_associated_item(def_id)?;
-        let trait_def_id = assoc_item.trait_container(tcx)?;
-        self.tcx().fn_trait_kind_from_def_id(trait_def_id)
-        // if self
-        //     .tcx()
-        //     .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
-        //     == def_id
-        // {
-        //     return Some(ClosureKind::FnOnce);
-        // }
-        // None
+        // let tcx = self.tcx();
+        // let assoc_item = tcx.opt_associated_item(def_id)?;
+        // let trait_def_id = assoc_item.trait_container(tcx)?;
+        // let res = self.tcx().fn_trait_kind_from_def_id(trait_def_id);
+        // println!("TRACE: is_fn_output ==> {res:?}");
+        // res
+        if self
+            .tcx()
+            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
+            == def_id
+        {
+            return Some(ClosureKind::FnOnce);
+        }
+        None
     }
-
-    // CUT pub fn is_fn_trait_output(&self, def_id: DefId) -> bool {
-    // CUT     self.is_fn_once_output(def_id) || self.is_fn_mut_output(def_id) || self.is_fn_output(def_id)
-    // CUT }
 
     /// Iterator over all local def ids that are not a extern spec
     pub fn iter_local_def_id(self) -> impl Iterator<Item = LocalDefId> + use<'tcx, 'genv> {

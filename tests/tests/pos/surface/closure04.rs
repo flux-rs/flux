@@ -9,4 +9,3 @@ where
 fn test001_client() {
     test001(|x| x);
 }
-

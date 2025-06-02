@@ -317,7 +317,8 @@ pub enum GenericBound<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct PolyTraitRef<'fhir> {
     pub bound_generic_params: &'fhir [GenericParam<'fhir>],
-    pub params: &'fhir [RefineParam<'fhir>],
+    /// To represent binders for closures i.e. in Fn* traits; see tests/pos/surface/closure{07,08,09,10}.rs
+    pub refine_params: &'fhir [RefineParam<'fhir>],
     pub modifiers: TraitBoundModifier,
     pub trait_ref: Path<'fhir>,
     pub span: Span,

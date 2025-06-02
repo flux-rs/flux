@@ -11,13 +11,13 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 13]> =
         // -----
         // (qualif EqTrue ((v bool)) (v))
         let eqtrue = Qualifier {
-            args: vec![("v", Sort::<DefaultTypes>::Bool)],
+            args: vec![("v", Sort::Bool)],
             body: Expr::Var("v"),
             name: String::from("EqTrue"),
         };
         // (qualif EqFalse ((v bool)) (!v))
         let eqfalse = Qualifier {
-            args: vec![("v", Sort::<DefaultTypes>::Bool)],
+            args: vec![("v", Sort::Bool)],
             body: Expr::Neg(Box::new(Expr::Var("v"))),
             name: String::from("EqFalse"),
         };

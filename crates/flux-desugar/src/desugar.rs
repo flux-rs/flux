@@ -259,13 +259,13 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         };
         let span = path.span;
 
-        let params = self
+        let refine_params = self
             .genv
             .alloc_slice_fill_iter(self.implicit_params_to_params(trait_ref.node_id));
 
         fhir::PolyTraitRef {
             bound_generic_params: &[],
-            params,
+            refine_params,
             modifiers: fhir::TraitBoundModifier::None,
             trait_ref: path,
             span,
@@ -728,7 +728,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         );
         let bound = fhir::GenericBound::Trait(fhir::PolyTraitRef {
             bound_generic_params: &[],
-            params: &[],
+            refine_params: &[],
             modifiers: fhir::TraitBoundModifier::None,
             trait_ref,
             span: trait_ref.span,

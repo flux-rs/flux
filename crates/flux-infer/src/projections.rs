@@ -133,8 +133,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         obligation: &AliasTy,
     ) -> QueryResult<(bool, SubsetTyCtor)> {
         let mut candidates = vec![];
-        self.assemble_candidates_from_param_env(obligation, &mut candidates)
-            .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
+        self.assemble_candidates_from_param_env(obligation, &mut candidates);
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)
             .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
@@ -357,39 +356,31 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         obligation: &AliasTy,
         ctor: fn(Binder<ProjectionPredicate>) -> Candidate,
         candidates: &mut Vec<Candidate>,
-    ) -> InferResult {
+    ) {
         let tcx = self.tcx();
         let rustc_obligation = obligation.to_rustc(tcx);
-        // let parent_id = rustc_obligation.trait_ref(tcx).def_id;
 
         for predicate in predicates {
             if let Some(pred) = predicate.as_projection_clause()
                 && pred.skip_binder_ref().projection_ty.to_rustc(tcx) == rustc_obligation
             {
-                // let pred = if self.tcx().is_fn_trait(parent_id) {
-                //     todo!("fn_subtype_projection_ty shenanigans")
-                //     // self.fn_subtype_projection_ty(pred, obligation)?
-                // } else {
-                //     pred
-                // };
                 candidates.push(ctor(pred));
             }
         }
-        Ok(())
     }
+
     fn assemble_candidates_from_param_env(
         &mut self,
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
-    ) -> InferResult {
+    ) {
         let predicates = self.param_env.clone();
         self.assemble_candidates_from_predicates(
             &predicates,
             obligation,
             Candidate::ParamEnv,
             candidates,
-        )?;
-        Ok(())
+        )
     }
 
     fn assemble_candidates_from_trait_def(
@@ -411,7 +402,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 obligation,
                 Candidate::TraitDef,
                 candidates,
-            )?;
+            );
         }
         Ok(())
     }
