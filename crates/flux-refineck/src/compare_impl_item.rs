@@ -93,13 +93,9 @@ fn check_assoc_reft(
         .instantiate_identity()
         .normalize_projections(&mut infcx.at(impl_span))?;
 
-    // println!("TRACE: impl_sort = {impl_sort:?}");
     let trait_sort = infcx.genv.sort_of_assoc_reft(trait_assoc_id)?;
-    // println!("TRACE: trait_sort (0) = {trait_sort:?}");
     let trait_sort = trait_sort.instantiate(infcx.tcx(), &impl_trait_ref.args, &[]);
-    // println!("TRACE: trait_sort (1) = {trait_sort:?}");
     let trait_sort = trait_sort.normalize_projections(&mut infcx.at(impl_span))?;
-    // println!("TRACE: trait_sort (2) = {trait_sort:?}");
 
     if impl_sort != trait_sort {
         Err(infcx.genv.emit(errors::IncompatibleSort::new(
