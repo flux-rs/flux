@@ -418,10 +418,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             self.rustc_param_env(),
             obligation.to_rustc(self.tcx()).trait_ref(self.tcx()),
         );
-        // println!(
-        //     "TRACE: assemble_candidates_from_impls (0) [{:?}] => {trait_pred:?}",
-        //     self.def_id()
-        // );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
                 candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
