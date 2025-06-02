@@ -245,43 +245,6 @@ impl SubFn {
     }
 }
 
-// /// The function `hoist_with_binders` uses the `LocalHoister` machinery to convert
-// /// a function template _without_ binders, e.g. `fn ({v.i32 | *}) -> {v.i32|*})`
-// /// into one _with_ input binders, e.g. `forall <a:int>. fn ({i32[a]|*}) -> {v.i32|*}`
-// /// after which the hole-filling machinery can be used to fill in the holes.
-// /// This lets us get "dependent signatures" for closures, where the output
-// /// can refer to the input. e.g. see `tests/pos/surface/closure09.rs`
-// fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
-//     let original_vars = poly_sig.vars().to_vec();
-//     let fn_sig = poly_sig.skip_binder_ref();
-//     let mut delegate = LocalHoister::new(original_vars);
-//     let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
-
-//     let inputs = fn_sig
-//         .inputs()
-//         .iter()
-//         .map(|ty| hoister.hoist(ty))
-//         .collect_vec();
-
-//     delegate.bind(|_vars, mut preds| {
-//         let mut keep_hole = true;
-//         preds.retain(|pred| {
-//             if let ExprKind::Hole(HoleKind::Pred) = pred.kind() {
-//                 std::mem::replace(&mut keep_hole, false)
-//             } else {
-//                 true
-//             }
-//         });
-//         rty::FnSig::new(
-//             fn_sig.safety,
-//             fn_sig.abi,
-//             preds.into(),
-//             inputs.into(),
-//             fn_sig.output().clone(),
-//         )
-//     })
-// }
-
 /// The function `check_fn_subtyping` does a function subtyping check between
 /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
 /// super-type (T_g) corresponding to the `oblig_sig`. This subtyping is handled
