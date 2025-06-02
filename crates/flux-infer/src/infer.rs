@@ -398,10 +398,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     pub fn cursor(&self) -> &Cursor<'infcx> {
         &self.cursor
     }
-
-    // pub fn scope(&self) -> Option<Scope> {
-    //     self.cursor.marker().scope()
-    // }
 }
 
 /// Methods that interact with the underlying [`Cursor`]
