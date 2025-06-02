@@ -380,7 +380,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             obligation,
             Candidate::ParamEnv,
             candidates,
-        )
+        );
     }
 
     fn assemble_candidates_from_trait_def(
