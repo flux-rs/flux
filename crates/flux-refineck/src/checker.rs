@@ -12,14 +12,13 @@ use flux_infer::{
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryResult, try_query},
-    query_bug,
+    query_bug, rty,
     rty::{
-        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        ExprKind, FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, HoleKind, Int,
-        IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
+        FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
-        canonicalize::{Hoister, LocalHoister},
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -246,49 +245,42 @@ impl SubFn {
     }
 }
 
-/// The function `hoist_with_binders` uses the `LocalHoister` machinery to convert
-/// a (closure) function template _without_ binders, e.g. `fn ({v.i32 | *}) -> {v.i32|*})`
-/// into one _with_ input binders, e.g. `forall <a:int>. fn ({i32[a]|*}) -> {v.i32|*}`
-/// after which the hole-filling machinery can be used to fill in the holes.
-/// This lets us get "dependent signatures" where the output can refer to the input.
-/// e.g. see `tests/pos/surface/closure09.rs`
-fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
-    let original_vars = poly_sig.vars().to_vec();
-    let fn_sig = poly_sig.skip_binder_ref();
-    let mut delegate = LocalHoister::new(original_vars);
-    let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+// /// The function `hoist_with_binders` uses the `LocalHoister` machinery to convert
+// /// a function template _without_ binders, e.g. `fn ({v.i32 | *}) -> {v.i32|*})`
+// /// into one _with_ input binders, e.g. `forall <a:int>. fn ({i32[a]|*}) -> {v.i32|*}`
+// /// after which the hole-filling machinery can be used to fill in the holes.
+// /// This lets us get "dependent signatures" for closures, where the output
+// /// can refer to the input. e.g. see `tests/pos/surface/closure09.rs`
+// fn hoist_input_binders(poly_sig: &PolyFnSig) -> PolyFnSig {
+//     let original_vars = poly_sig.vars().to_vec();
+//     let fn_sig = poly_sig.skip_binder_ref();
+//     let mut delegate = LocalHoister::new(original_vars);
+//     let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
-    let inputs = fn_sig
-        .inputs()
-        .iter()
-        .map(|ty| hoister.hoist(ty))
-        .collect_vec();
+//     let inputs = fn_sig
+//         .inputs()
+//         .iter()
+//         .map(|ty| hoister.hoist(ty))
+//         .collect_vec();
 
-    delegate.bind(|_vars, mut preds| {
-        // let (mut holes, mut preds): (Vec<_>, Vec<_>) = preds
-        //     .into_iter()
-        //     .partition(|pred| matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)));
-        // if let Some(hole) = holes.pop() {
-        //     preds.push(hole);
-        // }
-        let mut keep_hole = true;
-        preds.retain(|pred| {
-            if let ExprKind::Hole(HoleKind::Pred) = pred.kind() {
-                std::mem::replace(&mut keep_hole, false)
-            } else {
-                true
-            }
-        });
-
-        rty::FnSig::new(
-            fn_sig.safety,
-            fn_sig.abi,
-            preds.into(),
-            inputs.into(),
-            fn_sig.output().clone(),
-        )
-    })
-}
+//     delegate.bind(|_vars, mut preds| {
+//         let mut keep_hole = true;
+//         preds.retain(|pred| {
+//             if let ExprKind::Hole(HoleKind::Pred) = pred.kind() {
+//                 std::mem::replace(&mut keep_hole, false)
+//             } else {
+//                 true
+//             }
+//         });
+//         rty::FnSig::new(
+//             fn_sig.safety,
+//             fn_sig.abi,
+//             preds.into(),
+//             inputs.into(),
+//             fn_sig.output().clone(),
+//         )
+//     })
+// }
 
 /// The function `check_fn_subtyping` does a function subtyping check between
 /// the sub-type (T_f) corresponding to the type of `def_id` @ `args` and the
@@ -1015,7 +1007,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(span)?;
             }
 
-            Some(self_ty) => {
+            // Some(self_ty) => {
+            Some(self_ty @ BaseTy::Param(_)) => {
                 // Step 1. Find matching clause and turn it into a FnSig
                 let tcx = self.genv.tcx();
                 let self_ty = self_ty.to_rustc(tcx);
@@ -1023,10 +1016,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 // Step 2. Issue the subtyping
                 check_fn_subtyping(infcx, SubFn::Mono(sub_sig), &oblig_sig, span)
                     .with_span(span)?;
-                // CUT TODO: When we allow refining closure/fn at the surface level,
-                // CUT we would need to do some function subtyping here, but for now,
-                // CUT we can skip as all the relevant types are unrefined.
-                // CUT See issue-767.rs
             }
             _ => {}
         }
@@ -1212,7 +1201,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             // println!("TRACE: closure_template (0): {poly_sig:#?}");
             let poly_sig = self.refine_with_holes(&poly_sig)?;
             // println!("TRACE: closure_template (1): {poly_sig:#?}");
-            let poly_sig = hoist_input_binders(&poly_sig);
+            let poly_sig = poly_sig.hoist_input_binders();
             // println!("TRACE: closure_template (2): {poly_sig:#?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
