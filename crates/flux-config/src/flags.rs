@@ -57,6 +57,10 @@ pub struct Flags {
     /// If `true`, produce artifacts after analysis. This flag is managed by `cargo flux`, so you
     /// don't typically have to set it manually.
     pub full_compilation: bool,
+    /// If `true`, all code is trusted by default. You can selectively untrust items by marking them with `#[trusted(no)]`. The default value of this flag is `false`, i.e., all code is untrusted by default.
+    pub trusted_default: bool,
+    /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
+    pub ignore_default: bool,
 }
 
 impl Default for Flags {
@@ -82,6 +86,8 @@ impl Default for Flags {
             timings: false,
             verify: false,
             full_compilation: false,
+            trusted_default: false,
+            ignore_default: false,
         }
     }
 }
@@ -112,6 +118,8 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "check-files" => parse_check_files(&mut flags.check_files, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
+            "trusted" => parse_bool(&mut flags.trusted_default, value),
+            "ignore" => parse_bool(&mut flags.ignore_default, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

@@ -259,7 +259,10 @@ fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
 
     if let BuildLibs::Yes { force } = config.build_libs {
         if force {
-            Command::new(&cargo_flux).args(["flux", "clean"]).run()?;
+            Command::new(&cargo_flux)
+                .args(["flux", "clean"])
+                .env(FLUX_SYSROOT, &config.dst)
+                .run()?;
         }
 
         let artifacts = Command::new(cargo_flux)

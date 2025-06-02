@@ -68,7 +68,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.7.5
+        uses: Swatinem/rust-cache@v2.7.8
 
       - name: Build
         run: |
@@ -111,7 +111,7 @@ jobs:
           cvc5 --version
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.7.5
+        uses: Swatinem/rust-cache@v2.7.8
 
       - name: Install Flux
         run: |
@@ -140,7 +140,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.7.5
+        uses: Swatinem/rust-cache@v2.7.8
 
       - name: Rust rustfmt
         run: cargo fmt --check
@@ -154,7 +154,7 @@ jobs:
         run: rustup component add clippy
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.7.5
+        uses: Swatinem/rust-cache@v2.7.8
 
       - name: Run check
         run: RUSTFLAGS="-Dwarnings" cargo check
