@@ -774,7 +774,7 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         let params = ImplicitParamCollector::new(
             self.resolver.genv.tcx(),
             &self.resolver.output.path_res_map,
-            ScopeKind::FnInput,
+            ScopeKind::FnTraitInput,
         )
         .run(|vis| vis.visit_generic_arg(in_arg));
         for (ident, kind, node_id) in params {

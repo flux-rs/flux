@@ -680,7 +680,7 @@ fn parse_fn_bound_output(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
     } else {
         Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span: cx.mk_span(lo, lo) }
     };
-    let hi = cx.hi(); // should this be `hi` or `lo`?
+    let hi = cx.hi();
     let ident = Ident { name: Output, span: cx.mk_span(lo, hi) };
     Ok(GenericArg { kind: GenericArgKind::Constraint(ident, ty), node_id: cx.next_node_id() })
 }
