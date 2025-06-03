@@ -22,7 +22,7 @@ use crate::{
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
     rty::{
-        self, ClosureKind,
+        self,
         refining::{Refine as _, Refiner},
     },
 };
@@ -413,19 +413,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    /// Nico notes that that the `Output` associated type is defined in `FnOnce`,
-    /// and `Fn`/`FnMut` inherit it, so this should suffice to check if the `def_id`
-    /// corresponds to `LangItem::FnOnceOutput`. However, we may need to do some extra
-    /// work to get the correct `ClosureKind`?
-    pub fn is_fn_output(&self, def_id: DefId) -> Option<ClosureKind> {
-        if self
-            .tcx()
+    /// The `Output` associated type is defined in `FnOnce`, and `Fn`/`FnMut`
+    /// inherit it, so this should suffice to check if the `def_id`
+    /// corresponds to `LangItem::FnOnceOutput`.
+    pub fn is_fn_output(&self, def_id: DefId) -> bool {
+        self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
             == def_id
-        {
-            return Some(ClosureKind::FnOnce);
-        }
-        None
     }
 
     /// Iterator over all local def ids that are not a extern spec

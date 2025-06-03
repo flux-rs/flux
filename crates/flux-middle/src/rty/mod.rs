@@ -357,7 +357,7 @@ impl Clause {
             {
                 fn_trait_clauses.push((kind, trait_clause));
             } else if let Some(proj_clause) = clause.as_projection_clause()
-                && genv.is_fn_output(proj_clause.projection_def_id()).is_some()
+                && genv.is_fn_output(proj_clause.projection_def_id())
             {
                 fn_trait_output_clauses.push(proj_clause);
             } else {

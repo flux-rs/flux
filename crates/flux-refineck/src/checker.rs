@@ -1784,7 +1784,7 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
         }
         if let Some(proj_pred) = clause.as_projection_clause() {
             let assoc_id = proj_pred.item_def_id();
-            if genv.is_fn_output(assoc_id).is_some() {
+            if genv.is_fn_output(assoc_id) {
                 continue;
             }
         }
