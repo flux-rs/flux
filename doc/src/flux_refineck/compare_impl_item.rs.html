@@ -166,9 +166,7 @@
 <a href="#165" id="165">165</a>
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ErrorEmitter;
+<a href="#168" id="168">168</a></pre></div><pre class="rust"><code><span class="kw">use </span>flux_common::result::ErrorEmitter;
 <span class="kw">use </span>flux_infer::{
     infer::{GlobalEnvExt <span class="kw">as _</span>, InferCtxt},
     projections::NormalizeExt <span class="kw">as _</span>,
@@ -215,7 +213,7 @@
         .infcx_root(<span class="kw-2">&amp;</span>rustc_infcx, genv.infer_opts(impl_id.local_id()))
         .with_const_generics(impl_id.resolved_id())<span class="question-mark">?
         </span>.build()<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(trait_id, <span class="kw-2">&amp;</span>rustc_infcx);
+    <span class="kw">let </span><span class="kw-2">mut </span>infcx = root_ctxt.infcx(impl_id.resolved_id(), <span class="kw-2">&amp;</span>rustc_infcx);
 
     <span class="kw">for </span>impl_assoc_id <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {
         <span class="kw">let </span>name = impl_assoc_id.name();
@@ -261,13 +259,11 @@
         .genv
         .sort_of_assoc_reft(impl_assoc_id)<span class="question-mark">?
         </span>.instantiate_identity()
-        .normalize_projections(infcx)<span class="question-mark">?</span>;
+        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(impl_span))<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>trait_sort = infcx
-        .genv
-        .sort_of_assoc_reft(trait_assoc_id)<span class="question-mark">?
-        </span>.instantiate(infcx.tcx(), <span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>[])
-        .normalize_projections(infcx)<span class="question-mark">?</span>;
+    <span class="kw">let </span>trait_sort = infcx.genv.sort_of_assoc_reft(trait_assoc_id)<span class="question-mark">?</span>;
+    <span class="kw">let </span>trait_sort = trait_sort.instantiate(infcx.tcx(), <span class="kw-2">&amp;</span>impl_trait_ref.args, <span class="kw-2">&amp;</span>[]);
+    <span class="kw">let </span>trait_sort = trait_sort.normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(impl_span))<span class="question-mark">?</span>;
 
     <span class="kw">if </span>impl_sort != trait_sort {
         <span class="prelude-val">Err</span>(infcx.genv.emit(errors::IncompatibleSort::new(

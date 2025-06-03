@@ -3792,9 +3792,10 @@ struct Map&lt;I, F&gt;;
 trait FromIterator&lt;A&gt; {}
 
 #[extern_spec(std::iter)]
+#[flux::assoc(fn valid_item(self: Self, item: Self::Item) -&gt; bool { true })]
 #[flux::assoc(fn size(self: Self) -&gt; int)]
-#[flux::assoc(fn done(self: Self) -&gt; bool )]
-#[flux::assoc(fn step(self: Self, other: Self) -&gt; bool )]
+#[flux::assoc(fn done(self: Self) -&gt; bool)]
+#[flux::assoc(fn step(self: Self, other: Self) -&gt; bool)]
 trait Iterator {
     #[flux::sig(fn(self: &amp;strg Self[@curr_s]) -&gt; Option&lt;Self::Item&gt;[!&lt;Self as Iterator&gt;::done(curr_s)] ensures self: Self{next_s: &lt;Self as Iterator&gt;::step(curr_s, next_s)})]
     fn next(&amp;mut self) -&gt; Option&lt;Self::Item&gt;;
@@ -3804,11 +3805,17 @@ trait Iterator {
     where
         Self: Sized;
 
-    #[flux::sig(fn(Self[@s], f: F) -&gt; Map&lt;Self, F&gt;[s])]
+    #[flux::sig(fn(Self[@s], f: F) -&gt; Map&lt;Self, F&gt;[s] where F: FnMut(Self::Item{item: &lt;Self as Iterator&gt;::valid_item(s, item)}) -&gt; B)]
     fn map&lt;B, F&gt;(self, f: F) -&gt; Map&lt;Self, F&gt;
     where
         Self: Sized,
         F: FnMut(Self::Item) -&gt; B;
+
+    #[flux::sig(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: &lt;Self as Iterator&gt;::valid_item(s, item)}) -&gt; () )]
+    fn for_each&lt;F&gt;(self, f: F)
+    where
+        Self: Sized,
+        F: FnMut(Self::Item);
 
     #[flux::sig(fn (Self[@s]) -&gt; B{v: &lt;B as FromIterator&lt;Self::Item&gt;&gt;::with_size(v, &lt;Self as Iterator&gt;::size(s))})]
     fn collect&lt;B: FromIterator&lt;Self::Item&gt;&gt;(self) -&gt; B
@@ -3840,6 +3847,22 @@ impl&lt;I: Iterator&gt; Iterator for Enumerate&lt;I&gt; {
 #[flux::assoc(fn done(x: Map&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::done(x.inner)})]
 #[flux::assoc(fn step(x: Map&lt;I&gt;, y: Map&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::step(x.inner, y.inner)})]
 impl&lt;B, I: Iterator, F: FnMut(I::Item) -&gt; B&gt; Iterator for Map&lt;I, F&gt; {} // orig: where F: FnMut(I::Item) -&gt; B {}
+
+// -------------------------------------------------------------------------------------------------------------------------------------
+
+#[flux_rs::extern_spec(std::iter)]
+trait IntoIterator {
+    #[flux_rs::sig(fn(self: Self) -&gt; Self::IntoIter)]
+    fn into_iter(self) -&gt; Self::IntoIter
+    where
+        Self: Sized;
+}
+
+#[flux_rs::extern_spec(core::ops)]
+impl&lt;I: Iterator&gt; IntoIterator for I {
+    #[flux_rs::sig(fn(self: I[@s]) -&gt; I[s])]
+    fn into_iter(self) -&gt; I;
+}
 <span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![allow(unused)]
@@ -3903,6 +3926,13 @@ pub fn test_enumer2(slice: &amp;[usize]) {
 pub fn test_enumer3(slice: &amp;[usize]) {
     let mut e = slice.iter().enumerate();
     while let Some((idx, _)) = e.next() {
+        assert(idx &lt; slice.len())
+    }
+}
+
+#[flux::sig(fn(&amp;[usize][@n]) )]
+pub fn test_enumer4(slice: &amp;[usize]) {
+    for (idx, _) in slice.iter().enumerate() {
         assert(idx &lt; slice.len())
     }
 }

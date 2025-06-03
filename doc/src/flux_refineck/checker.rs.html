@@ -2054,7 +2054,38 @@
 <a href="#2053" id="2053">2053</a>
 <a href="#2054" id="2054">2054</a>
 <a href="#2055" id="2055">2055</a>
-<a href="#2056" id="2056">2056</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, vec};
+<a href="#2056" id="2056">2056</a>
+<a href="#2057" id="2057">2057</a>
+<a href="#2058" id="2058">2058</a>
+<a href="#2059" id="2059">2059</a>
+<a href="#2060" id="2060">2060</a>
+<a href="#2061" id="2061">2061</a>
+<a href="#2062" id="2062">2062</a>
+<a href="#2063" id="2063">2063</a>
+<a href="#2064" id="2064">2064</a>
+<a href="#2065" id="2065">2065</a>
+<a href="#2066" id="2066">2066</a>
+<a href="#2067" id="2067">2067</a>
+<a href="#2068" id="2068">2068</a>
+<a href="#2069" id="2069">2069</a>
+<a href="#2070" id="2070">2070</a>
+<a href="#2071" id="2071">2071</a>
+<a href="#2072" id="2072">2072</a>
+<a href="#2073" id="2073">2073</a>
+<a href="#2074" id="2074">2074</a>
+<a href="#2075" id="2075">2075</a>
+<a href="#2076" id="2076">2076</a>
+<a href="#2077" id="2077">2077</a>
+<a href="#2078" id="2078">2078</a>
+<a href="#2079" id="2079">2079</a>
+<a href="#2080" id="2080">2080</a>
+<a href="#2081" id="2081">2081</a>
+<a href="#2082" id="2082">2082</a>
+<a href="#2083" id="2083">2083</a>
+<a href="#2084" id="2084">2084</a>
+<a href="#2085" id="2085">2085</a>
+<a href="#2086" id="2086">2086</a>
+<a href="#2087" id="2087">2087</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, vec};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -2068,11 +2099,11 @@
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryResult, try_query},
-    query_bug,
+    query_bug, rty,
     rty::{
-        <span class="self">self</span>, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
+        FnTraitPredicate, GenericArg, GenericArgsExt <span class="kw">as _</span>, Int, IntTy, Mutability, Path, PolyFnSig,
+        PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -2080,7 +2111,7 @@
     },
 };
 <span class="kw">use </span>flux_rustc_bridge::{
-    <span class="self">self</span>,
+    <span class="self">self</span>, ToRustc,
     mir::{
         <span class="self">self</span>, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
         Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
@@ -2274,7 +2305,8 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>mode = RefineMode { bb_envs };
             <span class="kw">let </span>inherited = Inherited::new(<span class="kw-2">&amp;mut </span>mode, ghost_stmts, closures)<span class="question-mark">?</span>;
             <span class="kw">let </span>infcx = root_ctxt.infcx(def_id, <span class="kw-2">&amp;</span>body.infcx);
-            <span class="kw">let </span>poly_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>.instantiate_identity();
+            <span class="kw">let </span>poly_sig = genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
+            <span class="kw">let </span>poly_sig = poly_sig.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(root_ctxt)
@@ -2285,15 +2317,16 @@
 <span class="doccomment">/// `SubFn` lets us reuse _most_ of the same code for `check_fn_subtyping` for both the case where
 /// we have an early-bound function signature (e.g., for a trait method???) and versions without,
 /// e.g. a plain closure against its FnTraitPredicate obligation.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>SubFn {
-    Poly(EarlyBinder&lt;rty::PolyFnSig&gt;, rty::GenericArgs),
+    Poly(DefId, EarlyBinder&lt;rty::PolyFnSig&gt;, rty::GenericArgs),
     Mono(rty::PolyFnSig),
 }
 
 <span class="kw">impl </span>SubFn {
     <span class="kw">pub fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>rty::PolyFnSig {
         <span class="kw">match </span><span class="self">self </span>{
-            SubFn::Poly(sig, <span class="kw">_</span>) =&gt; sig.skip_binder_ref(),
+            SubFn::Poly(<span class="kw">_</span>, sig, <span class="kw">_</span>) =&gt; sig.skip_binder_ref(),
             SubFn::Mono(sig) =&gt; sig,
         }
     }
@@ -2313,7 +2346,6 @@
 ///  }
 </span><span class="kw">fn </span>check_fn_subtyping(
     infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-    def_id: <span class="kw-2">&amp;</span>DefId,
     sub_sig: SubFn,
     super_sig: <span class="kw-2">&amp;</span>rty::PolyFnSig,
     span: Span,
@@ -2341,8 +2373,8 @@
         <span class="comment">// 2. Fresh names for `T_f` refine-params / Instantiate fn_def_sig and normalize it
         // in subtyping_mono, skip next two steps...
         </span><span class="kw">let </span>sub_sig = <span class="kw">match </span>sub_sig {
-            SubFn::Poly(early_sig, sub_args) =&gt; {
-                <span class="kw">let </span>refine_args = infcx.instantiate_refine_args(<span class="kw-2">*</span>def_id, <span class="kw-2">&amp;</span>sub_args)<span class="question-mark">?</span>;
+            SubFn::Poly(def_id, early_sig, sub_args) =&gt; {
+                <span class="kw">let </span>refine_args = infcx.instantiate_refine_args(def_id, <span class="kw-2">&amp;</span>sub_args)<span class="question-mark">?</span>;
                 early_sig.instantiate(tcx, <span class="kw-2">&amp;</span>sub_args, <span class="kw-2">&amp;</span>refine_args)
             }
             SubFn::Mono(sig) =&gt; sig,
@@ -2383,7 +2415,7 @@
         infcx.subtyping(<span class="kw-2">&amp;</span>output.ret, <span class="kw-2">&amp;</span>super_output.ret, reason)<span class="question-mark">?</span>;
 
         <span class="comment">// 6. Update state with Output "ensures" and check super ensures
-        </span>env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures);
+        </span>env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures, span);
         fold_local_ptrs(infcx, <span class="kw-2">&amp;mut </span>env, span)<span class="question-mark">?</span>;
         env.check_ensures(
             infcx,
@@ -2436,9 +2468,9 @@
         genv.fn_sig(trait_method_id)<span class="question-mark">?
             </span>.instantiate(tcx, <span class="kw-2">&amp;</span>trait_method_args, <span class="kw-2">&amp;</span>trait_refine_args);
     <span class="kw">let </span>impl_sig = genv.fn_sig(impl_method_id)<span class="question-mark">?</span>;
-    <span class="kw">let </span>sub_sig = SubFn::Poly(impl_sig, impl_method_args);
+    <span class="kw">let </span>sub_sig = SubFn::Poly(impl_method_id, impl_sig, impl_method_args);
 
-    check_fn_subtyping(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>impl_method_id, sub_sig, <span class="kw-2">&amp;</span>trait_fn_sig, span)<span class="question-mark">?</span>;
+    check_fn_subtyping(<span class="kw-2">&amp;mut </span>infcx, sub_sig, <span class="kw-2">&amp;</span>trait_fn_sig, span)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(root_ctxt))
 }
 
@@ -2521,7 +2553,7 @@
 
         <span class="kw">let </span>fn_sig = poly_sig
             .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
-            .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)
+            .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig);
@@ -2733,7 +2765,6 @@
                 <span class="kw">let </span>ret = <span class="kw">match </span>kind {
                     mir::CallKind::FnDef { resolved_id, resolved_args, .. } =&gt; {
                         <span class="kw">let </span>fn_sig = <span class="self">self</span>.genv.fn_sig(<span class="kw-2">*</span>resolved_id).with_span(terminator_span)<span class="question-mark">?</span>;
-
                         <span class="kw">let </span>generic_args = instantiate_args_for_fun_call(
                             <span class="self">self</span>.genv,
                             <span class="self">self</span>.def_id.to_def_id(),
@@ -2877,21 +2908,18 @@
             .check_non_closure_clauses(<span class="kw-2">&amp;</span>clauses, ConstrReason::Call)
             .with_span(span)<span class="question-mark">?</span>;
 
-        <span class="self">self</span>.check_closure_clauses(infcx, <span class="kw-2">&amp;</span>fn_clauses, span)<span class="question-mark">?</span>;
+        <span class="kw">for </span>fn_trait_pred <span class="kw">in </span>fn_clauses {
+            <span class="self">self</span>.check_fn_trait_clause(infcx, <span class="kw-2">&amp;</span>fn_trait_pred, span)<span class="question-mark">?</span>;
+        }
 
         <span class="comment">// Instantiate function signature and normalize it
-        </span><span class="kw">let </span><span class="kw-2">mut </span>late_refine_args = <span class="macro">vec!</span>[];
+        </span><span class="kw">let </span>late_refine_args = <span class="macro">vec!</span>[];
         <span class="kw">let </span>fn_sig = fn_sig
             .instantiate(tcx, <span class="kw-2">&amp;</span>generic_args, <span class="kw-2">&amp;</span>early_refine_args)
-            .replace_bound_vars(
-                |<span class="kw">_</span>| rty::ReErased,
-                |sort, mode| {
-                    <span class="kw">let </span>var = infcx.fresh_infer_var(sort, mode);
-                    late_refine_args.push(var.clone());
-                    var
-                },
-            )
-            .normalize_projections(infcx)
+            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
+
+        <span class="kw">let </span>fn_sig = fn_sig
+            .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))
             .with_span(span)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);
@@ -2914,7 +2942,7 @@
             .fully_resolve_evars(<span class="kw-2">&amp;</span>fn_sig.output)
             .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)));
 
-        env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures);
+        env.assume_ensures(infcx, <span class="kw-2">&amp;</span>output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(ResolvedCall {
@@ -2953,20 +2981,48 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn </span>find_self_ty_fn_sig(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        self_ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
+        span: Span,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;PolyFnSig&gt; {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+        <span class="kw">let </span>predicates = <span class="self">self
+            </span>.genv
+            .predicates_of(<span class="self">self</span>.def_id)
+            .with_span(span)<span class="question-mark">?
+            </span>.instantiate_identity()
+            .predicates;
+
+        <span class="kw">for </span>poly_fn_trait_pred <span class="kw">in </span>Clause::split_off_fn_trait_clauses(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>predicates).<span class="number">1 </span>{
+            <span class="kw">if </span>poly_fn_trait_pred.skip_binder_ref().self_ty.to_rustc(tcx) == self_ty {
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig()));
+            }
+        }
+        <span class="macro">span_bug!</span>(
+            span,
+            <span class="string">"cannot find self_ty_fn_sig for {:?} with self_ty = {self_ty:?}"</span>,
+            <span class="self">self</span>.def_id
+        );
+    }
+
     <span class="kw">fn </span>check_fn_trait_clause(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        fn_trait_pred: <span class="kw-2">&amp;</span>FnTraitPredicate,
+        poly_fn_trait_pred: <span class="kw-2">&amp;</span>Binder&lt;FnTraitPredicate&gt;,
         span: Span,
     ) -&gt; <span class="prelude-ty">Result</span> {
-        <span class="kw">let </span>self_ty = fn_trait_pred.self_ty.as_bty_skipping_existentials();
+        <span class="kw">let </span>self_ty = poly_fn_trait_pred
+            .skip_binder_ref()
+            .self_ty
+            .as_bty_skipping_existentials();
+        <span class="kw">let </span>oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         <span class="kw">match </span>self_ty {
             <span class="prelude-val">Some</span>(BaseTy::Closure(def_id, <span class="kw">_</span>, <span class="kw">_</span>)) =&gt; {
                 <span class="kw">let </span><span class="prelude-val">Some</span>(poly_sig) = <span class="self">self</span>.inherited.closures.get(def_id).cloned() <span class="kw">else </span>{
                     <span class="macro">span_bug!</span>(span, <span class="string">"missing template for closure {def_id:?}"</span>);
                 };
-                <span class="kw">let </span>oblig_sig = fn_trait_pred.fndef_poly_sig();
-                check_fn_subtyping(infcx, def_id, SubFn::Mono(poly_sig.clone()), <span class="kw-2">&amp;</span>oblig_sig, span)
+                check_fn_subtyping(infcx, SubFn::Mono(poly_sig.clone()), <span class="kw-2">&amp;</span>oblig_sig, span)
                     .with_span(span)<span class="question-mark">?</span>;
             }
             <span class="prelude-val">Some</span>(BaseTy::FnDef(def_id, args)) =&gt; {
@@ -2974,35 +3030,30 @@
                 // and the (sub-type) corresponding to the signature of `def_id + args`.
                 // See `tests/neg/surface/fndef00.rs`
                 </span><span class="kw">let </span>sub_sig = <span class="self">self</span>.genv.fn_sig(def_id).with_span(span)<span class="question-mark">?</span>;
-                <span class="kw">let </span>oblig_sig = fn_trait_pred.fndef_poly_sig();
                 check_fn_subtyping(
                     infcx,
-                    def_id,
-                    SubFn::Poly(sub_sig, args.clone()),
+                    SubFn::Poly(<span class="kw-2">*</span>def_id, sub_sig, args.clone()),
                     <span class="kw-2">&amp;</span>oblig_sig,
                     span,
                 )
                 .with_span(span)<span class="question-mark">?</span>;
             }
-            <span class="kw">_ </span>=&gt; {
-                <span class="comment">// TODO: When we allow refining closure/fn at the surface level, we would need to do some function subtyping here,
-                // but for now, we can skip as all the relevant types are unrefined.
-                // See issue-767.rs
-            </span>}
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
+            <span class="prelude-val">Some</span>(BaseTy::FnPtr(sub_sig)) =&gt; {
+                check_fn_subtyping(infcx, SubFn::Mono(sub_sig.clone()), <span class="kw-2">&amp;</span>oblig_sig, span)
+                    .with_span(span)<span class="question-mark">?</span>;
+            }
 
-    <span class="kw">fn </span>check_closure_clauses(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        infcx: <span class="kw-2">&amp;mut </span>InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        clauses: <span class="kw-2">&amp;</span>[Binder&lt;FnTraitPredicate&gt;],
-        span: Span,
-    ) -&gt; <span class="prelude-ty">Result</span> {
-        <span class="kw">for </span>clause <span class="kw">in </span>clauses {
-            <span class="comment">// FIXME(nilehmann) we shouldn't be skipping this binder
-            </span><span class="kw">let </span>clause = clause.skip_binder_ref();
-            <span class="self">self</span>.check_fn_trait_clause(infcx, clause, span)<span class="question-mark">?</span>;
+            <span class="comment">// Some(self_ty) =&gt; {
+            </span><span class="prelude-val">Some</span>(self_ty @ BaseTy::Param(<span class="kw">_</span>)) =&gt; {
+                <span class="comment">// Step 1. Find matching clause and turn it into a FnSig
+                </span><span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+                <span class="kw">let </span>self_ty = self_ty.to_rustc(tcx);
+                <span class="kw">let </span>sub_sig = <span class="self">self</span>.find_self_ty_fn_sig(self_ty, span)<span class="question-mark">?</span>;
+                <span class="comment">// Step 2. Issue the subtyping
+                </span>check_fn_subtyping(infcx, SubFn::Mono(sub_sig), <span class="kw-2">&amp;</span>oblig_sig, span)
+                    .with_span(span)<span class="question-mark">?</span>;
+            }
+            <span class="kw">_ </span>=&gt; {}
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -3183,10 +3234,16 @@
 
         <span class="kw">if let </span>flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             <span class="kw">let </span>poly_sig = poly_sig.unpack_closure_sig();
-            <span class="kw">let </span>poly_sig = <span class="self">self</span>.refine_with_holes(<span class="kw-2">&amp;</span>poly_sig)<span class="question-mark">?</span>;
-            <span class="kw">let </span>poly_sig = poly_sig
+            <span class="comment">// println!("TRACE: closure_template (0): {poly_sig:#?}");
+            </span><span class="kw">let </span>poly_sig = <span class="self">self</span>.refine_with_holes(<span class="kw-2">&amp;</span>poly_sig)<span class="question-mark">?</span>;
+            <span class="comment">// println!("TRACE: closure_template (1): {poly_sig:#?}");
+            </span><span class="kw">let </span>poly_sig = poly_sig.hoist_input_binders();
+            <span class="comment">// println!("TRACE: closure_template (2): {poly_sig:#?}");
+            </span><span class="kw">let </span>poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-            <span class="prelude-val">Ok</span>((upvar_tys, poly_sig))
+            <span class="comment">// println!("TRACE: closure_template (3): {poly_sig:#?}");
+
+            </span><span class="prelude-val">Ok</span>((upvar_tys, poly_sig))
         } <span class="kw">else </span>{
             <span class="macro">bug!</span>(<span class="string">"check_rvalue: closure: expected fn_ptr ty, found {ty:?} in {args:?}"</span>);
         }
@@ -3510,9 +3567,10 @@
                     &amp;&amp; <span class="kw">let </span>TyKind::Indexed(BaseTy::FnPtr(super_sig), <span class="kw">_</span>) = to.kind()
                 {
                     <span class="kw">let </span>current_did = infcx.def_id;
-                    <span class="kw">let </span>sub_sig = SubFn::Poly(infcx.genv.fn_sig(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>, args.clone());
+                    <span class="kw">let </span>sub_sig =
+                        SubFn::Poly(current_did, infcx.genv.fn_sig(<span class="kw-2">*</span>def_id)<span class="question-mark">?</span>, args.clone());
                     <span class="comment">// TODO:CLOSURE:2 TODO(RJ) dicey maneuver? assumes that sig_b is unrefined?
-                    </span>check_fn_subtyping(infcx, <span class="kw-2">&amp;</span>current_did, sub_sig, super_sig, stmt_span)<span class="question-mark">?</span>;
+                    </span>check_fn_subtyping(infcx, sub_sig, super_sig, stmt_span)<span class="question-mark">?</span>;
                     to
                 } <span class="kw">else </span>{
                     <span class="macro">tracked_span_bug!</span>(<span class="string">"invalid cast from `{from:?}` to `{to:?}`"</span>)
@@ -3685,7 +3743,7 @@
                 env.fold(<span class="kw-2">&amp;mut </span>infcx.at(span), place)<span class="question-mark">?</span>;
             }
             GhostStatement::Unfold(place) =&gt; {
-                env.unfold(<span class="kw-2">&amp;mut </span>infcx.at(span), place)<span class="question-mark">?</span>;
+                env.unfold(infcx, place, span)<span class="question-mark">?</span>;
             }
             GhostStatement::Unblock(place) =&gt; env.unblock(infcx, place),
             GhostStatement::PtrToRef(place) =&gt; {
@@ -3794,9 +3852,13 @@
             <span class="kw">if </span>tcx.require_lang_item(LangItem::Sized, <span class="prelude-val">None</span>) == trait_id {
                 <span class="kw">continue</span>;
             }
+            <span class="kw">if </span>tcx.require_lang_item(LangItem::Tuple, <span class="prelude-val">None</span>) == trait_id {
+                <span class="kw">continue</span>;
+            }
             <span class="kw">if </span>tcx.require_lang_item(LangItem::Copy, <span class="prelude-val">None</span>) == trait_id {
                 <span class="kw">continue</span>;
             }
+
             <span class="kw">if </span>tcx.fn_trait_kind_from_def_id(trait_id).is_some() {
                 <span class="kw">continue</span>;
             }
@@ -3809,7 +3871,7 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(proj_pred) = clause.as_projection_clause() {
             <span class="kw">let </span>assoc_id = proj_pred.item_def_id();
-            <span class="kw">if </span>genv.is_fn_once_output(assoc_id) {
+            <span class="kw">if </span>genv.is_fn_output(assoc_id) {
                 <span class="kw">continue</span>;
             }
         }
@@ -3896,7 +3958,7 @@
         ck: <span class="kw-2">&amp;mut </span>Checker&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, ShapeMode&gt;,
         <span class="kw">_</span>: InferCtxt&lt;<span class="lifetime">'_</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         env: TypeEnv,
-        <span class="kw">_</span>: Span,
+        span: Span,
         target: BasicBlock,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;bool&gt; {
         <span class="kw">let </span>bb_envs = <span class="kw-2">&amp;mut </span>ck.inherited.mode.bb_envs;
@@ -3904,7 +3966,7 @@
         <span class="macro">dbg::shape_goto_enter!</span>(target, env, target_bb_env);
 
         <span class="kw">let </span>modified = <span class="kw">match </span>bb_envs.entry(ck.def_id).or_default().entry(target) {
-            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; entry.get_mut().join(env),
+            Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; entry.get_mut().join(env, span),
             Entry::Vacant(entry) =&gt; {
                 <span class="kw">let </span>scope = marker_at_dominator(ck.body, <span class="kw-2">&amp;</span>ck.markers, target)
                     .scope()

@@ -691,12 +691,104 @@
 <a href="#690" id="690">690</a>
 <a href="#691" id="691">691</a>
 <a href="#692" id="692">692</a>
-<a href="#693" id="693">693</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
+    rty,
     rty::{
         AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
         EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
@@ -707,18 +799,23 @@
     },
 };
 <span class="kw">use </span>flux_rustc_bridge::{ToRustc, lowering::Lower};
+<span class="kw">use </span>itertools::izip;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::traits::Obligation;
 <span class="kw">use </span>rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::TyCtxt,
+    ty::{TyCtxt, Variance},
 };
 <span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
 
-<span class="kw">use </span><span class="kw">crate</span>::infer::InferCtxt;
+<span class="kw">use crate</span>::{
+    fixpoint_encoding::KVarEncoding,
+    infer::{InferCtxtAt, InferResult},
+    refine_tree::Scope,
+};
 
 <span class="kw">pub trait </span>NormalizeExt: TypeFoldable {
-    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
+    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
 
     <span class="doccomment">/// Normalize projections but only inside sorts
     </span><span class="kw">fn </span>normalize_sorts&lt;<span class="lifetime">'tcx</span>&gt;(
@@ -730,8 +827,12 @@
 }
 
 <span class="kw">impl</span>&lt;T: TypeFoldable&gt; NormalizeExt <span class="kw">for </span>T {
-    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>normalizer = Normalizer::new(infcx.branch())<span class="question-mark">?</span>;
+    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>span = infcx.span;
+        <span class="kw">let </span>infcx_orig = <span class="kw-2">&amp;mut </span>infcx.infcx;
+        <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx_orig.branch();
+        <span class="kw">let </span>infcx = infcx.at(span);
+        <span class="kw">let </span><span class="kw-2">mut </span>normalizer = Normalizer::new(infcx)<span class="question-mark">?</span>;
         <span class="self">self</span>.erase_regions().try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
     }
 
@@ -746,22 +847,20 @@
     }
 }
 
-<span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    infcx: InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+<span class="kw">struct </span>Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    infcx: InferCtxtAt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
     selcx: SelectionContext&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'tcx</span>&gt;,
     param_env: List&lt;Clause&gt;,
+    scope: Scope,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Normalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(infcx: InferCtxt&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>param_env = infcx
-            .genv
-            .predicates_of(infcx.def_id)<span class="question-mark">?
-            </span>.instantiate_identity()
-            .predicates
-            .clone();
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Normalizer&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+    <span class="kw">fn </span>new(infcx: InferCtxtAt&lt;<span class="lifetime">'a</span>, <span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>predicates = infcx.genv.predicates_of(infcx.def_id)<span class="question-mark">?</span>;
+        <span class="kw">let </span>param_env = predicates.instantiate_identity().predicates.clone();
         <span class="kw">let </span>selcx = SelectionContext::new(infcx.region_infcx);
-        <span class="prelude-val">Ok</span>(Normalizer { infcx, selcx, param_env })
+        <span class="kw">let </span>scope = infcx.cursor().marker().scope().unwrap();
+        <span class="prelude-val">Ok</span>(Normalizer { infcx, selcx, param_env, scope })
     }
 
     <span class="kw">fn </span>get_impl_id_of_alias_reft(<span class="kw-2">&amp;mut </span><span class="self">self</span>, alias_reft: <span class="kw-2">&amp;</span>AliasReft) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;DefId&gt;&gt; {
@@ -819,7 +918,8 @@
     ) -&gt; QueryResult&lt;(bool, SubsetTyCtor)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>candidates = <span class="macro">vec!</span>[];
         <span class="self">self</span>.assemble_candidates_from_param_env(obligation, <span class="kw-2">&amp;mut </span>candidates);
-        <span class="self">self</span>.assemble_candidates_from_trait_def(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
+        <span class="self">self</span>.assemble_candidates_from_trait_def(obligation, <span class="kw-2">&amp;mut </span>candidates)
+            .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>));
         <span class="self">self</span>.assemble_candidates_from_impls(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
 
         <span class="kw">if </span>candidates.is_empty() {
@@ -905,8 +1005,21 @@
         candidate: Candidate,
         obligation: <span class="kw-2">&amp;</span>AliasTy,
     ) -&gt; QueryResult&lt;SubsetTyCtor&gt; {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
         <span class="kw">match </span>candidate {
-            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) =&gt; <span class="prelude-val">Ok</span>(pred.term),
+            Candidate::ParamEnv(pred) | Candidate::TraitDef(pred) =&gt; {
+                <span class="kw">let </span>rustc_obligation = obligation.to_rustc(tcx);
+                <span class="kw">let </span>parent_id = rustc_obligation.trait_ref(tcx).def_id;
+                <span class="comment">// Do fn-subtyping if the candidate was a fn-trait
+                </span><span class="kw">if </span>tcx.is_fn_trait(parent_id) {
+                    <span class="kw">let </span>res = <span class="self">self
+                        </span>.fn_subtype_projection_ty(pred, obligation)
+                        .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>));
+                    <span class="prelude-val">Ok</span>(res)
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Ok</span>(pred.skip_binder().term)
+                }
+            }
             Candidate::UserDefinedImpl(impl_def_id) =&gt; {
                 <span class="comment">// Given a projection obligation
                 //     &lt;IntoIter&lt;{v. i32[v] | v &gt; 0}, Global&gt; as Iterator&gt;::Item
@@ -937,15 +1050,13 @@
                 <span class="kw">let </span>args = subst.finish(<span class="self">self</span>.tcx(), generics)<span class="question-mark">?</span>;
 
                 <span class="comment">// 3. Get the associated type in the impl block and apply the substitution to it
-                </span><span class="kw">let </span>assoc_type_id = <span class="self">self
-                    </span>.tcx()
+                </span><span class="kw">let </span>assoc_type_id = tcx
                     .associated_items(impl_def_id)
                     .in_definition_order()
                     .find(|item| item.trait_item_def_id == <span class="prelude-val">Some</span>(obligation.def_id))
                     .map(|item| item.def_id)
                     .unwrap();
 
-                <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
                 <span class="prelude-val">Ok</span>(<span class="self">self
                     </span>.genv()
                     .type_of(assoc_type_id)<span class="question-mark">?
@@ -955,13 +1066,101 @@
         }
     }
 
+    <span class="kw">fn </span>fn_subtype_projection_ty(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        actual: Binder&lt;ProjectionPredicate&gt;,
+        oblig: <span class="kw-2">&amp;</span>AliasTy,
+    ) -&gt; InferResult&lt;SubsetTyCtor&gt; {
+        <span class="comment">// Step 1: bs &lt;- unpack(b1...)
+        </span><span class="kw">let </span>obligs: Vec&lt;<span class="kw">_</span>&gt; = oblig
+            .args
+            .iter()
+            .map(|arg| {
+                <span class="kw">match </span>arg {
+                    GenericArg::Ty(ty) =&gt; GenericArg::Ty(<span class="self">self</span>.infcx.unpack(ty)),
+                    GenericArg::Base(ctor) =&gt; GenericArg::Ty(<span class="self">self</span>.infcx.unpack(<span class="kw-2">&amp;</span>ctor.to_ty())),
+                    <span class="kw">_ </span>=&gt; arg.clone(),
+                }
+            })
+            .collect();
+
+        <span class="kw">let </span>span = <span class="self">self</span>.infcx.span;
+        <span class="kw">let </span><span class="kw-2">mut </span>infcx = <span class="self">self</span>.infcx.at(span);
+
+        <span class="kw">let </span>actual = infcx.ensure_resolved_evars(|infcx| {
+            <span class="comment">// Step 2: as &lt;- fresh(a1...)
+            </span><span class="kw">let </span>actual = actual
+                .replace_bound_vars(
+                    |<span class="kw">_</span>| rty::ReErased,
+                    |sort, mode| infcx.fresh_infer_var(sort, mode),
+                )
+                .normalize_projections(infcx)<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>actuals = actual.projection_ty.args.iter().map(|arg| {
+                <span class="kw">match </span>arg {
+                    GenericArg::Base(ctor) =&gt; GenericArg::Ty(ctor.to_ty()),
+                    <span class="kw">_ </span>=&gt; arg.clone(),
+                }
+            });
+
+            <span class="comment">// Step 3: bs &lt;: as
+            </span><span class="kw">for </span>(a, b) <span class="kw">in </span><span class="macro">izip!</span>(actuals.skip(<span class="number">1</span>), obligs.iter().skip(<span class="number">1</span>)) {
+                infcx.subtyping_generic_args(
+                    Variance::Contravariant,
+                    <span class="kw-2">&amp;</span>a,
+                    b,
+                    <span class="kw">crate</span>::infer::ConstrReason::Predicate,
+                )<span class="question-mark">?</span>;
+            }
+            <span class="prelude-val">Ok</span>(actual)
+        })<span class="question-mark">?</span>;
+        <span class="comment">// Step 4: check all evars are solved, plug back into ProjectionPredicate
+        </span><span class="kw">let </span>actual = infcx.fully_resolve_evars(<span class="kw-2">&amp;</span>actual);
+
+        <span class="comment">// Step 5: generate "fresh" type for actual.term,
+        </span><span class="kw">let </span>oblig_term = actual.term.with_holes().replace_holes(|binders, kind| {
+            <span class="macro">assert!</span>(kind == rty::HoleKind::Pred);
+            <span class="kw">let </span>scope = <span class="kw-2">&amp;</span><span class="self">self</span>.scope;
+            infcx.fresh_kvar_in_scope(binders, scope, KVarEncoding::Conj)
+        });
+
+        <span class="comment">// Step 6: subtyping obligation on output
+        </span>infcx.subtyping(
+            <span class="kw-2">&amp;</span>actual.term.to_ty(),
+            <span class="kw-2">&amp;</span>oblig_term.to_ty(),
+            <span class="kw">crate</span>::infer::ConstrReason::Predicate,
+        )<span class="question-mark">?</span>;
+        <span class="comment">// Ok(ProjectionPredicate { projection_ty: actual.projection_ty, term: oblig_term })
+        </span><span class="prelude-val">Ok</span>(oblig_term)
+    }
+
+    <span class="kw">fn </span>assemble_candidates_from_predicates(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        predicates: <span class="kw-2">&amp;</span>List&lt;Clause&gt;,
+        obligation: <span class="kw-2">&amp;</span>AliasTy,
+        ctor: <span class="kw">fn</span>(Binder&lt;ProjectionPredicate&gt;) -&gt; Candidate,
+        candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
+    ) {
+        <span class="kw">let </span>tcx = <span class="self">self</span>.tcx();
+        <span class="kw">let </span>rustc_obligation = obligation.to_rustc(tcx);
+
+        <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(pred) = predicate.as_projection_clause()
+                &amp;&amp; pred.skip_binder_ref().projection_ty.to_rustc(tcx) == rustc_obligation
+            {
+                candidates.push(ctor(pred));
+            }
+        }
+    }
+
     <span class="kw">fn </span>assemble_candidates_from_param_env(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         obligation: <span class="kw-2">&amp;</span>AliasTy,
         candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
     ) {
-        assemble_candidates_from_predicates(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.param_env,
+        <span class="kw">let </span>predicates = <span class="self">self</span>.param_env.clone();
+        <span class="self">self</span>.assemble_candidates_from_predicates(
+            <span class="kw-2">&amp;</span>predicates,
             obligation,
             Candidate::ParamEnv,
             candidates,
@@ -969,10 +1168,10 @@
     }
 
     <span class="kw">fn </span>assemble_candidates_from_trait_def(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         obligation: <span class="kw-2">&amp;</span>AliasTy,
         candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
-    ) -&gt; QueryResult {
+    ) -&gt; InferResult {
         <span class="kw">if let </span>GenericArg::Base(ctor) = <span class="kw-2">&amp;</span>obligation.args[<span class="number">0</span>]
             &amp;&amp; <span class="kw">let </span>BaseTy::Alias(AliasKind::Opaque, alias_ty) = ctor.as_bty_skipping_binder()
         {
@@ -982,7 +1181,7 @@
                 <span class="kw-2">&amp;</span>alias_ty.args,
                 <span class="kw-2">&amp;</span>alias_ty.refine_args,
             );
-            assemble_candidates_from_predicates(
+            <span class="self">self</span>.assemble_candidates_from_predicates(
                 <span class="kw-2">&amp;</span>bounds,
                 obligation,
                 Candidate::TraitDef,
@@ -1030,24 +1229,7 @@
     }
 }
 
-<span class="kw">fn </span>assemble_candidates_from_predicates(
-    predicates: <span class="kw-2">&amp;</span>[Clause],
-    obligation: <span class="kw-2">&amp;</span>AliasTy,
-    ctor: <span class="kw">fn</span>(ProjectionPredicate) -&gt; Candidate,
-    candidates: <span class="kw-2">&amp;mut </span>Vec&lt;Candidate&gt;,
-) {
-    <span class="kw">for </span>predicate <span class="kw">in </span>predicates {
-        <span class="kw">if let </span>ClauseKind::Projection(pred) = predicate.kind_skipping_binder() {
-            <span class="comment">// FIXME(nilehmann) make this matching resilient with respect to syntactic differences
-            // in refinements
-            </span><span class="kw">if </span><span class="kw-2">&amp;</span>pred.projection_ty == obligation {
-                candidates.push(ctor(pred.clone()));
-            }
-        }
-    }
-}
-
-<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
     <span class="kw">type </span>Error = QueryErr;
 
     <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt; {
@@ -1127,8 +1309,8 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>Candidate {
     UserDefinedImpl(DefId),
-    ParamEnv(ProjectionPredicate),
-    TraitDef(ProjectionPredicate),
+    ParamEnv(Binder&lt;ProjectionPredicate&gt;),
+    TraitDef(Binder&lt;ProjectionPredicate&gt;),
 }
 
 <span class="attr">#[derive(Debug)]

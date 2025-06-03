@@ -674,7 +674,25 @@
 <a href="#673" id="673">673</a>
 <a href="#674" id="674">674</a>
 <a href="#675" id="675">675</a>
-<a href="#676" id="676">676</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a></pre></div><pre class="rust"><code><span class="kw">pub mod </span>visit;
 
 <span class="kw">use </span>std::{fmt, ops::Range};
 
@@ -683,6 +701,7 @@
     token::{Lit, LitKind},
 };
 <span class="kw">pub use </span>rustc_span::{Span, symbol::Ident};
+<span class="kw">use </span>rustc_span::{Symbol, symbol::sym};
 
 <span class="kw">use </span><span class="kw">crate</span>::surface::visit::Visitor;
 
@@ -986,6 +1005,23 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>TraitRef {
     <span class="kw">pub </span>path: Path,
+    <span class="kw">pub </span>node_id: NodeId,
+}
+
+<span class="kw">impl </span>TraitRef {
+    <span class="kw">fn </span>is_fn_trait_name(name: Symbol) -&gt; bool {
+        name == sym::FnOnce || name == sym::FnMut || name == sym::Fn
+    }
+
+    <span class="kw">pub fn </span>as_fn_trait_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>GenericArg, <span class="kw-2">&amp;</span>GenericArg)&gt; {
+        <span class="kw">if let </span>[segment] = <span class="self">self</span>.path.segments.as_slice()
+            &amp;&amp; <span class="self">Self</span>::is_fn_trait_name(segment.ident.name)
+            &amp;&amp; <span class="kw">let </span>[in_arg, out_arg] = segment.args.as_slice()
+        {
+            <span class="kw">return </span><span class="prelude-val">Some</span>((in_arg, out_arg));
+        }
+        <span class="prelude-val">None
+    </span>}
 }
 
 <span class="attr">#[derive(Debug)]

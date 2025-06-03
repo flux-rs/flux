@@ -2803,7 +2803,9 @@
 <a href="#2802" id="2802">2802</a>
 <a href="#2803" id="2803">2803</a>
 <a href="#2804" id="2804">2804</a>
-<a href="#2805" id="2805">2805</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<a href="#2805" id="2805">2805</a>
+<a href="#2806" id="2806">2806</a>
+<a href="#2807" id="2807">2807</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 //! during refinement type checking. A couple of important differences between definitions in this
 //! module and in [`crate::fhir`] are:
 //!
@@ -3162,14 +3164,13 @@
             {
                 fn_trait_clauses.push((kind, trait_clause));
             } <span class="kw">else if let </span><span class="prelude-val">Some</span>(proj_clause) = clause.as_projection_clause()
-                &amp;&amp; genv.is_fn_once_output(proj_clause.projection_def_id())
+                &amp;&amp; genv.is_fn_output(proj_clause.projection_def_id())
             {
                 fn_trait_output_clauses.push(proj_clause);
             } <span class="kw">else </span>{
                 rest.push(clause.clone());
             }
         }
-
         <span class="kw">let </span>fn_trait_clauses = fn_trait_clauses
             .into_iter()
             .map(|(kind, fn_trait_clause)| {
@@ -3423,6 +3424,16 @@
     <span class="kw">pub </span>term: SubsetTyCtor,
 }
 
+<span class="kw">impl </span>Pretty <span class="kw">for </span>ProjectionPredicate {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(
+            f,
+            <span class="string">"ProjectionPredicate &lt;&lt; projection_ty = {:?}, term = {:?} &gt;&gt;"</span>,
+            <span class="self">self</span>.projection_ty, <span class="self">self</span>.term
+        )
+    }
+}
+
 <span class="kw">impl </span>ProjectionPredicate {
     <span class="kw">pub fn </span>self_ty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SubsetTyCtor {
         <span class="self">self</span>.projection_ty.self_ty().clone()
@@ -3447,7 +3458,7 @@
 <span class="kw">pub type </span>PolyProjectionPredicate = Binder&lt;ProjectionPredicate&gt;;
 
 <span class="kw">impl </span>PolyProjectionPredicate {
-    <span class="kw">fn </span>projection_def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
+    <span class="kw">pub fn </span>projection_def_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DefId {
         <span class="self">self</span>.skip_binder_ref().projection_ty.def_id
     }
 
@@ -3477,18 +3488,11 @@
 }
 
 <span class="kw">impl </span>FnTraitPredicate {
-    <span class="kw">pub fn </span>fndef_poly_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; PolyFnSig {
+    <span class="kw">pub fn </span>fndef_sig(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FnSig {
         <span class="kw">let </span>inputs = <span class="self">self</span>.tupled_args.expect_tuple().iter().cloned().collect();
-
-        <span class="kw">let </span>fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::Rust,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(<span class="self">self</span>.output.clone(), <span class="macro">vec!</span>[]), List::empty()),
-        );
-
-        PolyFnSig::bind_with_vars(fn_sig, List::empty())
+        <span class="kw">let </span>ret = <span class="self">self</span>.output.clone().shift_in_escaping(<span class="number">1</span>);
+        <span class="kw">let </span>output = Binder::bind_with_vars(FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
+        FnSig::new(Safety::Safe, abi::Abi::Rust, List::empty(), inputs, output)
     }
 }
 
@@ -3536,8 +3540,8 @@
     <span class="kw">let </span>fn_sig = <span class="kw">crate</span>::rty::FnSig::new(
         fn_sig.safety,
         fn_sig.abi,
-        <span class="kw">crate</span>::rty::List::empty(),
-        inputs.into(),
+        fn_sig.requires.clone(), <span class="comment">// crate::rty::List::empty(),
+        </span>inputs.into(),
         output,
     );
 

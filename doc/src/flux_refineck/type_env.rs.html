@@ -952,7 +952,25 @@
 <a href="#951" id="951">951</a>
 <a href="#952" id="952">952</a>
 <a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a></pre></div><pre class="rust"><code><span class="kw">mod </span>place_ty;
 
 <span class="kw">use </span>std::{iter, ops::ControlFlow};
 
@@ -1064,15 +1082,16 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; InferResult&lt;Ty&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>.ty)
+        <span class="kw">let </span>span = infcx.span;
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.bindings.lookup_unfolding(infcx, place, span)<span class="question-mark">?</span>.ty)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; Ty {
         <span class="self">self</span>.bindings.get(path)
     }
 
-    <span class="kw">pub fn </span>update_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty) {
-        <span class="self">self</span>.bindings.lookup(path).update(new_ty);
+    <span class="kw">pub fn </span>update_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, new_ty: Ty, span: Span) {
+        <span class="self">self</span>.bindings.lookup(path, span).update(new_ty);
     }
 
     <span class="doccomment">/// When checking a borrow in the right hand side of an assignment `x = &amp;'?n p`, we use the
@@ -1085,7 +1104,8 @@
         mutbl: Mutability,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; InferResult&lt;Ty&gt; {
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>span = infcx.span;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place, span)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg &amp;&amp; mutbl == Mutability::Mut {
             <span class="prelude-val">Ok</span>(Ty::ptr(PtrKind::Mut(re), result.path()))
         } <span class="kw">else </span>{
@@ -1103,7 +1123,7 @@
         infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
         place: <span class="kw-2">&amp;</span>Place,
     ) -&gt; InferResult {
-        <span class="kw">let </span>lookup = <span class="self">self</span>.bindings.lookup(place);
+        <span class="kw">let </span>lookup = <span class="self">self</span>.bindings.lookup(place, infcx.span);
         <span class="kw">let </span>TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() <span class="kw">else </span>{
             <span class="macro">tracked_span_bug!</span>(<span class="string">"ptr_to_borrow called on non mutable pointer type"</span>)
         };
@@ -1111,7 +1131,7 @@
         <span class="kw">let </span>ref_ty =
             <span class="self">self</span>.ptr_to_ref(infcx, ConstrReason::Other, <span class="kw-2">*</span>re, path, PtrToRefBound::Infer)<span class="question-mark">?</span>;
 
-        <span class="self">self</span>.bindings.lookup(place).update(ref_ty);
+        <span class="self">self</span>.bindings.lookup(place, infcx.span).update(ref_ty);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1148,7 +1168,7 @@
         bound: PtrToRefBound,
     ) -&gt; InferResult&lt;Ty&gt; {
         <span class="comment">// ℓ: t1
-        </span><span class="kw">let </span>t1 = <span class="self">self</span>.bindings.lookup(path).fold(infcx)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>t1 = <span class="self">self</span>.bindings.lookup(path, infcx.span).fold(infcx)<span class="question-mark">?</span>;
 
         <span class="comment">// t1 &lt;: t2
         </span><span class="kw">let </span>t2 = <span class="kw">match </span>bound {
@@ -1169,7 +1189,9 @@
         };
 
         <span class="comment">// ℓ: †t2
-        </span><span class="self">self</span>.bindings.lookup(path).block_with(t2.clone());
+        </span><span class="self">self</span>.bindings
+            .lookup(path, infcx.span)
+            .block_with(t2.clone());
 
         <span class="prelude-val">Ok</span>(Ty::mk_ref(re, t2, Mutability::Mut))
     }
@@ -1201,7 +1223,8 @@
     ) -&gt; InferResult {
         <span class="kw">let </span>rustc_ty = place.ty(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">?</span>.ty;
         <span class="kw">let </span>new_ty = ty_match_regions(<span class="kw-2">&amp;</span>new_ty, <span class="kw-2">&amp;</span>rustc_ty);
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>span = infcx.span;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place, span)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg {
             result.update(new_ty);
         } <span class="kw">else if </span>!place.behind_raw_ptr(infcx.genv, <span class="self">self</span>.local_decls)<span class="question-mark">? </span>{
@@ -1211,7 +1234,8 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>move_place(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; InferResult&lt;Ty&gt; {
-        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place)<span class="question-mark">?</span>;
+        <span class="kw">let </span>span = infcx.span;
+        <span class="kw">let </span>result = <span class="self">self</span>.bindings.lookup_unfolding(infcx, place, span)<span class="question-mark">?</span>;
         <span class="kw">if </span>result.is_strg {
             <span class="kw">let </span>uninit = Ty::uninit();
             <span class="prelude-val">Ok</span>(result.update(uninit))
@@ -1257,7 +1281,8 @@
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt, place: <span class="kw-2">&amp;</span>Place) -&gt; InferResult {
-        <span class="self">self</span>.bindings.lookup(place).fold(infcx)<span class="question-mark">?</span>;
+        <span class="kw">let </span>span = infcx.span;
+        <span class="self">self</span>.bindings.lookup(place, span).fold(infcx)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1292,8 +1317,13 @@
         }
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, place: <span class="kw-2">&amp;</span>Place) -&gt; InferResult {
-        <span class="self">self</span>.bindings.unfold(infcx, place)
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>unfold(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        place: <span class="kw-2">&amp;</span>Place,
+        span: Span,
+    ) -&gt; InferResult {
+        <span class="self">self</span>.bindings.unfold(infcx, place, span)
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>downcast(
@@ -1303,10 +1333,11 @@
         variant_idx: VariantIdx,
     ) -&gt; InferResult {
         <span class="kw">let </span><span class="kw-2">mut </span>down_place = place.clone();
+        <span class="kw">let </span>span = infcx.span;
         down_place
             .projection
             .push(PlaceElem::Downcast(<span class="prelude-val">None</span>, variant_idx));
-        <span class="self">self</span>.bindings.unfold(infcx, <span class="kw-2">&amp;</span>down_place)<span class="question-mark">?</span>;
+        <span class="self">self</span>.bindings.unfold(infcx, <span class="kw-2">&amp;</span>down_place, span)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1314,13 +1345,18 @@
         <span class="self">self</span>.bindings.fmap_mut(|ty| infcx.fully_resolve_evars(ty));
     }
 
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_ensures(<span class="kw-2">&amp;mut </span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxt, ensures: <span class="kw-2">&amp;</span>[Ensures]) {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assume_ensures(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+        ensures: <span class="kw-2">&amp;</span>[Ensures],
+        span: Span,
+    ) {
         <span class="kw">for </span>ensure <span class="kw">in </span>ensures {
             <span class="kw">match </span>ensure {
                 Ensures::Type(path, updated_ty) =&gt; {
                     <span class="kw">let </span>updated_ty = infcx.unpack(updated_ty);
                     infcx.assume_invariants(<span class="kw-2">&amp;</span>updated_ty);
-                    <span class="self">self</span>.update_path(path, updated_ty);
+                    <span class="self">self</span>.update_path(path, updated_ty, span);
                 }
                 Ensures::Pred(e) =&gt; infcx.assume_pred(e),
             }
@@ -1479,14 +1515,14 @@
         }
     }
 
-    <span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, ty: Ty) {
-        <span class="self">self</span>.bindings.lookup(path).update(ty);
+    <span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path, ty: Ty, span: Span) {
+        <span class="self">self</span>.bindings.lookup(path, span).update(ty);
     }
 
     <span class="doccomment">/// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: TypeEnv) -&gt; bool {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: TypeEnv, span: Span) -&gt; bool {
         <span class="kw">let </span>paths = <span class="self">self</span>.bindings.paths();
 
         <span class="comment">// Join types
@@ -1496,7 +1532,7 @@
             <span class="kw">let </span>ty2 = other.bindings.get(path);
             <span class="kw">let </span>ty = <span class="self">self</span>.join_ty(<span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2);
             modified |= ty1 != ty;
-            <span class="self">self</span>.update(path, ty);
+            <span class="self">self</span>.update(path, ty, span);
         }
 
         modified

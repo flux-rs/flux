@@ -2844,7 +2844,8 @@
 <a href="#2843" id="2843">2843</a>
 <a href="#2844" id="2844">2844</a>
 <a href="#2845" id="2845">2845</a>
-<a href="#2846" id="2846">2846</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3912,7 +3913,8 @@
         clauses: <span class="kw-2">&amp;mut </span>Vec&lt;rty::Clause&gt;,
     ) -&gt; QueryResult {
         <span class="kw">let </span>generic_params = <span class="kw-2">&amp;</span>poly_trait_ref.bound_generic_params;
-        <span class="kw">let </span>layer = Layer::list(<span class="self">self</span>.results(), generic_params.len() <span class="kw">as </span>u32, <span class="kw-2">&amp;</span>[]);
+        <span class="kw">let </span>layer =
+            Layer::list(<span class="self">self</span>.results(), generic_params.len() <span class="kw">as </span>u32, poly_trait_ref.refine_params);
         env.push_layer(layer);
 
         <span class="kw">let </span>trait_id = poly_trait_ref.trait_def_id();

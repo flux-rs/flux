@@ -1097,7 +1097,29 @@
 <a href="#1096" id="1096">1096</a>
 <a href="#1097" id="1097">1097</a>
 <a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a>
+<a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt, iter};
 
 <span class="kw">use </span>flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -1167,6 +1189,7 @@
     Ret,
     Fold,
     FoldLocal,
+    Predicate,
     Assert(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str),
     Div,
     Rem,
@@ -1406,6 +1429,17 @@
         }
     }
 
+    <span class="doccomment">/// Generate a fresh kvar in the _given_ [`Scope`] (similar method in [`InferCtxtRoot`]).
+    </span><span class="kw">pub fn </span>fresh_kvar_in_scope(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        binders: <span class="kw-2">&amp;</span>[BoundVariableKinds],
+        scope: <span class="kw-2">&amp;</span>Scope,
+        encoding: KVarEncoding,
+    ) -&gt; Expr {
+        <span class="kw">let </span>inner = <span class="kw-2">&amp;mut *</span><span class="self">self</span>.inner.borrow_mut();
+        inner.kvars.fresh(binders, scope.iter(), encoding)
+    }
+
     <span class="doccomment">/// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     </span><span class="kw">pub fn </span>fresh_kvar(<span class="kw-2">&amp;</span><span class="self">self</span>, binders: <span class="kw-2">&amp;</span>[BoundVariableKinds], encoding: KVarEncoding) -&gt; Expr {
         <span class="kw">let </span>inner = <span class="kw-2">&amp;mut *</span><span class="self">self</span>.inner.borrow_mut();
@@ -1598,11 +1632,8 @@
             <span class="kw">if let </span>rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 <span class="kw">let </span>impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(<span class="self">self</span>.infcx)<span class="question-mark">?</span>;
-                <span class="kw">let </span>term = projection_pred
-                    .term
-                    .to_ty()
-                    .normalize_projections(<span class="self">self</span>.infcx)<span class="question-mark">?</span>;
+                    .normalize_projections(<span class="self">self</span>)<span class="question-mark">?</span>;
+                <span class="kw">let </span>term = projection_pred.term.to_ty().normalize_projections(<span class="self">self</span>)<span class="question-mark">?</span>;
 
                 <span class="comment">// TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 </span><span class="self">self</span>.subtyping(<span class="kw-2">&amp;</span>impl_elem, <span class="kw-2">&amp;</span>term, reason)<span class="question-mark">?</span>;
@@ -1638,6 +1669,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>env = DummyEnv;
         <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(<span class="kw-2">&amp;mut </span>env, reason, <span class="self">self</span>.span);
         sub.tys(<span class="self">self</span>.infcx, a, b)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(sub.obligations)
+    }
+
+    <span class="kw">pub fn </span>subtyping_generic_args(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        variance: Variance,
+        a: <span class="kw-2">&amp;</span>GenericArg,
+        b: <span class="kw-2">&amp;</span>GenericArg,
+        reason: ConstrReason,
+    ) -&gt; InferResult&lt;Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>env = DummyEnv;
+        <span class="kw">let </span><span class="kw-2">mut </span>sub = Sub::new(<span class="kw-2">&amp;mut </span>env, reason, <span class="self">self</span>.span);
+        sub.generic_args(<span class="self">self</span>.infcx, variance, a, b)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(sub.obligations)
     }
 
@@ -2134,7 +2178,7 @@
                     <span class="kw">let </span>alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     <span class="kw">let </span>ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
                         .to_ty()
-                        .normalize_projections(infcx)<span class="question-mark">?</span>;
+                        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(<span class="self">self</span>.span))<span class="question-mark">?</span>;
                     <span class="kw">let </span>ty2 = pred.term.to_ty();
                     <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
                 }

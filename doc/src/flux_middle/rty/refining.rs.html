@@ -484,7 +484,13 @@
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a></pre></div><pre class="rust"><code><span class="doccomment">//! *Refining* is the process of generating a refined version of a rust type.
 //!
 //! Concretely, this module provides functions to go from types in [`flux_rustc_bridge::ty`] to
 //! types in [`rty`].
@@ -813,7 +819,8 @@
 <span class="kw">impl </span>Refine <span class="kw">for </span>ty::FnSig {
     <span class="kw">type </span>Output = rty::FnSig;
 
-    <span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::FnSig&gt; {
+    <span class="comment">// TODO(hof2)
+    </span><span class="kw">fn </span>refine(<span class="kw-2">&amp;</span><span class="self">self</span>, refiner: <span class="kw-2">&amp;</span>Refiner) -&gt; QueryResult&lt;rty::FnSig&gt; {
         <span class="kw">let </span>inputs = <span class="self">self
             </span>.inputs()
             .iter()
@@ -821,7 +828,12 @@
             .try_collect()<span class="question-mark">?</span>;
         <span class="kw">let </span>ret = <span class="self">self</span>.output().refine(refiner)<span class="question-mark">?</span>.shift_in_escaping(<span class="number">1</span>);
         <span class="kw">let </span>output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, <span class="macro">vec!</span>[]), List::empty());
-        <span class="prelude-val">Ok</span>(rty::FnSig::new(<span class="self">self</span>.safety, <span class="self">self</span>.abi, List::empty(), inputs, output))
+        <span class="comment">// TODO(hof2) make a hoister to hoist all the stuff out of the inputs,
+        // the hoister will have a list of all the variables it hoisted and the
+        // single hole for the "requires"; then we "fill" the hole with a KVAR
+        // and generate a PolyFnSig with the hoisted variables
+        // see `into_bb_env` in `type_env.rs` for an example.
+        </span><span class="prelude-val">Ok</span>(rty::FnSig::new(<span class="self">self</span>.safety, <span class="self">self</span>.abi, List::empty(), inputs, output))
     }
 }
 

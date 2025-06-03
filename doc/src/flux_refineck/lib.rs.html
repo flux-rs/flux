@@ -303,8 +303,7 @@
 <a href="#302" id="302">302</a>
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
+<a href="#305" id="305">305</a></pre></div><pre class="rust"><code><span class="doccomment">//! Refinement type checking
 
 </span><span class="attr">#![feature(
     associated_type_defaults,
@@ -462,9 +461,8 @@
         e = <span class="prelude-val">Some</span>(<span class="kw">match </span>err.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
-            | ConstrReason::Subtype(SubtypeReason::Requires) =&gt; {
-                call_error(genv, span, err.dst_span)
-            }
+            | ConstrReason::Subtype(SubtypeReason::Requires)
+            | ConstrReason::Predicate =&gt; call_error(genv, span, err.dst_span),
             ConstrReason::Assign =&gt; genv.sess().emit_err(errors::AssignError { span }),
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)

@@ -637,7 +637,9 @@
 <a href="#636" id="636">636</a>
 <a href="#637" id="637">637</a>
 <a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{cell::RefCell, fmt};
 
 <span class="kw">use </span>flux_arc_interner::{Internable, Interned};
 <span class="kw">use </span>flux_common::index::IndexGen;
@@ -957,7 +959,9 @@
                     <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"⭡{}/#{:?}"</span>, ^debruijn.as_usize(), ^breft.var)
                 }
             }
-            BoundReftKind::Named(name) =&gt; <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{name}"</span>),
+            BoundReftKind::Named(name) =&gt; {
+                <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{name}&lt;&lt;⭡{}/#{:?}&gt;&gt;"</span>, ^debruijn.as_usize(), ^breft.var)
+            }
         }
     }
 

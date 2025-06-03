@@ -484,7 +484,8 @@
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a></pre></div><pre class="rust"><code><span class="doccomment">//! "Lift" HIR types into  FHIR types.
 
 </span><span class="kw">use </span>flux_common::{bug, iter::IterExt, result::ErrorEmitter <span class="kw">as _</span>};
 <span class="kw">use </span>flux_errors::ErrorGuaranteed;
@@ -580,6 +581,7 @@
         <span class="kw">let </span>trait_ref = <span class="self">self</span>.lift_path(poly_trait_ref.trait_ref.path)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(fhir::PolyTraitRef {
             bound_generic_params,
+            refine_params: <span class="kw-2">&amp;</span>[],
             modifiers,
             trait_ref,
             span: poly_trait_ref.span,

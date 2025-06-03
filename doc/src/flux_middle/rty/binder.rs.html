@@ -274,7 +274,11 @@
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
 <a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::slice;
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::slice;
 
 <span class="kw">pub use </span>flux_arc_interner::{List, impl_slice_internable};
 <span class="kw">use </span>flux_common::tracked_span_bug;
@@ -405,6 +409,10 @@
 
     <span class="kw">pub fn </span>map&lt;U&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; U) -&gt; Binder&lt;U&gt; {
         Binder { vars: <span class="self">self</span>.vars, value: f(<span class="self">self</span>.value) }
+    }
+
+    <span class="kw">pub fn </span>map_ref&lt;U&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>T) -&gt; U) -&gt; Binder&lt;U&gt; {
+        Binder { vars: <span class="self">self</span>.vars.clone(), value: f(<span class="kw-2">&amp;</span><span class="self">self</span>.value) }
     }
 
     <span class="kw">pub fn </span>try_map&lt;U, E&gt;(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(T) -&gt; <span class="prelude-ty">Result</span>&lt;U, E&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Binder&lt;U&gt;, E&gt; {

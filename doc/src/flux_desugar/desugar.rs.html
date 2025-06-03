@@ -1609,7 +1609,15 @@
 <a href="#1608" id="1608">1608</a>
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a>
+<a href="#1616" id="1616">1616</a>
+<a href="#1617" id="1617">1617</a>
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a></pre></div><pre class="rust"><code><span class="kw">mod </span>lift;
 
 <span class="kw">use </span>std::iter;
 
@@ -1869,8 +1877,14 @@
             <span class="macro">span_bug!</span>(trait_ref.path.span, <span class="string">"desugar_alias_reft: unexpected qpath"</span>)
         };
         <span class="kw">let </span>span = path.span;
+
+        <span class="kw">let </span>refine_params = <span class="self">self
+            </span>.genv
+            .alloc_slice_fill_iter(<span class="self">self</span>.implicit_params_to_params(trait_ref.node_id));
+
         fhir::PolyTraitRef {
             bound_generic_params: <span class="kw-2">&amp;</span>[],
+            refine_params,
             modifiers: fhir::TraitBoundModifier::None,
             trait_ref: path,
             span,
@@ -2020,6 +2034,7 @@
             <span class="kw">let </span>params = <span class="self">self
                 </span>.genv
                 .alloc_slice_fill_iter(<span class="self">self</span>.implicit_params_to_params(variant_def.node_id));
+
             <span class="prelude-val">Ok</span>(fhir::VariantDef {
                 def_id: hir_variant.def_id,
                 params,
@@ -2332,6 +2347,7 @@
         );
         <span class="kw">let </span>bound = fhir::GenericBound::Trait(fhir::PolyTraitRef {
             bound_generic_params: <span class="kw-2">&amp;</span>[],
+            refine_params: <span class="kw-2">&amp;</span>[],
             modifiers: fhir::TraitBoundModifier::None,
             trait_ref,
             span: trait_ref.span,

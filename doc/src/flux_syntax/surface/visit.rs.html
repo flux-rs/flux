@@ -545,7 +545,12 @@
 <a href="#544" id="544">544</a>
 <a href="#545" id="545">545</a>
 <a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a></pre></div><pre class="rust"><code><span class="doccomment">//! A visitor for types in [`surface`]
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a></pre></div><pre class="rust"><code><span class="doccomment">//! A visitor for types in [`surface`]
 //!
 //! In general there's no specific order except that [refinement parameters] should be
 //! visited in an order that matches their scope. Name resolution relies on this gurantee.
@@ -862,6 +867,11 @@
     <span class="kw">if let </span><span class="prelude-val">Some</span>(ret) = <span class="kw-2">&amp;</span>variant.ret {
         vis.visit_variant_ret(ret);
     }
+}
+
+<span class="kw">pub fn </span>walk_fn_trait_ref&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, in_arg: <span class="kw-2">&amp;</span>GenericArg, out_arg: <span class="kw-2">&amp;</span>GenericArg) {
+    vis.visit_generic_arg(in_arg);
+    vis.visit_generic_arg(out_arg);
 }
 
 <span class="kw">pub fn </span>walk_variant_ret&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, ret: <span class="kw-2">&amp;</span>VariantRet) {

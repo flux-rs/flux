@@ -337,13 +337,13 @@
         // -----
         // (qualif EqTrue ((v bool)) (v))
         </span><span class="kw">let </span>eqtrue = Qualifier {
-            args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::&lt;DefaultTypes&gt;::Bool)],
+            args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::Bool)],
             body: Expr::Var(<span class="string">"v"</span>),
             name: String::from(<span class="string">"EqTrue"</span>),
         };
         <span class="comment">// (qualif EqFalse ((v bool)) (!v))
         </span><span class="kw">let </span>eqfalse = Qualifier {
-            args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::&lt;DefaultTypes&gt;::Bool)],
+            args: <span class="macro">vec!</span>[(<span class="string">"v"</span>, Sort::Bool)],
             body: Expr::Neg(Box::new(Expr::Var(<span class="string">"v"</span>))),
             name: String::from(<span class="string">"EqFalse"</span>),
         };
