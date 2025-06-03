@@ -88,3 +88,6 @@ refineck_related_fn_note =
 
 refineck_wkvar_fn_fix_note =
     suggestion: add to `{$fn_name}` the refinement `{$fix}`
+
+refineck_counterexample_note =
+    counterexample `{$vars}` does not satisfy `{$constraint}`

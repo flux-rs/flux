@@ -43,43 +43,104 @@ use crate::refine_tree::BlameAnalysis;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::rty::{EarlyReftParam, Real};
-    use liquid_fixpoint::{FixpointFmt, Identifier};
+    use flux_middle::rty::{EarlyReftParam, Real}; // Assuming Real is defined elsewhere
+    use liquid_fixpoint::{FixpointFmt, Identifier, BinRel as LiquidBinRel, ThyFunc as LiquidThyFunc}; // Aliased for clarity
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
+    use serde::{Serialize, Deserialize, Serializer, Deserializer}; // Added Serde items
+    use serde::de::{self, Visitor};
 
     newtype_index! {
+        #[debug_format = "k{}"] // Ensure Debug is generated
         pub struct KVid {}
     }
 
     impl Identifier for KVid {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "k{}", self.as_u32())
+            write!(f, "{self:#?}")
+        }
+    }
+
+    // KVid: Identifier is already impl. Needs Debug, Clone, Hash (from newtype_index), Serialize, Deserialize.
+    impl Serialize for KVid {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            self.as_u32().serialize(serializer)
+        }
+    }
+    impl<'de> Deserialize<'de> for KVid {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            Ok(KVid::from_u32(u32::deserialize(deserializer)?))
+        }
+    }
+    // Assume Identifier implies Debug for its fmt method usage, but explicit Debug is good.
+    // KVid already derives Debug via newtype_index! macro with debug_format.
+
+    newtype_index! {
+        #[debug_format = "LocalVar({})"]
+        pub struct LocalVar {}
+    }
+    // LocalVar needs Serialize, Deserialize (similar to KVid if not already provided by some project-specific macro extension)
+    // For now, assuming newtype_index! provides Debug, Clone, Hash. Adding Serde manually.
+    impl Serialize for LocalVar {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            self.as_u32().serialize(serializer)
+        }
+    }
+    impl<'de> Deserialize<'de> for LocalVar {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            Ok(LocalVar::from_u32(u32::deserialize(deserializer)?))
+        }
+    }
+
+
+    newtype_index! {
+        #[debug_format = "GlobalVar({})"]
+        pub struct GlobalVar {}
+    }
+    // GlobalVar needs Serialize, Deserialize
+    impl Serialize for GlobalVar {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            self.as_u32().serialize(serializer)
+        }
+    }
+    impl<'de> Deserialize<'de> for GlobalVar {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            Ok(GlobalVar::from_u32(u32::deserialize(deserializer)?))
         }
     }
 
     newtype_index! {
-        pub struct LocalVar {}
-    }
-
-    newtype_index! {
-        pub struct GlobalVar {}
-    }
-
-    newtype_index! {
-        /// Unique id assigned to each [`flux_middle::rty::AdtSortDef`] that needs to be encoded
-        /// into fixpoint
+        #[debug_format = "AdtId({})"]
         pub struct AdtId {}
     }
+    // AdtId needs Serialize, Deserialize
+    impl Serialize for AdtId {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            self.as_u32().serialize(serializer)
+        }
+    }
+    impl<'de> Deserialize<'de> for AdtId {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            Ok(AdtId::from_u32(u32::deserialize(deserializer)?))
+        }
+    }
 
-    #[derive(Hash, Copy, Clone)]
+    // Assuming EarlyReftParam implements/derives: Debug, Clone, Hash, Serialize, Deserialize
+    // If not, it needs to.
+
+    // For ParamConst, we need a custom Serialize/Deserialize strategy within Var
+    // if ParamConst itself isn't directly Serde-compatible.
+    // ParamConst implements Debug, Clone, Hash.
+
+    #[derive(Debug, Hash, Copy, Clone)] // Added Debug
+    // Serialize and Deserialize for Var will be custom due to ParamConst
     pub enum Var {
         Underscore,
-        Global(GlobalVar, Option<Symbol>),
+        Global(GlobalVar, Option<Symbol>), // Symbol is fine with Serde (usually as string)
         Local(LocalVar),
-        DataCtor(AdtId, VariantIdx),
+        DataCtor(AdtId, VariantIdx), // VariantIdx is a newtype_index, should be fine
         TupleCtor {
             arity: usize,
         },
@@ -87,24 +148,164 @@ pub mod fixpoint {
             arity: usize,
             field: u32,
         },
-        UIFRel(BinRel),
-        /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
-        /// name is different than the display implementation for the other variants.
-        Itf(liquid_fixpoint::ThyFunc),
+        UIFRel(LiquidBinRel), // Use aliased type
+        Itf(LiquidThyFunc),   // Use aliased type
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
+        // Added for vars from fixpoint
+        Free(Symbol),
     }
+
+    // Custom Serialize for Var
+    impl Serialize for Var {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer,
+        {
+            #[derive(Serialize)]
+            #[serde(rename_all = "snake_case")] // Or some other convention
+            enum VarRepr<'a> {
+                Underscore,
+                Global(GlobalVar, Option<SerializableSymbol<'a>>),
+                Local(LocalVar),
+                DataCtor(AdtId, SerializableVariantIdx),
+                TupleCtor { arity: usize },
+                TupleProj { arity: usize, field: u32 },
+                UifRel(LiquidBinRel),
+                Itf(LiquidThyFunc),
+                Param(&'a EarlyReftParam), // Assuming EarlyReftParam is Serialize
+                ConstGeneric { name: String, index: u32 }, // Simplified ParamConst
+                Free(String),
+            }
+
+            let repr = match self {
+                Var::Underscore => VarRepr::Underscore,
+                Var::Global(gv, opt_sym) => VarRepr::Global(*gv, opt_sym.map(|s| SerializableSymbol(s, std::marker::PhantomData::<&()>))),
+                Var::Local(lv) => VarRepr::Local(*lv),
+                Var::DataCtor(id, vidx) => VarRepr::DataCtor(*id, SerializableVariantIdx(*vidx)),
+                Var::TupleCtor { arity } => VarRepr::TupleCtor { arity: *arity },
+                Var::TupleProj { arity, field } => VarRepr::TupleProj { arity: *arity, field: *field },
+                Var::UIFRel(br) => VarRepr::UifRel(*br),
+                Var::Itf(tf) => VarRepr::Itf(*tf),
+                Var::Param(erp) => VarRepr::Param(erp), // Assumes EarlyReftParam is Serialize
+                Var::ConstGeneric(pc) => VarRepr::ConstGeneric { name: pc.name.to_string(), index: pc.index },
+                Var::Free(fv) => VarRepr::Free(fv.to_string()),
+            };
+            repr.serialize(serializer)
+        }
+    }
+
+    // TODO: do parsing correctly (need to look at the name of the variables)
+    impl<'de> Deserialize<'de> for Var {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            struct VarVisitor;
+
+            impl<'de> Visitor<'de> for VarVisitor {
+                type Value = Var;
+
+                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    formatter.write_str("an integer for Bound or a string for Free")
+                }
+
+                // Attempt to deserialize as String for Free (then convert to Symbol)
+                fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                where
+                    E: de::Error,
+                {
+                    Ok(Var::Free(Symbol::intern(value)))
+                }
+
+                fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+                where
+                    E: de::Error,
+                {
+                    Ok(Var::Free(Symbol::intern(&value)))
+                }
+            }
+
+            // This tells Serde to try deserializing the input using the methods in VarVisitor.
+            // Serde will call the appropriate visit_* method based on the JSON token type.
+            deserializer.deserialize_any(VarVisitor)
+        }
+    }
+
+
+    // // Custom Deserialize for Var
+    // impl<'de> Deserialize<'de> for Var {
+    //     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    //     where D: Deserializer<'de>,
+    //     serde_json::from_value()
+    //     {
+    //         #[derive(Deserialize)]
+    //         #[serde(rename_all = "snake_case")]
+    //         enum VarRepr {
+    //             Underscore,
+    //             Global(GlobalVar, Option<SerializableSymbolOwned>),
+    //             Local(LocalVar),
+    //             DataCtor(AdtId, SerializableVariantIdx),
+    //             TupleCtor { arity: usize },
+    //             TupleProj { arity: usize, field: u32 },
+    //             UifRel(LiquidBinRel),
+    //             Itf(LiquidThyFunc),
+    //             Param(EarlyReftParam), // Assuming EarlyReftParam is Deserialize
+    //             ConstGeneric { name: String, index: u32 },
+    //         }
+    //
+    //         let repr = VarRepr::deserialize(deserializer)?;
+    //         match repr {
+    //             VarRepr::Underscore => Ok(Var::Underscore),
+    //             VarRepr::Global(gv, opt_sym_owned) => Ok(Var::Global(gv, opt_sym_owned.map(|s| s.0))),
+    //             VarRepr::Local(lv) => Ok(Var::Local(lv)),
+    //             VarRepr::DataCtor(id, vidx) => Ok(Var::DataCtor(id, vidx.0)),
+    //             VarRepr::TupleCtor { arity } => Ok(Var::TupleCtor { arity }),
+    //             VarRepr::TupleProj { arity, field } => Ok(Var::TupleProj { arity, field }),
+    //             VarRepr::UifRel(br) => Ok(Var::UIFRel(br)),
+    //             VarRepr::Itf(tf) => Ok(Var::Itf(tf)),
+    //             VarRepr::Param(erp) => Ok(Var::Param(erp)),
+    //             VarRepr::ConstGeneric { name, index } => {
+    //                 Ok(Var::ConstGeneric(ParamConst { name: Symbol::intern(&name), index }))
+    //             }
+    //         }
+    //     }
+    // }
+
+    // Helpers for serializing rustc types if they don't have direct serde
+    #[derive(Serialize)]
+    struct SerializableSymbol<'a>(#[serde(with = "symbol_serde")] Symbol, std::marker::PhantomData<&'a ()>);
+    #[derive(Deserialize)]
+    struct SerializableSymbolOwned(#[serde(with = "symbol_serde")] Symbol);
+
+    mod symbol_serde {
+        use rustc_span::Symbol;
+        use serde::{Serializer, Deserializer,Deserialize};
+        pub fn serialize<S: Serializer>(sym: &Symbol, serializer: S) -> Result<S::Ok, S::Error> {
+            serializer.serialize_str(sym.as_str())
+        }
+        pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Symbol, D::Error> {
+            Ok(Symbol::intern(&String::deserialize(deserializer)?))
+        }
+    }
+    #[derive(Serialize, Deserialize)]
+    struct SerializableVariantIdx(#[serde(with = "variant_idx_serde")] VariantIdx);
+    mod variant_idx_serde {
+        use rustc_abi::VariantIdx;
+        use serde::{Serializer, Deserializer, Deserialize, Serialize};
+        pub fn serialize<S: Serializer>(idx: &VariantIdx, serializer: S) -> Result<S::Ok, S::Error> {
+            idx.as_u32().serialize(serializer)
+        }
+        pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<VariantIdx, D::Error> {
+            Ok(VariantIdx::from_u32(u32::deserialize(deserializer)?))
+        }
+    }
+
 
     impl From<GlobalVar> for Var {
-        fn from(v: GlobalVar) -> Self {
-            Self::Global(v, None)
-        }
+        fn from(v: GlobalVar) -> Self { Self::Global(v, None) }
     }
-
     impl From<LocalVar> for Var {
-        fn from(v: LocalVar) -> Self {
-            Self::Local(v)
-        }
+        fn from(v: LocalVar) -> Self { Self::Local(v) }
     }
 
     impl Identifier for Var {
@@ -118,26 +319,30 @@ pub mod fixpoint {
                 }
                 Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
-                Var::Itf(name) => write!(f, "{name}"),
-                Var::UIFRel(BinRel::Gt) => write!(f, "gt"),
-                Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
-                Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
-                Var::UIFRel(BinRel::Le) => write!(f, "le"),
-                // these are actually not necessary because equality is interpreted for all sorts
-                Var::UIFRel(BinRel::Eq) => write!(f, "eq"),
-                Var::UIFRel(BinRel::Ne) => write!(f, "ne"),
-                Var::Underscore => write!(f, "_$"), // To avoid clashing with `_` used for `app (_ bv_op n)` for parametric SMT ops
+                Var::Itf(name) => write!(f, "{name}"), // name is LiquidThyFunc, which is Display
+                Var::UIFRel(LiquidBinRel::Gt) => write!(f, "gt"),
+                Var::UIFRel(LiquidBinRel::Ge) => write!(f, "ge"),
+                Var::UIFRel(LiquidBinRel::Lt) => write!(f, "lt"),
+                Var::UIFRel(LiquidBinRel::Le) => write!(f, "le"),
+                Var::UIFRel(LiquidBinRel::Eq) => write!(f, "eq"),
+                Var::UIFRel(LiquidBinRel::Ne) => write!(f, "ne"),
+                Var::Underscore => write!(f, "_$"),
                 Var::ConstGeneric(param) => {
                     write!(f, "constgen${}${}", param.name, param.index)
                 }
                 Var::Param(param) => {
+                    // Assuming EarlyReftParam has name and index fields and is Display or Debug
                     write!(f, "reftgen${}${}", param.name, param.index)
+                }
+                Var::Free(var) => {
+                    // Assuming EarlyReftParam has name and index fields and is Display or Debug
+                    write!(f, "{}", var)
                 }
             }
         }
     }
 
-    #[derive(Clone, Hash)]
+    #[derive(Debug, Clone, Hash, Serialize, Deserialize)] // Added Debug, Serialize, Deserialize
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
@@ -146,18 +351,14 @@ pub mod fixpoint {
     impl Identifier for DataSort {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                DataSort::Tuple(arity) => {
-                    write!(f, "Tuple{arity}")
-                }
-                DataSort::Adt(adt_id) => {
-                    write!(f, "Adt{}", adt_id.as_u32())
-                }
+                DataSort::Tuple(arity) => write!(f, "Tuple{arity}"),
+                DataSort::Adt(adt_id) => write!(f, "Adt{}", adt_id.as_u32()),
             }
         }
     }
 
-    #[derive(Hash)]
-    pub struct SymStr(pub Symbol);
+    #[derive(Debug, Clone, Hash, Serialize, Deserialize)] // Added Debug, Clone, Serialize, Deserialize
+    pub struct SymStr(#[serde(with = "symbol_serde")] pub Symbol); // Use helper for Symbol
 
     impl FixpointFmt for SymStr {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -165,15 +366,33 @@ pub mod fixpoint {
         }
     }
 
+    // Placeholder for flux_middle::rty::Real - replace with actual definition if available
+    // Assuming Real is a newtype around f64 for this example to make it work.
+    // You'll need to ensure your actual Real type implements these traits.
+    // #[derive(Debug, Clone, Hash, Serialize, Deserialize, Copy, PartialEq, PartialOrd)]
+    // pub struct Real(pub f64);
+    // impl FixpointFmt for Real {
+    //     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    //         if self.0.fract() == 0.0 {
+    //             write!(f, "{:.1}", self.0)
+    //         } else {
+    //             write!(f, "{}", self.0)
+    //         }
+    //     }
+    // }
+    // Make sure your actual `flux_middle::rty::Real` implements:
+    // FixpointFmt, Hash, Clone, Debug, Serialize, Deserialize
+
+
     liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
-        type Decimal = Real;
+        type Decimal = Real; // from flux_middle::rty
         type String = SymStr;
-        type Tag = super::TagIdx;
+        type Tag = super::TagIdx; // TagIdx from the parent module
     }
-    pub use fixpoint_generated::*;
+    pub use fixpoint_generated::*; // Expose the generated types/aliases
 }
 
 newtype_index! {
@@ -412,16 +631,17 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     def_id: MaybeExternId,
 }
 
-pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
+pub type FixQueryCache = QueryCache<FixpointResult<fixpoint::FixpointTypes>>;
 
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
     pub blame_ctx: BlameCtxt,
+    pub counterexample: Vec<(String, fixpoint::Expr)>,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
-    pub fn new(tag: Tag, blame_ctx: BlameCtxt) -> Self {
-        Self { tag, blame_ctx }
+    pub fn new(tag: Tag, blame_ctx: BlameCtxt, counterexample: Vec<(String, fixpoint::Expr)>) -> Self {
+        Self { tag, blame_ctx, counterexample }
     }
 }
 
@@ -510,10 +730,10 @@ where
             FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
                     .into_iter()
-                    .map(|err| (err.tag, self.tags[err.tag]))
-                    .unique()
-                    .map(|(tag_idx, tag)| {
-                        FixpointCheckError::new(tag, self.blame_ctx_map[&tag_idx].clone())
+                    .map(|err| (err.tag, self.tags[err.tag], err.counterexample))
+                    .unique_by(|(tag_idx, tag, _counterexample)| (tag_idx.clone(), tag.clone()))
+                    .map(|(tag_idx, tag, counterexample)| {
+                        FixpointCheckError::new(tag, self.blame_ctx_map[&tag_idx].clone(), counterexample)
                     })
                     .collect_vec())
             }
@@ -527,7 +747,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> FixpointResult<TagIdx> {
+    ) -> FixpointResult<fixpoint::FixpointTypes> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();

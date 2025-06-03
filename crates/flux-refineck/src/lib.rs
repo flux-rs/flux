@@ -37,7 +37,7 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCheckError},
+    fixpoint_encoding::{FixQueryCache, FixpointCheckError, BlameCtxt},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
     wkvars::{WKVarInstantiator, WKVarSubst},
@@ -304,6 +304,7 @@ fn report_errors(
             err_diag.subdiagnostic(errors::FailingConstraint {
                 constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             });
+            err_diag.subdiagnostic(errors::Counterexample::new(genv, err.counterexample, &err.blame_ctx));
             for (wkvid, solution) in wkvar_solutions {
                 add_fn_fix_diagnostic(genv, &mut err_diag, wkvid, solution);
             }
@@ -708,7 +709,21 @@ fn collect_binder_debug_info(
 mod errors {
     use flux_errors::E0999;
     use flux_macros::{Diagnostic, Subdiagnostic};
-    use flux_middle::rty::ESpan;
+    use flux_infer::{
+        fixpoint_encoding::{fixpoint, FixQueryCache, FixpointCheckError, BlameCtxt},
+    };
+    use flux_middle::{
+        FixpointQueryKind,
+        def_id::MaybeExternId,
+        global_env::GlobalEnv,
+        pretty,
+        rty::{
+            self, ESpan, Name,
+            fold::TypeVisitable, fold::TypeFolder,
+        },
+        timings,
+    };
+    use std::collections::HashMap;
     use rustc_span::Span;
 
     #[derive(Diagnostic)]
@@ -871,6 +886,51 @@ mod errors {
         pub fn_name: String,
         // FIXME: Render a proper fix rather than this hacky info.
         pub fix: String,
+    }
+
+    #[derive(Subdiagnostic)]
+    #[note(refineck_counterexample_note)]
+    pub struct Counterexample {
+        pub vars: String,
+        pub constraint: String,
+    }
+
+    impl Counterexample {
+        pub fn new(genv: GlobalEnv, counterexample: Vec<(String, fixpoint::Expr)>, blame_ctx: &BlameCtxt) -> Self {
+            // struct CollectVars(HashSet<String>);
+            //
+            // impl TypeVisitor for CollectVars {
+            //     fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+            //         if let ExprKind::Var(v) = e.kind() {
+            //             self.0.insert(format!("{:?}", v));
+            //         }
+            //         e.super_visit_with(self)
+            //     }
+            // }
+            //
+            // let mut collector = CollectVars(HashSet::new());
+            // blame_ctx.expr.visit_with(&mut collector);
+            // let vars = collector.0;
+            let vars: HashMap<String, Name> = blame_ctx.expr.fvars().into_iter().map(|var| {
+                (format!("{:?}", var), var)
+            }).collect();
+
+            println!("counterexamples: {}", counterexample.len());
+            let counterexample_subst: HashMap<Name, String> = counterexample.into_iter().filter_map(|(var, expr)| {
+                println!("{}: {:?}", var, expr);
+                vars.get(&var).map(|name| (name.clone(), format!("{:?}", expr)))
+            }).collect();
+
+            let vars_string = format!("{:?}", counterexample_subst);
+
+            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(counterexample_subst);
+            let constraint = format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &blame_ctx.expr));
+
+            Counterexample {
+                vars: vars_string,
+                constraint,
+            }
+        }
     }
 
     // refineck_err_with_blame_spans =

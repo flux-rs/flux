@@ -20,6 +20,7 @@ use rustc_middle::{
 use rustc_span::{Span, Symbol};
 use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
+use serde::{de::{self, MapAccess, Visitor}, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{
     BaseTy, Binder, BoundReftKind, BoundVariableKinds, FuncSort, GenericArgs, GenericArgsExt as _,
@@ -856,6 +857,77 @@ pub struct EarlyReftParam {
     pub name: Symbol,
 }
 
+// Implement Serialize
+impl Serialize for EarlyReftParam {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // We'll serialize it as a struct with "index" and "name" fields.
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("EarlyReftParam", 2)?;
+        state.serialize_field("index", &self.index)?;
+        state.serialize_field("name", &self.name.to_string())?; // Convert Symbol to String
+        state.end()
+    }
+}
+
+// Implement Deserialize
+impl<'de> Deserialize<'de> for EarlyReftParam {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field { Index, Name }
+
+        struct EarlyReftParamVisitor;
+
+        impl<'de> Visitor<'de> for EarlyReftParamVisitor {
+            type Value = EarlyReftParam;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct EarlyReftParam")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<EarlyReftParam, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut index = None;
+                let mut name_str = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Index => {
+                            if index.is_some() {
+                                return Err(de::Error::duplicate_field("index"));
+                            }
+                            index = Some(map.next_value()?);
+                        }
+                        Field::Name => {
+                            if name_str.is_some() {
+                                return Err(de::Error::duplicate_field("name"));
+                            }
+                            name_str = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let index = index.ok_or_else(|| de::Error::missing_field("index"))?;
+                let name_str: String = name_str.ok_or_else(|| de::Error::missing_field("name"))?;
+
+                // Symbol::from_str doesn't exist. Symbol::intern(&str) is the way.
+                let name = Symbol::intern(&name_str);
+
+                Ok(EarlyReftParam { index, name })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["index", "name"];
+        deserializer.deserialize_struct("EarlyReftParam", FIELDS, EarlyReftParamVisitor)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable, Debug)]
 pub struct BoundReft {
     pub var: BoundVar,
@@ -1043,7 +1115,7 @@ impl From<Local> for Loc {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable, Serialize, Deserialize)]
 pub struct Real(pub u128);
 
 impl liquid_fixpoint::FixpointFmt for Real {
