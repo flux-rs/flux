@@ -357,14 +357,13 @@ impl Clause {
             {
                 fn_trait_clauses.push((kind, trait_clause));
             } else if let Some(proj_clause) = clause.as_projection_clause()
-                && genv.is_fn_once_output(proj_clause.projection_def_id())
+                && genv.is_fn_output(proj_clause.projection_def_id())
             {
                 fn_trait_output_clauses.push(proj_clause);
             } else {
                 rest.push(clause.clone());
             }
         }
-
         let fn_trait_clauses = fn_trait_clauses
             .into_iter()
             .map(|(kind, fn_trait_clause)| {
@@ -618,6 +617,16 @@ pub struct ProjectionPredicate {
     pub term: SubsetTyCtor,
 }
 
+impl Pretty for ProjectionPredicate {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ProjectionPredicate << projection_ty = {:?}, term = {:?} >>",
+            self.projection_ty, self.term
+        )
+    }
+}
+
 impl ProjectionPredicate {
     pub fn self_ty(&self) -> SubsetTyCtor {
         self.projection_ty.self_ty().clone()
@@ -642,7 +651,7 @@ impl<'tcx> ToRustc<'tcx> for ProjectionPredicate {
 pub type PolyProjectionPredicate = Binder<ProjectionPredicate>;
 
 impl PolyProjectionPredicate {
-    fn projection_def_id(&self) -> DefId {
+    pub fn projection_def_id(&self) -> DefId {
         self.skip_binder_ref().projection_ty.def_id
     }
 
@@ -672,18 +681,11 @@ impl Pretty for FnTraitPredicate {
 }
 
 impl FnTraitPredicate {
-    pub fn fndef_poly_sig(&self) -> PolyFnSig {
+    pub fn fndef_sig(&self) -> FnSig {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
-
-        let fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::Rust,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
-
-        PolyFnSig::bind_with_vars(fn_sig, List::empty())
+        let ret = self.output.clone().shift_in_escaping(1);
+        let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
+        FnSig::new(Safety::Safe, abi::Abi::Rust, List::empty(), inputs, output)
     }
 }
 
@@ -731,7 +733,7 @@ pub fn to_closure_sig(
     let fn_sig = crate::rty::FnSig::new(
         fn_sig.safety,
         fn_sig.abi,
-        crate::rty::List::empty(),
+        fn_sig.requires.clone(), // crate::rty::List::empty(),
         inputs.into(),
         output,
     );

@@ -41,6 +41,7 @@ use super::{
     SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
 };
+use crate::rty::{ExprKind, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -201,6 +202,10 @@ pub struct LocalHoister {
 }
 
 impl LocalHoister {
+    pub fn new(vars: Vec<BoundVariableKind>) -> Self {
+        LocalHoister { vars, preds: vec![] }
+    }
+
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
         let vars = List::from_vec(self.vars);
         Binder::bind_with_vars(f(vars.clone(), self.preds), vars)
@@ -226,6 +231,12 @@ impl PolyFnSig {
     /// Convert a function signature with existentials to one where they are all
     /// bound at the top level. Performs a transparent (i.e. not shallow)
     /// canonicalization.
+    /// The uses the `LocalHoister` machinery to convert a function template _without_
+    /// binders, e.g. `fn ({v.i32 | *}) -> {v.i32|*})`
+    /// into one _with_ input binders, e.g. `forall <a:int>. fn ({i32[a]|*}) -> {v.i32|*}`
+    /// after which the hole-filling machinery can be used to fill in the holes.
+    /// This lets us get "dependent signatures" for closures, where the output
+    /// can refer to the input. e.g. see `tests/pos/surface/closure09.rs`
     pub fn hoist_input_binders(&self) -> Self {
         let original_vars = self.vars().to_vec();
         let fn_sig = self.skip_binder_ref();
@@ -238,7 +249,16 @@ impl PolyFnSig {
             .map(|ty| hoister.hoist(ty))
             .collect_vec();
 
-        delegate.bind(|_vars, preds| {
+        delegate.bind(|_vars, mut preds| {
+            let mut keep_hole = true;
+            preds.retain(|pred| {
+                if let ExprKind::Hole(HoleKind::Pred) = pred.kind() {
+                    std::mem::replace(&mut keep_hole, false)
+                } else {
+                    true
+                }
+            });
+
             FnSig::new(
                 fn_sig.safety,
                 fn_sig.abi,

@@ -1066,7 +1066,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         clauses: &mut Vec<rty::Clause>,
     ) -> QueryResult {
         let generic_params = &poly_trait_ref.bound_generic_params;
-        let layer = Layer::list(self.results(), generic_params.len() as u32, &[]);
+        let layer =
+            Layer::list(self.results(), generic_params.len() as u32, poly_trait_ref.refine_params);
         env.push_layer(layer);
 
         let trait_id = poly_trait_ref.trait_def_id();

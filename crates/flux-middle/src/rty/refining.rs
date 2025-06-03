@@ -327,6 +327,7 @@ impl<T: Refine> Refine for ty::Binder<T> {
 impl Refine for ty::FnSig {
     type Output = rty::FnSig;
 
+    // TODO(hof2)
     fn refine(&self, refiner: &Refiner) -> QueryResult<rty::FnSig> {
         let inputs = self
             .inputs()
@@ -335,6 +336,11 @@ impl Refine for ty::FnSig {
             .try_collect()?;
         let ret = self.output().refine(refiner)?.shift_in_escaping(1);
         let output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
+        // TODO(hof2) make a hoister to hoist all the stuff out of the inputs,
+        // the hoister will have a list of all the variables it hoisted and the
+        // single hole for the "requires"; then we "fill" the hole with a KVAR
+        // and generate a PolyFnSig with the hoisted variables
+        // see `into_bb_env` in `type_env.rs` for an example.
         Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output))
     }
 }

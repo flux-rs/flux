@@ -68,6 +68,7 @@ pub enum ConstrReason {
     Ret,
     Fold,
     FoldLocal,
+    Predicate,
     Assert(&'static str),
     Div,
     Rem,
@@ -307,6 +308,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         }
     }
 
+    /// Generate a fresh kvar in the _given_ [`Scope`] (similar method in [`InferCtxtRoot`]).
+    pub fn fresh_kvar_in_scope(
+        &self,
+        binders: &[BoundVariableKinds],
+        scope: &Scope,
+        encoding: KVarEncoding,
+    ) -> Expr {
+        let inner = &mut *self.inner.borrow_mut();
+        inner.kvars.fresh(binders, scope.iter(), encoding)
+    }
+
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
     pub fn fresh_kvar(&self, binders: &[BoundVariableKinds], encoding: KVarEncoding) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
@@ -499,11 +511,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(self.infcx)?;
-                let term = projection_pred
-                    .term
-                    .to_ty()
-                    .normalize_projections(self.infcx)?;
+                    .normalize_projections(self)?;
+                let term = projection_pred.term.to_ty().normalize_projections(self)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 self.subtyping(&impl_elem, &term, reason)?;
@@ -539,6 +548,19 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         let mut env = DummyEnv;
         let mut sub = Sub::new(&mut env, reason, self.span);
         sub.tys(self.infcx, a, b)?;
+        Ok(sub.obligations)
+    }
+
+    pub fn subtyping_generic_args(
+        &mut self,
+        variance: Variance,
+        a: &GenericArg,
+        b: &GenericArg,
+        reason: ConstrReason,
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+        let mut env = DummyEnv;
+        let mut sub = Sub::new(&mut env, reason, self.span);
+        sub.generic_args(self.infcx, variance, a, b)?;
         Ok(sub.obligations)
     }
 
@@ -1035,7 +1057,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
                         .to_ty()
-                        .normalize_projections(infcx)?;
+                        .normalize_projections(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }

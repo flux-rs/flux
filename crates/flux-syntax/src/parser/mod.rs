@@ -3,6 +3,7 @@ mod utils;
 use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyIdent, AnyLit, LAngle, RAngle};
+use rustc_span::sym::Output;
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
     punctuated_with_trailing, repeat_while, sep1, until,
@@ -25,7 +26,6 @@ use crate::{
         WhereBoundPredicate,
     },
 };
-
 /// ```text
 ///   yes ⟨ , reason = ⟨literal⟩ ⟩?
 /// | no ⟨ , reason = ⟨literal⟩ ⟩?
@@ -662,9 +662,49 @@ fn parse_indices(cx: &mut ParseCtxt) -> ParseResult<Indices> {
     Ok(Indices { indices, span: cx.mk_span(lo, hi) })
 }
 
+fn parse_fn_bound_input(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
+    let lo = cx.lo();
+    let tys = parens(cx, Comma, parse_type)?;
+    let hi = cx.hi();
+    let kind = TyKind::Tuple(tys);
+    let span = cx.mk_span(lo, hi);
+    let in_ty = Ty { kind, node_id: cx.next_node_id(), span };
+    Ok(GenericArg { kind: GenericArgKind::Type(in_ty), node_id: cx.next_node_id() })
+}
+
+fn parse_fn_bound_output(cx: &mut ParseCtxt) -> ParseResult<GenericArg> {
+    let lo = cx.lo();
+
+    let ty = if cx.advance_if(Tok::RArrow) {
+        parse_type(cx)?
+    } else {
+        Ty { kind: TyKind::Tuple(vec![]), node_id: cx.next_node_id(), span: cx.mk_span(lo, lo) }
+    };
+    let hi = cx.hi();
+    let ident = Ident { name: Output, span: cx.mk_span(lo, hi) };
+    Ok(GenericArg { kind: GenericArgKind::Constraint(ident, ty), node_id: cx.next_node_id() })
+}
+
+fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
+    let lo = cx.lo();
+    let ident = parse_ident(cx)?;
+    let in_arg = parse_fn_bound_input(cx)?;
+    let out_arg = parse_fn_bound_output(cx)?;
+    let args = vec![in_arg, out_arg];
+    let segment = PathSegment { ident, args, node_id: cx.next_node_id() };
+    let hi = cx.hi();
+    Ok(Path {
+        segments: vec![segment],
+        refine: vec![],
+        node_id: cx.next_node_id(),
+        span: cx.mk_span(lo, hi),
+    })
+}
+
 fn parse_generic_bounds(cx: &mut ParseCtxt) -> ParseResult<GenericBounds> {
-    let path = parse_path(cx)?;
-    Ok(vec![TraitRef { path }])
+    let is_fn = cx.peek(["FnOnce", "FnMut", "Fn"]);
+    let path = if is_fn { parse_fn_bound_path(cx)? } else { parse_path(cx)? };
+    Ok(vec![TraitRef { path, node_id: cx.next_node_id() }])
 }
 
 fn parse_const_arg(cx: &mut ParseCtxt) -> ParseResult<ConstArg> {

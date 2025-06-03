@@ -7,6 +7,7 @@ pub use rustc_ast::{
     token::{Lit, LitKind},
 };
 pub use rustc_span::{Span, symbol::Ident};
+use rustc_span::{Symbol, symbol::sym};
 
 use crate::surface::visit::Visitor;
 
@@ -310,6 +311,23 @@ pub type GenericBounds = Vec<TraitRef>;
 #[derive(Debug)]
 pub struct TraitRef {
     pub path: Path,
+    pub node_id: NodeId,
+}
+
+impl TraitRef {
+    fn is_fn_trait_name(name: Symbol) -> bool {
+        name == sym::FnOnce || name == sym::FnMut || name == sym::Fn
+    }
+
+    pub fn as_fn_trait_ref(&self) -> Option<(&GenericArg, &GenericArg)> {
+        if let [segment] = self.path.segments.as_slice()
+            && Self::is_fn_trait_name(segment.ident.name)
+            && let [in_arg, out_arg] = segment.args.as_slice()
+        {
+            return Some((in_arg, out_arg));
+        }
+        None
+    }
 }
 
 #[derive(Debug)]

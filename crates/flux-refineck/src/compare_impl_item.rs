@@ -45,7 +45,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         .infcx_root(&rustc_infcx, genv.infer_opts(impl_id.local_id()))
         .with_const_generics(impl_id.resolved_id())?
         .build()?;
-    let mut infcx = root_ctxt.infcx(trait_id, &rustc_infcx);
+    let mut infcx = root_ctxt.infcx(impl_id.resolved_id(), &rustc_infcx);
 
     for impl_assoc_id in &impl_assoc_refts.items {
         let name = impl_assoc_id.name();
@@ -91,13 +91,11 @@ fn check_assoc_reft(
         .genv
         .sort_of_assoc_reft(impl_assoc_id)?
         .instantiate_identity()
-        .normalize_projections(infcx)?;
+        .normalize_projections(&mut infcx.at(impl_span))?;
 
-    let trait_sort = infcx
-        .genv
-        .sort_of_assoc_reft(trait_assoc_id)?
-        .instantiate(infcx.tcx(), &impl_trait_ref.args, &[])
-        .normalize_projections(infcx)?;
+    let trait_sort = infcx.genv.sort_of_assoc_reft(trait_assoc_id)?;
+    let trait_sort = trait_sort.instantiate(infcx.tcx(), &impl_trait_ref.args, &[]);
+    let trait_sort = trait_sort.normalize_projections(&mut infcx.at(impl_span))?;
 
     if impl_sort != trait_sort {
         Err(infcx.genv.emit(errors::IncompatibleSort::new(

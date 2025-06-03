@@ -274,6 +274,7 @@ pub fn walk_generic_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &GenericBound<
 }
 
 pub fn walk_poly_trait_ref<'v, V: Visitor<'v>>(vis: &mut V, trait_ref: &PolyTraitRef<'v>) {
+    walk_list!(vis, visit_refine_param, trait_ref.refine_params);
     vis.visit_path(&trait_ref.trait_ref);
 }
 

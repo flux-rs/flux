@@ -318,7 +318,9 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                     w!(self, f, "⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
                 }
             }
-            BoundReftKind::Named(name) => w!(self, f, "{name}"),
+            BoundReftKind::Named(name) => {
+                w!(self, f, "{name}<<⭡{}/#{:?}>>", ^debruijn.as_usize(), ^breft.var)
+            }
         }
     }
 

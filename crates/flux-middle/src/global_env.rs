@@ -413,7 +413,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn is_fn_once_output(&self, def_id: DefId) -> bool {
+    /// The `Output` associated type is defined in `FnOnce`, and `Fn`/`FnMut`
+    /// inherit it, so this should suffice to check if the `def_id`
+    /// corresponds to `LangItem::FnOnceOutput`.
+    pub fn is_fn_output(&self, def_id: DefId) -> bool {
         self.tcx()
             .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
             == def_id
@@ -476,7 +479,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn trusted(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
             .map(|trusted| trusted.to_bool())
-            .unwrap_or_else(|| config::trusted_default())
+            .unwrap_or_else(config::trusted_default)
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
@@ -505,7 +508,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn ignored(self, def_id: LocalDefId) -> bool {
         self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
             .map(|ignored| ignored.to_bool())
-            .unwrap_or_else(|| config::ignore_default())
+            .unwrap_or_else(config::ignore_default)
     }
 
     /// Whether the function is marked with `#[flux::should_fail]`
