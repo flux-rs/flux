@@ -944,23 +944,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .instantiate_identity()
             .predicates;
 
-        for predicate in &predicates {
-            if let Some(proj_clause) = predicate.as_projection_clause()
-                && let def_id = proj_clause.projection_def_id()
-                && let Some(kind) = self.genv.is_fn_output(def_id)
-                && proj_clause
-                    .self_ty()
-                    .skip_binder_ref()
-                    .to_ty()
-                    .to_rustc(tcx)
-                    == self_ty
-            {
-                return Ok(proj_clause.map(|proj_pred| {
-                    let self_ty = proj_pred.self_ty().to_ty();
-                    let tupled_args = proj_pred.projection_ty.args[1].expect_base().to_ty();
-                    let output = proj_pred.term.to_ty();
-                    FnTraitPredicate { kind, self_ty, tupled_args, output }.fndef_sig()
-                }));
+        for poly_fn_trait_pred in Clause::split_off_fn_trait_clauses(self.genv, &predicates).1 {
+            if poly_fn_trait_pred.skip_binder_ref().self_ty.to_rustc(tcx) == self_ty {
+                return Ok(poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig()));
             }
         }
         span_bug!(
