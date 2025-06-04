@@ -358,7 +358,7 @@ impl<'de, T: Types> Deserialize<'de> for Constant<T>
                 let tag = tag.ok_or_else(|| de::Error::missing_field("tag"))?;
                 let contents_val = contents_val.ok_or_else(|| de::Error::missing_field("contents"))?;
                 match tag.as_str() {
-                    "I" => Ok(Constant::Numeral(serde_json::from_value(contents_val).map_err(de::Error::custom)?)),
+                    "I" => Ok(Constant::Numeral(contents_val.as_number().and_then(|n| n.as_u128()).ok_or(de::Error::custom(format!("Failed to convert {} as number", contents_val)))?)),
                     "R" => Ok(Constant::Decimal(serde_json::from_value(contents_val).map_err(de::Error::custom)?)),
                     "L" => {
                         let (text_val, _sort_ignored): (String, serde_json::Value) = serde_json::from_value(contents_val).map_err(de::Error::custom)?;

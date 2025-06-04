@@ -300,11 +300,11 @@ fn report_errors(
             );
             err_diag.note(debug_str);
         } else {
-            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_var_substs(subst);
+            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_var_substs(subst.clone());
             err_diag.subdiagnostic(errors::FailingConstraint {
                 constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             });
-            err_diag.subdiagnostic(errors::Counterexample::new(genv, err.counterexample, &err.blame_ctx));
+            err_diag.subdiagnostic(errors::Counterexample::new(genv, err.counterexample, &subst, &err.blame_ctx));
             for (wkvid, solution) in wkvar_solutions {
                 add_fn_fix_diagnostic(genv, &mut err_diag, wkvid, solution);
             }
@@ -898,7 +898,7 @@ mod errors {
     }
 
     impl Counterexample {
-        pub fn new(genv: GlobalEnv, counterexample: Vec<(String, fixpoint::Expr)>, blame_ctx: &BlameCtxt) -> Self {
+        pub fn new(genv: GlobalEnv, counterexample: Vec<(String, fixpoint::Expr)>, pretty_name_subst: &HashMap<rty::Var, String>, blame_ctx: &BlameCtxt) -> Self {
             // struct CollectVars(HashSet<String>);
             //
             // impl TypeVisitor for CollectVars {
@@ -942,7 +942,15 @@ mod errors {
                 vars.get(&var).map(|var| (var.clone(), format!("{}", expr)))
             }).collect();
 
-            let vars_string = format!("{:?}", counterexample_subst);
+            let formatted_counterexamples = counterexample_subst.iter().map(|(var, expr)| {
+                if let Some(pretty_name) = pretty_name_subst.get(var) {
+                    format!("{}: {}", pretty_name, expr)
+                } else {
+                    format!("{:?}: {}", var, expr)
+                }
+            }).collect_vec();
+
+            let vars_string = format!("[{:?}]", formatted_counterexamples.join(", "));
 
             let pred_pretty_cx = pretty::PrettyCx::default(genv).with_var_substs(counterexample_subst);
             let constraint = format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &blame_ctx.expr));
