@@ -64,7 +64,7 @@ use crate::{
     global_env::GlobalEnv,
     pretty::{Pretty, PrettyCx},
     queries::QueryResult,
-    rty::subst::SortSubst,
+    rty::{self, subst::SortSubst},
 };
 
 /// The definition of the data sort automatically generated for a struct or enum.

@@ -300,7 +300,7 @@ fn report_errors(
             );
             err_diag.note(debug_str);
         } else {
-            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
+            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_var_substs(subst);
             err_diag.subdiagnostic(errors::FailingConstraint {
                 constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             });
@@ -332,13 +332,13 @@ fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorG
 // Returns whether we found a substitution for the var
 fn add_substitution_for_binder_var(
     genv: GlobalEnv,
-    subst: &mut HashMap<Name, String>,
+    subst: &mut HashMap<rty::Var, String>,
     var_name: Name,
     binder_provenance: &BinderProvenance,
 ) -> bool {
     match binder_provenance.originator {
         BinderOriginator::FnArg(Some(arg_name)) => {
-            subst.insert(var_name, arg_name.to_string());
+            subst.insert(rty::Var::Free(var_name), arg_name.to_string());
             return true;
         }
         BinderOriginator::CallReturn(CallReturn { destination_name, .. }) => {
@@ -349,7 +349,7 @@ fn add_substitution_for_binder_var(
             // we will use `x` as the name for binder var for `foo()`
             // (this doesn't handle shadowing or mutation)
             if let Some(destination_name) = destination_name {
-                subst.insert(var_name, destination_name.to_string());
+                subst.insert(rty::Var::Free(var_name), destination_name.to_string());
                 return true;
             // Second priority: use the function call itself if it fits on a
             // single line, e.g. if we have
@@ -362,7 +362,7 @@ fn add_substitution_for_binder_var(
                 if let Ok(source_snippet) = source_snippet
                     && !source_snippet.contains("\n")
                 {
-                    subst.insert(var_name, source_snippet);
+                    subst.insert(rty::Var::Free(var_name), source_snippet);
                     return true;
                 }
             }
@@ -384,7 +384,7 @@ fn add_substitution_for_binder_var(
 // Right now the heuristic for ordering binders is just to prefer the one defined
 // latest, but it will be improved eventually.
 fn binders_from_expr(
-    subst: &HashMap<Name, String>,
+    subst: &HashMap<rty::Var, String>,
     expr: &rty::Expr,
     binder_deps: &BinderDeps,
 ) -> Vec<BinderInfo> {
@@ -403,7 +403,7 @@ fn binders_from_expr(
                         bp.span.map(|span| {
                             BinderInfo {
                                 name: *name,
-                                pretty_name: subst.get(name).cloned(),
+                                pretty_name: subst.get(&rty::Var::Free(*name)).cloned(),
                                 span,
                                 originator: bp.originator.clone(),
                                 depth: *depth,
@@ -418,7 +418,7 @@ fn binders_from_expr(
     binders
 }
 
-fn make_binder_subst(genv: GlobalEnv, binder_deps: &BinderDeps) -> HashMap<Name, String> {
+fn make_binder_subst(genv: GlobalEnv, binder_deps: &BinderDeps) -> HashMap<rty::Var, String> {
     let mut subst = HashMap::new();
     binder_deps
         .iter()
@@ -663,7 +663,7 @@ fn collect_binder_debug_info(
     genv: GlobalEnv,
     expr: &rty::Expr,
     binder_deps: &BinderDeps,
-    pretty_name_subst: &HashMap<Name, String>,
+    pretty_name_subst: &HashMap<rty::Var, String>,
 ) -> Vec<BinderDebugInfo> {
     let expr_vars = expr.fvars();
     binder_deps
@@ -671,7 +671,7 @@ fn collect_binder_debug_info(
         .map(|(name, (bp, depth, related_vars))| {
             BinderDebugInfo {
                 name: *name,
-                pretty_name: pretty_name_subst.get(name).cloned(),
+                pretty_name: pretty_name_subst.get(&rty::Var::Free(*name)).cloned(),
                 span: bp.clone().and_then(|bp| {
                     bp.span
                         .and_then(|span| SimpleSpan::from_span(span, genv.tcx().sess.source_map()))
@@ -723,6 +723,8 @@ mod errors {
         },
         timings,
     };
+    use itertools::Itertools;
+    use liquid_fixpoint::Identifier;
     use std::collections::HashMap;
     use rustc_span::Span;
 
@@ -911,19 +913,38 @@ mod errors {
             // let mut collector = CollectVars(HashSet::new());
             // blame_ctx.expr.visit_with(&mut collector);
             // let vars = collector.0;
-            let vars: HashMap<String, Name> = blame_ctx.expr.fvars().into_iter().map(|var| {
-                (format!("{:?}", var), var)
+            let mut vars: HashMap<String, rty::Var> = blame_ctx.expr.fvars().into_iter().filter_map(|var| {
+                blame_ctx.local_var_map.get(&var).map(|local_name| {
+                    (format!("a{}", local_name.as_u32()), rty::Var::Free(var))
+                })
             }).collect();
 
-            println!("counterexamples: {}", counterexample.len());
-            let counterexample_subst: HashMap<Name, String> = counterexample.into_iter().filter_map(|(var, expr)| {
-                println!("{}: {:?}", var, expr);
-                vars.get(&var).map(|name| (name.clone(), format!("{:?}", expr)))
+            let params = blame_ctx.expr.early_params().into_iter().map(|early_param| {
+                (Identifier::display(&fixpoint::Var::Param(early_param)).to_string(), rty::Var::EarlyParam(early_param))
+            });
+
+            vars.extend(params);
+
+            // println!("counterexamples: {}", counterexample.len());
+            let counterexample_subst: HashMap<rty::Var, String> = counterexample.into_iter().filter_map(|(mut var, expr)| {
+                // HACK: Z3 or Fixpoint (I'm guessing fixpoint) seems to
+                // transform $ in the names of variables by adding something
+                // like $36 before them (alt: 36$ after). It's really weird
+                // and my solution is just to check that we have the right
+                // number of segments and cut out the "filler".
+                if var.starts_with("reftgen$") {
+                    let parts = var.split('$').collect_vec();
+                    if parts.len() != 5 {
+                        return None;
+                    }
+                    var = [parts[0], parts[2], parts[4]].join("$");
+                }
+                vars.get(&var).map(|var| (var.clone(), format!("{}", expr)))
             }).collect();
 
             let vars_string = format!("{:?}", counterexample_subst);
 
-            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(counterexample_subst);
+            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_var_substs(counterexample_subst);
             let constraint = format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &blame_ctx.expr));
 
             Counterexample {

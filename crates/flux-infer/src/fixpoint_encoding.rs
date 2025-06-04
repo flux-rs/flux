@@ -214,15 +214,47 @@ pub mod fixpoint {
                 where
                     E: de::Error,
                 {
+                    // a{}
+                    if let Some(potential_num_str) = value.strip_prefix("a") {
+                        // Attempt to parse the substring after 'a' as a u32
+                        match potential_num_str.parse::<u32>() {
+                            Ok(num) => {
+                                return Ok(Var::Local(LocalVar::from(num)));
+                            }
+                            Err(_) => {
+                            }
+                        }
+                    // reftgen${}${}
+                    } else if let Some(rest) = value.strip_prefix("reftgen$") {
+                        let mut split = rest.split('$');
+                        let name = split.next();
+                        let index = split.next();
+                        match (index, name, split.next()) {
+                            (Some(index), Some(name), None) => {
+                                match index.parse::<u32>() {
+                                    Ok(index) => {
+                                        return Ok(Var::Param(EarlyReftParam {index, name: Symbol::intern(name)}))
+                                    }
+                                    Err(_) => {}
+                                }
+                            }
+                            _ => {}
+                        }
+                    } else {
+
+                    }
+
+                    // Fallback: if it doesn't start with 'a', or if it did but parsing failed,
+                    // treat it as a Free variable.
                     Ok(Var::Free(Symbol::intern(value)))
                 }
 
-                fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
-                where
-                    E: de::Error,
-                {
-                    Ok(Var::Free(Symbol::intern(&value)))
-                }
+                // fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+                // where
+                //     E: de::Error,
+                // {
+                //     Ok(Var::Free(Symbol::intern(&value)))
+                // }
             }
 
             // This tells Serde to try deserializing the input using the methods in VarVisitor.
@@ -614,6 +646,7 @@ enum ConstKey<'tcx> {
 pub struct BlameCtxt {
     pub blame_analysis: BlameAnalysis,
     pub expr: rty::Expr,
+    pub local_var_map: UnordMap<rty::Name, fixpoint::LocalVar>,
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
@@ -861,12 +894,12 @@ where
             }
             _ => {
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
+
+                let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 // Extract the spans from all of the vars related to the expression
                 // (including the vars in the expression).
                 self.blame_ctx_map
-                    .insert(tag_idx, BlameCtxt { blame_analysis, expr: expr.clone() });
-
-                let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
+                    .insert(tag_idx, BlameCtxt { blame_analysis, expr: expr.clone(), local_var_map: self.ecx.local_var_env.fvars.clone() });
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
             }
         }
@@ -1083,9 +1116,9 @@ impl KVarEncodingCtxt {
 }
 
 /// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
-struct LocalVarEnv {
+pub struct LocalVarEnv {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
-    fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
+    pub fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
     /// Layers of late bound variables
     layers: Vec<Vec<fixpoint::LocalVar>>,
 }

@@ -136,6 +136,7 @@ pub fn pprint_with_default_cx<T: Pretty>(
 }
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
+use crate::rty;
 use crate::{
     global_env::GlobalEnv,
     rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind},
@@ -195,8 +196,8 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
-    // Better names to give to free vars
-    pub free_var_substs: HashMap<Name, String>,
+    // Better names to give to vars
+    pub var_substs: HashMap<rty::Var, String>,
     env: BoundVarEnv,
 }
 
@@ -225,7 +226,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
-            free_var_substs: HashMap::default(),
+            var_substs: HashMap::default(),
             env: BoundVarEnv::default(),
         }
     }
@@ -346,8 +347,8 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         Self { hide_refinements: b, ..self }
     }
 
-    pub fn with_free_var_substs(self, free_var_substs: HashMap<Name, String>) -> Self {
-        Self { free_var_substs, ..self }
+    pub fn with_var_substs(self, var_substs: HashMap<rty::Var, String>) -> Self {
+        Self { var_substs, ..self }
     }
 }
 
