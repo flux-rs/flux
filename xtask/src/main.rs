@@ -1,5 +1,6 @@
 use std::{
     env,
+    ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -14,19 +15,21 @@ use xshell::{cmd, Shell};
 
 xflags::xflags! {
     cmd xtask {
+        /// If true, run all cargo commands with `--offline`
         optional --offline
 
         /// Run regression tests
         cmd test {
-            /// Only run tests containing `filter` as substring.
+            /// Only run tests containing `filter` as a substring.
             optional filter: String
+            /// Do not check tests in Flux libs.
+            optional --no-lib-tests
         }
-        /// Run the Flux binary on the given input file setting the appropriate flags to use
-        /// custom Flux attributes and macros.
+        /// Run the `flux` binary on the given input file.
         cmd run {
             /// Input file
             required input: PathBuf
-            /// Extra options to pass to the Flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
+            /// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=y`
             repeated opts: String
         }
         /// Expand Flux macros
@@ -112,7 +115,7 @@ fn main() -> anyhow::Result<()> {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 dst: local_sysroot_dir()?,
-                build_libs: BuildLibs::Yes { force: true },
+                build_libs: BuildLibs::Yes { force: true, tests: true },
             };
             install_sysroot(&sh, &config)?;
             Ok(())
@@ -126,9 +129,8 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs::Yes { force: false },
+        build_libs: BuildLibs::Yes { force: false, tests: !args.no_lib_tests },
     };
-    let Test { filter } = args;
     let flux = build_binary("flux", config.profile)?;
     install_sysroot(&sh, &config)?;
 
@@ -136,7 +138,7 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
         .args(["test", "-p", "tests", "--"])
         .args(["--flux", flux.as_str()])
         .args(["--sysroot".as_ref(), config.dst.as_os_str()])
-        .map_opt(filter.as_ref(), |filter, cmd| {
+        .map_opt(args.filter.as_ref(), |filter, cmd| {
             cmd.args(["--filter", filter]);
         })
         .run()
@@ -166,7 +168,7 @@ fn run_inner(
     let config = SysrootConfig {
         profile: Profile::Dev,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs::Yes { force: false },
+        build_libs: BuildLibs::Yes { force: false, tests: false },
     };
 
     install_sysroot(sh, &config)?;
@@ -186,7 +188,11 @@ fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: args.profile(),
         dst: default_sysroot_dir(),
-        build_libs: if args.no_libs { BuildLibs::No } else { BuildLibs::Yes { force: false } },
+        build_libs: if args.no_libs {
+            BuildLibs::No
+        } else {
+            BuildLibs::Yes { force: false, tests: false }
+        },
     };
     install_sysroot(sh, &config)?;
     Command::new("cargo")
@@ -243,8 +249,8 @@ struct SysrootConfig {
 
 /// Whether to build Flux's libs
 enum BuildLibs {
-    /// If `force` is true, forces a clean build
-    Yes { force: bool },
+    /// If `force` is true, forces a clean build. If `tests` is true, check library tests.
+    Yes { force: bool, tests: bool },
     /// Do not build libs
     No,
 }
@@ -257,7 +263,7 @@ fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
 
     let cargo_flux = build_binary("cargo-flux", config.profile)?;
 
-    if let BuildLibs::Yes { force } = config.build_libs {
+    if let BuildLibs::Yes { force, tests } = config.build_libs {
         if force {
             Command::new(&cargo_flux)
                 .args(["flux", "clean"])
@@ -268,7 +274,7 @@ fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
         let artifacts = Command::new(cargo_flux)
             .args(["flux", "-p", "flux-rs", "-p", "flux-core"])
             .env(FLUX_SYSROOT, &config.dst)
-            .env(FLUX_SYSROOT_TEST, "1")
+            .env_if(tests, FLUX_SYSROOT_TEST, "1")
             .run_with_cargo_metadata()?;
 
         copy_artifacts(sh, &artifacts, &config.dst)?;
@@ -371,6 +377,10 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(sh: &Shell, src: S, dst: D) -> anyh
 trait CommandExt {
     fn map_opt<T>(&mut self, b: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self;
     fn run(&mut self) -> anyhow::Result<()>;
+    fn env_if<K, V>(&mut self, b: bool, k: K, v: V) -> &mut Self
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>;
     fn run_with_cargo_metadata(&mut self) -> anyhow::Result<Vec<Artifact>>;
 }
 
@@ -378,6 +388,17 @@ impl CommandExt for Command {
     fn map_opt<T>(&mut self, opt: Option<&T>, f: impl FnOnce(&T, &mut Self)) -> &mut Self {
         if let Some(v) = opt {
             f(v, self);
+        }
+        self
+    }
+
+    fn env_if<K, V>(&mut self, b: bool, k: K, v: V) -> &mut Self
+    where
+        K: AsRef<OsStr>,
+        V: AsRef<OsStr>,
+    {
+        if b {
+            self.env(k, v);
         }
         self
     }
