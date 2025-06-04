@@ -415,8 +415,30 @@
 <a href="#414" id="414">414</a>
 <a href="#415" id="415">415</a>
 <a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{
     env,
+    ffi::OsStr,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -431,19 +453,21 @@
 
 <span class="macro">xflags::xflags!</span> {
     cmd xtask {
-        optional --offline
+        <span class="doccomment">/// If true, run all cargo commands with `--offline`
+        </span>optional --offline
 
         <span class="doccomment">/// Run regression tests
         </span>cmd test {
-            <span class="doccomment">/// Only run tests containing `filter` as substring.
+            <span class="doccomment">/// Only run tests containing `filter` as a substring.
             </span>optional filter: String
+            <span class="doccomment">/// Do not check tests in Flux libs.
+            </span>optional --no-lib-tests
         }
-        <span class="doccomment">/// Run the Flux binary on the given input file setting the appropriate flags to use
-        /// custom Flux attributes and macros.
+        <span class="doccomment">/// Run the `flux` binary on the given input file.
         </span>cmd run {
             <span class="doccomment">/// Input file
             </span>required input: PathBuf
-            <span class="doccomment">/// Extra options to pass to the Flux binary, e.g. `cargo xtask run file.rs -- -Zdump-mir=y`
+            <span class="doccomment">/// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=y`
             </span>repeated opts: String
         }
         <span class="doccomment">/// Expand Flux macros
@@ -529,7 +553,7 @@
             <span class="kw">let </span>config = SysrootConfig {
                 profile: Profile::Dev,
                 dst: local_sysroot_dir()<span class="question-mark">?</span>,
-                build_libs: BuildLibs::Yes { force: <span class="bool-val">true </span>},
+                build_libs: BuildLibs::Yes { force: <span class="bool-val">true</span>, tests: <span class="bool-val">true </span>},
             };
             install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(())
@@ -543,9 +567,8 @@
     <span class="kw">let </span>config = SysrootConfig {
         profile: Profile::Dev,
         dst: local_sysroot_dir()<span class="question-mark">?</span>,
-        build_libs: BuildLibs::Yes { force: <span class="bool-val">false </span>},
+        build_libs: BuildLibs::Yes { force: <span class="bool-val">false</span>, tests: !args.no_lib_tests },
     };
-    <span class="kw">let </span>Test { filter } = args;
     <span class="kw">let </span>flux = build_binary(<span class="string">"flux"</span>, config.profile)<span class="question-mark">?</span>;
     install_sysroot(<span class="kw-2">&amp;</span>sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
 
@@ -553,7 +576,7 @@
         .args([<span class="string">"test"</span>, <span class="string">"-p"</span>, <span class="string">"tests"</span>, <span class="string">"--"</span>])
         .args([<span class="string">"--flux"</span>, flux.as_str()])
         .args([<span class="string">"--sysroot"</span>.as_ref(), config.dst.as_os_str()])
-        .map_opt(filter.as_ref(), |filter, cmd| {
+        .map_opt(args.filter.as_ref(), |filter, cmd| {
             cmd.args([<span class="string">"--filter"</span>, filter]);
         })
         .run()
@@ -583,7 +606,7 @@
     <span class="kw">let </span>config = SysrootConfig {
         profile: Profile::Dev,
         dst: local_sysroot_dir()<span class="question-mark">?</span>,
-        build_libs: BuildLibs::Yes { force: <span class="bool-val">false </span>},
+        build_libs: BuildLibs::Yes { force: <span class="bool-val">false</span>, tests: <span class="bool-val">false </span>},
     };
 
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
@@ -603,7 +626,11 @@
     <span class="kw">let </span>config = SysrootConfig {
         profile: args.profile(),
         dst: default_sysroot_dir(),
-        build_libs: <span class="kw">if </span>args.no_libs { BuildLibs::No } <span class="kw">else </span>{ BuildLibs::Yes { force: <span class="bool-val">false </span>} },
+        build_libs: <span class="kw">if </span>args.no_libs {
+            BuildLibs::No
+        } <span class="kw">else </span>{
+            BuildLibs::Yes { force: <span class="bool-val">false</span>, tests: <span class="bool-val">false </span>}
+        },
     };
     install_sysroot(sh, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
     Command::new(<span class="string">"cargo"</span>)
@@ -660,8 +687,8 @@
 
 <span class="doccomment">/// Whether to build Flux's libs
 </span><span class="kw">enum </span>BuildLibs {
-    <span class="doccomment">/// If `force` is true, forces a clean build
-    </span>Yes { force: bool },
+    <span class="doccomment">/// If `force` is true, forces a clean build. If `tests` is true, check library tests.
+    </span>Yes { force: bool, tests: bool },
     <span class="doccomment">/// Do not build libs
     </span>No,
 }
@@ -674,7 +701,7 @@
 
     <span class="kw">let </span>cargo_flux = build_binary(<span class="string">"cargo-flux"</span>, config.profile)<span class="question-mark">?</span>;
 
-    <span class="kw">if let </span>BuildLibs::Yes { force } = config.build_libs {
+    <span class="kw">if let </span>BuildLibs::Yes { force, tests } = config.build_libs {
         <span class="kw">if </span>force {
             Command::new(<span class="kw-2">&amp;</span>cargo_flux)
                 .args([<span class="string">"flux"</span>, <span class="string">"clean"</span>])
@@ -685,7 +712,7 @@
         <span class="kw">let </span>artifacts = Command::new(cargo_flux)
             .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
             .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
-            .env(FLUX_SYSROOT_TEST, <span class="string">"1"</span>)
+            .env_if(tests, FLUX_SYSROOT_TEST, <span class="string">"1"</span>)
             .run_with_cargo_metadata()<span class="question-mark">?</span>;
 
         copy_artifacts(sh, <span class="kw-2">&amp;</span>artifacts, <span class="kw-2">&amp;</span>config.dst)<span class="question-mark">?</span>;
@@ -788,6 +815,10 @@
 <span class="kw">trait </span>CommandExt {
     <span class="kw">fn </span>map_opt&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;mut </span><span class="self">Self</span>)) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self</span>;
     <span class="kw">fn </span>run(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;()&gt;;
+    <span class="kw">fn </span>env_if&lt;K, V&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: bool, k: K, v: V) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
+    </span><span class="kw">where
+        </span>K: AsRef&lt;OsStr&gt;,
+        V: AsRef&lt;OsStr&gt;;
     <span class="kw">fn </span>run_with_cargo_metadata(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; anyhow::Result&lt;Vec&lt;Artifact&gt;&gt;;
 }
 
@@ -795,6 +826,17 @@
     <span class="kw">fn </span>map_opt&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, opt: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>T&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;mut </span><span class="self">Self</span>)) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = opt {
             f(v, <span class="self">self</span>);
+        }
+        <span class="self">self
+    </span>}
+
+    <span class="kw">fn </span>env_if&lt;K, V&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, b: bool, k: K, v: V) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self
+    </span><span class="kw">where
+        </span>K: AsRef&lt;OsStr&gt;,
+        V: AsRef&lt;OsStr&gt;,
+    {
+        <span class="kw">if </span>b {
+            <span class="self">self</span>.env(k, v);
         }
         <span class="self">self
     </span>}
