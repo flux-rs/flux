@@ -5,7 +5,7 @@ mod points_to;
 
 use std::{fmt, io, iter};
 
-use flux_common::dbg;
+use flux_common::{bug, dbg};
 use flux_config as config;
 use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
 use flux_rustc_bridge::{
@@ -62,29 +62,31 @@ impl GhostStatements {
     fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
 
-        let mut stmts = Self {
-            at_start: Default::default(),
-            at_location: LocationMap::default(),
-            at_edge: EdgeMap::default(),
-        };
+        bug::track_span(body.span(), || {
+            let mut stmts = Self {
+                at_start: Default::default(),
+                at_location: LocationMap::default(),
+                at_edge: EdgeMap::default(),
+            };
 
-        // We have fn_sig for function items, but not for closures or generators.
-        let fn_sig = if genv.def_kind(def_id) == DefKind::Closure {
-            None
-        } else {
-            Some(genv.fn_sig(def_id)?)
-        };
+            // We have fn_sig for function items, but not for closures or generators.
+            let fn_sig = if genv.def_kind(def_id) == DefKind::Closure {
+                None
+            } else {
+                Some(genv.fn_sig(def_id)?)
+            };
 
-        fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
-        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
-        stmts.add_unblocks(genv.tcx(), &body);
+            fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
+            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
+            stmts.add_unblocks(genv.tcx(), &body);
 
-        if config::dump_mir() {
-            let mut writer =
-                dbg::writer_for_item(genv.tcx(), def_id.to_def_id(), "ghost.mir").unwrap();
-            stmts.write_mir(genv.tcx(), &body, &mut writer).unwrap();
-        }
-        Ok(stmts)
+            if config::dump_mir() {
+                let mut writer =
+                    dbg::writer_for_item(genv.tcx(), def_id.to_def_id(), "ghost.mir").unwrap();
+                stmts.write_mir(genv.tcx(), &body, &mut writer).unwrap();
+            }
+            Ok(stmts)
+        })
     }
 
     fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
