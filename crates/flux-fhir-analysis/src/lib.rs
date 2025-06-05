@@ -176,7 +176,9 @@ fn invariants_of<'genv>(
         _ => Err(query_bug!(item.owner_id.local_id(), "expected struct or enum"))?,
     };
     let wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)?;
-    conv::conv_invariants(genv, item.owner_id.map(|it| it.def_id), params, invariants, &wfckresults)
+    AfterSortck::new(genv, &wfckresults)
+        .into_conv_ctxt()
+        .conv_invariants(item.owner_id.map(|it| it.def_id), params, invariants)
 }
 
 fn predicates_of(

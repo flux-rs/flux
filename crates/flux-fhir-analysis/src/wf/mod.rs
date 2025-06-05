@@ -63,6 +63,14 @@ pub(crate) fn check_invariants<'genv>(
     let mut infcx = InferCtxt::new(genv, owner);
     Wf::with(&mut infcx, |wf| {
         wf.declare_params_for_invariants(params, invariants)?;
+
+        // Run first conv phase to gather sorts for associated refinements.
+        // This must run after declaring parameters because conversion expects
+        // the parameter sorts to be present in wfckresults.
+        wf.as_conv_ctxt()
+            .conv_invariants(adt_def_id.map(|it| it.def_id), params, invariants)
+            .emit(&wf.errors)?;
+
         for invariant in invariants {
             wf.infcx
                 .check_expr(invariant, &rty::Sort::Bool)

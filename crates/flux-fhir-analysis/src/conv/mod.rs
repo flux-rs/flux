@@ -374,19 +374,6 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
     }
 }
 
-pub(crate) fn conv_invariants(
-    genv: GlobalEnv,
-    def_id: MaybeExternId,
-    params: &[fhir::RefineParam],
-    invariants: &[fhir::Expr],
-    wfckresults: &WfckResults,
-) -> QueryResult<Vec<rty::Invariant>> {
-    let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
-    let mut env = Env::new(&[]);
-    env.push_layer(Layer::coalesce(wfckresults, def_id.resolved_id(), params));
-    cx.conv_invariants(&mut env, invariants)
-}
-
 pub(crate) fn conv_constant(genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::ConstantInfo> {
     let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
     if ty.is_integral() {
@@ -708,7 +695,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let predicates = tcx.predicates_of(def_id);
         let unrefined_clauses = predicates.predicates;
 
-        // For each *refined clause* at index `j` find a corrresponding *unrefined clause* at index
+        // For each *refined clause* at index `j` find a corresponding *unrefined clause* at index
         // `i` and save a mapping `i -> j`.
         let mut map = UnordMap::default();
         for (j, clause) in refined_clauses.iter().enumerate() {
@@ -2262,14 +2249,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(alias_reft)
     }
 
-    fn conv_invariants(
+    pub(crate) fn conv_invariants(
         &mut self,
-        env: &mut Env,
+        adt_id: MaybeExternId,
+        params: &[fhir::RefineParam],
         invariants: &[fhir::Expr],
     ) -> QueryResult<Vec<rty::Invariant>> {
+        let mut env = Env::new(&[]);
+        env.push_layer(Layer::coalesce(self.results(), adt_id.resolved_id(), params));
         invariants
             .iter()
-            .map(|invariant| self.conv_invariant(env, invariant))
+            .map(|invariant| self.conv_invariant(&mut env, invariant))
             .collect()
     }
 
