@@ -520,7 +520,15 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a></pre></div><pre class="rust"><code><span class="doccomment">//! Checks type well-formedness
 //!
 //! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 
@@ -585,6 +593,14 @@
     <span class="kw">let </span><span class="kw-2">mut </span>infcx = InferCtxt::new(genv, owner);
     Wf::with(<span class="kw-2">&amp;mut </span>infcx, |wf| {
         wf.declare_params_for_invariants(params, invariants)<span class="question-mark">?</span>;
+
+        <span class="comment">// Run first conv phase to gather sorts for associated refinements.
+        // This must run after declaring parameters because conversion expects
+        // the parameter sorts to be present in wfckresults.
+        </span>wf.as_conv_ctxt()
+            .conv_invariants(adt_def_id.map(|it| it.def_id), params, invariants)
+            .emit(<span class="kw-2">&amp;</span>wf.errors)<span class="question-mark">?</span>;
+
         <span class="kw">for </span>invariant <span class="kw">in </span>invariants {
             wf.infcx
                 .check_expr(invariant, <span class="kw-2">&amp;</span>rty::Sort::Bool)

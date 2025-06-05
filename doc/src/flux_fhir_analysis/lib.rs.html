@@ -591,7 +591,9 @@
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -769,7 +771,9 @@
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(item.owner_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
     };
     <span class="kw">let </span>wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)<span class="question-mark">?</span>;
-    conv::conv_invariants(genv, item.owner_id.map(|it| it.def_id), params, invariants, <span class="kw-2">&amp;</span>wfckresults)
+    AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+        .into_conv_ctxt()
+        .conv_invariants(item.owner_id.map(|it| it.def_id), params, invariants)
 }
 
 <span class="kw">fn </span>predicates_of(

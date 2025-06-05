@@ -2835,17 +2835,7 @@
 <a href="#2834" id="2834">2834</a>
 <a href="#2835" id="2835">2835</a>
 <a href="#2836" id="2836">2836</a>
-<a href="#2837" id="2837">2837</a>
-<a href="#2838" id="2838">2838</a>
-<a href="#2839" id="2839">2839</a>
-<a href="#2840" id="2840">2840</a>
-<a href="#2841" id="2841">2841</a>
-<a href="#2842" id="2842">2842</a>
-<a href="#2843" id="2843">2843</a>
-<a href="#2844" id="2844">2844</a>
-<a href="#2845" id="2845">2845</a>
-<a href="#2846" id="2846">2846</a>
-<a href="#2847" id="2847">2847</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
+<a href="#2837" id="2837">2837</a></pre></div><pre class="rust"><code><span class="doccomment">//! Conversion from types in [`fhir`] to types in [`rty`]
 //!
 //! Conversion assumes well-formedness and will panic if type are not well-formed. Among other things,
 //! well-formedness implies:
@@ -3221,19 +3211,6 @@
     }
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_invariants(
-    genv: GlobalEnv,
-    def_id: MaybeExternId,
-    params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
-    invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
-    wfckresults: <span class="kw-2">&amp;</span>WfckResults,
-) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
-    <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
-    env.push_layer(Layer::coalesce(wfckresults, def_id.resolved_id(), params));
-    cx.conv_invariants(<span class="kw-2">&amp;mut </span>env, invariants)
-}
-
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_constant(genv: GlobalEnv, def_id: DefId) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
     <span class="kw">let </span>ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
     <span class="kw">if </span>ty.is_integral() {
@@ -3555,7 +3532,7 @@
         <span class="kw">let </span>predicates = tcx.predicates_of(def_id);
         <span class="kw">let </span>unrefined_clauses = predicates.predicates;
 
-        <span class="comment">// For each *refined clause* at index `j` find a corrresponding *unrefined clause* at index
+        <span class="comment">// For each *refined clause* at index `j` find a corresponding *unrefined clause* at index
         // `i` and save a mapping `i -&gt; j`.
         </span><span class="kw">let </span><span class="kw-2">mut </span>map = UnordMap::default();
         <span class="kw">for </span>(j, clause) <span class="kw">in </span>refined_clauses.iter().enumerate() {
@@ -5109,14 +5086,17 @@
         <span class="prelude-val">Ok</span>(alias_reft)
     }
 
-    <span class="kw">fn </span>conv_invariants(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_invariants(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        env: <span class="kw-2">&amp;mut </span>Env,
+        adt_id: MaybeExternId,
+        params: <span class="kw-2">&amp;</span>[fhir::RefineParam],
         invariants: <span class="kw-2">&amp;</span>[fhir::Expr],
     ) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>env = Env::new(<span class="kw-2">&amp;</span>[]);
+        env.push_layer(Layer::coalesce(<span class="self">self</span>.results(), adt_id.resolved_id(), params));
         invariants
             .iter()
-            .map(|invariant| <span class="self">self</span>.conv_invariant(env, invariant))
+            .map(|invariant| <span class="self">self</span>.conv_invariant(<span class="kw-2">&amp;mut </span>env, invariant))
             .collect()
     }
 
