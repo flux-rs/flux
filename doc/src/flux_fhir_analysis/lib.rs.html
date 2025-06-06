@@ -593,7 +593,8 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -633,6 +634,7 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <span class="kw">use </span>rustc_hir::{
+    OwnerId,
     def::DefKind,
     def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -891,7 +893,7 @@
     <span class="kw">match </span><span class="kw-2">&amp;</span>genv.map().expect_item(container_id.local_id())<span class="question-mark">?</span>.kind {
         fhir::ItemKind::Trait(trait_) =&gt; {
             <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
-            <span class="kw">let </span>wfckresults = genv.check_wf(container_id.local_id())<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
                 .params
@@ -903,7 +905,7 @@
         }
         fhir::ItemKind::Impl(impl_) =&gt; {
             <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
-            <span class="kw">let </span>wfckresults = genv.check_wf(container_id.local_id())<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
             <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
             <span class="kw">let </span>inputs = assoc_reft
                 .params
