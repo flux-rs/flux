@@ -8,7 +8,7 @@ use flux_rustc_bridge::{
     mir::{
         BasicBlock, Body, BorrowKind, FIRST_VARIANT, FieldIdx, Local, Location,
         NonDivergingIntrinsic, Operand, Place, PlaceElem, PlaceRef, Rvalue, Statement,
-        StatementKind, Terminator, TerminatorKind, VariantIdx,
+        StatementKind, Terminator, TerminatorKind, UnOp, VariantIdx,
     },
     ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Mutability, Ty, TyKind},
 };
@@ -295,6 +295,15 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
         match &stmt.kind {
             StatementKind::Assign(place, rvalue) => {
                 match rvalue {
+                    Rvalue::Len(place) => {
+                        M::projection(self, env, place)?;
+                    }
+                    Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
+                    | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
+                        let deref_place = place.deref();
+                        M::projection(self, env, &deref_place)?
+                    }
+
                     Rvalue::Use(op)
                     | Rvalue::Cast(_, op, _)
                     | Rvalue::UnaryOp(_, op)
@@ -319,9 +328,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                             self.operand(arg, env)?;
                         }
                     }
-                    Rvalue::Len(place) => {
-                        M::projection(self, env, place)?;
-                    }
+
                     Rvalue::Discriminant(discr) => {
                         M::projection(self, env, discr)?;
                         self.discriminants.insert(place.clone(), discr.clone());

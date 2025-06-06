@@ -296,6 +296,12 @@ impl Place {
     pub fn as_ref(&self) -> PlaceRef {
         PlaceRef { local: self.local, projection: &self.projection[..] }
     }
+
+    pub fn deref(&self) -> Self {
+        let mut projection = self.projection.clone();
+        projection.push(PlaceElem::Deref);
+        Place { local: self.local, projection }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

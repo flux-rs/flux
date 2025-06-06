@@ -28,7 +28,7 @@ use flux_rustc_bridge::{
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
         Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
 };
@@ -1240,7 +1240,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)?;
                 Ok(BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty())
             }
-            Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::Cast(kind, op, to) => {
                 let from = self
                     .check_operand(infcx, env, stmt_span, op)
@@ -1253,6 +1252,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
+            Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
+            Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
+            | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
+                let deref_place = place.deref();
+                self.check_len(infcx, env, stmt_span, &deref_place)
+            }
             Rvalue::UnaryOp(un_op, op) => {
                 self.check_unary_op(infcx, env, stmt_span, *un_op, op)
                     .with_span(stmt_span)
