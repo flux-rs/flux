@@ -1147,14 +1147,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
-            // println!("TRACE: closure_template (0): {poly_sig:#?}");
             let poly_sig = self.refine_with_holes(&poly_sig)?;
-            // println!("TRACE: closure_template (1): {poly_sig:#?}");
             let poly_sig = poly_sig.hoist_input_binders();
-            // println!("TRACE: closure_template (2): {poly_sig:#?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-            // println!("TRACE: closure_template (3): {poly_sig:#?}");
 
             Ok((upvar_tys, poly_sig))
         } else {
@@ -1263,13 +1259,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
-                // let place_ty = env
-                //     .lookup_place(&mut infcx.at(stmt_span), place)
-                //     .with_span(stmt_span)?;
-                // println!("TRACE: check_rvalue::PtrMetadata => {place_ty:?}");
-
-                let deref_place = place.deref();
-                self.check_len(infcx, env, stmt_span, &deref_place)
+                self.check_len(infcx, env, stmt_span, &place.deref())
             }
             Rvalue::UnaryOp(un_op, op) => {
                 self.check_unary_op(infcx, env, stmt_span, *un_op, op)

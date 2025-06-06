@@ -17,7 +17,7 @@ use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::{Idx, IndexVec, bit_set::DenseBitSet};
-use rustc_middle::mir::START_BLOCK;
+use rustc_middle::mir::{FakeReadCause, START_BLOCK};
 
 use super::{GhostStatements, StatementsAt};
 use crate::{
@@ -293,6 +293,9 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
 
     fn statement(&mut self, stmt: &Statement, env: &mut Env) -> QueryResult {
         match &stmt.kind {
+            StatementKind::FakeRead(box (FakeReadCause::ForIndex, place)) => {
+                M::projection(self, env, place)?;
+            }
             StatementKind::Assign(place, rvalue) => {
                 match rvalue {
                     Rvalue::Len(place) => {
