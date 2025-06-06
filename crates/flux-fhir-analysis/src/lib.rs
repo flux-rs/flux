@@ -297,7 +297,7 @@ fn sort_of_assoc_reft(
     match &genv.map().expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
-            let wfckresults = &WfckResults::new(OwnerId { def_id: container_id.local_id() });
+            let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
@@ -309,7 +309,7 @@ fn sort_of_assoc_reft(
         }
         fhir::ItemKind::Impl(impl_) => {
             let assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
-            let wfckresults = &WfckResults::new(OwnerId { def_id: container_id.local_id() });
+            let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft
                 .params
