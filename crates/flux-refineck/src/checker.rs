@@ -1244,12 +1244,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::RawPtr(kind, place) => {
                 // ignore any refinements on the type stored at place
                 let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
-                println!("TRACE: ooh. check_rvalue: (1) {kind:?} at {place:?} ==> {ty:?}");
                 let ty = self.refine_default(ty).with_span(stmt_span)?;
-                println!("TRACE: ooh. check_rvalue: (2) {kind:?} at {place:?} ==> {ty:?}");
-                let res = BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty();
-                println!("TRACE: ooh. check_rvalue: (3) {kind:?} at {place:?} ==> {res:?}");
-                Ok(res)
+                let ty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty();
+                Ok(ty)
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
