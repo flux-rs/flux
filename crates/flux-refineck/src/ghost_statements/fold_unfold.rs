@@ -304,7 +304,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                     Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
                     | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                         let deref_place = place.deref();
-                        M::projection(self, env, &deref_place)?
+                        M::projection(self, env, &deref_place)?;
                     }
 
                     Rvalue::Use(op)
