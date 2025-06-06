@@ -1233,12 +1233,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(&mut infcx.at(stmt_span), *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
+
+            Rvalue::RawPtr(mir::RawPtrKind::FakeForPtrMetadata, place) => {
+                let ty = env
+                    .lookup_place(&mut infcx.at(stmt_span), place)
+                    .with_span(stmt_span)?;
+                let res = BaseTy::RawPtr(ty, Mutability::Not).to_ty();
+                Ok(res)
+            }
             Rvalue::RawPtr(kind, place) => {
                 // ignore any refinements on the type stored at place
-                let ty = self
-                    .refine_default(&env.lookup_rust_ty(genv, place).with_span(stmt_span)?)
-                    .with_span(stmt_span)?;
-                Ok(BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty())
+                let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
+                println!("TRACE: ooh. check_rvalue: (1) {kind:?} at {place:?} ==> {ty:?}");
+                let ty = self.refine_default(ty).with_span(stmt_span)?;
+                println!("TRACE: ooh. check_rvalue: (2) {kind:?} at {place:?} ==> {ty:?}");
+                let res = BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty();
+                println!("TRACE: ooh. check_rvalue: (3) {kind:?} at {place:?} ==> {res:?}");
+                Ok(res)
             }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
@@ -1255,6 +1266,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
+                // let place_ty = env
+                //     .lookup_place(&mut infcx.at(stmt_span), place)
+                //     .with_span(stmt_span)?;
+                // println!("TRACE: check_rvalue::PtrMetadata => {place_ty:?}");
+
                 let deref_place = place.deref();
                 self.check_len(infcx, env, stmt_span, &deref_place)
             }
