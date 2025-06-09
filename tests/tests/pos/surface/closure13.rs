@@ -1,4 +1,4 @@
-pub struct Split<'a, T: 'a, P>
+pub struct Splat<'a, T: 'a, P>
 where
     P: FnMut(&T) -> bool,
 {
@@ -6,8 +6,8 @@ where
     pub pred: P,
 }
 
-impl<'a, T: 'a, P: FnMut(&T) -> bool> Split<'a, T, P> {
-    pub fn new(slice: &'a [T], pred: P) -> Self {
+impl<'a, T: 'a, P: FnMut(&T) -> bool> Splat<'a, T, P> {
+    pub fn now(slice: &'a [T], pred: P) -> Self {
         Self { v: slice, pred }
     }
 }
