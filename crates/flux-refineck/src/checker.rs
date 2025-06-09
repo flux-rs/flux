@@ -901,10 +901,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<PolyFnSig> {
         let tcx = self.genv.tcx();
         let mut def_id = Some(self.def_id);
-        while let Some(did) = def_id {
+        while let Some(local_id) = def_id {
             let generic_predicates = self
                 .genv
-                .predicates_of(did)
+                .predicates_of(local_id)
                 .with_span(span)?
                 .instantiate_identity();
             let predicates = generic_predicates.predicates;
@@ -916,7 +916,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             // Continue to the parent if we didn't find a match
             def_id = match generic_predicates.parent {
-                Some(parent) => parent.as_local(),
+                Some(parent) => {
+                    self.genv
+                        .resolve_id(parent)
+                        .as_maybe_extern()
+                        .map(|z| z.local_id())
+                }
                 None => None,
             };
         }
