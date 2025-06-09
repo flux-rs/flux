@@ -900,7 +900,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Result<PolyFnSig> {
         let tcx = self.genv.tcx();
-        let mut def_id = Some(self.def_id);
+        let mut def_id = Some(self.def_id.to_def_id());
         while let Some(local_id) = def_id {
             let generic_predicates = self
                 .genv
