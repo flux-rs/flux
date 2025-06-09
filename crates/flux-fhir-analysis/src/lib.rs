@@ -187,8 +187,7 @@ fn predicates_of(
     def_id: LocalDefId,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let kind = genv.def_kind(def_id);
-    match kind {
+    match genv.def_kind(def_id) {
         DefKind::Impl { .. }
         | DefKind::Struct
         | DefKind::Enum
