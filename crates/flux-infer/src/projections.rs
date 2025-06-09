@@ -152,7 +152,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 self.genv(),
                 self.def_id(),
                 self.infcx.region_infcx,
-                // &mut self.selcx,
                 obligation,
             )?;
             return Ok((changed, ty_ctor));
@@ -586,7 +585,6 @@ impl GenericsSubstDelegate for &TVarSubst {
 struct SortNormalizer<'infcx, 'genv, 'tcx> {
     def_id: DefId,
     infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
-    // selcx: SelectionContext<'infcx, 'tcx>,
     genv: GlobalEnv<'genv, 'tcx>,
 }
 impl<'infcx, 'genv, 'tcx> SortNormalizer<'infcx, 'genv, 'tcx> {
@@ -595,7 +593,6 @@ impl<'infcx, 'genv, 'tcx> SortNormalizer<'infcx, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     ) -> Self {
-        // let selcx = SelectionContext::new(infcx);
         Self { def_id, infcx, genv }
     }
 }
