@@ -409,6 +409,9 @@ impl Pretty for BaseTy {
             BaseTy::Slice(ty) => w!(cx, f, "[{:?}]", ty),
             BaseTy::RawPtr(ty, Mutability::Mut) => w!(cx, f, "*mut {:?}", ty),
             BaseTy::RawPtr(ty, Mutability::Not) => w!(cx, f, "*const {:?}", ty),
+            BaseTy::RawPtrMetadata(ty) => {
+                w!(cx, f, "*raw {:?}", ty)
+            }
             BaseTy::Ref(re, ty, mutbl) => {
                 w!(cx, f, "&")?;
                 if !cx.hide_regions {
@@ -652,6 +655,11 @@ impl PrettyNested for BaseTy {
             BaseTy::RawPtr(ty, Mutability::Not) => {
                 let ty_d = ty.fmt_nested(cx)?;
                 let text = format!("*const {}", ty_d.text);
+                Ok(NestedString { text, children: ty_d.children, key: None })
+            }
+            BaseTy::RawPtrMetadata(ty) => {
+                let ty_d = ty.fmt_nested(cx)?;
+                let text = format!("*raw {}", ty_d.text);
                 Ok(NestedString { text, children: ty_d.children, key: None })
             }
             BaseTy::Ref(_, ty, mutbl) => {

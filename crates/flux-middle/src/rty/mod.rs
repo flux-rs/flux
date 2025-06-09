@@ -1563,6 +1563,7 @@ pub enum BaseTy {
     Adt(AdtDef, GenericArgs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
+    RawPtrMetadata(Ty),
     Ref(Region, Ty, Mutability),
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
@@ -1841,6 +1842,9 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
+            BaseTy::RawPtrMetadata(_) => {
+                bug!("TODO: RawPtrMetadata")
+            }
         }
     }
 }

@@ -144,6 +144,7 @@ impl rty::BaseTy {
             }
             rty::BaseTy::Float(_)
             | rty::BaseTy::RawPtr(..)
+            | rty::BaseTy::RawPtrMetadata(..) // TODO(RJ): This should be `int` for slice?
             | rty::BaseTy::Ref(..)
             | rty::BaseTy::FnPtr(..)
             | rty::BaseTy::FnDef(..)
