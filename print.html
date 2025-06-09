@@ -306,7 +306,7 @@ can be omitted which will default to <code>true</code>. For example, to set the 
 qualifier scrapping:</p>
 <pre><code class="language-console">flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 </code></pre>
-<p>For all avilable flags, see  <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
+<p>For all available flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
 <h3 id="cargo-projects"><a class="header" href="#cargo-projects">Cargo Projects</a></h3>
 <p>When working with a Cargo project, some of the <a href="guide/run.html#Flux-Flags">flags</a> can be configured in the
 <code>[package.metadata.flux]</code> table in <code>Cargo.toml</code>. For example, to enable query caching and set
@@ -318,7 +318,7 @@ cache = true
 solver = "cvc5"
 </code></pre>
 <p>Additionally, <code>cargo flux</code> searches for a configuration file called <code>flux.toml</code> with the same format
-as the metadata table. The content of <code>flux.toml</code> takes precedence and it's  merged with the
+as the metadata table. The content of <code>flux.toml</code> takes precedence and it's merged with the
 content of the <code>metadata</code> table. Note that the content of <code>flux.toml</code> will override the <code>metadata</code>
 for all crates, including dependencies. This behavior is likely to change in the future as we figure
 out what configurations make sense to have per package and which should only affect the current execution

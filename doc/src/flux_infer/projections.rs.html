@@ -782,7 +782,17 @@
 <a href="#781" id="781">781</a>
 <a href="#782" id="782">782</a>
 <a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::iter;
 
 <span class="kw">use </span>flux_common::{bug, iter::IterExt, tracked_span_bug};
 <span class="kw">use </span>flux_middle::{
@@ -798,7 +808,10 @@
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
     },
 };
-<span class="kw">use </span>flux_rustc_bridge::{ToRustc, lowering::Lower};
+<span class="kw">use </span>flux_rustc_bridge::{
+    ToRustc,
+    lowering::{Lower, UnsupportedErr},
+};
 <span class="kw">use </span>itertools::izip;
 <span class="kw">use </span>rustc_hir::def_id::DefId;
 <span class="kw">use </span>rustc_infer::traits::Obligation;
@@ -806,7 +819,10 @@
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
 };
-<span class="kw">use </span>rustc_trait_selection::traits::SelectionContext;
+<span class="kw">use </span>rustc_trait_selection::{
+    solve::deeply_normalize,
+    traits::{FulfillmentError, SelectionContext},
+};
 
 <span class="kw">use crate</span>::{
     fixpoint_encoding::KVarEncoding,
@@ -921,7 +937,6 @@
         <span class="self">self</span>.assemble_candidates_from_trait_def(obligation, <span class="kw-2">&amp;mut </span>candidates)
             .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>));
         <span class="self">self</span>.assemble_candidates_from_impls(obligation, <span class="kw-2">&amp;mut </span>candidates)<span class="question-mark">?</span>;
-
         <span class="kw">if </span>candidates.is_empty() {
             <span class="comment">// TODO: This is a temporary hack that uses rustc's trait selection when FLUX fails;
             //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
@@ -930,7 +945,7 @@
             </span><span class="kw">let </span>(changed, ty_ctor) = normalize_projection_ty_with_rustc(
                 <span class="self">self</span>.genv(),
                 <span class="self">self</span>.def_id(),
-                <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx,
+                <span class="self">self</span>.infcx.region_infcx,
                 obligation,
             )<span class="question-mark">?</span>;
             <span class="kw">return </span><span class="prelude-val">Ok</span>((changed, ty_ctor));
@@ -1363,7 +1378,7 @@
 
 <span class="kw">struct </span>SortNormalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
     def_id: DefId,
-    selcx: SelectionContext&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'tcx</span>&gt;,
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 }
 <span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; SortNormalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
@@ -1372,8 +1387,7 @@
         genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
         infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>selcx = SelectionContext::new(infcx);
-        <span class="self">Self </span>{ def_id, selcx, genv }
+        <span class="self">Self </span>{ def_id, infcx, genv }
     }
 }
 
@@ -1390,7 +1404,7 @@
                 <span class="kw">let </span>(changed, ctor) = normalize_projection_ty_with_rustc(
                     <span class="self">self</span>.genv,
                     <span class="self">self</span>.def_id,
-                    <span class="kw-2">&amp;mut </span><span class="self">self</span>.selcx,
+                    <span class="self">self</span>.infcx,
                     alias_ty,
                 )<span class="question-mark">?</span>;
                 <span class="kw">let </span>sort = ctor.sort();
@@ -1538,7 +1552,7 @@
 </span><span class="kw">fn </span>normalize_projection_ty_with_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
     genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
     def_id: DefId,
-    selcx: <span class="kw-2">&amp;mut </span>SelectionContext&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'_ </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
     obligation: <span class="kw-2">&amp;</span>AliasTy,
 ) -&gt; QueryResult&lt;(bool, SubsetTyCtor)&gt; {
     <span class="kw">let </span>tcx = genv.tcx();
@@ -1546,24 +1560,30 @@
     <span class="kw">let </span>cause = ObligationCause::dummy();
     <span class="kw">let </span>param_env = tcx.param_env(def_id);
 
-    <span class="kw">let </span>ty = rustc_trait_selection::traits::normalize_projection_ty(
-        selcx,
-        param_env,
-        projection_ty,
-        cause,
-        <span class="number">10</span>,
-        <span class="kw-2">&amp;mut </span>rustc_infer::traits::PredicateObligations::new(),
-    )
-    .expect_type();
+    <span class="kw">let </span>pre_ty = projection_ty.to_ty(tcx);
+    <span class="kw">let </span>at = infcx.at(<span class="kw-2">&amp;</span>cause, param_env);
+    <span class="kw">let </span>ty = <span class="kw">match </span>deeply_normalize::&lt;rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;, FulfillmentError&gt;(at, pre_ty) {
+        <span class="prelude-val">Ok</span>(ty) =&gt; ty,
+        <span class="prelude-val">Err</span>(err) =&gt; {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(QueryErr::Unsupported {
+                def_id,
+                err: UnsupportedErr { descr: <span class="macro">format!</span>(<span class="string">"{:?}"</span>, err), span: <span class="prelude-val">None </span>},
+            });
+        }
+    };
 
-    <span class="kw">let </span>changed = projection_ty.to_ty(tcx) != ty;
+    <span class="kw">let </span>changed = pre_ty != ty;
 
-    <span class="kw">let </span>rustc_ty = ty.lower(tcx).unwrap();
-    <span class="prelude-val">Ok</span>((
-        changed,
-        Refiner::default_for_item(genv, def_id)<span class="question-mark">?
-            </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
-            </span>.expect_base(),
-    ))
+    <span class="kw">match </span>ty.lower(tcx) {
+        <span class="prelude-val">Ok</span>(rustc_ty) =&gt; {
+            <span class="prelude-val">Ok</span>((
+                changed,
+                Refiner::default_for_item(genv, def_id)<span class="question-mark">?
+                    </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
+                    </span>.expect_base(),
+            ))
+        }
+        <span class="prelude-val">Err</span>(reason) =&gt; <span class="prelude-val">Err</span>(QueryErr::Unsupported { def_id, err: UnsupportedErr::new(reason) }),
+    }
 }
 </code></pre></div></section></main></body></html>
