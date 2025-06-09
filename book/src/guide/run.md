@@ -149,7 +149,7 @@ qualifier scrapping:
 flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 ```
 
-For all avilable flags, see  <https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>
+For all available flags, see <https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html>
 
 ### Cargo Projects
 
@@ -166,7 +166,7 @@ solver = "cvc5"
 ```
 
 Additionally, `cargo flux` searches for a configuration file called `flux.toml` with the same format
-as the metadata table. The content of `flux.toml` takes precedence and it's  merged with the
+as the metadata table. The content of `flux.toml` takes precedence and it's merged with the
 content of the `metadata` table. Note that the content of `flux.toml` will override the `metadata`
 for all crates, including dependencies. This behavior is likely to change in the future as we figure
 out what configurations make sense to have per package and which should only affect the current execution

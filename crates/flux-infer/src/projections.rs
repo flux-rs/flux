@@ -14,7 +14,10 @@ use flux_middle::{
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
     },
 };
-use flux_rustc_bridge::{ToRustc, lowering::Lower};
+use flux_rustc_bridge::{
+    ToRustc,
+    lowering::{Lower, UnsupportedErr},
+};
 use itertools::izip;
 use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
@@ -22,7 +25,10 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
 };
-use rustc_trait_selection::traits::SelectionContext;
+use rustc_trait_selection::{
+    solve::deeply_normalize,
+    traits::{FulfillmentError, SelectionContext},
+};
 
 use crate::{
     fixpoint_encoding::KVarEncoding,
@@ -137,7 +143,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         self.assemble_candidates_from_trait_def(obligation, &mut candidates)
             .unwrap_or_else(|err| tracked_span_bug!("{err:?}"));
         self.assemble_candidates_from_impls(obligation, &mut candidates)?;
-
         if candidates.is_empty() {
             // TODO: This is a temporary hack that uses rustc's trait selection when FLUX fails;
             //       The correct thing, e.g for `trait09.rs` is to make sure FLUX's param_env mirrors RUSTC,
@@ -146,7 +151,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             let (changed, ty_ctor) = normalize_projection_ty_with_rustc(
                 self.genv(),
                 self.def_id(),
-                &mut self.selcx,
+                self.infcx.region_infcx,
                 obligation,
             )?;
             return Ok((changed, ty_ctor));
@@ -579,7 +584,7 @@ impl GenericsSubstDelegate for &TVarSubst {
 
 struct SortNormalizer<'infcx, 'genv, 'tcx> {
     def_id: DefId,
-    selcx: SelectionContext<'infcx, 'tcx>,
+    infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     genv: GlobalEnv<'genv, 'tcx>,
 }
 impl<'infcx, 'genv, 'tcx> SortNormalizer<'infcx, 'genv, 'tcx> {
@@ -588,8 +593,7 @@ impl<'infcx, 'genv, 'tcx> SortNormalizer<'infcx, 'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     ) -> Self {
-        let selcx = SelectionContext::new(infcx);
-        Self { def_id, selcx, genv }
+        Self { def_id, infcx, genv }
     }
 }
 
@@ -606,7 +610,7 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
                 let (changed, ctor) = normalize_projection_ty_with_rustc(
                     self.genv,
                     self.def_id,
-                    &mut self.selcx,
+                    self.infcx,
                     alias_ty,
                 )?;
                 let sort = ctor.sort();
@@ -754,7 +758,7 @@ impl TVarSubst {
 fn normalize_projection_ty_with_rustc<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
-    selcx: &mut SelectionContext<'_, 'tcx>,
+    infcx: &'_ rustc_infer::infer::InferCtxt<'tcx>,
     obligation: &AliasTy,
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
@@ -762,23 +766,29 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
 
-    let ty = rustc_trait_selection::traits::normalize_projection_ty(
-        selcx,
-        param_env,
-        projection_ty,
-        cause,
-        10,
-        &mut rustc_infer::traits::PredicateObligations::new(),
-    )
-    .expect_type();
+    let pre_ty = projection_ty.to_ty(tcx);
+    let at = infcx.at(&cause, param_env);
+    let ty = match deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty) {
+        Ok(ty) => ty,
+        Err(err) => {
+            return Err(QueryErr::Unsupported {
+                def_id,
+                err: UnsupportedErr { descr: format!("{:?}", err), span: None },
+            });
+        }
+    };
 
-    let changed = projection_ty.to_ty(tcx) != ty;
+    let changed = pre_ty != ty;
 
-    let rustc_ty = ty.lower(tcx).unwrap();
-    Ok((
-        changed,
-        Refiner::default_for_item(genv, def_id)?
-            .refine_ty_or_base(&rustc_ty)?
-            .expect_base(),
-    ))
+    match ty.lower(tcx) {
+        Ok(rustc_ty) => {
+            Ok((
+                changed,
+                Refiner::default_for_item(genv, def_id)?
+                    .refine_ty_or_base(&rustc_ty)?
+                    .expect_base(),
+            ))
+        }
+        Err(reason) => Err(QueryErr::Unsupported { def_id, err: UnsupportedErr::new(reason) }),
+    }
 }
