@@ -16,14 +16,14 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     ToRustc,
-    lowering::{Lower, UnsupportedErr, UnsupportedReason},
+    lowering::{Lower, UnsupportedErr},
 };
 use itertools::izip;
 use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{TyCtxt, TypingMode, Variance},
+    ty::{TyCtxt, Variance},
 };
 use rustc_trait_selection::{
     solve::deeply_normalize,
@@ -34,7 +34,6 @@ use crate::{
     fixpoint_encoding::KVarEncoding,
     infer::{InferCtxtAt, InferResult},
     refine_tree::Scope,
-    rustc_infer::infer::TyCtxtInferExt,
 };
 
 pub trait NormalizeExt: TypeFoldable {
@@ -763,13 +762,13 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
     infcx: &'_ rustc_infer::infer::InferCtxt<'tcx>,
-    // selcx: &mut SelectionContext<'_, 'tcx>,
     obligation: &AliasTy,
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
     let projection_ty = obligation.to_rustc(tcx);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
+
     let pre_ty = projection_ty.to_ty(tcx);
     let at = infcx.at(&cause, param_env);
     let ty = match deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty) {
@@ -781,17 +780,6 @@ fn normalize_projection_ty_with_rustc<'tcx>(
             });
         }
     };
-
-    // OLD CODE
-    // let ty = rustc_trait_selection::traits::normalize_projection_ty(
-    //     selcx,
-    //     param_env,
-    //     projection_ty,
-    //     cause,
-    //     10,
-    //     &mut rustc_infer::traits::PredicateObligations::new(),
-    // )
-    // .expect_type();
 
     let changed = pre_ty != ty;
 
