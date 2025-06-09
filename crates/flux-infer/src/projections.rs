@@ -4,9 +4,9 @@ use flux_common::{bug, iter::IterExt, tracked_span_bug};
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty,
+    query_bug,
     rty::{
-        AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
+        self, AliasKind, AliasReft, AliasTy, BaseTy, Binder, Clause, ClauseKind, Const, ConstKind,
         EarlyBinder, Expr, ExprKind, GenericArg, List, ProjectionPredicate, RefineArgs, Region,
         Sort, SubsetTy, SubsetTyCtor, Ty, TyKind,
         fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable, TypeVisitable},
@@ -14,10 +14,7 @@ use flux_middle::{
         subst::{GenericsSubstDelegate, GenericsSubstFolder},
     },
 };
-use flux_rustc_bridge::{
-    ToRustc,
-    lowering::{Lower, UnsupportedErr},
-};
+use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use itertools::izip;
 use rustc_hir::def_id::DefId;
 use rustc_infer::traits::Obligation;
@@ -758,7 +755,7 @@ impl TVarSubst {
 fn normalize_projection_ty_with_rustc<'tcx>(
     genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
-    infcx: &'_ rustc_infer::infer::InferCtxt<'tcx>,
+    infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     obligation: &AliasTy,
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
@@ -768,27 +765,16 @@ fn normalize_projection_ty_with_rustc<'tcx>(
 
     let pre_ty = projection_ty.to_ty(tcx);
     let at = infcx.at(&cause, param_env);
-    let ty = match deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty) {
-        Ok(ty) => ty,
-        Err(err) => {
-            return Err(QueryErr::Unsupported {
-                def_id,
-                err: UnsupportedErr { descr: format!("{:?}", err), span: None },
-            });
-        }
-    };
+    let ty = deeply_normalize::<rustc_middle::ty::Ty<'tcx>, FulfillmentError>(at, pre_ty)
+        .map_err(|err| query_bug!("{err:?}"))?;
 
     let changed = pre_ty != ty;
+    let rustc_ty = ty.lower(tcx).map_err(|reason| query_bug!("{reason:?}"))?;
 
-    match ty.lower(tcx) {
-        Ok(rustc_ty) => {
-            Ok((
-                changed,
-                Refiner::default_for_item(genv, def_id)?
-                    .refine_ty_or_base(&rustc_ty)?
-                    .expect_base(),
-            ))
-        }
-        Err(reason) => Err(QueryErr::Unsupported { def_id, err: UnsupportedErr::new(reason) }),
-    }
+    Ok((
+        changed,
+        Refiner::default_for_item(genv, def_id)?
+            .refine_ty_or_base(&rustc_ty)?
+            .expect_base(),
+    ))
 }
