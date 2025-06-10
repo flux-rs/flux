@@ -39,7 +39,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
+    refine_tree::{self, BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
     wkvars::{WKVarInstantiator, WKVarSubst},
 };
 use flux_macros::fluent_messages;
@@ -81,6 +81,7 @@ fn report_fixpoint_errors(
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
+    constraints: &mut Vec<refine_tree::RefineTree>,
     def_id: LocalDefId,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
@@ -107,7 +108,7 @@ pub fn check_fn(
     {
         tracing::info!("check_fn::refine-subtyping");
         let errors = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+            .execute_fixpoint_query_collecting_constraints(cache, constraints, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         report_fixpoint_errors(genv, def_id, errors)?;
@@ -141,7 +142,7 @@ pub fn check_fn(
 
         // PHASE 3: invoke fixpoint on the constraint
         let errors = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
+            .execute_fixpoint_query_collecting_constraints(cache, constraints, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
             .emit(&genv)?;
         report_fixpoint_errors(genv, def_id, errors)
     })?;
