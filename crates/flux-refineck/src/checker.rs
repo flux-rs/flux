@@ -28,7 +28,7 @@ use flux_rustc_bridge::{
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
         Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
-        StatementKind, Terminator, TerminatorKind,
+        StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
 };
@@ -1147,14 +1147,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
-            // println!("TRACE: closure_template (0): {poly_sig:#?}");
             let poly_sig = self.refine_with_holes(&poly_sig)?;
-            // println!("TRACE: closure_template (1): {poly_sig:#?}");
             let poly_sig = poly_sig.hoist_input_binders();
-            // println!("TRACE: closure_template (2): {poly_sig:#?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-            // println!("TRACE: closure_template (3): {poly_sig:#?}");
 
             Ok((upvar_tys, poly_sig))
         } else {
@@ -1233,14 +1229,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 env.borrow(&mut infcx.at(stmt_span), *r, Mutability::Not, place)
                     .with_span(stmt_span)
             }
-            Rvalue::RawPtr(mutbl, place) => {
-                // ignore any refinements on the type stored at place
-                let ty = self
-                    .refine_default(&env.lookup_rust_ty(genv, place).with_span(stmt_span)?)
+
+            Rvalue::RawPtr(mir::RawPtrKind::FakeForPtrMetadata, place) => {
+                let ty = env
+                    .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;
-                Ok(BaseTy::RawPtr(ty, *mutbl).to_ty())
+                let ty = BaseTy::RawPtrMetadata(ty).to_ty();
+                Ok(ty)
             }
-            Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
+            Rvalue::RawPtr(kind, place) => {
+                // ignore any refinements on the type stored at place
+                let ty = &env.lookup_rust_ty(genv, place).with_span(stmt_span)?;
+                let ty = self.refine_default(ty).with_span(stmt_span)?;
+                let ty = BaseTy::RawPtr(ty, kind.to_mutbl_lossy()).to_ty();
+                Ok(ty)
+            }
             Rvalue::Cast(kind, op, to) => {
                 let from = self
                     .check_operand(infcx, env, stmt_span, op)
@@ -1253,6 +1256,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
+            Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
+            Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
+            | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
+                self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
+            }
             Rvalue::UnaryOp(un_op, op) => {
                 self.check_unary_op(infcx, env, stmt_span, *un_op, op)
                     .with_span(stmt_span)
@@ -1320,6 +1328,33 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         }
     }
 
+    fn check_raw_ptr_metadata(
+        &mut self,
+        infcx: &mut InferCtxt,
+        env: &mut TypeEnv,
+        stmt_span: Span,
+        place: &Place,
+    ) -> Result<Ty> {
+        let ty = env
+            .lookup_place(&mut infcx.at(stmt_span), place)
+            .with_span(stmt_span)?;
+        let ty = match ty.kind() {
+            TyKind::Indexed(BaseTy::RawPtrMetadata(ty), _)
+            | TyKind::Indexed(BaseTy::Ref(_, ty, _), _) => ty,
+            _ => tracked_span_bug!("check_metadata: bug! unexpected type `{ty:?}`"),
+        };
+        match ty.kind() {
+            TyKind::Indexed(BaseTy::Array(_, len), _) => {
+                let idx = Expr::from_const(self.genv.tcx(), len);
+                Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
+            }
+            TyKind::Indexed(BaseTy::Slice(_), len) => {
+                Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), len.clone()))
+            }
+            _ => Ok(Ty::unit()),
+        }
+    }
+
     fn check_len(
         &mut self,
         infcx: &mut InferCtxt,
@@ -1334,7 +1369,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let idx = match ty.kind() {
             TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
             TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
-            _ => tracked_span_bug!("expected array or slice type found `{ty:?}`"),
+            _ => tracked_span_bug!("check_len: expected array or slice type found  `{ty:?}`"),
         };
 
         Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
@@ -1543,7 +1578,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && let (deref_ty, alloc_ty) = args.box_args()
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
         {
-            let idx = Expr::from_const(self.genv.tcx(), arr_len);
+            let idx = Expr::from_const(self.genv.tcx(), &arr_len);
             Ok(Ty::mk_box(
                 self.genv,
                 Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx),

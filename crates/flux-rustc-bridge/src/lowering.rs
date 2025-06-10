@@ -442,8 +442,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::Ref(region, bk, p) => {
                 Ok(Rvalue::Ref(region.lower(self.tcx)?, *bk, lower_place(self.tcx, p)?))
             }
-            rustc_mir::Rvalue::RawPtr(mutbl, place) => {
-                Ok(Rvalue::RawPtr(*mutbl, lower_place(self.tcx, place)?))
+            rustc_mir::Rvalue::RawPtr(kind, place) => {
+                Ok(Rvalue::RawPtr(*kind, lower_place(self.tcx, place)?))
             }
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(self.tcx, place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
