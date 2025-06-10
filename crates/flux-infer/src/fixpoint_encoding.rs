@@ -917,6 +917,7 @@ impl FixpointKVar {
     }
 }
 
+#[derive(Clone)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
