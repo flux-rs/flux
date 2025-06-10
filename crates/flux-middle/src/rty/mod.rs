@@ -1843,7 +1843,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
             BaseTy::RawPtrMetadata(_) => {
-                bug!("TODO: RawPtrMetadata")
+                ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy())
             }
         }
     }
