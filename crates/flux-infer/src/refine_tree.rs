@@ -9,11 +9,10 @@ use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{PrettyCx, PrettyNested, format_cx},
+    pretty::{format_cx, PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
-        self, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
-        fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
+        self, fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor}, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var
     },
 };
 use itertools::Itertools;
@@ -67,6 +66,11 @@ impl RefineTree {
             .simplify(genv, &mut SnapshotMap::default());
     }
 
+    pub(crate) fn fold_with(&self, folder: &mut impl TypeFolder) -> Self {
+        let new_root = self.root.borrow().fold_with(folder);
+        RefineTree { root: NodePtr(Rc::new(RefCell::new(new_root))) }
+    }
+
     pub(crate) fn into_fixpoint(
         self,
         cx: &mut FixpointCtxt<Tag>,
@@ -83,7 +87,7 @@ impl RefineTree {
     }
 
     pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
-        self.root.borrow_mut().replace_evars(evars)
+        self.root.borrow_mut().replace_evars_ref_tree(evars)
     }
 }
 
@@ -340,6 +344,7 @@ impl WeakNodePtr {
     }
 }
 
+#[derive(Clone)]
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
@@ -379,6 +384,34 @@ pub struct BlameAnalysis {
 impl BlameAnalysis {
     fn new() -> Self {
         Self { binder_deps: HashMap::new(), wkvars: Vec::new(), assumed_preds: FxHashSet::default() }
+    }
+}
+
+impl TypeVisitable for Node {
+    fn visit_with<V: TypeVisitor>(&self, _visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        unimplemented!()
+    }
+}
+
+impl TypeFoldable for Node {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        let children = &self.children.iter().map(|child| {
+            let new_child: Node = child.borrow().try_fold_with(folder)?;
+            Ok(NodePtr(Rc::new(RefCell::new(new_child))))
+        }).collect::<Result<Vec<NodePtr>, F::Error>>()?;
+        let kind = match &self.kind {
+            NodeKind::Assumption(pred) => NodeKind::Assumption(pred.try_fold_with(folder)?),
+            NodeKind::Head(pred, tag) => NodeKind::Head(pred.try_fold_with(folder)?, *tag),
+            NodeKind::Trace(trace) => NodeKind::Trace(trace.try_fold_with(folder)?),
+            NodeKind::Root(_) | NodeKind::ForAll(..) | NodeKind::True => self.kind.clone(),
+        };
+        Ok(Self {
+            nbindings: self.nbindings,
+            children: children.to_vec(),
+            kind,
+            // NOTE: zeroes out the parent
+            parent: None,
+        })
     }
 }
 
@@ -432,9 +465,9 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..) | NodeKind::True)
     }
 
-    fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
+    fn replace_evars_ref_tree(&mut self, evars: &EVarStore) -> Result<(), EVid> {
         for child in &self.children {
-            child.borrow_mut().replace_evars(evars)?;
+            child.borrow_mut().replace_evars_ref_tree(evars)?;
         }
         match &mut self.kind {
             NodeKind::Assumption(pred) => *pred = evars.replace_evars(pred)?,

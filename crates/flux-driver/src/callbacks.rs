@@ -1,7 +1,7 @@
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::FluxSession;
-use flux_infer::{refine_tree, fixpoint_encoding::FixQueryCache};
+use flux_infer::{fixpoint_encoding::FixQueryCache, refine_tree, wkvars::Constraints};
 use flux_metadata::CStore;
 use flux_middle::{
     Specs, fhir,
@@ -9,7 +9,7 @@ use flux_middle::{
     queries::{Providers, QueryResult},
     timings,
 };
-use flux_refineck as refineck;
+use flux_refineck::{self as refineck, report_fixpoint_errors};
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
@@ -87,21 +87,32 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             bug!("TODO: {dups:#?}");
         }
 
-        // TODO: change evaluation to
-        // 1. collect constraints (as exprs) for each def_id
-        // 2. run a big loop where we feed a constraint into fixpoint
-        //      (substituting any solved wkvars)
-        //    if it fails, we do an error analysis
-        //      if the error analysis gives a wkvar solution, we accept it
-        //         and add it to the wkvar solution map
-        //    if all constraints pass, we're done
-        //    if the wkvars haven't changed in a single pass, we're done
-        // 3. Print out each wkvar solution + the remaining errors
         let result = crate_items
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
-        ck.cache.save().unwrap_or(());
+        println!("-----------------------");
+        println!("Starting solution loop.");
+
+        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 5) {
+            Ok((solution, errors)) => (solution, errors),
+            Err(e) => panic!("Encountered error {:?}", e),
+        };
+
+        println!("Solution loop finished.");
+        println!("Solutions:");
+        for (wkvid, exprs) in &solution.solutions {
+            let fn_name = genv.tcx().def_path_str(wkvid.0);
+            println!("wkvar {} for {}:", wkvid.1.as_usize(), fn_name);
+            println!("  {}", exprs.iter().map(|expr| format!("{:?}", expr)).join(" && "));
+        }
+        println!("{} Remaining errors:", errors.len());
+        if let Some((local_id, _)) = errors.last().clone() {
+            report_fixpoint_errors(genv, *local_id, errors.into_iter().flat_map(|(_, errs)| errs.into_iter()).collect_vec())?;
+        }
+
+        // FIXME: Can't use this right now
+        // ck.cache.save().unwrap_or(());
 
         tracing::info!("Callbacks::check_crate");
 
@@ -136,7 +147,7 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
-    constraints: Vec<refine_tree::RefineTree>,
+    constraints: Constraints,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
