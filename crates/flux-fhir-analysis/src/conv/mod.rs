@@ -42,7 +42,6 @@ use rustc_span::{
     DUMMY_SP, ErrorGuaranteed, Span, Symbol,
     symbol::{Ident, kw},
 };
-use rustc_target::spec::abi;
 use rustc_trait_selection::traits;
 use rustc_type_ir::DebruijnIndex;
 
@@ -934,7 +933,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         safety: Safety,
-        abi: abi::Abi,
+        abi: rustc_abi::ExternAbi,
         decl: &fhir::FnDecl,
     ) -> QueryResult<rty::FnSig> {
         let mut requires = vec![];
@@ -1632,11 +1631,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if P::EXPAND_TYPE_ALIASES {
                     return Ok(self.genv().type_of(alias_to)?.instantiate_identity());
                 } else {
-                    rty::BaseTy::Alias(rty::AliasKind::Weak, rty::AliasTy {
-                        def_id: alias_to,
-                        args: List::empty(),
-                        refine_args: List::empty(),
-                    })
+                    rty::BaseTy::Alias(
+                        rty::AliasKind::Weak,
+                        rty::AliasTy {
+                            def_id: alias_to,
+                            args: List::empty(),
+                            refine_args: List::empty(),
+                        },
+                    )
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
@@ -1679,11 +1681,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         .type_of(def_id)?
                         .instantiate(tcx, &args, &refine_args));
                 } else {
-                    rty::BaseTy::Alias(rty::AliasKind::Weak, rty::AliasTy {
-                        def_id,
-                        args,
-                        refine_args: List::from(refine_args),
-                    })
+                    rty::BaseTy::Alias(
+                        rty::AliasKind::Weak,
+                        rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
+                    )
                 }
             }
             fhir::Res::Def(DefKind::ForeignTy, def_id) => {

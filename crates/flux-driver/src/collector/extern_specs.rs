@@ -32,7 +32,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn new(inner: &'a mut SpecCollector<'sess, 'tcx>, body_id: BodyId) -> Result<Self> {
-        let body = inner.tcx.hir().body(body_id);
+        let body = inner.tcx.hir_body(body_id);
         if let hir::ExprKind::Block(block, _) = body.value.kind {
             Ok(Self { inner, block })
         } else {
@@ -237,7 +237,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         impl_of_trait: Option<DefId>,
         item: &hir::ImplItemRef,
     ) -> Result<ExternImplItem> {
-        if let hir::ImplItemKind::Fn(_, body_id) = self.tcx().hir().impl_item(item.id).kind {
+        if let hir::ImplItemKind::Fn(_, body_id) = self.tcx().hir_impl_item(item.id).kind {
             let callee_id = self.extract_callee_from_body(body_id)?;
             if let Some(extern_impl_id) = impl_of_trait {
                 let map = self.tcx().impl_item_implementor_ids(extern_impl_id);
@@ -276,7 +276,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         trait_id: DefId,
         item: &hir::TraitItemRef,
     ) -> Result<DefId> {
-        if let hir::TraitItemKind::Fn(_, trait_fn) = self.tcx().hir().trait_item(item.id).kind
+        if let hir::TraitItemKind::Fn(_, trait_fn) = self.tcx().hir_trait_item(item.id).kind
             && let hir::TraitFn::Provided(body_id) = trait_fn
         {
             let callee_id = self.extract_callee_from_body(body_id)?;
@@ -315,9 +315,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn extract_callee_from_body(&self, body_id: hir::BodyId) -> Result<DefId> {
-        let owner = self.tcx().hir().body_owner_def_id(body_id);
+        let owner = self.tcx().hir_body_owner_def_id(body_id);
         let typeck = self.tcx().typeck(owner);
-        if let hir::ExprKind::Block(b, _) = self.tcx().hir().body(body_id).value.kind
+        if let hir::ExprKind::Block(b, _) = self.tcx().hir_body(body_id).value.kind
             && let Some(e) = b.expr
             && let hir::ExprKind::Call(callee, _) = e.kind
             && let rustc_middle::ty::FnDef(callee_id, _) = typeck.node_type(callee.hir_id).kind()
@@ -338,7 +338,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             .ok_or_else(|| self.malformed())?;
         let st = stmts.get(index).ok_or_else(|| self.malformed())?;
         if let hir::StmtKind::Item(item_id) = st.kind {
-            Ok(self.tcx().hir().item(item_id))
+            Ok(self.tcx().hir_item(item_id))
         } else {
             Err(self.malformed())
         }
@@ -391,7 +391,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             false
         };
         if mismatch {
-            let local_hir_generics = tcx.hir().get_generics(local_id.def_id).unwrap();
+            let local_hir_generics = tcx.hir_get_generics(local_id.def_id).unwrap();
             let span = local_hir_generics.span;
             Err(self.emit(errors::MismatchedGenerics {
                 span,
