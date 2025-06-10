@@ -5,7 +5,6 @@
 #![feature(rustc_private)]
 extern crate rustc_abi;
 extern crate rustc_serialize;
-// extern crate rustc_target;
 
 use std::{
     fmt::{self, Debug, Display},
