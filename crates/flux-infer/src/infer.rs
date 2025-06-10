@@ -19,6 +19,7 @@ use flux_middle::{
         for_refine_arg,
     },
 };
+use crate::refine_tree;
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -219,9 +220,10 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         fcx.generate_and_check_lean_lemmas(cstr)
     }
 
-    pub fn execute_fixpoint_query(
+    pub fn execute_fixpoint_query_collecting_constraints(
         self,
         cache: &mut FixQueryCache,
+        constraints: &mut Vec<refine_tree::RefineTree>,
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
     ) -> QueryResult<Answer<Tag>> {
@@ -245,6 +247,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
+        constraints.push(refine_tree.clone());
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
