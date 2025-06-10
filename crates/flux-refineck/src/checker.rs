@@ -915,15 +915,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
             }
             // Continue to the parent if we didn't find a match
-            def_id = match generic_predicates.parent {
-                Some(parent) => {
-                    self.genv
-                        .resolve_id(parent)
-                        .as_maybe_extern()
-                        .map(|z| z.local_id().to_def_id())
-                }
-                None => None,
-            };
+            def_id = generic_predicates.parent;
         }
 
         span_bug!(
