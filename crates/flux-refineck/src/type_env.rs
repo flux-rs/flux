@@ -514,6 +514,7 @@ impl BasicBlockEnvShape {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::RawPtr(_, _)
+            | BaseTy::RawPtrMetadata(_)
             | BaseTy::Char
             | BaseTy::Never
             | BaseTy::Closure(..)
