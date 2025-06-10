@@ -239,6 +239,9 @@ pub fn desugar<'genv>(
             )?));
             nodes.insert(def_id, foreign_item);
         }
+        rustc_hir::Node::Ctor(variant_data) => {
+            println!("TRACE: maybe do something with ctor {def_id:?} => {variant_data:?}");
+        }
         node => {
             if let Some(ident) = node.ident() {
                 span_bug!(ident.span, "unsupported node: {node:?}");

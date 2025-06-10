@@ -1611,7 +1611,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let ctor = self.default_refiner.refine_ty_or_base(ty)?.expect_base();
                 Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
-            Constant::Opaque(ty) => self.refine_default(ty),
+            Constant::Opaque(ty) => {
+                println!("TRACE: check_constant: Opaque => {ty:?}");
+                self.refine_default(ty)
+            }
             Constant::Unevaluated(ty, def_id) => {
                 let ty = self.refine_default(ty)?;
                 let info = self.genv.constant_info(def_id)?;

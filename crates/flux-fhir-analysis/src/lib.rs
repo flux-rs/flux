@@ -356,6 +356,16 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
+        DefKind::Ctor(..) => {
+            let tcx = genv.tcx();
+            let hir_id = tcx.local_def_id_to_hir_id(def_id.local_id());
+            let parent_id = tcx.hir().get_parent_item(hir_id);
+            let def_id = MaybeExternId::Local(parent_id.def_id);
+            let generics = genv.map().get_generics(def_id.local_id())?.ok_or_else(|| {
+                query_bug!(def_id.local_id(), "(ctor) no generics for {def_id:?}")
+            })?;
+            conv::conv_generics(genv, generics, def_id, false)
+        }
         DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias => {
             let rustc_generics = genv.lower_generics_of(def_id);
             refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
@@ -505,6 +515,7 @@ fn variants_of(
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
+    println!("TRACE: fn_sig (0) => ({def_id:?})");
     let fhir_fn_sig = genv
         .map()
         .expect_owner_node(def_id.local_id())?
