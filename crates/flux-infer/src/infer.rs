@@ -19,7 +19,7 @@ use flux_middle::{
         for_refine_arg,
     },
 };
-use crate::refine_tree;
+use crate::wkvars::{Constraint, Constraints};
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -223,7 +223,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn execute_fixpoint_query_collecting_constraints(
         self,
         cache: &mut FixQueryCache,
-        constraints: &mut Vec<refine_tree::RefineTree>,
+        constraints: &mut Constraints,
         def_id: MaybeExternId,
         kind: FixpointQueryKind,
     ) -> QueryResult<Answer<Tag>> {
@@ -247,14 +247,21 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        constraints.push(refine_tree.clone());
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
+        constraints.push(Constraint {
+            def_id,
+            refine_tree: refine_tree.clone(),
+            kvgen: kvars.clone(),
+            query_kind: kind,
+            scrape_quals: self.opts.scrape_quals,
+            backend,
+        });
+
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
         fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
     }
@@ -670,7 +677,7 @@ impl std::ops::DerefMut for InferCtxtAt<'_, '_, '_, '_> {
 /// Used for debugging to attach a "trace" to the [`RefineTree`] that can be used to print information
 /// to recover the derivation when relating types via subtyping. The code that attaches the trace is
 /// currently commented out because the output is too verbose.
-#[derive(TypeVisitable, TypeFoldable)]
+#[derive(TypeVisitable, TypeFoldable, Clone)]
 pub(crate) enum TypeTrace {
     Types(Ty, Ty),
     BaseTys(BaseTy, BaseTy),

@@ -5,7 +5,23 @@ use flux_middle::rty::{
     fold::{
         FallibleTypeFolder, TypeFolder, TypeSuperFoldable, TypeVisitable, TypeVisitor, TypeFoldable, },
 };
+
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
+
+use std::collections::{hash_map::Entry, HashMap, HashSet};
+
+use flux_common::cache::QueryCache;
+
+use flux_middle::{def_id::MaybeExternId, global_env::GlobalEnv, queries::QueryResult, rty::{
+        self,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable, TypeVisitor},
+    }, FixpointQueryKind};
+
+use liquid_fixpoint::SmtSolver;
+
+use rustc_hir::def_id::LocalDefId;
+
+use crate::{fixpoint_encoding::{FixpointCheckError, FixpointCtxt, KVarGen}, infer::Tag, refine_tree::RefineTree};
 
 pub struct WKVarInstantiator<'a> {
     /// Map from the actuals passed to this Weak KVar to its params
@@ -62,6 +78,16 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
     }
 }
 
+pub enum Order {
+    /// Replace all occurrences of a wkvar's arg with its respective param
+    /// (used for creating a solution that can be put in place of this wkvar)
+    Forward,
+    /// Replace all occurrences of a wkvar's param with its respective arg
+    /// (used for taking an expression that uses the wkvar's original params
+    ///  but needs to stand for it in its current location)
+    Backward,
+}
+
 impl WKVarInstantiator<'_> {
     /// If it succeeds: creates an expression that can replace the weak kvar,
     /// which when used as a refinement will produce the original expr in this
@@ -70,7 +96,7 @@ impl WKVarInstantiator<'_> {
     /// FIXME: This does not properly deal with expressions that have bound variables:
     /// if the expression has a bound variable, we might fail the instantiation
     /// when it should succeed.
-    pub fn try_instantiate_wkvar(wkvar: &rty::WKVar, expr: &rty::Expr) -> Option<rty::Expr> {
+    pub fn try_instantiate_wkvar(wkvar: &rty::WKVar, expr: &rty::Expr, order: Order) -> Option<rty::Expr> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
             wkvar.args.iter().map(|arg| arg.erase_spans()),
@@ -79,6 +105,12 @@ impl WKVarInstantiator<'_> {
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
         });
+        match order {
+            Order::Backward => {
+                args_to_param = args_to_param.into_iter().map(|(arg, param)| (param, arg)).collect();
+            }
+            Order::Forward => {}
+        }
         let mut instantiator = WKVarInstantiator {
             args_to_param: &args_to_param,
             memo: &mut HashMap::new(),
@@ -95,10 +127,21 @@ pub struct WKVarSubst {
 impl TypeFolder for WKVarSubst {
     fn fold_expr(&mut self, e: &rty::Expr) -> rty::Expr {
         match e.kind() {
-            rty::ExprKind::WKVar(rty::WKVar { wkvid, .. })
+            rty::ExprKind::WKVar(wkvar@rty::WKVar { wkvid, .. })
                 if let Some(subst_e) = self.wkvar_instantiations.get(wkvid) =>
             {
-                subst_e.clone()
+                // HACK: We will map from the params (which should be
+                // substituted for in subst_e) to the _actual_ args given to the
+                // current wkvar
+                //
+                // Why? because the params we keep around are the params in the fn_sig
+                // but we need to substitute wkvars elsewhere
+                let instantiated_e = WKVarInstantiator::try_instantiate_wkvar(&wkvar, &subst_e, Order::Backward)
+                    .unwrap_or_else(|| panic!("Couldn't anti-unfiy {:?} with {:?}", wkvar, subst_e));
+                // NOTE: keeps the original wkvar to allow iterative
+                // substitutions --- it gets turned into TRUE when output
+                // anyway.
+                rty::Expr::and(instantiated_e, e.clone())
             }
             _ => e.super_fold_with(self),
         }
@@ -166,4 +209,92 @@ impl<'a> ProductEtaExpander<'a> {
         let mut expander = ProductEtaExpander { current_path, expr_to_eta_expansion };
         expr.visit_with(&mut expander);
     }
+}
+
+#[derive(Clone)]
+pub struct WKVarSolutions {
+    /// Each Expr is part of a conjunction of the solution.
+    pub solutions: HashMap<rty::WKVid, HashSet<rty::Expr>>,
+}
+
+impl WKVarSolutions {
+    pub fn new() -> Self {
+        Self { solutions: HashMap::new() }
+    }
+}
+
+pub struct Constraint {
+    pub def_id: MaybeExternId,
+    pub refine_tree: RefineTree,
+    pub kvgen: KVarGen,
+    pub query_kind: FixpointQueryKind,
+    pub scrape_quals: bool,
+    pub backend: SmtSolver,
+}
+
+pub type Constraints = Vec<Constraint>;
+
+pub fn iterative_solve(genv: GlobalEnv, cstrs: Constraints, max_iters: usize) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>)> {
+    let mut any_solution = true;
+    let mut solutions = WKVarSolutions::new();
+    let mut i = 1;
+    let mut all_errors = Vec::new();
+    while any_solution && i <= max_iters {
+        println!("iteration {} of {}", i, max_iters);
+        any_solution = false;
+        all_errors = Vec::new();
+        for cstr in &cstrs {
+            let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
+
+            let mut wkvar_subst = WKVarSubst {
+                wkvar_instantiations: solutions.solutions
+                                               .iter()
+                                               .map(|(wkvid, exprs)| {
+                                                   (wkvid.clone(), rty::Expr::and_from_iter(exprs.iter().cloned()))
+                                               })
+                    .collect(),
+            };
+            // if solutions.solutions.len() > 0 {
+            //     println!("{:?}", cstr.refine_tree);
+            // }
+            let mut solved_refine_tree = cstr.refine_tree.fold_with(&mut wkvar_subst);
+            // if solutions.solutions.len() > 0 {
+            //     println!("solved\n{:?}", solved_refine_tree);
+            // }
+            solved_refine_tree.simplify(genv);
+            let fcstr = solved_refine_tree.into_fixpoint(&mut fcx)?;
+            // println!("converted to fixpoint");
+            let errors = fcx.check(&mut QueryCache::new(), fcstr, cstr.query_kind, cstr.scrape_quals, cstr.backend)?;
+            for error in &errors {
+                let wkvars = error
+                    .blame_ctx
+                    .blame_analysis
+                    .wkvars
+                    // TODO: sort by depth in binder
+                    .clone();
+                for wkvar in wkvars {
+                    // Take the first wkvar solution we can find
+                    if let Some(instantiation) = WKVarInstantiator::try_instantiate_wkvar(&wkvar, &error.blame_ctx.expr, Order::Forward) {
+                        // println!("Adding an instantiation for wkvar {:?}:", wkvar);
+                        // println!("  {:?}", instantiation);
+                        any_solution = true;
+                        match solutions.solutions.entry(wkvar.wkvid) {
+                            Entry::Occupied(mut entry) => {
+                                entry.get_mut().insert(instantiation);
+                            }
+                            Entry::Vacant(entry) => {
+                                entry.insert([instantiation].into());
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+            if let Some(local_id) = cstr.def_id.as_local() {
+                all_errors.push((local_id, errors));
+            }
+        }
+        i += 1;
+    }
+    Ok((solutions, all_errors))
 }

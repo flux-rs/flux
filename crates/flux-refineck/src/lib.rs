@@ -37,7 +37,7 @@ use flux_infer::{
     fixpoint_encoding::{BlameCtxt, FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{self, BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
-    wkvars::{WKVarInstantiator, WKVarSubst},
+    wkvars::{Constraints, Order, WKVarInstantiator, WKVarSubst},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -62,7 +62,7 @@ use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_sta
 
 fluent_messages! { "../locales/en-US.ftl" }
 
-fn report_fixpoint_errors(
+pub fn report_fixpoint_errors(
     genv: GlobalEnv,
     local_id: LocalDefId,
     errors: Vec<FixpointCheckError<Tag>>,
@@ -78,7 +78,7 @@ fn report_fixpoint_errors(
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
-    constraints: &mut Vec<refine_tree::RefineTree>,
+    constraints: &mut Constraints,
     def_id: LocalDefId,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
@@ -283,7 +283,7 @@ fn report_errors(
             .flat_map(|wkvar| {
                 // Try to instantiate it to each candidate
                 solution_candidates.iter().flat_map(|expr| {
-                    WKVarInstantiator::try_instantiate_wkvar(wkvar, expr)
+                    WKVarInstantiator::try_instantiate_wkvar(wkvar, expr, Order::Forward)
                         .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
                 })
             })
