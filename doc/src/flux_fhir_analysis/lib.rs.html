@@ -594,7 +594,8 @@
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
 <a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -793,11 +794,12 @@
         | DefKind::AssocTy
         | DefKind::Trait
         | DefKind::Fn =&gt; {
+            <span class="kw">let </span>did = def_id.local_id();
             <span class="kw">let </span>generics = genv
                 .map()
-                .get_generics(def_id.local_id())<span class="question-mark">?
-                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
-            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+                .get_generics(did)<span class="question-mark">?
+                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(did, <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>wfckresults = genv.check_wf(did)<span class="question-mark">?</span>;
             AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
                 .into_conv_ctxt()
                 .conv_generic_predicates(def_id, generics)

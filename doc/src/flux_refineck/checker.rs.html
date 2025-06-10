@@ -2120,7 +2120,13 @@
 <a href="#2119" id="2119">2119</a>
 <a href="#2120" id="2120">2120</a>
 <a href="#2121" id="2121">2121</a>
-<a href="#2122" id="2122">2122</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, vec};
+<a href="#2122" id="2122">2122</a>
+<a href="#2123" id="2123">2123</a>
+<a href="#2124" id="2124">2124</a>
+<a href="#2125" id="2125">2125</a>
+<a href="#2126" id="2126">2126</a>
+<a href="#2127" id="2127">2127</a>
+<a href="#2128" id="2128">2128</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::{collections::hash_map::Entry, iter, vec};
 
 <span class="kw">use </span>flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
 <span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, InferOpts};
@@ -3022,18 +3028,24 @@
         span: Span,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;PolyFnSig&gt; {
         <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
-        <span class="kw">let </span>predicates = <span class="self">self
-            </span>.genv
-            .predicates_of(<span class="self">self</span>.def_id)
-            .with_span(span)<span class="question-mark">?
-            </span>.instantiate_identity()
-            .predicates;
+        <span class="kw">let </span><span class="kw-2">mut </span>def_id = <span class="prelude-val">Some</span>(<span class="self">self</span>.def_id.to_def_id());
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(did) = def_id {
+            <span class="kw">let </span>generic_predicates = <span class="self">self
+                </span>.genv
+                .predicates_of(did)
+                .with_span(span)<span class="question-mark">?
+                </span>.instantiate_identity();
+            <span class="kw">let </span>predicates = generic_predicates.predicates;
 
-        <span class="kw">for </span>poly_fn_trait_pred <span class="kw">in </span>Clause::split_off_fn_trait_clauses(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>predicates).<span class="number">1 </span>{
-            <span class="kw">if </span>poly_fn_trait_pred.skip_binder_ref().self_ty.to_rustc(tcx) == self_ty {
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig()));
+            <span class="kw">for </span>poly_fn_trait_pred <span class="kw">in </span>Clause::split_off_fn_trait_clauses(<span class="self">self</span>.genv, <span class="kw-2">&amp;</span>predicates).<span class="number">1 </span>{
+                <span class="kw">if </span>poly_fn_trait_pred.skip_binder_ref().self_ty.to_rustc(tcx) == self_ty {
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(poly_fn_trait_pred.map(|fn_trait_pred| fn_trait_pred.fndef_sig()));
+                }
             }
+            <span class="comment">// Continue to the parent if we didn't find a match
+            </span>def_id = generic_predicates.parent;
         }
+
         <span class="macro">span_bug!</span>(
             span,
             <span class="string">"cannot find self_ty_fn_sig for {:?} with self_ty = {self_ty:?}"</span>,
