@@ -33,7 +33,7 @@ pub use flux_rustc_bridge::ty::{
 };
 use flux_rustc_bridge::{
     ToRustc,
-    mir::Place,
+    mir::{Place, RawPtrKind},
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
@@ -1842,8 +1842,12 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
-            BaseTy::RawPtrMetadata(_) => {
-                ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy())
+            BaseTy::RawPtrMetadata(ty) => {
+                ty::Ty::new_ptr(
+                    tcx,
+                    ty.to_rustc(tcx),
+                    RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy(),
+                )
             }
         }
     }
