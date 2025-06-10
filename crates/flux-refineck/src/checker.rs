@@ -901,10 +901,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<PolyFnSig> {
         let tcx = self.genv.tcx();
         let mut def_id = Some(self.def_id.to_def_id());
-        while let Some(local_id) = def_id {
+        while let Some(did) = def_id {
             let generic_predicates = self
                 .genv
-                .predicates_of(local_id)
+                .predicates_of(did)
                 .with_span(span)?
                 .instantiate_identity();
             let predicates = generic_predicates.predicates;
@@ -920,7 +920,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     self.genv
                         .resolve_id(parent)
                         .as_maybe_extern()
-                        .map(|z| z.local_id())
+                        .map(|z| z.local_id().to_def_id())
                 }
                 None => None,
             };
@@ -1557,7 +1557,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && let (deref_ty, alloc_ty) = args.box_args()
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
         {
-            let idx = Expr::from_const(self.genv.tcx(), arr_len);
+            let idx = Expr::from_const(self.genv.tcx(), &arr_len);
             Ok(Ty::mk_box(
                 self.genv,
                 Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx),
