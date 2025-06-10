@@ -4,7 +4,7 @@ use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
-    refine_tree::{self, BinderOriginator, BinderProvenance},
+    refine_tree::{self, BinderOriginator, BinderProvenance}, wkvars::Constraints,
 };
 use flux_middle::{
     FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
@@ -16,7 +16,7 @@ use rustc_span::{DUMMY_SP, Span};
 pub fn check_invariants(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
-    constraints: &mut Vec<refine_tree::RefineTree>,
+    constraints: &mut Constraints,
     def_id: MaybeExternId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
@@ -43,7 +43,7 @@ pub fn check_invariants(
 fn check_invariant(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
-    constraints: &mut Vec<refine_tree::RefineTree>,
+    constraints: &mut Constraints,
     def_id: MaybeExternId,
     adt_def: &rty::AdtDef,
     span: Span,
