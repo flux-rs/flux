@@ -16,7 +16,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     pub fn lift_generics(&mut self) -> fhir::Generics<'genv> {
-        let generics = self.genv.hir().get_generics(self.local_id()).unwrap();
+        let generics = self.genv.tcx().hir_get_generics(self.local_id()).unwrap();
         self.lift_generics_inner(generics)
     }
 
@@ -111,8 +111,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     pub fn lift_fn_header(&mut self) -> FnHeader {
         let hir_id = self.genv.tcx().local_def_id_to_hir_id(self.local_id());
         self.genv
-            .hir()
-            .fn_sig_by_hir_id(hir_id)
+            .tcx()
+            .hir_fn_sig_by_hir_id(hir_id)
             .expect("item does not have a `FnDecl`")
             .header
     }
@@ -121,8 +121,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         let hir_id = self.genv.tcx().local_def_id_to_hir_id(self.local_id());
         let fn_sig = self
             .genv
-            .hir()
-            .fn_sig_by_hir_id(hir_id)
+            .tcx()
+            .hir_fn_sig_by_hir_id(hir_id)
             .expect("item does not have a `FnDecl`");
 
         self.lift_fn_decl_inner(fn_sig.span, fn_sig.decl)

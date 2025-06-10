@@ -9,7 +9,7 @@ use flux_rustc_bridge::{
     ty::{Const, ConstKind, ValTree, VariantIdx},
 };
 use itertools::Itertools;
-use rustc_abi::FIRST_VARIANT;
+use rustc_abi::{FIRST_VARIANT, FieldIdx};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -18,7 +18,6 @@ use rustc_middle::{
     ty::{ParamConst, ScalarInt, TyCtxt},
 };
 use rustc_span::{Span, Symbol};
-use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{

@@ -7,9 +7,9 @@ use flux_arc_interner::{List, SliceInternable};
 use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
+use rustc_abi::VariantIdx;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
-use rustc_target::abi::VariantIdx;
 
 use super::{RefineArgsExt, fold::TypeFoldable};
 use crate::{

@@ -8,6 +8,8 @@ pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use itertools::Itertools;
+use rustc_abi;
+pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_hir::{Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{TyDecodable, TyEncodable, extension};
@@ -20,8 +22,6 @@ pub use rustc_middle::{
     },
 };
 use rustc_span::{Symbol, symbol::kw};
-pub use rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
-use rustc_target::spec::abi;
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
@@ -130,7 +130,7 @@ pub struct ProjectionPredicate {
 #[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
     pub safety: Safety,
-    pub abi: abi::Abi,
+    pub abi: rustc_abi::ExternAbi,
     pub(crate) inputs_and_output: List<Ty>,
 }
 
@@ -311,12 +311,10 @@ impl<'tcx> ToRustc<'tcx> for ValTree {
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
-            ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::Leaf(*scalar),
+            ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::from_scalar_int(tcx, *scalar),
             ValTree::Branch(trees) => {
-                let trees = tcx
-                    .arena
-                    .alloc_from_iter(trees.iter().map(|tree| tree.to_rustc(tcx)));
-                rustc_middle::ty::ValTree::Branch(trees)
+                let trees = trees.iter().map(|tree| tree.to_rustc(tcx));
+                rustc_middle::ty::ValTree::from_branches(tcx, trees)
             }
         }
     }
@@ -329,7 +327,8 @@ impl<'tcx> ToRustc<'tcx> for Const {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, val) => {
-                rustc_ty::ConstKind::Value(ty.to_rustc(tcx), val.to_rustc(tcx))
+                let val = rustc_ty::Value { ty: ty.to_rustc(tcx), valtree: val.to_rustc(tcx) };
+                rustc_ty::ConstKind::Value(val)
             }
             ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
             ConstKind::Unevaluated(uneval_const) => {

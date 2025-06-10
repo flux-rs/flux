@@ -1042,7 +1042,7 @@ TrivialTypeTraversalImpls! {
     rustc_span::Symbol,
     rustc_hir::def_id::DefId,
     rustc_hir::Safety,
-    rustc_target::spec::abi::Abi,
+    rustc_abi::ExternAbi,
     rustc_type_ir::ClosureKind,
     flux_rustc_bridge::ty::BoundRegionKind,
 }

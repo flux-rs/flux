@@ -15,7 +15,6 @@ extern crate rustc_macros;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_span;
-extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 

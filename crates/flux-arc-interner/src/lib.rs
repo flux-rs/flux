@@ -3,9 +3,9 @@
 //! This code was adapted from [Rust Analyzer](https://github.com/rust-analyzer/rust-analyzer/blob/9d33d05d85456c855b88a8bdf4ab44d97e32bd4a/crates/hir_def/src/intern.rs)
 
 #![feature(rustc_private)]
-
+extern crate rustc_abi;
 extern crate rustc_serialize;
-extern crate rustc_target;
+// extern crate rustc_target;
 
 use std::{
     fmt::{self, Debug, Display},
@@ -18,7 +18,6 @@ use dashmap::{DashMap, SharedValue};
 use hashbrown::{HashMap, hash_map::RawEntryMut};
 use rustc_hash::FxHasher;
 use rustc_serialize::{Decodable, Decoder, Encodable, Encoder};
-use rustc_target::abi::FieldIdx;
 
 type InternMap<T> = DashMap<Arc<T>, (), BuildHasherDefault<FxHasher>>;
 type Guard<T> = dashmap::RwLockWriteGuard<
@@ -404,4 +403,4 @@ macro_rules! _impl_slice_internable {
 }
 pub use crate::_impl_slice_internable as impl_slice_internable;
 
-impl_slice_internable!(FieldIdx);
+impl_slice_internable!(rustc_abi::FieldIdx);

@@ -3,12 +3,12 @@ use std::{cell::RefCell, fmt};
 use flux_arc_interner::{Internable, Interned};
 use flux_common::index::IndexGen;
 use flux_config as config;
+use rustc_abi::FieldIdx;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Pos, Span};
-use rustc_target::abi::FieldIdx;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 use serde::Serialize;
 
@@ -240,19 +240,23 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 
     pub fn merge(&mut self, opts: &config::Value) {
-        set_opts!(self, opts, [
-            kvar_args,
-            fully_qualified_paths,
-            simplify_exprs,
-            tags,
-            bindings_chain,
-            preds_chain,
-            full_spans,
-            hide_uninit,
-            hide_refinements,
-            hide_regions,
-            hide_sorts,
-        ]);
+        set_opts!(
+            self,
+            opts,
+            [
+                kvar_args,
+                fully_qualified_paths,
+                simplify_exprs,
+                tags,
+                bindings_chain,
+                preds_chain,
+                full_spans,
+                hide_uninit,
+                hide_refinements,
+                hide_regions,
+                hide_sorts,
+            ]
+        );
     }
 
     pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {

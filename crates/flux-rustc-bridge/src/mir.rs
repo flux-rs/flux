@@ -5,6 +5,7 @@ use std::fmt;
 use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
+pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
@@ -27,7 +28,6 @@ pub use rustc_middle::{
     ty::{UserTypeAnnotationIndex, Variance},
 };
 use rustc_span::{Span, Symbol};
-pub use rustc_target::abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
