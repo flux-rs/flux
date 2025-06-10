@@ -566,12 +566,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
     let Some(fhir_fn_sig) = fhir_fn_sig else {
         Err(query_bug!(def_id.local_id(), "expected fn item"))?
     };
-    // let fhir_fn_sig = genv
-    //     .map()
-    //     // call .node(); inline the match that happens in `.fn_sig()` and do something special for the dummy-node
-    //     .expect_owner_node(def_id.local_id())?
-    //     .fn_sig()
-    //     .unwrap();
+
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let fn_sig = AfterSortck::new(genv, &wfckresults)
         .into_conv_ctxt()

@@ -1543,7 +1543,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             && let (deref_ty, alloc_ty) = args.box_args()
             && let TyKind::Indexed(BaseTy::Array(arr_ty, arr_len), _) = deref_ty.kind()
         {
-            let idx = Expr::from_const(self.genv.tcx(), &arr_len);
+            let idx = Expr::from_const(self.genv.tcx(), arr_len);
             Ok(Ty::mk_box(
                 self.genv,
                 Ty::indexed(BaseTy::Slice(arr_ty.clone()), idx),
