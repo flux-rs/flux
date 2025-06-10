@@ -5,7 +5,6 @@ use std::fmt;
 use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
-use rustc_ast::Mutability;
 use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
@@ -23,7 +22,7 @@ use rustc_middle::{
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
-        RETURN_PLACE, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
+        RETURN_PLACE, RawPtrKind, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
@@ -208,7 +207,7 @@ pub enum Rvalue {
     Use(Operand),
     Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
-    RawPtr(Mutability, Place),
+    RawPtr(RawPtrKind, Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
     BinaryOp(BinOp, Operand, Operand),
@@ -296,6 +295,12 @@ impl Place {
 
     pub fn as_ref(&self) -> PlaceRef {
         PlaceRef { local: self.local, projection: &self.projection[..] }
+    }
+
+    pub fn deref(&self) -> Self {
+        let mut projection = self.projection.clone();
+        projection.push(PlaceElem::Deref);
+        Place { local: self.local, projection }
     }
 }
 

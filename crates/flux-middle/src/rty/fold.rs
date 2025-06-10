@@ -736,6 +736,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::FnDef(_, args) => args.visit_with(visitor),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
+            BaseTy::RawPtrMetadata(ty) => ty.visit_with(visitor),
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
@@ -775,6 +776,7 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Foreign(def_id) => BaseTy::Foreign(*def_id),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.try_fold_with(folder)?),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.try_fold_with(folder)?, *mu),
+            BaseTy::RawPtrMetadata(ty) => BaseTy::RawPtrMetadata(ty.try_fold_with(folder)?),
             BaseTy::Ref(re, ty, mutbl) => {
                 BaseTy::Ref(re.try_fold_with(folder)?, ty.try_fold_with(folder)?, *mutbl)
             }

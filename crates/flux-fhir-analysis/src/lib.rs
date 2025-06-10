@@ -200,11 +200,12 @@ fn predicates_of(
         | DefKind::AssocTy
         | DefKind::Trait
         | DefKind::Fn => {
+            let did = def_id.local_id();
             let generics = genv
                 .map()
-                .get_generics(def_id.local_id())?
-                .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
-            let wfckresults = genv.check_wf(def_id.local_id())?;
+                .get_generics(did)?
+                .ok_or_else(|| query_bug!(did, "no generics for {def_id:?}"))?;
+            let wfckresults = genv.check_wf(did)?;
             AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_generic_predicates(def_id, generics)

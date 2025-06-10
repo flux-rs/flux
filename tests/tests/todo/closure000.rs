@@ -1,5 +1,3 @@
-// use flux_rs::attrs::*;
-
 enum Blah {
     MkBlah(i32),
 }

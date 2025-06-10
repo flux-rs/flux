@@ -895,7 +895,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
-            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
+            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _))
+            | (BaseTy::RawPtrMetadata(_), BaseTy::RawPtrMetadata(_)) => Ok(()),
             (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
                 tracked_span_assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
