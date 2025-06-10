@@ -4,7 +4,7 @@ use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
-    refine_tree::{BinderOriginator, BinderProvenance},
+    refine_tree::{self, BinderOriginator, BinderProvenance},
 };
 use flux_middle::{
     FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
@@ -16,6 +16,7 @@ use rustc_span::{DUMMY_SP, Span};
 pub fn check_invariants(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
+    constraints: &mut Vec<refine_tree::RefineTree>,
     def_id: MaybeExternId,
     invariants: &[fhir::Expr],
     adt_def: &rty::AdtDef,
@@ -35,13 +36,14 @@ pub fn check_invariants(
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;
-            check_invariant(genv, cache, def_id, adt_def, span, invariant, opts)
+            check_invariant(genv, cache, constraints, def_id, adt_def, span, invariant, opts)
         })
 }
 
 fn check_invariant(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
+    constraints: &mut Vec<refine_tree::RefineTree>,
     def_id: MaybeExternId,
     adt_def: &rty::AdtDef,
     span: Span,
@@ -84,7 +86,7 @@ fn check_invariant(
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let answer = infcx_root
-        .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
+        .execute_fixpoint_query_collecting_constraints(cache, constraints, def_id, FixpointQueryKind::Invariant)
         .emit(&genv)?;
 
     if answer.errors.is_empty() {
