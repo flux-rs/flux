@@ -49,9 +49,9 @@ macro_rules! attr_name {
 impl<'tcx> hir::intravisit::Visitor<'tcx> for SpecCollector<'_, 'tcx> {
     type NestedFilter = rustc_middle::hir::nested_filter::All;
 
-    // fn nested_visit_map(&mut self) -> Self::Map {
-    //     self.tcx.hir()
-    // }
+    fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+        self.tcx
+    }
 
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
         let _ = self.collect_item(item);

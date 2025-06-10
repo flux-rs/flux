@@ -483,9 +483,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     type NestedFilter = rustc_middle::hir::nested_filter::All;
 
-    // fn nested_visit_map(&mut self) -> Self::Map {
-    //     self.genv.hir()
-    // }
+    fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+        self.genv.tcx()
+    }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
         let old_mod = self.current_module;

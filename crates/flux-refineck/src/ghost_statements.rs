@@ -214,18 +214,19 @@ impl StatementsAt<'_> {
 
 fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = LocalDefId> {
     use rustc_hir as hir;
-    struct ClosureFinder {
+    struct ClosureFinder<'tcx> {
+        tcx: TyCtxt<'tcx>,
         closures: FxHashSet<LocalDefId>,
     }
 
-    impl<'hir> rustc_hir::intravisit::Visitor<'hir> for ClosureFinder {
+    impl<'tcx> rustc_hir::intravisit::Visitor<'tcx> for ClosureFinder<'tcx> {
         type NestedFilter = rustc_middle::hir::nested_filter::OnlyBodies;
 
-        // fn nested_visit_map(&mut self) -> Self::Map {
-        //     self.hir
-        // }
+        fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+            self.tcx
+        }
 
-        fn visit_expr(&mut self, ex: &'hir hir::Expr<'hir>) {
+        fn visit_expr(&mut self, ex: &'tcx hir::Expr<'tcx>) {
             if let hir::ExprKind::Closure(closure) = ex.kind {
                 self.closures.insert(closure.def_id);
             }
@@ -234,7 +235,7 @@ fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = Lo
         }
     }
     let body = tcx.hir_body_owned_by(def_id).value;
-    let mut finder = ClosureFinder { closures: FxHashSet::default() };
+    let mut finder = ClosureFinder { tcx, closures: FxHashSet::default() };
     hir::intravisit::Visitor::visit_expr(&mut finder, body);
     finder.closures.into_iter().chain(iter::once(def_id))
 }
