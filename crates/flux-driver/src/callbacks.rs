@@ -3,7 +3,7 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::fixpoint_encoding::FixQueryCache;
+use flux_infer::{refine_tree, fixpoint_encoding::FixQueryCache};
 use flux_metadata::CStore;
 use flux_middle::{
     Specs,
@@ -95,6 +95,17 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         if !dups.is_empty() {
             bug!("TODO: {dups:#?}");
         }
+
+        // TODO: change evaluation to
+        // 1. collect constraints (as exprs) for each def_id
+        // 2. run a big loop where we feed a constraint into fixpoint
+        //      (substituting any solved wkvars)
+        //    if it fails, we do an error analysis
+        //      if the error analysis gives a wkvar solution, we accept it
+        //         and add it to the wkvar solution map
+        //    if all constraints pass, we're done
+        //    if the wkvars haven't changed in a single pass, we're done
+        // 3. Print out each wkvar solution + the remaining errors
         let result = crate_items
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
@@ -144,11 +155,12 @@ fn encode_and_save_metadata(genv: GlobalEnv) {
 struct CrateChecker<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     cache: FixQueryCache,
+    constraints: Vec<refine_tree::RefineTree>,
 }
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        CrateChecker { genv, cache: QueryCache::load() }
+        CrateChecker { genv, cache: QueryCache::load(), constraints: Vec::new() }
     }
 
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
@@ -242,7 +254,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 // Make sure we run conversion and report errors even if we skip the function
                 force_conv(self.genv, def_id.resolved_id()).emit(&self.genv)?;
                 let Some(local_id) = def_id.as_local() else { return Ok(()) };
-                refineck::check_fn(self.genv, &mut self.cache, local_id)
+                refineck::check_fn(self.genv, &mut self.cache, &mut self.constraints, local_id)
             }
             DefKind::Enum => {
                 self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
@@ -256,6 +268,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 refineck::invariants::check_invariants(
                     self.genv,
                     &mut self.cache,
+                    &mut self.constraints,
                     def_id,
                     enum_def.invariants,
                     &adt_def,
