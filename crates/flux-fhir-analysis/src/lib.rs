@@ -340,7 +340,6 @@ fn item_bounds(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBin
 
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = genv.maybe_extern_id(def_id);
-
     let def_kind = genv.def_kind(def_id);
     let generics = match def_kind {
         DefKind::Impl { .. }
@@ -360,14 +359,23 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
         DefKind::Ctor(..) => {
-            let tcx = genv.tcx();
-            let hir_id = tcx.local_def_id_to_hir_id(def_id.local_id());
-            let parent_id = tcx.hir().get_parent_item(hir_id);
-            let def_id = MaybeExternId::Local(parent_id.def_id);
-            let generics = genv.map().get_generics(def_id.local_id())?.ok_or_else(|| {
-                query_bug!(def_id.local_id(), "(ctor) no generics for {def_id:?}")
-            })?;
-            conv::conv_generics(genv, generics, def_id, false)
+            match def_id {
+                MaybeExternId::Local(local_id) => {
+                    // for a real local, get generics from parent
+                    let tcx = genv.tcx();
+                    let hir_id = tcx.local_def_id_to_hir_id(local_id);
+                    let parent_id = tcx.hir().get_parent_item(hir_id);
+                    let generics = genv.map().get_generics(parent_id.def_id)?.ok_or_else(|| {
+                        query_bug!(def_id.local_id(), "(ctor) no generics for {def_id:?}")
+                    })?;
+                    conv::conv_generics(genv, generics, def_id, false)
+                }
+                MaybeExternId::Extern(_, def_id) => {
+                    // for an extern, get generics from rustc
+                    let rustc_generics = genv.lower_generics_of(def_id);
+                    refining::refine_generics(genv, def_id, &rustc_generics)
+                }
+            }
         }
         DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias => {
             let rustc_generics = genv.lower_generics_of(def_id);
