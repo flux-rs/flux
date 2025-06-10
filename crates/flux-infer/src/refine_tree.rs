@@ -48,6 +48,7 @@ use crate::{
 ///
 /// [`UnsafeCell`]: std::cell::UnsafeCell
 /// [`GhostCell`]: https://docs.rs/ghost-cell/0.2.3/ghost_cell/ghost_cell/struct.GhostCell.html
+#[derive(Clone)]
 pub struct RefineTree {
     root: NodePtr,
 }
