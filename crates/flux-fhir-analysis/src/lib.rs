@@ -24,7 +24,10 @@ use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
-    fhir,
+    fhir::{
+        self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
+        TraitItemKind,
+    },
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -513,14 +516,54 @@ fn variants_of(
     Ok(variants)
 }
 
+fn get_enum_info_from_ctor(
+    genv: &GlobalEnv,
+    ctor_def_id: LocalDefId,
+) -> Option<(DefId, rty::VariantIdx)> {
+    let tcx = genv.tcx();
+    if !matches!(tcx.def_kind(ctor_def_id), DefKind::Ctor(..)) {
+        return None;
+    }
+    let variant_def_id = tcx.parent(ctor_def_id.to_def_id());
+    let enum_def_id = tcx.parent(variant_def_id);
+    let adt_def = tcx.adt_def(enum_def_id);
+    let variant_index = adt_def
+        .variants()
+        .iter_enumerated()
+        .find(|(_, variant)| variant.def_id == variant_def_id)
+        .map(|(idx, _)| idx)?;
+    Some((enum_def_id, variant_index))
+}
+
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
-    println!("TRACE: fn_sig (0) => ({def_id:?})");
-    let fhir_fn_sig = genv
-        .map()
-        .expect_owner_node(def_id.local_id())?
-        .fn_sig()
-        .unwrap();
+    let fhir_fn_sig = match genv.map().node(def_id.local_id())? {
+        fhir::Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
+        | fhir::Node::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig, ..), .. }) => {
+            Some(fn_sig)
+        }
+        fhir::Node::Ctor(ctor_def_id) => {
+            let (def_id, variant_idx) = get_enum_info_from_ctor(&genv, ctor_def_id).unwrap();
+            match genv.variant_sig(def_id, variant_idx)? {
+                rty::Opaqueness::Opaque => Err(query_bug!(def_id, "expected transparent enum"))?,
+                rty::Opaqueness::Transparent(variant_sig) => {
+                    return Ok(variant_sig.to_poly_fn_sig(None));
+                }
+            }
+        }
+        _ => None,
+    };
+    let Some(fhir_fn_sig) = fhir_fn_sig else {
+        Err(query_bug!(def_id.local_id(), "expected fn item"))?
+    };
+    // let fhir_fn_sig = genv
+    //     .map()
+    //     // call .node(); inline the match that happens in `.fn_sig()` and do something special for the dummy-node
+    //     .expect_owner_node(def_id.local_id())?
+    //     .fn_sig()
+    //     .unwrap();
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let fn_sig = AfterSortck::new(genv, &wfckresults)
         .into_conv_ctxt()
