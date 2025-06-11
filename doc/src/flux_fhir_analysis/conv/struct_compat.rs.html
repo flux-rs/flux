@@ -1,1761 +1,880 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/conv/struct_compat.rs`."><title>struct_compat.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e7950ecc.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.86.0-nightly (bf1b174e7 2025-01-28)" data-channel="nightly" data-search-js="search-ccb196c1.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/conv/</div>struct_compat.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
-<a href="#1" id="1">1</a>
-<a href="#2" id="2">2</a>
-<a href="#3" id="3">3</a>
-<a href="#4" id="4">4</a>
-<a href="#5" id="5">5</a>
-<a href="#6" id="6">6</a>
-<a href="#7" id="7">7</a>
-<a href="#8" id="8">8</a>
-<a href="#9" id="9">9</a>
-<a href="#10" id="10">10</a>
-<a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
-<a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a>
-<a href="#307" id="307">307</a>
-<a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a>
-<a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
-<a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
-<a href="#577" id="577">577</a>
-<a href="#578" id="578">578</a>
-<a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a>
-<a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a>
-<a href="#583" id="583">583</a>
-<a href="#584" id="584">584</a>
-<a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
-<a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
-<a href="#647" id="647">647</a>
-<a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a>
-<a href="#650" id="650">650</a>
-<a href="#651" id="651">651</a>
-<a href="#652" id="652">652</a>
-<a href="#653" id="653">653</a>
-<a href="#654" id="654">654</a>
-<a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a>
-<a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
-<a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a>
-<a href="#666" id="666">666</a>
-<a href="#667" id="667">667</a>
-<a href="#668" id="668">668</a>
-<a href="#669" id="669">669</a>
-<a href="#670" id="670">670</a>
-<a href="#671" id="671">671</a>
-<a href="#672" id="672">672</a>
-<a href="#673" id="673">673</a>
-<a href="#674" id="674">674</a>
-<a href="#675" id="675">675</a>
-<a href="#676" id="676">676</a>
-<a href="#677" id="677">677</a>
-<a href="#678" id="678">678</a>
-<a href="#679" id="679">679</a>
-<a href="#680" id="680">680</a>
-<a href="#681" id="681">681</a>
-<a href="#682" id="682">682</a>
-<a href="#683" id="683">683</a>
-<a href="#684" id="684">684</a>
-<a href="#685" id="685">685</a>
-<a href="#686" id="686">686</a>
-<a href="#687" id="687">687</a>
-<a href="#688" id="688">688</a>
-<a href="#689" id="689">689</a>
-<a href="#690" id="690">690</a>
-<a href="#691" id="691">691</a>
-<a href="#692" id="692">692</a>
-<a href="#693" id="693">693</a>
-<a href="#694" id="694">694</a>
-<a href="#695" id="695">695</a>
-<a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a>
-<a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
-<a href="#796" id="796">796</a>
-<a href="#797" id="797">797</a>
-<a href="#798" id="798">798</a>
-<a href="#799" id="799">799</a>
-<a href="#800" id="800">800</a>
-<a href="#801" id="801">801</a>
-<a href="#802" id="802">802</a>
-<a href="#803" id="803">803</a>
-<a href="#804" id="804">804</a>
-<a href="#805" id="805">805</a>
-<a href="#806" id="806">806</a>
-<a href="#807" id="807">807</a>
-<a href="#808" id="808">808</a>
-<a href="#809" id="809">809</a>
-<a href="#810" id="810">810</a>
-<a href="#811" id="811">811</a>
-<a href="#812" id="812">812</a>
-<a href="#813" id="813">813</a>
-<a href="#814" id="814">814</a>
-<a href="#815" id="815">815</a>
-<a href="#816" id="816">816</a>
-<a href="#817" id="817">817</a>
-<a href="#818" id="818">818</a>
-<a href="#819" id="819">819</a>
-<a href="#820" id="820">820</a>
-<a href="#821" id="821">821</a>
-<a href="#822" id="822">822</a>
-<a href="#823" id="823">823</a>
-<a href="#824" id="824">824</a>
-<a href="#825" id="825">825</a>
-<a href="#826" id="826">826</a>
-<a href="#827" id="827">827</a>
-<a href="#828" id="828">828</a>
-<a href="#829" id="829">829</a>
-<a href="#830" id="830">830</a>
-<a href="#831" id="831">831</a>
-<a href="#832" id="832">832</a>
-<a href="#833" id="833">833</a>
-<a href="#834" id="834">834</a>
-<a href="#835" id="835">835</a>
-<a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
-<a href="#857" id="857">857</a>
-<a href="#858" id="858">858</a>
-<a href="#859" id="859">859</a>
-<a href="#860" id="860">860</a>
-<a href="#861" id="861">861</a>
-<a href="#862" id="862">862</a>
-<a href="#863" id="863">863</a>
-<a href="#864" id="864">864</a>
-<a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
-<a href="#878" id="878">878</a>
-<a href="#879" id="879">879</a>
-<a href="#880" id="880">880</a></pre></div><pre class="rust"><code><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
-//!
-//! Used to check if a user spec is compatible with the underlying rust type. The code also
-//! infer types annotated with `_` in the surface syntax.
-
-</span><span class="kw">use </span>std::{fmt, iter};
-
-<span class="kw">use </span>flux_common::bug;
-<span class="kw">use </span>flux_errors::Errors;
-<span class="kw">use </span>flux_middle::{
-    def_id::MaybeExternId,
-    fhir,
-    global_env::GlobalEnv,
-    queries::QueryResult,
-    rty::{
-        <span class="self">self</span>,
-        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-        refining::{Refine <span class="kw">as _</span>, Refiner},
-    },
-};
-<span class="kw">use </span>flux_rustc_bridge::ty::{<span class="self">self</span>, FieldIdx, VariantIdx};
-<span class="kw">use </span>rustc_ast::Mutability;
-<span class="kw">use </span>rustc_data_structures::unord::UnordMap;
-<span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst};
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_alias(
-    genv: GlobalEnv,
-    alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
-    alias_ty: <span class="kw-2">&amp;</span>rty::TyCtor,
-    def_id: MaybeExternId,
-) -&gt; QueryResult&lt;rty::TyCtor&gt; {
-    <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
-    <span class="kw">let </span>expected = rust_ty.refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?</span>)<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
-
-    <span class="kw">if </span>zipper
-        .enter_a_binder(alias_ty, |zipper, ty| zipper.zip_ty(ty, <span class="kw-2">&amp;</span>expected))
-        .is_err()
-    {
-        zipper
-            .errors
-            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
-    }
-
-    zipper.errors.into_result()<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(alias_ty))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fn_sig(
-    genv: GlobalEnv,
-    decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-    fn_sig: <span class="kw-2">&amp;</span>rty::PolyFnSig,
-    def_id: MaybeExternId,
-) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
-    <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
-
-    <span class="kw">let </span>expected = Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
-
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
-    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = zipper.zip_poly_fn_sig(fn_sig, <span class="kw-2">&amp;</span>expected) {
-        zipper.emit_fn_sig_err(err, decl);
-    }
-
-    zipper.errors.into_result()<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(fn_sig))
-}
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>variants(
-    genv: GlobalEnv,
-    variants: <span class="kw-2">&amp;</span>[rty::PolyVariant],
-    adt_def_id: MaybeExternId,
-) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
-    <span class="kw">let </span>refiner = Refiner::default_for_item(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
-    <span class="comment">// TODO check same number of variants
-    </span><span class="kw">for </span>(i, variant) <span class="kw">in </span>variants.iter().enumerate() {
-        <span class="kw">let </span>variant_idx = VariantIdx::from_usize(i);
-        <span class="kw">let </span>expected = refiner.refine_variant_def(adt_def_id.resolved_id(), variant_idx)<span class="question-mark">?</span>;
-        zipper.zip_variant(variant, <span class="kw-2">&amp;</span>expected, variant_idx);
-    }
-
-    zipper.errors.into_result()<span class="question-mark">?</span>;
-
-    <span class="prelude-val">Ok</span>(variants
-        .iter()
-        .map(|v| zipper.holes.replace_holes(v))
-        .collect())
-}
-
-<span class="kw">struct </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-    owner_id: MaybeExternId,
-    locs: UnordMap&lt;rty::Loc, rty::Ty&gt;,
-    holes: Holes,
-    <span class="doccomment">/// Number of binders we've entered in `a`
-    </span>a_binders: u32,
-    <span class="doccomment">/// Each element in the vector correspond to a binder in `b`. For some binders we map it to
-    /// a corresponding binder in `a`. We assume that expressions filling holes will only contain
-    /// variables pointing to some of these mapped binders.
-    </span>b_binder_to_a_binder: Vec&lt;<span class="prelude-ty">Option</span>&lt;u32&gt;&gt;,
-    errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
-}
-
-<span class="attr">#[derive(Default)]
-</span><span class="kw">struct </span>Holes {
-    sorts: UnordMap&lt;rty::SortVid, rty::Sort&gt;,
-    subset_tys: UnordMap&lt;rty::TyVid, rty::SubsetTy&gt;,
-    types: UnordMap&lt;rty::TyVid, rty::Ty&gt;,
-    regions: UnordMap&lt;rty::RegionVid, rty::Region&gt;,
-    consts: UnordMap&lt;rty::ConstVid, rty::Const&gt;,
-}
-
-<span class="kw">impl </span>TypeFolder <span class="kw">for </span><span class="kw-2">&amp;</span>Holes {
-    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
-        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = sort {
-            <span class="self">self</span>.sorts
-                .get(vid)
-                .cloned()
-                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled sort hole {vid:?}"</span>))
-        } <span class="kw">else </span>{
-            sort.super_fold_with(<span class="self">self</span>)
-        }
-    }
-
-    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; rty::Ty {
-        <span class="kw">if let </span>rty::TyKind::Infer(vid) = ty.kind() {
-            <span class="self">self</span>.types
-                .get(vid)
-                .cloned()
-                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
-        } <span class="kw">else </span>{
-            ty.super_fold_with(<span class="self">self</span>)
-        }
-    }
-
-    <span class="kw">fn </span>fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>rty::SubsetTy) -&gt; rty::SubsetTy {
-        <span class="kw">if let </span>rty::BaseTy::Infer(vid) = <span class="kw-2">&amp;</span>constr.bty {
-            <span class="self">self</span>.subset_tys
-                .get(vid)
-                .cloned()
-                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
-        } <span class="kw">else </span>{
-            constr.super_fold_with(<span class="self">self</span>)
-        }
-    }
-
-    <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>rty::Region) -&gt; rty::Region {
-        <span class="kw">if let </span>rty::Region::ReVar(vid) = r {
-            <span class="self">self</span>.regions
-                .get(vid)
-                .copied()
-                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled region hole {vid:?}"</span>))
-        } <span class="kw">else </span>{
-            <span class="kw-2">*</span>r
-        }
-    }
-
-    <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ct: <span class="kw-2">&amp;</span>rty::Const) -&gt; rty::Const {
-        <span class="kw">if let </span>rty::ConstKind::Infer(InferConst::Var(cid)) = ct.kind {
-            <span class="self">self</span>.consts
-                .get(<span class="kw-2">&amp;</span>cid)
-                .cloned()
-                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled const hole {cid:?}"</span>))
-        } <span class="kw">else </span>{
-            ct.super_fold_with(<span class="self">self</span>)
-        }
-    }
-}
-
-<span class="kw">impl </span>Holes {
-    <span class="kw">fn </span>replace_holes&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
-        <span class="kw">let </span><span class="kw-2">mut </span>this = <span class="self">self</span>;
-        t.fold_with(<span class="kw-2">&amp;mut </span>this)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner_id: MaybeExternId) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            genv,
-            owner_id,
-            locs: UnordMap::default(),
-            holes: Default::default(),
-            a_binders: <span class="number">0</span>,
-            b_binder_to_a_binder: <span class="macro">vec!</span>[],
-            errors: Errors::new(genv.sess()),
-        }
-    }
-
-    <span class="kw">fn </span>zip_poly_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::PolyFnSig, b: <span class="kw-2">&amp;</span>rty::PolyFnSig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
-        <span class="self">self</span>.enter_binders(a, b, |this, a, b| this.zip_fn_sig(a, b))
-    }
-
-    <span class="kw">fn </span>zip_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::PolyVariant, b: <span class="kw-2">&amp;</span>rty::PolyVariant, variant_idx: VariantIdx) {
-        <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
-            <span class="comment">// The args are always `GenericArgs::identity_for_item` inside the `EarlyBinder`
-            </span><span class="macro">debug_assert_eq!</span>(a.args, b.args);
-
-            <span class="kw">if </span>a.fields.len() != b.fields.len() {
-                this.errors.emit(errors::FieldCountMismatch::new(
-                    this.genv,
-                    a.fields.len(),
-                    this.owner_id,
-                    variant_idx,
-                ));
-                <span class="kw">return</span>;
-            }
-            <span class="kw">for </span>(i, (ty_a, ty_b)) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>a.fields, <span class="kw-2">&amp;</span>b.fields).enumerate() {
-                <span class="kw">let </span>field_idx = FieldIdx::from_usize(i);
-                <span class="kw">if </span>this.zip_ty(ty_a, ty_b).is_err() {
-                    this.errors.emit(errors::IncompatibleRefinement::field(
-                        this.genv,
-                        this.owner_id,
-                        variant_idx,
-                        field_idx,
-                    ));
-                }
-            }
-        });
-    }
-
-    <span class="kw">fn </span>zip_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnSig, b: <span class="kw-2">&amp;</span>rty::FnSig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
-        <span class="kw">if </span>a.inputs().len() != b.inputs().len() {
-            <span class="prelude-val">Err</span>(FnSigErr::ArgCountMismatch)<span class="question-mark">?</span>;
-        }
-        <span class="kw">for </span>(i, (ty_a, ty_b)) <span class="kw">in </span>iter::zip(a.inputs(), b.inputs()).enumerate() {
-            <span class="self">self</span>.zip_ty(ty_a, ty_b).map_err(|<span class="kw">_</span>| FnSigErr::FnInput(i))<span class="question-mark">?</span>;
-        }
-        <span class="self">self</span>.enter_binders(<span class="kw-2">&amp;</span>a.output, <span class="kw-2">&amp;</span>b.output, |this, output_a, output_b| {
-            this.zip_output(output_a, output_b)
-        })
-    }
-
-    <span class="kw">fn </span>zip_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnOutput, b: <span class="kw-2">&amp;</span>rty::FnOutput) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
-        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>a.ret, <span class="kw-2">&amp;</span>b.ret).map_err(FnSigErr::FnOutput)<span class="question-mark">?</span>;
-
-        <span class="kw">for </span>(i, ensures) <span class="kw">in </span>a.ensures.iter().enumerate() {
-            <span class="kw">if let </span>rty::Ensures::Type(path, ty_a) = ensures {
-                <span class="kw">let </span>loc = path.to_loc().unwrap();
-                <span class="kw">let </span>ty_b = <span class="self">self</span>.locs.get(<span class="kw-2">&amp;</span>loc).unwrap().clone();
-                <span class="self">self</span>.zip_ty(ty_a, <span class="kw-2">&amp;</span>ty_b)
-                    .map_err(|<span class="kw">_</span>| FnSigErr::Ensures { i, expected: ty_b })<span class="question-mark">?</span>;
-            }
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>zip_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Ty, b: <span class="kw-2">&amp;</span>rty::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-        <span class="kw">match </span>(a.kind(), b.kind()) {
-            (rty::TyKind::Infer(vid), <span class="kw">_</span>) =&gt; {
-                <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
-                <span class="kw">let </span>b = <span class="self">self</span>.adjust_bvars(b);
-                <span class="self">self</span>.holes.types.insert(<span class="kw-2">*</span>vid, b);
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::TyKind::Exists(ctor_a), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.enter_a_binder(ctor_a, |this, ty_a| this.zip_ty(ty_a, b))
-            }
-            (<span class="kw">_</span>, rty::TyKind::Exists(ctor_b)) =&gt; {
-                <span class="self">self</span>.enter_b_binder(ctor_b, |this, ty_b| this.zip_ty(a, ty_b))
-            }
-            (rty::TyKind::Constr(<span class="kw">_</span>, ty_a), <span class="kw">_</span>) =&gt; <span class="self">self</span>.zip_ty(ty_a, b),
-            (<span class="kw">_</span>, rty::TyKind::Constr(<span class="kw">_</span>, ty_b)) =&gt; <span class="self">self</span>.zip_ty(a, ty_b),
-            (rty::TyKind::Indexed(bty_a, <span class="kw">_</span>), rty::TyKind::Indexed(bty_b, <span class="kw">_</span>)) =&gt; {
-                <span class="self">self</span>.zip_bty(bty_a, bty_b)
-            }
-            (rty::TyKind::StrgRef(re_a, path, ty_a), <span class="macro">rty::Ref!</span>(re_b, ty_b, Mutability::Mut)) =&gt; {
-                <span class="kw">let </span>loc = path.to_loc().unwrap();
-                <span class="self">self</span>.locs.insert(loc, ty_b.clone());
-
-                <span class="self">self</span>.zip_region(re_a, re_b);
-                <span class="self">self</span>.zip_ty(ty_a, ty_b)
-            }
-            (rty::TyKind::Param(pty_a), rty::TyKind::Param(pty_b)) =&gt; {
-                assert_eq_or_incompatible(pty_a, pty_b)
-            }
-            (
-                rty::TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
-                | rty::TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
-                | rty::TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
-                | rty::TyKind::Blocked(<span class="kw">_</span>)
-                | rty::TyKind::Uninit,
-                <span class="kw">_</span>,
-            ) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"unexpected type {a:?}"</span>);
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
-        }
-    }
-
-    <span class="kw">fn </span>zip_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::BaseTy, b: <span class="kw-2">&amp;</span>rty::BaseTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-        <span class="kw">match </span>(a, b) {
-            (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) =&gt; {
-                assert_eq_or_incompatible(ity_a, ity_b)
-            }
-            (rty::BaseTy::Uint(uity_a), rty::BaseTy::Uint(uity_b)) =&gt; {
-                assert_eq_or_incompatible(uity_a, uity_b)
-            }
-            (rty::BaseTy::Bool, rty::BaseTy::Bool) =&gt; <span class="prelude-val">Ok</span>(()),
-            (rty::BaseTy::Str, rty::BaseTy::Str) =&gt; <span class="prelude-val">Ok</span>(()),
-            (rty::BaseTy::Char, rty::BaseTy::Char) =&gt; <span class="prelude-val">Ok</span>(()),
-            (rty::BaseTy::Float(fty_a), rty::BaseTy::Float(fty_b)) =&gt; {
-                assert_eq_or_incompatible(fty_a, fty_b)
-            }
-            (rty::BaseTy::Slice(ty_a), rty::BaseTy::Slice(ty_b)) =&gt; <span class="self">self</span>.zip_ty(ty_a, ty_b),
-            (rty::BaseTy::Adt(adt_def_a, args_a), rty::BaseTy::Adt(adt_def_b, args_b)) =&gt; {
-                assert_eq_or_incompatible(adt_def_a.did(), adt_def_b.did())<span class="question-mark">?</span>;
-                assert_eq_or_incompatible(args_a.len(), args_b.len())<span class="question-mark">?</span>;
-                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(args_a, args_b) {
-                    <span class="self">self</span>.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::BaseTy::RawPtr(ty_a, mutbl_a), rty::BaseTy::RawPtr(ty_b, mutbl_b)) =&gt; {
-                assert_eq_or_incompatible(mutbl_a, mutbl_b)<span class="question-mark">?</span>;
-                <span class="self">self</span>.zip_ty(ty_a, ty_b)
-            }
-            (rty::BaseTy::Ref(re_a, ty_a, mutbl_a), rty::BaseTy::Ref(re_b, ty_b, mutbl_b)) =&gt; {
-                assert_eq_or_incompatible(mutbl_a, mutbl_b)<span class="question-mark">?</span>;
-                <span class="self">self</span>.zip_region(re_a, re_b);
-                <span class="self">self</span>.zip_ty(ty_a, ty_b)
-            }
-            (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) =&gt; {
-                <span class="self">self</span>.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
-                    .map_err(|<span class="kw">_</span>| Mismatch::new(poly_sig_a, poly_sig_b))
-            }
-            (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) =&gt; {
-                assert_eq_or_incompatible(tys_a.len(), tys_b.len())<span class="question-mark">?</span>;
-                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
-                    <span class="self">self</span>.zip_ty(ty_a, ty_b)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) =&gt; {
-                assert_eq_or_incompatible(kind_a, kind_b)<span class="question-mark">?</span>;
-                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)<span class="question-mark">?</span>;
-                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())<span class="question-mark">?</span>;
-                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>aty_a.args, <span class="kw-2">&amp;</span>aty_b.args) {
-                    <span class="self">self</span>.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
-                }
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::BaseTy::Array(ty_a, len_a), rty::BaseTy::Array(ty_b, len_b)) =&gt; {
-                <span class="self">self</span>.zip_const(len_a, len_b)<span class="question-mark">?</span>;
-                <span class="self">self</span>.zip_ty(ty_a, ty_b)
-            }
-            (rty::BaseTy::Never, rty::BaseTy::Never) =&gt; <span class="prelude-val">Ok</span>(()),
-            (rty::BaseTy::Param(pty_a), rty::BaseTy::Param(pty_b)) =&gt; {
-                assert_eq_or_incompatible(pty_a, pty_b)
-            }
-            (rty::BaseTy::Dynamic(preds_a, re_a), rty::BaseTy::Dynamic(preds_b, re_b)) =&gt; {
-                assert_eq_or_incompatible(preds_a.len(), preds_b.len())<span class="question-mark">?</span>;
-                <span class="kw">for </span>(pred_a, pred_b) <span class="kw">in </span>iter::zip(preds_a, preds_b) {
-                    <span class="self">self</span>.zip_poly_existential_pred(pred_a, pred_b)<span class="question-mark">?</span>;
-                }
-                <span class="self">self</span>.zip_region(re_a, re_b);
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::BaseTy::Foreign(def_id_a), rty::BaseTy::Foreign(def_id_b)) =&gt; {
-                assert_eq_or_incompatible(def_id_a, def_id_b)
-            }
-            (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), <span class="kw">_</span>) =&gt; {
-                <span class="macro">bug!</span>(<span class="string">"unexpected type `{a:?}`"</span>);
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
-        }
-    }
-
-    <span class="kw">fn </span>zip_generic_arg(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        a: <span class="kw-2">&amp;</span>rty::GenericArg,
-        b: <span class="kw-2">&amp;</span>rty::GenericArg,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-        <span class="kw">match </span>(a, b) {
-            (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) =&gt; <span class="self">self</span>.zip_ty(ty_a, ty_b),
-            (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) =&gt; {
-                <span class="self">self</span>.zip_sorts(<span class="kw-2">&amp;</span>ctor_a.sort(), <span class="kw-2">&amp;</span>ctor_b.sort());
-                <span class="self">self</span>.enter_binders(ctor_a, ctor_b, |this, sty_a, sty_b| {
-                    this.zip_subset_ty(sty_a, sty_b)
-                })
-            }
-            (rty::GenericArg::Lifetime(re_a), rty::GenericArg::Lifetime(re_b)) =&gt; {
-                <span class="self">self</span>.zip_region(re_a, re_b);
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) =&gt; {
-                <span class="self">self</span>.zip_const(ct_a, ct_b)
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
-        }
-    }
-
-    <span class="kw">fn </span>zip_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Sort, b: <span class="kw-2">&amp;</span>rty::Sort) {
-        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = a {
-            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
-            <span class="self">self</span>.holes.sorts.insert(<span class="kw-2">*</span>vid, b.clone());
-        }
-    }
-
-    <span class="kw">fn </span>zip_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::SubsetTy, b: <span class="kw-2">&amp;</span>rty::SubsetTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-        <span class="kw">if let </span>rty::BaseTy::Infer(vid) = a.bty {
-            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
-            <span class="kw">let </span>b = <span class="self">self</span>.adjust_bvars(b);
-            <span class="self">self</span>.holes.subset_tys.insert(vid, b);
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else </span>{
-            <span class="self">self</span>.zip_bty(<span class="kw-2">&amp;</span>a.bty, <span class="kw-2">&amp;</span>b.bty)
-        }
-    }
-
-    <span class="kw">fn </span>zip_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Const, b: <span class="kw-2">&amp;</span>ty::Const) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-        <span class="kw">match </span>(<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind) {
-            (rty::ConstKind::Infer(ty::InferConst::Var(cid)), <span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.holes.consts.insert(<span class="kw-2">*</span>cid, b.clone());
-                <span class="prelude-val">Ok</span>(())
-            }
-            (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) =&gt; {
-                assert_eq_or_incompatible(param_const_a, param_const_b)
-            }
-            (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) =&gt; {
-                assert_eq_or_incompatible(ty_a, ty_b)<span class="question-mark">?</span>;
-                assert_eq_or_incompatible(val_a, val_b)
-            }
-            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) =&gt; {
-                assert_eq_or_incompatible(c1, c2)
-            }
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
-        }
-    }
-
-    <span class="kw">fn </span>zip_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Region, b: <span class="kw-2">&amp;</span>ty::Region) {
-        <span class="kw">if let </span>rty::Region::ReVar(vid) = a {
-            <span class="kw">let </span>re = <span class="self">self</span>.adjust_bvars(b);
-            <span class="self">self</span>.holes.regions.insert(<span class="kw-2">*</span>vid, re);
-        }
-    }
-
-    <span class="kw">fn </span>zip_poly_existential_pred(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        a: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
-        b: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-        <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
-            <span class="kw">match </span>(a, b) {
-                (
-                    rty::ExistentialPredicate::Trait(trait_ref_a),
-                    rty::ExistentialPredicate::Trait(trait_ref_b),
-                ) =&gt; {
-                    assert_eq_or_incompatible(trait_ref_a.def_id, trait_ref_b.def_id)<span class="question-mark">?</span>;
-                    assert_eq_or_incompatible(trait_ref_a.args.len(), trait_ref_b.args.len())<span class="question-mark">?</span>;
-                    <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>trait_ref_a.args, <span class="kw-2">&amp;</span>trait_ref_b.args) {
-                        this.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
-                    }
-                    <span class="prelude-val">Ok</span>(())
-                }
-                (
-                    rty::ExistentialPredicate::Projection(projection_a),
-                    rty::ExistentialPredicate::Projection(projection_b),
-                ) =&gt; {
-                    assert_eq_or_incompatible(projection_a.def_id, projection_b.def_id)<span class="question-mark">?</span>;
-                    assert_eq_or_incompatible(projection_a.args.len(), projection_b.args.len())<span class="question-mark">?</span>;
-                    <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>projection_a.args, <span class="kw-2">&amp;</span>projection_b.args) {
-                        this.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
-                    }
-                    this.enter_binders(<span class="kw-2">&amp;</span>projection_a.term, <span class="kw-2">&amp;</span>projection_b.term, |this, a, b| {
-                        this.zip_bty(<span class="kw-2">&amp;</span>a.bty, <span class="kw-2">&amp;</span>b.bty)
-                    })
-                }
-                (
-                    rty::ExistentialPredicate::AutoTrait(def_id_a),
-                    rty::ExistentialPredicate::AutoTrait(def_id_b),
-                ) =&gt; assert_eq_or_incompatible(def_id_a, def_id_b),
-                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
-            }
-        })
-    }
-
-    <span class="doccomment">/// Enter a binder in both `a` and `b` creating a mapping between the two.
-    </span><span class="kw">fn </span>enter_binders&lt;T, R&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        a: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
-        b: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
-        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, <span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;</span>T) -&gt; R,
-    ) -&gt; R {
-        <span class="self">self</span>.b_binder_to_a_binder.push(<span class="prelude-val">Some</span>(<span class="self">self</span>.a_binders));
-        <span class="self">self</span>.a_binders += <span class="number">1</span>;
-        <span class="kw">let </span>r = f(<span class="self">self</span>, a.skip_binder_ref(), b.skip_binder_ref());
-        <span class="self">self</span>.a_binders -= <span class="number">1</span>;
-        <span class="self">self</span>.b_binder_to_a_binder.pop();
-        r
-    }
-
-    <span class="doccomment">/// Enter a binder in `a` without a corresponding mapping in `b`
-    </span><span class="kw">fn </span>enter_a_binder&lt;T, R&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        t: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
-        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, <span class="kw-2">&amp;</span>T) -&gt; R,
-    ) -&gt; R {
-        <span class="self">self</span>.a_binders += <span class="number">1</span>;
-        <span class="kw">let </span>r = f(<span class="self">self</span>, t.skip_binder_ref());
-        <span class="self">self</span>.a_binders -= <span class="number">1</span>;
-        r
-    }
-
-    <span class="doccomment">/// Enter a binder in `b` without a corresponding mapping in `a`
-    </span><span class="kw">fn </span>enter_b_binder&lt;T, R&gt;(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        t: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
-        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, <span class="kw-2">&amp;</span>T) -&gt; R,
-    ) -&gt; R {
-        <span class="self">self</span>.b_binder_to_a_binder.push(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>r = f(<span class="self">self</span>, t.skip_binder_ref());
-        <span class="self">self</span>.b_binder_to_a_binder.pop();
-        r
-    }
-
-    <span class="kw">fn </span>adjust_bvars&lt;T: TypeFoldable + Clone + std::fmt::Debug&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
-        <span class="kw">struct </span>Adjuster&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-            current_index: DebruijnIndex,
-            zipper: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-        }
-
-        <span class="kw">impl </span>Adjuster&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-            <span class="kw">fn </span>adjust(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex) -&gt; DebruijnIndex {
-                <span class="kw">let </span>b_binders = <span class="self">self</span>.zipper.b_binder_to_a_binder.len();
-                <span class="kw">let </span>mapped_binder = <span class="self">self</span>.zipper.b_binder_to_a_binder
-                    [b_binders - debruijn.as_usize() - <span class="number">1</span>]
-                    .unwrap_or_else(|| {
-                        <span class="macro">bug!</span>(<span class="string">"bound var without corresponding binder: `{debruijn:?}`"</span>)
-                    });
-                DebruijnIndex::from_u32(<span class="self">self</span>.zipper.a_binders - mapped_binder - <span class="number">1</span>)
-                    .shifted_in(<span class="self">self</span>.current_index.as_u32())
-            }
-        }
-
-        <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Adjuster&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-            <span class="kw">fn </span>fold_binder&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;) -&gt; rty::Binder&lt;T&gt;
-            <span class="kw">where
-                </span>T: TypeFoldable,
-            {
-                <span class="self">self</span>.current_index.shift_in(<span class="number">1</span>);
-                <span class="kw">let </span>r = t.super_fold_with(<span class="self">self</span>);
-                <span class="self">self</span>.current_index.shift_out(<span class="number">1</span>);
-                r
-            }
-
-            <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>rty::Region) -&gt; rty::Region {
-                <span class="kw">if let </span>rty::ReBound(debruijn, br) = <span class="kw-2">*</span>re
-                    &amp;&amp; debruijn &gt;= <span class="self">self</span>.current_index
-                {
-                    rty::ReBound(<span class="self">self</span>.adjust(debruijn), br)
-                } <span class="kw">else </span>{
-                    <span class="kw-2">*</span>re
-                }
-            }
-
-            <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr) -&gt; rty::Expr {
-                <span class="kw">if let </span>rty::ExprKind::Var(rty::Var::Bound(debruijn, breft)) = expr.kind()
-                    &amp;&amp; <span class="kw-2">*</span>debruijn &gt;= <span class="self">self</span>.current_index
-                {
-                    rty::Expr::bvar(<span class="self">self</span>.adjust(<span class="kw-2">*</span>debruijn), breft.var, breft.kind)
-                } <span class="kw">else </span>{
-                    expr.super_fold_with(<span class="self">self</span>)
-                }
-            }
-        }
-        t.fold_with(<span class="kw-2">&amp;mut </span>Adjuster { current_index: INNERMOST, zipper: <span class="self">self </span>})
-    }
-
-    <span class="kw">fn </span>emit_fn_sig_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: FnSigErr, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
-        <span class="kw">match </span>err {
-            FnSigErr::ArgCountMismatch =&gt; {
-                <span class="self">self</span>.errors.emit(errors::IncompatibleParamCount::new(
-                    <span class="self">self</span>.genv,
-                    decl,
-                    <span class="self">self</span>.owner_id,
-                ));
-            }
-            FnSigErr::FnInput(i) =&gt; {
-                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_input(
-                    <span class="self">self</span>.genv,
-                    <span class="self">self</span>.owner_id,
-                    decl,
-                    i,
-                ));
-            }
-            FnSigErr::FnOutput(<span class="kw">_</span>) =&gt; {
-                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_output(
-                    <span class="self">self</span>.genv,
-                    <span class="self">self</span>.owner_id,
-                    decl,
-                ));
-            }
-            FnSigErr::Ensures { i, expected } =&gt; {
-                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::ensures(
-                    <span class="self">self</span>.genv,
-                    <span class="self">self</span>.owner_id,
-                    decl,
-                    <span class="kw-2">&amp;</span>expected,
-                    i,
-                ));
-            }
-        }
-    }
-}
-
-<span class="kw">fn </span>assert_eq_or_incompatible&lt;T: Eq + fmt::Debug&gt;(a: T, b: T) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
-    <span class="kw">if </span>a != b {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(Mismatch::new(a, b));
-    }
-    <span class="prelude-val">Ok</span>(())
-}
-
-<span class="attr">#[expect(dead_code, reason = <span class="string">"we use the the String for debugging"</span>)]
-</span><span class="kw">struct </span>Mismatch(String);
-
-<span class="kw">impl </span>Mismatch {
-    <span class="kw">fn </span>new&lt;T: fmt::Debug&gt;(a: T, b: T) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">"{a:?} != {b:?}"</span>))
-    }
-}
-
-<span class="kw">enum </span>FnSigErr {
-    ArgCountMismatch,
-    FnInput(usize),
-    <span class="attr">#[expect(dead_code, reason = <span class="string">"we use the struct for debugging"</span>)]
-    </span>FnOutput(Mismatch),
-    Ensures {
-        i: usize,
-        expected: rty::Ty,
-    },
-}
-
-<span class="kw">mod </span>errors {
-    <span class="kw">use </span>flux_common::span_bug;
-    <span class="kw">use </span>flux_errors::E0999;
-    <span class="kw">use </span>flux_macros::Diagnostic;
-    <span class="kw">use </span>flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
-    <span class="kw">use </span>flux_rustc_bridge::{
-        ToRustc,
-        ty::{FieldIdx, VariantIdx},
-    };
-    <span class="kw">use </span>rustc_span::{DUMMY_SP, Span};
-
-    <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
-    #[note]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="attr">#[primary_span]
-        #[label]
-        </span>span: Span,
-        <span class="attr">#[label(fhir_analysis_expected_label)]
-        </span>expected_span: <span class="prelude-ty">Option</span>&lt;Span&gt;,
-        expected_ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
-        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    }
-
-    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>type_alias(
-            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-            def_id: MaybeExternId,
-            type_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
-        ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>tcx = genv.tcx();
-            <span class="self">Self </span>{
-                span: type_alias.ty.span,
-                def_descr: tcx.def_descr(def_id.resolved_id()),
-                expected_span: <span class="prelude-val">Some</span>(tcx.def_span(def_id)),
-                expected_ty: tcx.type_of(def_id).skip_binder(),
-            }
-        }
-
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_input(
-            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-            fn_id: MaybeExternId,
-            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-            pos: usize,
-        ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>expected_span = <span class="kw">match </span>fn_id {
-                MaybeExternId::Local(local_id) =&gt; {
-                    genv.tcx()
-                        .hir_node_by_def_id(local_id)
-                        .fn_decl()
-                        .and_then(|fn_decl| fn_decl.inputs.get(pos))
-                        .map(|input| input.span)
-                }
-                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; <span class="prelude-val">Some</span>(genv.tcx().def_span(extern_id)),
-            };
-
-            <span class="kw">let </span>expected_ty = genv
-                .tcx()
-                .fn_sig(fn_id.resolved_id())
-                .skip_binder()
-                .inputs()
-                .map_bound(|inputs| inputs[pos])
-                .skip_binder();
-
-            <span class="self">Self </span>{
-                span: decl.inputs[pos].span,
-                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span,
-                expected_ty,
-            }
-        }
-
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_output(
-            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-            fn_id: MaybeExternId,
-            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-        ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>expected_span = <span class="kw">match </span>fn_id {
-                MaybeExternId::Local(local_id) =&gt; {
-                    genv.tcx()
-                        .hir_node_by_def_id(local_id)
-                        .fn_decl()
-                        .map(|fn_decl| fn_decl.output.span())
-                }
-                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; <span class="prelude-val">Some</span>(genv.tcx().def_span(extern_id)),
-            };
-
-            <span class="kw">let </span>expected_ty = genv
-                .tcx()
-                .fn_sig(fn_id.resolved_id())
-                .skip_binder()
-                .output()
-                .skip_binder();
-            <span class="kw">let </span>spec_span = decl.output.ret.span;
-            <span class="self">Self </span>{
-                span: spec_span,
-                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
-                expected_span,
-                expected_ty,
-            }
-        }
-
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>ensures(
-            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-            fn_id: MaybeExternId,
-            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
-            expected: <span class="kw-2">&amp;</span>rty::Ty,
-            i: usize,
-        ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>fhir::Ensures::Type(<span class="kw">_</span>, ty) = <span class="kw-2">&amp;</span>decl.output.ensures[i] <span class="kw">else </span>{
-                <span class="macro">span_bug!</span>(decl.span, <span class="string">"expected `fhir::Ensures::Type`"</span>);
-            };
-            <span class="kw">let </span>tcx = genv.tcx();
-            <span class="self">Self </span>{
-                span: ty.span,
-                def_descr: tcx.def_descr(fn_id.resolved_id()),
-                expected_span: <span class="prelude-val">None</span>,
-                expected_ty: expected.to_rustc(tcx),
-            }
-        }
-
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>field(
-            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-            adt_id: MaybeExternId,
-            variant_idx: VariantIdx,
-            field_idx: FieldIdx,
-        ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>tcx = genv.tcx();
-            <span class="kw">let </span>adt_def = tcx.adt_def(adt_id);
-            <span class="kw">let </span>field_def = <span class="kw-2">&amp;</span>adt_def.variant(variant_idx).fields[field_idx];
-
-            <span class="kw">let </span>item = genv.map().expect_item(adt_id.local_id()).unwrap();
-            <span class="kw">let </span>span = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-                fhir::ItemKind::Enum(enum_def) =&gt; {
-                    enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
-                        .ty
-                        .span
-                }
-                fhir::ItemKind::Struct(struct_def)
-                    <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = <span class="kw-2">&amp;</span>struct_def.kind =&gt;
-                {
-                    fields[field_idx.as_usize()].ty.span
-                }
-                <span class="kw">_ </span>=&gt; DUMMY_SP,
-            };
-
-            <span class="self">Self </span>{
-                span,
-                def_descr: tcx.def_descr(field_def.did),
-                expected_span: <span class="prelude-val">Some</span>(tcx.def_span(field_def.did)),
-                expected_ty: tcx.type_of(field_def.did).skip_binder(),
-            }
-        }
-    }
-
-    <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleParamCount {
-        <span class="attr">#[primary_span]
-        #[label]
-        </span>span: Span,
-        found: usize,
-        <span class="attr">#[label(fhir_analysis_expected_label)]
-        </span>expected_span: Span,
-        expected: usize,
-        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    }
-
-    <span class="kw">impl </span>IncompatibleParamCount {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, def_id: MaybeExternId) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>def_descr = genv.tcx().def_descr(def_id.resolved_id());
-
-            <span class="kw">let </span>span = <span class="kw">if </span>!decl.inputs.is_empty() {
-                decl.inputs[decl.inputs.len() - <span class="number">1</span>]
-                    .span
-                    .with_lo(decl.inputs[<span class="number">0</span>].span.lo())
-            } <span class="kw">else </span>{
-                decl.span
-            };
-
-            <span class="kw">let </span>expected_span = <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local()
-                &amp;&amp; <span class="kw">let </span>expected_decl = genv.tcx().hir_node_by_def_id(local_id).fn_decl().unwrap()
-                &amp;&amp; !expected_decl.inputs.is_empty()
-            {
-                expected_decl.inputs[expected_decl.inputs.len() - <span class="number">1</span>]
-                    .span
-                    .with_lo(expected_decl.inputs[<span class="number">0</span>].span.lo())
-            } <span class="kw">else </span>{
-                genv.tcx().def_span(def_id)
-            };
-
-            <span class="kw">let </span>expected = genv
-                .tcx()
-                .fn_sig(def_id)
-                .skip_binder()
-                .skip_binder()
-                .inputs()
-                .len();
-
-            <span class="self">Self </span>{ span, found: decl.inputs.len(), expected_span, expected, def_descr }
-        }
-    }
-
-    <span class="attr">#[derive(Diagnostic)]
-    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
-    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldCountMismatch {
-        <span class="attr">#[primary_span]
-        #[label]
-        </span>span: Span,
-        fields: usize,
-        <span class="attr">#[label(fhir_analysis_expected_label)]
-        </span>expected_span: Span,
-        expected_fields: usize,
-    }
-
-    <span class="kw">impl </span>FieldCountMismatch {
-        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
-            genv: GlobalEnv,
-            found: usize,
-            adt_def_id: MaybeExternId,
-            variant_idx: VariantIdx,
-        ) -&gt; <span class="self">Self </span>{
-            <span class="kw">let </span>adt_def = genv.tcx().adt_def(adt_def_id);
-            <span class="kw">let </span>expected_variant = adt_def.variant(variant_idx);
-
-            <span class="comment">// Get the span of the variant if this is an enum. Structs cannot have produce a field
-            // count mismatch.
-            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
-                &amp;&amp; <span class="kw">let </span>fhir::ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span>item.kind
-                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = enum_def.variants.get(variant_idx.as_usize())
-            {
-                variant.span
-            } <span class="kw">else </span>{
-                DUMMY_SP
-            };
-
-            <span class="self">Self </span>{
-                span,
-                fields: found,
-                expected_span: genv.tcx().def_span(expected_variant.def_id),
-                expected_fields: expected_variant.fields.len(),
-            }
-        }
-    }
-}
-</code></pre></div></section></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/conv/struct_compat.rs`."><title>struct_compat.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (96cfc7558 2025-02-27)" data-channel="nightly" data-search-js="search-f7327375.js" data-settings-js="settings-d72f25bb.js" ><script src="../../../static.files/storage-d8ac8691.js"></script><script defer src="../../../static.files/src-script-b8d3f215.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a7bf3405.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/conv/</div>struct_compat.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Check whether two refinemnt types/signatures are structurally compatible.
+<a href=#2 id=2 data-nosnippet>2</a>//!
+<a href=#3 id=3 data-nosnippet>3</a>//! Used to check if a user spec is compatible with the underlying rust type. The code also
+<a href=#4 id=4 data-nosnippet>4</a>//! infer types annotated with `_` in the surface syntax.
+<a href=#5 id=5 data-nosnippet>5</a>
+<a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use </span>std::{fmt, iter};
+<a href=#7 id=7 data-nosnippet>7</a>
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>flux_common::bug;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>flux_errors::Errors;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>flux_middle::{
+<a href=#11 id=11 data-nosnippet>11</a>    def_id::MaybeExternId,
+<a href=#12 id=12 data-nosnippet>12</a>    fhir,
+<a href=#13 id=13 data-nosnippet>13</a>    global_env::GlobalEnv,
+<a href=#14 id=14 data-nosnippet>14</a>    queries::QueryResult,
+<a href=#15 id=15 data-nosnippet>15</a>    rty::{
+<a href=#16 id=16 data-nosnippet>16</a>        <span class="self">self</span>,
+<a href=#17 id=17 data-nosnippet>17</a>        fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+<a href=#18 id=18 data-nosnippet>18</a>        refining::{Refine <span class="kw">as _</span>, Refiner},
+<a href=#19 id=19 data-nosnippet>19</a>    },
+<a href=#20 id=20 data-nosnippet>20</a>};
+<a href=#21 id=21 data-nosnippet>21</a><span class="kw">use </span>flux_rustc_bridge::ty::{<span class="self">self</span>, FieldIdx, VariantIdx};
+<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span>rustc_ast::Mutability;
+<a href=#23 id=23 data-nosnippet>23</a><span class="kw">use </span>rustc_data_structures::unord::UnordMap;
+<a href=#24 id=24 data-nosnippet>24</a><span class="kw">use </span>rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst};
+<a href=#25 id=25 data-nosnippet>25</a>
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>type_alias(
+<a href=#27 id=27 data-nosnippet>27</a>    genv: GlobalEnv,
+<a href=#28 id=28 data-nosnippet>28</a>    alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
+<a href=#29 id=29 data-nosnippet>29</a>    alias_ty: <span class="kw-2">&amp;</span>rty::TyCtor,
+<a href=#30 id=30 data-nosnippet>30</a>    def_id: MaybeExternId,
+<a href=#31 id=31 data-nosnippet>31</a>) -&gt; QueryResult&lt;rty::TyCtor&gt; {
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="kw">let </span>rust_ty = genv.lower_type_of(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
+<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">let </span>expected = rust_ty.refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
+<a href=#35 id=35 data-nosnippet>35</a>
+<a href=#36 id=36 data-nosnippet>36</a>    <span class="kw">if </span>zipper
+<a href=#37 id=37 data-nosnippet>37</a>        .enter_a_binder(alias_ty, |zipper, ty| zipper.zip_ty(ty, <span class="kw-2">&amp;</span>expected))
+<a href=#38 id=38 data-nosnippet>38</a>        .is_err()
+<a href=#39 id=39 data-nosnippet>39</a>    {
+<a href=#40 id=40 data-nosnippet>40</a>        zipper
+<a href=#41 id=41 data-nosnippet>41</a>            .errors
+<a href=#42 id=42 data-nosnippet>42</a>            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
+<a href=#43 id=43 data-nosnippet>43</a>    }
+<a href=#44 id=44 data-nosnippet>44</a>
+<a href=#45 id=45 data-nosnippet>45</a>    zipper.errors.into_result()<span class="question-mark">?</span>;
+<a href=#46 id=46 data-nosnippet>46</a>
+<a href=#47 id=47 data-nosnippet>47</a>    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(alias_ty))
+<a href=#48 id=48 data-nosnippet>48</a>}
+<a href=#49 id=49 data-nosnippet>49</a>
+<a href=#50 id=50 data-nosnippet>50</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fn_sig(
+<a href=#51 id=51 data-nosnippet>51</a>    genv: GlobalEnv,
+<a href=#52 id=52 data-nosnippet>52</a>    decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
+<a href=#53 id=53 data-nosnippet>53</a>    fn_sig: <span class="kw-2">&amp;</span>rty::PolyFnSig,
+<a href=#54 id=54 data-nosnippet>54</a>    def_id: MaybeExternId,
+<a href=#55 id=55 data-nosnippet>55</a>) -&gt; QueryResult&lt;rty::PolyFnSig&gt; {
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">let </span>rust_fn_sig = genv.lower_fn_sig(def_id.resolved_id())<span class="question-mark">?</span>.skip_binder();
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">let </span>expected = Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?</span>.refine(<span class="kw-2">&amp;</span>rust_fn_sig)<span class="question-mark">?</span>;
+<a href=#59 id=59 data-nosnippet>59</a>
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, def_id);
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = zipper.zip_poly_fn_sig(fn_sig, <span class="kw-2">&amp;</span>expected) {
+<a href=#62 id=62 data-nosnippet>62</a>        zipper.emit_fn_sig_err(err, decl);
+<a href=#63 id=63 data-nosnippet>63</a>    }
+<a href=#64 id=64 data-nosnippet>64</a>
+<a href=#65 id=65 data-nosnippet>65</a>    zipper.errors.into_result()<span class="question-mark">?</span>;
+<a href=#66 id=66 data-nosnippet>66</a>
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(fn_sig))
+<a href=#68 id=68 data-nosnippet>68</a>}
+<a href=#69 id=69 data-nosnippet>69</a>
+<a href=#70 id=70 data-nosnippet>70</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>variants(
+<a href=#71 id=71 data-nosnippet>71</a>    genv: GlobalEnv,
+<a href=#72 id=72 data-nosnippet>72</a>    variants: <span class="kw-2">&amp;</span>[rty::PolyVariant],
+<a href=#73 id=73 data-nosnippet>73</a>    adt_def_id: MaybeExternId,
+<a href=#74 id=74 data-nosnippet>74</a>) -&gt; QueryResult&lt;Vec&lt;rty::PolyVariant&gt;&gt; {
+<a href=#75 id=75 data-nosnippet>75</a>    <span class="kw">let </span>refiner = Refiner::default_for_item(genv, adt_def_id.resolved_id())<span class="question-mark">?</span>;
+<a href=#76 id=76 data-nosnippet>76</a>    <span class="kw">let </span><span class="kw-2">mut </span>zipper = Zipper::new(genv, adt_def_id);
+<a href=#77 id=77 data-nosnippet>77</a>    <span class="comment">// TODO check same number of variants
+<a href=#78 id=78 data-nosnippet>78</a>    </span><span class="kw">for </span>(i, variant) <span class="kw">in </span>variants.iter().enumerate() {
+<a href=#79 id=79 data-nosnippet>79</a>        <span class="kw">let </span>variant_idx = VariantIdx::from_usize(i);
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="kw">let </span>expected = refiner.refine_variant_def(adt_def_id.resolved_id(), variant_idx)<span class="question-mark">?</span>;
+<a href=#81 id=81 data-nosnippet>81</a>        zipper.zip_variant(variant, <span class="kw-2">&amp;</span>expected, variant_idx);
+<a href=#82 id=82 data-nosnippet>82</a>    }
+<a href=#83 id=83 data-nosnippet>83</a>
+<a href=#84 id=84 data-nosnippet>84</a>    zipper.errors.into_result()<span class="question-mark">?</span>;
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="prelude-val">Ok</span>(variants
+<a href=#87 id=87 data-nosnippet>87</a>        .iter()
+<a href=#88 id=88 data-nosnippet>88</a>        .map(|v| zipper.holes.replace_holes(v))
+<a href=#89 id=89 data-nosnippet>89</a>        .collect())
+<a href=#90 id=90 data-nosnippet>90</a>}
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a><span class="kw">struct </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<a href=#93 id=93 data-nosnippet>93</a>    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#94 id=94 data-nosnippet>94</a>    owner_id: MaybeExternId,
+<a href=#95 id=95 data-nosnippet>95</a>    locs: UnordMap&lt;rty::Loc, rty::Ty&gt;,
+<a href=#96 id=96 data-nosnippet>96</a>    holes: Holes,
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="doccomment">/// Number of binders we've entered in `a`
+<a href=#98 id=98 data-nosnippet>98</a>    </span>a_binders: u32,
+<a href=#99 id=99 data-nosnippet>99</a>    <span class="doccomment">/// Each element in the vector correspond to a binder in `b`. For some binders we map it to
+<a href=#100 id=100 data-nosnippet>100</a>    /// a corresponding binder in `a`. We assume that expressions filling holes will only contain
+<a href=#101 id=101 data-nosnippet>101</a>    /// variables pointing to some of these mapped binders.
+<a href=#102 id=102 data-nosnippet>102</a>    </span>b_binder_to_a_binder: Vec&lt;<span class="prelude-ty">Option</span>&lt;u32&gt;&gt;,
+<a href=#103 id=103 data-nosnippet>103</a>    errors: Errors&lt;<span class="lifetime">'genv</span>&gt;,
+<a href=#104 id=104 data-nosnippet>104</a>}
+<a href=#105 id=105 data-nosnippet>105</a>
+<a href=#106 id=106 data-nosnippet>106</a><span class="attr">#[derive(Default)]
+<a href=#107 id=107 data-nosnippet>107</a></span><span class="kw">struct </span>Holes {
+<a href=#108 id=108 data-nosnippet>108</a>    sorts: UnordMap&lt;rty::SortVid, rty::Sort&gt;,
+<a href=#109 id=109 data-nosnippet>109</a>    subset_tys: UnordMap&lt;rty::TyVid, rty::SubsetTy&gt;,
+<a href=#110 id=110 data-nosnippet>110</a>    types: UnordMap&lt;rty::TyVid, rty::Ty&gt;,
+<a href=#111 id=111 data-nosnippet>111</a>    regions: UnordMap&lt;rty::RegionVid, rty::Region&gt;,
+<a href=#112 id=112 data-nosnippet>112</a>    consts: UnordMap&lt;rty::ConstVid, rty::Const&gt;,
+<a href=#113 id=113 data-nosnippet>113</a>}
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a><span class="kw">impl </span>TypeFolder <span class="kw">for </span><span class="kw-2">&amp;</span>Holes {
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = sort {
+<a href=#118 id=118 data-nosnippet>118</a>            <span class="self">self</span>.sorts
+<a href=#119 id=119 data-nosnippet>119</a>                .get(vid)
+<a href=#120 id=120 data-nosnippet>120</a>                .cloned()
+<a href=#121 id=121 data-nosnippet>121</a>                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled sort hole {vid:?}"</span>))
+<a href=#122 id=122 data-nosnippet>122</a>        } <span class="kw">else </span>{
+<a href=#123 id=123 data-nosnippet>123</a>            sort.super_fold_with(<span class="self">self</span>)
+<a href=#124 id=124 data-nosnippet>124</a>        }
+<a href=#125 id=125 data-nosnippet>125</a>    }
+<a href=#126 id=126 data-nosnippet>126</a>
+<a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">fn </span>fold_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>rty::Ty) -&gt; rty::Ty {
+<a href=#128 id=128 data-nosnippet>128</a>        <span class="kw">if let </span>rty::TyKind::Infer(vid) = ty.kind() {
+<a href=#129 id=129 data-nosnippet>129</a>            <span class="self">self</span>.types
+<a href=#130 id=130 data-nosnippet>130</a>                .get(vid)
+<a href=#131 id=131 data-nosnippet>131</a>                .cloned()
+<a href=#132 id=132 data-nosnippet>132</a>                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
+<a href=#133 id=133 data-nosnippet>133</a>        } <span class="kw">else </span>{
+<a href=#134 id=134 data-nosnippet>134</a>            ty.super_fold_with(<span class="self">self</span>)
+<a href=#135 id=135 data-nosnippet>135</a>        }
+<a href=#136 id=136 data-nosnippet>136</a>    }
+<a href=#137 id=137 data-nosnippet>137</a>
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">fn </span>fold_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, constr: <span class="kw-2">&amp;</span>rty::SubsetTy) -&gt; rty::SubsetTy {
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">if let </span>rty::BaseTy::Infer(vid) = <span class="kw-2">&amp;</span>constr.bty {
+<a href=#140 id=140 data-nosnippet>140</a>            <span class="self">self</span>.subset_tys
+<a href=#141 id=141 data-nosnippet>141</a>                .get(vid)
+<a href=#142 id=142 data-nosnippet>142</a>                .cloned()
+<a href=#143 id=143 data-nosnippet>143</a>                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled type hole {vid:?}"</span>))
+<a href=#144 id=144 data-nosnippet>144</a>        } <span class="kw">else </span>{
+<a href=#145 id=145 data-nosnippet>145</a>            constr.super_fold_with(<span class="self">self</span>)
+<a href=#146 id=146 data-nosnippet>146</a>        }
+<a href=#147 id=147 data-nosnippet>147</a>    }
+<a href=#148 id=148 data-nosnippet>148</a>
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>rty::Region) -&gt; rty::Region {
+<a href=#150 id=150 data-nosnippet>150</a>        <span class="kw">if let </span>rty::Region::ReVar(vid) = r {
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="self">self</span>.regions
+<a href=#152 id=152 data-nosnippet>152</a>                .get(vid)
+<a href=#153 id=153 data-nosnippet>153</a>                .copied()
+<a href=#154 id=154 data-nosnippet>154</a>                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled region hole {vid:?}"</span>))
+<a href=#155 id=155 data-nosnippet>155</a>        } <span class="kw">else </span>{
+<a href=#156 id=156 data-nosnippet>156</a>            <span class="kw-2">*</span>r
+<a href=#157 id=157 data-nosnippet>157</a>        }
+<a href=#158 id=158 data-nosnippet>158</a>    }
+<a href=#159 id=159 data-nosnippet>159</a>
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">fn </span>fold_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ct: <span class="kw-2">&amp;</span>rty::Const) -&gt; rty::Const {
+<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">if let </span>rty::ConstKind::Infer(InferConst::Var(cid)) = ct.kind {
+<a href=#162 id=162 data-nosnippet>162</a>            <span class="self">self</span>.consts
+<a href=#163 id=163 data-nosnippet>163</a>                .get(<span class="kw-2">&amp;</span>cid)
+<a href=#164 id=164 data-nosnippet>164</a>                .cloned()
+<a href=#165 id=165 data-nosnippet>165</a>                .unwrap_or_else(|| <span class="macro">bug!</span>(<span class="string">"unfilled const hole {cid:?}"</span>))
+<a href=#166 id=166 data-nosnippet>166</a>        } <span class="kw">else </span>{
+<a href=#167 id=167 data-nosnippet>167</a>            ct.super_fold_with(<span class="self">self</span>)
+<a href=#168 id=168 data-nosnippet>168</a>        }
+<a href=#169 id=169 data-nosnippet>169</a>    }
+<a href=#170 id=170 data-nosnippet>170</a>}
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a><span class="kw">impl </span>Holes {
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">fn </span>replace_holes&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
+<a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">let </span><span class="kw-2">mut </span>this = <span class="self">self</span>;
+<a href=#175 id=175 data-nosnippet>175</a>        t.fold_with(<span class="kw-2">&amp;mut </span>this)
+<a href=#176 id=176 data-nosnippet>176</a>    }
+<a href=#177 id=177 data-nosnippet>177</a>}
+<a href=#178 id=178 data-nosnippet>178</a>
+<a href=#179 id=179 data-nosnippet>179</a><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">fn </span>new(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, owner_id: MaybeExternId) -&gt; <span class="self">Self </span>{
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="self">Self </span>{
+<a href=#182 id=182 data-nosnippet>182</a>            genv,
+<a href=#183 id=183 data-nosnippet>183</a>            owner_id,
+<a href=#184 id=184 data-nosnippet>184</a>            locs: UnordMap::default(),
+<a href=#185 id=185 data-nosnippet>185</a>            holes: Default::default(),
+<a href=#186 id=186 data-nosnippet>186</a>            a_binders: <span class="number">0</span>,
+<a href=#187 id=187 data-nosnippet>187</a>            b_binder_to_a_binder: <span class="macro">vec!</span>[],
+<a href=#188 id=188 data-nosnippet>188</a>            errors: Errors::new(genv.sess()),
+<a href=#189 id=189 data-nosnippet>189</a>        }
+<a href=#190 id=190 data-nosnippet>190</a>    }
+<a href=#191 id=191 data-nosnippet>191</a>
+<a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">fn </span>zip_poly_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::PolyFnSig, b: <span class="kw-2">&amp;</span>rty::PolyFnSig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="self">self</span>.enter_binders(a, b, |this, a, b| this.zip_fn_sig(a, b))
+<a href=#194 id=194 data-nosnippet>194</a>    }
+<a href=#195 id=195 data-nosnippet>195</a>
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">fn </span>zip_variant(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::PolyVariant, b: <span class="kw-2">&amp;</span>rty::PolyVariant, variant_idx: VariantIdx) {
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
+<a href=#198 id=198 data-nosnippet>198</a>            <span class="comment">// The args are always `GenericArgs::identity_for_item` inside the `EarlyBinder`
+<a href=#199 id=199 data-nosnippet>199</a>            </span><span class="macro">debug_assert_eq!</span>(a.args, b.args);
+<a href=#200 id=200 data-nosnippet>200</a>
+<a href=#201 id=201 data-nosnippet>201</a>            <span class="kw">if </span>a.fields.len() != b.fields.len() {
+<a href=#202 id=202 data-nosnippet>202</a>                this.errors.emit(errors::FieldCountMismatch::new(
+<a href=#203 id=203 data-nosnippet>203</a>                    this.genv,
+<a href=#204 id=204 data-nosnippet>204</a>                    a.fields.len(),
+<a href=#205 id=205 data-nosnippet>205</a>                    this.owner_id,
+<a href=#206 id=206 data-nosnippet>206</a>                    variant_idx,
+<a href=#207 id=207 data-nosnippet>207</a>                ));
+<a href=#208 id=208 data-nosnippet>208</a>                <span class="kw">return</span>;
+<a href=#209 id=209 data-nosnippet>209</a>            }
+<a href=#210 id=210 data-nosnippet>210</a>            <span class="kw">for </span>(i, (ty_a, ty_b)) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>a.fields, <span class="kw-2">&amp;</span>b.fields).enumerate() {
+<a href=#211 id=211 data-nosnippet>211</a>                <span class="kw">let </span>field_idx = FieldIdx::from_usize(i);
+<a href=#212 id=212 data-nosnippet>212</a>                <span class="kw">if </span>this.zip_ty(ty_a, ty_b).is_err() {
+<a href=#213 id=213 data-nosnippet>213</a>                    this.errors.emit(errors::IncompatibleRefinement::field(
+<a href=#214 id=214 data-nosnippet>214</a>                        this.genv,
+<a href=#215 id=215 data-nosnippet>215</a>                        this.owner_id,
+<a href=#216 id=216 data-nosnippet>216</a>                        variant_idx,
+<a href=#217 id=217 data-nosnippet>217</a>                        field_idx,
+<a href=#218 id=218 data-nosnippet>218</a>                    ));
+<a href=#219 id=219 data-nosnippet>219</a>                }
+<a href=#220 id=220 data-nosnippet>220</a>            }
+<a href=#221 id=221 data-nosnippet>221</a>        });
+<a href=#222 id=222 data-nosnippet>222</a>    }
+<a href=#223 id=223 data-nosnippet>223</a>
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">fn </span>zip_fn_sig(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnSig, b: <span class="kw-2">&amp;</span>rty::FnSig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">if </span>a.inputs().len() != b.inputs().len() {
+<a href=#226 id=226 data-nosnippet>226</a>            <span class="prelude-val">Err</span>(FnSigErr::ArgCountMismatch)<span class="question-mark">?</span>;
+<a href=#227 id=227 data-nosnippet>227</a>        }
+<a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">for </span>(i, (ty_a, ty_b)) <span class="kw">in </span>iter::zip(a.inputs(), b.inputs()).enumerate() {
+<a href=#229 id=229 data-nosnippet>229</a>            <span class="self">self</span>.zip_ty(ty_a, ty_b).map_err(|<span class="kw">_</span>| FnSigErr::FnInput(i))<span class="question-mark">?</span>;
+<a href=#230 id=230 data-nosnippet>230</a>        }
+<a href=#231 id=231 data-nosnippet>231</a>        <span class="self">self</span>.enter_binders(<span class="kw-2">&amp;</span>a.output, <span class="kw-2">&amp;</span>b.output, |this, output_a, output_b| {
+<a href=#232 id=232 data-nosnippet>232</a>            this.zip_output(output_a, output_b)
+<a href=#233 id=233 data-nosnippet>233</a>        })
+<a href=#234 id=234 data-nosnippet>234</a>    }
+<a href=#235 id=235 data-nosnippet>235</a>
+<a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">fn </span>zip_output(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::FnOutput, b: <span class="kw-2">&amp;</span>rty::FnOutput) -&gt; <span class="prelude-ty">Result</span>&lt;(), FnSigErr&gt; {
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="self">self</span>.zip_ty(<span class="kw-2">&amp;</span>a.ret, <span class="kw-2">&amp;</span>b.ret).map_err(FnSigErr::FnOutput)<span class="question-mark">?</span>;
+<a href=#238 id=238 data-nosnippet>238</a>
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">for </span>(i, ensures) <span class="kw">in </span>a.ensures.iter().enumerate() {
+<a href=#240 id=240 data-nosnippet>240</a>            <span class="kw">if let </span>rty::Ensures::Type(path, ty_a) = ensures {
+<a href=#241 id=241 data-nosnippet>241</a>                <span class="kw">let </span>loc = path.to_loc().unwrap();
+<a href=#242 id=242 data-nosnippet>242</a>                <span class="kw">let </span>ty_b = <span class="self">self</span>.locs.get(<span class="kw-2">&amp;</span>loc).unwrap().clone();
+<a href=#243 id=243 data-nosnippet>243</a>                <span class="self">self</span>.zip_ty(ty_a, <span class="kw-2">&amp;</span>ty_b)
+<a href=#244 id=244 data-nosnippet>244</a>                    .map_err(|<span class="kw">_</span>| FnSigErr::Ensures { i, expected: ty_b })<span class="question-mark">?</span>;
+<a href=#245 id=245 data-nosnippet>245</a>            }
+<a href=#246 id=246 data-nosnippet>246</a>        }
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="prelude-val">Ok</span>(())
+<a href=#248 id=248 data-nosnippet>248</a>    }
+<a href=#249 id=249 data-nosnippet>249</a>
+<a href=#250 id=250 data-nosnippet>250</a>    <span class="kw">fn </span>zip_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Ty, b: <span class="kw-2">&amp;</span>rty::Ty) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">match </span>(a.kind(), b.kind()) {
+<a href=#252 id=252 data-nosnippet>252</a>            (rty::TyKind::Infer(vid), <span class="kw">_</span>) =&gt; {
+<a href=#253 id=253 data-nosnippet>253</a>                <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
+<a href=#254 id=254 data-nosnippet>254</a>                <span class="kw">let </span>b = <span class="self">self</span>.adjust_bvars(b);
+<a href=#255 id=255 data-nosnippet>255</a>                <span class="self">self</span>.holes.types.insert(<span class="kw-2">*</span>vid, b);
+<a href=#256 id=256 data-nosnippet>256</a>                <span class="prelude-val">Ok</span>(())
+<a href=#257 id=257 data-nosnippet>257</a>            }
+<a href=#258 id=258 data-nosnippet>258</a>            (rty::TyKind::Exists(ctor_a), <span class="kw">_</span>) =&gt; {
+<a href=#259 id=259 data-nosnippet>259</a>                <span class="self">self</span>.enter_a_binder(ctor_a, |this, ty_a| this.zip_ty(ty_a, b))
+<a href=#260 id=260 data-nosnippet>260</a>            }
+<a href=#261 id=261 data-nosnippet>261</a>            (<span class="kw">_</span>, rty::TyKind::Exists(ctor_b)) =&gt; {
+<a href=#262 id=262 data-nosnippet>262</a>                <span class="self">self</span>.enter_b_binder(ctor_b, |this, ty_b| this.zip_ty(a, ty_b))
+<a href=#263 id=263 data-nosnippet>263</a>            }
+<a href=#264 id=264 data-nosnippet>264</a>            (rty::TyKind::Constr(<span class="kw">_</span>, ty_a), <span class="kw">_</span>) =&gt; <span class="self">self</span>.zip_ty(ty_a, b),
+<a href=#265 id=265 data-nosnippet>265</a>            (<span class="kw">_</span>, rty::TyKind::Constr(<span class="kw">_</span>, ty_b)) =&gt; <span class="self">self</span>.zip_ty(a, ty_b),
+<a href=#266 id=266 data-nosnippet>266</a>            (rty::TyKind::Indexed(bty_a, <span class="kw">_</span>), rty::TyKind::Indexed(bty_b, <span class="kw">_</span>)) =&gt; {
+<a href=#267 id=267 data-nosnippet>267</a>                <span class="self">self</span>.zip_bty(bty_a, bty_b)
+<a href=#268 id=268 data-nosnippet>268</a>            }
+<a href=#269 id=269 data-nosnippet>269</a>            (rty::TyKind::StrgRef(re_a, path, ty_a), <span class="macro">rty::Ref!</span>(re_b, ty_b, Mutability::Mut)) =&gt; {
+<a href=#270 id=270 data-nosnippet>270</a>                <span class="kw">let </span>loc = path.to_loc().unwrap();
+<a href=#271 id=271 data-nosnippet>271</a>                <span class="self">self</span>.locs.insert(loc, ty_b.clone());
+<a href=#272 id=272 data-nosnippet>272</a>
+<a href=#273 id=273 data-nosnippet>273</a>                <span class="self">self</span>.zip_region(re_a, re_b);
+<a href=#274 id=274 data-nosnippet>274</a>                <span class="self">self</span>.zip_ty(ty_a, ty_b)
+<a href=#275 id=275 data-nosnippet>275</a>            }
+<a href=#276 id=276 data-nosnippet>276</a>            (rty::TyKind::Param(pty_a), rty::TyKind::Param(pty_b)) =&gt; {
+<a href=#277 id=277 data-nosnippet>277</a>                assert_eq_or_incompatible(pty_a, pty_b)
+<a href=#278 id=278 data-nosnippet>278</a>            }
+<a href=#279 id=279 data-nosnippet>279</a>            (
+<a href=#280 id=280 data-nosnippet>280</a>                rty::TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
+<a href=#281 id=281 data-nosnippet>281</a>                | rty::TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
+<a href=#282 id=282 data-nosnippet>282</a>                | rty::TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
+<a href=#283 id=283 data-nosnippet>283</a>                | rty::TyKind::Blocked(<span class="kw">_</span>)
+<a href=#284 id=284 data-nosnippet>284</a>                | rty::TyKind::Uninit,
+<a href=#285 id=285 data-nosnippet>285</a>                <span class="kw">_</span>,
+<a href=#286 id=286 data-nosnippet>286</a>            ) =&gt; {
+<a href=#287 id=287 data-nosnippet>287</a>                <span class="macro">bug!</span>(<span class="string">"unexpected type {a:?}"</span>);
+<a href=#288 id=288 data-nosnippet>288</a>            }
+<a href=#289 id=289 data-nosnippet>289</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
+<a href=#290 id=290 data-nosnippet>290</a>        }
+<a href=#291 id=291 data-nosnippet>291</a>    }
+<a href=#292 id=292 data-nosnippet>292</a>
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="kw">fn </span>zip_bty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::BaseTy, b: <span class="kw-2">&amp;</span>rty::BaseTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">match </span>(a, b) {
+<a href=#295 id=295 data-nosnippet>295</a>            (rty::BaseTy::Int(ity_a), rty::BaseTy::Int(ity_b)) =&gt; {
+<a href=#296 id=296 data-nosnippet>296</a>                assert_eq_or_incompatible(ity_a, ity_b)
+<a href=#297 id=297 data-nosnippet>297</a>            }
+<a href=#298 id=298 data-nosnippet>298</a>            (rty::BaseTy::Uint(uity_a), rty::BaseTy::Uint(uity_b)) =&gt; {
+<a href=#299 id=299 data-nosnippet>299</a>                assert_eq_or_incompatible(uity_a, uity_b)
+<a href=#300 id=300 data-nosnippet>300</a>            }
+<a href=#301 id=301 data-nosnippet>301</a>            (rty::BaseTy::Bool, rty::BaseTy::Bool) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#302 id=302 data-nosnippet>302</a>            (rty::BaseTy::Str, rty::BaseTy::Str) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#303 id=303 data-nosnippet>303</a>            (rty::BaseTy::Char, rty::BaseTy::Char) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#304 id=304 data-nosnippet>304</a>            (rty::BaseTy::Float(fty_a), rty::BaseTy::Float(fty_b)) =&gt; {
+<a href=#305 id=305 data-nosnippet>305</a>                assert_eq_or_incompatible(fty_a, fty_b)
+<a href=#306 id=306 data-nosnippet>306</a>            }
+<a href=#307 id=307 data-nosnippet>307</a>            (rty::BaseTy::Slice(ty_a), rty::BaseTy::Slice(ty_b)) =&gt; <span class="self">self</span>.zip_ty(ty_a, ty_b),
+<a href=#308 id=308 data-nosnippet>308</a>            (rty::BaseTy::Adt(adt_def_a, args_a), rty::BaseTy::Adt(adt_def_b, args_b)) =&gt; {
+<a href=#309 id=309 data-nosnippet>309</a>                assert_eq_or_incompatible(adt_def_a.did(), adt_def_b.did())<span class="question-mark">?</span>;
+<a href=#310 id=310 data-nosnippet>310</a>                assert_eq_or_incompatible(args_a.len(), args_b.len())<span class="question-mark">?</span>;
+<a href=#311 id=311 data-nosnippet>311</a>                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(args_a, args_b) {
+<a href=#312 id=312 data-nosnippet>312</a>                    <span class="self">self</span>.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
+<a href=#313 id=313 data-nosnippet>313</a>                }
+<a href=#314 id=314 data-nosnippet>314</a>                <span class="prelude-val">Ok</span>(())
+<a href=#315 id=315 data-nosnippet>315</a>            }
+<a href=#316 id=316 data-nosnippet>316</a>            (rty::BaseTy::RawPtr(ty_a, mutbl_a), rty::BaseTy::RawPtr(ty_b, mutbl_b)) =&gt; {
+<a href=#317 id=317 data-nosnippet>317</a>                assert_eq_or_incompatible(mutbl_a, mutbl_b)<span class="question-mark">?</span>;
+<a href=#318 id=318 data-nosnippet>318</a>                <span class="self">self</span>.zip_ty(ty_a, ty_b)
+<a href=#319 id=319 data-nosnippet>319</a>            }
+<a href=#320 id=320 data-nosnippet>320</a>            (rty::BaseTy::Ref(re_a, ty_a, mutbl_a), rty::BaseTy::Ref(re_b, ty_b, mutbl_b)) =&gt; {
+<a href=#321 id=321 data-nosnippet>321</a>                assert_eq_or_incompatible(mutbl_a, mutbl_b)<span class="question-mark">?</span>;
+<a href=#322 id=322 data-nosnippet>322</a>                <span class="self">self</span>.zip_region(re_a, re_b);
+<a href=#323 id=323 data-nosnippet>323</a>                <span class="self">self</span>.zip_ty(ty_a, ty_b)
+<a href=#324 id=324 data-nosnippet>324</a>            }
+<a href=#325 id=325 data-nosnippet>325</a>            (rty::BaseTy::FnPtr(poly_sig_a), rty::BaseTy::FnPtr(poly_sig_b)) =&gt; {
+<a href=#326 id=326 data-nosnippet>326</a>                <span class="self">self</span>.zip_poly_fn_sig(poly_sig_a, poly_sig_b)
+<a href=#327 id=327 data-nosnippet>327</a>                    .map_err(|<span class="kw">_</span>| Mismatch::new(poly_sig_a, poly_sig_b))
+<a href=#328 id=328 data-nosnippet>328</a>            }
+<a href=#329 id=329 data-nosnippet>329</a>            (rty::BaseTy::Tuple(tys_a), rty::BaseTy::Tuple(tys_b)) =&gt; {
+<a href=#330 id=330 data-nosnippet>330</a>                assert_eq_or_incompatible(tys_a.len(), tys_b.len())<span class="question-mark">?</span>;
+<a href=#331 id=331 data-nosnippet>331</a>                <span class="kw">for </span>(ty_a, ty_b) <span class="kw">in </span>iter::zip(tys_a, tys_b) {
+<a href=#332 id=332 data-nosnippet>332</a>                    <span class="self">self</span>.zip_ty(ty_a, ty_b)<span class="question-mark">?</span>;
+<a href=#333 id=333 data-nosnippet>333</a>                }
+<a href=#334 id=334 data-nosnippet>334</a>                <span class="prelude-val">Ok</span>(())
+<a href=#335 id=335 data-nosnippet>335</a>            }
+<a href=#336 id=336 data-nosnippet>336</a>            (rty::BaseTy::Alias(kind_a, aty_a), rty::BaseTy::Alias(kind_b, aty_b)) =&gt; {
+<a href=#337 id=337 data-nosnippet>337</a>                assert_eq_or_incompatible(kind_a, kind_b)<span class="question-mark">?</span>;
+<a href=#338 id=338 data-nosnippet>338</a>                assert_eq_or_incompatible(aty_a.def_id, aty_b.def_id)<span class="question-mark">?</span>;
+<a href=#339 id=339 data-nosnippet>339</a>                assert_eq_or_incompatible(aty_a.args.len(), aty_b.args.len())<span class="question-mark">?</span>;
+<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>aty_a.args, <span class="kw-2">&amp;</span>aty_b.args) {
+<a href=#341 id=341 data-nosnippet>341</a>                    <span class="self">self</span>.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
+<a href=#342 id=342 data-nosnippet>342</a>                }
+<a href=#343 id=343 data-nosnippet>343</a>                <span class="prelude-val">Ok</span>(())
+<a href=#344 id=344 data-nosnippet>344</a>            }
+<a href=#345 id=345 data-nosnippet>345</a>            (rty::BaseTy::Array(ty_a, len_a), rty::BaseTy::Array(ty_b, len_b)) =&gt; {
+<a href=#346 id=346 data-nosnippet>346</a>                <span class="self">self</span>.zip_const(len_a, len_b)<span class="question-mark">?</span>;
+<a href=#347 id=347 data-nosnippet>347</a>                <span class="self">self</span>.zip_ty(ty_a, ty_b)
+<a href=#348 id=348 data-nosnippet>348</a>            }
+<a href=#349 id=349 data-nosnippet>349</a>            (rty::BaseTy::Never, rty::BaseTy::Never) =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#350 id=350 data-nosnippet>350</a>            (rty::BaseTy::Param(pty_a), rty::BaseTy::Param(pty_b)) =&gt; {
+<a href=#351 id=351 data-nosnippet>351</a>                assert_eq_or_incompatible(pty_a, pty_b)
+<a href=#352 id=352 data-nosnippet>352</a>            }
+<a href=#353 id=353 data-nosnippet>353</a>            (rty::BaseTy::Dynamic(preds_a, re_a), rty::BaseTy::Dynamic(preds_b, re_b)) =&gt; {
+<a href=#354 id=354 data-nosnippet>354</a>                assert_eq_or_incompatible(preds_a.len(), preds_b.len())<span class="question-mark">?</span>;
+<a href=#355 id=355 data-nosnippet>355</a>                <span class="kw">for </span>(pred_a, pred_b) <span class="kw">in </span>iter::zip(preds_a, preds_b) {
+<a href=#356 id=356 data-nosnippet>356</a>                    <span class="self">self</span>.zip_poly_existential_pred(pred_a, pred_b)<span class="question-mark">?</span>;
+<a href=#357 id=357 data-nosnippet>357</a>                }
+<a href=#358 id=358 data-nosnippet>358</a>                <span class="self">self</span>.zip_region(re_a, re_b);
+<a href=#359 id=359 data-nosnippet>359</a>                <span class="prelude-val">Ok</span>(())
+<a href=#360 id=360 data-nosnippet>360</a>            }
+<a href=#361 id=361 data-nosnippet>361</a>            (rty::BaseTy::Foreign(def_id_a), rty::BaseTy::Foreign(def_id_b)) =&gt; {
+<a href=#362 id=362 data-nosnippet>362</a>                assert_eq_or_incompatible(def_id_a, def_id_b)
+<a href=#363 id=363 data-nosnippet>363</a>            }
+<a href=#364 id=364 data-nosnippet>364</a>            (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), <span class="kw">_</span>) =&gt; {
+<a href=#365 id=365 data-nosnippet>365</a>                <span class="macro">bug!</span>(<span class="string">"unexpected type `{a:?}`"</span>);
+<a href=#366 id=366 data-nosnippet>366</a>            }
+<a href=#367 id=367 data-nosnippet>367</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
+<a href=#368 id=368 data-nosnippet>368</a>        }
+<a href=#369 id=369 data-nosnippet>369</a>    }
+<a href=#370 id=370 data-nosnippet>370</a>
+<a href=#371 id=371 data-nosnippet>371</a>    <span class="kw">fn </span>zip_generic_arg(
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#373 id=373 data-nosnippet>373</a>        a: <span class="kw-2">&amp;</span>rty::GenericArg,
+<a href=#374 id=374 data-nosnippet>374</a>        b: <span class="kw-2">&amp;</span>rty::GenericArg,
+<a href=#375 id=375 data-nosnippet>375</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">match </span>(a, b) {
+<a href=#377 id=377 data-nosnippet>377</a>            (rty::GenericArg::Ty(ty_a), rty::GenericArg::Ty(ty_b)) =&gt; <span class="self">self</span>.zip_ty(ty_a, ty_b),
+<a href=#378 id=378 data-nosnippet>378</a>            (rty::GenericArg::Base(ctor_a), rty::GenericArg::Base(ctor_b)) =&gt; {
+<a href=#379 id=379 data-nosnippet>379</a>                <span class="self">self</span>.zip_sorts(<span class="kw-2">&amp;</span>ctor_a.sort(), <span class="kw-2">&amp;</span>ctor_b.sort());
+<a href=#380 id=380 data-nosnippet>380</a>                <span class="self">self</span>.enter_binders(ctor_a, ctor_b, |this, sty_a, sty_b| {
+<a href=#381 id=381 data-nosnippet>381</a>                    this.zip_subset_ty(sty_a, sty_b)
+<a href=#382 id=382 data-nosnippet>382</a>                })
+<a href=#383 id=383 data-nosnippet>383</a>            }
+<a href=#384 id=384 data-nosnippet>384</a>            (rty::GenericArg::Lifetime(re_a), rty::GenericArg::Lifetime(re_b)) =&gt; {
+<a href=#385 id=385 data-nosnippet>385</a>                <span class="self">self</span>.zip_region(re_a, re_b);
+<a href=#386 id=386 data-nosnippet>386</a>                <span class="prelude-val">Ok</span>(())
+<a href=#387 id=387 data-nosnippet>387</a>            }
+<a href=#388 id=388 data-nosnippet>388</a>            (rty::GenericArg::Const(ct_a), rty::GenericArg::Const(ct_b)) =&gt; {
+<a href=#389 id=389 data-nosnippet>389</a>                <span class="self">self</span>.zip_const(ct_a, ct_b)
+<a href=#390 id=390 data-nosnippet>390</a>            }
+<a href=#391 id=391 data-nosnippet>391</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
+<a href=#392 id=392 data-nosnippet>392</a>        }
+<a href=#393 id=393 data-nosnippet>393</a>    }
+<a href=#394 id=394 data-nosnippet>394</a>
+<a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">fn </span>zip_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Sort, b: <span class="kw-2">&amp;</span>rty::Sort) {
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = a {
+<a href=#397 id=397 data-nosnippet>397</a>            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
+<a href=#398 id=398 data-nosnippet>398</a>            <span class="self">self</span>.holes.sorts.insert(<span class="kw-2">*</span>vid, b.clone());
+<a href=#399 id=399 data-nosnippet>399</a>        }
+<a href=#400 id=400 data-nosnippet>400</a>    }
+<a href=#401 id=401 data-nosnippet>401</a>
+<a href=#402 id=402 data-nosnippet>402</a>    <span class="kw">fn </span>zip_subset_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::SubsetTy, b: <span class="kw-2">&amp;</span>rty::SubsetTy) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#403 id=403 data-nosnippet>403</a>        <span class="kw">if let </span>rty::BaseTy::Infer(vid) = a.bty {
+<a href=#404 id=404 data-nosnippet>404</a>            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
+<a href=#405 id=405 data-nosnippet>405</a>            <span class="kw">let </span>b = <span class="self">self</span>.adjust_bvars(b);
+<a href=#406 id=406 data-nosnippet>406</a>            <span class="self">self</span>.holes.subset_tys.insert(vid, b);
+<a href=#407 id=407 data-nosnippet>407</a>            <span class="prelude-val">Ok</span>(())
+<a href=#408 id=408 data-nosnippet>408</a>        } <span class="kw">else </span>{
+<a href=#409 id=409 data-nosnippet>409</a>            <span class="self">self</span>.zip_bty(<span class="kw-2">&amp;</span>a.bty, <span class="kw-2">&amp;</span>b.bty)
+<a href=#410 id=410 data-nosnippet>410</a>        }
+<a href=#411 id=411 data-nosnippet>411</a>    }
+<a href=#412 id=412 data-nosnippet>412</a>
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">fn </span>zip_const(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Const, b: <span class="kw-2">&amp;</span>ty::Const) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="kw">match </span>(<span class="kw-2">&amp;</span>a.kind, <span class="kw-2">&amp;</span>b.kind) {
+<a href=#415 id=415 data-nosnippet>415</a>            (rty::ConstKind::Infer(ty::InferConst::Var(cid)), <span class="kw">_</span>) =&gt; {
+<a href=#416 id=416 data-nosnippet>416</a>                <span class="self">self</span>.holes.consts.insert(<span class="kw-2">*</span>cid, b.clone());
+<a href=#417 id=417 data-nosnippet>417</a>                <span class="prelude-val">Ok</span>(())
+<a href=#418 id=418 data-nosnippet>418</a>            }
+<a href=#419 id=419 data-nosnippet>419</a>            (rty::ConstKind::Param(param_const_a), ty::ConstKind::Param(param_const_b)) =&gt; {
+<a href=#420 id=420 data-nosnippet>420</a>                assert_eq_or_incompatible(param_const_a, param_const_b)
+<a href=#421 id=421 data-nosnippet>421</a>            }
+<a href=#422 id=422 data-nosnippet>422</a>            (rty::ConstKind::Value(ty_a, val_a), ty::ConstKind::Value(ty_b, val_b)) =&gt; {
+<a href=#423 id=423 data-nosnippet>423</a>                assert_eq_or_incompatible(ty_a, ty_b)<span class="question-mark">?</span>;
+<a href=#424 id=424 data-nosnippet>424</a>                assert_eq_or_incompatible(val_a, val_b)
+<a href=#425 id=425 data-nosnippet>425</a>            }
+<a href=#426 id=426 data-nosnippet>426</a>            (rty::ConstKind::Unevaluated(c1), ty::ConstKind::Unevaluated(c2)) =&gt; {
+<a href=#427 id=427 data-nosnippet>427</a>                assert_eq_or_incompatible(c1, c2)
+<a href=#428 id=428 data-nosnippet>428</a>            }
+<a href=#429 id=429 data-nosnippet>429</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
+<a href=#430 id=430 data-nosnippet>430</a>        }
+<a href=#431 id=431 data-nosnippet>431</a>    }
+<a href=#432 id=432 data-nosnippet>432</a>
+<a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">fn </span>zip_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Region, b: <span class="kw-2">&amp;</span>ty::Region) {
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">if let </span>rty::Region::ReVar(vid) = a {
+<a href=#435 id=435 data-nosnippet>435</a>            <span class="kw">let </span>re = <span class="self">self</span>.adjust_bvars(b);
+<a href=#436 id=436 data-nosnippet>436</a>            <span class="self">self</span>.holes.regions.insert(<span class="kw-2">*</span>vid, re);
+<a href=#437 id=437 data-nosnippet>437</a>        }
+<a href=#438 id=438 data-nosnippet>438</a>    }
+<a href=#439 id=439 data-nosnippet>439</a>
+<a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">fn </span>zip_poly_existential_pred(
+<a href=#441 id=441 data-nosnippet>441</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#442 id=442 data-nosnippet>442</a>        a: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
+<a href=#443 id=443 data-nosnippet>443</a>        b: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::ExistentialPredicate&gt;,
+<a href=#444 id=444 data-nosnippet>444</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="self">self</span>.enter_binders(a, b, |this, a, b| {
+<a href=#446 id=446 data-nosnippet>446</a>            <span class="kw">match </span>(a, b) {
+<a href=#447 id=447 data-nosnippet>447</a>                (
+<a href=#448 id=448 data-nosnippet>448</a>                    rty::ExistentialPredicate::Trait(trait_ref_a),
+<a href=#449 id=449 data-nosnippet>449</a>                    rty::ExistentialPredicate::Trait(trait_ref_b),
+<a href=#450 id=450 data-nosnippet>450</a>                ) =&gt; {
+<a href=#451 id=451 data-nosnippet>451</a>                    assert_eq_or_incompatible(trait_ref_a.def_id, trait_ref_b.def_id)<span class="question-mark">?</span>;
+<a href=#452 id=452 data-nosnippet>452</a>                    assert_eq_or_incompatible(trait_ref_a.args.len(), trait_ref_b.args.len())<span class="question-mark">?</span>;
+<a href=#453 id=453 data-nosnippet>453</a>                    <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>trait_ref_a.args, <span class="kw-2">&amp;</span>trait_ref_b.args) {
+<a href=#454 id=454 data-nosnippet>454</a>                        this.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
+<a href=#455 id=455 data-nosnippet>455</a>                    }
+<a href=#456 id=456 data-nosnippet>456</a>                    <span class="prelude-val">Ok</span>(())
+<a href=#457 id=457 data-nosnippet>457</a>                }
+<a href=#458 id=458 data-nosnippet>458</a>                (
+<a href=#459 id=459 data-nosnippet>459</a>                    rty::ExistentialPredicate::Projection(projection_a),
+<a href=#460 id=460 data-nosnippet>460</a>                    rty::ExistentialPredicate::Projection(projection_b),
+<a href=#461 id=461 data-nosnippet>461</a>                ) =&gt; {
+<a href=#462 id=462 data-nosnippet>462</a>                    assert_eq_or_incompatible(projection_a.def_id, projection_b.def_id)<span class="question-mark">?</span>;
+<a href=#463 id=463 data-nosnippet>463</a>                    assert_eq_or_incompatible(projection_a.args.len(), projection_b.args.len())<span class="question-mark">?</span>;
+<a href=#464 id=464 data-nosnippet>464</a>                    <span class="kw">for </span>(arg_a, arg_b) <span class="kw">in </span>iter::zip(<span class="kw-2">&amp;</span>projection_a.args, <span class="kw-2">&amp;</span>projection_b.args) {
+<a href=#465 id=465 data-nosnippet>465</a>                        this.zip_generic_arg(arg_a, arg_b)<span class="question-mark">?</span>;
+<a href=#466 id=466 data-nosnippet>466</a>                    }
+<a href=#467 id=467 data-nosnippet>467</a>                    this.enter_binders(<span class="kw-2">&amp;</span>projection_a.term, <span class="kw-2">&amp;</span>projection_b.term, |this, a, b| {
+<a href=#468 id=468 data-nosnippet>468</a>                        this.zip_bty(<span class="kw-2">&amp;</span>a.bty, <span class="kw-2">&amp;</span>b.bty)
+<a href=#469 id=469 data-nosnippet>469</a>                    })
+<a href=#470 id=470 data-nosnippet>470</a>                }
+<a href=#471 id=471 data-nosnippet>471</a>                (
+<a href=#472 id=472 data-nosnippet>472</a>                    rty::ExistentialPredicate::AutoTrait(def_id_a),
+<a href=#473 id=473 data-nosnippet>473</a>                    rty::ExistentialPredicate::AutoTrait(def_id_b),
+<a href=#474 id=474 data-nosnippet>474</a>                ) =&gt; assert_eq_or_incompatible(def_id_a, def_id_b),
+<a href=#475 id=475 data-nosnippet>475</a>                <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Mismatch::new(a, b)),
+<a href=#476 id=476 data-nosnippet>476</a>            }
+<a href=#477 id=477 data-nosnippet>477</a>        })
+<a href=#478 id=478 data-nosnippet>478</a>    }
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a>    <span class="doccomment">/// Enter a binder in both `a` and `b` creating a mapping between the two.
+<a href=#481 id=481 data-nosnippet>481</a>    </span><span class="kw">fn </span>enter_binders&lt;T, R&gt;(
+<a href=#482 id=482 data-nosnippet>482</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#483 id=483 data-nosnippet>483</a>        a: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
+<a href=#484 id=484 data-nosnippet>484</a>        b: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
+<a href=#485 id=485 data-nosnippet>485</a>        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, <span class="kw-2">&amp;</span>T, <span class="kw-2">&amp;</span>T) -&gt; R,
+<a href=#486 id=486 data-nosnippet>486</a>    ) -&gt; R {
+<a href=#487 id=487 data-nosnippet>487</a>        <span class="self">self</span>.b_binder_to_a_binder.push(<span class="prelude-val">Some</span>(<span class="self">self</span>.a_binders));
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="self">self</span>.a_binders += <span class="number">1</span>;
+<a href=#489 id=489 data-nosnippet>489</a>        <span class="kw">let </span>r = f(<span class="self">self</span>, a.skip_binder_ref(), b.skip_binder_ref());
+<a href=#490 id=490 data-nosnippet>490</a>        <span class="self">self</span>.a_binders -= <span class="number">1</span>;
+<a href=#491 id=491 data-nosnippet>491</a>        <span class="self">self</span>.b_binder_to_a_binder.pop();
+<a href=#492 id=492 data-nosnippet>492</a>        r
+<a href=#493 id=493 data-nosnippet>493</a>    }
+<a href=#494 id=494 data-nosnippet>494</a>
+<a href=#495 id=495 data-nosnippet>495</a>    <span class="doccomment">/// Enter a binder in `a` without a corresponding mapping in `b`
+<a href=#496 id=496 data-nosnippet>496</a>    </span><span class="kw">fn </span>enter_a_binder&lt;T, R&gt;(
+<a href=#497 id=497 data-nosnippet>497</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#498 id=498 data-nosnippet>498</a>        t: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
+<a href=#499 id=499 data-nosnippet>499</a>        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, <span class="kw-2">&amp;</span>T) -&gt; R,
+<a href=#500 id=500 data-nosnippet>500</a>    ) -&gt; R {
+<a href=#501 id=501 data-nosnippet>501</a>        <span class="self">self</span>.a_binders += <span class="number">1</span>;
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">let </span>r = f(<span class="self">self</span>, t.skip_binder_ref());
+<a href=#503 id=503 data-nosnippet>503</a>        <span class="self">self</span>.a_binders -= <span class="number">1</span>;
+<a href=#504 id=504 data-nosnippet>504</a>        r
+<a href=#505 id=505 data-nosnippet>505</a>    }
+<a href=#506 id=506 data-nosnippet>506</a>
+<a href=#507 id=507 data-nosnippet>507</a>    <span class="doccomment">/// Enter a binder in `b` without a corresponding mapping in `a`
+<a href=#508 id=508 data-nosnippet>508</a>    </span><span class="kw">fn </span>enter_b_binder&lt;T, R&gt;(
+<a href=#509 id=509 data-nosnippet>509</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#510 id=510 data-nosnippet>510</a>        t: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;,
+<a href=#511 id=511 data-nosnippet>511</a>        f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, <span class="kw-2">&amp;</span>T) -&gt; R,
+<a href=#512 id=512 data-nosnippet>512</a>    ) -&gt; R {
+<a href=#513 id=513 data-nosnippet>513</a>        <span class="self">self</span>.b_binder_to_a_binder.push(<span class="prelude-val">None</span>);
+<a href=#514 id=514 data-nosnippet>514</a>        <span class="kw">let </span>r = f(<span class="self">self</span>, t.skip_binder_ref());
+<a href=#515 id=515 data-nosnippet>515</a>        <span class="self">self</span>.b_binder_to_a_binder.pop();
+<a href=#516 id=516 data-nosnippet>516</a>        r
+<a href=#517 id=517 data-nosnippet>517</a>    }
+<a href=#518 id=518 data-nosnippet>518</a>
+<a href=#519 id=519 data-nosnippet>519</a>    <span class="kw">fn </span>adjust_bvars&lt;T: TypeFoldable + Clone + std::fmt::Debug&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>T) -&gt; T {
+<a href=#520 id=520 data-nosnippet>520</a>        <span class="kw">struct </span>Adjuster&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<a href=#521 id=521 data-nosnippet>521</a>            current_index: DebruijnIndex,
+<a href=#522 id=522 data-nosnippet>522</a>            zipper: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Zipper&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#523 id=523 data-nosnippet>523</a>        }
+<a href=#524 id=524 data-nosnippet>524</a>
+<a href=#525 id=525 data-nosnippet>525</a>        <span class="kw">impl </span>Adjuster&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<a href=#526 id=526 data-nosnippet>526</a>            <span class="kw">fn </span>adjust(<span class="kw-2">&amp;</span><span class="self">self</span>, debruijn: DebruijnIndex) -&gt; DebruijnIndex {
+<a href=#527 id=527 data-nosnippet>527</a>                <span class="kw">let </span>b_binders = <span class="self">self</span>.zipper.b_binder_to_a_binder.len();
+<a href=#528 id=528 data-nosnippet>528</a>                <span class="kw">let </span>mapped_binder = <span class="self">self</span>.zipper.b_binder_to_a_binder
+<a href=#529 id=529 data-nosnippet>529</a>                    [b_binders - debruijn.as_usize() - <span class="number">1</span>]
+<a href=#530 id=530 data-nosnippet>530</a>                    .unwrap_or_else(|| {
+<a href=#531 id=531 data-nosnippet>531</a>                        <span class="macro">bug!</span>(<span class="string">"bound var without corresponding binder: `{debruijn:?}`"</span>)
+<a href=#532 id=532 data-nosnippet>532</a>                    });
+<a href=#533 id=533 data-nosnippet>533</a>                DebruijnIndex::from_u32(<span class="self">self</span>.zipper.a_binders - mapped_binder - <span class="number">1</span>)
+<a href=#534 id=534 data-nosnippet>534</a>                    .shifted_in(<span class="self">self</span>.current_index.as_u32())
+<a href=#535 id=535 data-nosnippet>535</a>            }
+<a href=#536 id=536 data-nosnippet>536</a>        }
+<a href=#537 id=537 data-nosnippet>537</a>
+<a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">impl </span>TypeFolder <span class="kw">for </span>Adjuster&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<a href=#539 id=539 data-nosnippet>539</a>            <span class="kw">fn </span>fold_binder&lt;T&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: <span class="kw-2">&amp;</span>rty::Binder&lt;T&gt;) -&gt; rty::Binder&lt;T&gt;
+<a href=#540 id=540 data-nosnippet>540</a>            <span class="kw">where
+<a href=#541 id=541 data-nosnippet>541</a>                </span>T: TypeFoldable,
+<a href=#542 id=542 data-nosnippet>542</a>            {
+<a href=#543 id=543 data-nosnippet>543</a>                <span class="self">self</span>.current_index.shift_in(<span class="number">1</span>);
+<a href=#544 id=544 data-nosnippet>544</a>                <span class="kw">let </span>r = t.super_fold_with(<span class="self">self</span>);
+<a href=#545 id=545 data-nosnippet>545</a>                <span class="self">self</span>.current_index.shift_out(<span class="number">1</span>);
+<a href=#546 id=546 data-nosnippet>546</a>                r
+<a href=#547 id=547 data-nosnippet>547</a>            }
+<a href=#548 id=548 data-nosnippet>548</a>
+<a href=#549 id=549 data-nosnippet>549</a>            <span class="kw">fn </span>fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>rty::Region) -&gt; rty::Region {
+<a href=#550 id=550 data-nosnippet>550</a>                <span class="kw">if let </span>rty::ReBound(debruijn, br) = <span class="kw-2">*</span>re
+<a href=#551 id=551 data-nosnippet>551</a>                    &amp;&amp; debruijn &gt;= <span class="self">self</span>.current_index
+<a href=#552 id=552 data-nosnippet>552</a>                {
+<a href=#553 id=553 data-nosnippet>553</a>                    rty::ReBound(<span class="self">self</span>.adjust(debruijn), br)
+<a href=#554 id=554 data-nosnippet>554</a>                } <span class="kw">else </span>{
+<a href=#555 id=555 data-nosnippet>555</a>                    <span class="kw-2">*</span>re
+<a href=#556 id=556 data-nosnippet>556</a>                }
+<a href=#557 id=557 data-nosnippet>557</a>            }
+<a href=#558 id=558 data-nosnippet>558</a>
+<a href=#559 id=559 data-nosnippet>559</a>            <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>rty::Expr) -&gt; rty::Expr {
+<a href=#560 id=560 data-nosnippet>560</a>                <span class="kw">if let </span>rty::ExprKind::Var(rty::Var::Bound(debruijn, breft)) = expr.kind()
+<a href=#561 id=561 data-nosnippet>561</a>                    &amp;&amp; <span class="kw-2">*</span>debruijn &gt;= <span class="self">self</span>.current_index
+<a href=#562 id=562 data-nosnippet>562</a>                {
+<a href=#563 id=563 data-nosnippet>563</a>                    rty::Expr::bvar(<span class="self">self</span>.adjust(<span class="kw-2">*</span>debruijn), breft.var, breft.kind)
+<a href=#564 id=564 data-nosnippet>564</a>                } <span class="kw">else </span>{
+<a href=#565 id=565 data-nosnippet>565</a>                    expr.super_fold_with(<span class="self">self</span>)
+<a href=#566 id=566 data-nosnippet>566</a>                }
+<a href=#567 id=567 data-nosnippet>567</a>            }
+<a href=#568 id=568 data-nosnippet>568</a>        }
+<a href=#569 id=569 data-nosnippet>569</a>        t.fold_with(<span class="kw-2">&amp;mut </span>Adjuster { current_index: INNERMOST, zipper: <span class="self">self </span>})
+<a href=#570 id=570 data-nosnippet>570</a>    }
+<a href=#571 id=571 data-nosnippet>571</a>
+<a href=#572 id=572 data-nosnippet>572</a>    <span class="kw">fn </span>emit_fn_sig_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>, err: FnSigErr, decl: <span class="kw-2">&amp;</span>fhir::FnDecl) {
+<a href=#573 id=573 data-nosnippet>573</a>        <span class="kw">match </span>err {
+<a href=#574 id=574 data-nosnippet>574</a>            FnSigErr::ArgCountMismatch =&gt; {
+<a href=#575 id=575 data-nosnippet>575</a>                <span class="self">self</span>.errors.emit(errors::IncompatibleParamCount::new(
+<a href=#576 id=576 data-nosnippet>576</a>                    <span class="self">self</span>.genv,
+<a href=#577 id=577 data-nosnippet>577</a>                    decl,
+<a href=#578 id=578 data-nosnippet>578</a>                    <span class="self">self</span>.owner_id,
+<a href=#579 id=579 data-nosnippet>579</a>                ));
+<a href=#580 id=580 data-nosnippet>580</a>            }
+<a href=#581 id=581 data-nosnippet>581</a>            FnSigErr::FnInput(i) =&gt; {
+<a href=#582 id=582 data-nosnippet>582</a>                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_input(
+<a href=#583 id=583 data-nosnippet>583</a>                    <span class="self">self</span>.genv,
+<a href=#584 id=584 data-nosnippet>584</a>                    <span class="self">self</span>.owner_id,
+<a href=#585 id=585 data-nosnippet>585</a>                    decl,
+<a href=#586 id=586 data-nosnippet>586</a>                    i,
+<a href=#587 id=587 data-nosnippet>587</a>                ));
+<a href=#588 id=588 data-nosnippet>588</a>            }
+<a href=#589 id=589 data-nosnippet>589</a>            FnSigErr::FnOutput(<span class="kw">_</span>) =&gt; {
+<a href=#590 id=590 data-nosnippet>590</a>                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::fn_output(
+<a href=#591 id=591 data-nosnippet>591</a>                    <span class="self">self</span>.genv,
+<a href=#592 id=592 data-nosnippet>592</a>                    <span class="self">self</span>.owner_id,
+<a href=#593 id=593 data-nosnippet>593</a>                    decl,
+<a href=#594 id=594 data-nosnippet>594</a>                ));
+<a href=#595 id=595 data-nosnippet>595</a>            }
+<a href=#596 id=596 data-nosnippet>596</a>            FnSigErr::Ensures { i, expected } =&gt; {
+<a href=#597 id=597 data-nosnippet>597</a>                <span class="self">self</span>.errors.emit(errors::IncompatibleRefinement::ensures(
+<a href=#598 id=598 data-nosnippet>598</a>                    <span class="self">self</span>.genv,
+<a href=#599 id=599 data-nosnippet>599</a>                    <span class="self">self</span>.owner_id,
+<a href=#600 id=600 data-nosnippet>600</a>                    decl,
+<a href=#601 id=601 data-nosnippet>601</a>                    <span class="kw-2">&amp;</span>expected,
+<a href=#602 id=602 data-nosnippet>602</a>                    i,
+<a href=#603 id=603 data-nosnippet>603</a>                ));
+<a href=#604 id=604 data-nosnippet>604</a>            }
+<a href=#605 id=605 data-nosnippet>605</a>        }
+<a href=#606 id=606 data-nosnippet>606</a>    }
+<a href=#607 id=607 data-nosnippet>607</a>}
+<a href=#608 id=608 data-nosnippet>608</a>
+<a href=#609 id=609 data-nosnippet>609</a><span class="kw">fn </span>assert_eq_or_incompatible&lt;T: Eq + fmt::Debug&gt;(a: T, b: T) -&gt; <span class="prelude-ty">Result</span>&lt;(), Mismatch&gt; {
+<a href=#610 id=610 data-nosnippet>610</a>    <span class="kw">if </span>a != b {
+<a href=#611 id=611 data-nosnippet>611</a>        <span class="kw">return </span><span class="prelude-val">Err</span>(Mismatch::new(a, b));
+<a href=#612 id=612 data-nosnippet>612</a>    }
+<a href=#613 id=613 data-nosnippet>613</a>    <span class="prelude-val">Ok</span>(())
+<a href=#614 id=614 data-nosnippet>614</a>}
+<a href=#615 id=615 data-nosnippet>615</a>
+<a href=#616 id=616 data-nosnippet>616</a><span class="attr">#[expect(dead_code, reason = <span class="string">"we use the the String for debugging"</span>)]
+<a href=#617 id=617 data-nosnippet>617</a></span><span class="kw">struct </span>Mismatch(String);
+<a href=#618 id=618 data-nosnippet>618</a>
+<a href=#619 id=619 data-nosnippet>619</a><span class="kw">impl </span>Mismatch {
+<a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">fn </span>new&lt;T: fmt::Debug&gt;(a: T, b: T) -&gt; <span class="self">Self </span>{
+<a href=#621 id=621 data-nosnippet>621</a>        <span class="self">Self</span>(<span class="macro">format!</span>(<span class="string">"{a:?} != {b:?}"</span>))
+<a href=#622 id=622 data-nosnippet>622</a>    }
+<a href=#623 id=623 data-nosnippet>623</a>}
+<a href=#624 id=624 data-nosnippet>624</a>
+<a href=#625 id=625 data-nosnippet>625</a><span class="kw">enum </span>FnSigErr {
+<a href=#626 id=626 data-nosnippet>626</a>    ArgCountMismatch,
+<a href=#627 id=627 data-nosnippet>627</a>    FnInput(usize),
+<a href=#628 id=628 data-nosnippet>628</a>    <span class="attr">#[expect(dead_code, reason = <span class="string">"we use the struct for debugging"</span>)]
+<a href=#629 id=629 data-nosnippet>629</a>    </span>FnOutput(Mismatch),
+<a href=#630 id=630 data-nosnippet>630</a>    Ensures {
+<a href=#631 id=631 data-nosnippet>631</a>        i: usize,
+<a href=#632 id=632 data-nosnippet>632</a>        expected: rty::Ty,
+<a href=#633 id=633 data-nosnippet>633</a>    },
+<a href=#634 id=634 data-nosnippet>634</a>}
+<a href=#635 id=635 data-nosnippet>635</a>
+<a href=#636 id=636 data-nosnippet>636</a><span class="kw">mod </span>errors {
+<a href=#637 id=637 data-nosnippet>637</a>    <span class="kw">use </span>flux_common::span_bug;
+<a href=#638 id=638 data-nosnippet>638</a>    <span class="kw">use </span>flux_errors::E0999;
+<a href=#639 id=639 data-nosnippet>639</a>    <span class="kw">use </span>flux_macros::Diagnostic;
+<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">use </span>flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
+<a href=#641 id=641 data-nosnippet>641</a>    <span class="kw">use </span>flux_rustc_bridge::{
+<a href=#642 id=642 data-nosnippet>642</a>        ToRustc,
+<a href=#643 id=643 data-nosnippet>643</a>        ty::{FieldIdx, VariantIdx},
+<a href=#644 id=644 data-nosnippet>644</a>    };
+<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">use </span>rustc_span::{DUMMY_SP, Span};
+<a href=#646 id=646 data-nosnippet>646</a>
+<a href=#647 id=647 data-nosnippet>647</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#648 id=648 data-nosnippet>648</a>    #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
+<a href=#649 id=649 data-nosnippet>649</a>    #[note]
+<a href=#650 id=650 data-nosnippet>650</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
+<a href=#651 id=651 data-nosnippet>651</a>        <span class="attr">#[primary_span]
+<a href=#652 id=652 data-nosnippet>652</a>        #[label]
+<a href=#653 id=653 data-nosnippet>653</a>        </span>span: Span,
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="attr">#[label(fhir_analysis_expected_label)]
+<a href=#655 id=655 data-nosnippet>655</a>        </span>expected_span: <span class="prelude-ty">Option</span>&lt;Span&gt;,
+<a href=#656 id=656 data-nosnippet>656</a>        expected_ty: rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;,
+<a href=#657 id=657 data-nosnippet>657</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#658 id=658 data-nosnippet>658</a>    }
+<a href=#659 id=659 data-nosnippet>659</a>
+<a href=#660 id=660 data-nosnippet>660</a>    <span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; IncompatibleRefinement&lt;<span class="lifetime">'tcx</span>&gt; {
+<a href=#661 id=661 data-nosnippet>661</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>type_alias(
+<a href=#662 id=662 data-nosnippet>662</a>            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#663 id=663 data-nosnippet>663</a>            def_id: MaybeExternId,
+<a href=#664 id=664 data-nosnippet>664</a>            type_alias: <span class="kw-2">&amp;</span>fhir::TyAlias,
+<a href=#665 id=665 data-nosnippet>665</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#666 id=666 data-nosnippet>666</a>            <span class="kw">let </span>tcx = genv.tcx();
+<a href=#667 id=667 data-nosnippet>667</a>            <span class="self">Self </span>{
+<a href=#668 id=668 data-nosnippet>668</a>                span: type_alias.ty.span,
+<a href=#669 id=669 data-nosnippet>669</a>                def_descr: tcx.def_descr(def_id.resolved_id()),
+<a href=#670 id=670 data-nosnippet>670</a>                expected_span: <span class="prelude-val">Some</span>(tcx.def_span(def_id)),
+<a href=#671 id=671 data-nosnippet>671</a>                expected_ty: tcx.type_of(def_id).skip_binder(),
+<a href=#672 id=672 data-nosnippet>672</a>            }
+<a href=#673 id=673 data-nosnippet>673</a>        }
+<a href=#674 id=674 data-nosnippet>674</a>
+<a href=#675 id=675 data-nosnippet>675</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_input(
+<a href=#676 id=676 data-nosnippet>676</a>            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#677 id=677 data-nosnippet>677</a>            fn_id: MaybeExternId,
+<a href=#678 id=678 data-nosnippet>678</a>            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
+<a href=#679 id=679 data-nosnippet>679</a>            pos: usize,
+<a href=#680 id=680 data-nosnippet>680</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#681 id=681 data-nosnippet>681</a>            <span class="kw">let </span>expected_span = <span class="kw">match </span>fn_id {
+<a href=#682 id=682 data-nosnippet>682</a>                MaybeExternId::Local(local_id) =&gt; {
+<a href=#683 id=683 data-nosnippet>683</a>                    genv.tcx()
+<a href=#684 id=684 data-nosnippet>684</a>                        .hir_node_by_def_id(local_id)
+<a href=#685 id=685 data-nosnippet>685</a>                        .fn_decl()
+<a href=#686 id=686 data-nosnippet>686</a>                        .and_then(|fn_decl| fn_decl.inputs.get(pos))
+<a href=#687 id=687 data-nosnippet>687</a>                        .map(|input| input.span)
+<a href=#688 id=688 data-nosnippet>688</a>                }
+<a href=#689 id=689 data-nosnippet>689</a>                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; <span class="prelude-val">Some</span>(genv.tcx().def_span(extern_id)),
+<a href=#690 id=690 data-nosnippet>690</a>            };
+<a href=#691 id=691 data-nosnippet>691</a>
+<a href=#692 id=692 data-nosnippet>692</a>            <span class="kw">let </span>expected_ty = genv
+<a href=#693 id=693 data-nosnippet>693</a>                .tcx()
+<a href=#694 id=694 data-nosnippet>694</a>                .fn_sig(fn_id.resolved_id())
+<a href=#695 id=695 data-nosnippet>695</a>                .skip_binder()
+<a href=#696 id=696 data-nosnippet>696</a>                .inputs()
+<a href=#697 id=697 data-nosnippet>697</a>                .map_bound(|inputs| inputs[pos])
+<a href=#698 id=698 data-nosnippet>698</a>                .skip_binder();
+<a href=#699 id=699 data-nosnippet>699</a>
+<a href=#700 id=700 data-nosnippet>700</a>            <span class="self">Self </span>{
+<a href=#701 id=701 data-nosnippet>701</a>                span: decl.inputs[pos].span,
+<a href=#702 id=702 data-nosnippet>702</a>                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
+<a href=#703 id=703 data-nosnippet>703</a>                expected_span,
+<a href=#704 id=704 data-nosnippet>704</a>                expected_ty,
+<a href=#705 id=705 data-nosnippet>705</a>            }
+<a href=#706 id=706 data-nosnippet>706</a>        }
+<a href=#707 id=707 data-nosnippet>707</a>
+<a href=#708 id=708 data-nosnippet>708</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>fn_output(
+<a href=#709 id=709 data-nosnippet>709</a>            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#710 id=710 data-nosnippet>710</a>            fn_id: MaybeExternId,
+<a href=#711 id=711 data-nosnippet>711</a>            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
+<a href=#712 id=712 data-nosnippet>712</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#713 id=713 data-nosnippet>713</a>            <span class="kw">let </span>expected_span = <span class="kw">match </span>fn_id {
+<a href=#714 id=714 data-nosnippet>714</a>                MaybeExternId::Local(local_id) =&gt; {
+<a href=#715 id=715 data-nosnippet>715</a>                    genv.tcx()
+<a href=#716 id=716 data-nosnippet>716</a>                        .hir_node_by_def_id(local_id)
+<a href=#717 id=717 data-nosnippet>717</a>                        .fn_decl()
+<a href=#718 id=718 data-nosnippet>718</a>                        .map(|fn_decl| fn_decl.output.span())
+<a href=#719 id=719 data-nosnippet>719</a>                }
+<a href=#720 id=720 data-nosnippet>720</a>                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; <span class="prelude-val">Some</span>(genv.tcx().def_span(extern_id)),
+<a href=#721 id=721 data-nosnippet>721</a>            };
+<a href=#722 id=722 data-nosnippet>722</a>
+<a href=#723 id=723 data-nosnippet>723</a>            <span class="kw">let </span>expected_ty = genv
+<a href=#724 id=724 data-nosnippet>724</a>                .tcx()
+<a href=#725 id=725 data-nosnippet>725</a>                .fn_sig(fn_id.resolved_id())
+<a href=#726 id=726 data-nosnippet>726</a>                .skip_binder()
+<a href=#727 id=727 data-nosnippet>727</a>                .output()
+<a href=#728 id=728 data-nosnippet>728</a>                .skip_binder();
+<a href=#729 id=729 data-nosnippet>729</a>            <span class="kw">let </span>spec_span = decl.output.ret.span;
+<a href=#730 id=730 data-nosnippet>730</a>            <span class="self">Self </span>{
+<a href=#731 id=731 data-nosnippet>731</a>                span: spec_span,
+<a href=#732 id=732 data-nosnippet>732</a>                def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
+<a href=#733 id=733 data-nosnippet>733</a>                expected_span,
+<a href=#734 id=734 data-nosnippet>734</a>                expected_ty,
+<a href=#735 id=735 data-nosnippet>735</a>            }
+<a href=#736 id=736 data-nosnippet>736</a>        }
+<a href=#737 id=737 data-nosnippet>737</a>
+<a href=#738 id=738 data-nosnippet>738</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>ensures(
+<a href=#739 id=739 data-nosnippet>739</a>            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#740 id=740 data-nosnippet>740</a>            fn_id: MaybeExternId,
+<a href=#741 id=741 data-nosnippet>741</a>            decl: <span class="kw-2">&amp;</span>fhir::FnDecl,
+<a href=#742 id=742 data-nosnippet>742</a>            expected: <span class="kw-2">&amp;</span>rty::Ty,
+<a href=#743 id=743 data-nosnippet>743</a>            i: usize,
+<a href=#744 id=744 data-nosnippet>744</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#745 id=745 data-nosnippet>745</a>            <span class="kw">let </span>fhir::Ensures::Type(<span class="kw">_</span>, ty) = <span class="kw-2">&amp;</span>decl.output.ensures[i] <span class="kw">else </span>{
+<a href=#746 id=746 data-nosnippet>746</a>                <span class="macro">span_bug!</span>(decl.span, <span class="string">"expected `fhir::Ensures::Type`"</span>);
+<a href=#747 id=747 data-nosnippet>747</a>            };
+<a href=#748 id=748 data-nosnippet>748</a>            <span class="kw">let </span>tcx = genv.tcx();
+<a href=#749 id=749 data-nosnippet>749</a>            <span class="self">Self </span>{
+<a href=#750 id=750 data-nosnippet>750</a>                span: ty.span,
+<a href=#751 id=751 data-nosnippet>751</a>                def_descr: tcx.def_descr(fn_id.resolved_id()),
+<a href=#752 id=752 data-nosnippet>752</a>                expected_span: <span class="prelude-val">None</span>,
+<a href=#753 id=753 data-nosnippet>753</a>                expected_ty: expected.to_rustc(tcx),
+<a href=#754 id=754 data-nosnippet>754</a>            }
+<a href=#755 id=755 data-nosnippet>755</a>        }
+<a href=#756 id=756 data-nosnippet>756</a>
+<a href=#757 id=757 data-nosnippet>757</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>field(
+<a href=#758 id=758 data-nosnippet>758</a>            genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#759 id=759 data-nosnippet>759</a>            adt_id: MaybeExternId,
+<a href=#760 id=760 data-nosnippet>760</a>            variant_idx: VariantIdx,
+<a href=#761 id=761 data-nosnippet>761</a>            field_idx: FieldIdx,
+<a href=#762 id=762 data-nosnippet>762</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#763 id=763 data-nosnippet>763</a>            <span class="kw">let </span>tcx = genv.tcx();
+<a href=#764 id=764 data-nosnippet>764</a>            <span class="kw">let </span>adt_def = tcx.adt_def(adt_id);
+<a href=#765 id=765 data-nosnippet>765</a>            <span class="kw">let </span>field_def = <span class="kw-2">&amp;</span>adt_def.variant(variant_idx).fields[field_idx];
+<a href=#766 id=766 data-nosnippet>766</a>
+<a href=#767 id=767 data-nosnippet>767</a>            <span class="kw">let </span>item = genv.map().expect_item(adt_id.local_id()).unwrap();
+<a href=#768 id=768 data-nosnippet>768</a>            <span class="kw">let </span>span = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
+<a href=#769 id=769 data-nosnippet>769</a>                fhir::ItemKind::Enum(enum_def) =&gt; {
+<a href=#770 id=770 data-nosnippet>770</a>                    enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
+<a href=#771 id=771 data-nosnippet>771</a>                        .ty
+<a href=#772 id=772 data-nosnippet>772</a>                        .span
+<a href=#773 id=773 data-nosnippet>773</a>                }
+<a href=#774 id=774 data-nosnippet>774</a>                fhir::ItemKind::Struct(struct_def)
+<a href=#775 id=775 data-nosnippet>775</a>                    <span class="kw">if let </span>fhir::StructKind::Transparent { fields } = <span class="kw-2">&amp;</span>struct_def.kind =&gt;
+<a href=#776 id=776 data-nosnippet>776</a>                {
+<a href=#777 id=777 data-nosnippet>777</a>                    fields[field_idx.as_usize()].ty.span
+<a href=#778 id=778 data-nosnippet>778</a>                }
+<a href=#779 id=779 data-nosnippet>779</a>                <span class="kw">_ </span>=&gt; DUMMY_SP,
+<a href=#780 id=780 data-nosnippet>780</a>            };
+<a href=#781 id=781 data-nosnippet>781</a>
+<a href=#782 id=782 data-nosnippet>782</a>            <span class="self">Self </span>{
+<a href=#783 id=783 data-nosnippet>783</a>                span,
+<a href=#784 id=784 data-nosnippet>784</a>                def_descr: tcx.def_descr(field_def.did),
+<a href=#785 id=785 data-nosnippet>785</a>                expected_span: <span class="prelude-val">Some</span>(tcx.def_span(field_def.did)),
+<a href=#786 id=786 data-nosnippet>786</a>                expected_ty: tcx.type_of(field_def.did).skip_binder(),
+<a href=#787 id=787 data-nosnippet>787</a>            }
+<a href=#788 id=788 data-nosnippet>788</a>        }
+<a href=#789 id=789 data-nosnippet>789</a>    }
+<a href=#790 id=790 data-nosnippet>790</a>
+<a href=#791 id=791 data-nosnippet>791</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#792 id=792 data-nosnippet>792</a>    #[diag(fhir_analysis_incompatible_param_count, code = E0999)]
+<a href=#793 id=793 data-nosnippet>793</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>IncompatibleParamCount {
+<a href=#794 id=794 data-nosnippet>794</a>        <span class="attr">#[primary_span]
+<a href=#795 id=795 data-nosnippet>795</a>        #[label]
+<a href=#796 id=796 data-nosnippet>796</a>        </span>span: Span,
+<a href=#797 id=797 data-nosnippet>797</a>        found: usize,
+<a href=#798 id=798 data-nosnippet>798</a>        <span class="attr">#[label(fhir_analysis_expected_label)]
+<a href=#799 id=799 data-nosnippet>799</a>        </span>expected_span: Span,
+<a href=#800 id=800 data-nosnippet>800</a>        expected: usize,
+<a href=#801 id=801 data-nosnippet>801</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#802 id=802 data-nosnippet>802</a>    }
+<a href=#803 id=803 data-nosnippet>803</a>
+<a href=#804 id=804 data-nosnippet>804</a>    <span class="kw">impl </span>IncompatibleParamCount {
+<a href=#805 id=805 data-nosnippet>805</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(genv: GlobalEnv, decl: <span class="kw-2">&amp;</span>fhir::FnDecl, def_id: MaybeExternId) -&gt; <span class="self">Self </span>{
+<a href=#806 id=806 data-nosnippet>806</a>            <span class="kw">let </span>def_descr = genv.tcx().def_descr(def_id.resolved_id());
+<a href=#807 id=807 data-nosnippet>807</a>
+<a href=#808 id=808 data-nosnippet>808</a>            <span class="kw">let </span>span = <span class="kw">if </span>!decl.inputs.is_empty() {
+<a href=#809 id=809 data-nosnippet>809</a>                decl.inputs[decl.inputs.len() - <span class="number">1</span>]
+<a href=#810 id=810 data-nosnippet>810</a>                    .span
+<a href=#811 id=811 data-nosnippet>811</a>                    .with_lo(decl.inputs[<span class="number">0</span>].span.lo())
+<a href=#812 id=812 data-nosnippet>812</a>            } <span class="kw">else </span>{
+<a href=#813 id=813 data-nosnippet>813</a>                decl.span
+<a href=#814 id=814 data-nosnippet>814</a>            };
+<a href=#815 id=815 data-nosnippet>815</a>
+<a href=#816 id=816 data-nosnippet>816</a>            <span class="kw">let </span>expected_span = <span class="kw">if let </span><span class="prelude-val">Some</span>(local_id) = def_id.as_local()
+<a href=#817 id=817 data-nosnippet>817</a>                &amp;&amp; <span class="kw">let </span>expected_decl = genv.tcx().hir_node_by_def_id(local_id).fn_decl().unwrap()
+<a href=#818 id=818 data-nosnippet>818</a>                &amp;&amp; !expected_decl.inputs.is_empty()
+<a href=#819 id=819 data-nosnippet>819</a>            {
+<a href=#820 id=820 data-nosnippet>820</a>                expected_decl.inputs[expected_decl.inputs.len() - <span class="number">1</span>]
+<a href=#821 id=821 data-nosnippet>821</a>                    .span
+<a href=#822 id=822 data-nosnippet>822</a>                    .with_lo(expected_decl.inputs[<span class="number">0</span>].span.lo())
+<a href=#823 id=823 data-nosnippet>823</a>            } <span class="kw">else </span>{
+<a href=#824 id=824 data-nosnippet>824</a>                genv.tcx().def_span(def_id)
+<a href=#825 id=825 data-nosnippet>825</a>            };
+<a href=#826 id=826 data-nosnippet>826</a>
+<a href=#827 id=827 data-nosnippet>827</a>            <span class="kw">let </span>expected = genv
+<a href=#828 id=828 data-nosnippet>828</a>                .tcx()
+<a href=#829 id=829 data-nosnippet>829</a>                .fn_sig(def_id)
+<a href=#830 id=830 data-nosnippet>830</a>                .skip_binder()
+<a href=#831 id=831 data-nosnippet>831</a>                .skip_binder()
+<a href=#832 id=832 data-nosnippet>832</a>                .inputs()
+<a href=#833 id=833 data-nosnippet>833</a>                .len();
+<a href=#834 id=834 data-nosnippet>834</a>
+<a href=#835 id=835 data-nosnippet>835</a>            <span class="self">Self </span>{ span, found: decl.inputs.len(), expected_span, expected, def_descr }
+<a href=#836 id=836 data-nosnippet>836</a>        }
+<a href=#837 id=837 data-nosnippet>837</a>    }
+<a href=#838 id=838 data-nosnippet>838</a>
+<a href=#839 id=839 data-nosnippet>839</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#840 id=840 data-nosnippet>840</a>    #[diag(fhir_analysis_field_count_mismatch, code = E0999)]
+<a href=#841 id=841 data-nosnippet>841</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>FieldCountMismatch {
+<a href=#842 id=842 data-nosnippet>842</a>        <span class="attr">#[primary_span]
+<a href=#843 id=843 data-nosnippet>843</a>        #[label]
+<a href=#844 id=844 data-nosnippet>844</a>        </span>span: Span,
+<a href=#845 id=845 data-nosnippet>845</a>        fields: usize,
+<a href=#846 id=846 data-nosnippet>846</a>        <span class="attr">#[label(fhir_analysis_expected_label)]
+<a href=#847 id=847 data-nosnippet>847</a>        </span>expected_span: Span,
+<a href=#848 id=848 data-nosnippet>848</a>        expected_fields: usize,
+<a href=#849 id=849 data-nosnippet>849</a>    }
+<a href=#850 id=850 data-nosnippet>850</a>
+<a href=#851 id=851 data-nosnippet>851</a>    <span class="kw">impl </span>FieldCountMismatch {
+<a href=#852 id=852 data-nosnippet>852</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
+<a href=#853 id=853 data-nosnippet>853</a>            genv: GlobalEnv,
+<a href=#854 id=854 data-nosnippet>854</a>            found: usize,
+<a href=#855 id=855 data-nosnippet>855</a>            adt_def_id: MaybeExternId,
+<a href=#856 id=856 data-nosnippet>856</a>            variant_idx: VariantIdx,
+<a href=#857 id=857 data-nosnippet>857</a>        ) -&gt; <span class="self">Self </span>{
+<a href=#858 id=858 data-nosnippet>858</a>            <span class="kw">let </span>adt_def = genv.tcx().adt_def(adt_def_id);
+<a href=#859 id=859 data-nosnippet>859</a>            <span class="kw">let </span>expected_variant = adt_def.variant(variant_idx);
+<a href=#860 id=860 data-nosnippet>860</a>
+<a href=#861 id=861 data-nosnippet>861</a>            <span class="comment">// Get the span of the variant if this is an enum. Structs cannot have produce a field
+<a href=#862 id=862 data-nosnippet>862</a>            // count mismatch.
+<a href=#863 id=863 data-nosnippet>863</a>            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
+<a href=#864 id=864 data-nosnippet>864</a>                &amp;&amp; <span class="kw">let </span>fhir::ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span>item.kind
+<a href=#865 id=865 data-nosnippet>865</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = enum_def.variants.get(variant_idx.as_usize())
+<a href=#866 id=866 data-nosnippet>866</a>            {
+<a href=#867 id=867 data-nosnippet>867</a>                variant.span
+<a href=#868 id=868 data-nosnippet>868</a>            } <span class="kw">else </span>{
+<a href=#869 id=869 data-nosnippet>869</a>                DUMMY_SP
+<a href=#870 id=870 data-nosnippet>870</a>            };
+<a href=#871 id=871 data-nosnippet>871</a>
+<a href=#872 id=872 data-nosnippet>872</a>            <span class="self">Self </span>{
+<a href=#873 id=873 data-nosnippet>873</a>                span,
+<a href=#874 id=874 data-nosnippet>874</a>                fields: found,
+<a href=#875 id=875 data-nosnippet>875</a>                expected_span: genv.tcx().def_span(expected_variant.def_id),
+<a href=#876 id=876 data-nosnippet>876</a>                expected_fields: expected_variant.fields.len(),
+<a href=#877 id=877 data-nosnippet>877</a>            }
+<a href=#878 id=878 data-nosnippet>878</a>        }
+<a href=#879 id=879 data-nosnippet>879</a>    }
+<a href=#880 id=880 data-nosnippet>880</a>}</code></pre></div></section></main></body></html>
