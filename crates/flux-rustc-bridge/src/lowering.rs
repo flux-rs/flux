@@ -641,10 +641,11 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             (Const::Ty(ty, c), _) => {
                 match c.kind() {
                     rustc_ty::ConstKind::Value(value) => {
-                        if let Some(scalar) = value.valtree.try_to_scalar_int() {
-                            self.scalar_int_to_constant(scalar, value.ty)
-                        } else {
-                            None
+                        match &*value.valtree {
+                            rustc_ty::ValTreeKind::Leaf(scalar_int) => {
+                                self.scalar_int_to_constant(*scalar_int, value.ty)
+                            }
+                            rustc_ty::ValTreeKind::Branch(_) => None,
                         }
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
