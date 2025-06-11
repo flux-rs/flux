@@ -525,25 +525,6 @@ fn variants_of(
     Ok(variants)
 }
 
-fn get_enum_info_from_ctor(
-    genv: &GlobalEnv,
-    ctor_def_id: LocalDefId,
-) -> Option<(DefId, rty::VariantIdx)> {
-    let tcx = genv.tcx();
-    if !matches!(tcx.def_kind(ctor_def_id), DefKind::Ctor(..)) {
-        return None;
-    }
-    let variant_def_id = tcx.parent(ctor_def_id.to_def_id());
-    let enum_def_id = tcx.parent(variant_def_id);
-    let adt_def = tcx.adt_def(enum_def_id);
-    let variant_index = adt_def
-        .variants()
-        .iter_enumerated()
-        .find(|(_, variant)| variant.def_id == variant_def_id)
-        .map(|(idx, _)| idx)?;
-    Some((enum_def_id, variant_index))
-}
-
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
     let fhir_fn_sig = match genv.map().node(def_id.local_id())? {
@@ -554,13 +535,15 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
             Some(fn_sig)
         }
         fhir::Node::Ctor(ctor_def_id) => {
-            let (def_id, variant_idx) = get_enum_info_from_ctor(&genv, ctor_def_id).unwrap();
-            match genv.variant_sig(def_id, variant_idx)? {
-                rty::Opaqueness::Opaque => Err(query_bug!(def_id, "expected transparent enum"))?,
-                rty::Opaqueness::Transparent(variant_sig) => {
-                    return Ok(variant_sig.to_poly_fn_sig(None));
-                }
-            }
+            let tcx = genv.tcx();
+            let variant_id = tcx.parent(def_id.resolved_id());
+            let enum_id = tcx.parent(variant_id);
+            let variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
+            let sig = genv
+                .variant_sig(enum_id, variant_idx)?
+                .map(|sig| sig.to_poly_fn_sig(None))
+                .ok_or_else(|| query_bug!(ctor_def_id, "expected transparent enum"))?;
+            return Ok(sig);
         }
         _ => None,
     };
