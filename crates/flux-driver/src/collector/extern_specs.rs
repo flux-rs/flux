@@ -239,7 +239,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn extract_extern_id_from_struct(&self, item: &hir::Item) -> Result<DefId> {
-        if let hir::ItemKind::Struct(data, ..) = item.kind
+        if let hir::ItemKind::Struct(_, data, _) = item.kind
             && let Some(extern_field) = data.fields().last()
             && let ty = self.tcx().type_of(extern_field.def_id)
             && let Some(adt_def) = ty.skip_binder().ty_adt_def()

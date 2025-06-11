@@ -111,15 +111,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Fn { .. } => {
                 self.collect_fn_spec(owner_id, attrs)?;
             }
-            ItemKind::Struct(variant, ..) => {
+            ItemKind::Struct(_, variant, _) => {
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
-            ItemKind::Union(variant, ..) => {
+            ItemKind::Union(_, variant, _) => {
                 // currently no refinements on unions
                 tracked_span_assert_eq!(attrs.items().is_empty(), true);
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
-            ItemKind::Enum(enum_def, ..) => {
+            ItemKind::Enum(_, enum_def, _) => {
                 self.collect_enum_def(owner_id, attrs, enum_def)?;
             }
             ItemKind::Mod(..) => self.collect_mod(owner_id, attrs)?,
@@ -375,7 +375,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn parse_flux_attrs(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
         let def_kind = self.tcx.def_kind(def_id);
         let hir_id = self.tcx.local_def_id_to_hir_id(def_id);
-        let attrs = self.tcx.hir().attrs(hir_id);
+        let attrs = self.tcx.hir_attrs(hir_id);
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {

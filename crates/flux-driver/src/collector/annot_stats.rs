@@ -44,7 +44,7 @@ impl Stats {
 
     fn increase_count(&mut self, name: &str) {
         self.attr_count
-            .raw_entry_mut()
+            // .raw_entry_mut()
             .from_key(name)
             .and_modify(|_, v| *v += 1)
             .or_insert_with(|| (name.to_string(), 1));
@@ -52,7 +52,7 @@ impl Stats {
 
     fn increase_loc(&mut self, name: &str, loc: usize) {
         self.loc_per_attr
-            .raw_entry_mut()
+            // .raw_entry_mut()
             .from_key(name)
             .and_modify(|_, v| *v += loc)
             .or_insert_with(|| (name.to_string(), loc));

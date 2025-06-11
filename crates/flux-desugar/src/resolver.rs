@@ -179,7 +179,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 _ => continue,
             };
             if let Some(ns) = def_kind.ns()
-                && let Some(ident) = item.kind.ident().unwrap()
+                && let Some(ident) = item.kind.ident()
             {
                 self.define_res_in(
                     ident.name,
