@@ -111,13 +111,13 @@ impl GlobalEnv<'_, '_> {
             type Error = QueryErr;
 
             fn try_fold_sort(&mut self, sort: &rty::Sort) -> QueryResult<rty::Sort> {
-                // TODO(BUMP) if let rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
-                // TODO(BUMP)    self.genv
-                // TODO(BUMP)       .normalize_weak_alias_sort(alias_ty)?
-                // TODO(BUMP)       .try_fold_with(self)
-                // TODO(BUMP) } else {
-                sort.try_super_fold_with(self)
-                // TODO(BUMP)  }
+                if let rty::Sort::Alias(rty::AliasKind::Free, alias_ty) = sort {
+                    self.genv
+                        .normalize_free_alias_sort(alias_ty)?
+                        .try_fold_with(self)
+                } else {
+                    sort.try_super_fold_with(self)
+                }
             }
         }
         t.try_fold_with(&mut WeakAliasSortNormalizer { genv: self })
