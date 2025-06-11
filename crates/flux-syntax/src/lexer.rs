@@ -2,7 +2,7 @@ use std::{collections::VecDeque, fmt, iter::Peekable};
 
 pub use rustc_ast::token::{Delimiter, Lit, LitKind};
 use rustc_ast::{
-    token::{self, TokenKind},
+    token::{self, InvisibleOrigin, TokenKind},
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 };
 use rustc_span::{BytePos, Symbol, symbol::kw};
@@ -17,7 +17,7 @@ pub enum Token {
     Plus,
     Minus,
     Slash,
-    Not,
+    Bang,
     Star,
     Colon,
     Comma,
@@ -49,8 +49,14 @@ pub enum Token {
     Ensures,
     Literal(Lit),
     Ident(Symbol),
-    OpenDelim(Delimiter),
-    CloseDelim(Delimiter),
+    OpenParen,
+    CloseParen,
+    OpenBrace,
+    CloseBrace,
+    OpenBracket,
+    CloseBracket,
+    OpenInvisible(InvisibleOrigin),
+    CloseInvisible(InvisibleOrigin),
     Invalid,
     Ref,
     And,
@@ -83,7 +89,7 @@ impl Token {
             Token::Plus => "+",
             Token::Minus => "-",
             Token::Slash => "/",
-            Token::Not => "!",
+            Token::Bang => "!",
             Token::Star => "*",
             Token::Colon => ":",
             Token::Comma => ",",
@@ -115,14 +121,14 @@ impl Token {
             Token::Ensures => "ensures",
             Token::Literal(_) => "literal",
             Token::Ident(_) => "identifier",
-            Token::OpenDelim(Delimiter::Parenthesis) => "(",
-            Token::OpenDelim(Delimiter::Brace) => "{",
-            Token::OpenDelim(Delimiter::Bracket) => "[",
-            Token::OpenDelim(Delimiter::Invisible(_)) => "",
-            Token::CloseDelim(Delimiter::Parenthesis) => ")",
-            Token::CloseDelim(Delimiter::Brace) => "}",
-            Token::CloseDelim(Delimiter::Bracket) => "]",
-            Token::CloseDelim(Delimiter::Invisible(_)) => "",
+            Token::OpenParen => "(",
+            Token::OpenBrace => "{",
+            Token::OpenBracket => "[",
+            Token::CloseParen => ")",
+            Token::CloseBrace => "}",
+            Token::CloseBracket => "]",
+            Token::OpenInvisible(_) => "",
+            Token::CloseInvisible(_) => "",
             Token::Invalid => "<invalid>",
             Token::Ref => "ref",
             Token::And => "&",
@@ -268,8 +274,13 @@ impl<'t> Cursor<'t> {
             TokenKind::Semi => Token::Semi,
             TokenKind::RArrow => Token::RArrow,
             TokenKind::Dot => Token::Dot,
-            TokenKind::OpenDelim(delim) => Token::OpenDelim(delim),
-            TokenKind::CloseDelim(delim) => Token::CloseDelim(delim),
+            TokenKind::OpenParen => Token::OpenParen,
+            TokenKind::OpenBrace => Token::OpenBrace,
+            TokenKind::OpenBracket => Token::OpenBracket,
+            TokenKind::CloseParen => Token::CloseParen,
+            TokenKind::CloseBrace => Token::CloseBrace,
+            TokenKind::CloseBracket => Token::CloseBracket,
+
             TokenKind::Literal(lit) => Token::Literal(lit),
             TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
@@ -321,7 +332,7 @@ impl<'t> Cursor<'t> {
                     .push_back((span.lo() + BytePos(1), Token::Gt, span.hi()));
                 return;
             }
-            TokenKind::Bang => Token::Not,
+            TokenKind::Bang => Token::Bang,
             TokenKind::PathSep => Token::PathSep,
             TokenKind::DotDot => Token::DotDot,
             _ => Token::Invalid,
@@ -354,12 +365,25 @@ impl<'t> Cursor<'t> {
                 self.fetch_tokens()
             }
             Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
-                let close = (span.close.lo(), Token::CloseDelim(*delim), span.close.hi());
+                let close_token = match delim {
+                    Delimiter::Parenthesis => Token::CloseParen,
+                    Delimiter::Brace => Token::CloseBrace,
+                    Delimiter::Bracket => Token::CloseBracket,
+                    Delimiter::Invisible(origin) => Token::CloseInvisible(*origin),
+                };
+                let close = (span.close.lo(), close_token, span.close.hi());
 
                 self.stack
                     .push(Frame { cursor: tokens.iter().peekable(), close: Some(close) });
 
-                let token = token::Token { kind: TokenKind::OpenDelim(*delim), span: span.open };
+                let kind = match delim {
+                    Delimiter::Parenthesis => TokenKind::OpenParen,
+                    Delimiter::Brace => TokenKind::OpenBrace,
+                    Delimiter::Bracket => TokenKind::OpenBracket,
+                    Delimiter::Invisible(origin) => TokenKind::OpenInvisible(*origin),
+                };
+
+                let token = token::Token { kind, span: span.open };
                 self.map_token(&token);
                 true
             }
