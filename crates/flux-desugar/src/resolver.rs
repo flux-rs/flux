@@ -178,9 +178,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 }
                 _ => continue,
             };
-            if let Some(ns) = def_kind.ns() {
+            if let Some(ns) = def_kind.ns()
+                && let Some(ident) = item.kind.ident().unwrap()
+            {
                 self.define_res_in(
-                    item.ident.name,
+                    ident.name,
                     fhir::Res::Def(def_kind, item.owner_id.to_def_id()),
                     ns,
                 );
@@ -689,8 +691,7 @@ fn visible_module_children(
 
 /// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
-    tcx.hir()
-        .attrs(item.hir_id())
+    tcx.hir_attrs(item.hir_id())
         .iter()
         .any(|attr| attr.path_matches(&[sym::prelude_import]))
 }

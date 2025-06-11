@@ -128,7 +128,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
     }
 }
 
-impl<'tcx> TyEncoder for EncodeContext<'_, 'tcx> {
+impl<'tcx> TyEncoder<'tcx> for EncodeContext<'_, 'tcx> {
     const CLEAR_CROSS_CRATE: bool = true;
 
     // CUT type I = TyCtxt<'tcx>;

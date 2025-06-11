@@ -120,12 +120,10 @@ impl SpanDecoder for DecodeContext<'_, '_> {
     }
 }
 
-impl<'tcx> TyDecoder for DecodeContext<'_, 'tcx> {
-    // type I = TyCtxt<'tcx>;
-
+impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
     const CLEAR_CROSS_CRATE: bool = true;
 
-    fn interner(&self) -> Self::I {
+    fn interner(&self) -> TyCtxt<'tcx> {
         self.tcx
     }
 

@@ -551,7 +551,7 @@ pub struct BareFnTy<'fhir> {
     pub abi: rustc_abi::ExternAbi,
     pub generic_params: &'fhir [GenericParam<'fhir>],
     pub decl: &'fhir FnDecl<'fhir>,
-    pub param_names: &'fhir [Ident],
+    pub param_names: &'fhir [Option<Ident>],
 }
 
 #[derive(Clone, Copy)]

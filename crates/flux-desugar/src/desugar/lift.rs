@@ -167,7 +167,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     }
 
     pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> fhir::VariantDef<'genv> {
-        let item = self.genv.hir().expect_item(self.local_id());
+        let item = self.genv.tcx().hir_expect_item(self.local_id());
         let hir::ItemKind::Enum(_, _, generics) = &item.kind else { bug!("expected an enum") };
 
         let fields = self.genv.alloc_slice_fill_iter(
@@ -191,7 +191,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     }
 
     pub fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {
-        let item = self.genv.hir().expect_item(self.local_id());
+        let item = self.genv.tcx().hir_expect_item(self.local_id());
         let hir::ItemKind::Enum(_, _, generics) = &item.kind else { bug!("expected an enum") };
         self.lift_variant_ret_inner(generics)
     }
