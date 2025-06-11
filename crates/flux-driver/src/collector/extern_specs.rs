@@ -113,11 +113,18 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let extern_enum_def = self.tcx().adt_def(extern_id);
 
         // Collect all constructor DefIds from variants
+        let extern_variants = extern_enum_def.variants();
+        let enum_variants = enum_def.variants;
+        debug_assert_eq!(extern_variants.len(), enum_variants.len());
+
         for (extern_variant, variant) in extern_enum_def.variants().iter().zip(enum_def.variants) {
             if let Some(extern_ctor) = extern_variant.ctor_def_id()
                 && let Some(ctor) = variant.data.ctor_def_id()
+                && self.tcx().def_kind(extern_ctor) == self.tcx().def_kind(ctor)
             {
                 self.insert_extern_id(ctor, extern_ctor)?;
+            } else {
+                return Err(self.malformed());
             }
         }
         Ok(())
