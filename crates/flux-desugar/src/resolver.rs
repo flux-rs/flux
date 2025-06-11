@@ -470,7 +470,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 let tcx = self.genv.tcx();
                 let trait_id = module.def_id;
                 tcx.associated_items(trait_id)
-                    .find_by_name_and_namespace(tcx, ident, ns, trait_id)
+                    .find_by_ident_and_namespace(tcx, ident, ns, trait_id)
                     .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
             }
         }
