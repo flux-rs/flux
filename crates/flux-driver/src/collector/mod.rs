@@ -206,7 +206,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
-        self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
+        self.specs
+            .ty_aliases
+            .insert(owner_id, attrs.ty_alias().map(|z| *z));
         Ok(())
     }
 
@@ -415,7 +417,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let kind = match (segment.as_str(), &attr_item.args) {
             ("alias", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_type_alias, FluxAttrKind::TypeAlias)?
+                self.parse(dargs, ParseSess::parse_type_alias, |t| {
+                    FluxAttrKind::TypeAlias(Box::new(t))
+                })?
             }
             ("sig" | "spec", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
@@ -576,7 +580,7 @@ enum FluxAttrKind {
     QualNames(surface::QualNames),
     RevealNames(surface::RevealNames),
     Items(Vec<surface::Item>),
-    TypeAlias(surface::TyAlias),
+    TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
     Variant(surface::VariantDef),
@@ -668,7 +672,7 @@ impl FluxAttrs {
         read_attr!(self, RevealNames)
     }
 
-    fn ty_alias(&mut self) -> Option<surface::TyAlias> {
+    fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }
 

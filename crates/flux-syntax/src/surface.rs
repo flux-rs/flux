@@ -290,7 +290,7 @@ pub enum Ensures {
 #[derive(Debug)]
 pub enum FnRetTy {
     Default(Span),
-    Ty(Ty),
+    Ty(Box<Ty>),
 }
 
 #[derive(Debug, Copy, Clone)]

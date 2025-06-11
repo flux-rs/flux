@@ -441,7 +441,7 @@ fn parse_where_bound(cx: &mut ParseCtxt) -> ParseResult<WhereBoundPredicate> {
 /// ```
 fn parse_fn_ret(cx: &mut ParseCtxt) -> ParseResult<FnRetTy> {
     if cx.advance_if(Tok::RArrow) {
-        Ok(FnRetTy::Ty(parse_type(cx)?))
+        Ok(FnRetTy::Ty(Box::new(parse_type(cx)?)))
     } else {
         let hi = cx.hi();
         Ok(FnRetTy::Default(cx.mk_span(hi, hi)))

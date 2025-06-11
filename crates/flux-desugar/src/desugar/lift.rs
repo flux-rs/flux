@@ -157,7 +157,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
         let generics = self.lift_generics();
         let ty = self.lift_ty(ty);
-        let ty_alias = fhir::TyAlias { index: None, ty, span: item.span, lifted: true };
+        let ty_alias = Box::new(fhir::TyAlias { index: None, ty, span: item.span, lifted: true });
         fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner }
     }
 
