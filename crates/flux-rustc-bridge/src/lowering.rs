@@ -1002,7 +1002,7 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::GenericArg<'tcx> {
     type R = Result<GenericArg, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
-        match self.unpack() {
+        match self.kind() {
             GenericArgKind::Type(ty) => Ok(GenericArg::Ty(ty.lower(tcx)?)),
             GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(region.lower(tcx)?)),
             GenericArgKind::Const(c) => Ok(GenericArg::Const(c.lower(tcx)?)),

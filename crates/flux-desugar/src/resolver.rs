@@ -164,7 +164,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(_, enum_def, _) => {
+                ItemKind::Enum(_, _, enum_def) => {
                     self.define_enum_variants(&enum_def);
                     DefKind::Enum
                 }

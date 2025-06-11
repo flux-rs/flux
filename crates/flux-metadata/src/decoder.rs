@@ -113,7 +113,7 @@ impl SpanDecoder for DecodeContext<'_, '_> {
             }
             SYMBOL_PREINTERNED => {
                 let symbol_index = self.read_u32();
-                Symbol::new_from_decoded(symbol_index)
+                Symbol::new(symbol_index)
             }
             _ => unreachable!(),
         }

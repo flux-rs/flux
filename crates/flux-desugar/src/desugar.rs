@@ -313,8 +313,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 .hir_expect_item(self.owner.local_id().def_id)
                 .kind;
             match kind {
-                hir::ItemKind::Struct(_, variant_data, _)
-                | hir::ItemKind::Union(_, variant_data, _) => {
+                hir::ItemKind::Struct(_, _, variant_data)
+                | hir::ItemKind::Union(_, _, variant_data) => {
                     debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
                     let fields = self.genv.alloc_slice_fill_iter(
                         iter::zip(&struct_def.fields, variant_data.fields()).map(
@@ -351,7 +351,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         enum_def: &surface::EnumDef,
     ) -> Result<fhir::Item<'genv>> {
         let def_id = self.owner.local_id().def_id;
-        let ItemKind::Enum(_, hir_enum, _) = self.genv.tcx().hir_expect_item(def_id).kind else {
+        let ItemKind::Enum(_, _, hir_enum) = self.genv.tcx().hir_expect_item(def_id).kind else {
             bug!("expected enum");
         };
         let reflected = enum_def.reflected;

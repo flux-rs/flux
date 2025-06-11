@@ -151,7 +151,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
     pub fn lift_type_alias(&mut self) -> fhir::Item<'genv> {
         let item = self.genv.tcx().hir_expect_item(self.local_id());
-        let hir::ItemKind::TyAlias(_, ty, _) = item.kind else {
+        let hir::ItemKind::TyAlias(_, _, ty) = item.kind else {
             bug!("expected type alias");
         };
 
@@ -168,7 +168,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
     pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> fhir::VariantDef<'genv> {
         let item = self.genv.tcx().hir_expect_item(self.local_id());
-        let hir::ItemKind::Enum(_, _, generics) = &item.kind else { bug!("expected an enum") };
+        let hir::ItemKind::Enum(_, generics, _) = &item.kind else { bug!("expected an enum") };
 
         let fields = self.genv.alloc_slice_fill_iter(
             variant
@@ -192,7 +192,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
     pub fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {
         let item = self.genv.tcx().hir_expect_item(self.local_id());
-        let hir::ItemKind::Enum(_, _, generics) = &item.kind else { bug!("expected an enum") };
+        let hir::ItemKind::Enum(_, generics, _) = &item.kind else { bug!("expected an enum") };
         self.lift_variant_ret_inner(generics)
     }
 
@@ -297,7 +297,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             abi: bare_fn.abi,
             generic_params,
             decl: self.genv.alloc(decl),
-            param_names: self.genv.alloc_slice(bare_fn.param_names),
+            param_idents: self.genv.alloc_slice(bare_fn.param_idents),
         }
     }
 

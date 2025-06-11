@@ -489,15 +489,18 @@ impl<'tcx> Body<'tcx> {
 pub(crate) fn replicate_infer_ctxt<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
-    body_with_facts: &BodyWithBorrowckFacts<'tcx>,
+    _body_with_facts: &BodyWithBorrowckFacts<'tcx>,
 ) -> rustc_infer::infer::InferCtxt<'tcx> {
     let infcx = tcx
         .infer_ctxt()
         .with_next_trait_solver(true)
         .build(TypingMode::analysis_in_body(tcx, def_id));
-    for info in &body_with_facts.region_inference_context.var_infos {
-        infcx.next_region_var(info.origin);
-    }
+
+    // TODO(BUMP) Nico suggests: maybe we can find _how many_ variables there are and add them with some dummy origin.
+    // TODO(BUMP) for info in &body_with_facts.region_inference_context.var_infos {
+    // TODO(BUMP)     infcx.next_region_var(info.origin);
+    // TODO(BUMP) }
+
     infcx
 }
 

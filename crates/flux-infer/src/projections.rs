@@ -452,9 +452,9 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
-            Sort::Alias(AliasKind::Weak, alias_ty) => {
+            Sort::Alias(AliasKind::Free, alias_ty) => {
                 self.genv()
-                    .normalize_weak_alias_sort(alias_ty)?
+                    .normalize_free_alias_sort(alias_ty)?
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
@@ -473,7 +473,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
     // is for.
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) => {
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Free, alias_ty), idx) => {
                 Ok(self
                     .genv()
                     .type_of(alias_ty.def_id)?
@@ -492,7 +492,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, Self::Error> {
         match &sty.bty {
-            BaseTy::Alias(AliasKind::Weak, _alias_ty) => {
+            BaseTy::Alias(AliasKind::Free, _alias_ty) => {
                 // Weak aliases are always expanded during conversion. We could in theory normalize
                 // them here but we don't guaranatee that type aliases expand to a subset ty. If we
                 // ever stop expanding aliases during conv we would need to guarantee that aliases
@@ -598,9 +598,9 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
     type Error = QueryErr;
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
-            Sort::Alias(AliasKind::Weak, alias_ty) => {
+            Sort::Alias(AliasKind::Free, alias_ty) => {
                 self.genv
-                    .normalize_weak_alias_sort(alias_ty)?
+                    .normalize_free_alias_sort(alias_ty)?
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {

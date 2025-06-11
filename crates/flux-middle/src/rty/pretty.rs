@@ -462,7 +462,7 @@ fn fmt_alias_ty(
     alias_ty: &AliasTy,
 ) -> fmt::Result {
     match kind {
-        AliasKind::Weak => {
+        AliasKind::Free => {
             w!(cx, f, "{:?}", alias_ty.def_id)?;
             if !alias_ty.args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", &alias_ty.args))?;

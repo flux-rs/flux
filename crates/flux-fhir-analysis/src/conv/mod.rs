@@ -1630,7 +1630,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Ok(self.genv().type_of(alias_to)?.instantiate_identity());
                 } else {
                     rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
+                        rty::AliasKind::Free,
                         rty::AliasTy {
                             def_id: alias_to,
                             args: List::empty(),
@@ -1680,7 +1680,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         .instantiate(tcx, &args, &refine_args));
                 } else {
                     rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
+                        rty::AliasKind::Free,
                         rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
                     )
                 }

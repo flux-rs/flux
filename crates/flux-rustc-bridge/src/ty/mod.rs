@@ -265,7 +265,7 @@ pub struct AliasTy {
 pub enum AliasKind {
     Projection,
     Opaque,
-    Weak,
+    Free,
 }
 
 impl<'tcx> ToRustc<'tcx> for AliasKind {
@@ -276,7 +276,7 @@ impl<'tcx> ToRustc<'tcx> for AliasKind {
         match self {
             AliasKind::Opaque => ty::AliasTyKind::Opaque,
             AliasKind::Projection => ty::AliasTyKind::Projection,
-            AliasKind::Weak => ty::AliasTyKind::Weak,
+            AliasKind::Free => ty::AliasTyKind::Free,
         }
     }
 }
