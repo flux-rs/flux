@@ -799,9 +799,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 
     fn conv_poly_func_sort(&mut self, sort: &fhir::PolyFuncSort) -> QueryResult<rty::PolyFuncSort> {
-        let params = iter::repeat(rty::SortParamKind::Sort)
-            .take(sort.params)
-            .collect();
+        let params = iter::repeat_n(rty::SortParamKind::Sort, sort.params).collect();
         Ok(rty::PolyFuncSort::new(params, self.conv_func_sort(&sort.fsort)?))
     }
 
@@ -2462,9 +2460,7 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
         .chain(iter::once(&func.sort))
         .map(|sort| cx.conv_sort(sort))
         .try_collect()?;
-    let params = iter::repeat(rty::SortParamKind::Sort)
-        .take(func.params)
-        .collect();
+    let params = iter::repeat_n(rty::SortParamKind::Sort, func.params).collect();
     Ok(rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output }))
 }
 

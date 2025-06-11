@@ -45,7 +45,7 @@ impl<R> QueryCache<R> {
     }
 
     fn no_cache_err() -> std::io::Error {
-        std::io::Error::new(std::io::ErrorKind::Other, "cache not enabled")
+        std::io::Error::other("cache not enabled")
     }
 }
 

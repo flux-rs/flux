@@ -46,13 +46,12 @@ pub(crate) fn desugar_qualifier<'genv>(
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
     FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
-        let qualifier = fhir::Qualifier {
+        fhir::Qualifier {
             def_id,
             args: cx.desugar_refine_params(&qualifier.params),
             global: qualifier.global,
             expr: cx.desugar_expr(&qualifier.expr),
-        };
-        qualifier
+        }
     })
 }
 
@@ -737,11 +736,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             trait_ref,
             span: trait_ref.span,
         });
-        let opaque_ty = fhir::OpaqueTy {
+        fhir::OpaqueTy {
             def_id: MaybeExternId::Local(def_id),
             bounds: self.genv.alloc_slice(&[bound]),
-        };
-        opaque_ty
+        }
     }
 
     fn make_lang_item_path(
@@ -1080,7 +1078,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let mut fhir_args = vec![];
         let mut constraints = vec![];
         if let Res::Def(
-            DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
+            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
             def_id,
         ) = res
         {
