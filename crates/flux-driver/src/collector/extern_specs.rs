@@ -51,13 +51,13 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
         match &item.kind {
             hir::ItemKind::Fn { .. } => self.collect_extern_fn(item, attrs),
-            hir::ItemKind::Enum(enum_def, _) => {
+            hir::ItemKind::Enum(_, enum_def, _) => {
                 self.collect_extern_enum(item.owner_id, enum_def, attrs)
             }
-            hir::ItemKind::Struct(variant, _) => {
+            hir::ItemKind::Struct(_, variant, _) => {
                 self.collect_extern_struct(item.owner_id, variant, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, bounds, items) => {
+            hir::ItemKind::Trait(_, _, _, _, bounds, items) => {
                 self.collect_extern_trait(item.owner_id, bounds, items, attrs)
             }
             hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),

@@ -144,7 +144,7 @@ pub fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
         }
     }
     let mut visitor = DepsVisitor(Default::default());
-    body.visit_with(&mut visitor);
+    let _ = body.visit_with(&mut visitor);
     visitor.0
 }
 

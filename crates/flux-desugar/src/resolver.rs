@@ -134,7 +134,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let def_kind = match item.kind {
                 ItemKind::Use(path, kind) => {
                     match kind {
-                        hir::UseKind::Single => {
+                        hir::UseKind::Single(_) => {
                             let name = path.segments.last().unwrap().ident.name;
                             for res in &path.res {
                                 if let Some(ns @ (TypeNS | ValueNS)) = res.ns()
@@ -164,7 +164,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(enum_def, _) => {
+                ItemKind::Enum(_, enum_def, _) => {
                     self.define_enum_variants(&enum_def);
                     DefKind::Enum
                 }
@@ -503,7 +503,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         // But we resolve names in them as if they were defined in their containing module
         self.resolve_flux_items(hir_id.expect_owner());
 
-        hir::intravisit::walk_mod(self, module, hir_id);
+        hir::intravisit::walk_mod(self, module);
 
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);

@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt, iter::Peekable};
 
-pub use rustc_ast::token::{BinOpToken, Delimiter, Lit, LitKind};
+pub use rustc_ast::token::{Delimiter, Lit, LitKind};
 use rustc_ast::{
     token::{self, TokenKind},
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
@@ -300,28 +300,28 @@ impl<'t> Cursor<'t> {
             TokenKind::Ident(symb, _) if symb == kw::As => Token::As,
             TokenKind::Ident(symb, _) if symb == kw::Underscore => Token::Underscore,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
-            TokenKind::BinOp(BinOpToken::Or) => Token::Caret,
-            TokenKind::BinOp(BinOpToken::Plus) => Token::Plus,
-            TokenKind::BinOp(BinOpToken::Slash) => Token::Slash,
-            TokenKind::BinOp(BinOpToken::Minus) => Token::Minus,
-            TokenKind::BinOp(BinOpToken::And) => Token::And,
-            TokenKind::BinOp(BinOpToken::Percent) => Token::Percent,
-            TokenKind::BinOp(BinOpToken::Star) => Token::Star,
-            TokenKind::BinOp(BinOpToken::Shl) => {
+            TokenKind::Or => Token::Caret,
+            TokenKind::Plus => Token::Plus,
+            TokenKind::Slash => Token::Slash,
+            TokenKind::Minus => Token::Minus,
+            TokenKind::And => Token::And,
+            TokenKind::Percent => Token::Percent,
+            TokenKind::Star => Token::Star,
+            TokenKind::Shl => {
                 self.tokens
                     .push_back((span.lo(), Token::LtFollowedByLt, span.hi() - BytePos(1)));
                 self.tokens
                     .push_back((span.lo() + BytePos(1), Token::Lt, span.hi()));
                 return;
             }
-            TokenKind::BinOp(BinOpToken::Shr) => {
+            TokenKind::Shr => {
                 self.tokens
                     .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1)));
                 self.tokens
                     .push_back((span.lo() + BytePos(1), Token::Gt, span.hi()));
                 return;
             }
-            TokenKind::Not => Token::Not,
+            TokenKind::Bang => Token::Not,
             TokenKind::PathSep => Token::PathSep,
             TokenKind::DotDot => Token::DotDot,
             _ => Token::Invalid,
