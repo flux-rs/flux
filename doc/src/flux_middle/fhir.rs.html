@@ -1610,7 +1610,9 @@
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
 <a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a></pre></div><pre class="rust"><code><span class="doccomment">//! Flux High-Level Intermediate Representation
 //!
 //! The fhir corresponds to the desugared version of source level flux annotations. The main
 //! difference with the surface syntax is that the list of refinement parameters is explicit
@@ -1733,6 +1735,7 @@
     ImplItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ImplItem&lt;<span class="lifetime">'fhir</span>&gt;),
     OpaqueTy(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>OpaqueTy&lt;<span class="lifetime">'fhir</span>&gt;),
     ForeignItem(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>ForeignItem&lt;<span class="lifetime">'fhir</span>&gt;),
+    Ctor,
     AnonConst,
     Expr,
 }
@@ -1747,6 +1750,7 @@
             Node::OpaqueTy(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
             Node::AnonConst =&gt; <span class="prelude-val">None</span>,
             Node::Expr =&gt; <span class="prelude-val">None</span>,
+            Node::Ctor =&gt; <span class="prelude-val">None</span>,
         }
     }
 

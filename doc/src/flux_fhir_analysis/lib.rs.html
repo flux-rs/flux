@@ -595,7 +595,28 @@
 <a href="#594" id="594">594</a>
 <a href="#595" id="595">595</a>
 <a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a></pre></div><pre class="rust"><code><span class="attr">#![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
 </span><span class="kw">extern crate </span>rustc_ast;
 <span class="kw">extern crate </span>rustc_data_structures;
@@ -621,7 +642,10 @@
 <span class="kw">use </span>flux_macros::fluent_messages;
 <span class="kw">use </span>flux_middle::{
     def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
-    fhir,
+    fhir::{
+        <span class="self">self</span>, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
+        TraitItemKind,
+    },
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -935,7 +959,6 @@
 
 <span class="kw">fn </span>generics_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::Generics&gt; {
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
-
     <span class="kw">let </span>def_kind = genv.def_kind(def_id);
     <span class="kw">let </span>generics = <span class="kw">match </span>def_kind {
         DefKind::Impl { .. }
@@ -954,7 +977,7 @@
                 </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias =&gt; {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) =&gt; {
             <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id);
             refining::refine_generics(genv, def_id.resolved_id(), <span class="kw-2">&amp;</span>rustc_generics)
         }
@@ -1103,11 +1126,30 @@
 
 <span class="kw">fn </span>fn_sig(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
     <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
-    <span class="kw">let </span>fhir_fn_sig = genv
-        .map()
-        .expect_owner_node(def_id.local_id())<span class="question-mark">?
-        </span>.fn_sig()
-        .unwrap();
+    <span class="kw">let </span>fhir_fn_sig = <span class="kw">match </span>genv.map().node(def_id.local_id())<span class="question-mark">? </span>{
+        fhir::Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
+        | fhir::Node::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig, ..), .. }) =&gt; {
+            <span class="prelude-val">Some</span>(fn_sig)
+        }
+        fhir::Node::Ctor =&gt; {
+            <span class="kw">let </span>tcx = genv.tcx();
+            <span class="kw">let </span>variant_id = tcx.parent(def_id.resolved_id());
+            <span class="kw">let </span>enum_id = tcx.parent(variant_id);
+            <span class="kw">let </span>variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
+            <span class="kw">let </span>sig = genv
+                .variant_sig(enum_id, variant_idx)<span class="question-mark">?
+                </span>.map(|sig| sig.to_poly_fn_sig(<span class="prelude-val">None</span>))
+                .ok_or_else(|| <span class="macro">query_bug!</span>(<span class="string">"non-transparent enum {enum_id:?} at {variant_idx:?}"</span>))<span class="question-mark">?</span>;
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(sig);
+        }
+        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    };
+    <span class="kw">let </span><span class="prelude-val">Some</span>(fhir_fn_sig) = fhir_fn_sig <span class="kw">else </span>{
+        <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected fn item"</span>))<span class="question-mark">?
+    </span>};
+
     <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
     <span class="kw">let </span>fn_sig = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
         .into_conv_ctxt()

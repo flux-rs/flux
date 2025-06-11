@@ -353,7 +353,10 @@
 <a href="#352" id="352">352</a>
 <a href="#353" id="353">353</a>
 <a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a></pre></div><pre class="rust"><code><span class="doccomment">//! Desugaring from types in [`flux_syntax::surface`] to types in [`flux_middle::fhir`]
 
 </span><span class="attr">#![feature(
     rustc_private,
@@ -593,6 +596,9 @@
                 |cx| cx.desugar_foreign_item(<span class="kw-2">*</span>foreign),
             )<span class="question-mark">?</span>));
             nodes.insert(def_id, foreign_item);
+        }
+        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)) =&gt; {
+            nodes.insert(def_id, fhir::Node::Ctor);
         }
         node =&gt; {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(ident) = node.ident() {
