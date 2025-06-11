@@ -108,6 +108,32 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
         self.inner.collect_enum_def(enum_id, attrs, enum_def)?;
 
+        // Add stuff about Ctor
+        // Get the AdtDef for the enum
+        let extern_enum_def = self.tcx().adt_def(extern_id);
+
+        // Collect all constructor DefIds from variants
+        let extern_variants = extern_enum_def.variants();
+        let enum_variants = enum_def.variants;
+        let extern_len = extern_variants.len();
+        let enum_len = enum_variants.len();
+        if extern_len != enum_len {
+            let reason = format!("expected {extern_len:?} variants but only have {enum_len:?}");
+            return Err(self.invalid_enum_extern_spec(reason));
+        }
+        for (extern_variant, variant) in extern_enum_def.variants().iter().zip(enum_def.variants) {
+            if let Some(extern_ctor) = extern_variant.ctor_def_id()
+                && let Some(ctor) = variant.data.ctor_def_id()
+                && self.tcx().def_kind(extern_ctor) == self.tcx().def_kind(ctor)
+            {
+                self.insert_extern_id(ctor, extern_ctor)?;
+            } else {
+                let reason = format!(
+                    "extern variant {extern_variant:?} incompatible with specified {variant:?}"
+                );
+                return Err(self.invalid_enum_extern_spec(reason));
+            }
+        }
         Ok(())
     }
 
@@ -409,6 +435,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     #[track_caller]
+    fn invalid_enum_extern_spec(&self, reason: String) -> ErrorGuaranteed {
+        self.emit(errors::InvalidEnumExternSpec::new(self.block.span, reason))
+    }
+
+    #[track_caller]
     fn item_not_in_trait_impl(
         &self,
         local_id: OwnerId,
@@ -506,6 +537,20 @@ mod errors {
     impl MalformedExternSpec {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(driver_invalid_enum_extern_spec, code = E0999)]
+    pub(super) struct InvalidEnumExternSpec {
+        #[primary_span]
+        span: Span,
+        reason: String,
+    }
+
+    impl InvalidEnumExternSpec {
+        pub(super) fn new(span: Span, reason: String) -> Self {
+            Self { span, reason }
         }
     }
 

@@ -24,7 +24,10 @@ use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
-    fhir,
+    fhir::{
+        self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
+        TraitItemKind,
+    },
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     query_bug,
@@ -338,7 +341,6 @@ fn item_bounds(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBin
 
 fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
     let def_id = genv.maybe_extern_id(def_id);
-
     let def_kind = genv.def_kind(def_id);
     let generics = match def_kind {
         DefKind::Impl { .. }
@@ -357,7 +359,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
                 .ok_or_else(|| query_bug!(def_id.local_id(), "no generics for {def_id:?}"))?;
             conv::conv_generics(genv, generics, def_id, is_trait)
         }
-        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias => {
+        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) => {
             let rustc_generics = genv.lower_generics_of(def_id);
             refining::refine_generics(genv, def_id.resolved_id(), &rustc_generics)
         }
@@ -506,11 +508,30 @@ fn variants_of(
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let fhir_fn_sig = genv
-        .map()
-        .expect_owner_node(def_id.local_id())?
-        .fn_sig()
-        .unwrap();
+    let fhir_fn_sig = match genv.map().node(def_id.local_id())? {
+        fhir::Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
+        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
+        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
+        | fhir::Node::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig, ..), .. }) => {
+            Some(fn_sig)
+        }
+        fhir::Node::Ctor => {
+            let tcx = genv.tcx();
+            let variant_id = tcx.parent(def_id.resolved_id());
+            let enum_id = tcx.parent(variant_id);
+            let variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
+            let sig = genv
+                .variant_sig(enum_id, variant_idx)?
+                .map(|sig| sig.to_poly_fn_sig(None))
+                .ok_or_else(|| query_bug!("non-transparent enum {enum_id:?} at {variant_idx:?}"))?;
+            return Ok(sig);
+        }
+        _ => None,
+    };
+    let Some(fhir_fn_sig) = fhir_fn_sig else {
+        Err(query_bug!(def_id.local_id(), "expected fn item"))?
+    };
+
     let wfckresults = genv.check_wf(def_id.local_id())?;
     let fn_sig = AfterSortck::new(genv, &wfckresults)
         .into_conv_ctxt()

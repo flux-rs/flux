@@ -36,6 +36,9 @@ driver_mismatched_spec_name =
 driver_malformed_extern_spec =
     malformed extern_spec, this should never happen if you are using the extern_spec macro. Did you accidentally use the internal flux::extern_spec attribute?
 
+driver_invalid_enum_extern_spec =
+    invalid extern_spec for enum: {$reason}
+
 driver_cannot_resolve_trait_impl =
     cannot resolve trait implementation
     .note = this is probably a bug in Flux
