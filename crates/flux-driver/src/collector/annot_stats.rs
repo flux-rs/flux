@@ -43,19 +43,19 @@ impl Stats {
     }
 
     fn increase_count(&mut self, name: &str) {
-        self.attr_count
-            // .raw_entry_mut()
-            .from_key(name)
-            .and_modify(|_, v| *v += 1)
-            .or_insert_with(|| (name.to_string(), 1));
+        if let Some(count) = self.attr_count.get_mut(name) {
+            *count += 1;
+        } else {
+            self.attr_count.insert(name.to_string(), 1);
+        }
     }
 
     fn increase_loc(&mut self, name: &str, loc: usize) {
-        self.loc_per_attr
-            // .raw_entry_mut()
-            .from_key(name)
-            .and_modify(|_, v| *v += loc)
-            .or_insert_with(|| (name.to_string(), loc));
+        if let Some(count) = self.loc_per_attr.get_mut(name) {
+            *count += loc;
+        } else {
+            self.loc_per_attr.insert(name.to_string(), loc);
+        }
         self.loc += loc;
     }
 }
