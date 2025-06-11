@@ -121,7 +121,7 @@ pub enum Node<'fhir> {
     ImplItem(&'fhir ImplItem<'fhir>),
     OpaqueTy(&'fhir OpaqueTy<'fhir>),
     ForeignItem(&'fhir ForeignItem<'fhir>),
-    Ctor(LocalDefId),
+    Ctor,
     AnonConst,
     Expr,
 }
@@ -136,7 +136,7 @@ impl<'fhir> Node<'fhir> {
             Node::OpaqueTy(_) => None,
             Node::AnonConst => None,
             Node::Expr => None,
-            Node::Ctor(_) => None,
+            Node::Ctor => None,
         }
     }
 

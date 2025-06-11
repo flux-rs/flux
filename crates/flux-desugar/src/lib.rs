@@ -239,8 +239,8 @@ pub fn desugar<'genv>(
             )?));
             nodes.insert(def_id, foreign_item);
         }
-        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, local_id)) => {
-            nodes.insert(def_id, fhir::Node::Ctor(*local_id));
+        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => {
+            nodes.insert(def_id, fhir::Node::Ctor);
         }
         node => {
             if let Some(ident) = node.ident() {

@@ -534,7 +534,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
         | fhir::Node::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig, ..), .. }) => {
             Some(fn_sig)
         }
-        fhir::Node::Ctor(ctor_def_id) => {
+        fhir::Node::Ctor => {
             let tcx = genv.tcx();
             let variant_id = tcx.parent(def_id.resolved_id());
             let enum_id = tcx.parent(variant_id);
@@ -542,7 +542,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
             let sig = genv
                 .variant_sig(enum_id, variant_idx)?
                 .map(|sig| sig.to_poly_fn_sig(None))
-                .ok_or_else(|| query_bug!(ctor_def_id, "expected transparent enum"))?;
+                .ok_or_else(|| query_bug!("non-transparent enum {enum_id:?} at {variant_idx:?}"))?;
             return Ok(sig);
         }
         _ => None,
