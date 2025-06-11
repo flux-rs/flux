@@ -3,7 +3,6 @@
 #![feature(
     associated_type_defaults,
     box_patterns,
-    extract_if,
     if_let_guard,
     let_chains,
     min_specialization,
@@ -12,6 +11,7 @@
     unwrap_infallible
 )]
 
+extern crate rustc_abi;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
 extern crate rustc_hir;
@@ -20,7 +20,6 @@ extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_mir_dataflow;
 extern crate rustc_span;
-extern crate rustc_target;
 extern crate rustc_type_ir;
 
 mod checker;

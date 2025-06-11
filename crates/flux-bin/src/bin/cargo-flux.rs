@@ -1,4 +1,4 @@
-#![feature(let_chains, os_str_display)]
+#![feature(let_chains)]
 
 use std::{
     self, env,

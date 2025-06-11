@@ -80,17 +80,20 @@ fn print_and_dump_report(tcx: TyCtxt, total: Duration, timings: Vec<Entry>) -> i
     queries.reverse();
 
     print_report(&functions, total);
-    dump_timings(tcx, TimingsDump {
-        total: ms(total),
-        functions: functions
-            .into_iter()
-            .map(|(def_path, time)| FuncTiming { def_path, time_ms: ms(time) })
-            .collect(),
-        queries: queries
-            .into_iter()
-            .map(|(task_key, time)| QueryTiming { task_key, time_ms: ms(time) })
-            .collect(),
-    })
+    dump_timings(
+        tcx,
+        TimingsDump {
+            total: ms(total),
+            functions: functions
+                .into_iter()
+                .map(|(def_path, time)| FuncTiming { def_path, time_ms: ms(time) })
+                .collect(),
+            queries: queries
+                .into_iter()
+                .map(|(task_key, time)| QueryTiming { task_key, time_ms: ms(time) })
+                .collect(),
+        },
+    )
 }
 
 fn print_report(functions: &[(String, Duration)], total: Duration) {

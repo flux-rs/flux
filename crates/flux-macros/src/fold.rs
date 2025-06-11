@@ -23,15 +23,18 @@ pub(crate) fn type_foldable_derive(mut s: synstructure::Structure<'_>) -> proc_m
         })
     });
 
-    s.bound_impl(quote!(::flux_middle::rty::fold::TypeFoldable), quote! {
-        fn try_fold_with<__F: ::flux_middle::rty::fold::FallibleTypeFolder>(
-            // self,
-            &self,
-            __folder: &mut __F
-        ) -> Result<Self, __F::Error> {
-            Ok(match self { #body_fold })
-        }
-    })
+    s.bound_impl(
+        quote!(::flux_middle::rty::fold::TypeFoldable),
+        quote! {
+            fn try_fold_with<__F: ::flux_middle::rty::fold::FallibleTypeFolder>(
+                // self,
+                &self,
+                __folder: &mut __F
+            ) -> Result<Self, __F::Error> {
+                Ok(match self { #body_fold })
+            }
+        },
+    )
 }
 
 pub(crate) fn type_visitable_derive(
@@ -54,13 +57,16 @@ pub(crate) fn type_visitable_derive(
     });
     s.bind_with(|_| synstructure::BindStyle::Move);
 
-    s.bound_impl(quote!(::flux_middle::rty::fold::TypeVisitable), quote! {
-        fn visit_with<__V: ::flux_middle::rty::fold::TypeVisitor>(
-            &self,
-            __visitor: &mut __V
-        ) -> ::core::ops::ControlFlow<__V::BreakTy> {
-            match *self { #body_visit }
-            ::core::ops::ControlFlow::Continue(())
-        }
-    })
+    s.bound_impl(
+        quote!(::flux_middle::rty::fold::TypeVisitable),
+        quote! {
+            fn visit_with<__V: ::flux_middle::rty::fold::TypeVisitor>(
+                &self,
+                __visitor: &mut __V
+            ) -> ::core::ops::ControlFlow<__V::BreakTy> {
+                match *self { #body_visit }
+                ::core::ops::ControlFlow::Continue(())
+            }
+        },
+    )
 }

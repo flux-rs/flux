@@ -22,6 +22,8 @@ use flux_rustc_bridge::def_id_to_string;
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
+use rustc_abi;
+pub use rustc_abi::VariantIdx;
 use rustc_ast::TraitObjectSyntax;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
@@ -36,8 +38,6 @@ use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
-pub use rustc_target::abi::VariantIdx;
-use rustc_target::spec::abi;
 
 use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
@@ -548,7 +548,7 @@ pub enum TyKind<'fhir> {
 
 pub struct BareFnTy<'fhir> {
     pub safety: Safety,
-    pub abi: abi::Abi,
+    pub abi: rustc_abi::ExternAbi,
     pub generic_params: &'fhir [GenericParam<'fhir>],
     pub decl: &'fhir FnDecl<'fhir>,
     pub param_names: &'fhir [Ident],
@@ -1226,13 +1226,13 @@ impl FuncSort<'_> {
 }
 
 impl rustc_errors::IntoDiagArg for Ty<'_> {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
 impl rustc_errors::IntoDiagArg for Path<'_> {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }

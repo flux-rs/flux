@@ -1268,10 +1268,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::BinOp::BitShl
             | rty::BinOp::BitShr => {
                 let bv_func = self.bv_op_to_fixpoint(op);
-                return Ok(fixpoint::Expr::App(Box::new(bv_func), vec![
-                    self.expr_to_fixpoint(e1, scx)?,
-                    self.expr_to_fixpoint(e2, scx)?,
-                ]));
+                return Ok(fixpoint::Expr::App(
+                    Box::new(bv_func),
+                    vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
+                ));
             }
             rty::BinOp::Add(_) => fixpoint::BinOp::Add,
             rty::BinOp::Sub(_) => fixpoint::BinOp::Sub,
@@ -1339,10 +1339,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             _ => {
                 let rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));
-                fixpoint::Expr::App(Box::new(rel), vec![
-                    self.expr_to_fixpoint(e1, scx)?,
-                    self.expr_to_fixpoint(e2, scx)?,
-                ])
+                fixpoint::Expr::App(
+                    Box::new(rel),
+                    vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
+                )
             }
         };
         Ok(e)

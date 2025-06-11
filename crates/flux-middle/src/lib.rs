@@ -24,7 +24,6 @@ extern crate rustc_macros;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_span;
-extern crate rustc_target;
 extern crate rustc_type_ir;
 
 extern crate self as flux_middle;
@@ -55,6 +54,7 @@ use global_env::GlobalEnv;
 use liquid_fixpoint::ThyFunc;
 use queries::QueryResult;
 use rty::VariantIdx;
+use rustc_abi::FieldIdx;
 use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
@@ -67,7 +67,6 @@ use rustc_span::{
     def_id::{DefId, LocalDefId},
     symbol::Ident,
 };
-use rustc_target::abi::FieldIdx;
 
 fluent_messages! { "../locales/en-US.ftl" }
 

@@ -39,6 +39,8 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
+use rustc_abi;
+pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
@@ -49,8 +51,6 @@ pub use rustc_middle::{
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
 use rustc_span::{Symbol, sym, symbol::kw};
-pub use rustc_target::abi::{FIRST_VARIANT, VariantIdx};
-use rustc_target::spec::abi;
 use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{INNERMOST, TyVid};
 
@@ -685,7 +685,7 @@ impl FnTraitPredicate {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
         let ret = self.output.clone().shift_in_escaping(1);
         let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-        FnSig::new(Safety::Safe, abi::Abi::Rust, List::empty(), inputs, output)
+        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output)
     }
 }
 
@@ -1010,13 +1010,13 @@ pub enum BvSize {
 }
 
 impl rustc_errors::IntoDiagArg for Sort {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
 impl rustc_errors::IntoDiagArg for FuncSort {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
@@ -1179,7 +1179,7 @@ pub type PolyFnSig = Binder<FnSig>;
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct FnSig {
     pub safety: Safety,
-    pub abi: abi::Abi,
+    pub abi: rustc_abi::ExternAbi,
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
@@ -2278,7 +2278,7 @@ impl CoroutineObligPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::bind_with_vars(
-            FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
+            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output),
             List::from(vars),
         )
     }
@@ -2410,7 +2410,7 @@ impl VariantSig {
 impl FnSig {
     pub fn new(
         safety: Safety,
-        abi: abi::Abi,
+        abi: rustc_abi::ExternAbi,
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
@@ -2581,7 +2581,13 @@ impl EarlyBinder<PolyVariant> {
                     None => variant.fields.clone(),
                     Some(i) => List::singleton(variant.fields[i.index()].clone()),
                 };
-                FnSig::new(Safety::Safe, abi::Abi::Rust, variant.requires.clone(), inputs, output)
+                FnSig::new(
+                    Safety::Safe,
+                    rustc_abi::ExternAbi::Rust,
+                    variant.requires.clone(),
+                    inputs,
+                    output,
+                )
             })
         })
     }

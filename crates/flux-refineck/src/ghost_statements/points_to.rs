@@ -25,6 +25,7 @@ use flux_middle::{
     queries::QueryResult,
     rty::{self, Loc},
 };
+use rustc_abi::FieldIdx;
 use rustc_data_structures::stack::ensure_sufficient_stack;
 use rustc_hash::FxHashMap;
 use rustc_index::{IndexSlice, IndexVec, bit_set::DenseBitSet};
@@ -37,7 +38,6 @@ use rustc_mir_dataflow::{
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
 };
-use rustc_target::abi::FieldIdx;
 
 use super::GhostStatements;
 use crate::ghost_statements::{GhostStatement, Point};

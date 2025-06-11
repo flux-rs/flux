@@ -11,7 +11,7 @@ use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
     ty::{
-        self as rustc_ty, GenericArgKind, ParamConst, ParamEnv, TyCtxt, TypingMode, ValTree,
+        self as rustc_ty, GenericArgKind, ParamConst, ParamEnv, TyCtxt, TypingMode,
         adjustment as rustc_adjustment,
     },
 };
@@ -478,7 +478,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::ShallowInitBox(op, ty) => {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, ty.lower(self.tcx)?))
             }
-            rustc_mir::Rvalue::ThreadLocalRef(_) | rustc_mir::Rvalue::CopyForDeref(_) => {
+            rustc_mir::Rvalue::ThreadLocalRef(_)
+            | rustc_mir::Rvalue::CopyForDeref(_)
+            | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
         }
@@ -597,7 +599,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         match null_op {
             rustc_mir::NullOp::SizeOf => Ok(NullOp::SizeOf),
             rustc_mir::NullOp::AlignOf => Ok(NullOp::AlignOf),
-            rustc_mir::NullOp::OffsetOf(_) | rustc_mir::NullOp::UbChecks => {
+            rustc_mir::NullOp::OffsetOf(_)
+            | rustc_mir::NullOp::UbChecks
+            | rustc_mir::NullOp::ContractChecks => {
                 Err(UnsupportedReason::new(format!("unsupported nullary op `{null_op:?}`")))
             }
         }
@@ -636,8 +640,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             }
             (Const::Ty(ty, c), _) => {
                 match c.kind() {
-                    rustc_ty::ConstKind::Value(ty, rustc_ty::ValTree::Leaf(scalar)) => {
-                        self.scalar_int_to_constant(scalar, ty)
+                    rustc_ty::ConstKind::Value(value) => {
+                        match &*value.valtree {
+                            rustc_ty::ValTreeKind::Leaf(scalar_int) => {
+                                self.scalar_int_to_constant(*scalar_int, value.ty)
+                            }
+                            rustc_ty::ValTreeKind::Branch(_) => None,
+                        }
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = ty.lower(tcx)?;
@@ -779,12 +788,15 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
     type R = crate::ty::ValTree;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
-        match self {
-            ValTree::Leaf(scalar_int) => crate::ty::ValTree::Leaf(scalar_int),
-            ValTree::Branch(trees) => {
-                let trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
-                crate::ty::ValTree::Branch(trees)
-            }
+        if let Some(scalar_int) = self.try_to_scalar_int() {
+            return crate::ty::ValTree::Leaf(scalar_int);
+        } else {
+            let trees = self
+                .unwrap_branch()
+                .iter()
+                .map(|tree| tree.lower(_tcx))
+                .collect();
+            return crate::ty::ValTree::Branch(trees);
         }
     }
 }
@@ -797,8 +809,8 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Param(param_const) => {
                 ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
             }
-            rustc_type_ir::ConstKind::Value(ty, v) => {
-                ConstKind::Value(ty.lower(tcx)?, v.lower(tcx))
+            rustc_type_ir::ConstKind::Value(value) => {
+                ConstKind::Value(value.ty.lower(tcx)?, value.valtree.lower(tcx))
             }
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
@@ -1150,6 +1162,8 @@ impl<'tcx> Lower<'tcx> for rustc_ty::RegionOutlivesPredicate<'tcx> {
 }
 
 mod errors {
+    use std::path::PathBuf;
+
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use rustc_middle::mir as rustc_mir;
@@ -1186,7 +1200,7 @@ mod errors {
     }
 
     impl rustc_errors::IntoDiagArg for UnsupportedReason {
-        fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        fn into_diag_arg(self, _path: &mut Option<PathBuf>) -> rustc_errors::DiagArgValue {
             rustc_errors::DiagArgValue::Str(std::borrow::Cow::Owned(self.descr))
         }
     }

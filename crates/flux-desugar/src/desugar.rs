@@ -204,8 +204,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     ) -> fhir::Generics<'genv> {
         let params = self.genv.alloc_slice_fill_iter(
             self.genv
-                .hir()
-                .get_generics(self.owner.local_id().def_id)
+                .tcx()
+                .hir_get_generics(self.owner.local_id().def_id)
                 .unwrap()
                 .params
                 .iter()
@@ -582,12 +582,15 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             .as_local()
             .map_or(&[][..], |owner_id| &self.resolver_output.reveal_res_map[&owner_id]);
 
-        Ok((generics, fhir::FnSig {
-            header,
-            qualifiers: self.genv.alloc_slice(qual_names),
-            reveals: self.genv.alloc_slice(reveal_names),
-            decl: self.genv.alloc(decl),
-        }))
+        Ok((
+            generics,
+            fhir::FnSig {
+                header,
+                qualifiers: self.genv.alloc_slice(qual_names),
+                reveals: self.genv.alloc_slice(reveal_names),
+                decl: self.genv.alloc(decl),
+            },
+        ))
     }
 
     fn desugar_fn_sig_refine_params(

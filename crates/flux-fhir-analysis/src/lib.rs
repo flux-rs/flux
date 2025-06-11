@@ -1,5 +1,6 @@
 #![feature(rustc_private, let_chains, box_patterns, if_let_guard, once_cell_try, never_type)]
 
+extern crate rustc_abi;
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -8,7 +9,6 @@ extern crate rustc_index;
 extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_span;
-extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 
@@ -423,7 +423,7 @@ fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<
         DefKind::TyParam => {
             match def_id {
                 MaybeExternId::Local(local_id) => {
-                    let owner = genv.hir().ty_param_owner(local_id);
+                    let owner = genv.tcx().hir_ty_param_owner(local_id);
                     let param = genv.map().get_generics(owner)?.unwrap().get_param(local_id);
                     match param.kind {
                         fhir::GenericParamKind::Type { default: Some(ty) } => {

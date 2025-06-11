@@ -42,7 +42,7 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     let specs = genv.collect_specs();
     let mut resolver = CrateResolver::new(genv, specs);
 
-    genv.hir().walk_toplevel_module(&mut resolver);
+    genv.tcx().hir_walk_toplevel_module(&mut resolver);
 
     resolver.into_output()
 }
@@ -112,10 +112,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         self.func_decls.insert(defn.name.name, kind);
                     }
                     surface::Item::SortDecl(sort_decl) => {
-                        self.sort_decls.insert(sort_decl.name.name, fhir::SortDecl {
-                            name: sort_decl.name.name,
-                            span: sort_decl.name.span,
-                        });
+                        self.sort_decls.insert(
+                            sort_decl.name.name,
+                            fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+                        );
                     }
                 }
             }
@@ -130,7 +130,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {
         for item_id in item_ids {
-            let item = self.genv.hir().item(*item_id);
+            let item = self.genv.tcx().hir_item(*item_id);
             let def_kind = match item.kind {
                 ItemKind::Use(path, kind) => {
                     match kind {
@@ -190,7 +190,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn define_foreign_items(&mut self, items: &[rustc_hir::ForeignItemRef]) {
         for item_ref in items {
-            let item = self.genv.hir().foreign_item(item_ref.id);
+            let item = self.genv.tcx().hir_foreign_item(item_ref.id);
             match item.kind {
                 rustc_hir::ForeignItemKind::Type => {
                     self.define_res_in(
@@ -236,8 +236,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     fn define_generics(&mut self, def_id: MaybeExternId<OwnerId>) {
         let generics = self
             .genv
-            .hir()
-            .get_generics(def_id.local_id().def_id)
+            .tcx()
+            .hir_get_generics(def_id.local_id().def_id)
             .unwrap();
         for param in generics.params {
             let def_kind = self.genv.tcx().def_kind(param.def_id);
@@ -483,8 +483,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     type NestedFilter = rustc_middle::hir::nested_filter::All;
 
-    fn nested_visit_map(&mut self) -> Self::Map {
-        self.genv.hir()
+    fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+        self.genv.tcx()
     }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
@@ -518,7 +518,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             if let hir::StmtKind::Item(item_id) = &stmt.kind { Some(item_id) } else { None }
         });
         self.define_items(item_ids);
-        self.resolve_flux_items(self.genv.hir().get_parent_item(block.hir_id));
+        self.resolve_flux_items(self.genv.tcx().hir_get_parent_item(block.hir_id));
 
         hir::intravisit::walk_block(self, block);
 

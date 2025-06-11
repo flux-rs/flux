@@ -21,7 +21,8 @@ use itertools::Itertools;
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    self as hir, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId, VariantData,
+    self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
+    VariantData,
     def::DefKind,
     def_id::{CRATE_DEF_ID, LocalDefId},
 };
@@ -48,8 +49,8 @@ macro_rules! attr_name {
 impl<'tcx> hir::intravisit::Visitor<'tcx> for SpecCollector<'_, 'tcx> {
     type NestedFilter = rustc_middle::hir::nested_filter::All;
 
-    fn nested_visit_map(&mut self) -> Self::Map {
-        self.tcx.hir()
+    fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+        self.tcx
     }
 
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
@@ -76,7 +77,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         };
 
         let _ = collector.collect_crate();
-        tcx.hir().walk_toplevel_module(&mut collector);
+        tcx.hir_walk_toplevel_module(&mut collector);
 
         if config::annots() {
             collector.stats.save(tcx).unwrap();
@@ -130,7 +131,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 // consider these defs to be defined in the parent of the const.
                 self.specs
                     .flux_items_by_parent
-                    .entry(self.tcx.hir().get_parent_item(item.hir_id()))
+                    .entry(self.tcx.hir_get_parent_item(item.hir_id()))
                     .or_default()
                     .extend(attrs.items());
 
@@ -378,7 +379,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
-                if let hir::AttrKind::Normal(attr_item) = &attr.kind {
+                if let Attribute::Unparsed(attr_item) = &attr {
                     match &attr_item.path.segments[..] {
                         [first, ..] => {
                             let ident = first.as_str();
@@ -915,9 +916,9 @@ mod errors {
         ) -> Diag<'sess, ErrorGuaranteed> {
             use flux_syntax::ParseErrorKind;
             let mut diag = Diag::new(dcx, level, crate::fluent_generated::driver_syntax_err);
-            diag.code(E0999)
-                .span(self.0.span)
-                .span_label(self.0.span, match &self.0.kind {
+            diag.code(E0999).span(self.0.span).span_label(
+                self.0.span,
+                match &self.0.kind {
                     ParseErrorKind::UnexpectedEof => "unexpected end of input".to_string(),
                     ParseErrorKind::UnexpectedToken { expected } => {
                         match &expected[..] {
@@ -938,7 +939,8 @@ mod errors {
                     ParseErrorKind::InvalidBinding => {
                         "identifier must be a mutable reference".to_string()
                     }
-                });
+                },
+            );
             diag
         }
     }
