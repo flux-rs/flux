@@ -511,11 +511,9 @@ impl rty::PolyFnSig {
                 .copied()
                 .collect_vec();
             // FIXME: we should have a better way to generate the KVid.
-            let requires_wkvar =
-                make_weak_kvar(def_id, rty::KVid::from(0_usize), params.clone());
+            let requires_wkvar = make_weak_kvar(def_id, rty::KVid::from(0_usize), params.clone());
             shift_in_vars(&mut params);
-            let output_binder_params =
-                make_vars_from_bound_vars(fn_sig.output.vars());
+            let output_binder_params = make_vars_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
             let output = fn_sig.output.map(|output| {
                 rty::FnOutput {
@@ -578,11 +576,7 @@ fn add_weak_kvar_to_ty(
         }
         // Straightforward recursive cases
         StrgRef(region, path, ty) => {
-            Ty::strg_ref(
-                *region,
-                path.clone(),
-                add_weak_kvar_to_ty(def_id, kvid, params, ty),
-            )
+            Ty::strg_ref(*region, path.clone(), add_weak_kvar_to_ty(def_id, kvid, params, ty))
         }
         Downcast(adt_def, generic_args, ty, variant_idx, fields) => {
             Ty::downcast(

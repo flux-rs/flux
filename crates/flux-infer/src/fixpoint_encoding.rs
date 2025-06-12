@@ -20,10 +20,7 @@ use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{
-        self, ESpan, GenericArgsExt, Lambda, List, VariantIdx,
-        fold::TypeVisitable,
-    },
+    rty::{self, ESpan, GenericArgsExt, Lambda, List, VariantIdx, fold::TypeVisitable},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
