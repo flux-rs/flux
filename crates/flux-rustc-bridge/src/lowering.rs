@@ -787,11 +787,11 @@ impl<'tcx> Lower<'tcx> for &'tcx rustc_ty::List<rustc_ty::BoundVariableKind> {
 impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
     type R = crate::ty::ValTree;
 
-    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
+    fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
         match &*self {
             rustc_ty::ValTreeKind::Leaf(scalar_int) => crate::ty::ValTree::Leaf(*scalar_int),
             rustc_ty::ValTreeKind::Branch(trees) => {
-                let trees = trees.iter().map(|tree| tree.lower(tcx)).collect();
+                let trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
                 crate::ty::ValTree::Branch(trees)
             }
         }

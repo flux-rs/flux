@@ -230,7 +230,7 @@ impl<'fhir> Item<'fhir> {
 pub enum ItemKind<'fhir> {
     Enum(EnumDef<'fhir>),
     Struct(StructDef<'fhir>),
-    TyAlias(Box<TyAlias<'fhir>>),
+    TyAlias(&'fhir TyAlias<'fhir>),
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),

@@ -448,11 +448,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             .as_ref()
             .map(|index| self.desugar_refine_param(index));
 
-        let ty_alias = Box::new(fhir::TyAlias { index, ty, span: ty_alias.span, lifted: false });
+        let ty_alias =
+            self.genv()
+                .alloc(fhir::TyAlias { index, ty, span: ty_alias.span, lifted: false });
         if config::dump_fhir() {
-            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &ty_alias).unwrap();
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", ty_alias).unwrap();
         }
-
         fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner }
     }
 
