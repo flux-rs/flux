@@ -31,7 +31,7 @@ use rustc_type_ir::TypeVisitableExt;
 use crate::{
     fixpoint_encoding::KVarEncoding,
     infer::{InferCtxtAt, InferResult},
-    refine_tree::{BinderOriginator, BinderProvenance, Scope},
+    refine_tree::{BinderOriginator, BinderProvenance, Scope}
 };
 
 pub trait NormalizeExt: TypeFoldable {
@@ -250,8 +250,14 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             .iter()
             .map(|arg| {
                 match arg {
-                    GenericArg::Ty(ty) => GenericArg::Ty(self.infcx.unpack(ty, BinderProvenance::new(BinderOriginator::SubProjTy).with_span(span))),
-                    GenericArg::Base(ctor) => GenericArg::Ty(self.infcx.unpack(&ctor.to_ty(), BinderProvenance::new(BinderOriginator::SubProjTy).with_span(span))),
+                    GenericArg::Ty(ty) => {
+                        let bp = BinderProvenance::new(BinderOriginator::SubtypeProjTy).with_span(span);
+                        GenericArg::Ty(self.infcx.unpack(ty, bp))
+                    }
+                    GenericArg::Base(ctor) => {
+                        let bp = BinderProvenance::new(BinderOriginator::SubtypeProjBase).with_span(span);
+                        GenericArg::Ty(self.infcx.unpack(&ctor.to_ty(), bp))
+                    }
                     _ => arg.clone(),
                 }
             })

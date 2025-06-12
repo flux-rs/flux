@@ -648,21 +648,6 @@ impl Expr {
         }
         self.fold_with(&mut SpanEraser)
     }
-
-    pub fn erase_spans(&self) -> Expr {
-        struct SpanEraser {}
-        impl TypeFolder for SpanEraser {
-            fn fold_expr(&mut self, e: &Expr) -> Expr {
-                let e = e.super_fold_with(self);
-                Expr {
-                    kind: e.kind,
-                    espan: None,
-                }
-            }
-        }
-        let mut eraser = SpanEraser {};
-        eraser.fold_expr(self)
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
