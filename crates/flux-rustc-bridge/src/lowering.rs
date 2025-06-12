@@ -789,14 +789,14 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
         if let Some(scalar_int) = self.try_to_scalar_int() {
-            return crate::ty::ValTree::Leaf(scalar_int);
+            crate::ty::ValTree::Leaf(scalar_int)
         } else {
             let trees = self
                 .unwrap_branch()
                 .iter()
                 .map(|tree| tree.lower(_tcx))
                 .collect();
-            return crate::ty::ValTree::Branch(trees);
+            crate::ty::ValTree::Branch(trees)
         }
     }
 }
