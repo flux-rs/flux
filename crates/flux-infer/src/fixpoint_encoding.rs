@@ -19,8 +19,7 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{
-        self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx, fold::TypeVisitable, },
+    rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx, fold::TypeVisitable},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
