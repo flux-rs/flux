@@ -429,11 +429,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 break;
             }
         }
-        if ns == TypeNS {
-            if let Some(crate_id) = self.crates.get(&ident.name) {
-                return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
-            }
+        if ns == TypeNS
+            && let Some(crate_id) = self.crates.get(&ident.name)
+        {
+            return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
         }
+
         if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
             return Some(*res);
         }

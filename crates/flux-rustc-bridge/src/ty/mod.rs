@@ -1127,7 +1127,7 @@ impl fmt::Debug for Ty {
                 write!(f, "dyn {:?} + {r:?}", preds.iter().format(", "))
             }
             TyKind::Foreign(def_id) => {
-                write!(f, "Foreign {:?}", def_id)
+                write!(f, "Foreign {def_id:?}")
             }
         }
     }

@@ -491,17 +491,13 @@ pub(crate) fn replicate_infer_ctxt<'tcx>(
     def_id: LocalDefId,
     _body_with_facts: &BodyWithBorrowckFacts<'tcx>,
 ) -> rustc_infer::infer::InferCtxt<'tcx> {
-    let infcx = tcx
-        .infer_ctxt()
+    tcx.infer_ctxt()
         .with_next_trait_solver(true)
-        .build(TypingMode::analysis_in_body(tcx, def_id));
-
+        .build(TypingMode::analysis_in_body(tcx, def_id))
     // TODO(BUMP) Nico suggests: maybe we can find _how many_ variables there are and add them with some dummy origin.
     // TODO(BUMP) for info in &body_with_facts.region_inference_context.var_infos {
     // TODO(BUMP)     infcx.next_region_var(info.origin);
     // TODO(BUMP) }
-
-    infcx
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
@@ -518,10 +514,10 @@ fn mk_fake_predecessors(
     let mut res: IndexVec<BasicBlock, usize> = basic_blocks.iter().map(|_| 0).collect();
 
     for bb in basic_blocks {
-        if let Some(terminator) = &bb.terminator {
-            if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
-                res[imaginary_target] += 1;
-            }
+        if let Some(terminator) = &bb.terminator
+            && let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind
+        {
+            res[imaginary_target] += 1;
         }
     }
     res
@@ -800,9 +796,9 @@ impl fmt::Debug for Constant {
             Constant::Unit => write!(f, "()"),
             Constant::Str(s) => write!(f, "\"{s:?}\""),
             Constant::Char(c) => write!(f, "\'{c}\'"),
-            Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
-            Constant::Param(p, _) => write!(f, "{:?}", p),
-            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {:?} from {:?}>", ty, def_id),
+            Constant::Opaque(ty) => write!(f, "<opaque {ty:?}>"),
+            Constant::Param(p, _) => write!(f, "{p:?}"),
+            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {ty:?} from {def_id:?}>"),
         }
     }
 }

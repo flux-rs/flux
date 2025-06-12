@@ -111,15 +111,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Fn { .. } => {
                 self.collect_fn_spec(owner_id, attrs)?;
             }
-            ItemKind::Struct(_, variant, _) => {
+            ItemKind::Struct(_, _, variant) => {
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
-            ItemKind::Union(_, variant, _) => {
+            ItemKind::Union(_, _, variant) => {
                 // currently no refinements on unions
                 tracked_span_assert_eq!(attrs.items().is_empty(), true);
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
-            ItemKind::Enum(_, enum_def, _) => {
+            ItemKind::Enum(_, _, enum_def) => {
                 self.collect_enum_def(owner_id, attrs, enum_def)?;
             }
             ItemKind::Mod(..) => self.collect_mod(owner_id, attrs)?,
@@ -812,9 +812,9 @@ impl AttrMap {
     fn parse_entry(&mut self, nested_item: &MetaItemInner) -> AttrMapErr {
         match nested_item {
             MetaItemInner::MetaItem(item) => {
-                let name = item.name_or_empty().to_ident_string();
+                let name = item.name().map(|sym| sym.to_ident_string());
                 let span = item.span;
-                if !name.is_empty() {
+                if let Some(name) = name {
                     if self.map.contains_key(&name) {
                         return Err(errors::AttrMapErr {
                             span,

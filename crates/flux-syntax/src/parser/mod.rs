@@ -851,10 +851,10 @@ fn parse_binops(cx: &mut ParseCtxt, base: Precedence, allow_struct: bool) -> Par
             Associativity::Right => precedence,
             Associativity::Left => precedence.next(),
             Associativity::None => {
-                if let ExprKind::BinaryOp(op, ..) = &lhs.kind {
-                    if Precedence::of_binop(op) == precedence {
-                        return Err(cx.cannot_be_chained(lo, cx.hi()));
-                    }
+                if let ExprKind::BinaryOp(op, ..) = &lhs.kind
+                    && Precedence::of_binop(op) == precedence
+                {
+                    return Err(cx.cannot_be_chained(lo, cx.hi()));
                 }
                 precedence.next()
             }
@@ -1130,14 +1130,14 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
 }
 
 fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
-    if let Tok::Literal(lit) = cx.at(0).1 {
-        if let LitKind::Integer = lit.kind {
-            if let Ok(value) = lit.symbol.as_str().parse::<T>() {
-                cx.advance();
-                return Ok(value);
-            }
-        }
+    if let Tok::Literal(lit) = cx.at(0).1
+        && let LitKind::Integer = lit.kind
+        && let Ok(value) = lit.symbol.as_str().parse::<T>()
+    {
+        cx.advance();
+        return Ok(value);
     }
+
     Err(cx.unexpected_token(vec![std::any::type_name::<T>()]))
 }
 

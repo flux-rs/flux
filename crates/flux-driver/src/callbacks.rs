@@ -141,16 +141,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
         let current_dir = tcx.sess.opts.working_dir.clone();
-        if let FileName::Real(file_name) = sm.span_to_filename(span) {
-            if let Some(file_path) = file_name.local_path()
-                && let Some(current_dir_path) = current_dir.local_path()
-            {
-                let file = current_dir_path
-                    .join(file_path)
-                    .to_string_lossy()
-                    .to_string();
-                return config::is_checked_file(&file);
-            }
+        if let FileName::Real(file_name) = sm.span_to_filename(span)
+            && let Some(file_path) = file_name.local_path()
+            && let Some(current_dir_path) = current_dir.local_path()
+        {
+            let file = current_dir_path
+                .join(file_path)
+                .to_string_lossy()
+                .to_string();
+            return config::is_checked_file(&file);
         }
         true
     }

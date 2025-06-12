@@ -1382,7 +1382,7 @@ impl fmt::Debug for ConstArgKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstArgKind::Lit(n) => write!(f, "{n}"),
-            ConstArgKind::Param(p) => write!(f, "{:?}", p),
+            ConstArgKind::Param(p) => write!(f, "{p:?}"),
             ConstArgKind::Infer => write!(f, "_"),
         }
     }
@@ -1573,7 +1573,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
-            SortRes::SortParam(n) => write!(f, "@{}", n),
+            SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
                 write!(f, "{}::Self::sort", def_id_to_string(*trait_id))

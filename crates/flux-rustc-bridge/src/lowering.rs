@@ -670,10 +670,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                         .eval(tcx, typing_env, rustc_span::DUMMY_SP)
                         .map(|val| Const::Val(val, constant.const_.ty()))
                         .unwrap_or(constant.const_);
-                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {
-                        if let Some(constant) = self.scalar_int_to_constant(scalar, ty) {
-                            return Ok(constant);
-                        }
+                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_
+                        && let Some(constant) = self.scalar_int_to_constant(scalar, ty)
+                    {
+                        return Ok(constant);
                     }
                 }
                 Some(Constant::Opaque(ty.lower(tcx)?))

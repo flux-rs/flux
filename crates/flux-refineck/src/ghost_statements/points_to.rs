@@ -37,6 +37,7 @@ use rustc_mir_dataflow::{
     Analysis, JoinSemiLattice, ResultsVisitor,
     fmt::DebugWithContext,
     lattice::{FlatSet, HasBottom, HasTop},
+    visit_reachable_results,
 };
 
 use super::GhostStatements;
@@ -49,17 +50,17 @@ pub(crate) fn add_ghost_statements<'tcx>(
     fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
 ) -> QueryResult {
     let map = Map::new(body);
-
     let mut visitor = CollectPointerToBorrows::new(&map, stmts);
-
-    PointsToAnalysis::new(&map, fn_sig)
-        .iterate_to_fixpoint(genv.tcx(), body, None)
-        .visit_reachable_with(body, &mut visitor);
+    let points_to = PointsToAnalysis::new(&map, fn_sig);
+    let fixpoint = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
+    let mut analysis = fixpoint.analysis;
+    let results = fixpoint.results;
+    visit_reachable_results(body, &mut analysis, &results, &mut visitor);
 
     Ok(())
 }
 
-type Results<'a, 'tcx> = rustc_mir_dataflow::Results<'tcx, PointsToAnalysis<'a>>;
+type Results<'a> = rustc_mir_dataflow::Results<PointsToAnalysis<'a>>;
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
 /// a may analysis. If you want to know if a reference definitively points to a location you have to
@@ -267,9 +268,7 @@ impl<'a> CollectPointerToBorrows<'a> {
     }
 }
 
-impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, PointsToAnalysis<'a>>
-    for CollectPointerToBorrows<'_>
-{
+impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBorrows<'_> {
     fn visit_block_start(&mut self, state: &State) {
         self.before_state.clear();
         for place_idx in self.tracked_places.keys() {
@@ -280,9 +279,9 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, PointsToAnalysis<'a>>
 
     fn visit_after_primary_statement_effect(
         &mut self,
-        _results: &mut Results<'a, 'tcx>,
+        _analysis: &mut PointsToAnalysis<'a>,
         state: &State,
-        _statement: &'mir mir::Statement<'tcx>,
+        _statement: &mir::Statement<'tcx>,
         location: mir::Location,
     ) {
         let point = Point::BeforeLocation(location);
@@ -302,28 +301,29 @@ impl<'a, 'mir, 'tcx> ResultsVisitor<'mir, 'tcx, PointsToAnalysis<'a>>
 
     fn visit_after_primary_terminator_effect(
         &mut self,
-        results: &mut Results<'a, 'tcx>,
+        _analysis: &mut PointsToAnalysis<'a>,
+        // results: &mut Results<'a>,
         _state: &State,
-        terminator: &'mir mir::Terminator<'tcx>,
-        location: mir::Location,
+        _terminator: &mir::Terminator<'tcx>,
+        _location: mir::Location,
     ) {
-        let block = location.block;
-        for target in terminator.successors() {
-            let point = Point::Edge(block, target);
-            let target_state = results.entry_set_for_block(target);
-
-            for (place_idx, old_value) in &self.before_state {
-                let new_value = target_state.get_idx(*place_idx, self.map);
-                if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, new_value) {
-                    let place = self
-                        .tracked_places
-                        .get(place_idx)
-                        .unwrap_or_else(|| tracked_span_bug!())
-                        .clone();
-                    self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
-                }
-            }
-        }
+        todo!("YIKES!")
+        // let block = location.block;
+        // for target in terminator.successors() {
+        //     let point = Point::Edge(block, target);
+        //     let target_state = analysis.entry_set_for_block(target);
+        //     for (place_idx, old_value) in &self.before_state {
+        //         let new_value = target_state.get_idx(*place_idx, self.map);
+        //         if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, new_value) {
+        //             let place = self
+        //                 .tracked_places
+        //                 .get(place_idx)
+        //                 .unwrap_or_else(|| tracked_span_bug!())
+        //                 .clone();
+        //             self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -746,10 +746,10 @@ impl State {
         // If both places are tracked, we copy the value to the target.
         // If the target is tracked, but the source is not, we do nothing, as invalidation has
         // already been performed.
-        if let Some(target_value) = map.places[target].value_index {
-            if let Some(source_value) = map.places[source].value_index {
-                self.values[target_value] = self.values[source_value];
-            }
+        if let Some(target_value) = map.places[target].value_index
+            && let Some(source_value) = map.places[source].value_index
+        {
+            self.values[target_value] = self.values[source_value];
         }
         for target_child in map.children(target) {
             // Try to find corresponding child and recurse. Reasoning is similar as above.
