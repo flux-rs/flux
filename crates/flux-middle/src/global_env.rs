@@ -59,10 +59,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.tcx
     }
 
-    // TODO(BUMP) pub fn hir(&self) -> rustc_middle::hir::map::Map<'tcx> {
-    // TODO(BUMP)     self.tcx().hir()
-    // TODO(BUMP) }
-
     pub fn sess(self) -> &'genv FluxSession {
         self.inner.sess
     }
