@@ -77,7 +77,7 @@ impl WKVarInstantiator<'_> {
             wkvar
                 .params
                 .iter()
-                .map(|param| rty::Expr::var(param.clone())),
+                .map(|param| rty::Expr::var(*param)),
         )
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
@@ -115,7 +115,7 @@ struct ProductEtaExpander<'a> {
     expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>,
 }
 
-impl<'a> TypeVisitor for ProductEtaExpander<'a> {
+impl TypeVisitor for ProductEtaExpander<'_> {
     fn visit_expr(&mut self, expr: &rty::Expr) -> ControlFlow<Self::BreakTy> {
         match expr.kind() {
             rty::ExprKind::Tuple(subexprs) | rty::ExprKind::Ctor(_, subexprs) => {
