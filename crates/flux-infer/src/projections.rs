@@ -251,11 +251,13 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             .map(|arg| {
                 match arg {
                     GenericArg::Ty(ty) => {
-                        let bp = BinderProvenance::new(BinderOriginator::SubtypeProjTy).with_span(span);
+                        let bp =
+                            BinderProvenance::new(BinderOriginator::SubtypeProjTy).with_span(span);
                         GenericArg::Ty(self.infcx.unpack(ty, bp))
                     }
                     GenericArg::Base(ctor) => {
-                        let bp = BinderProvenance::new(BinderOriginator::SubtypeProjBase).with_span(span);
+                        let bp = BinderProvenance::new(BinderOriginator::SubtypeProjBase)
+                            .with_span(span);
                         GenericArg::Ty(self.infcx.unpack(&ctor.to_ty(), bp))
                     }
                     _ => arg.clone(),

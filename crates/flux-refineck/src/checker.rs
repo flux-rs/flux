@@ -16,7 +16,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::{try_query, QueryResult},
+    queries::{QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,

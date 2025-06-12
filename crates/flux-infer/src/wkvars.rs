@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::ControlFlow};
 
 use flux_middle::rty::{
-        self,
-        fold::{FallibleTypeFolder, TypeFolder, TypeSuperFoldable, TypeVisitable, TypeVisitor},
-    };
+    self,
+    fold::{
+        FallibleTypeFolder, TypeFolder, TypeSuperFoldable, TypeVisitable, TypeVisitor, TypeFoldable, },
+};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
-use std::ops::ControlFlow;
 
 pub struct WKVarInstantiator<'a> {
     /// Map from the actuals passed to this Weak KVar to its params
@@ -56,8 +56,7 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
             Err(*var)
         } else {
             let instantiated_expr = e.try_super_fold_with(self)?;
-            self.memo
-                .insert(e.clone(), instantiated_expr.clone());
+            self.memo.insert(e.clone(), instantiated_expr.clone());
             Ok(instantiated_expr)
         }
     }
@@ -75,8 +74,12 @@ impl WKVarInstantiator<'_> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
             wkvar.args.iter().map(|arg| arg.erase_spans()),
-            wkvar.params.iter().map(|param| rty::Expr::var(param.clone()))
-        ).for_each(|(arg, param)| {
+            wkvar
+                .params
+                .iter()
+                .map(|param| rty::Expr::var(param.clone())),
+        )
+        .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
         });
         let mut instantiator = WKVarInstantiator {
@@ -95,12 +98,12 @@ pub struct WKVarSubst {
 impl TypeFolder for WKVarSubst {
     fn fold_expr(&mut self, e: &rty::Expr) -> rty::Expr {
         match e.kind() {
-            rty::ExprKind::WKVar(rty::WKVar{wkvid, ..}) if let Some(subst_e) = self.wkvar_instantiations.get(wkvid) => {
+            rty::ExprKind::WKVar(rty::WKVar { wkvid, .. })
+                if let Some(subst_e) = self.wkvar_instantiations.get(wkvid) =>
+            {
                 subst_e.clone()
             }
-            _ => {
-                e.super_fold_with(self)
-            }
+            _ => e.super_fold_with(self),
         }
     }
 }
@@ -109,7 +112,7 @@ struct ProductEtaExpander<'a> {
     // An expression that evalutes to the current_expr
     current_path: rty::Expr,
     // Maps an interior part of the product to its eta expansion.
-    expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>
+    expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>,
 }
 
 impl<'a> TypeVisitor for ProductEtaExpander<'a> {
@@ -117,10 +120,12 @@ impl<'a> TypeVisitor for ProductEtaExpander<'a> {
         match expr.kind() {
             rty::ExprKind::Tuple(subexprs) | rty::ExprKind::Ctor(_, subexprs) => {
                 let current_path = self.current_path.clone();
-                let mk_proj = |field| if let rty::ExprKind::Ctor(ctor, _) = expr.kind() {
-                    rty::FieldProj::Adt { def_id: ctor.def_id(), field }
-                } else {
-                    rty::FieldProj::Tuple { arity: subexprs.len(), field }
+                let mk_proj = |field| {
+                    if let rty::ExprKind::Ctor(ctor, _) = expr.kind() {
+                        rty::FieldProj::Adt { def_id: ctor.def_id(), field }
+                    } else {
+                        rty::FieldProj::Tuple { arity: subexprs.len(), field }
+                    }
                 };
                 for (i, subexpr) in subexprs.iter().enumerate() {
                     self.current_path = rty::Expr::field_proj(&current_path, mk_proj(i as u32));
@@ -133,7 +138,8 @@ impl<'a> TypeVisitor for ProductEtaExpander<'a> {
                 // clobbering whatever lives at expr currently. But we don't
                 // currently support making multiple solutions in the weak kvar
                 // instantiation so I'm not bothering.
-                self.expr_to_eta_expansion.insert(expr.clone(), self.current_path.clone());
+                self.expr_to_eta_expansion
+                    .insert(expr.clone(), self.current_path.clone());
                 ControlFlow::Continue(())
             }
         }
@@ -155,7 +161,11 @@ impl<'a> TypeVisitor for ProductEtaExpander<'a> {
 ///       a0.1 => self.0.1
 ///       42 => self.1
 impl<'a> ProductEtaExpander<'a> {
-    fn eta_expand_products(current_path: rty::Expr, expr: rty::Expr, expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>) {
+    fn eta_expand_products(
+        current_path: rty::Expr,
+        expr: rty::Expr,
+        expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>,
+    ) {
         let mut expander = ProductEtaExpander { current_path, expr_to_eta_expansion };
         expr.visit_with(&mut expander);
     }
