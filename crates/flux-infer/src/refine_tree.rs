@@ -933,4 +933,6 @@ pub enum BinderOriginator {
     CheckInvariant,
     /// For use applying the mut ref hack
     MutRefHack,
+    SubtypeProjTy,
+    SubtypeProjBase,
 }
