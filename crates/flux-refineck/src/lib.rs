@@ -49,7 +49,7 @@ use flux_middle::{
     pretty,
     rty::{
         self, ESpan, Name,
-        fold::TypeVisitable, fold::TypeFolder,
+        fold::{TypeFolder, TypeVisitable},
     },
     timings,
 };
@@ -420,7 +420,9 @@ fn make_binder_subst(genv: GlobalEnv, binder_deps: &BinderDeps) -> HashMap<Name,
     binder_deps
         .iter()
         .for_each(|(name, (bp_opt, _depth, _related_vars))| {
-            if let Some(bp) = bp_opt.as_ref() { add_substitution_for_binder_var(genv, &mut subst, *name, bp); }
+            if let Some(bp) = bp_opt.as_ref() {
+                add_substitution_for_binder_var(genv, &mut subst, *name, bp);
+            }
         });
     subst
 }
@@ -458,9 +460,7 @@ fn add_fn_fix_diagnostic<'a>(
         .def_ident_span(wkvid.0)
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
-    let mut wkvar_subst = WKVarSubst {
-        wkvar_instantiations: [(wkvid, solution.clone())].into()
-    };
+    let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(wkvid, solution.clone())].into() };
     let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
     diag.subdiagnostic(errors::WKVarFnFix {
         span: fn_span,
