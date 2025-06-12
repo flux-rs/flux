@@ -50,17 +50,17 @@ pub(crate) fn add_ghost_statements<'tcx>(
     fn_sig: Option<&rty::EarlyBinder<rty::PolyFnSig>>,
 ) -> QueryResult {
     let map = Map::new(body);
-    let mut visitor = CollectPointerToBorrows::new(&map, stmts);
     let points_to = PointsToAnalysis::new(&map, fn_sig);
     let fixpoint = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
     let mut analysis = fixpoint.analysis;
     let results = fixpoint.results;
+    let mut visitor = CollectPointerToBorrows::new(&map, stmts, results.clone());
     visit_reachable_results(body, &mut analysis, &results, &mut visitor);
 
     Ok(())
 }
 
-type Results<'a> = rustc_mir_dataflow::Results<PointsToAnalysis<'a>>;
+// CUT type Results<'a> = rustc_mir_dataflow::Results<PointsToAnalysis<'a>>;
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
 /// a may analysis. If you want to know if a reference definitively points to a location you have to
@@ -251,10 +251,15 @@ struct CollectPointerToBorrows<'a> {
     tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
     stmts: &'a mut GhostStatements,
     before_state: Vec<(PlaceIndex, FlatSet<Loc>)>,
+    results: IndexVec<BasicBlock, State>,
 }
 
 impl<'a> CollectPointerToBorrows<'a> {
-    fn new(map: &'a Map, stmts: &'a mut GhostStatements) -> Self {
+    fn new(
+        map: &'a Map,
+        stmts: &'a mut GhostStatements,
+        results: IndexVec<BasicBlock, State>,
+    ) -> Self {
         let mut tracked_places = FxHashMap::default();
         map.for_each_tracked_place(|place_idx, local, projection| {
             let projection = projection
@@ -264,7 +269,7 @@ impl<'a> CollectPointerToBorrows<'a> {
                 .collect();
             tracked_places.insert(place_idx, flux_rustc_bridge::mir::Place::new(local, projection));
         });
-        Self { map, tracked_places, stmts, before_state: vec![] }
+        Self { map, tracked_places, stmts, before_state: vec![], results }
     }
 }
 
@@ -302,28 +307,26 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
     fn visit_after_primary_terminator_effect(
         &mut self,
         _analysis: &mut PointsToAnalysis<'a>,
-        // results: &mut Results<'a>,
         _state: &State,
-        _terminator: &mir::Terminator<'tcx>,
-        _location: mir::Location,
+        terminator: &mir::Terminator<'tcx>,
+        location: mir::Location,
     ) {
-        todo!("YIKES!")
-        // let block = location.block;
-        // for target in terminator.successors() {
-        //     let point = Point::Edge(block, target);
-        //     let target_state = analysis.entry_set_for_block(target);
-        //     for (place_idx, old_value) in &self.before_state {
-        //         let new_value = target_state.get_idx(*place_idx, self.map);
-        //         if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, new_value) {
-        //             let place = self
-        //                 .tracked_places
-        //                 .get(place_idx)
-        //                 .unwrap_or_else(|| tracked_span_bug!())
-        //                 .clone();
-        //             self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
-        //         }
-        //     }
-        // }
+        let block = location.block;
+        for target in terminator.successors() {
+            let point = Point::Edge(block, target);
+            let target_state = self.results.get(target).unwrap();
+            for (place_idx, old_value) in &self.before_state {
+                let new_value = target_state.get_idx(*place_idx, self.map);
+                if let (FlatSet::Elem(_), FlatSet::Top) = (&old_value, new_value) {
+                    let place = self
+                        .tracked_places
+                        .get(place_idx)
+                        .unwrap_or_else(|| tracked_span_bug!())
+                        .clone();
+                    self.stmts.insert_at(point, GhostStatement::PtrToRef(place));
+                }
+            }
+        }
     }
 }
 
