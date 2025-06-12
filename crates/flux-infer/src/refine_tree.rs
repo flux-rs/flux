@@ -942,4 +942,6 @@ pub enum BinderOriginator {
     /// Subtyping projection types
     /// (NOTE: not differentiating between generic arg tys)
     SubProjTy,
+    SubtypeProjTy,
+    SubtypeProjBase,
 }
