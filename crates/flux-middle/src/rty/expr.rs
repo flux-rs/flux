@@ -606,10 +606,7 @@ impl Expr {
         impl TypeFolder for SpanEraser {
             fn fold_expr(&mut self, e: &Expr) -> Expr {
                 let e = e.super_fold_with(self);
-                Expr {
-                    kind: e.kind,
-                    espan: None,
-                }
+                Expr { kind: e.kind, espan: None }
             }
         }
         let mut eraser = SpanEraser {};
