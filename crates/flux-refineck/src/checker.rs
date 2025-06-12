@@ -862,7 +862,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     var
                 },
             )
-            .normalize_projections(infcx)
+            .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
 
         let mut at = infcx.at(span);
