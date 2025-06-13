@@ -447,7 +447,7 @@ impl Expr {
     /// Additionally replaces any occurrences of elements in assumed_preds with True.
     pub fn simplify(&self, assumed_preds: &FxHashSet<Expr>) -> Expr {
         struct Simplify<'a> {
-            assumed_preds: &'a FxHashSet<Expr>
+            assumed_preds: &'a FxHashSet<Expr>,
         }
 
         impl<'a> TypeFolder for Simplify<'a> {
@@ -506,9 +506,7 @@ impl Expr {
                 }
             }
         }
-        self.fold_with(&mut Simplify {
-            assumed_preds: &assumed_preds
-        })
+        self.fold_with(&mut Simplify { assumed_preds: &assumed_preds })
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
@@ -594,10 +592,7 @@ impl Expr {
         impl TypeFolder for SpanEraser {
             fn fold_expr(&mut self, e: &Expr) -> Expr {
                 let e = e.super_fold_with(self);
-                Expr {
-                    kind: e.kind,
-                    espan: None,
-                }
+                Expr { kind: e.kind, espan: None }
             }
         }
         let mut eraser = SpanEraser {};
@@ -1249,7 +1244,8 @@ pub(crate) mod pretty {
 
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let e = if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
+            let e =
+                if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
@@ -1580,7 +1576,8 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let e = if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
+            let e =
+                if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(..)
                 | ExprKind::Local(..)

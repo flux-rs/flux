@@ -15,7 +15,6 @@ pub mod region_matching;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
-use rustc_hash::FxHashSet;
 pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
@@ -43,6 +42,7 @@ use refining::{Refine as _, Refiner};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+use rustc_hash::FxHashSet;
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};

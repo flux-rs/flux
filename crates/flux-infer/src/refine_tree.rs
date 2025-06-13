@@ -385,7 +385,10 @@ impl Node {
         // Then remove any unnecessary children
         match &mut self.kind {
             NodeKind::Head(..) | NodeKind::True => {}
-            NodeKind::Assumption(_) | NodeKind::Trace(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
+            NodeKind::Assumption(_)
+            | NodeKind::Trace(_)
+            | NodeKind::Root(_)
+            | NodeKind::ForAll(..) => {
                 self.children
                     .extract_if(.., |child| matches!(&child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -627,7 +630,11 @@ mod pretty {
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
-                    let pred = if cx.simplify_exprs { pred.simplify(&FxHashSet::default()) } else { pred.clone() };
+                    let pred = if cx.simplify_exprs {
+                        pred.simplify(&FxHashSet::default())
+                    } else {
+                        pred.clone()
+                    };
                     w!(cx, f, "{:?}", parens!(pred, !pred.is_atom()))?;
                     if cx.tags {
                         w!(cx, f, " ~ {:?}", tag)?;
@@ -744,7 +751,9 @@ impl RefineCtxtTrace {
                     };
                     bindings.push(bind);
                 }
-                NodeKind::Assumption(e) if !e.simplify(&FxHashSet::default()).is_trivially_true() => {
+                NodeKind::Assumption(e)
+                    if !e.simplify(&FxHashSet::default()).is_trivially_true() =>
+                {
                     let e = e.nested_string(cx);
                     exprs.push(e);
                 }
