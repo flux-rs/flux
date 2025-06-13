@@ -22,7 +22,7 @@ use super::{
     mir::{
         AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs, CastKind, Constant,
         LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind, replicate_infer_ctxt,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -131,13 +131,23 @@ fn resolve_call_query<'tcx>(
 }
 
 impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
+    // We used to call `replicate_infer_ctxt` to compute the `infcx`
+    // which replicated the [`InferCtxt`] used for mir typeck
+    // by generating region variables for every region the body.
+    // HOWEVER,the rustc folks hid access to the region-variables
+    // so instead we have to take care to call `tcx.erase_regions(..)`
+    // before using the `infcx` or `SelectionContext` to do any queries
+    // (eg. see `get_impl_id_of_alias_reft` in projections.rs)
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let infcx = replicate_infer_ctxt(tcx, def_id, &body_with_facts);
+        let infcx = tcx
+            .infer_ctxt()
+            .with_next_trait_solver(true)
+            .build(TypingMode::analysis_in_body(tcx, def_id));
         let param_env = tcx.param_env(body_with_facts.body.source.def_id());
         let selcx = SelectionContext::new(&infcx);
         let mut lower =

@@ -55,19 +55,12 @@ pub unsafe fn retrieve_mir_body<'tcx>(
         for k in map.keys() {
             keys.push_str(format!("{k:?}").as_str());
         }
-        let res = match (&mut map).remove(&def_id) {
+        match map.remove(&def_id) {
             Some(body) => body,
             None => {
-                // let body = rustc_borrowck::consumers::get_body_with_borrowck_facts(
-                //     tcx,
-                //     def_id,
-                //     ConsumerOptions::RegionInferenceContext,
-                // );
-                // body
                 bug!("retrieve_mir_body: panic on {def_id:?}")
             }
-        };
-        res
+        }
     });
     // SAFETY: See the module level comment.
     unsafe { std::mem::transmute(body_with_facts) }
