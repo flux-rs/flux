@@ -86,13 +86,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let tcx = self.tcx();
         let def_id = self.def_id();
         let selcx = &mut self.selcx;
-
-        let trait_pred = Obligation::new(
-            tcx,
-            ObligationCause::dummy(),
-            tcx.param_env(def_id),
-            alias_reft.to_rustc_trait_ref(tcx),
-        );
+        let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
+        let trait_ref = tcx.erase_regions(trait_ref);
+        let trait_pred =
+            Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
         match selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
             Ok(_) => Ok(None),
@@ -414,11 +411,13 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
+        let trait_ref = obligation.to_rustc(self.tcx()).trait_ref(self.tcx());
+        let trait_ref = self.tcx().erase_regions(trait_ref);
         let trait_pred = Obligation::new(
             self.tcx(),
             ObligationCause::dummy(),
             self.rustc_param_env(),
-            obligation.to_rustc(self.tcx()).trait_ref(self.tcx()),
+            trait_ref,
         );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
@@ -760,6 +759,7 @@ fn normalize_projection_ty_with_rustc<'tcx>(
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
     let projection_ty = obligation.to_rustc(tcx);
+    let projection_ty = tcx.erase_regions(projection_ty);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
 
