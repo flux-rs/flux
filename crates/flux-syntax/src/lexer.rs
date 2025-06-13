@@ -280,7 +280,8 @@ impl<'t> Cursor<'t> {
             TokenKind::CloseParen => Token::CloseParen,
             TokenKind::CloseBrace => Token::CloseBrace,
             TokenKind::CloseBracket => Token::CloseBracket,
-
+            TokenKind::OpenInvisible(origin) => Token::OpenInvisible(origin),
+            TokenKind::CloseInvisible(origin) => Token::CloseInvisible(origin),
             TokenKind::Literal(lit) => Token::Literal(lit),
             TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
