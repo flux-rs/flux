@@ -1,7 +1,7 @@
 macro_rules! gen_foo {
-    ($ty:ty) => {
+    ($ty:ty, $desc:ident) => {
         #[flux_rs::trusted]
-        #[flux_rs::sig(fn(x: $ty) -> Foo<$ty>[0])]
+        #[flux_rs::sig(fn(x: $ty) -> Foo<$desc>[0])]
         pub fn foo(x: $ty) -> Foo<$ty> {
             Foo { _inner: x }
         }
@@ -14,4 +14,4 @@ pub struct Foo<T> {
     _inner: T,
 }
 
-gen_foo!(i32);
+gen_foo!(i32, i32);

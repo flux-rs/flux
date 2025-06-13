@@ -312,6 +312,7 @@ impl<'t> Cursor<'t> {
             TokenKind::Ident(symb, _) if symb == kw::As => Token::As,
             TokenKind::Ident(symb, _) if symb == kw::Underscore => Token::Underscore,
             TokenKind::Ident(symb, _) => Token::Ident(symb),
+            TokenKind::NtIdent(ident, _) => Token::Ident(ident.name),
             TokenKind::Or => Token::Caret,
             TokenKind::Plus => Token::Plus,
             TokenKind::Slash => Token::Slash,
@@ -336,7 +337,10 @@ impl<'t> Cursor<'t> {
             TokenKind::Bang => Token::Bang,
             TokenKind::PathSep => Token::PathSep,
             TokenKind::DotDot => Token::DotDot,
-            _ => Token::Invalid,
+            tok => {
+                println!("Invalid token: {tok:?}");
+                Token::Invalid
+            }
         };
         self.tokens.push_back((span.lo(), token, span.hi()));
     }
