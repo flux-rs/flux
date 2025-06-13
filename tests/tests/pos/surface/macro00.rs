@@ -14,15 +14,15 @@ macro_rules! gen_foo {
         #[flux_rs::trusted]
         #[flux_rs::sig(fn(x: $ty) -> Foo<$ty>[0])]
         pub fn foo(x: $ty) -> Foo<$ty> {
-            Foo { inner: x }
+            Foo { _inner: x }
         }
     };
 }
 
 #[flux_rs::opaque]
 #[flux_rs::refined_by(n:int)]
-struct Foo<T> {
-    inner: T,
+pub struct Foo<T> {
+    _inner: T,
 }
 
 gen_foo!(i32);
