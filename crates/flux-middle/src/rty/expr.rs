@@ -386,7 +386,7 @@ impl Expr {
     /// mostly for filtering predicates when pretty printing but also to simplify types in general.
     pub fn is_trivially_true(&self) -> bool {
         self.is_true()
-            || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
+            || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1.erase_spans() == e2.erase_spans())
     }
 
     /// Simple syntactic check to see if the expression is a trivially false predicate.
@@ -452,7 +452,7 @@ impl Expr {
 
         impl<'a> TypeFolder for Simplify<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if self.assumed_preds.contains(expr) {
+                if self.assumed_preds.contains(&expr.erase_spans()) {
                     return Expr::tt();
                 }
                 let span = expr.span();
@@ -587,6 +587,21 @@ impl Expr {
         }
 
         self.visit_with(&mut HasEvars).is_break()
+    }
+
+    pub fn erase_spans(&self) -> Expr {
+        struct SpanEraser {}
+        impl TypeFolder for SpanEraser {
+            fn fold_expr(&mut self, e: &Expr) -> Expr {
+                let e = e.super_fold_with(self);
+                Expr {
+                    kind: e.kind,
+                    espan: None,
+                }
+            }
+        }
+        let mut eraser = SpanEraser {};
+        eraser.fold_expr(self)
     }
 }
 

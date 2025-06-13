@@ -358,22 +358,17 @@ impl Node {
         // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                println!("assumed preds: {:?}", assumed_preds);
-                println!("head pred: {:?},", pred);
                 let pred = pred.normalize(genv).simplify(&assumed_preds);
-                println!("head pred simplified: {:?},", pred);
-                if assumed_preds.contains(&pred) || pred.is_trivially_true() {
-                    println!("head simplified to true");
+                if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
-                    println!("head unchanged");
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
             NodeKind::Assumption(pred) => {
                 *pred = pred.normalize(genv).simplify(&assumed_preds);
                 pred.flatten_conjs().into_iter().for_each(|conjunct| {
-                    assumed_preds.insert(conjunct.clone());
+                    assumed_preds.insert(conjunct.erase_spans());
                 });
             }
             _ => {}
