@@ -12,7 +12,6 @@ use flux_rustc_bridge::{
     mir, ty,
 };
 use itertools::Itertools;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, ConsumerOptions};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
@@ -271,13 +270,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<Rc<mir::Body<'tcx>>> {
         run_with_cache(&self.mir, def_id, || {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-
-            // let mir = rustc_borrowck::consumers::get_body_with_borrowck_facts(
-            //     genv.tcx(),
-            //     def_id,
-            //     ConsumerOptions::RegionInferenceContext,
-            // );
-
             let mir =
                 lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), def_id, mir)?;
             Ok(Rc::new(mir))
