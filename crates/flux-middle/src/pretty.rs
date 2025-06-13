@@ -410,7 +410,7 @@ pub trait Pretty {
 
 impl Pretty for String {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -611,7 +611,7 @@ pub struct NestedString {
 
 pub fn debug_nested<T: Pretty>(cx: &PrettyCx, t: &T) -> Result<NestedString, fmt::Error> {
     let t = WithCx::new(cx, t);
-    let text = format!("{:?}", t);
+    let text = format!("{t:?}");
     Ok(NestedString { text, children: None, key: None })
 }
 
@@ -625,11 +625,7 @@ pub fn float_children(children: Vec<Option<Vec<NestedString>>>) -> Option<Vec<Ne
     } else {
         let mut res = vec![];
         for (i, children) in childrens.into_iter().enumerate() {
-            res.push(NestedString {
-                text: format!("arg{}", i),
-                children: Some(children),
-                key: None,
-            });
+            res.push(NestedString { text: format!("arg{i}"), children: Some(children), key: None });
         }
         Some(res)
     }

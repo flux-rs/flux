@@ -12,7 +12,6 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
-extern crate rustc_type_ir;
 
 mod decoder;
 mod encoder;
@@ -371,7 +370,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 tables.variants.insert(key, genv.variants_of(def_id));
                 tables.type_of.insert(key, genv.type_of(def_id));
             }
-            DefKind::TyAlias { .. } => {
+            DefKind::TyAlias => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));
                 tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables

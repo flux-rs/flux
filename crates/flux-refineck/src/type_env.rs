@@ -748,8 +748,11 @@ impl BasicBlockEnvShape {
                     .into_iter()
                     .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
                     .collect_vec();
-                let kvar =
-                    infcx.fresh_kvar_in_scope(&[vars.clone()], &self.scope, KVarEncoding::Conj);
+                let kvar = infcx.fresh_kvar_in_scope(
+                    std::slice::from_ref(&vars),
+                    &self.scope,
+                    KVarEncoding::Conj,
+                );
                 constrs.push(kvar);
 
                 // Replace remaining holes by fresh kvars
@@ -897,7 +900,7 @@ fn loc_info(loc: &Loc) -> LocInfo {
 fn loc_name(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> {
     if let Loc::Local(local) = loc {
         let name = local_names.get(local)?;
-        return Some(format!("{}", name));
+        return Some(format!("{name}"));
     }
     None
 }

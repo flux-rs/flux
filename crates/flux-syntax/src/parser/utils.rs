@@ -83,15 +83,33 @@ pub(crate) fn punctuated_until<E: Peek, R>(
     Ok(punctuated_with_trailing(cx, sep, end, parse)?.0)
 }
 
+pub(crate) fn open_delim(delim: Delimiter) -> Token {
+    match delim {
+        Delimiter::Parenthesis => Token::OpenParen,
+        Delimiter::Bracket => Token::OpenBracket,
+        Delimiter::Brace => Token::OpenBrace,
+        Delimiter::Invisible(origin) => Token::OpenInvisible(origin),
+    }
+}
+
+pub(crate) fn close_delim(delim: Delimiter) -> Token {
+    match delim {
+        Delimiter::Parenthesis => Token::CloseParen,
+        Delimiter::Bracket => Token::CloseBracket,
+        Delimiter::Brace => Token::CloseBrace,
+        Delimiter::Invisible(origin) => Token::CloseInvisible(origin),
+    }
+}
+
 /// Parses an item surrounded by an opening an closing [`Delimiter`]
 pub(crate) fn delimited<R>(
     cx: &mut ParseCtxt,
     delim: Delimiter,
     parse: impl FnOnce(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<R> {
-    cx.expect(Token::OpenDelim(delim))?;
+    cx.expect(open_delim(delim))?;
     let r = parse(cx)?;
-    cx.expect(Token::CloseDelim(delim))?;
+    cx.expect(close_delim(delim))?;
     Ok(r)
 }
 
@@ -123,9 +141,9 @@ fn punctuated_delimited<R>(
     sep: Token,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
-    cx.expect(Token::OpenDelim(delim))?;
-    let r = punctuated_until(cx, sep, Token::CloseDelim(delim), parse)?;
-    cx.expect(Token::CloseDelim(delim))?;
+    cx.expect(open_delim(delim))?;
+    let r = punctuated_until(cx, sep, close_delim(delim), parse)?;
+    cx.expect(close_delim(delim))?;
     Ok(r)
 }
 

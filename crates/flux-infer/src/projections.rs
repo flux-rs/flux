@@ -86,13 +86,10 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let tcx = self.tcx();
         let def_id = self.def_id();
         let selcx = &mut self.selcx;
-
-        let trait_pred = Obligation::new(
-            tcx,
-            ObligationCause::dummy(),
-            tcx.param_env(def_id),
-            alias_reft.to_rustc_trait_ref(tcx),
-        );
+        let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
+        let trait_ref = tcx.erase_regions(trait_ref);
+        let trait_pred =
+            Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
         match selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
             Ok(_) => Ok(None),
@@ -414,11 +411,13 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         obligation: &AliasTy,
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
+        let trait_ref = obligation.to_rustc(self.tcx()).trait_ref(self.tcx());
+        let trait_ref = self.tcx().erase_regions(trait_ref);
         let trait_pred = Obligation::new(
             self.tcx(),
             ObligationCause::dummy(),
             self.rustc_param_env(),
-            obligation.to_rustc(self.tcx()).trait_ref(self.tcx()),
+            trait_ref,
         );
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
@@ -452,9 +451,9 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
-            Sort::Alias(AliasKind::Weak, alias_ty) => {
+            Sort::Alias(AliasKind::Free, alias_ty) => {
                 self.genv()
-                    .normalize_weak_alias_sort(alias_ty)?
+                    .normalize_free_alias_sort(alias_ty)?
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
@@ -473,7 +472,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
     // is for.
     fn try_fold_ty(&mut self, ty: &Ty) -> Result<Ty, Self::Error> {
         match ty.kind() {
-            TyKind::Indexed(BaseTy::Alias(AliasKind::Weak, alias_ty), idx) => {
+            TyKind::Indexed(BaseTy::Alias(AliasKind::Free, alias_ty), idx) => {
                 Ok(self
                     .genv()
                     .type_of(alias_ty.def_id)?
@@ -492,7 +491,7 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_subset_ty(&mut self, sty: &SubsetTy) -> Result<SubsetTy, Self::Error> {
         match &sty.bty {
-            BaseTy::Alias(AliasKind::Weak, _alias_ty) => {
+            BaseTy::Alias(AliasKind::Free, _alias_ty) => {
                 // Weak aliases are always expanded during conversion. We could in theory normalize
                 // them here but we don't guaranatee that type aliases expand to a subset ty. If we
                 // ever stop expanding aliases during conv we would need to guarantee that aliases
@@ -598,9 +597,9 @@ impl FallibleTypeFolder for SortNormalizer<'_, '_, '_> {
     type Error = QueryErr;
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         match sort {
-            Sort::Alias(AliasKind::Weak, alias_ty) => {
+            Sort::Alias(AliasKind::Free, alias_ty) => {
                 self.genv
-                    .normalize_weak_alias_sort(alias_ty)?
+                    .normalize_free_alias_sort(alias_ty)?
                     .try_fold_with(self)
             }
             Sort::Alias(AliasKind::Projection, alias_ty) => {
@@ -760,6 +759,7 @@ fn normalize_projection_ty_with_rustc<'tcx>(
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
     let projection_ty = obligation.to_rustc(tcx);
+    let projection_ty = tcx.erase_regions(projection_ty);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
 

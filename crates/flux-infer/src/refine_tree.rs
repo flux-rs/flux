@@ -185,7 +185,7 @@ impl Cursor<'_> {
                 ty.super_visit_with(self)
             }
         }
-        ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_checking });
+        let _ = ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_checking });
     }
 }
 

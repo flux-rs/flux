@@ -12,13 +12,12 @@ use rustc_data_structures::{
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
     unord::UnordMap,
 };
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
     mir::{self, VarDebugInfoContents},
-    ty::{FloatTy, IntTy, ParamConst, TyCtxt, TypingMode, UintTy},
+    ty::{FloatTy, IntTy, ParamConst, UintTy},
 };
 pub use rustc_middle::{
     mir::{
@@ -482,25 +481,6 @@ impl<'tcx> Body<'tcx> {
     }
 }
 
-/// Replicate the [`InferCtxt`] used for mir typeck by generating region variables for every region in
-/// the `RegionInferenceContext`
-///
-/// [`InferCtxt`]: rustc_infer::infer::InferCtxt
-pub(crate) fn replicate_infer_ctxt<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-    body_with_facts: &BodyWithBorrowckFacts<'tcx>,
-) -> rustc_infer::infer::InferCtxt<'tcx> {
-    let infcx = tcx
-        .infer_ctxt()
-        .with_next_trait_solver(true)
-        .build(TypingMode::analysis_in_body(tcx, def_id));
-    for info in &body_with_facts.region_inference_context.var_infos {
-        infcx.next_region_var(info.origin);
-    }
-    infcx
-}
-
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
 /// join points that lose information e.g. in match arms, the k+1-th arm has the k-th arm as a "fake"
 /// predecessor so we lose the assumptions specific to the k+1-th arm due to a spurious join. This code
@@ -515,10 +495,10 @@ fn mk_fake_predecessors(
     let mut res: IndexVec<BasicBlock, usize> = basic_blocks.iter().map(|_| 0).collect();
 
     for bb in basic_blocks {
-        if let Some(terminator) = &bb.terminator {
-            if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
-                res[imaginary_target] += 1;
-            }
+        if let Some(terminator) = &bb.terminator
+            && let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind
+        {
+            res[imaginary_target] += 1;
         }
     }
     res
@@ -797,9 +777,9 @@ impl fmt::Debug for Constant {
             Constant::Unit => write!(f, "()"),
             Constant::Str(s) => write!(f, "\"{s:?}\""),
             Constant::Char(c) => write!(f, "\'{c}\'"),
-            Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
-            Constant::Param(p, _) => write!(f, "{:?}", p),
-            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {:?} from {:?}>", ty, def_id),
+            Constant::Opaque(ty) => write!(f, "<opaque {ty:?}>"),
+            Constant::Param(p, _) => write!(f, "{p:?}"),
+            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {ty:?} from {def_id:?}>"),
         }
     }
 }

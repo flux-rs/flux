@@ -82,8 +82,8 @@ fn emitter(
     let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
     match opts.error_format {
-        ErrorOutputType::HumanReadable(err_type, color_config) => {
-            if let HumanReadableErrorType::AnnotateSnippet = err_type {
+        ErrorOutputType::HumanReadable { kind, color_config } => {
+            if let HumanReadableErrorType::AnnotateSnippet = kind {
                 let emitter = AnnotateSnippetEmitter::new(
                     Some(source_map),
                     None,
@@ -96,7 +96,7 @@ fn emitter(
                 let dst = stderr_destination(color_config);
                 let emitter = HumanEmitter::new(dst, fallback_bundle)
                     .sm(Some(source_map))
-                    .short_message(err_type.short())
+                    .short_message(kind.short())
                     .diagnostic_width(opts.diagnostic_width)
                     .track_diagnostics(track_diagnostics)
                     .terminal_url(opts.unstable_opts.terminal_urls);

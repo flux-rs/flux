@@ -1,10 +1,12 @@
-#![feature(rustc_private, box_patterns, let_chains, hash_raw_entry)]
+#![feature(rustc_private, box_patterns, let_chains)]
 
 extern crate rustc_ast;
 extern crate rustc_borrowck;
+
 extern crate rustc_driver;
 extern crate rustc_errors;
 extern crate rustc_hir;
+
 extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_session;

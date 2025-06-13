@@ -95,7 +95,7 @@ impl Renderer {
             }
         }
 
-        let lbl = syn::Lifetime::new(&format!("'lbl{}", i), Span::call_site());
+        let lbl = syn::Lifetime::new(&format!("'lbl{i}"), Span::call_site());
 
         Self { lbl, rule, metavars }
     }
@@ -368,11 +368,11 @@ impl Parse for Guard {
 }
 
 fn mk_idx_arg(i: usize) -> Ident {
-    Ident::new(&format!("idx{}", i), Span::call_site())
+    Ident::new(&format!("idx{i}"), Span::call_site())
 }
 
 fn mk_bty_arg(i: usize) -> Ident {
-    Ident::new(&format!("bty{}", i), Span::call_site())
+    Ident::new(&format!("bty{i}"), Span::call_site())
 }
 
 fn is_primitive_type<T>(s: &T) -> bool

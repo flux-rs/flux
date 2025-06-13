@@ -195,7 +195,7 @@ fn predicates_of(
         | DefKind::Struct
         | DefKind::Enum
         | DefKind::Union
-        | DefKind::TyAlias { .. }
+        | DefKind::TyAlias
         | DefKind::AssocFn
         | DefKind::AssocTy
         | DefKind::Trait
@@ -347,7 +347,7 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
         | DefKind::Struct
         | DefKind::Enum
         | DefKind::Union
-        | DefKind::TyAlias { .. }
+        | DefKind::TyAlias
         | DefKind::AssocFn
         | DefKind::AssocTy
         | DefKind::Trait
@@ -409,7 +409,7 @@ fn refinement_generics_of(
 fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
     let def_id = genv.maybe_extern_id(def_id);
     let ty = match genv.def_kind(def_id) {
-        DefKind::TyAlias { .. } => {
+        DefKind::TyAlias => {
             let fhir_ty_alias = genv
                 .map()
                 .expect_item(def_id.local_id())?
@@ -567,7 +567,7 @@ pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         }
         let def_kind = genv.def_kind(def_id);
         match def_kind {
-            DefKind::TyAlias { .. }
+            DefKind::TyAlias
             | DefKind::Struct
             | DefKind::Enum
             | DefKind::Fn

@@ -262,7 +262,7 @@ impl SortEncodingCtxt {
             rty::Sort::Err
             | rty::Sort::Infer(_)
             | rty::Sort::Loc
-            | rty::Sort::Alias(rty::AliasKind::Weak, _) => {
+            | rty::Sort::Alias(rty::AliasKind::Free, _) => {
                 tracked_span_bug!("unexpected sort `{sort:?}`")
             }
         }

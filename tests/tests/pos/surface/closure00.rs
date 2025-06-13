@@ -1,7 +1,14 @@
-#[flux::sig(fn(c: Option<bool>) -> Option<i32{v:0 <= v}>)]
+use flux_rs::attrs::*;
+
+#[trusted]
+#[spec(fn(c: Option<bool>) -> Option<i32{v:0 <= v}>)]
 pub fn test0(c: Option<bool>) -> Option<i32> {
     c.map(|b| if b { 1 } else { 2 })
 }
+
+// pub fn test0_buddy(x: i32) -> i32 {
+//     x + 1
+// }
 
 // #[flux::sig(fn(c: Option<bool>) -> Option<i32{v:1 <= v}>)]
 // pub fn test1(c: Option<bool>) -> Option<i32> {
