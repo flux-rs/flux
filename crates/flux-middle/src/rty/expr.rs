@@ -10,6 +10,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -442,11 +443,18 @@ impl Expr {
     /// Simplify the expression by removing double negations, short-circuiting boolean connectives and
     /// doing constant folding. Note that we also have [`TypeFoldable::normalize`] which applies beta
     /// reductions for tuples and abstractions.
-    pub fn simplify(&self) -> Expr {
-        struct Simplify;
+    ///
+    /// Additionally replaces any occurrences of elements in assumed_preds with True.
+    pub fn simplify(&self, assumed_preds: &FxHashSet<Expr>) -> Expr {
+        struct Simplify<'a> {
+            assumed_preds: &'a FxHashSet<Expr>
+        }
 
-        impl TypeFolder for Simplify {
+        impl<'a> TypeFolder for Simplify<'a> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if self.assumed_preds.contains(expr) {
+                    return Expr::tt();
+                }
                 let span = expr.span();
                 match expr.kind() {
                     ExprKind::BinaryOp(op, e1, e2) => {
@@ -498,7 +506,9 @@ impl Expr {
                 }
             }
         }
-        self.fold_with(&mut Simplify)
+        self.fold_with(&mut Simplify {
+            assumed_preds: &assumed_preds
+        })
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
@@ -1224,7 +1234,7 @@ pub(crate) mod pretty {
 
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
+            let e = if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
@@ -1555,7 +1565,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
+            let e = if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
             match e.kind() {
                 ExprKind::Var(..)
                 | ExprKind::Local(..)

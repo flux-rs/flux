@@ -16,6 +16,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
+use rustc_hash::FxHashSet;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
@@ -55,7 +56,7 @@ impl RefineTree {
     }
 
     pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
-        self.root.borrow_mut().simplify(genv);
+        self.root.borrow_mut().simplify(genv, FxHashSet::default());
     }
 
     pub(crate) fn into_fixpoint(
@@ -353,31 +354,43 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self, genv: GlobalEnv) {
-        for child in &self.children {
-            child.borrow_mut().simplify(genv);
-        }
-
+    fn simplify(&mut self, genv: GlobalEnv, mut assumed_preds: FxHashSet<Expr>) {
+        // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(genv).simplify();
-                if pred.is_trivially_true() {
+                println!("assumed preds: {:?}", assumed_preds);
+                println!("head pred: {:?},", pred);
+                let pred = pred.normalize(genv).simplify(&assumed_preds);
+                println!("head pred simplified: {:?},", pred);
+                if assumed_preds.contains(&pred) || pred.is_trivially_true() {
+                    println!("head simplified to true");
                     self.kind = NodeKind::True;
                 } else {
+                    println!("head unchanged");
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-            NodeKind::True => {}
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(genv).simplify();
-                self.children
-                    .extract_if(.., |child| {
-                        matches!(child.borrow().kind, NodeKind::True)
-                            || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
-                    })
-                    .for_each(drop);
+                *pred = pred.normalize(genv).simplify(&assumed_preds);
+                pred.flatten_conjs().into_iter().for_each(|conjunct| {
+                    assumed_preds.insert(conjunct.clone());
+                });
             }
-            NodeKind::Trace(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
+            _ => {}
+        }
+
+        // Then simplify the children
+        // (the order matters here because we need to collect assumed preds first)
+        for child in &self.children {
+            // Need to clone the assumed_preds here because it may (and probably
+            // will) diverge across branches
+            child.borrow_mut().simplify(genv, assumed_preds.clone());
+        }
+
+        // Then remove any unnecessary children
+        match &mut self.kind {
+            NodeKind::Head(..) | NodeKind::True => {}
+            NodeKind::Assumption(_) | NodeKind::Trace(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
                 self.children
                     .extract_if(.., |child| matches!(&child.borrow().kind, NodeKind::True))
                     .for_each(drop);
@@ -614,12 +627,12 @@ mod pretty {
                     } else {
                         (vec![pred.clone()], node.children.clone())
                     };
-                    let guard = Expr::and_from_iter(preds).simplify();
+                    let guard = Expr::and_from_iter(preds).simplify(&FxHashSet::default());
                     w!(cx, f, "{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
-                    let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
+                    let pred = if cx.simplify_exprs { pred.simplify(&FxHashSet::default()) } else { pred.clone() };
                     w!(cx, f, "{:?}", parens!(pred, !pred.is_atom()))?;
                     if cx.tags {
                         w!(cx, f, " ~ {:?}", tag)?;
@@ -736,7 +749,7 @@ impl RefineCtxtTrace {
                     };
                     bindings.push(bind);
                 }
-                NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
+                NodeKind::Assumption(e) if !e.simplify(&FxHashSet::default()).is_trivially_true() => {
                     let e = e.nested_string(cx);
                     exprs.push(e);
                 }

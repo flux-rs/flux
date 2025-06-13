@@ -15,6 +15,7 @@ pub mod region_matching;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
+use rustc_hash::FxHashSet;
 pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
@@ -2020,7 +2021,7 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        let pred = Expr::and(this.pred, pred).simplify();
+        let pred = Expr::and(this.pred, pred).simplify(&FxHashSet::default());
         Self { bty: this.bty, idx: this.idx, pred }
     }
 
