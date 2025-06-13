@@ -12,7 +12,7 @@
 
 use std::{cell::RefCell, collections::HashMap, thread_local};
 
-use rustc_borrowck::consumers::BodyWithBorrowckFacts;
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, ConsumerOptions};
 use rustc_hir::def_id::LocalDefId;
 use rustc_middle::ty::TyCtxt;
 
@@ -33,6 +33,7 @@ pub unsafe fn store_mir_body<'tcx>(
     body_with_facts: BodyWithBorrowckFacts<'tcx>,
 ) {
     // SAFETY: See the module level comment.
+    println!("TRACE: store_mir_body ({def_id:?})");
     let body_with_facts: BodyWithBorrowckFacts<'static> =
         unsafe { std::mem::transmute(body_with_facts) };
     SHARED_STATE.with(|state| {
@@ -46,14 +47,30 @@ pub unsafe fn store_mir_body<'tcx>(
 /// See the module level comment.
 // #[expect(clippy::needless_lifetimes, reason = "we want to be very explicit about lifetimes here")]
 pub unsafe fn retrieve_mir_body<'tcx>(
-    _tcx: TyCtxt<'tcx>,
+    tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
 ) -> BodyWithBorrowckFacts<'tcx> {
     let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
-        match state.borrow_mut().remove(&def_id) {
-            Some(body) => body,
-            None => bug!("retrieve_mir_body: panic on {def_id:?}"),
+        let mut map = state.borrow_mut();
+        let mut keys = String::new();
+        for k in map.keys() {
+            keys.push_str(format!("{k:?}").as_str());
         }
+        println!("TRACE: retrieve_mir_body (0) ({def_id:?}) ==> {keys}");
+        let res = match (&mut map).remove(&def_id) {
+            Some(body) => body,
+            None => {
+                // let body = rustc_borrowck::consumers::get_body_with_borrowck_facts(
+                //     tcx,
+                //     def_id,
+                //     ConsumerOptions::RegionInferenceContext,
+                // );
+                // body
+                bug!("retrieve_mir_body: panic on {def_id:?}")
+            }
+        };
+        println!("TRACE: retrieve_mir_body ({def_id:?}) ==> OK!");
+        res
     });
     // SAFETY: See the module level comment.
     unsafe { std::mem::transmute(body_with_facts) }

@@ -240,6 +240,7 @@ fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
 ) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
+    println!("TRACE: mir_borrowck ({def_id:?})");
     let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
         tcx,
         def_id,
