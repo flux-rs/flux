@@ -16,7 +16,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_hash::FxHashSet;
+use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
@@ -56,7 +56,9 @@ impl RefineTree {
     }
 
     pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
-        self.root.borrow_mut().simplify(genv, FxHashSet::default());
+        self.root
+            .borrow_mut()
+            .simplify(genv, &mut SnapshotMap::default());
     }
 
     pub(crate) fn into_fixpoint(
@@ -354,11 +356,11 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify(&mut self, genv: GlobalEnv, mut assumed_preds: FxHashSet<Expr>) {
+    fn simplify(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
         // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(genv).simplify(&assumed_preds);
+                let pred = pred.normalize(genv).simplify(assumed_preds);
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -366,9 +368,9 @@ impl Node {
                 }
             }
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(genv).simplify(&assumed_preds);
+                *pred = pred.normalize(genv).simplify(assumed_preds);
                 pred.flatten_conjs().into_iter().for_each(|conjunct| {
-                    assumed_preds.insert(conjunct.erase_spans());
+                    assumed_preds.insert(conjunct.erase_spans(), ());
                 });
             }
             _ => {}
@@ -377,9 +379,9 @@ impl Node {
         // Then simplify the children
         // (the order matters here because we need to collect assumed preds first)
         for child in &self.children {
-            // Need to clone the assumed_preds here because it may (and probably
-            // will) diverge across branches
-            child.borrow_mut().simplify(genv, assumed_preds.clone());
+            let current_version = assumed_preds.snapshot();
+            child.borrow_mut().simplify(genv, assumed_preds);
+            assumed_preds.rollback_to(current_version);
         }
 
         // Then remove any unnecessary children
@@ -625,13 +627,13 @@ mod pretty {
                     } else {
                         (vec![pred.clone()], node.children.clone())
                     };
-                    let guard = Expr::and_from_iter(preds).simplify(&FxHashSet::default());
+                    let guard = Expr::and_from_iter(preds).simplify(&SnapshotMap::default());
                     w!(cx, f, "{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
                     let pred = if cx.simplify_exprs {
-                        pred.simplify(&FxHashSet::default())
+                        pred.simplify(&SnapshotMap::default())
                     } else {
                         pred.clone()
                     };
@@ -752,7 +754,7 @@ impl RefineCtxtTrace {
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e)
-                    if !e.simplify(&FxHashSet::default()).is_trivially_true() =>
+                    if !e.simplify(&SnapshotMap::default()).is_trivially_true() =>
                 {
                     let e = e.nested_string(cx);
                     exprs.push(e);

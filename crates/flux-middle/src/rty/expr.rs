@@ -10,7 +10,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
-use rustc_hash::FxHashSet;
+use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -445,14 +445,14 @@ impl Expr {
     /// reductions for tuples and abstractions.
     ///
     /// Additionally replaces any occurrences of elements in assumed_preds with True.
-    pub fn simplify(&self, assumed_preds: &FxHashSet<Expr>) -> Expr {
+    pub fn simplify(&self, assumed_preds: &SnapshotMap<Expr, ()>) -> Expr {
         struct Simplify<'a> {
-            assumed_preds: &'a FxHashSet<Expr>,
+            assumed_preds: &'a SnapshotMap<Expr, ()>,
         }
 
         impl TypeFolder for Simplify<'_> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if self.assumed_preds.contains(&expr.erase_spans()) {
+                if self.assumed_preds.get(&expr.erase_spans()).is_some() {
                     return Expr::tt();
                 }
                 let span = expr.span();
@@ -588,15 +588,13 @@ impl Expr {
     }
 
     pub fn erase_spans(&self) -> Expr {
-        struct SpanEraser {}
+        struct SpanEraser;
         impl TypeFolder for SpanEraser {
             fn fold_expr(&mut self, e: &Expr) -> Expr {
-                let e = e.super_fold_with(self);
-                Expr { kind: e.kind, espan: None }
+                e.super_fold_with(self).at_opt(None)
             }
         }
-        let mut eraser = SpanEraser {};
-        eraser.fold_expr(self)
+        self.fold_with(&mut SpanEraser)
     }
 }
 
@@ -1244,8 +1242,11 @@ pub(crate) mod pretty {
 
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let e =
-                if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
+            let e = if cx.simplify_exprs {
+                self.simplify(&SnapshotMap::default())
+            } else {
+                self.clone()
+            };
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
@@ -1576,8 +1577,11 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let e =
-                if cx.simplify_exprs { self.simplify(&FxHashSet::default()) } else { self.clone() };
+            let e = if cx.simplify_exprs {
+                self.simplify(&SnapshotMap::default())
+            } else {
+                self.clone()
+            };
             match e.kind() {
                 ExprKind::Var(..)
                 | ExprKind::Local(..)
