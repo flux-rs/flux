@@ -41,7 +41,7 @@
 <a href=#41 id=41 data-nosnippet>41</a><span class="kw">use </span>refining::{Refine <span class="kw">as _</span>, Refiner};
 <a href=#42 id=42 data-nosnippet>42</a><span class="kw">use </span>rustc_abi;
 <a href=#43 id=43 data-nosnippet>43</a><span class="kw">pub use </span>rustc_abi::{FIRST_VARIANT, VariantIdx};
-<a href=#44 id=44 data-nosnippet>44</a><span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
+<a href=#44 id=44 data-nosnippet>44</a><span class="kw">use </span>rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
 <a href=#45 id=45 data-nosnippet>45</a><span class="kw">use </span>rustc_hir::{LangItem, Safety, def_id::DefId};
 <a href=#46 id=46 data-nosnippet>46</a><span class="kw">use </span>rustc_index::{IndexSlice, IndexVec, newtype_index};
 <a href=#47 id=47 data-nosnippet>47</a><span class="kw">use </span>rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
@@ -2020,7 +2020,7 @@
 <a href=#2020 id=2020 data-nosnippet>2020</a>
 <a href=#2021 id=2021 data-nosnippet>2021</a>    <span class="kw">pub fn </span>strengthen(<span class="kw-2">&amp;</span><span class="self">self</span>, pred: <span class="kw">impl </span>Into&lt;Expr&gt;) -&gt; <span class="self">Self </span>{
 <a href=#2022 id=2022 data-nosnippet>2022</a>        <span class="kw">let </span>this = <span class="self">self</span>.clone();
-<a href=#2023 id=2023 data-nosnippet>2023</a>        <span class="kw">let </span>pred = Expr::and(this.pred, pred).simplify();
+<a href=#2023 id=2023 data-nosnippet>2023</a>        <span class="kw">let </span>pred = Expr::and(this.pred, pred).simplify(<span class="kw-2">&amp;</span>SnapshotMap::default());
 <a href=#2024 id=2024 data-nosnippet>2024</a>        <span class="self">Self </span>{ bty: this.bty, idx: this.idx, pred }
 <a href=#2025 id=2025 data-nosnippet>2025</a>    }
 <a href=#2026 id=2026 data-nosnippet>2026</a>

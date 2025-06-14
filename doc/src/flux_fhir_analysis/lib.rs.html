@@ -195,7 +195,7 @@
 <a href=#195 id=195 data-nosnippet>195</a>        | DefKind::Struct
 <a href=#196 id=196 data-nosnippet>196</a>        | DefKind::Enum
 <a href=#197 id=197 data-nosnippet>197</a>        | DefKind::Union
-<a href=#198 id=198 data-nosnippet>198</a>        | DefKind::TyAlias { .. }
+<a href=#198 id=198 data-nosnippet>198</a>        | DefKind::TyAlias
 <a href=#199 id=199 data-nosnippet>199</a>        | DefKind::AssocFn
 <a href=#200 id=200 data-nosnippet>200</a>        | DefKind::AssocTy
 <a href=#201 id=201 data-nosnippet>201</a>        | DefKind::Trait
@@ -347,7 +347,7 @@
 <a href=#347 id=347 data-nosnippet>347</a>        | DefKind::Struct
 <a href=#348 id=348 data-nosnippet>348</a>        | DefKind::Enum
 <a href=#349 id=349 data-nosnippet>349</a>        | DefKind::Union
-<a href=#350 id=350 data-nosnippet>350</a>        | DefKind::TyAlias { .. }
+<a href=#350 id=350 data-nosnippet>350</a>        | DefKind::TyAlias
 <a href=#351 id=351 data-nosnippet>351</a>        | DefKind::AssocFn
 <a href=#352 id=352 data-nosnippet>352</a>        | DefKind::AssocTy
 <a href=#353 id=353 data-nosnippet>353</a>        | DefKind::Trait
@@ -409,7 +409,7 @@
 <a href=#409 id=409 data-nosnippet>409</a><span class="kw">fn </span>type_of(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt; {
 <a href=#410 id=410 data-nosnippet>410</a>    <span class="kw">let </span>def_id = genv.maybe_extern_id(def_id);
 <a href=#411 id=411 data-nosnippet>411</a>    <span class="kw">let </span>ty = <span class="kw">match </span>genv.def_kind(def_id) {
-<a href=#412 id=412 data-nosnippet>412</a>        DefKind::TyAlias { .. } =&gt; {
+<a href=#412 id=412 data-nosnippet>412</a>        DefKind::TyAlias =&gt; {
 <a href=#413 id=413 data-nosnippet>413</a>            <span class="kw">let </span>fhir_ty_alias = genv
 <a href=#414 id=414 data-nosnippet>414</a>                .map()
 <a href=#415 id=415 data-nosnippet>415</a>                .expect_item(def_id.local_id())<span class="question-mark">?
@@ -567,7 +567,7 @@
 <a href=#567 id=567 data-nosnippet>567</a>        }
 <a href=#568 id=568 data-nosnippet>568</a>        <span class="kw">let </span>def_kind = genv.def_kind(def_id);
 <a href=#569 id=569 data-nosnippet>569</a>        <span class="kw">match </span>def_kind {
-<a href=#570 id=570 data-nosnippet>570</a>            DefKind::TyAlias { .. }
+<a href=#570 id=570 data-nosnippet>570</a>            DefKind::TyAlias
 <a href=#571 id=571 data-nosnippet>571</a>            | DefKind::Struct
 <a href=#572 id=572 data-nosnippet>572</a>            | DefKind::Enum
 <a href=#573 id=573 data-nosnippet>573</a>            | DefKind::Fn

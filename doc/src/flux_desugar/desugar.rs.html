@@ -1079,7 +1079,7 @@
 <a href=#1079 id=1079 data-nosnippet>1079</a>        <span class="kw">let </span><span class="kw-2">mut </span>fhir_args = <span class="macro">vec!</span>[];
 <a href=#1080 id=1080 data-nosnippet>1080</a>        <span class="kw">let </span><span class="kw-2">mut </span>constraints = <span class="macro">vec!</span>[];
 <a href=#1081 id=1081 data-nosnippet>1081</a>        <span class="kw">if let </span>Res::Def(
-<a href=#1082 id=1082 data-nosnippet>1082</a>            DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
+<a href=#1082 id=1082 data-nosnippet>1082</a>            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
 <a href=#1083 id=1083 data-nosnippet>1083</a>            def_id,
 <a href=#1084 id=1084 data-nosnippet>1084</a>        ) = res
 <a href=#1085 id=1085 data-nosnippet>1085</a>        {

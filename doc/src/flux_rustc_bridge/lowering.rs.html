@@ -789,14 +789,14 @@
 <a href=#789 id=789 data-nosnippet>789</a>
 <a href=#790 id=790 data-nosnippet>790</a>    <span class="kw">fn </span>lower(<span class="self">self</span>, _tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;) -&gt; <span class="self">Self</span>::R {
 <a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(scalar_int) = <span class="self">self</span>.try_to_scalar_int() {
-<a href=#792 id=792 data-nosnippet>792</a>            <span class="kw">return </span><span class="kw">crate</span>::ty::ValTree::Leaf(scalar_int);
+<a href=#792 id=792 data-nosnippet>792</a>            <span class="kw">crate</span>::ty::ValTree::Leaf(scalar_int)
 <a href=#793 id=793 data-nosnippet>793</a>        } <span class="kw">else </span>{
 <a href=#794 id=794 data-nosnippet>794</a>            <span class="kw">let </span>trees = <span class="self">self
 <a href=#795 id=795 data-nosnippet>795</a>                </span>.unwrap_branch()
 <a href=#796 id=796 data-nosnippet>796</a>                .iter()
 <a href=#797 id=797 data-nosnippet>797</a>                .map(|tree| tree.lower(_tcx))
 <a href=#798 id=798 data-nosnippet>798</a>                .collect();
-<a href=#799 id=799 data-nosnippet>799</a>            <span class="kw">return </span><span class="kw">crate</span>::ty::ValTree::Branch(trees);
+<a href=#799 id=799 data-nosnippet>799</a>            <span class="kw">crate</span>::ty::ValTree::Branch(trees)
 <a href=#800 id=800 data-nosnippet>800</a>        }
 <a href=#801 id=801 data-nosnippet>801</a>    }
 <a href=#802 id=802 data-nosnippet>802</a>}
