@@ -10,6 +10,7 @@ use flux_rustc_bridge::{
 };
 use itertools::Itertools;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
+use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -385,7 +386,7 @@ impl Expr {
     /// mostly for filtering predicates when pretty printing but also to simplify types in general.
     pub fn is_trivially_true(&self) -> bool {
         self.is_true()
-            || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1 == e2)
+            || matches!(self.kind(), ExprKind::BinaryOp(BinOp::Eq | BinOp::Iff | BinOp::Imp, e1, e2) if e1.erase_spans() == e2.erase_spans())
     }
 
     /// Simple syntactic check to see if the expression is a trivially false predicate.
@@ -442,11 +443,18 @@ impl Expr {
     /// Simplify the expression by removing double negations, short-circuiting boolean connectives and
     /// doing constant folding. Note that we also have [`TypeFoldable::normalize`] which applies beta
     /// reductions for tuples and abstractions.
-    pub fn simplify(&self) -> Expr {
-        struct Simplify;
+    ///
+    /// Additionally replaces any occurrences of elements in assumed_preds with True.
+    pub fn simplify(&self, assumed_preds: &SnapshotMap<Expr, ()>) -> Expr {
+        struct Simplify<'a> {
+            assumed_preds: &'a SnapshotMap<Expr, ()>,
+        }
 
-        impl TypeFolder for Simplify {
+        impl TypeFolder for Simplify<'_> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if self.assumed_preds.get(&expr.erase_spans()).is_some() {
+                    return Expr::tt();
+                }
                 let span = expr.span();
                 match expr.kind() {
                     ExprKind::BinaryOp(op, e1, e2) => {
@@ -498,7 +506,7 @@ impl Expr {
                 }
             }
         }
-        self.fold_with(&mut Simplify)
+        self.fold_with(&mut Simplify { assumed_preds })
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
@@ -577,6 +585,16 @@ impl Expr {
         }
 
         self.visit_with(&mut HasEvars).is_break()
+    }
+
+    pub fn erase_spans(&self) -> Expr {
+        struct SpanEraser;
+        impl TypeFolder for SpanEraser {
+            fn fold_expr(&mut self, e: &Expr) -> Expr {
+                e.super_fold_with(self).at_opt(None)
+            }
+        }
+        self.fold_with(&mut SpanEraser)
     }
 }
 
@@ -1224,7 +1242,11 @@ pub(crate) mod pretty {
 
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
+            let e = if cx.simplify_exprs {
+                self.simplify(&SnapshotMap::default())
+            } else {
+                self.clone()
+            };
             match e.kind() {
                 ExprKind::Var(var) => w!(cx, f, "{:?}", var),
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
@@ -1555,7 +1577,11 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let e = if cx.simplify_exprs { self.simplify() } else { self.clone() };
+            let e = if cx.simplify_exprs {
+                self.simplify(&SnapshotMap::default())
+            } else {
+                self.clone()
+            };
             match e.kind() {
                 ExprKind::Var(..)
                 | ExprKind::Local(..)

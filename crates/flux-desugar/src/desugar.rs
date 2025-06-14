@@ -1079,7 +1079,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let mut fhir_args = vec![];
         let mut constraints = vec![];
         if let Res::Def(
-            DefKind::TyAlias { .. } | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
+            DefKind::TyAlias | DefKind::Struct | DefKind::Enum | DefKind::OpaqueTy,
             def_id,
         ) = res
         {
