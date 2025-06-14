@@ -450,7 +450,7 @@ impl Expr {
             assumed_preds: &'a FxHashSet<Expr>,
         }
 
-        impl<'a> TypeFolder for Simplify<'a> {
+        impl TypeFolder for Simplify<'_> {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if self.assumed_preds.contains(&expr.erase_spans()) {
                     return Expr::tt();
@@ -506,7 +506,7 @@ impl Expr {
                 }
             }
         }
-        self.fold_with(&mut Simplify { assumed_preds: &assumed_preds })
+        self.fold_with(&mut Simplify { assumed_preds })
     }
 
     pub fn to_loc(&self) -> Option<Loc> {
