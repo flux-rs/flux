@@ -12,6 +12,7 @@ use itertools::Itertools;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hir::def_id::DefId;
+use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::{
@@ -613,6 +614,104 @@ impl Expr {
         eraser.fold_expr(self)
     }
 }
+
+/// Finds the minimum antiunifier between expr and other.
+///
+/// Examples:
+///
+///     self
+///     other
+///     -----
+///     unifier
+///
+///     x + y
+///     a + y
+///     -----
+///     x |-> a
+///
+///     x + y < z
+///     a + b < z
+///     ---------
+///     x |-> a
+///     y |-> b
+///
+///     x + x < y
+///     a + b < y
+///     ---------
+///     x + x |-> a + b
+///
+///     x < y
+///     y > x
+///     -----
+///     x < y |-> y > x
+pub fn anti_unify(expr: &Expr, other: &Expr) -> SnapshotMap<Expr, Expr> {
+    /// Adds self_e |-> other_e to the antiunifier_map, raising
+    /// ControlFlow::Break(()) if self_e is mapped to another value
+    /// already.
+    fn record_antiunifier(antiunifier_map: &mut SnapshotMap<Expr, Expr>, self_e: &Expr, other_e: &Expr) -> ControlFlow<()> {
+        if let Some(curr_match) = antiunifier_map.get(self_e) {
+            if curr_match != other_e {
+                return ControlFlow::Break(());
+            } else {
+                // optimization: don't add the element if it's already there.
+                return ControlFlow::Continue(());
+            }
+        }
+        antiunifier_map.insert(self_e.clone(), other_e.clone());
+        ControlFlow::Continue(())
+    }
+
+    fn try_antiunify_subexprs<'a, 'b, I>(antiunifier_map: &mut SnapshotMap<Expr, Expr>, expr: &Expr, other: &Expr, subexprs: I) -> ControlFlow<()>
+        where I: IntoIterator<Item = (&'a Expr, &'b Expr)>
+    {
+        let curr_map = antiunifier_map.snapshot();
+        for (e, o) in subexprs {
+            match antiunify_helper(e, o, antiunifier_map) {
+                ControlFlow::Break(()) => {
+                    antiunifier_map.rollback_to(curr_map);
+                    record_antiunifier(antiunifier_map, expr, other)?;
+                    return ControlFlow::Continue(());
+                }
+                ControlFlow::Continue(()) => {}
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn antiunify_helper(expr: &Expr, other: &Expr, antiunifier_map: &mut SnapshotMap<Expr, Expr>) -> ControlFlow<()> {
+        use ExprKind::*;
+        if expr == other {
+            return ControlFlow::Continue(());
+        }
+        match (expr.kind(), other.kind()) {
+            (BinaryOp(e_bop, e_e1, e_e2), BinaryOp(o_bop, o_e1, o_e2)) if e_bop == o_bop => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1), (e_e2, o_e2)])
+            }
+            (UnaryOp(e_uop, e_e1), UnaryOp(o_uop, o_e1)) if e_uop == o_uop => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            }
+            (FieldProj(e_e1, e_proj), FieldProj(o_e1, o_proj)) if e_proj == o_proj => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            }
+            (Ctor(e_ctor, es), Ctor(o_ctor, os)) if e_ctor == o_ctor => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
+            }
+            (Tuple(es), Tuple(os)) => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
+            }
+            (PathProj(e_e1, e_proj), PathProj(o_e1, o_proj)) if e_proj == o_proj => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            }
+            _ => todo!(),
+        }
+    }
+
+    let mut au_map = SnapshotMap::default();
+
+    antiunify_helper(expr, other, &mut au_map);
+    au_map
+}
+
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
 pub struct ESpan {
