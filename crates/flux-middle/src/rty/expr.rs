@@ -702,14 +702,44 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> SnapshotMap<Expr, Expr> {
             (PathProj(e_e1, e_proj), PathProj(o_e1, o_proj)) if e_proj == o_proj => {
                 try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
             }
-            _ => todo!(),
+            (IfThenElse(e_e1, e_e2, e_e3), IfThenElse(o_e1, o_e2, o_e3)) => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1), (e_e2, o_e2), (e_e3, o_e3)])
+            }
+            (Alias(e_alias, es), Alias(o_alias, os)) if e_alias == o_alias => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
+            }
+            (App(e_f, es), App(o_f, os)) => {
+                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_f, o_f)].into_iter().chain(std::iter::zip(es, os)))
+            }
+            // Notable exceptions to things we try to antiunify:
+            // * Forall
+            // * Abs
+            // * BoundedQuant
+            // * Let
+            //
+            // Most of these are here because to reconcile them we would need to
+            // have another map that track binder equalities (in case of named
+            // binders).
+            //
+            // This is the fallthrough for terms that we can't further anti-unify
+            _ => {
+                record_antiunifier(antiunifier_map, expr, other)
+            }
         }
     }
 
     let mut au_map = SnapshotMap::default();
 
-    antiunify_helper(expr, other, &mut au_map);
-    au_map
+    match antiunify_helper(expr, other, &mut au_map) {
+        ControlFlow::Break(()) => {
+            let mut trivial_map = SnapshotMap::default();
+            trivial_map.insert(expr.clone(), other.clone());
+            trivial_map
+        }
+        ControlFlow::Continue(()) => {
+            au_map
+        }
+    }
 }
 
 
