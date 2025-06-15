@@ -54,10 +54,9 @@ Sometimes you may want to refine a struct or function that outside your code. We
 refer to such a specification as an "extern spec," which is short for "external
 specification."
 
-Flux right now has rudimentary support for extern specs: they are supported for
-functions, impls, and structs. Impls are only supported for structs and if you
-have multiple impls for a struct (such as `&[T]` and `[T]`), those may conflict.
-Structs only support opaque refinements.
+Currently, Flux supports extern specs for functions, structs, enums, traits and impls.
+The support is a bit rudimentary. For example, multiple impls for a struct (such as `&[T]`
+and `[T]`) may conflict, and extern specs for structs only support opaque refinements.
 
 Extern specs are given using `extern_spec` attribute macro, which is provided
 by the procedural macros package `flux_rs`.
