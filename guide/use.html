@@ -2997,10 +2997,10 @@ impl String {
     #[flux::sig(fn(&amp;String[@n]) -&gt; bool[n == 0])]
     fn is_empty(s: &amp;String) -&gt; bool;
 
-    #[flux::sig(fn(s: &amp;strg String[@n], char) ensures s: String[n+1])]
+    #[flux::sig(fn(s: &amp;mut String[@n], char) ensures s: String[n+1])]
     fn push(s: &amp;mut String, c: char);
 
-    #[flux::sig(fn(s: &amp;strg String[@n]) -&gt; Option&lt;char&gt;
+    #[flux::sig(fn(s: &amp;mut String[@n]) -&gt; Option&lt;char&gt;
                 requires n &gt; 0
                 ensures s: String[n-1])]
     fn pop(s: &amp;mut String) -&gt; Option&lt;char&gt;;

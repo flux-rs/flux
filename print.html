@@ -375,10 +375,9 @@ to specify that <code>y</code> must be greater than <code>x</code> using argumen
 <p>Sometimes you may want to refine a struct or function that outside your code. We
 refer to such a specification as an "extern spec," which is short for "external
 specification."</p>
-<p>Flux right now has rudimentary support for extern specs: they are supported for
-functions, impls, and structs. Impls are only supported for structs and if you
-have multiple impls for a struct (such as <code>&amp;[T]</code> and <code>[T]</code>), those may conflict.
-Structs only support opaque refinements.</p>
+<p>Currently, Flux supports extern specs for functions, structs, enums, traits and impls.
+The support is a bit rudimentary. For example, multiple impls for a struct (such as <code>&amp;[T]</code>
+and <code>[T]</code>) may conflict, and extern specs for structs only support opaque refinements.</p>
 <p>Extern specs are given using <code>extern_spec</code> attribute macro, which is provided
 by the procedural macros package <code>flux_rs</code>.</p>
 <pre><code>use flux_rs::extern_spec;
@@ -388,40 +387,128 @@ by the procedural macros package <code>flux_rs</code>.</p>
 <a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs">here</a>.</p>
 <p>To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.</p>
-<pre><code>#[extern_spec(std::mem)]
-#[flux_rs::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
-fn swap(a: &amp;mut i32, b: &amp;mut i32);
-</code></pre>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[extern_spec(std::mem)]
+#[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
+fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);
+<span class="boring">}</span></code></pre></pre>
 <ol>
 <li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
 in the above example, this is <code>std::mem</code>. You can use this path to qualify
 the function. So in the above example, the function we are targeting has the
 full path of <code>std::mem::swap</code>.</li>
-<li>Add a <code>#[flux_rs::sig(...)]</code> attribute. This is required for any extern spec on
-a function. This signature behaves as if the <code>#[flux_rs::trusted]</code> attribute was
-added, because we can't actually check the implementation. We just verify
-some simple things, like that the function arguments have compatible types.</li>
-<li>Write a function stub that matches the external function.</li>
+<li>Add a <code>#[spec(...)]</code> (or equivalently <code>#[flux_rs::sig(...)]</code>) attribute, which
+is required for any extern spec on a function. This signature behaves as if
+the <code>#[flux_rs::trusted]</code> attribute was added, because we cannot <em>actually</em>
+check the implementation. Instead, flux just verifies some simple things,
+like that the function arguments have compatible types.</li>
+<li>Write a function stub whose rust signature matches the external function.</li>
 </ol>
 <p>If you do the above, you can use <code>std::mem::swap</code> as if it were refined by the
 above type.</p>
-<p>You shouldn't need to know the details, but here's how the macro works. It
-parses the <code>std::mem</code> into a module path and then transforms the function into</p>
-<pre><code>#[flux_rs::extern_spec]
-#[flux_rs::sig(fn(&amp;mut i32[@a], &amp;mut i32{v : a &lt; v }) -&gt; ())]
-#[allow(unused, dead_code)]
-fn __flux_extern_spec_swap(a: &amp;mut i32, b: &amp;mut i32) {
-    std::mem::swap(a, b)
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn test_swap() {
+    let mut x = 5;
+    let mut y = 10;
+    swap(&amp;mut x, &amp;mut y); // actually calls `std::mem::swap`
+    assert(x == 10); // verified by flux
+    assert(y == 5); // verified by flux
+    assert(y == 10); //~ ERROR refinement type
 }
-</code></pre>
+<span class="boring">}</span></code></pre></pre>
+<p>You shouldn't need to know the details, but if you're curious,
+here's how the macro works. In the code above, flux parses the
+<code>std::mem</code> into a module path and then transforms the function into</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[extern_spec]
+#[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
+#[allow(unused, dead_code)]
+fn __flux_extern_spec_swap&lt;T&gt;(x: &amp;mut T, y: &amp;mut T) {
+    std::mem::swap(x, y)
+}
+<span class="boring">}</span></code></pre></pre>
 <p>It does this to get information about the function <code>std::mem::swap</code> and its
 arguments (this turns out to be difficult to do without giving the compiler
 something to inspect and type check).</p>
-<h3 id="extern-structs-and-impls"><a class="header" href="#extern-structs-and-impls">Extern structs and impls</a></h3>
-<p>An example of refining an extern struct and impl can be found
-<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_impl.rs">here</a>.
-A simpler example just involving structs can be found
-<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_struct.rs">here</a>.</p>
+<h3 id="extern-struct-and-impl"><a class="header" href="#extern-struct-and-impl">Extern <code>struct</code> and <code>impl</code></a></h3>
+<p>Here is an example of refining an extern struct</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::extern_spec;
+
+#[extern_spec(std::string)]
+#[flux::refined_by(len: int)]
+struct String;
+
+#[flux::sig(fn(String[@n]) requires n == 3)]
+fn expect_string_len_3(s: String) {}
+
+#[flux::sig(fn(String[2]))]
+fn test_string_len_2(s: String) {
+    expect_string_len_3(s); //~ ERROR refinement type
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Here's a longer example of refining an extern <code>struct</code> as well as an <code>impl</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::extern_spec;
+
+#[extern_spec]
+#[flux::refined_by(len: int)]
+struct String;
+
+#[extern_spec]
+impl String {
+    #[flux::sig(fn() -&gt; String[0])]
+    fn new() -&gt; String;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    fn len(s: &amp;String) -&gt; usize;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; bool[n == 0])]
+    fn is_empty(s: &amp;String) -&gt; bool;
+
+    #[flux::sig(fn(s: &amp;mut String[@n], char) ensures s: String[n+1])]
+    fn push(s: &amp;mut String, c: char);
+
+    #[flux::sig(fn(s: &amp;mut String[@n]) -&gt; Option&lt;char&gt;
+                requires n &gt; 0
+                ensures s: String[n-1])]
+    fn pop(s: &amp;mut String) -&gt; Option&lt;char&gt;;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; &amp;[u8][n])]
+    fn as_bytes(s: &amp;String) -&gt; &amp;[u8];
+}
+
+#[extern_spec]
+impl&lt;T&gt; [T] {
+    #[flux::sig(fn(&amp;[T][@n]) -&gt; usize[n])]
+    fn len(v: &amp;[T]) -&gt; usize;
+
+    #[flux::sig(fn(&amp;[T][@n]) -&gt; bool[n == 0])]
+    fn is_empty(v: &amp;[T]) -&gt; bool;
+}
+
+#[flux::sig(fn(bool[@b]) requires b)]
+pub fn assert_true(_: bool) {}
+
+pub fn test_string() {
+    let mut s = String::new();
+    assert_true(s.is_empty());
+    assert_true(s.as_bytes().is_empty());
+    s.push('h');
+    s.push('i');
+    assert_true(s.len() == 2);
+    s.pop();
+    assert_true(s.len() == 1);
+    s.pop();
+    assert_true(s.is_empty());
+    assert_true(s.as_bytes().is_empty());
+}
+<span class="boring">}</span></code></pre></pre>
 <p>The syntax for an extern spec on a struct is very similar to that for a
 function. Once again, each line in the example happens to correspond to a step.</p>
 <pre><code>#[extern_spec(std::string)]
@@ -464,33 +551,6 @@ of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>
 </ol>
 <p>If you do the above, you can use the above methods of<code>std::string::String</code> as if
 they were refined.</p>
-<p>You shouldn't need to know the details, but here's how the above two macros expand.</p>
-<p>For structs:</p>
-<pre><code>#[flux_rs::extern_spec]
-#[allow(unused, dead_code)]
-#[flux_rs::refined_by(len: int)]
-struct __FluxExternSpecString(std::string::String);
-</code></pre>
-<p>For impls (this was translated manually so there might be some bugs):</p>
-<pre><code>#[allow(unused, dead_code)]
-struct __FluxExternImplStructString;
-
-#[allow(unused, dead_code)]
-impl __FluxExternImplStructString {
-    #[flux_rs::extern_spec]
-    #[flux_rs::sig(fn() -&gt; String[0])]
-    #[allow(unused, dead_code)]
-    fn __flux_extern_spec_new() -&gt; String {
-       std::string::String::new::&lt;&gt;()
-    }
-    #[flux_rs::extern_spec]
-    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
-    #[allow(unused, dead_code)]
-    fn __flux_extern_spec_len(s: &amp;String) -&gt; usize {
-       std::string::String::len::&lt;&gt;(s)
-    }
-}
-</code></pre>
 <h2 id="grammar-of-refinements"><a class="header" href="#grammar-of-refinements">Grammar of Refinements</a></h2>
 <pre><code class="language-text">r ::= n                     // numbers 1,2,3...
     | x                     // identifiers x,y,z...
@@ -3426,10 +3486,10 @@ impl String {
     #[flux::sig(fn(&amp;String[@n]) -&gt; bool[n == 0])]
     fn is_empty(s: &amp;String) -&gt; bool;
 
-    #[flux::sig(fn(s: &amp;strg String[@n], char) ensures s: String[n+1])]
+    #[flux::sig(fn(s: &amp;mut String[@n], char) ensures s: String[n+1])]
     fn push(s: &amp;mut String, c: char);
 
-    #[flux::sig(fn(s: &amp;strg String[@n]) -&gt; Option&lt;char&gt;
+    #[flux::sig(fn(s: &amp;mut String[@n]) -&gt; Option&lt;char&gt;
                 requires n &gt; 0
                 ensures s: String[n-1])]
     fn pop(s: &amp;mut String) -&gt; Option&lt;char&gt;;
