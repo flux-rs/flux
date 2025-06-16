@@ -1,6 +1,7 @@
 use std::{fmt, iter};
 
 use expr::{FieldBind, pretty::aggregate_nested};
+use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree, region_to_string};
 
@@ -245,7 +246,11 @@ impl PrettyNested for IdxFmt {
 
 impl Pretty for IdxFmt {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = if cx.simplify_exprs { self.0.simplify() } else { self.0.clone() };
+        let e = if cx.simplify_exprs {
+            self.0.simplify(&SnapshotMap::default())
+        } else {
+            self.0.clone()
+        };
         if let ExprKind::Ctor(ctor, flds) = e.kind()
             && let Some(adt_sort_def) = cx.adt_sort_def_of(ctor.def_id())
             && let Some(variant) = adt_sort_def.opt_struct_variant()
