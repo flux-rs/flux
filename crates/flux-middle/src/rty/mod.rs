@@ -13,7 +13,7 @@ mod pretty;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock, ops::ControlFlow};
+use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, ops::ControlFlow, sync::LazyLock};
 
 pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
@@ -42,7 +42,11 @@ pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
-use rustc_data_structures::{fx::{FxIndexMap, FxHashMap}, snapshot_map::SnapshotMap, unord::UnordMap};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxIndexMap},
+    snapshot_map::SnapshotMap,
+    unord::UnordMap,
+};
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
@@ -2904,7 +2908,11 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
     /// Adds self_e |-> other_e to the antiunifier_map, raising
     /// ControlFlow::Break(()) if self_e is mapped to another value
     /// already.
-    fn record_antiunifier(antiunifier_map: &mut FxHashMap<Expr, Expr>, self_e: &Expr, other_e: &Expr) -> ControlFlow<()> {
+    fn record_antiunifier(
+        antiunifier_map: &mut FxHashMap<Expr, Expr>,
+        self_e: &Expr,
+        other_e: &Expr,
+    ) -> ControlFlow<()> {
         if let Some(curr_match) = antiunifier_map.get(self_e) {
             if curr_match != other_e {
                 return ControlFlow::Break(());
@@ -2917,8 +2925,14 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
         ControlFlow::Continue(())
     }
 
-    fn try_antiunify_subexprs<'a, 'b, I>(antiunifier_map: &mut FxHashMap<Expr, Expr>, expr: &Expr, other: &Expr, subexprs: I) -> ControlFlow<()>
-        where I: IntoIterator<Item = (&'a Expr, &'b Expr)>
+    fn try_antiunify_subexprs<'a, 'b, I>(
+        antiunifier_map: &mut FxHashMap<Expr, Expr>,
+        expr: &Expr,
+        other: &Expr,
+        subexprs: I,
+    ) -> ControlFlow<()>
+    where
+        I: IntoIterator<Item = (&'a Expr, &'b Expr)>,
     {
         let mut curr_map = antiunifier_map.clone();
         for (e, o) in subexprs {
@@ -2934,7 +2948,11 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
         ControlFlow::Continue(())
     }
 
-    fn antiunify_helper(expr: &Expr, other: &Expr, antiunifier_map: &mut FxHashMap<Expr, Expr>) -> ControlFlow<()> {
+    fn antiunify_helper(
+        expr: &Expr,
+        other: &Expr,
+        antiunifier_map: &mut FxHashMap<Expr, Expr>,
+    ) -> ControlFlow<()> {
         use ExprKind::*;
         if expr == other {
             return ControlFlow::Continue(());
@@ -2959,13 +2977,23 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
                 try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
             }
             (IfThenElse(e_e1, e_e2, e_e3), IfThenElse(o_e1, o_e2, o_e3)) => {
-                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1), (e_e2, o_e2), (e_e3, o_e3)])
+                try_antiunify_subexprs(
+                    antiunifier_map,
+                    expr,
+                    other,
+                    [(e_e1, o_e1), (e_e2, o_e2), (e_e3, o_e3)],
+                )
             }
             (Alias(e_alias, es), Alias(o_alias, os)) if e_alias == o_alias => {
                 try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
             }
             (App(e_f, es), App(o_f, os)) => {
-                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_f, o_f)].into_iter().chain(std::iter::zip(es, os)))
+                try_antiunify_subexprs(
+                    antiunifier_map,
+                    expr,
+                    other,
+                    [(e_f, o_f)].into_iter().chain(std::iter::zip(es, os)),
+                )
             }
             // Notable exceptions to things we try to antiunify:
             // * Forall
@@ -2978,9 +3006,7 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
             // binders).
             //
             // This is the fallthrough for terms that we can't further anti-unify
-            _ => {
-                record_antiunifier(antiunifier_map, expr, other)
-            }
+            _ => record_antiunifier(antiunifier_map, expr, other),
         }
     }
 
@@ -2992,8 +3018,6 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
             trivial_map.insert(expr.clone(), other.clone());
             trivial_map
         }
-        ControlFlow::Continue(()) => {
-            au_map
-        }
+        ControlFlow::Continue(()) => au_map,
     }
 }

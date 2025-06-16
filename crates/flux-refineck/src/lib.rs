@@ -106,7 +106,12 @@ pub fn check_fn(
     {
         tracing::info!("check_fn::refine-subtyping");
         let errors = infcx_root
-            .execute_fixpoint_query_collecting_constraints(cache, constraints, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+            .execute_fixpoint_query_collecting_constraints(
+                cache,
+                constraints,
+                MaybeExternId::Local(def_id),
+                FixpointQueryKind::Impl,
+            )
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         report_fixpoint_errors(genv, def_id, errors)?;
@@ -140,7 +145,12 @@ pub fn check_fn(
 
         // PHASE 3: invoke fixpoint on the constraint
         let errors = infcx_root
-            .execute_fixpoint_query_collecting_constraints(cache, constraints, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
+            .execute_fixpoint_query_collecting_constraints(
+                cache,
+                constraints,
+                MaybeExternId::Local(def_id),
+                FixpointQueryKind::Body,
+            )
             .emit(&genv)?;
         report_fixpoint_errors(genv, def_id, errors)
     })?;

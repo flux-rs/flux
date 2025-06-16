@@ -9,17 +9,21 @@ use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{format_cx, PrettyCx, PrettyNested},
+    pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        self, fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor}, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var
+        self, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
+        },
     },
 };
 use itertools::Itertools;
 use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-use rustc_data_structures::fx::FxHashSet;
 use rustc_span::{Span, Symbol};
 
 use serde::Serialize;
@@ -383,7 +387,11 @@ pub struct BlameAnalysis {
 }
 impl BlameAnalysis {
     fn new() -> Self {
-        Self { binder_deps: HashMap::new(), wkvars: Vec::new(), assumed_preds: FxHashSet::default() }
+        Self {
+            binder_deps: HashMap::new(),
+            wkvars: Vec::new(),
+            assumed_preds: FxHashSet::default(),
+        }
     }
 }
 
@@ -395,10 +403,14 @@ impl TypeVisitable for Node {
 
 impl TypeFoldable for Node {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let children = &self.children.iter().map(|child| {
-            let new_child: Node = child.borrow().try_fold_with(folder)?;
-            Ok(NodePtr(Rc::new(RefCell::new(new_child))))
-        }).collect::<Result<Vec<NodePtr>, F::Error>>()?;
+        let children = &self
+            .children
+            .iter()
+            .map(|child| {
+                let new_child: Node = child.borrow().try_fold_with(folder)?;
+                Ok(NodePtr(Rc::new(RefCell::new(new_child))))
+            })
+            .collect::<Result<Vec<NodePtr>, F::Error>>()?;
         let kind = match &self.kind {
             NodeKind::Assumption(pred) => NodeKind::Assumption(pred.try_fold_with(folder)?),
             NodeKind::Head(pred, tag) => NodeKind::Head(pred.try_fold_with(folder)?, *tag),

@@ -19,7 +19,6 @@ use flux_middle::{
         for_refine_arg,
     },
 };
-use crate::wkvars::{Constraint, Constraints};
 use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
@@ -34,6 +33,7 @@ use crate::{
     fixpoint_encoding::{FixQueryCache, FixpointCheckError, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
     refine_tree::{BinderOriginator, BinderProvenance, Cursor, Marker, RefineTree, Scope},
+    wkvars::{Constraint, Constraints},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
