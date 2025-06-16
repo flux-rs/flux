@@ -44,7 +44,7 @@ pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
-use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
+use rustc_data_structures::{fx::{FxIndexMap, FxHashMap}, snapshot_map::SnapshotMap, unord::UnordMap};
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
