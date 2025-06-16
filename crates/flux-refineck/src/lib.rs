@@ -280,8 +280,11 @@ fn report_errors(
             .wkvars
             .iter()
             .flat_map(|wkvar| {
-                WKVarInstantiator::try_instantiate_wkvar(wkvar, &err.blame_ctx.expr)
-                    .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
+                // Try to instantiate it to each candidate
+                solution_candidates.iter().flat_map(|expr| {
+                    WKVarInstantiator::try_instantiate_wkvar(wkvar, expr)
+                        .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
+                })
             })
             .collect_vec();
 
