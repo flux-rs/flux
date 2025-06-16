@@ -15,10 +15,10 @@ impl String {
     #[flux::sig(fn(&String[@n]) -> bool[n == 0])]
     fn is_empty(s: &String) -> bool;
 
-    #[flux::sig(fn(s: &strg String[@n], char) ensures s: String[n+1])]
+    #[flux::sig(fn(s: &mut String[@n], char) ensures s: String[n+1])]
     fn push(s: &mut String, c: char);
 
-    #[flux::sig(fn(s: &strg String[@n]) -> Option<char>
+    #[flux::sig(fn(s: &mut String[@n]) -> Option<char>
                 requires n > 0
                 ensures s: String[n-1])]
     fn pop(s: &mut String) -> Option<char>;
