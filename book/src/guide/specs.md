@@ -176,40 +176,6 @@ impl String {
 If you do the above, you can use the above methods of`std::string::String` as if
 they were refined.
 
-You shouldn't need to know the details, but here's how the above two macros expand.
-
-For structs:
-
-```
-#[flux_rs::extern_spec]
-#[allow(unused, dead_code)]
-#[flux_rs::refined_by(len: int)]
-struct __FluxExternSpecString(std::string::String);
-```
-
-For impls (this was translated manually so there might be some bugs):
-
-```
-#[allow(unused, dead_code)]
-struct __FluxExternImplStructString;
-
-#[allow(unused, dead_code)]
-impl __FluxExternImplStructString {
-    #[flux_rs::extern_spec]
-    #[flux_rs::sig(fn() -> String[0])]
-    #[allow(unused, dead_code)]
-    fn __flux_extern_spec_new() -> String {
-       std::string::String::new::<>()
-    }
-    #[flux_rs::extern_spec]
-    #[flux_rs::sig(fn(&String[@n]) -> usize[n])]
-    #[allow(unused, dead_code)]
-    fn __flux_extern_spec_len(s: &String) -> usize {
-       std::string::String::len::<>(s)
-    }
-}
-```
-
 ## Grammar of Refinements
 
 ```text
