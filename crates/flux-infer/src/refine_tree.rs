@@ -20,6 +20,7 @@ use itertools::Itertools;
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
+use rustc_data_structures::fx::FxHashSet;
 use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
@@ -371,10 +372,11 @@ pub type BinderDeps = HashMap<Name, (Option<BinderProvenance>, BinderDepth, Hash
 pub struct BlameAnalysis {
     pub binder_deps: BinderDeps,
     pub wkvars: Vec<rty::WKVar>,
+    pub assumed_preds: FxHashSet<rty::Expr>,
 }
 impl BlameAnalysis {
     fn new() -> Self {
-        Self { binder_deps: HashMap::new(), wkvars: Vec::new() }
+        Self { binder_deps: HashMap::new(), wkvars: Vec::new(), assumed_preds: FxHashSet::default() }
     }
 }
 
