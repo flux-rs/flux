@@ -2900,11 +2900,11 @@ impl<'a, T> LocalTableInContext<'a, T> {
 ///     y > x
 ///     -----
 ///     x < y |-> y > x
-pub fn anti_unify(expr: &Expr, other: &Expr) -> SnapshotMap<Expr, Expr> {
+pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
     /// Adds self_e |-> other_e to the antiunifier_map, raising
     /// ControlFlow::Break(()) if self_e is mapped to another value
     /// already.
-    fn record_antiunifier(antiunifier_map: &mut SnapshotMap<Expr, Expr>, self_e: &Expr, other_e: &Expr) -> ControlFlow<()> {
+    fn record_antiunifier(antiunifier_map: &mut FxHashMap<Expr, Expr>, self_e: &Expr, other_e: &Expr) -> ControlFlow<()> {
         if let Some(curr_match) = antiunifier_map.get(self_e) {
             if curr_match != other_e {
                 return ControlFlow::Break(());
@@ -2917,14 +2917,14 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> SnapshotMap<Expr, Expr> {
         ControlFlow::Continue(())
     }
 
-    fn try_antiunify_subexprs<'a, 'b, I>(antiunifier_map: &mut SnapshotMap<Expr, Expr>, expr: &Expr, other: &Expr, subexprs: I) -> ControlFlow<()>
+    fn try_antiunify_subexprs<'a, 'b, I>(antiunifier_map: &mut FxHashMap<Expr, Expr>, expr: &Expr, other: &Expr, subexprs: I) -> ControlFlow<()>
         where I: IntoIterator<Item = (&'a Expr, &'b Expr)>
     {
-        let curr_map = antiunifier_map.snapshot();
+        let mut curr_map = antiunifier_map.clone();
         for (e, o) in subexprs {
             match antiunify_helper(e, o, antiunifier_map) {
                 ControlFlow::Break(()) => {
-                    antiunifier_map.rollback_to(curr_map);
+                    *antiunifier_map = curr_map;
                     record_antiunifier(antiunifier_map, expr, other)?;
                     return ControlFlow::Continue(());
                 }
@@ -2934,7 +2934,7 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> SnapshotMap<Expr, Expr> {
         ControlFlow::Continue(())
     }
 
-    fn antiunify_helper(expr: &Expr, other: &Expr, antiunifier_map: &mut SnapshotMap<Expr, Expr>) -> ControlFlow<()> {
+    fn antiunify_helper(expr: &Expr, other: &Expr, antiunifier_map: &mut FxHashMap<Expr, Expr>) -> ControlFlow<()> {
         use ExprKind::*;
         if expr == other {
             return ControlFlow::Continue(());
@@ -2984,11 +2984,11 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> SnapshotMap<Expr, Expr> {
         }
     }
 
-    let mut au_map = SnapshotMap::default();
+    let mut au_map = FxHashMap::default();
 
     match antiunify_helper(expr, other, &mut au_map) {
         ControlFlow::Break(()) => {
-            let mut trivial_map = SnapshotMap::default();
+            let mut trivial_map = FxHashMap::default();
             trivial_map.insert(expr.clone(), other.clone());
             trivial_map
         }
