@@ -10,17 +10,20 @@ use flux_config::OverflowMode;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{format_cx, PrettyCx, PrettyNested},
+    pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        self, fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor}, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var
-    },
+        self, fold::{
+        FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable,
+        TypeVisitor,
+    }, ExprKind, KVid, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var, },
 };
 use itertools::Itertools;
 use rustc_data_structures::{
     fx::{FxHashMap, FxHashSet},
     snapshot_map::SnapshotMap,
 };
+use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
@@ -417,10 +420,14 @@ impl TypeVisitable for Node {
 
 impl TypeFoldable for Node {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        let children = &self.children.iter().map(|child| {
-            let new_child: Node = child.borrow().try_fold_with(folder)?;
-            Ok(NodePtr(Rc::new(RefCell::new(new_child))))
-        }).collect::<Result<Vec<NodePtr>, F::Error>>()?;
+        let children = &self
+            .children
+            .iter()
+            .map(|child| {
+                let new_child: Node = child.borrow().try_fold_with(folder)?;
+                Ok(NodePtr(Rc::new(RefCell::new(new_child))))
+            })
+            .collect::<Result<Vec<NodePtr>, F::Error>>()?;
         let kind = match &self.kind {
             NodeKind::Assumption(pred) => NodeKind::Assumption(pred.try_fold_with(folder)?),
             NodeKind::Head(pred, tag) => NodeKind::Head(pred.try_fold_with(folder)?, *tag),
