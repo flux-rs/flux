@@ -866,6 +866,7 @@ where
         let mut preds = vec![];
 
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds, blame_analysis)?;
+        blame_analysis.assumed_preds.extend(pred.flatten_conjs().into_iter().cloned());
         Ok((bindings, fixpoint::Pred::and(preds)))
     }
 

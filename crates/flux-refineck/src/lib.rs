@@ -35,7 +35,7 @@ use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
 use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
+    fixpoint_encoding::{BlameCtxt, FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
     wkvars::{WKVarInstantiator, WKVarSubst},
@@ -270,6 +270,9 @@ fn report_errors(
         //     - It is a function argument
         //   * The rest are related (we reverse the sort to emit them most-to-least useful)
         let (blamed_binders, related_binders) = split_binders(binders);
+
+        // Find predicates which imply the failing constraint
+        let solution_candidates = find_solution_candidates(&err.blame_ctx);
 
         let wkvar_solutions = err
             .blame_ctx
@@ -556,6 +559,42 @@ fn add_related_var_diagnostic<'a>(
             .unwrap_or_else(|| genv.tcx().def_span(def_id));
         diag.subdiagnostic(errors::RelatedFn { span: fn_span, fn_name });
     }
+}
+
+/// Heuristic and syntactic approach to finding candidates each of whose proof
+/// entails the failing constraint (blame_ctx.expr).
+///
+/// So far this is just the expression itself (trivial entailment) and
+/// the equalities arising from antiunifying the expression with an
+/// assumed predicate.
+///
+/// e.g. if the expression is x < y
+///
+/// assumed_pred: a < y
+/// solution candidate: a == x
+///
+/// assumed_pred: a < b
+/// solution candidate: a == x /\ b == y
+///
+/// assumed_pred: a > b
+/// solution candidate: none
+/// (it would be --- at the most conservative level taking into account these
+///  are booleans --- a > b => x < y which is probably too trivial a constraint
+///  to offer; we only equalities anyway)
+fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
+    let mut candidates = vec![blame_ctx.expr.clone()];
+    for assumed_pred in &blame_ctx.blame_analysis.assumed_preds {
+        let au_map = rty::anti_unify(&blame_ctx.expr, assumed_pred);
+        // This checks if the antiunification is trivial, i.e.
+        // blame_ctx.expr == assumed_pred
+        if au_map.get(&blame_ctx.expr).is_some() {
+            continue;
+        }
+        // build a conjunction of equalities between each au pair.
+        let conjs = au_map.into_iter().map(|(e1, e2)| rty::Expr::eq(e1, e2));
+        candidates.push(rty::Expr::and_from_iter(conjs));
+    }
+    return candidates;
 }
 
 #[derive(Debug, Clone)]
