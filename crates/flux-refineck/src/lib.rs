@@ -101,7 +101,12 @@ pub fn check_fn(
     {
         tracing::info!("check_fn::refine-subtyping");
         let answer = infcx_root
-            .execute_fixpoint_query_collecting_constraints(cache, constraints, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
+            .execute_fixpoint_query_collecting_constraints(
+                cache,
+                constraints,
+                MaybeExternId::Local(def_id),
+                FixpointQueryKind::Impl,
+            )
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
         let errors = answer.errors;
