@@ -4,7 +4,8 @@ use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
-    refine_tree::{self, BinderOriginator, BinderProvenance}, wkvars::Constraints,
+    refine_tree::{self, BinderOriginator, BinderProvenance},
+    wkvars::Constraints,
 };
 use flux_middle::{
     FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
@@ -86,7 +87,12 @@ fn check_invariant(
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let errors = infcx_root
-        .execute_fixpoint_query_collecting_constraints(cache, constraints, def_id, FixpointQueryKind::Invariant)
+        .execute_fixpoint_query_collecting_constraints(
+            cache,
+            constraints,
+            def_id,
+            FixpointQueryKind::Invariant,
+        )
         .emit(&genv)?;
 
     if errors.is_empty() { Ok(()) } else { Err(genv.sess().emit_err(errors::Invalid { span })) }
