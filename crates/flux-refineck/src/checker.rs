@@ -113,7 +113,8 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
-    const _NAME: &str;
+    #[expect(dead_code)]
+    const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
         ck: &mut Checker<'ck, 'genv, 'tcx, Self>,
@@ -1896,7 +1897,7 @@ fn infer_under_mut_ref_hack(rcx: &mut InferCtxt, actuals: &[Ty], fn_sig: &PolyFn
 }
 
 impl Mode for ShapeMode {
-    const _NAME: &str = "shape";
+    const NAME: &str = "shape";
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
         ck: &mut Checker<'ck, 'genv, 'tcx, ShapeMode>,
@@ -1949,7 +1950,7 @@ impl Mode for ShapeMode {
 }
 
 impl Mode for RefineMode {
-    const _NAME: &str = "refine";
+    const NAME: &str = "refine";
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
         ck: &mut Checker<'ck, 'genv, 'tcx, RefineMode>,

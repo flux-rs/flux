@@ -180,7 +180,7 @@ pub trait TypeVisitable: Sized {
 
             fn visit_binder<T: TypeVisitable>(&mut self, t: &Binder<T>) -> ControlFlow<()> {
                 self.outer_index.shift_in(1);
-                let _ = t.super_visit_with(self);
+                t.super_visit_with(self)?;
                 self.outer_index.shift_out(1);
                 ControlFlow::Continue(())
             }

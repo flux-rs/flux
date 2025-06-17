@@ -51,10 +51,6 @@ pub unsafe fn retrieve_mir_body<'tcx>(
 ) -> BodyWithBorrowckFacts<'tcx> {
     let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
         let mut map = state.borrow_mut();
-        let mut keys = String::new();
-        for k in map.keys() {
-            keys.push_str(format!("{k:?}").as_str());
-        }
         match map.remove(&def_id) {
             Some(body) => body,
             None => {

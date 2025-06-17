@@ -337,10 +337,7 @@ impl<'t> Cursor<'t> {
             TokenKind::Bang => Token::Bang,
             TokenKind::PathSep => Token::PathSep,
             TokenKind::DotDot => Token::DotDot,
-            tok => {
-                println!("Invalid token: {tok:?}");
-                Token::Invalid
-            }
+            _ => Token::Invalid,
         };
         self.tokens.push_back((span.lo(), token, span.hi()));
     }
