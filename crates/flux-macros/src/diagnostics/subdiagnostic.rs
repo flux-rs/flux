@@ -383,7 +383,6 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                 Ok(quote! {})
             }
             "subdiagnostic" => {
-                // let f = &self.parent.f;
                 let diag = &self.parent.diag;
                 let binding = &info.binding;
                 self.has_subdiagnostic = true;
@@ -534,7 +533,6 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
         let span_field = self.span_field.value_ref();
 
         let diag = &self.parent.diag;
-        // let f = &self.parent.f;
         let mut calls = TokenStream::new();
         for (kind, slug, no_span) in kind_slugs {
             let message = format_ident!("__message");

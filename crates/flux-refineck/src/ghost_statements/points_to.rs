@@ -60,7 +60,6 @@ pub(crate) fn add_ghost_statements<'tcx>(
     Ok(())
 }
 
-// CUT type Results<'a> = rustc_mir_dataflow::Results<PointsToAnalysis<'a>>;
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
 /// a may analysis. If you want to know if a reference definitively points to a location you have to
