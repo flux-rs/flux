@@ -2515,10 +2515,17 @@ pub struct S3&lt;const M: usize&gt; {
 <h2 id="closures"><a class="header" href="#closures">Closures</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:0 &lt;= v}&gt;)]
+</span>use flux_rs::attrs::*;
+
+#[trusted]
+#[spec(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:0 &lt;= v}&gt;)]
 pub fn test0(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
     c.map(|b| if b { 1 } else { 2 })
 }
+
+// pub fn test0_buddy(x: i32) -&gt; i32 {
+//     x + 1
+// }
 
 // #[flux::sig(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:1 &lt;= v}&gt;)]
 // pub fn test1(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {

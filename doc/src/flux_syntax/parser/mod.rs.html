@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/parser/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (96cfc7558 2025-02-27)" data-channel="nightly" data-search-js="search-f7327375.js" data-settings-js="settings-d72f25bb.js" ><script src="../../../static.files/storage-d8ac8691.js"></script><script defer src="../../../static.files/src-script-b8d3f215.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a7bf3405.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_syntax/parser/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-syntax/src/parser/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_syntax" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (99e7c15e8 2025-06-01)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../static.files/storage-4e99c027.js"></script><script defer src="../../../static.files/src-script-63605ae7.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_syntax/parser/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>lookahead;
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">mod </span>utils;
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::{collections::HashSet, str::FromStr, vec};
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -10,10 +10,10 @@
 <a href=#10 id=10 data-nosnippet>10</a>};
 <a href=#11 id=11 data-nosnippet>11</a>
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use crate</span>::{
-<a href=#13 id=13 data-nosnippet>13</a>    ParseCtxt, ParseError, ParseResult, Peek <span class="kw">as _</span>,
+<a href=#13 id=13 data-nosnippet>13</a>    ParseCtxt, ParseError, ParseResult, Peek <span class="kw">as _</span>, Token,
 <a href=#14 id=14 data-nosnippet>14</a>    lexer::{
 <a href=#15 id=15 data-nosnippet>15</a>        Delimiter::<span class="kw-2">*</span>,
-<a href=#16 id=16 data-nosnippet>16</a>        Token::{<span class="self">self </span><span class="kw">as </span>Tok, Caret, CloseDelim, Comma, OpenDelim},
+<a href=#16 id=16 data-nosnippet>16</a>        Token::{<span class="self">self </span><span class="kw">as </span>Tok, Caret, Comma},
 <a href=#17 id=17 data-nosnippet>17</a>    },
 <a href=#18 id=18 data-nosnippet>18</a>    surface::{
 <a href=#19 id=19 data-nosnippet>19</a>        Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
@@ -101,9 +101,9 @@
 <a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">if </span>!cx.advance_if(Tok::Pound) {
 <a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
 <a href=#103 id=103 data-nosnippet>103</a>    }
-<a href=#104 id=104 data-nosnippet>104</a>    cx.expect(Tok::OpenDelim(Bracket))<span class="question-mark">?</span>;
+<a href=#104 id=104 data-nosnippet>104</a>    cx.expect(Token::OpenBracket)<span class="question-mark">?</span>;
 <a href=#105 id=105 data-nosnippet>105</a>    cx.expect(<span class="string">"hide"</span>)<span class="question-mark">?</span>;
-<a href=#106 id=106 data-nosnippet>106</a>    cx.expect(Tok::CloseDelim(Bracket))<span class="question-mark">?</span>;
+<a href=#106 id=106 data-nosnippet>106</a>    cx.expect(Token::CloseBracket)<span class="question-mark">?</span>;
 <a href=#107 id=107 data-nosnippet>107</a>    <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
 <a href=#108 id=108 data-nosnippet>108</a>}
 <a href=#109 id=109 data-nosnippet>109</a>
@@ -115,7 +115,7 @@
 <a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span>params = parens(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
 <a href=#116 id=116 data-nosnippet>116</a>    cx.expect(Tok::RArrow)<span class="question-mark">?</span>;
 <a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">let </span>output = parse_sort(cx)<span class="question-mark">?</span>;
-<a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">let </span>body = <span class="kw">if </span>cx.peek(OpenDelim(Brace)) {
+<a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">let </span>body = <span class="kw">if </span>cx.peek(Token::OpenBrace) {
 <a href=#119 id=119 data-nosnippet>119</a>        <span class="prelude-val">Some</span>(parse_block(cx)<span class="question-mark">?</span>)
 <a href=#120 id=120 data-nosnippet>120</a>    } <span class="kw">else </span>{
 <a href=#121 id=121 data-nosnippet>121</a>        cx.expect(Tok::Semi)<span class="question-mark">?</span>;
@@ -158,7 +158,7 @@
 <a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">let </span>params = parens(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
 <a href=#159 id=159 data-nosnippet>159</a>    cx.expect(Tok::RArrow)<span class="question-mark">?</span>;
 <a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">let </span>output = parse_base_sort(cx)<span class="question-mark">?</span>;
-<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">let </span>body = <span class="kw">if </span>cx.peek(OpenDelim(Brace)) {
+<a href=#161 id=161 data-nosnippet>161</a>    <span class="kw">let </span>body = <span class="kw">if </span>cx.peek(Token::OpenBrace) {
 <a href=#162 id=162 data-nosnippet>162</a>        <span class="prelude-val">Some</span>(parse_block(cx)<span class="question-mark">?</span>)
 <a href=#163 id=163 data-nosnippet>163</a>    } <span class="kw">else </span>{
 <a href=#164 id=164 data-nosnippet>164</a>        cx.advance_if(Tok::Semi);
@@ -203,7 +203,7 @@
 <a href=#203 id=203 data-nosnippet>203</a>    <span class="kw">let </span>lo = cx.lo();
 <a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">let </span><span class="kw-2">mut </span>fields = <span class="macro">vec!</span>[];
 <a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">let </span><span class="kw-2">mut </span>ret = <span class="prelude-val">None</span>;
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">if </span>cx.peek([OpenDelim(Parenthesis), OpenDelim(Brace)]) {
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">if </span>cx.peek([Token::OpenParen, Token::OpenBrace]) {
 <a href=#207 id=207 data-nosnippet>207</a>        fields = parse_fields(cx)<span class="question-mark">?</span>;
 <a href=#208 id=208 data-nosnippet>208</a>        <span class="kw">if </span>cx.advance_if(Tok::RArrow) {
 <a href=#209 id=209 data-nosnippet>209</a>            ret = <span class="prelude-val">Some</span>(parse_variant_ret(cx)<span class="question-mark">?</span>);
@@ -220,9 +220,9 @@
 <a href=#220 id=220 data-nosnippet>220</a>/// ```
 <a href=#221 id=221 data-nosnippet>221</a></span><span class="kw">fn </span>parse_fields(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Vec&lt;Ty&gt;&gt; {
 <a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">let </span><span class="kw-2">mut </span>lookahead = cx.lookahead1();
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">if </span>lookahead.peek(OpenDelim(Parenthesis)) {
+<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">if </span>lookahead.peek(Token::OpenParen) {
 <a href=#224 id=224 data-nosnippet>224</a>        parens(cx, Comma, parse_type)
-<a href=#225 id=225 data-nosnippet>225</a>    } <span class="kw">else if </span>lookahead.peek(OpenDelim(Brace)) {
+<a href=#225 id=225 data-nosnippet>225</a>    } <span class="kw">else if </span>lookahead.peek(Token::OpenBrace) {
 <a href=#226 id=226 data-nosnippet>226</a>        braces(cx, Comma, parse_type)
 <a href=#227 id=227 data-nosnippet>227</a>    } <span class="kw">else </span>{
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="prelude-val">Err</span>(lookahead.into_error())
@@ -234,7 +234,7 @@
 <a href=#234 id=234 data-nosnippet>234</a>/// ```
 <a href=#235 id=235 data-nosnippet>235</a></span><span class="kw">fn </span>parse_variant_ret(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;VariantRet&gt; {
 <a href=#236 id=236 data-nosnippet>236</a>    <span class="kw">let </span>path = parse_path(cx)<span class="question-mark">?</span>;
-<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">let </span>indices = <span class="kw">if </span>cx.peek(OpenDelim(Bracket)) {
+<a href=#237 id=237 data-nosnippet>237</a>    <span class="kw">let </span>indices = <span class="kw">if </span>cx.peek(Token::OpenBracket) {
 <a href=#238 id=238 data-nosnippet>238</a>        parse_indices(cx)<span class="question-mark">?
 <a href=#239 id=239 data-nosnippet>239</a>    </span>} <span class="kw">else </span>{
 <a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>hi = cx.hi();
@@ -248,12 +248,12 @@
 <a href=#248 id=248 data-nosnippet>248</a>    cx.expect(Tok::Type)<span class="question-mark">?</span>;
 <a href=#249 id=249 data-nosnippet>249</a>    <span class="kw">let </span>ident = parse_ident(cx)<span class="question-mark">?</span>;
 <a href=#250 id=250 data-nosnippet>250</a>    <span class="kw">let </span>generics = parse_opt_generics(cx)<span class="question-mark">?</span>;
-<a href=#251 id=251 data-nosnippet>251</a>    <span class="kw">let </span>params = <span class="kw">if </span>cx.peek(OpenDelim(Parenthesis)) {
+<a href=#251 id=251 data-nosnippet>251</a>    <span class="kw">let </span>params = <span class="kw">if </span>cx.peek(Token::OpenParen) {
 <a href=#252 id=252 data-nosnippet>252</a>        parens(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))<span class="question-mark">?
 <a href=#253 id=253 data-nosnippet>253</a>    </span>} <span class="kw">else </span>{
 <a href=#254 id=254 data-nosnippet>254</a>        <span class="macro">vec!</span>[]
 <a href=#255 id=255 data-nosnippet>255</a>    };
-<a href=#256 id=256 data-nosnippet>256</a>    <span class="kw">let </span>index = <span class="kw">if </span>cx.peek(OpenDelim(Bracket)) {
+<a href=#256 id=256 data-nosnippet>256</a>    <span class="kw">let </span>index = <span class="kw">if </span>cx.peek(Token::OpenBracket) {
 <a href=#257 id=257 data-nosnippet>257</a>        <span class="prelude-val">Some</span>(delimited(cx, Bracket, |cx| parse_refine_param(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>)
 <a href=#258 id=258 data-nosnippet>258</a>    } <span class="kw">else </span>{
 <a href=#259 id=259 data-nosnippet>259</a>        <span class="prelude-val">None
@@ -344,7 +344,7 @@
 <a href=#344 id=344 data-nosnippet>344</a>    cx.expect(Tok::Fn)<span class="question-mark">?</span>;
 <a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">let </span>ident = <span class="kw">if </span>cx.peek(AnyIdent) { <span class="prelude-val">Some</span>(parse_ident(cx)<span class="question-mark">?</span>) } <span class="kw">else </span>{ <span class="prelude-val">None </span>};
 <a href=#346 id=346 data-nosnippet>346</a>    <span class="kw">let </span><span class="kw-2">mut </span>generics = parse_opt_generics(cx)<span class="question-mark">?</span>;
-<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">let </span>params = <span class="kw">if </span>cx.peek(OpenDelim(Bracket)) {
+<a href=#347 id=347 data-nosnippet>347</a>    <span class="kw">let </span>params = <span class="kw">if </span>cx.peek(Token::OpenBracket) {
 <a href=#348 id=348 data-nosnippet>348</a>        brackets(cx, Comma, |cx| parse_refine_param(cx, <span class="bool-val">false</span>))<span class="question-mark">?
 <a href=#349 id=349 data-nosnippet>349</a>    </span>} <span class="kw">else </span>{
 <a href=#350 id=350 data-nosnippet>350</a>        <span class="macro">vec!</span>[]
@@ -441,7 +441,7 @@
 <a href=#441 id=441 data-nosnippet>441</a>/// ```
 <a href=#442 id=442 data-nosnippet>442</a></span><span class="kw">fn </span>parse_fn_ret(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;FnRetTy&gt; {
 <a href=#443 id=443 data-nosnippet>443</a>    <span class="kw">if </span>cx.advance_if(Tok::RArrow) {
-<a href=#444 id=444 data-nosnippet>444</a>        <span class="prelude-val">Ok</span>(FnRetTy::Ty(parse_type(cx)<span class="question-mark">?</span>))
+<a href=#444 id=444 data-nosnippet>444</a>        <span class="prelude-val">Ok</span>(FnRetTy::Ty(Box::new(parse_type(cx)<span class="question-mark">?</span>)))
 <a href=#445 id=445 data-nosnippet>445</a>    } <span class="kw">else </span>{
 <a href=#446 id=446 data-nosnippet>446</a>        <span class="kw">let </span>hi = cx.hi();
 <a href=#447 id=447 data-nosnippet>447</a>        <span class="prelude-val">Ok</span>(FnRetTy::Default(cx.mk_span(hi, hi)))
@@ -463,12 +463,12 @@
 <a href=#463 id=463 data-nosnippet>463</a>            </span><span class="prelude-val">Ok</span>(FnInput::StrgRef(bind, parse_type(cx)<span class="question-mark">?</span>, cx.next_node_id()))
 <a href=#464 id=464 data-nosnippet>464</a>        } <span class="kw">else if </span>cx.peek(AnyIdent) {
 <a href=#465 id=465 data-nosnippet>465</a>            <span class="kw">let </span>path = parse_path(cx)<span class="question-mark">?</span>;
-<a href=#466 id=466 data-nosnippet>466</a>            <span class="kw">if </span>cx.peek3(OpenDelim(Brace), AnyIdent, Tok::Colon) {
+<a href=#466 id=466 data-nosnippet>466</a>            <span class="kw">if </span>cx.peek3(Token::OpenBrace, AnyIdent, Tok::Colon) {
 <a href=#467 id=467 data-nosnippet>467</a>                <span class="comment">// ⟨ident⟩ : ⟨path⟩ { ⟨ident⟩ : ⟨expr⟩ }
 <a href=#468 id=468 data-nosnippet>468</a>                </span><span class="kw">let </span>bty = path_to_bty(path);
 <a href=#469 id=469 data-nosnippet>469</a>                <span class="kw">let </span>ty = parse_bty_exists(cx, bty)<span class="question-mark">?</span>;
 <a href=#470 id=470 data-nosnippet>470</a>                <span class="prelude-val">Ok</span>(FnInput::Ty(<span class="prelude-val">Some</span>(bind), ty, cx.next_node_id()))
-<a href=#471 id=471 data-nosnippet>471</a>            } <span class="kw">else if </span>cx.peek(OpenDelim(Brace)) {
+<a href=#471 id=471 data-nosnippet>471</a>            } <span class="kw">else if </span>cx.peek(Token::OpenBrace) {
 <a href=#472 id=472 data-nosnippet>472</a>                <span class="comment">// ⟨ident⟩ : ⟨path⟩ { ⟨expr⟩ }
 <a href=#473 id=473 data-nosnippet>473</a>                </span><span class="kw">let </span>pred = delimited(cx, Brace, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
 <a href=#474 id=474 data-nosnippet>474</a>                <span class="prelude-val">Ok</span>(FnInput::Constr(bind, path, pred, cx.next_node_id()))
@@ -520,17 +520,17 @@
 <a href=#520 id=520 data-nosnippet>520</a>    <span class="kw">let </span><span class="kw-2">mut </span>lookahead = cx.lookahead1();
 <a href=#521 id=521 data-nosnippet>521</a>    <span class="kw">let </span>kind = <span class="kw">if </span>lookahead.advance_if(Tok::Underscore) {
 <a href=#522 id=522 data-nosnippet>522</a>        TyKind::Hole
-<a href=#523 id=523 data-nosnippet>523</a>    } <span class="kw">else if </span>lookahead.advance_if(OpenDelim(Parenthesis)) {
+<a href=#523 id=523 data-nosnippet>523</a>    } <span class="kw">else if </span>lookahead.advance_if(Token::OpenParen) {
 <a href=#524 id=524 data-nosnippet>524</a>        <span class="comment">// ( ⟨ty⟩,* )
 <a href=#525 id=525 data-nosnippet>525</a>        </span><span class="kw">let </span>(<span class="kw-2">mut </span>tys, trailing) =
-<a href=#526 id=526 data-nosnippet>526</a>            punctuated_with_trailing(cx, Comma, CloseDelim(Parenthesis), parse_type)<span class="question-mark">?</span>;
-<a href=#527 id=527 data-nosnippet>527</a>        cx.expect(CloseDelim(Parenthesis))<span class="question-mark">?</span>;
+<a href=#526 id=526 data-nosnippet>526</a>            punctuated_with_trailing(cx, Comma, Token::CloseParen, parse_type)<span class="question-mark">?</span>;
+<a href=#527 id=527 data-nosnippet>527</a>        cx.expect(Token::CloseParen)<span class="question-mark">?</span>;
 <a href=#528 id=528 data-nosnippet>528</a>        <span class="kw">if </span>tys.len() == <span class="number">1 </span>&amp;&amp; !trailing {
 <a href=#529 id=529 data-nosnippet>529</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(tys.remove(<span class="number">0</span>));
 <a href=#530 id=530 data-nosnippet>530</a>        } <span class="kw">else </span>{
 <a href=#531 id=531 data-nosnippet>531</a>            TyKind::Tuple(tys)
 <a href=#532 id=532 data-nosnippet>532</a>        }
-<a href=#533 id=533 data-nosnippet>533</a>    } <span class="kw">else if </span>lookahead.peek(OpenDelim(Brace)) {
+<a href=#533 id=533 data-nosnippet>533</a>    } <span class="kw">else if </span>lookahead.peek(Token::OpenBrace) {
 <a href=#534 id=534 data-nosnippet>534</a>        delimited(cx, Brace, |cx| {
 <a href=#535 id=535 data-nosnippet>535</a>            <span class="kw">if </span>cx.peek2(AnyIdent, [Tok::Comma, Tok::Dot, Tok::Colon]) {
 <a href=#536 id=536 data-nosnippet>536</a>                <span class="comment">// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
@@ -547,16 +547,16 @@
 <a href=#547 id=547 data-nosnippet>547</a>        <span class="comment">//  &amp; mut? ⟨ty⟩
 <a href=#548 id=548 data-nosnippet>548</a>        </span><span class="kw">let </span>mutbl = <span class="kw">if </span>cx.advance_if(Tok::Mut) { Mutability::Mut } <span class="kw">else </span>{ Mutability::Not };
 <a href=#549 id=549 data-nosnippet>549</a>        TyKind::Ref(mutbl, Box::new(parse_type(cx)<span class="question-mark">?</span>))
-<a href=#550 id=550 data-nosnippet>550</a>    } <span class="kw">else if </span>lookahead.advance_if(OpenDelim(Bracket)) {
+<a href=#550 id=550 data-nosnippet>550</a>    } <span class="kw">else if </span>lookahead.advance_if(Token::OpenBracket) {
 <a href=#551 id=551 data-nosnippet>551</a>        <span class="kw">let </span>ty = parse_type(cx)<span class="question-mark">?</span>;
 <a href=#552 id=552 data-nosnippet>552</a>        <span class="kw">if </span>cx.advance_if(Tok::Semi) {
 <a href=#553 id=553 data-nosnippet>553</a>            <span class="comment">// [ ⟨ty⟩ ; ⟨const_arg⟩ ]
 <a href=#554 id=554 data-nosnippet>554</a>            </span><span class="kw">let </span>len = parse_const_arg(cx)<span class="question-mark">?</span>;
-<a href=#555 id=555 data-nosnippet>555</a>            cx.expect(CloseDelim(Bracket))<span class="question-mark">?</span>;
+<a href=#555 id=555 data-nosnippet>555</a>            cx.expect(Token::CloseBracket)<span class="question-mark">?</span>;
 <a href=#556 id=556 data-nosnippet>556</a>            TyKind::Array(Box::new(ty), len)
 <a href=#557 id=557 data-nosnippet>557</a>        } <span class="kw">else </span>{
 <a href=#558 id=558 data-nosnippet>558</a>            <span class="comment">// [ ⟨ty⟩ ] ...
-<a href=#559 id=559 data-nosnippet>559</a>            </span>cx.expect(CloseDelim(Bracket))<span class="question-mark">?</span>;
+<a href=#559 id=559 data-nosnippet>559</a>            </span>cx.expect(Token::CloseBracket)<span class="question-mark">?</span>;
 <a href=#560 id=560 data-nosnippet>560</a>            <span class="kw">let </span>span = cx.mk_span(lo, cx.hi());
 <a href=#561 id=561 data-nosnippet>561</a>            <span class="kw">let </span>kind = BaseTyKind::Slice(Box::new(ty));
 <a href=#562 id=562 data-nosnippet>562</a>            <span class="kw">return </span>parse_bty_rhs(cx, BaseTy { kind, span });
@@ -618,13 +618,13 @@
 <a href=#618 id=618 data-nosnippet>618</a>/// ```
 <a href=#619 id=619 data-nosnippet>619</a></span><span class="kw">fn </span>parse_bty_rhs(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, bty: BaseTy) -&gt; ParseResult&lt;Ty&gt; {
 <a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">let </span>lo = bty.span.lo();
-<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">if </span>cx.peek(OpenDelim(Bracket)) {
+<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">if </span>cx.peek(Token::OpenBracket) {
 <a href=#622 id=622 data-nosnippet>622</a>        <span class="comment">// ⟨bty⟩ [ ⟨refine_arg⟩,* ]
 <a href=#623 id=623 data-nosnippet>623</a>        </span><span class="kw">let </span>indices = parse_indices(cx)<span class="question-mark">?</span>;
 <a href=#624 id=624 data-nosnippet>624</a>        <span class="kw">let </span>hi = cx.hi();
 <a href=#625 id=625 data-nosnippet>625</a>        <span class="kw">let </span>kind = TyKind::Indexed { bty, indices };
 <a href=#626 id=626 data-nosnippet>626</a>        <span class="prelude-val">Ok</span>(Ty { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
-<a href=#627 id=627 data-nosnippet>627</a>    } <span class="kw">else if </span>cx.peek(OpenDelim(Brace)) {
+<a href=#627 id=627 data-nosnippet>627</a>    } <span class="kw">else if </span>cx.peek(Token::OpenBrace) {
 <a href=#628 id=628 data-nosnippet>628</a>        <span class="comment">// ⟨bty⟩ { ⟨ident⟩ : ⟨block_expr⟩ }
 <a href=#629 id=629 data-nosnippet>629</a>        </span>parse_bty_exists(cx, bty)
 <a href=#630 id=630 data-nosnippet>630</a>    } <span class="kw">else </span>{
@@ -729,7 +729,7 @@
 <a href=#729 id=729 data-nosnippet>729</a>    <span class="kw">let </span>lo = cx.lo();
 <a href=#730 id=730 data-nosnippet>730</a>    <span class="kw">let </span>segments = parse_segments(cx)<span class="question-mark">?</span>;
 <a href=#731 id=731 data-nosnippet>731</a>    <span class="kw">let </span>refine =
-<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">if </span>cx.peek(OpenDelim(Parenthesis)) { parens(cx, Comma, parse_refine_arg)<span class="question-mark">? </span>} <span class="kw">else </span>{ <span class="macro">vec!</span>[] };
+<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">if </span>cx.peek(Token::OpenParen) { parens(cx, Comma, parse_refine_arg)<span class="question-mark">? </span>} <span class="kw">else </span>{ <span class="macro">vec!</span>[] };
 <a href=#733 id=733 data-nosnippet>733</a>    <span class="kw">let </span>hi = cx.hi();
 <a href=#734 id=734 data-nosnippet>734</a>    <span class="prelude-val">Ok</span>(Path { segments, refine, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 <a href=#735 id=735 data-nosnippet>735</a>}
@@ -847,10 +847,10 @@
 <a href=#847 id=847 data-nosnippet>847</a>            Associativity::Right =&gt; precedence,
 <a href=#848 id=848 data-nosnippet>848</a>            Associativity::Left =&gt; precedence.next(),
 <a href=#849 id=849 data-nosnippet>849</a>            Associativity::None =&gt; {
-<a href=#850 id=850 data-nosnippet>850</a>                <span class="kw">if let </span>ExprKind::BinaryOp(op, ..) = <span class="kw-2">&amp;</span>lhs.kind {
-<a href=#851 id=851 data-nosnippet>851</a>                    <span class="kw">if </span>Precedence::of_binop(op) == precedence {
-<a href=#852 id=852 data-nosnippet>852</a>                        <span class="kw">return </span><span class="prelude-val">Err</span>(cx.cannot_be_chained(lo, cx.hi()));
-<a href=#853 id=853 data-nosnippet>853</a>                    }
+<a href=#850 id=850 data-nosnippet>850</a>                <span class="kw">if let </span>ExprKind::BinaryOp(op, ..) = <span class="kw-2">&amp;</span>lhs.kind
+<a href=#851 id=851 data-nosnippet>851</a>                    &amp;&amp; Precedence::of_binop(op) == precedence
+<a href=#852 id=852 data-nosnippet>852</a>                {
+<a href=#853 id=853 data-nosnippet>853</a>                    <span class="kw">return </span><span class="prelude-val">Err</span>(cx.cannot_be_chained(lo, cx.hi()));
 <a href=#854 id=854 data-nosnippet>854</a>                }
 <a href=#855 id=855 data-nosnippet>855</a>                precedence.next()
 <a href=#856 id=856 data-nosnippet>856</a>            }
@@ -873,7 +873,7 @@
 <a href=#873 id=873 data-nosnippet>873</a>    <span class="kw">let </span>lo = cx.lo();
 <a href=#874 id=874 data-nosnippet>874</a>    <span class="kw">let </span>kind = <span class="kw">if </span>cx.advance_if(Tok::Minus) {
 <a href=#875 id=875 data-nosnippet>875</a>        ExprKind::UnaryOp(UnOp::Neg, Box::new(unary_expr(cx, allow_struct)<span class="question-mark">?</span>))
-<a href=#876 id=876 data-nosnippet>876</a>    } <span class="kw">else if </span>cx.advance_if(Tok::Not) {
+<a href=#876 id=876 data-nosnippet>876</a>    } <span class="kw">else if </span>cx.advance_if(Tok::Bang) {
 <a href=#877 id=877 data-nosnippet>877</a>        ExprKind::UnaryOp(UnOp::Not, Box::new(unary_expr(cx, allow_struct)<span class="question-mark">?</span>))
 <a href=#878 id=878 data-nosnippet>878</a>    } <span class="kw">else </span>{
 <a href=#879 id=879 data-nosnippet>879</a>        <span class="kw">return </span>parse_trailer_expr(cx, allow_struct);
@@ -895,7 +895,7 @@
 <a href=#895 id=895 data-nosnippet>895</a>            <span class="comment">// ⟨trailer⟩ . ⟨ident⟩
 <a href=#896 id=896 data-nosnippet>896</a>            </span><span class="kw">let </span>field = parse_ident(cx)<span class="question-mark">?</span>;
 <a href=#897 id=897 data-nosnippet>897</a>            ExprKind::Dot(Box::new(e), field)
-<a href=#898 id=898 data-nosnippet>898</a>        } <span class="kw">else if </span>cx.peek(OpenDelim(Parenthesis)) {
+<a href=#898 id=898 data-nosnippet>898</a>        } <span class="kw">else if </span>cx.peek(Token::OpenParen) {
 <a href=#899 id=899 data-nosnippet>899</a>            <span class="comment">// ⟨trailer⟩ ( ⟨expr⟩,* )
 <a href=#900 id=900 data-nosnippet>900</a>            </span><span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
 <a href=#901 id=901 data-nosnippet>901</a>            ExprKind::Call(Box::new(e), args)
@@ -927,11 +927,11 @@
 <a href=#927 id=927 data-nosnippet>927</a>    } <span class="kw">else if </span>lookahead.peek(AnyLit) {
 <a href=#928 id=928 data-nosnippet>928</a>        <span class="comment">// ⟨lit⟩
 <a href=#929 id=929 data-nosnippet>929</a>        </span>parse_lit(cx)
-<a href=#930 id=930 data-nosnippet>930</a>    } <span class="kw">else if </span>lookahead.peek(OpenDelim(Parenthesis)) {
+<a href=#930 id=930 data-nosnippet>930</a>    } <span class="kw">else if </span>lookahead.peek(Token::OpenParen) {
 <a href=#931 id=931 data-nosnippet>931</a>        delimited(cx, Parenthesis, |cx| parse_expr(cx, <span class="bool-val">true</span>))
 <a href=#932 id=932 data-nosnippet>932</a>    } <span class="kw">else if </span>lookahead.peek(AnyIdent) {
 <a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">let </span>path = parse_expr_path(cx)<span class="question-mark">?</span>;
-<a href=#934 id=934 data-nosnippet>934</a>        <span class="kw">let </span>kind = <span class="kw">if </span>allow_struct &amp;&amp; cx.peek(Tok::OpenDelim(Brace)) {
+<a href=#934 id=934 data-nosnippet>934</a>        <span class="kw">let </span>kind = <span class="kw">if </span>allow_struct &amp;&amp; cx.peek(Token::OpenBrace) {
 <a href=#935 id=935 data-nosnippet>935</a>            <span class="comment">// ⟨epath⟩ { ⟨constructor_arg⟩,* }
 <a href=#936 id=936 data-nosnippet>936</a>            </span><span class="kw">let </span>args = braces(cx, Comma, parse_constructor_arg)<span class="question-mark">?</span>;
 <a href=#937 id=937 data-nosnippet>937</a>            ExprKind::Constructor(<span class="prelude-val">Some</span>(path), args)
@@ -941,7 +941,7 @@
 <a href=#941 id=941 data-nosnippet>941</a>        };
 <a href=#942 id=942 data-nosnippet>942</a>        <span class="kw">let </span>hi = cx.hi();
 <a href=#943 id=943 data-nosnippet>943</a>        <span class="prelude-val">Ok</span>(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
-<a href=#944 id=944 data-nosnippet>944</a>    } <span class="kw">else if </span>allow_struct &amp;&amp; lookahead.peek(OpenDelim(Brace)) {
+<a href=#944 id=944 data-nosnippet>944</a>    } <span class="kw">else if </span>allow_struct &amp;&amp; lookahead.peek(Token::OpenBrace) {
 <a href=#945 id=945 data-nosnippet>945</a>        <span class="comment">// { ⟨constructor_arg⟩,* }
 <a href=#946 id=946 data-nosnippet>946</a>        </span><span class="kw">let </span>args = braces(cx, Comma, parse_constructor_arg)<span class="question-mark">?</span>;
 <a href=#947 id=947 data-nosnippet>947</a>        <span class="kw">let </span>hi = cx.hi();
@@ -1126,14 +1126,14 @@
 <a href=#1126 id=1126 data-nosnippet>1126</a>}
 <a href=#1127 id=1127 data-nosnippet>1127</a>
 <a href=#1128 id=1128 data-nosnippet>1128</a><span class="kw">fn </span>parse_int&lt;T: FromStr&gt;(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;T&gt; {
-<a href=#1129 id=1129 data-nosnippet>1129</a>    <span class="kw">if let </span>Tok::Literal(lit) = cx.at(<span class="number">0</span>).<span class="number">1 </span>{
-<a href=#1130 id=1130 data-nosnippet>1130</a>        <span class="kw">if let </span>LitKind::Integer = lit.kind {
-<a href=#1131 id=1131 data-nosnippet>1131</a>            <span class="kw">if let </span><span class="prelude-val">Ok</span>(value) = lit.symbol.as_str().parse::&lt;T&gt;() {
-<a href=#1132 id=1132 data-nosnippet>1132</a>                cx.advance();
-<a href=#1133 id=1133 data-nosnippet>1133</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(value);
-<a href=#1134 id=1134 data-nosnippet>1134</a>            }
-<a href=#1135 id=1135 data-nosnippet>1135</a>        }
-<a href=#1136 id=1136 data-nosnippet>1136</a>    }
+<a href=#1129 id=1129 data-nosnippet>1129</a>    <span class="kw">if let </span>Tok::Literal(lit) = cx.at(<span class="number">0</span>).<span class="number">1
+<a href=#1130 id=1130 data-nosnippet>1130</a>        </span>&amp;&amp; <span class="kw">let </span>LitKind::Integer = lit.kind
+<a href=#1131 id=1131 data-nosnippet>1131</a>        &amp;&amp; <span class="kw">let </span><span class="prelude-val">Ok</span>(value) = lit.symbol.as_str().parse::&lt;T&gt;()
+<a href=#1132 id=1132 data-nosnippet>1132</a>    {
+<a href=#1133 id=1133 data-nosnippet>1133</a>        cx.advance();
+<a href=#1134 id=1134 data-nosnippet>1134</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(value);
+<a href=#1135 id=1135 data-nosnippet>1135</a>    }
+<a href=#1136 id=1136 data-nosnippet>1136</a>
 <a href=#1137 id=1137 data-nosnippet>1137</a>    <span class="prelude-val">Err</span>(cx.unexpected_token(<span class="macro">vec!</span>[std::any::type_name::&lt;T&gt;()]))
 <a href=#1138 id=1138 data-nosnippet>1138</a>}
 <a href=#1139 id=1139 data-nosnippet>1139</a>
@@ -1143,7 +1143,7 @@
 <a href=#1143 id=1143 data-nosnippet>1143</a>///         |  ⟨base_sort⟩ -&gt; ⟨base_sort⟩
 <a href=#1144 id=1144 data-nosnippet>1144</a>/// ```
 <a href=#1145 id=1145 data-nosnippet>1145</a></span><span class="kw">fn </span>parse_sort(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Sort&gt; {
-<a href=#1146 id=1146 data-nosnippet>1146</a>    <span class="kw">if </span>cx.peek(OpenDelim(Parenthesis)) {
+<a href=#1146 id=1146 data-nosnippet>1146</a>    <span class="kw">if </span>cx.peek(Token::OpenParen) {
 <a href=#1147 id=1147 data-nosnippet>1147</a>        <span class="comment">// ( ⟨base_sort⟩,* ) -&gt; ⟨base_sort⟩
 <a href=#1148 id=1148 data-nosnippet>1148</a>        </span><span class="kw">let </span>inputs = parens(cx, Comma, parse_base_sort)<span class="question-mark">?</span>;
 <a href=#1149 id=1149 data-nosnippet>1149</a>        cx.expect(Tok::RArrow)<span class="question-mark">?</span>;

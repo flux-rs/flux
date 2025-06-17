@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/type_env.rs`."><title>type_env.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-916cea96.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.87.0-nightly (96cfc7558 2025-02-27)" data-channel="nightly" data-search-js="search-f7327375.js" data-settings-js="settings-d72f25bb.js" ><script src="../../static.files/storage-d8ac8691.js"></script><script defer src="../../static.files/src-script-b8d3f215.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-a7bf3405.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_refineck/</div>type_env.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">mod </span>place_ty;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-refineck/src/type_env.rs`."><title>type_env.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_refineck" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (99e7c15e8 2025-06-01)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_refineck/</div>type_env.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">mod </span>place_ty;
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>std::{iter, ops::ControlFlow};
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -748,226 +748,229 @@
 <a href=#748 id=748 data-nosnippet>748</a>                    .into_iter()
 <a href=#749 id=749 data-nosnippet>749</a>                    .filter(|pred| !<span class="macro">matches!</span>(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
 <a href=#750 id=750 data-nosnippet>750</a>                    .collect_vec();
-<a href=#751 id=751 data-nosnippet>751</a>                <span class="kw">let </span>kvar =
-<a href=#752 id=752 data-nosnippet>752</a>                    infcx.fresh_kvar_in_scope(<span class="kw-2">&amp;</span>[vars.clone()], <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj);
-<a href=#753 id=753 data-nosnippet>753</a>                constrs.push(kvar);
-<a href=#754 id=754 data-nosnippet>754</a>
-<a href=#755 id=755 data-nosnippet>755</a>                <span class="comment">// Replace remaining holes by fresh kvars
-<a href=#756 id=756 data-nosnippet>756</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |binders: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
-<a href=#757 id=757 data-nosnippet>757</a>                    <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
-<a href=#758 id=758 data-nosnippet>758</a>                    <span class="kw">let </span>binders = std::iter::once(vars.clone())
-<a href=#759 id=759 data-nosnippet>759</a>                        .chain(binders.iter().cloned())
-<a href=#760 id=760 data-nosnippet>760</a>                        .collect_vec();
-<a href=#761 id=761 data-nosnippet>761</a>                    infcx.fresh_kvar_in_scope(<span class="kw-2">&amp;</span>binders, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj)
-<a href=#762 id=762 data-nosnippet>762</a>                };
-<a href=#763 id=763 data-nosnippet>763</a>                bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
-<a href=#764 id=764 data-nosnippet>764</a>
-<a href=#765 id=765 data-nosnippet>765</a>                BasicBlockEnvData { constrs: constrs.into(), bindings }
-<a href=#766 id=766 data-nosnippet>766</a>            }),
-<a href=#767 id=767 data-nosnippet>767</a>            scope: <span class="self">self</span>.scope,
-<a href=#768 id=768 data-nosnippet>768</a>        }
-<a href=#769 id=769 data-nosnippet>769</a>    }
-<a href=#770 id=770 data-nosnippet>770</a>}
-<a href=#771 id=771 data-nosnippet>771</a>
-<a href=#772 id=772 data-nosnippet>772</a><span class="kw">impl </span>TypeVisitable <span class="kw">for </span>BasicBlockEnvData {
-<a href=#773 id=773 data-nosnippet>773</a>    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-<a href=#774 id=774 data-nosnippet>774</a>        <span class="macro">unimplemented!</span>()
-<a href=#775 id=775 data-nosnippet>775</a>    }
-<a href=#776 id=776 data-nosnippet>776</a>}
-<a href=#777 id=777 data-nosnippet>777</a>
-<a href=#778 id=778 data-nosnippet>778</a><span class="kw">impl </span>TypeFoldable <span class="kw">for </span>BasicBlockEnvData {
-<a href=#779 id=779 data-nosnippet>779</a>    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(
-<a href=#780 id=780 data-nosnippet>780</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#781 id=781 data-nosnippet>781</a>        folder: <span class="kw-2">&amp;mut </span>F,
-<a href=#782 id=782 data-nosnippet>782</a>    ) -&gt; std::result::Result&lt;<span class="self">Self</span>, F::Error&gt; {
-<a href=#783 id=783 data-nosnippet>783</a>        <span class="prelude-val">Ok</span>(BasicBlockEnvData {
-<a href=#784 id=784 data-nosnippet>784</a>            constrs: <span class="self">self</span>.constrs.try_fold_with(folder)<span class="question-mark">?</span>,
-<a href=#785 id=785 data-nosnippet>785</a>            bindings: <span class="self">self</span>.bindings.try_fold_with(folder)<span class="question-mark">?</span>,
-<a href=#786 id=786 data-nosnippet>786</a>        })
-<a href=#787 id=787 data-nosnippet>787</a>    }
-<a href=#788 id=788 data-nosnippet>788</a>}
-<a href=#789 id=789 data-nosnippet>789</a>
-<a href=#790 id=790 data-nosnippet>790</a><span class="kw">impl </span>BasicBlockEnv {
-<a href=#791 id=791 data-nosnippet>791</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>enter&lt;<span class="lifetime">'a</span>&gt;(
-<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#793 id=793 data-nosnippet>793</a>        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-<a href=#794 id=794 data-nosnippet>794</a>        local_decls: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>LocalDecls,
-<a href=#795 id=795 data-nosnippet>795</a>    ) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#796 id=796 data-nosnippet>796</a>        <span class="kw">let </span>data = <span class="self">self
-<a href=#797 id=797 data-nosnippet>797</a>            </span>.data
-<a href=#798 id=798 data-nosnippet>798</a>            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)));
-<a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>data.constrs {
-<a href=#800 id=800 data-nosnippet>800</a>            infcx.assume_pred(constr);
-<a href=#801 id=801 data-nosnippet>801</a>        }
-<a href=#802 id=802 data-nosnippet>802</a>        TypeEnv { bindings: data.bindings, local_decls }
-<a href=#803 id=803 data-nosnippet>803</a>    }
-<a href=#804 id=804 data-nosnippet>804</a>
-<a href=#805 id=805 data-nosnippet>805</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Scope {
-<a href=#806 id=806 data-nosnippet>806</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.scope
-<a href=#807 id=807 data-nosnippet>807</a>    }
-<a href=#808 id=808 data-nosnippet>808</a>}
-<a href=#809 id=809 data-nosnippet>809</a>
-<a href=#810 id=810 data-nosnippet>810</a><span class="kw">mod </span>pretty {
-<a href=#811 id=811 data-nosnippet>811</a>    <span class="kw">use </span>std::fmt;
+<a href=#751 id=751 data-nosnippet>751</a>                <span class="kw">let </span>kvar = infcx.fresh_kvar_in_scope(
+<a href=#752 id=752 data-nosnippet>752</a>                    std::slice::from_ref(<span class="kw-2">&amp;</span>vars),
+<a href=#753 id=753 data-nosnippet>753</a>                    <span class="kw-2">&amp;</span><span class="self">self</span>.scope,
+<a href=#754 id=754 data-nosnippet>754</a>                    KVarEncoding::Conj,
+<a href=#755 id=755 data-nosnippet>755</a>                );
+<a href=#756 id=756 data-nosnippet>756</a>                constrs.push(kvar);
+<a href=#757 id=757 data-nosnippet>757</a>
+<a href=#758 id=758 data-nosnippet>758</a>                <span class="comment">// Replace remaining holes by fresh kvars
+<a href=#759 id=759 data-nosnippet>759</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>kvar_gen = |binders: <span class="kw-2">&amp;</span>[<span class="kw">_</span>], kind| {
+<a href=#760 id=760 data-nosnippet>760</a>                    <span class="macro">debug_assert_eq!</span>(kind, HoleKind::Pred);
+<a href=#761 id=761 data-nosnippet>761</a>                    <span class="kw">let </span>binders = std::iter::once(vars.clone())
+<a href=#762 id=762 data-nosnippet>762</a>                        .chain(binders.iter().cloned())
+<a href=#763 id=763 data-nosnippet>763</a>                        .collect_vec();
+<a href=#764 id=764 data-nosnippet>764</a>                    infcx.fresh_kvar_in_scope(<span class="kw-2">&amp;</span>binders, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, KVarEncoding::Conj)
+<a href=#765 id=765 data-nosnippet>765</a>                };
+<a href=#766 id=766 data-nosnippet>766</a>                bindings.fmap_mut(|binding| binding.replace_holes(<span class="kw-2">&amp;mut </span>kvar_gen));
+<a href=#767 id=767 data-nosnippet>767</a>
+<a href=#768 id=768 data-nosnippet>768</a>                BasicBlockEnvData { constrs: constrs.into(), bindings }
+<a href=#769 id=769 data-nosnippet>769</a>            }),
+<a href=#770 id=770 data-nosnippet>770</a>            scope: <span class="self">self</span>.scope,
+<a href=#771 id=771 data-nosnippet>771</a>        }
+<a href=#772 id=772 data-nosnippet>772</a>    }
+<a href=#773 id=773 data-nosnippet>773</a>}
+<a href=#774 id=774 data-nosnippet>774</a>
+<a href=#775 id=775 data-nosnippet>775</a><span class="kw">impl </span>TypeVisitable <span class="kw">for </span>BasicBlockEnvData {
+<a href=#776 id=776 data-nosnippet>776</a>    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+<a href=#777 id=777 data-nosnippet>777</a>        <span class="macro">unimplemented!</span>()
+<a href=#778 id=778 data-nosnippet>778</a>    }
+<a href=#779 id=779 data-nosnippet>779</a>}
+<a href=#780 id=780 data-nosnippet>780</a>
+<a href=#781 id=781 data-nosnippet>781</a><span class="kw">impl </span>TypeFoldable <span class="kw">for </span>BasicBlockEnvData {
+<a href=#782 id=782 data-nosnippet>782</a>    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(
+<a href=#783 id=783 data-nosnippet>783</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#784 id=784 data-nosnippet>784</a>        folder: <span class="kw-2">&amp;mut </span>F,
+<a href=#785 id=785 data-nosnippet>785</a>    ) -&gt; std::result::Result&lt;<span class="self">Self</span>, F::Error&gt; {
+<a href=#786 id=786 data-nosnippet>786</a>        <span class="prelude-val">Ok</span>(BasicBlockEnvData {
+<a href=#787 id=787 data-nosnippet>787</a>            constrs: <span class="self">self</span>.constrs.try_fold_with(folder)<span class="question-mark">?</span>,
+<a href=#788 id=788 data-nosnippet>788</a>            bindings: <span class="self">self</span>.bindings.try_fold_with(folder)<span class="question-mark">?</span>,
+<a href=#789 id=789 data-nosnippet>789</a>        })
+<a href=#790 id=790 data-nosnippet>790</a>    }
+<a href=#791 id=791 data-nosnippet>791</a>}
+<a href=#792 id=792 data-nosnippet>792</a>
+<a href=#793 id=793 data-nosnippet>793</a><span class="kw">impl </span>BasicBlockEnv {
+<a href=#794 id=794 data-nosnippet>794</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>enter&lt;<span class="lifetime">'a</span>&gt;(
+<a href=#795 id=795 data-nosnippet>795</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#796 id=796 data-nosnippet>796</a>        infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+<a href=#797 id=797 data-nosnippet>797</a>        local_decls: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>LocalDecls,
+<a href=#798 id=798 data-nosnippet>798</a>    ) -&gt; TypeEnv&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">let </span>data = <span class="self">self
+<a href=#800 id=800 data-nosnippet>800</a>            </span>.data
+<a href=#801 id=801 data-nosnippet>801</a>            .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)));
+<a href=#802 id=802 data-nosnippet>802</a>        <span class="kw">for </span>constr <span class="kw">in </span><span class="kw-2">&amp;</span>data.constrs {
+<a href=#803 id=803 data-nosnippet>803</a>            infcx.assume_pred(constr);
+<a href=#804 id=804 data-nosnippet>804</a>        }
+<a href=#805 id=805 data-nosnippet>805</a>        TypeEnv { bindings: data.bindings, local_decls }
+<a href=#806 id=806 data-nosnippet>806</a>    }
+<a href=#807 id=807 data-nosnippet>807</a>
+<a href=#808 id=808 data-nosnippet>808</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>scope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Scope {
+<a href=#809 id=809 data-nosnippet>809</a>        <span class="kw-2">&amp;</span><span class="self">self</span>.scope
+<a href=#810 id=810 data-nosnippet>810</a>    }
+<a href=#811 id=811 data-nosnippet>811</a>}
 <a href=#812 id=812 data-nosnippet>812</a>
-<a href=#813 id=813 data-nosnippet>813</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-<a href=#814 id=814 data-nosnippet>814</a>
-<a href=#815 id=815 data-nosnippet>815</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#816 id=816 data-nosnippet>816</a>
-<a href=#817 id=817 data-nosnippet>817</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#818 id=818 data-nosnippet>818</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#819 id=819 data-nosnippet>819</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
-<a href=#820 id=820 data-nosnippet>820</a>        }
-<a href=#821 id=821 data-nosnippet>821</a>
-<a href=#822 id=822 data-nosnippet>822</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-<a href=#823 id=823 data-nosnippet>823</a>            PlacesTree::default_cx(tcx)
-<a href=#824 id=824 data-nosnippet>824</a>        }
-<a href=#825 id=825 data-nosnippet>825</a>    }
-<a href=#826 id=826 data-nosnippet>826</a>
-<a href=#827 id=827 data-nosnippet>827</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnvShape {
-<a href=#828 id=828 data-nosnippet>828</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#829 id=829 data-nosnippet>829</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
-<a href=#830 id=830 data-nosnippet>830</a>        }
-<a href=#831 id=831 data-nosnippet>831</a>
-<a href=#832 id=832 data-nosnippet>832</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-<a href=#833 id=833 data-nosnippet>833</a>            PlacesTree::default_cx(tcx)
-<a href=#834 id=834 data-nosnippet>834</a>        }
-<a href=#835 id=835 data-nosnippet>835</a>    }
-<a href=#836 id=836 data-nosnippet>836</a>
-<a href=#837 id=837 data-nosnippet>837</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnv {
-<a href=#838 id=838 data-nosnippet>838</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#839 id=839 data-nosnippet>839</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope)<span class="question-mark">?</span>;
-<a href=#840 id=840 data-nosnippet>840</a>
-<a href=#841 id=841 data-nosnippet>841</a>            <span class="kw">let </span>vars = <span class="self">self</span>.data.vars();
-<a href=#842 id=842 data-nosnippet>842</a>            cx.with_bound_vars(vars, || {
-<a href=#843 id=843 data-nosnippet>843</a>                <span class="kw">if </span>!vars.is_empty() {
-<a href=#844 id=844 data-nosnippet>844</a>                    cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"for&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
-<a href=#845 id=845 data-nosnippet>845</a>                }
-<a href=#846 id=846 data-nosnippet>846</a>                <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
-<a href=#847 id=847 data-nosnippet>847</a>                <span class="kw">if </span>!data.constrs.is_empty() {
-<a href=#848 id=848 data-nosnippet>848</a>                    <span class="macro">w!</span>(
-<a href=#849 id=849 data-nosnippet>849</a>                        cx,
-<a href=#850 id=850 data-nosnippet>850</a>                        f,
-<a href=#851 id=851 data-nosnippet>851</a>                        <span class="string">"{:?} ⇒ "</span>,
-<a href=#852 id=852 data-nosnippet>852</a>                        <span class="macro">join!</span>(<span class="string">", "</span>, data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
-<a href=#853 id=853 data-nosnippet>853</a>                    )<span class="question-mark">?</span>;
-<a href=#854 id=854 data-nosnippet>854</a>                }
-<a href=#855 id=855 data-nosnippet>855</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>data.bindings)
-<a href=#856 id=856 data-nosnippet>856</a>            })
-<a href=#857 id=857 data-nosnippet>857</a>        }
-<a href=#858 id=858 data-nosnippet>858</a>
-<a href=#859 id=859 data-nosnippet>859</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-<a href=#860 id=860 data-nosnippet>860</a>            PlacesTree::default_cx(tcx)
-<a href=#861 id=861 data-nosnippet>861</a>        }
-<a href=#862 id=862 data-nosnippet>862</a>    }
-<a href=#863 id=863 data-nosnippet>863</a>
-<a href=#864 id=864 data-nosnippet>864</a>    <span class="macro">impl_debug_with_default_cx!</span> {
-<a href=#865 id=865 data-nosnippet>865</a>        TypeEnv&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"type_env"</span>,
-<a href=#866 id=866 data-nosnippet>866</a>        BasicBlockEnvShape =&gt; <span class="string">"basic_block_env_shape"</span>,
-<a href=#867 id=867 data-nosnippet>867</a>        BasicBlockEnv =&gt; <span class="string">"basic_block_env"
-<a href=#868 id=868 data-nosnippet>868</a>    </span>}
-<a href=#869 id=869 data-nosnippet>869</a>}
-<a href=#870 id=870 data-nosnippet>870</a>
-<a href=#871 id=871 data-nosnippet>871</a><span class="doccomment">/// A very explicit representation of [`TypeEnv`] for debugging/tracing/serialization ONLY.
-<a href=#872 id=872 data-nosnippet>872</a></span><span class="attr">#[derive(Serialize, DebugAsJson)]
-<a href=#873 id=873 data-nosnippet>873</a></span><span class="kw">pub struct </span>TypeEnvTrace(Vec&lt;TypeEnvBind&gt;);
-<a href=#874 id=874 data-nosnippet>874</a>
-<a href=#875 id=875 data-nosnippet>875</a><span class="attr">#[derive(Serialize)]
-<a href=#876 id=876 data-nosnippet>876</a></span><span class="kw">struct </span>TypeEnvBind {
-<a href=#877 id=877 data-nosnippet>877</a>    local: LocInfo,
-<a href=#878 id=878 data-nosnippet>878</a>    name: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#879 id=879 data-nosnippet>879</a>    kind: String,
-<a href=#880 id=880 data-nosnippet>880</a>    ty: String,
-<a href=#881 id=881 data-nosnippet>881</a>    span: <span class="prelude-ty">Option</span>&lt;SpanTrace&gt;,
-<a href=#882 id=882 data-nosnippet>882</a>}
-<a href=#883 id=883 data-nosnippet>883</a>
-<a href=#884 id=884 data-nosnippet>884</a><span class="attr">#[derive(Serialize)]
-<a href=#885 id=885 data-nosnippet>885</a></span><span class="kw">enum </span>LocInfo {
-<a href=#886 id=886 data-nosnippet>886</a>    Local(String),
-<a href=#887 id=887 data-nosnippet>887</a>    Var(String),
-<a href=#888 id=888 data-nosnippet>888</a>}
-<a href=#889 id=889 data-nosnippet>889</a>
-<a href=#890 id=890 data-nosnippet>890</a><span class="kw">fn </span>loc_info(loc: <span class="kw-2">&amp;</span>Loc) -&gt; LocInfo {
-<a href=#891 id=891 data-nosnippet>891</a>    <span class="kw">match </span>loc {
-<a href=#892 id=892 data-nosnippet>892</a>        Loc::Local(local) =&gt; LocInfo::Local(<span class="macro">format!</span>(<span class="string">"{local:?}"</span>)),
-<a href=#893 id=893 data-nosnippet>893</a>        Loc::Var(var) =&gt; LocInfo::Var(<span class="macro">format!</span>(<span class="string">"{var:?}"</span>)),
-<a href=#894 id=894 data-nosnippet>894</a>    }
-<a href=#895 id=895 data-nosnippet>895</a>}
-<a href=#896 id=896 data-nosnippet>896</a>
-<a href=#897 id=897 data-nosnippet>897</a><span class="kw">fn </span>loc_name(local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;, loc: <span class="kw-2">&amp;</span>Loc) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-<a href=#898 id=898 data-nosnippet>898</a>    <span class="kw">if let </span>Loc::Local(local) = loc {
-<a href=#899 id=899 data-nosnippet>899</a>        <span class="kw">let </span>name = local_names.get(local)<span class="question-mark">?</span>;
-<a href=#900 id=900 data-nosnippet>900</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, name));
-<a href=#901 id=901 data-nosnippet>901</a>    }
-<a href=#902 id=902 data-nosnippet>902</a>    <span class="prelude-val">None
-<a href=#903 id=903 data-nosnippet>903</a></span>}
-<a href=#904 id=904 data-nosnippet>904</a>
-<a href=#905 id=905 data-nosnippet>905</a><span class="kw">fn </span>loc_span(
-<a href=#906 id=906 data-nosnippet>906</a>    genv: GlobalEnv,
-<a href=#907 id=907 data-nosnippet>907</a>    local_decls: <span class="kw-2">&amp;</span>IndexVec&lt;Local, LocalDecl&gt;,
-<a href=#908 id=908 data-nosnippet>908</a>    loc: <span class="kw-2">&amp;</span>Loc,
-<a href=#909 id=909 data-nosnippet>909</a>) -&gt; <span class="prelude-ty">Option</span>&lt;SpanTrace&gt; {
-<a href=#910 id=910 data-nosnippet>910</a>    <span class="kw">if let </span>Loc::Local(local) = loc {
-<a href=#911 id=911 data-nosnippet>911</a>        <span class="kw">return </span>local_decls
-<a href=#912 id=912 data-nosnippet>912</a>            .get(<span class="kw-2">*</span>local)
-<a href=#913 id=913 data-nosnippet>913</a>            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
-<a href=#914 id=914 data-nosnippet>914</a>    }
-<a href=#915 id=915 data-nosnippet>915</a>    <span class="prelude-val">None
-<a href=#916 id=916 data-nosnippet>916</a></span>}
-<a href=#917 id=917 data-nosnippet>917</a>
-<a href=#918 id=918 data-nosnippet>918</a><span class="kw">impl </span>TypeEnvTrace {
-<a href=#919 id=919 data-nosnippet>919</a>    <span class="kw">pub fn </span>new(
-<a href=#920 id=920 data-nosnippet>920</a>        genv: GlobalEnv,
-<a href=#921 id=921 data-nosnippet>921</a>        local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;,
-<a href=#922 id=922 data-nosnippet>922</a>        local_decls: <span class="kw-2">&amp;</span>IndexVec&lt;Local, LocalDecl&gt;,
-<a href=#923 id=923 data-nosnippet>923</a>        env: <span class="kw-2">&amp;</span>TypeEnv,
-<a href=#924 id=924 data-nosnippet>924</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#925 id=925 data-nosnippet>925</a>        <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
-<a href=#926 id=926 data-nosnippet>926</a>        <span class="kw">let </span>cx = PrettyCx::default(genv).hide_regions(<span class="bool-val">true</span>);
-<a href=#927 id=927 data-nosnippet>927</a>        env.bindings
-<a href=#928 id=928 data-nosnippet>928</a>            .iter()
-<a href=#929 id=929 data-nosnippet>929</a>            .filter(|(<span class="kw">_</span>, binding)| !binding.ty.is_uninit())
-<a href=#930 id=930 data-nosnippet>930</a>            .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
-<a href=#931 id=931 data-nosnippet>931</a>            .for_each(|(loc, binding)| {
-<a href=#932 id=932 data-nosnippet>932</a>                <span class="kw">let </span>name = loc_name(local_names, loc);
-<a href=#933 id=933 data-nosnippet>933</a>                <span class="kw">let </span>local = loc_info(loc);
-<a href=#934 id=934 data-nosnippet>934</a>                <span class="kw">let </span>kind = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.kind);
-<a href=#935 id=935 data-nosnippet>935</a>                <span class="kw">let </span>ty = binding.ty.nested_string(<span class="kw-2">&amp;</span>cx);
-<a href=#936 id=936 data-nosnippet>936</a>                <span class="kw">let </span>span = loc_span(genv, local_decls, loc);
-<a href=#937 id=937 data-nosnippet>937</a>                bindings.push(TypeEnvBind { name, local, kind, ty, span });
-<a href=#938 id=938 data-nosnippet>938</a>            });
-<a href=#939 id=939 data-nosnippet>939</a>
-<a href=#940 id=940 data-nosnippet>940</a>        TypeEnvTrace(bindings)
-<a href=#941 id=941 data-nosnippet>941</a>    }
-<a href=#942 id=942 data-nosnippet>942</a>}
-<a href=#943 id=943 data-nosnippet>943</a>
-<a href=#944 id=944 data-nosnippet>944</a><span class="attr">#[derive(Serialize, DebugAsJson)]
-<a href=#945 id=945 data-nosnippet>945</a></span><span class="kw">pub struct </span>SpanTrace {
-<a href=#946 id=946 data-nosnippet>946</a>    file: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#947 id=947 data-nosnippet>947</a>    start_line: usize,
-<a href=#948 id=948 data-nosnippet>948</a>    start_col: usize,
-<a href=#949 id=949 data-nosnippet>949</a>    end_line: usize,
-<a href=#950 id=950 data-nosnippet>950</a>    end_col: usize,
-<a href=#951 id=951 data-nosnippet>951</a>}
-<a href=#952 id=952 data-nosnippet>952</a>
-<a href=#953 id=953 data-nosnippet>953</a><span class="kw">impl </span>SpanTrace {
-<a href=#954 id=954 data-nosnippet>954</a>    <span class="kw">fn </span>span_file(tcx: TyCtxt, span: Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
-<a href=#955 id=955 data-nosnippet>955</a>        <span class="kw">let </span>sm = tcx.sess.source_map();
-<a href=#956 id=956 data-nosnippet>956</a>        <span class="kw">let </span>current_dir = <span class="kw-2">&amp;</span>tcx.sess.opts.working_dir;
-<a href=#957 id=957 data-nosnippet>957</a>        <span class="kw">let </span>current_dir = current_dir.local_path()<span class="question-mark">?</span>;
-<a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">if let </span>rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
-<a href=#959 id=959 data-nosnippet>959</a>            <span class="kw">let </span>file_path = file_name.local_path()<span class="question-mark">?</span>;
-<a href=#960 id=960 data-nosnippet>960</a>            <span class="kw">let </span>full_path = current_dir.join(file_path);
-<a href=#961 id=961 data-nosnippet>961</a>            <span class="prelude-val">Some</span>(full_path.display().to_string())
-<a href=#962 id=962 data-nosnippet>962</a>        } <span class="kw">else </span>{
-<a href=#963 id=963 data-nosnippet>963</a>            <span class="prelude-val">None
-<a href=#964 id=964 data-nosnippet>964</a>        </span>}
-<a href=#965 id=965 data-nosnippet>965</a>    }
-<a href=#966 id=966 data-nosnippet>966</a>    <span class="kw">pub fn </span>new(genv: GlobalEnv, span: Span) -&gt; <span class="self">Self </span>{
-<a href=#967 id=967 data-nosnippet>967</a>        <span class="kw">let </span>tcx = genv.tcx();
-<a href=#968 id=968 data-nosnippet>968</a>        <span class="kw">let </span>sm = tcx.sess.source_map();
-<a href=#969 id=969 data-nosnippet>969</a>        <span class="kw">let </span>(<span class="kw">_</span>, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
-<a href=#970 id=970 data-nosnippet>970</a>        <span class="kw">let </span>file = SpanTrace::span_file(tcx, span);
-<a href=#971 id=971 data-nosnippet>971</a>        SpanTrace { file, start_line, start_col, end_line, end_col }
-<a href=#972 id=972 data-nosnippet>972</a>    }
-<a href=#973 id=973 data-nosnippet>973</a>}</code></pre></div></section></main></body></html>
+<a href=#813 id=813 data-nosnippet>813</a><span class="kw">mod </span>pretty {
+<a href=#814 id=814 data-nosnippet>814</a>    <span class="kw">use </span>std::fmt;
+<a href=#815 id=815 data-nosnippet>815</a>
+<a href=#816 id=816 data-nosnippet>816</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
+<a href=#817 id=817 data-nosnippet>817</a>
+<a href=#818 id=818 data-nosnippet>818</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#819 id=819 data-nosnippet>819</a>
+<a href=#820 id=820 data-nosnippet>820</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>TypeEnv&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#821 id=821 data-nosnippet>821</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#822 id=822 data-nosnippet>822</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
+<a href=#823 id=823 data-nosnippet>823</a>        }
+<a href=#824 id=824 data-nosnippet>824</a>
+<a href=#825 id=825 data-nosnippet>825</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+<a href=#826 id=826 data-nosnippet>826</a>            PlacesTree::default_cx(tcx)
+<a href=#827 id=827 data-nosnippet>827</a>        }
+<a href=#828 id=828 data-nosnippet>828</a>    }
+<a href=#829 id=829 data-nosnippet>829</a>
+<a href=#830 id=830 data-nosnippet>830</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnvShape {
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope, <span class="kw-2">&amp;</span><span class="self">self</span>.bindings)
+<a href=#833 id=833 data-nosnippet>833</a>        }
+<a href=#834 id=834 data-nosnippet>834</a>
+<a href=#835 id=835 data-nosnippet>835</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+<a href=#836 id=836 data-nosnippet>836</a>            PlacesTree::default_cx(tcx)
+<a href=#837 id=837 data-nosnippet>837</a>        }
+<a href=#838 id=838 data-nosnippet>838</a>    }
+<a href=#839 id=839 data-nosnippet>839</a>
+<a href=#840 id=840 data-nosnippet>840</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>BasicBlockEnv {
+<a href=#841 id=841 data-nosnippet>841</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#842 id=842 data-nosnippet>842</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} "</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.scope)<span class="question-mark">?</span>;
+<a href=#843 id=843 data-nosnippet>843</a>
+<a href=#844 id=844 data-nosnippet>844</a>            <span class="kw">let </span>vars = <span class="self">self</span>.data.vars();
+<a href=#845 id=845 data-nosnippet>845</a>            cx.with_bound_vars(vars, || {
+<a href=#846 id=846 data-nosnippet>846</a>                <span class="kw">if </span>!vars.is_empty() {
+<a href=#847 id=847 data-nosnippet>847</a>                    cx.fmt_bound_vars(<span class="bool-val">true</span>, <span class="string">"for&lt;"</span>, vars, <span class="string">"&gt; "</span>, f)<span class="question-mark">?</span>;
+<a href=#848 id=848 data-nosnippet>848</a>                }
+<a href=#849 id=849 data-nosnippet>849</a>                <span class="kw">let </span>data = <span class="self">self</span>.data.as_ref().skip_binder();
+<a href=#850 id=850 data-nosnippet>850</a>                <span class="kw">if </span>!data.constrs.is_empty() {
+<a href=#851 id=851 data-nosnippet>851</a>                    <span class="macro">w!</span>(
+<a href=#852 id=852 data-nosnippet>852</a>                        cx,
+<a href=#853 id=853 data-nosnippet>853</a>                        f,
+<a href=#854 id=854 data-nosnippet>854</a>                        <span class="string">"{:?} ⇒ "</span>,
+<a href=#855 id=855 data-nosnippet>855</a>                        <span class="macro">join!</span>(<span class="string">", "</span>, data.constrs.iter().filter(|pred| !pred.is_trivially_true()))
+<a href=#856 id=856 data-nosnippet>856</a>                    )<span class="question-mark">?</span>;
+<a href=#857 id=857 data-nosnippet>857</a>                }
+<a href=#858 id=858 data-nosnippet>858</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>data.bindings)
+<a href=#859 id=859 data-nosnippet>859</a>            })
+<a href=#860 id=860 data-nosnippet>860</a>        }
+<a href=#861 id=861 data-nosnippet>861</a>
+<a href=#862 id=862 data-nosnippet>862</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+<a href=#863 id=863 data-nosnippet>863</a>            PlacesTree::default_cx(tcx)
+<a href=#864 id=864 data-nosnippet>864</a>        }
+<a href=#865 id=865 data-nosnippet>865</a>    }
+<a href=#866 id=866 data-nosnippet>866</a>
+<a href=#867 id=867 data-nosnippet>867</a>    <span class="macro">impl_debug_with_default_cx!</span> {
+<a href=#868 id=868 data-nosnippet>868</a>        TypeEnv&lt;<span class="lifetime">'_</span>&gt; =&gt; <span class="string">"type_env"</span>,
+<a href=#869 id=869 data-nosnippet>869</a>        BasicBlockEnvShape =&gt; <span class="string">"basic_block_env_shape"</span>,
+<a href=#870 id=870 data-nosnippet>870</a>        BasicBlockEnv =&gt; <span class="string">"basic_block_env"
+<a href=#871 id=871 data-nosnippet>871</a>    </span>}
+<a href=#872 id=872 data-nosnippet>872</a>}
+<a href=#873 id=873 data-nosnippet>873</a>
+<a href=#874 id=874 data-nosnippet>874</a><span class="doccomment">/// A very explicit representation of [`TypeEnv`] for debugging/tracing/serialization ONLY.
+<a href=#875 id=875 data-nosnippet>875</a></span><span class="attr">#[derive(Serialize, DebugAsJson)]
+<a href=#876 id=876 data-nosnippet>876</a></span><span class="kw">pub struct </span>TypeEnvTrace(Vec&lt;TypeEnvBind&gt;);
+<a href=#877 id=877 data-nosnippet>877</a>
+<a href=#878 id=878 data-nosnippet>878</a><span class="attr">#[derive(Serialize)]
+<a href=#879 id=879 data-nosnippet>879</a></span><span class="kw">struct </span>TypeEnvBind {
+<a href=#880 id=880 data-nosnippet>880</a>    local: LocInfo,
+<a href=#881 id=881 data-nosnippet>881</a>    name: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#882 id=882 data-nosnippet>882</a>    kind: String,
+<a href=#883 id=883 data-nosnippet>883</a>    ty: String,
+<a href=#884 id=884 data-nosnippet>884</a>    span: <span class="prelude-ty">Option</span>&lt;SpanTrace&gt;,
+<a href=#885 id=885 data-nosnippet>885</a>}
+<a href=#886 id=886 data-nosnippet>886</a>
+<a href=#887 id=887 data-nosnippet>887</a><span class="attr">#[derive(Serialize)]
+<a href=#888 id=888 data-nosnippet>888</a></span><span class="kw">enum </span>LocInfo {
+<a href=#889 id=889 data-nosnippet>889</a>    Local(String),
+<a href=#890 id=890 data-nosnippet>890</a>    Var(String),
+<a href=#891 id=891 data-nosnippet>891</a>}
+<a href=#892 id=892 data-nosnippet>892</a>
+<a href=#893 id=893 data-nosnippet>893</a><span class="kw">fn </span>loc_info(loc: <span class="kw-2">&amp;</span>Loc) -&gt; LocInfo {
+<a href=#894 id=894 data-nosnippet>894</a>    <span class="kw">match </span>loc {
+<a href=#895 id=895 data-nosnippet>895</a>        Loc::Local(local) =&gt; LocInfo::Local(<span class="macro">format!</span>(<span class="string">"{local:?}"</span>)),
+<a href=#896 id=896 data-nosnippet>896</a>        Loc::Var(var) =&gt; LocInfo::Var(<span class="macro">format!</span>(<span class="string">"{var:?}"</span>)),
+<a href=#897 id=897 data-nosnippet>897</a>    }
+<a href=#898 id=898 data-nosnippet>898</a>}
+<a href=#899 id=899 data-nosnippet>899</a>
+<a href=#900 id=900 data-nosnippet>900</a><span class="kw">fn </span>loc_name(local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;, loc: <span class="kw-2">&amp;</span>Loc) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<a href=#901 id=901 data-nosnippet>901</a>    <span class="kw">if let </span>Loc::Local(local) = loc {
+<a href=#902 id=902 data-nosnippet>902</a>        <span class="kw">let </span>name = local_names.get(local)<span class="question-mark">?</span>;
+<a href=#903 id=903 data-nosnippet>903</a>        <span class="kw">return </span><span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{name}"</span>));
+<a href=#904 id=904 data-nosnippet>904</a>    }
+<a href=#905 id=905 data-nosnippet>905</a>    <span class="prelude-val">None
+<a href=#906 id=906 data-nosnippet>906</a></span>}
+<a href=#907 id=907 data-nosnippet>907</a>
+<a href=#908 id=908 data-nosnippet>908</a><span class="kw">fn </span>loc_span(
+<a href=#909 id=909 data-nosnippet>909</a>    genv: GlobalEnv,
+<a href=#910 id=910 data-nosnippet>910</a>    local_decls: <span class="kw-2">&amp;</span>IndexVec&lt;Local, LocalDecl&gt;,
+<a href=#911 id=911 data-nosnippet>911</a>    loc: <span class="kw-2">&amp;</span>Loc,
+<a href=#912 id=912 data-nosnippet>912</a>) -&gt; <span class="prelude-ty">Option</span>&lt;SpanTrace&gt; {
+<a href=#913 id=913 data-nosnippet>913</a>    <span class="kw">if let </span>Loc::Local(local) = loc {
+<a href=#914 id=914 data-nosnippet>914</a>        <span class="kw">return </span>local_decls
+<a href=#915 id=915 data-nosnippet>915</a>            .get(<span class="kw-2">*</span>local)
+<a href=#916 id=916 data-nosnippet>916</a>            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
+<a href=#917 id=917 data-nosnippet>917</a>    }
+<a href=#918 id=918 data-nosnippet>918</a>    <span class="prelude-val">None
+<a href=#919 id=919 data-nosnippet>919</a></span>}
+<a href=#920 id=920 data-nosnippet>920</a>
+<a href=#921 id=921 data-nosnippet>921</a><span class="kw">impl </span>TypeEnvTrace {
+<a href=#922 id=922 data-nosnippet>922</a>    <span class="kw">pub fn </span>new(
+<a href=#923 id=923 data-nosnippet>923</a>        genv: GlobalEnv,
+<a href=#924 id=924 data-nosnippet>924</a>        local_names: <span class="kw-2">&amp;</span>UnordMap&lt;Local, Symbol&gt;,
+<a href=#925 id=925 data-nosnippet>925</a>        local_decls: <span class="kw-2">&amp;</span>IndexVec&lt;Local, LocalDecl&gt;,
+<a href=#926 id=926 data-nosnippet>926</a>        env: <span class="kw-2">&amp;</span>TypeEnv,
+<a href=#927 id=927 data-nosnippet>927</a>    ) -&gt; <span class="self">Self </span>{
+<a href=#928 id=928 data-nosnippet>928</a>        <span class="kw">let </span><span class="kw-2">mut </span>bindings = <span class="macro">vec!</span>[];
+<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">let </span>cx = PrettyCx::default(genv).hide_regions(<span class="bool-val">true</span>);
+<a href=#930 id=930 data-nosnippet>930</a>        env.bindings
+<a href=#931 id=931 data-nosnippet>931</a>            .iter()
+<a href=#932 id=932 data-nosnippet>932</a>            .filter(|(<span class="kw">_</span>, binding)| !binding.ty.is_uninit())
+<a href=#933 id=933 data-nosnippet>933</a>            .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
+<a href=#934 id=934 data-nosnippet>934</a>            .for_each(|(loc, binding)| {
+<a href=#935 id=935 data-nosnippet>935</a>                <span class="kw">let </span>name = loc_name(local_names, loc);
+<a href=#936 id=936 data-nosnippet>936</a>                <span class="kw">let </span>local = loc_info(loc);
+<a href=#937 id=937 data-nosnippet>937</a>                <span class="kw">let </span>kind = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, binding.kind);
+<a href=#938 id=938 data-nosnippet>938</a>                <span class="kw">let </span>ty = binding.ty.nested_string(<span class="kw-2">&amp;</span>cx);
+<a href=#939 id=939 data-nosnippet>939</a>                <span class="kw">let </span>span = loc_span(genv, local_decls, loc);
+<a href=#940 id=940 data-nosnippet>940</a>                bindings.push(TypeEnvBind { name, local, kind, ty, span });
+<a href=#941 id=941 data-nosnippet>941</a>            });
+<a href=#942 id=942 data-nosnippet>942</a>
+<a href=#943 id=943 data-nosnippet>943</a>        TypeEnvTrace(bindings)
+<a href=#944 id=944 data-nosnippet>944</a>    }
+<a href=#945 id=945 data-nosnippet>945</a>}
+<a href=#946 id=946 data-nosnippet>946</a>
+<a href=#947 id=947 data-nosnippet>947</a><span class="attr">#[derive(Serialize, DebugAsJson)]
+<a href=#948 id=948 data-nosnippet>948</a></span><span class="kw">pub struct </span>SpanTrace {
+<a href=#949 id=949 data-nosnippet>949</a>    file: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#950 id=950 data-nosnippet>950</a>    start_line: usize,
+<a href=#951 id=951 data-nosnippet>951</a>    start_col: usize,
+<a href=#952 id=952 data-nosnippet>952</a>    end_line: usize,
+<a href=#953 id=953 data-nosnippet>953</a>    end_col: usize,
+<a href=#954 id=954 data-nosnippet>954</a>}
+<a href=#955 id=955 data-nosnippet>955</a>
+<a href=#956 id=956 data-nosnippet>956</a><span class="kw">impl </span>SpanTrace {
+<a href=#957 id=957 data-nosnippet>957</a>    <span class="kw">fn </span>span_file(tcx: TyCtxt, span: Span) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+<a href=#958 id=958 data-nosnippet>958</a>        <span class="kw">let </span>sm = tcx.sess.source_map();
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="kw">let </span>current_dir = <span class="kw-2">&amp;</span>tcx.sess.opts.working_dir;
+<a href=#960 id=960 data-nosnippet>960</a>        <span class="kw">let </span>current_dir = current_dir.local_path()<span class="question-mark">?</span>;
+<a href=#961 id=961 data-nosnippet>961</a>        <span class="kw">if let </span>rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
+<a href=#962 id=962 data-nosnippet>962</a>            <span class="kw">let </span>file_path = file_name.local_path()<span class="question-mark">?</span>;
+<a href=#963 id=963 data-nosnippet>963</a>            <span class="kw">let </span>full_path = current_dir.join(file_path);
+<a href=#964 id=964 data-nosnippet>964</a>            <span class="prelude-val">Some</span>(full_path.display().to_string())
+<a href=#965 id=965 data-nosnippet>965</a>        } <span class="kw">else </span>{
+<a href=#966 id=966 data-nosnippet>966</a>            <span class="prelude-val">None
+<a href=#967 id=967 data-nosnippet>967</a>        </span>}
+<a href=#968 id=968 data-nosnippet>968</a>    }
+<a href=#969 id=969 data-nosnippet>969</a>    <span class="kw">pub fn </span>new(genv: GlobalEnv, span: Span) -&gt; <span class="self">Self </span>{
+<a href=#970 id=970 data-nosnippet>970</a>        <span class="kw">let </span>tcx = genv.tcx();
+<a href=#971 id=971 data-nosnippet>971</a>        <span class="kw">let </span>sm = tcx.sess.source_map();
+<a href=#972 id=972 data-nosnippet>972</a>        <span class="kw">let </span>(<span class="kw">_</span>, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
+<a href=#973 id=973 data-nosnippet>973</a>        <span class="kw">let </span>file = SpanTrace::span_file(tcx, span);
+<a href=#974 id=974 data-nosnippet>974</a>        SpanTrace { file, start_line, start_col, end_line, end_col }
+<a href=#975 id=975 data-nosnippet>975</a>    }
+<a href=#976 id=976 data-nosnippet>976</a>}</code></pre></div></section></main></body></html>

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["check_crate","collect_specs","encode_and_save_metadata","force_conv","mir_borrowck"],"struct":["CrateChecker","FluxCallbacks"]};
+window.SIDEBAR_ITEMS = {"fn":["check_crate","collect_specs","encode_and_save_metadata","force_conv","mir_borrowck","stash_body_with_borrowck_facts"],"struct":["CrateChecker","FluxCallbacks"]};
