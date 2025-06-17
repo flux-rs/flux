@@ -134,8 +134,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let def_kind = match item.kind {
                 ItemKind::Use(path, kind) => {
                     match kind {
-                        hir::UseKind::Single(_) => {
-                            let name = path.segments.last().unwrap().ident.name;
+                        hir::UseKind::Single(ident) => {
+                            let name = ident.name;
                             for res in &path.res {
                                 if let Some(ns @ (TypeNS | ValueNS)) = res.ns()
                                     && let Ok(res) = fhir::Res::try_from(*res)
