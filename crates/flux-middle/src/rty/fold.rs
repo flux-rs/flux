@@ -1160,6 +1160,15 @@ where
     }
 }
 
+impl<T> TypeVisitable for FxHashSet<T>
+where
+    T: TypeVisitable + std::hash::Hash,
+{
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        self.iter().try_for_each(|t| t.visit_with(visitor))
+    }
+}
+
 impl<S, T> TypeVisitable for (S, T)
 where
     S: TypeVisitable,
@@ -1175,6 +1184,15 @@ impl<T> TypeFoldable for List<T>
 where
     T: TypeFoldable,
     [T]: Internable,
+{
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        self.iter().map(|t| t.try_fold_with(folder)).try_collect()
+    }
+}
+
+impl<T> TypeFoldable for FxHashSet<T>
+where
+    T: TypeFoldable + std::hash::Hash + std::cmp::Eq,
 {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         self.iter().map(|t| t.try_fold_with(folder)).try_collect()

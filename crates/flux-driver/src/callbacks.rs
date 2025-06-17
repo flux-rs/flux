@@ -120,10 +120,10 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         println!("Solution loop finished.");
         println!("Solutions:");
-        for (wkvid, exprs) in &solution.solutions {
+        for (wkvid, bound_exprs) in &solution.solutions {
             let fn_name = genv.tcx().def_path_str(wkvid.0);
             println!("wkvar {} for {}:", wkvid.1.as_usize(), fn_name);
-            println!("  {}", exprs.iter().map(|expr| format!("{:?}", expr)).join(" && "));
+            println!("  {:?}", bound_exprs.map_ref(|exprs| exprs.iter().map(|expr| format!("{:?}", expr)).join(" && ")));
         }
         if let Some((local_id, _)) = errors.last().clone() {
             let local_id = *local_id;
