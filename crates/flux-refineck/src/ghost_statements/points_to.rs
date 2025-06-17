@@ -54,12 +54,11 @@ pub(crate) fn add_ghost_statements<'tcx>(
     let fixpoint = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
     let mut analysis = fixpoint.analysis;
     let results = fixpoint.results;
-    let mut visitor = CollectPointerToBorrows::new(&map, stmts, results.clone());
+    let mut visitor = CollectPointerToBorrows::new(&map, stmts, &results);
     visit_reachable_results(body, &mut analysis, &results, &mut visitor);
 
     Ok(())
 }
-
 
 /// This implement a points to analysis for mutable references over a [`FlatSet`]. The analysis is
 /// a may analysis. If you want to know if a reference definitively points to a location you have to
@@ -250,14 +249,15 @@ struct CollectPointerToBorrows<'a> {
     tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
     stmts: &'a mut GhostStatements,
     before_state: Vec<(PlaceIndex, FlatSet<Loc>)>,
-    results: IndexVec<BasicBlock, State>,
+    // CUT results: IndexVec<BasicBlock, State>,
+    results: &'a IndexSlice<BasicBlock, State>,
 }
 
 impl<'a> CollectPointerToBorrows<'a> {
     fn new(
         map: &'a Map,
         stmts: &'a mut GhostStatements,
-        results: IndexVec<BasicBlock, State>,
+        results: &'a IndexSlice<BasicBlock, State>,
     ) -> Self {
         let mut tracked_places = FxHashMap::default();
         map.for_each_tracked_place(|place_idx, local, projection| {
