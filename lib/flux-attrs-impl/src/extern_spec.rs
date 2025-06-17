@@ -503,6 +503,14 @@ impl Parse for ExternItemTrait {
         let mut generics: syn::Generics = input.parse()?;
         generics.where_clause = input.parse()?;
 
+        let supertrait;
+        let has_super_trait = input.peek(Token![:]);
+        if has_super_trait {
+            input.parse::<Token![:]>()?;
+            supertrait = Some(input.parse::<syn::Path>()?);
+        } else {
+            supertrait = None;
+        }
         let content;
         let brace_token = braced!(content in input);
         parse_inner(&content, &mut attrs)?;
@@ -511,15 +519,7 @@ impl Parse for ExternItemTrait {
             items.push(content.parse()?);
         }
 
-        Ok(ExternItemTrait {
-            attrs,
-            trait_token,
-            ident,
-            generics,
-            supertrait: None,
-            brace_token,
-            items,
-        })
+        Ok(ExternItemTrait { attrs, trait_token, ident, generics, supertrait, brace_token, items })
     }
 }
 
