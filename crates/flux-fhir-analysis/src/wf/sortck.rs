@@ -208,11 +208,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::Constructor(..) => {
-                let found = self.synth_expr(expr)?;
-                let found = self.resolve_vars_if_possible(&found);
-                let expected = self.resolve_vars_if_possible(expected);
-                if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                    return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                let found0 = self.synth_expr(expr)?;
+                let found = self.resolve_vars_if_possible(&found0);
+                let expected1 = self.resolve_vars_if_possible(expected);
+                if !self.is_coercible(&found, &expected1, expr.fhir_id) {
+                    return Err(self.emit_sort_mismatch(expr.span, &expected1, &found));
                 }
             }
             fhir::ExprKind::Err(_) => {
