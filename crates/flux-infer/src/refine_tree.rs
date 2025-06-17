@@ -23,7 +23,6 @@ use rustc_data_structures::{
     fx::{FxHashMap, FxHashSet},
     snapshot_map::SnapshotMap,
 };
-use rustc_data_structures::fx::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
