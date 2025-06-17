@@ -22,7 +22,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::{
-    fixpoint_encoding::{FixpointCheckError, FixpointCtxt, KVarGen},
+    fixpoint_encoding::{BlameCtxt, FixpointCheckError, FixpointCtxt, KVarGen},
     infer::Tag,
     refine_tree::RefineTree,
 };
@@ -290,31 +290,34 @@ pub fn iterative_solve(
                 cstr.backend,
             )?;
             for error in &errors {
+                let solution_candidates = find_solution_candidates(&error.blame_ctx);
                 let wkvars = error
                     .blame_ctx
                     .blame_analysis
                     .wkvars
                     // TODO: sort by depth in binder
                     .clone();
-                for wkvar in wkvars {
-                    // Take the first wkvar solution we can find
-                    if let Some(instantiation) = WKVarInstantiator::try_instantiate_wkvar(
-                        &wkvar,
-                        &error.blame_ctx.expr,
-                        Order::Forward,
-                    ) {
-                        // println!("Adding an instantiation for wkvar {:?}:", wkvar);
-                        // println!("  {:?}", instantiation);
-                        any_solution = true;
-                        match solutions.solutions.entry(wkvar.wkvid) {
-                            Entry::Occupied(mut entry) => {
-                                entry.get_mut().insert(instantiation);
+                'outer: for wkvar in &wkvars {
+                    for solution_candidate in &solution_candidates {
+                        // Take the first wkvar solution we can find
+                        if let Some(instantiation) = WKVarInstantiator::try_instantiate_wkvar(
+                            wkvar,
+                            solution_candidate,
+                            Order::Forward,
+                        ) {
+                            // println!("Adding an instantiation for wkvar {:?}:", wkvar);
+                            // println!("  {:?}", instantiation);
+                            any_solution = true;
+                            match solutions.solutions.entry(wkvar.wkvid) {
+                                Entry::Occupied(mut entry) => {
+                                    entry.get_mut().insert(instantiation);
+                                }
+                                Entry::Vacant(entry) => {
+                                    entry.insert([instantiation].into());
+                                }
                             }
-                            Entry::Vacant(entry) => {
-                                entry.insert([instantiation].into());
-                            }
+                            break 'outer;
                         }
-                        break;
                     }
                 }
             }
@@ -325,4 +328,41 @@ pub fn iterative_solve(
         i += 1;
     }
     Ok((solutions, all_errors))
+}
+
+
+/// Heuristic and syntactic approach to finding candidates each of whose proof
+/// entails the failing constraint (blame_ctx.expr).
+///
+/// So far this is just the expression itself (trivial entailment) and
+/// the equalities arising from antiunifying the expression with an
+/// assumed predicate.
+///
+/// e.g. if the expression is x < y
+///
+/// assumed_pred: a < y
+/// solution candidate: a == x
+///
+/// assumed_pred: a < b
+/// solution candidate: a == x /\ b == y
+///
+/// assumed_pred: a > b
+/// solution candidate: none
+/// (it would be --- at the most conservative level taking into account these
+///  are booleans --- a > b => x < y which is probably too trivial a constraint
+///  to offer; we only equalities anyway)
+pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
+    let mut candidates = vec![blame_ctx.expr.clone()];
+    for assumed_pred in &blame_ctx.blame_analysis.assumed_preds {
+        let au_map = rty::anti_unify(&blame_ctx.expr, assumed_pred);
+        // This checks if the antiunification is trivial, i.e.
+        // blame_ctx.expr == assumed_pred
+        if au_map.get(&blame_ctx.expr).is_some() {
+            continue;
+        }
+        // build a conjunction of equalities between each au pair.
+        let conjs = au_map.into_iter().map(|(e1, e2)| rty::Expr::eq(e1, e2));
+        candidates.push(rty::Expr::and_from_iter(conjs));
+    }
+    return candidates;
 }
