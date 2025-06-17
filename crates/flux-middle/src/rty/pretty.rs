@@ -467,7 +467,7 @@ fn fmt_alias_ty(
     alias_ty: &AliasTy,
 ) -> fmt::Result {
     match kind {
-        AliasKind::Weak => {
+        AliasKind::Free => {
             w!(cx, f, "{:?}", alias_ty.def_id)?;
             if !alias_ty.args.is_empty() {
                 w!(cx, f, "<{:?}>", join!(", ", &alias_ty.args))?;
@@ -681,7 +681,7 @@ impl PrettyNested for BaseTy {
                     kidss.push(ty_d.children);
                 }
                 let text = if let [text] = &texts[..] {
-                    format!("({},)", text)
+                    format!("({text},)")
                 } else {
                     format!("({})", texts.join(", "))
                 };
@@ -782,7 +782,7 @@ impl PrettyNested for Ty {
                         .map(|f| f.name.to_string())
                         .collect()
                 } else {
-                    (0..fields.len()).map(|i| format!("{}", i)).collect()
+                    (0..fields.len()).map(|i| format!("{i}")).collect()
                 };
                 let mut children = vec![];
                 for (key, field) in keys.into_iter().zip(fields) {
@@ -796,7 +796,7 @@ impl PrettyNested for Ty {
             | TyKind::Ptr(..)
             | TyKind::Discr(..)
             | TyKind::Infer(..) => {
-                let text = format!("{:?}", self);
+                let text = format!("{self:?}");
                 Ok(NestedString { text, children: None, key: None })
             }
         }

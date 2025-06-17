@@ -83,7 +83,7 @@ impl GlobalEnv<'_, '_> {
         Ok(sort)
     }
 
-    pub fn normalize_weak_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
+    pub fn normalize_free_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
         match self.def_kind(alias_ty.def_id) {
             DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
             DefKind::TyAlias => {
@@ -111,9 +111,9 @@ impl GlobalEnv<'_, '_> {
             type Error = QueryErr;
 
             fn try_fold_sort(&mut self, sort: &rty::Sort) -> QueryResult<rty::Sort> {
-                if let rty::Sort::Alias(rty::AliasKind::Weak, alias_ty) = sort {
+                if let rty::Sort::Alias(rty::AliasKind::Free, alias_ty) = sort {
                     self.genv
-                        .normalize_weak_alias_sort(alias_ty)?
+                        .normalize_free_alias_sort(alias_ty)?
                         .try_fold_with(self)
                 } else {
                     sort.try_super_fold_with(self)

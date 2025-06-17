@@ -217,7 +217,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
         refine_tree.simplify(self.genv);
         if config::dump_constraint() {
-            let simp_ext = format!("simp.{}", ext);
+            let simp_ext = format!("simp.{ext}");
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), simp_ext, &refine_tree)
                 .unwrap();
         }

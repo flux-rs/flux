@@ -30,7 +30,7 @@ fn invocation_relative_path_to_absolute(span: Span, path: &str) -> PathBuf {
         path.to_path_buf()
     } else {
         // `/a/b/c/foo/bar.rs` contains the current macro invocation
-        let mut source_file_path = span.source_file().path();
+        let mut source_file_path = PathBuf::from(&span.file());
         // `/a/b/c/foo/`
         source_file_path.pop();
         // `/a/b/c/foo/../locales/en-US/example.ftl`

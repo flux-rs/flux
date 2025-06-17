@@ -22,7 +22,7 @@ use super::{
     mir::{
         AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs, CastKind, Constant,
         LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
-        Statement, StatementKind, Terminator, TerminatorKind, replicate_infer_ctxt,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -92,7 +92,7 @@ fn trait_ref_impl_id<'tcx>(
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    // let trait_ref = tcx.erase_regions(trait_ref);
+    let trait_ref = tcx.erase_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
@@ -131,13 +131,23 @@ fn resolve_call_query<'tcx>(
 }
 
 impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
+    // We used to call `replicate_infer_ctxt` to compute the `infcx`
+    // which replicated the [`InferCtxt`] used for mir typeck
+    // by generating region variables for every region the body.
+    // HOWEVER,the rustc folks hid access to the region-variables
+    // so instead we have to take care to call `tcx.erase_regions(..)`
+    // before using the `infcx` or `SelectionContext` to do any queries
+    // (eg. see `get_impl_id_of_alias_reft` in projections.rs)
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let infcx = replicate_infer_ctxt(tcx, def_id, &body_with_facts);
+        let infcx = tcx
+            .infer_ctxt()
+            .with_next_trait_solver(true)
+            .build(TypingMode::analysis_in_body(tcx, def_id));
         let param_env = tcx.param_env(body_with_facts.body.source.def_id());
         let selcx = SelectionContext::new(&infcx);
         let mut lower =
@@ -670,10 +680,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                         .eval(tcx, typing_env, rustc_span::DUMMY_SP)
                         .map(|val| Const::Val(val, constant.const_.ty()))
                         .unwrap_or(constant.const_);
-                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {
-                        if let Some(constant) = self.scalar_int_to_constant(scalar, ty) {
-                            return Ok(constant);
-                        }
+                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_
+                        && let Some(constant) = self.scalar_int_to_constant(scalar, ty)
+                    {
+                        return Ok(constant);
                     }
                 }
                 Some(Constant::Opaque(ty.lower(tcx)?))
@@ -788,15 +798,12 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
     type R = crate::ty::ValTree;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
-        if let Some(scalar_int) = self.try_to_scalar_int() {
-            crate::ty::ValTree::Leaf(scalar_int)
-        } else {
-            let trees = self
-                .unwrap_branch()
-                .iter()
-                .map(|tree| tree.lower(_tcx))
-                .collect();
-            crate::ty::ValTree::Branch(trees)
+        match &*self {
+            rustc_ty::ValTreeKind::Leaf(scalar_int) => crate::ty::ValTree::Leaf(*scalar_int),
+            rustc_ty::ValTreeKind::Branch(trees) => {
+                let trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
+                crate::ty::ValTree::Branch(trees)
+            }
         }
     }
 }
@@ -1002,7 +1009,7 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::GenericArg<'tcx> {
     type R = Result<GenericArg, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
-        match self.unpack() {
+        match self.kind() {
             GenericArgKind::Type(ty) => Ok(GenericArg::Ty(ty.lower(tcx)?)),
             GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(region.lower(tcx)?)),
             GenericArgKind::Const(c) => Ok(GenericArg::Const(c.lower(tcx)?)),

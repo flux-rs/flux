@@ -134,8 +134,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             let def_kind = match item.kind {
                 ItemKind::Use(path, kind) => {
                     match kind {
-                        hir::UseKind::Single => {
-                            let name = path.segments.last().unwrap().ident.name;
+                        hir::UseKind::Single(ident) => {
+                            let name = ident.name;
                             for res in &path.res {
                                 if let Some(ns @ (TypeNS | ValueNS)) = res.ns()
                                     && let Ok(res) = fhir::Res::try_from(*res)
@@ -164,7 +164,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(enum_def, _) => {
+                ItemKind::Enum(_, _, enum_def) => {
                     self.define_enum_variants(&enum_def);
                     DefKind::Enum
                 }
@@ -178,9 +178,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 }
                 _ => continue,
             };
-            if let Some(ns) = def_kind.ns() {
+            if let Some(ns) = def_kind.ns()
+                && let Some(ident) = item.kind.ident()
+            {
                 self.define_res_in(
-                    item.ident.name,
+                    ident.name,
                     fhir::Res::Def(def_kind, item.owner_id.to_def_id()),
                     ns,
                 );
@@ -427,11 +429,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 break;
             }
         }
-        if ns == TypeNS {
-            if let Some(crate_id) = self.crates.get(&ident.name) {
-                return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
-            }
+        if ns == TypeNS
+            && let Some(crate_id) = self.crates.get(&ident.name)
+        {
+            return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
         }
+
         if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
             return Some(*res);
         }
@@ -468,7 +471,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 let tcx = self.genv.tcx();
                 let trait_id = module.def_id;
                 tcx.associated_items(trait_id)
-                    .find_by_name_and_namespace(tcx, ident, ns, trait_id)
+                    .find_by_ident_and_namespace(tcx, ident, ns, trait_id)
                     .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
             }
         }
@@ -503,7 +506,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         // But we resolve names in them as if they were defined in their containing module
         self.resolve_flux_items(hir_id.expect_owner());
 
-        hir::intravisit::walk_mod(self, module, hir_id);
+        hir::intravisit::walk_mod(self, module);
 
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
@@ -689,8 +692,7 @@ fn visible_module_children(
 
 /// Return true if the item has a `#[prelude_import]` annotation
 fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
-    tcx.hir()
-        .attrs(item.hir_id())
+    tcx.hir_attrs(item.hir_id())
         .iter()
         .any(|attr| attr.path_matches(&[sym::prelude_import]))
 }

@@ -1559,10 +1559,10 @@ pub(crate) mod pretty {
                     .variant(ctor.variant_idx())
                     .field_names()
                     .iter()
-                    .map(|name| format!("{}", name))
+                    .map(|name| format!("{name}"))
                     .collect_vec()
             } else {
-                (0..flds.len()).map(|i| format!("arg{}", i)).collect_vec()
+                (0..flds.len()).map(|i| format!("arg{i}")).collect_vec()
             };
             // Multiple fields, nested index
             text += "{..}";
@@ -1618,7 +1618,7 @@ pub(crate) mod pretty {
                     } else {
                         format!(" {} ", op_d.text)
                     };
-                    let text = format!("{}{}{}", e1_text, op_text, e2_text);
+                    let text = format!("{e1_text}{op_text}{e2_text}");
                     let children = float_children(vec![e1_d.children, e2_d.children]);
                     Ok(NestedString { text, children, key: None })
                 }
@@ -1650,7 +1650,7 @@ pub(crate) mod pretty {
                         kidss.push(e_d.children);
                     }
                     let text = if let [e] = &texts[..] {
-                        format!("({},)", e)
+                        format!("({e},)")
                     } else {
                         format!("({})", texts.join(", "))
                     };

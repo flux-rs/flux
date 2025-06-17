@@ -230,7 +230,7 @@ impl<'fhir> Item<'fhir> {
 pub enum ItemKind<'fhir> {
     Enum(EnumDef<'fhir>),
     Struct(StructDef<'fhir>),
-    TyAlias(TyAlias<'fhir>),
+    TyAlias(&'fhir TyAlias<'fhir>),
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
@@ -551,7 +551,7 @@ pub struct BareFnTy<'fhir> {
     pub abi: rustc_abi::ExternAbi,
     pub generic_params: &'fhir [GenericParam<'fhir>],
     pub decl: &'fhir FnDecl<'fhir>,
-    pub param_names: &'fhir [Ident],
+    pub param_idents: &'fhir [Option<Ident>],
 }
 
 #[derive(Clone, Copy)]
@@ -1382,7 +1382,7 @@ impl fmt::Debug for ConstArgKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstArgKind::Lit(n) => write!(f, "{n}"),
-            ConstArgKind::Param(p) => write!(f, "{:?}", p),
+            ConstArgKind::Param(p) => write!(f, "{p:?}"),
             ConstArgKind::Infer => write!(f, "_"),
         }
     }
@@ -1573,7 +1573,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
-            SortRes::SortParam(n) => write!(f, "@{}", n),
+            SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
                 write!(f, "{}::Self::sort", def_id_to_string(*trait_id))

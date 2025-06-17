@@ -141,16 +141,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
         let current_dir = tcx.sess.opts.working_dir.clone();
-        if let FileName::Real(file_name) = sm.span_to_filename(span) {
-            if let Some(file_path) = file_name.local_path()
-                && let Some(current_dir_path) = current_dir.local_path()
-            {
-                let file = current_dir_path
-                    .join(file_path)
-                    .to_string_lossy()
-                    .to_string();
-                return config::is_checked_file(&file);
-            }
+        if let FileName::Real(file_name) = sm.span_to_filename(span)
+            && let Some(file_path) = file_name.local_path()
+            && let Some(current_dir_path) = current_dir.local_path()
+        {
+            let file = current_dir_path
+                .join(file_path)
+                .to_string_lossy()
+                .to_string();
+            return config::is_checked_file(&file);
         }
         true
     }
@@ -236,17 +235,12 @@ fn force_conv(genv: GlobalEnv, def_id: DefId) -> QueryResult {
     Ok(())
 }
 
-#[expect(clippy::needless_lifetimes, reason = "we want to be explicit about lifetimes here")]
-fn mir_borrowck<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
+fn stash_body_with_borrowck_facts<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
     let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
         tcx,
         def_id,
         ConsumerOptions::RegionInferenceContext,
     );
-
     if config::dump_mir() {
         rustc_middle::mir::pretty::write_mir_fn(
             tcx,
@@ -262,6 +256,20 @@ fn mir_borrowck<'tcx>(
     // going to be used as a witness when pulling out the data.
     unsafe {
         flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
+    }
+}
+
+fn mir_borrowck<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    def_id: LocalDefId,
+) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
+    // grab the body-and-borrowck-facts for `def_id` and all transitively nested bodies.
+    let mut worklist = vec![def_id];
+    while let Some(def_id) = worklist.pop() {
+        stash_body_with_borrowck_facts(tcx, def_id);
+        for nested_def_id in tcx.nested_bodies_within(def_id) {
+            worklist.push(nested_def_id);
+        }
     }
     let mut providers = query::Providers::default();
     rustc_borrowck::provide(&mut providers);

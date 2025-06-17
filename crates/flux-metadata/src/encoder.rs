@@ -6,7 +6,7 @@ use rustc_hir::def_id::{DefId, LOCAL_CRATE};
 use rustc_metadata::errors::FailCreateFileEncoder;
 use rustc_middle::{
     bug,
-    ty::{self, TyCtxt},
+    ty::{self, TyCtxt, codec::TyEncoder},
 };
 use rustc_serialize::{Encodable, Encoder, opaque};
 use rustc_session::config::CrateType;
@@ -15,7 +15,6 @@ use rustc_span::{
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
 };
-use rustc_type_ir::TyEncoder;
 
 use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREINTERNED, SYMBOL_STR};
 
@@ -107,7 +106,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
 
     fn encode_symbol(&mut self, symbol: Symbol) {
         // if symbol preinterned, emit tag and symbol index
-        if symbol.is_preinterned() {
+        if symbol.is_predefined() {
             self.opaque.emit_u8(SYMBOL_PREINTERNED);
             self.opaque.emit_u32(symbol.as_u32());
         } else {
@@ -129,10 +128,8 @@ impl SpanEncoder for EncodeContext<'_, '_> {
     }
 }
 
-impl<'tcx> TyEncoder for EncodeContext<'_, 'tcx> {
+impl<'tcx> TyEncoder<'tcx> for EncodeContext<'_, 'tcx> {
     const CLEAR_CROSS_CRATE: bool = true;
-
-    type I = TyCtxt<'tcx>;
 
     fn position(&self) -> usize {
         self.opaque.position()

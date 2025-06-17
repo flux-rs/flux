@@ -129,7 +129,7 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
 }
 
 trait Mode: Sized {
-    const NAME: &'static str;
+    const _NAME: &'static str;
 
     fn projection(
         analysis: &mut FoldUnfoldAnalysis<Self>,
@@ -166,7 +166,7 @@ enum ProjResult<'a> {
 }
 
 impl Mode for Infer {
-    const NAME: &'static str = "infer";
+    const _NAME: &'static str = "infer";
 
     fn projection(
         analysis: &mut FoldUnfoldAnalysis<Self>,
@@ -196,7 +196,7 @@ impl Mode for Infer {
 }
 
 impl Mode for Elaboration<'_> {
-    const NAME: &'static str = "elaboration";
+    const _NAME: &'static str = "elaboration";
 
     fn projection(
         analysis: &mut FoldUnfoldAnalysis<Self>,

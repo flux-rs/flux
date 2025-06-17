@@ -46,13 +46,12 @@ pub(crate) fn desugar_qualifier<'genv>(
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
     FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
-        let qualifier = fhir::Qualifier {
+        fhir::Qualifier {
             def_id,
             args: cx.desugar_refine_params(&qualifier.params),
             global: qualifier.global,
             expr: cx.desugar_expr(&qualifier.expr),
-        };
-        qualifier
+        }
     })
 }
 
@@ -310,11 +309,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         } else {
             let kind = &self
                 .genv
-                .hir()
-                .expect_item(self.owner.local_id().def_id)
+                .tcx()
+                .hir_expect_item(self.owner.local_id().def_id)
                 .kind;
             match kind {
-                hir::ItemKind::Struct(variant_data, _) | hir::ItemKind::Union(variant_data, _) => {
+                hir::ItemKind::Struct(_, _, variant_data)
+                | hir::ItemKind::Union(_, _, variant_data) => {
                     debug_assert_eq!(struct_def.fields.len(), variant_data.fields().len());
                     let fields = self.genv.alloc_slice_fill_iter(
                         iter::zip(&struct_def.fields, variant_data.fields()).map(
@@ -351,7 +351,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         enum_def: &surface::EnumDef,
     ) -> Result<fhir::Item<'genv>> {
         let def_id = self.owner.local_id().def_id;
-        let ItemKind::Enum(hir_enum, _) = self.genv.hir().expect_item(def_id).kind else {
+        let ItemKind::Enum(_, _, hir_enum) = self.genv.tcx().hir_expect_item(def_id).kind else {
             bug!("expected enum");
         };
         let reflected = enum_def.reflected;
@@ -448,12 +448,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             .as_ref()
             .map(|index| self.desugar_refine_param(index));
 
-        let ty_alias = fhir::TyAlias { index, ty, span: ty_alias.span, lifted: false };
-
+        let ty_alias =
+            self.genv()
+                .alloc(fhir::TyAlias { index, ty, span: ty_alias.span, lifted: false });
         if config::dump_fhir() {
-            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &ty_alias).unwrap();
+            dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", ty_alias).unwrap();
         }
-
         fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner }
     }
 
@@ -736,11 +736,10 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             trait_ref,
             span: trait_ref.span,
         });
-        let opaque_ty = fhir::OpaqueTy {
+        fhir::OpaqueTy {
             def_id: MaybeExternId::Local(def_id),
             bounds: self.genv.alloc_slice(&[bound]),
-        };
-        opaque_ty
+        }
     }
 
     fn make_lang_item_path(

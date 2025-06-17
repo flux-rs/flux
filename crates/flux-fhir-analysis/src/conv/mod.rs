@@ -36,7 +36,7 @@ use rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
 use rustc_index::IndexVec;
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
-    ty::{self, AssocItem, AssocKind, BoundVar, TyCtxt},
+    ty::{self, AssocItem, AssocTag, BoundVar, TyCtxt},
 };
 use rustc_span::{
     DUMMY_SP, ErrorGuaranteed, Span, Symbol,
@@ -799,7 +799,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 
     fn conv_poly_func_sort(&mut self, sort: &fhir::PolyFuncSort) -> QueryResult<rty::PolyFuncSort> {
-        let params = std::iter::repeat_n(rty::SortParamKind::Sort, sort.params).collect();
+        let params = iter::repeat_n(rty::SortParamKind::Sort, sort.params).collect();
         Ok(rty::PolyFuncSort::new(params, self.conv_func_sort(&sort.fsort)?))
     }
 
@@ -1105,7 +1105,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let assoc_item_id = self
             .trait_defines_associated_item_named(
                 candidate.def_id(),
-                AssocKind::Type,
+                AssocTag::Type,
                 constraint.ident,
             )
             .unwrap()
@@ -1135,12 +1135,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn trait_defines_associated_item_named(
         &self,
         trait_def_id: DefId,
-        assoc_kind: AssocKind,
+        assoc_tag: AssocTag,
         assoc_name: Ident,
     ) -> Option<&'tcx AssocItem> {
         self.tcx()
             .associated_items(trait_def_id)
-            .find_by_name_and_kind(self.tcx(), assoc_name, assoc_kind, trait_def_id)
+            .find_by_ident_and_kind(self.tcx(), assoc_name, assoc_tag, trait_def_id)
     }
 
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
@@ -1455,7 +1455,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .refine(&self.refiner()?)?;
 
         let assoc_item = self
-            .trait_defines_associated_item_named(trait_ref.def_id, AssocKind::Type, assoc_ident)
+            .trait_defines_associated_item_named(trait_ref.def_id, AssocTag::Type, assoc_ident)
             .unwrap();
 
         let assoc_id = assoc_item.def_id;
@@ -1513,7 +1513,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
         let mut matching_candidates = all_candidates().filter(|r| {
-            self.trait_defines_associated_item_named(r.def_id(), AssocKind::Type, assoc_name)
+            self.trait_defines_associated_item_named(r.def_id(), AssocTag::Type, assoc_name)
                 .is_some()
         });
 
@@ -1630,7 +1630,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Ok(self.genv().type_of(alias_to)?.instantiate_identity());
                 } else {
                     rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
+                        rty::AliasKind::Free,
                         rty::AliasTy {
                             def_id: alias_to,
                             args: List::empty(),
@@ -1680,7 +1680,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         .instantiate(tcx, &args, &refine_args));
                 } else {
                     rty::BaseTy::Alias(
-                        rty::AliasKind::Weak,
+                        rty::AliasKind::Free,
                         rty::AliasTy { def_id, args, refine_args: List::from(refine_args) },
                     )
                 }
@@ -2460,7 +2460,7 @@ pub fn conv_func_decl(genv: GlobalEnv, func: &fhir::SpecFunc) -> QueryResult<rty
         .chain(iter::once(&func.sort))
         .map(|sort| cx.conv_sort(sort))
         .try_collect()?;
-    let params = std::iter::repeat_n(rty::SortParamKind::Sort, func.params).collect();
+    let params = iter::repeat_n(rty::SortParamKind::Sort, func.params).collect();
     Ok(rty::PolyFuncSort::new(params, rty::FuncSort { inputs_and_output }))
 }
 

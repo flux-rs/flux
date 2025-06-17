@@ -111,15 +111,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Fn { .. } => {
                 self.collect_fn_spec(owner_id, attrs)?;
             }
-            ItemKind::Struct(variant, ..) => {
+            ItemKind::Struct(_, _, variant) => {
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
-            ItemKind::Union(variant, ..) => {
+            ItemKind::Union(_, _, variant) => {
                 // currently no refinements on unions
                 tracked_span_assert_eq!(attrs.items().is_empty(), true);
                 self.collect_struct_def(owner_id, attrs, variant)?;
             }
-            ItemKind::Enum(enum_def, ..) => {
+            ItemKind::Enum(_, _, enum_def) => {
                 self.collect_enum_def(owner_id, attrs, enum_def)?;
             }
             ItemKind::Mod(..) => self.collect_mod(owner_id, attrs)?,
@@ -206,7 +206,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
-        self.specs.ty_aliases.insert(owner_id, attrs.ty_alias());
+        self.specs
+            .ty_aliases
+            .insert(owner_id, attrs.ty_alias().map(|z| *z));
         Ok(())
     }
 
@@ -375,7 +377,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn parse_flux_attrs(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
         let def_kind = self.tcx.def_kind(def_id);
         let hir_id = self.tcx.local_def_id_to_hir_id(def_id);
-        let attrs = self.tcx.hir().attrs(hir_id);
+        let attrs = self.tcx.hir_attrs(hir_id);
         let attrs: Vec<_> = attrs
             .iter()
             .filter_map(|attr| {
@@ -415,7 +417,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let kind = match (segment.as_str(), &attr_item.args) {
             ("alias", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_type_alias, FluxAttrKind::TypeAlias)?
+                self.parse(dargs, ParseSess::parse_type_alias, |t| {
+                    FluxAttrKind::TypeAlias(Box::new(t))
+                })?
             }
             ("sig" | "spec", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
@@ -576,7 +580,7 @@ enum FluxAttrKind {
     QualNames(surface::QualNames),
     RevealNames(surface::RevealNames),
     Items(Vec<surface::Item>),
-    TypeAlias(surface::TyAlias),
+    TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
     Variant(surface::VariantDef),
@@ -668,7 +672,7 @@ impl FluxAttrs {
         read_attr!(self, RevealNames)
     }
 
-    fn ty_alias(&mut self) -> Option<surface::TyAlias> {
+    fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }
 
@@ -808,9 +812,9 @@ impl AttrMap {
     fn parse_entry(&mut self, nested_item: &MetaItemInner) -> AttrMapErr {
         match nested_item {
             MetaItemInner::MetaItem(item) => {
-                let name = item.name_or_empty().to_ident_string();
+                let name = item.name().map(|sym| sym.to_ident_string());
                 let span = item.span;
-                if !name.is_empty() {
+                if let Some(name) = name {
                     if self.map.contains_key(&name) {
                         return Err(errors::AttrMapErr {
                             span,

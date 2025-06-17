@@ -260,7 +260,7 @@ impl<T: Types> Task<T> {
             if !out.stderr.is_empty() {
                 let stderr = std::str::from_utf8(&out.stderr)
                     .unwrap_or("fixpoint exited with a non-zero return code");
-                io::Error::new(io::ErrorKind::Other, stderr)
+                io::Error::other(stderr)
             } else {
                 err.into()
             }

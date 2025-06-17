@@ -113,6 +113,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
+    #[expect(dead_code)]
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -633,8 +634,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     /// For `check_terminator`, the output `Vec<BasicBlock, Guard>` denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
-    /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`)
-    ///   you can assume when checking the corresponding successor.
+    /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`) you can assume when checking the corresponding successor.
     fn check_terminator(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -1656,14 +1656,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Unevaluated(ty, def_id) => {
                 let ty = self.refine_default(ty)?;
                 let info = self.genv.constant_info(def_id)?;
-                let res = if let Some(bty) = ty.as_bty_skipping_existentials()
+                if let Some(bty) = ty.as_bty_skipping_existentials()
                     && let rty::ConstantInfo::Interpreted(idx, _) = info
                 {
                     Ok(Ty::indexed(bty.clone(), idx))
                 } else {
                     Ok(ty)
-                };
-                res
+                }
             }
         }
     }
