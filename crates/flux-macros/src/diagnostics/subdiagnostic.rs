@@ -479,7 +479,6 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                 Ok(quote! {})
             }
             "subdiagnostic" => {
-                // let f = &self.parent.f;
                 let diag = &self.parent.diag;
                 let binding = &info.binding;
                 self.has_subdiagnostic = true;
