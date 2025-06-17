@@ -259,7 +259,6 @@ fn stash_body_with_borrowck_facts<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
     }
 }
 
-// #[expect(clippy::needless_lifetimes, reason = "we want to be explicit about lifetimes here")]
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
