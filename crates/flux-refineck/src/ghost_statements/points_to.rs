@@ -249,7 +249,6 @@ struct CollectPointerToBorrows<'a> {
     tracked_places: FxHashMap<PlaceIndex, flux_rustc_bridge::mir::Place>,
     stmts: &'a mut GhostStatements,
     before_state: Vec<(PlaceIndex, FlatSet<Loc>)>,
-    // CUT results: IndexVec<BasicBlock, State>,
     results: &'a IndexSlice<BasicBlock, State>,
 }
 
