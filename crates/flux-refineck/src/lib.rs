@@ -468,7 +468,7 @@ fn add_fn_fix_diagnostic<'a>(
     genv: GlobalEnv<'a, '_>,
     diag: &mut Diag<'a>,
     wkvid: rty::WKVid,
-    solution: rty::Expr,
+    solution: rty::Binder<rty::Expr>,
 ) {
     let fn_name = genv.tcx().def_path_str(wkvid.0);
     let fn_span = genv

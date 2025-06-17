@@ -1,7 +1,8 @@
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, hash_map::Entry},
     ops::ControlFlow,
 };
+use itertools::Itertools;
 
 use flux_common::cache::QueryCache;
 use flux_middle::{
@@ -19,6 +20,7 @@ use flux_middle::{
 };
 use liquid_fixpoint::SmtSolver;
 use rustc_hir::def_id::LocalDefId;
+use rustc_data_structures::fx::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::{
@@ -103,11 +105,13 @@ impl WKVarInstantiator<'_> {
         wkvar: &rty::WKVar,
         expr: &rty::Expr,
         order: Order,
-    ) -> Option<rty::Expr> {
+    ) -> Option<rty::Binder<rty::Expr>> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
             wkvar.args.iter().map(|arg| arg.erase_spans()),
-            wkvar.params.iter().map(|param| rty::Expr::var(*param)),
+            // We'll make an instantiator that is generic because this instatiation
+            // may (and probably will) be used in multiple places
+            (0..wkvar.params.len()).into_iter().map(|var_num| rty::Expr::bvar(INNERMOST, var_num.into(), rty::BoundReftKind::Annon)),
         )
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
@@ -124,33 +128,29 @@ impl WKVarInstantiator<'_> {
         let mut instantiator = WKVarInstantiator {
             args_to_param: &args_to_param,
             memo: &mut HashMap::new(),
+            // This remains 0 because we use it to track how to shift our params,
+            // so the scope is the same.
             current_index: INNERMOST,
         };
-        instantiator.try_fold_expr(&expr.erase_spans()).ok()
+        instantiator.try_fold_expr(&expr.erase_spans()).ok().map(|instantiated_e| {
+            rty::Binder::bind_with_sorts(instantiated_e, &std::iter::repeat_n(rty::Sort::Err, wkvar.params.len()).collect_vec())
+        })
     }
 }
 
 pub struct WKVarSubst {
-    pub wkvar_instantiations: HashMap<rty::WKVid, rty::Expr>,
+    pub wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>,
 }
 
 impl TypeFolder for WKVarSubst {
     fn fold_expr(&mut self, e: &rty::Expr) -> rty::Expr {
         match e.kind() {
             rty::ExprKind::WKVar(wkvar @ rty::WKVar { wkvid, .. })
-                if let Some(subst_e) = self.wkvar_instantiations.get(wkvid) =>
+                if let Some(bound_e) = self.wkvar_instantiations.get(wkvid) =>
             {
-                // HACK: We will map from the params (which should be
-                // substituted for in subst_e) to the _actual_ args given to the
-                // current wkvar
-                //
-                // Why? because the params we keep around are the params in the fn_sig
-                // but we need to substitute wkvars elsewhere
-                let instantiated_e =
-                    WKVarInstantiator::try_instantiate_wkvar(&wkvar, &subst_e, Order::Backward)
-                        .unwrap_or_else(|| {
-                            panic!("Couldn't anti-unfiy {:?} with {:?}", wkvar, subst_e)
-                        });
+                // The bound expression has bound vars that need to be replaced
+                // by the args given to the wkvar (in order).
+                let instantiated_e = bound_e.replace_bound_refts(&wkvar.args);
                 // NOTE: keeps the original wkvar to allow iterative
                 // substitutions --- it gets turned into TRUE when output
                 // anyway.
@@ -227,7 +227,7 @@ impl<'a> ProductEtaExpander<'a> {
 #[derive(Clone)]
 pub struct WKVarSolutions {
     /// Each Expr is part of a conjunction of the solution.
-    pub solutions: HashMap<rty::WKVid, HashSet<rty::Expr>>,
+    pub solutions: HashMap<rty::WKVid, rty::Binder<FxHashSet<rty::Expr>>>,
 }
 
 impl WKVarSolutions {
@@ -267,8 +267,8 @@ pub fn iterative_solve(
                 wkvar_instantiations: solutions
                     .solutions
                     .iter()
-                    .map(|(wkvid, exprs)| {
-                        (wkvid.clone(), rty::Expr::and_from_iter(exprs.iter().cloned()))
+                    .map(|(wkvid, exprs_binder)| {
+                        (wkvid.clone(), exprs_binder.map_ref(|bound_es| rty::Expr::and_from_iter(bound_es.iter().cloned())))
                     })
                     .collect(),
             };
@@ -310,10 +310,15 @@ pub fn iterative_solve(
                             any_solution = true;
                             match solutions.solutions.entry(wkvar.wkvid) {
                                 Entry::Occupied(mut entry) => {
-                                    entry.get_mut().insert(instantiation);
+                                    assert!(entry.get().vars() == instantiation.vars());
+                                    entry.get_mut().to_owned().map(|mut bound_es| bound_es.insert(instantiation.skip_binder()));
                                 }
                                 Entry::Vacant(entry) => {
-                                    entry.insert([instantiation].into());
+                                    entry.insert(instantiation.map(|bound_e| {
+                                        let mut set = FxHashSet::default();
+                                        set.insert(bound_e);
+                                        set
+                                    }));
                                 }
                             }
                             break 'outer;
