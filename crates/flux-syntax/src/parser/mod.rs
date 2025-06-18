@@ -154,7 +154,6 @@ pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Tra
 /// ```
 fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
-    // let final_ = cx.advance_if(Tok::Final);
     let final_ = cx.advance_if("final");
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;

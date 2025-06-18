@@ -314,8 +314,8 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .insert(key, genv.refinement_generics_of(def_id));
                 let assocs = genv.assoc_refinements_of(def_id);
                 if let Ok(assocs) = &assocs {
-                    for assoc_meta in &assocs.items {
-                        let def_id = assoc_meta.def_id();
+                    for assoc_reft in &assocs.items {
+                        let def_id = assoc_reft.def_id();
                         let key = assoc_id_to_key(def_id);
                         tables
                             .default_assoc_refinements_def
@@ -337,8 +337,8 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 if of_trait {
                     let assocs = genv.assoc_refinements_of(def_id);
                     if let Ok(assocs) = &assocs {
-                        for assoc_meta in &assocs.items {
-                            let def_id = assoc_meta.def_id();
+                        for assoc_reft in &assocs.items {
+                            let def_id = assoc_reft.def_id();
                             let key = assoc_id_to_key(def_id);
                             tables
                                 .assoc_refinements_def
