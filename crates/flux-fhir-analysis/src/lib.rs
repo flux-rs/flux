@@ -14,7 +14,6 @@ extern crate rustc_type_ir;
 
 mod conv;
 mod wf;
-
 use std::rc::Rc;
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
@@ -32,7 +31,7 @@ use flux_middle::{
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, WfckResults,
+        self, AssocRefinementMeta, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
@@ -240,14 +239,24 @@ fn assoc_refinements_of(
             trait_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| {
+                    AssocRefinementMeta::new(
+                        FluxDefId::new(local_id.resolved_id(), assoc_reft.name),
+                        assoc_reft.r#final,
+                    )
+                })
                 .collect()
         }
         fhir::ItemKind::Impl(impl_) => {
             impl_
                 .assoc_refinements
                 .iter()
-                .map(|assoc_reft| FluxDefId::new(local_id.resolved_id(), assoc_reft.name))
+                .map(|assoc_reft| {
+                    AssocRefinementMeta::new(
+                        FluxDefId::new(local_id.resolved_id(), assoc_reft.name),
+                        false,
+                    )
+                })
                 .collect()
         }
         _ => Err(query_bug!(local_id.resolved_id(), "expected trait or impl"))?,

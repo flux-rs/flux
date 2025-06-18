@@ -87,7 +87,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let def_id = self.def_id();
         let selcx = &mut self.selcx;
         let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
-        println!("{trait_ref:?}");
         let trait_ref = tcx.erase_regions(trait_ref);
         let trait_pred =
             Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
@@ -98,13 +97,39 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         }
     }
 
+    fn alias_reft_is_final(&mut self, alias_reft: &AliasReft) -> QueryResult<bool> {
+        let reft_id = alias_reft.assoc_id;
+        let assoc_refinements = self.genv().assoc_refinements_of(reft_id.parent())?;
+        Ok(assoc_refinements
+            .items
+            .iter()
+            .find(|meta| meta.def_id == reft_id && meta.r#final)
+            .is_some())
+    }
+
     fn normalize_alias_reft(
         &mut self,
         alias_reft: &AliasReft,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
-        println!("HI FROM NORMALIZE ALIAS REFT: {alias_reft:?}");
-        if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
+        if self.alias_reft_is_final(alias_reft)? {
+            let alias_reft_args = alias_reft.args.try_fold_with(self)?;
+            match self
+                .genv()
+                .default_assoc_refinement_body(alias_reft.assoc_id)?
+            {
+                Some(b) => b,
+                None => bug!("user error - final without default body"), // return Err(QueryErr::Unsupported {
+                                                                         //     def_id: alias_reft.assoc_id.parent(),
+                                                                         //     err: UnsupportedErr::new(UnsupportedReason::from(
+                                                                         //         "Cannot have a final generic associated refinement without a body",
+                                                                         //     )), // .with_span(self.genv() alias_reft.assoc_id.to_def_id()), // note: Add a span?
+                                                                         // });
+            }
+            .instantiate(self.genv().tcx(), &alias_reft_args, &[])
+            .apply(refine_args)
+            .try_fold_with(self)
+        } else if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
             let impl_trait_ref = self
                 .genv()
                 .impl_trait_ref(impl_def_id)?
@@ -119,7 +144,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             }
             self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
-            println!("Unfolding now");
             let args = subst.finish(self.tcx(), generics)?;
             self.genv()
                 .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
@@ -127,7 +151,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 .apply(refine_args)
                 .try_fold_with(self)
         } else {
-            println!("Returning an alias");
             Ok(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }
     }

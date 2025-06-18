@@ -751,9 +751,29 @@ pub struct CoroutineObligPredicate {
     pub output: Ty,
 }
 
+#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
+pub struct AssocRefinementMeta {
+    pub def_id: FluxDefId,
+    pub r#final: bool,
+}
+
+impl AssocRefinementMeta {
+    pub fn new(def_id: FluxDefId, r#final: bool) -> Self {
+        Self { def_id, r#final }
+    }
+
+    pub fn name(&self) -> Symbol {
+        self.def_id.name()
+    }
+
+    pub fn def_id(&self) -> FluxDefId {
+        self.def_id
+    }
+}
+
 #[derive(Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub items: List<FluxDefId>,
+    pub items: List<AssocRefinementMeta>,
 }
 
 impl Default for AssocRefinements {
@@ -764,7 +784,12 @@ impl Default for AssocRefinements {
 
 impl AssocRefinements {
     pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
-        self.items.iter().find(|it| it.name() == name).copied()
+        Some(
+            self.items
+                .into_iter()
+                .find(|it| it.name() == name)?
+                .def_id(),
+        )
     }
 }
 
@@ -2691,6 +2716,7 @@ impl_slice_internable!(
     RefineParam,
     FluxDefId,
     SortParamKind,
+    AssocRefinementMeta
 );
 
 #[macro_export]
