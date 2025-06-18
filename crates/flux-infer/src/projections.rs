@@ -114,21 +114,12 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     ) -> QueryResult<Expr> {
         if self.alias_reft_is_final(alias_reft)? {
             let alias_reft_args = alias_reft.args.try_fold_with(self)?;
-            match self
-                .genv()
+            self.genv()
                 .default_assoc_refinement_body(alias_reft.assoc_id)?
-            {
-                Some(b) => b,
-                None => bug!("user error - final without default body"), // return Err(QueryErr::Unsupported {
-                                                                         //     def_id: alias_reft.assoc_id.parent(),
-                                                                         //     err: UnsupportedErr::new(UnsupportedReason::from(
-                                                                         //         "Cannot have a final generic associated refinement without a body",
-                                                                         //     )), // .with_span(self.genv() alias_reft.assoc_id.to_def_id()), // note: Add a span?
-                                                                         // });
-            }
-            .instantiate(self.genv().tcx(), &alias_reft_args, &[])
-            .apply(refine_args)
-            .try_fold_with(self)
+                .unwrap_or_else(|| bug!("user erorr - final associated refinement without body"))
+                .instantiate(self.genv().tcx(), &alias_reft.args, &[])
+                .apply(refine_args)
+                .try_fold_with(self)
         } else if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
             let impl_trait_ref = self
                 .genv()
