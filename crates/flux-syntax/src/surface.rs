@@ -238,7 +238,7 @@ pub struct TraitAssocReft {
     pub output: BaseSort,
     pub body: Option<Expr>,
     pub span: Span,
-    pub unfold: bool,
+    pub r#final: bool,
 }
 
 #[derive(Debug)]

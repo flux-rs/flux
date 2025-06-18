@@ -59,9 +59,9 @@ impl ParseSess {
         &mut self,
         tokens: &TokenStream,
         span: Span,
-        unfold: bool,
+        r#final: bool,
     ) -> ParseResult<Vec<surface::TraitAssocReft>> {
-        parser::parse_trait_assoc_refts(&mut self.cx(tokens, span), unfold)
+        parser::parse_trait_assoc_refts(&mut self.cx(tokens, span), r#final)
     }
 
     pub fn parse_impl_assoc_reft(

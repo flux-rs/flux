@@ -87,6 +87,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let def_id = self.def_id();
         let selcx = &mut self.selcx;
         let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
+        println!("{trait_ref:?}");
         let trait_ref = tcx.erase_regions(trait_ref);
         let trait_pred =
             Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
