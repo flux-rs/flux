@@ -113,10 +113,11 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
         if self.alias_reft_is_final(alias_reft)? {
-            let alias_reft_args = alias_reft.args.try_fold_with(self)?;
             self.genv()
                 .default_assoc_refinement_body(alias_reft.assoc_id)?
-                .unwrap_or_else(|| bug!("user erorr - final associated refinement without body"))
+                .unwrap_or_else(|| {
+                    bug!("final associated refinement without body - should be caught in desugar")
+                })
                 .instantiate(self.genv().tcx(), &alias_reft.args, &[])
                 .apply(refine_args)
                 .try_fold_with(self)

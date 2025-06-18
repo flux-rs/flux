@@ -131,7 +131,7 @@ pub fn desugar<'genv>(
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
                             owner_id,
                             None,
-                            |cx| Ok(cx.desugar_trait(trait_)),
+                            |cx| cx.desugar_trait(trait_),
                         )?)),
                     );
                 }
