@@ -1237,6 +1237,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
 
             Rvalue::RawPtr(mir::RawPtrKind::FakeForPtrMetadata, place) => {
+                // see tests/tests/neg/surface/slice02.rs for what happens without unfolding here.
+                env.unfold(infcx, place, stmt_span).with_span(stmt_span)?;
                 let ty = env
                     .lookup_place(&mut infcx.at(stmt_span), place)
                     .with_span(stmt_span)?;

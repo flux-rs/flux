@@ -23,7 +23,7 @@
 ///     }
 /// }
 /// ```
-use std::{hash::Hash, sync::LazyLock};
+use std::{fmt, hash::Hash, sync::LazyLock};
 
 use flux_common::tracked_span_bug;
 use flux_infer::infer::ConstrReason;
@@ -69,10 +69,10 @@ struct RuleTable<Op: Eq + Hash, const N: usize> {
     rules: UnordMap<Op, RuleMatcher<N>>,
 }
 
-impl<Op: Eq + Hash, const N: usize> RuleTable<Op, N> {
+impl<Op: Eq + Hash + fmt::Debug, const N: usize> RuleTable<Op, N> {
     fn match_inputs(&self, op: &Op, inputs: [(BaseTy, Expr); N]) -> MatchedRule {
         (self.rules[op])(&inputs)
-            .unwrap_or_else(|| tracked_span_bug!("no primop rule for {inputs:?}"))
+            .unwrap_or_else(|| tracked_span_bug!("no primop rule for {op:?} using {inputs:?}"))
     }
 }
 
