@@ -352,7 +352,7 @@ pub struct TraitAssocReft<'fhir> {
     pub output: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
     pub span: Span,
-    pub r#final: bool,
+    pub final_: bool,
 }
 
 #[derive(Debug)]

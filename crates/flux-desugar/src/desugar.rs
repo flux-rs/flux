@@ -164,7 +164,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let params = self.desugar_refine_params(&assoc_reft.params);
                 let output = self.desugar_base_sort(&assoc_reft.output, None);
                 let body = assoc_reft.body.as_ref().map(|expr| self.desugar_expr(expr));
-                if body.is_none() && assoc_reft.r#final {
+                if body.is_none() && assoc_reft.final_ {
                     Err(self.emit(errors::FinalAssocReftWithoutBody::new(assoc_reft.span)))
                 } else {
                     Ok(fhir::TraitAssocReft {
@@ -173,7 +173,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                         output,
                         body,
                         span: assoc_reft.span,
-                        r#final: assoc_reft.r#final,
+                        final_: assoc_reft.final_,
                     })
                 }
             })

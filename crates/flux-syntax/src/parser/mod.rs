@@ -145,16 +145,16 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
 
 pub(crate) fn parse_trait_assoc_refts(
     cx: &mut ParseCtxt,
-    r#final: bool,
+    final_: bool,
 ) -> ParseResult<Vec<TraitAssocReft>> {
-    until(cx, Tok::Eof, |cx| parse_trait_assoc_reft(cx, r#final))
+    until(cx, Tok::Eof, |cx| parse_trait_assoc_reft(cx, final_))
 }
 
 /// ```text
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ;?
 ///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
 /// ```
-fn parse_trait_assoc_reft(cx: &mut ParseCtxt, r#final: bool) -> ParseResult<TraitAssocReft> {
+fn parse_trait_assoc_reft(cx: &mut ParseCtxt, final_: bool) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
@@ -168,7 +168,7 @@ fn parse_trait_assoc_reft(cx: &mut ParseCtxt, r#final: bool) -> ParseResult<Trai
         None
     };
     let hi = cx.hi();
-    Ok(TraitAssocReft { name, params, output, body, span: cx.mk_span(lo, hi), r#final })
+    Ok(TraitAssocReft { name, params, output, body, span: cx.mk_span(lo, hi), final_ })
 }
 
 pub(crate) fn parse_impl_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<ImplAssocReft>> {

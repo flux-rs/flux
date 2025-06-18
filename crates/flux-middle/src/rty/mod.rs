@@ -752,14 +752,15 @@ pub struct CoroutineObligPredicate {
 }
 
 #[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
-pub struct AssocRefinementMeta {
+pub struct AssocReft {
     pub def_id: FluxDefId,
-    pub r#final: bool,
+    // NOTE: Field is used to denote final associated generic refinements on Traits
+    pub final_: bool,
 }
 
-impl AssocRefinementMeta {
-    pub fn new(def_id: FluxDefId, r#final: bool) -> Self {
-        Self { def_id, r#final }
+impl AssocReft {
+    pub fn new(def_id: FluxDefId, final_: bool) -> Self {
+        Self { def_id, final_ }
     }
 
     pub fn name(&self) -> Symbol {
@@ -773,7 +774,7 @@ impl AssocRefinementMeta {
 
 #[derive(Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub items: List<AssocRefinementMeta>,
+    pub items: List<AssocReft>,
 }
 
 impl Default for AssocRefinements {
@@ -783,6 +784,14 @@ impl Default for AssocRefinements {
 }
 
 impl AssocRefinements {
+    pub fn get(&self, assoc_id: FluxDefId) -> AssocReft {
+        *self
+            .items
+            .into_iter()
+            .find(|it| it.def_id == assoc_id)
+            .unwrap_or_else(|| bug!("caller should guarantee existance of associated refinement"))
+    }
+
     pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
         Some(
             self.items
@@ -2716,7 +2725,7 @@ impl_slice_internable!(
     RefineParam,
     FluxDefId,
     SortParamKind,
-    AssocRefinementMeta
+    AssocReft
 );
 
 #[macro_export]

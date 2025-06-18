@@ -31,7 +31,7 @@ use flux_middle::{
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, AssocRefinementMeta, WfckResults,
+        self, AssocReft, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
@@ -240,9 +240,9 @@ fn assoc_refinements_of(
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    AssocRefinementMeta::new(
+                    AssocReft::new(
                         FluxDefId::new(local_id.resolved_id(), assoc_reft.name),
-                        assoc_reft.r#final,
+                        assoc_reft.final_,
                     )
                 })
                 .collect()
@@ -252,7 +252,7 @@ fn assoc_refinements_of(
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    AssocRefinementMeta::new(
+                    AssocReft::new(
                         FluxDefId::new(local_id.resolved_id(), assoc_reft.name),
                         false,
                     )

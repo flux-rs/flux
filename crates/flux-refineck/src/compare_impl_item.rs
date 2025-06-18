@@ -29,6 +29,9 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         if !impl_names.contains(&trait_assoc_meta.name()) && !has_default {
             let span = genv.tcx().def_span(impl_id);
             Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_meta.name())))?;
+        } else if impl_names.contains(&trait_assoc_meta.name()) && trait_assoc_meta.final_ {
+            let span = genv.tcx().def_span(impl_id);
+            Err(genv.emit(errors::ImplAssocReftOnFinal::new(span, trait_assoc_meta.name())))?;
         }
     }
 
@@ -153,6 +156,20 @@ pub(crate) mod errors {
     }
 
     impl MissingAssocReft {
+        pub(crate) fn new(span: Span, name: Symbol) -> Self {
+            Self { span, name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_impl_assoc_reft_final, code = E0999)]
+    pub struct ImplAssocReftOnFinal {
+        #[primary_span]
+        span: Span,
+        name: Symbol,
+    }
+
+    impl ImplAssocReftOnFinal {
         pub(crate) fn new(span: Span, name: Symbol) -> Self {
             Self { span, name }
         }

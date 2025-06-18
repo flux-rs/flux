@@ -100,11 +100,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
     fn alias_reft_is_final(&mut self, alias_reft: &AliasReft) -> QueryResult<bool> {
         let reft_id = alias_reft.assoc_id;
         let assoc_refinements = self.genv().assoc_refinements_of(reft_id.parent())?;
-        Ok(assoc_refinements
-            .items
-            .iter()
-            .find(|meta| meta.def_id == reft_id && meta.r#final)
-            .is_some())
+        Ok(assoc_refinements.get(reft_id).final_)
     }
 
     fn normalize_alias_reft(
