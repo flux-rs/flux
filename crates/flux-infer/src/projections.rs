@@ -102,6 +102,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         alias_reft: &AliasReft,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
+        println!("HI FROM NORMALIZE ALIAS REFT: {alias_reft:?}");
         if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
             let impl_trait_ref = self
                 .genv()
@@ -117,6 +118,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             }
             self.resolve_projection_predicates(&mut subst, impl_def_id)?;
 
+            println!("Unfolding now");
             let args = subst.finish(self.tcx(), generics)?;
             self.genv()
                 .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
@@ -124,6 +126,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 .apply(refine_args)
                 .try_fold_with(self)
         } else {
+            println!("Returning an alias");
             Ok(Expr::alias(alias_reft.clone(), refine_args.clone()))
         }
     }
