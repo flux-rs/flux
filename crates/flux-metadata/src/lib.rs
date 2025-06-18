@@ -314,14 +314,15 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .insert(key, genv.refinement_generics_of(def_id));
                 let assocs = genv.assoc_refinements_of(def_id);
                 if let Ok(assocs) = &assocs {
-                    for assoc_id in &assocs.items {
-                        let key = assoc_id_to_key(*assoc_id);
+                    for assoc_reft in &assocs.items {
+                        let def_id = assoc_reft.def_id();
+                        let key = assoc_id_to_key(def_id);
                         tables
                             .default_assoc_refinements_def
-                            .insert(key, genv.default_assoc_refinement_body(*assoc_id));
+                            .insert(key, genv.default_assoc_refinement_body(def_id));
                         tables
                             .sort_of_assoc_reft
-                            .insert(key, genv.sort_of_assoc_reft(*assoc_id));
+                            .insert(key, genv.sort_of_assoc_reft(def_id));
                     }
                 }
                 tables.assoc_refinements_of.insert(key, assocs);
@@ -336,14 +337,15 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 if of_trait {
                     let assocs = genv.assoc_refinements_of(def_id);
                     if let Ok(assocs) = &assocs {
-                        for assoc_id in &assocs.items {
-                            let key = assoc_id_to_key(*assoc_id);
+                        for assoc_reft in &assocs.items {
+                            let def_id = assoc_reft.def_id();
+                            let key = assoc_id_to_key(def_id);
                             tables
                                 .assoc_refinements_def
-                                .insert(key, genv.assoc_refinement_body(*assoc_id));
+                                .insert(key, genv.assoc_refinement_body(def_id));
                             tables
                                 .sort_of_assoc_reft
-                                .insert(key, genv.sort_of_assoc_reft(*assoc_id));
+                                .insert(key, genv.sort_of_assoc_reft(def_id));
                         }
                     }
                     tables.assoc_refinements_of.insert(key, assocs);

@@ -97,12 +97,27 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         }
     }
 
+    fn alias_reft_is_final(&mut self, alias_reft: &AliasReft) -> QueryResult<bool> {
+        let reft_id = alias_reft.assoc_id;
+        let assoc_refinements = self.genv().assoc_refinements_of(reft_id.parent())?;
+        Ok(assoc_refinements.get(reft_id).final_)
+    }
+
     fn normalize_alias_reft(
         &mut self,
         alias_reft: &AliasReft,
         refine_args: &RefineArgs,
     ) -> QueryResult<Expr> {
-        if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
+        if self.alias_reft_is_final(alias_reft)? {
+            self.genv()
+                .default_assoc_refinement_body(alias_reft.assoc_id)?
+                .unwrap_or_else(|| {
+                    bug!("final associated refinement without body - should be caught in desugar")
+                })
+                .instantiate(self.genv().tcx(), &alias_reft.args, &[])
+                .apply(refine_args)
+                .try_fold_with(self)
+        } else if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
             let impl_trait_ref = self
                 .genv()
                 .impl_trait_ref(impl_def_id)?

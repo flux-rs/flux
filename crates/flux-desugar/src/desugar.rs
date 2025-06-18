@@ -137,34 +137,49 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(r)
     }
 
-    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> fhir::Item<'genv> {
+    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
         let generics = if let Some(generics) = &trait_.generics {
             self.desugar_generics(generics)
         } else {
             self.lift_generics()
         };
-        let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements);
+        let assoc_refinements = self.desugar_trait_assoc_refts(&trait_.assoc_refinements)?;
         let trait_ = fhir::Trait { assoc_refinements };
 
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", &trait_).unwrap();
         }
 
-        fhir::Item { generics, kind: fhir::ItemKind::Trait(trait_), owner_id: self.owner }
+        Ok(fhir::Item { generics, kind: fhir::ItemKind::Trait(trait_), owner_id: self.owner })
     }
 
     fn desugar_trait_assoc_refts(
         &mut self,
         assoc_refts: &[surface::TraitAssocReft],
-    ) -> &'genv [fhir::TraitAssocReft<'genv>] {
-        self.genv()
-            .alloc_slice_fill_iter(assoc_refts.iter().map(|assoc_reft| {
+    ) -> Result<&'genv [fhir::TraitAssocReft<'genv>]> {
+        let iter = assoc_refts
+            .iter()
+            .map(|assoc_reft| {
                 let name = assoc_reft.name.name;
                 let params = self.desugar_refine_params(&assoc_reft.params);
                 let output = self.desugar_base_sort(&assoc_reft.output, None);
                 let body = assoc_reft.body.as_ref().map(|expr| self.desugar_expr(expr));
-                fhir::TraitAssocReft { name, params, output, body, span: assoc_reft.span }
-            }))
+                if body.is_none() && assoc_reft.final_ {
+                    Err(self.emit(errors::FinalAssocReftWithoutBody::new(assoc_reft.span)))
+                } else {
+                    Ok(fhir::TraitAssocReft {
+                        name,
+                        params,
+                        output,
+                        body,
+                        span: assoc_reft.span,
+                        final_: assoc_reft.final_,
+                    })
+                }
+            })
+            .try_collect_vec()?
+            .into_iter();
+        Ok(self.genv().alloc_slice_fill_iter(iter))
     }
 
     pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> fhir::Item<'genv> {

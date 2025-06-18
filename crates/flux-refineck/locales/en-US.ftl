@@ -68,3 +68,6 @@ refineck_invalid_assoc_reft =
 
 refineck_missing_assoc_reft =
     associated refinement `{$name}` is missing from implementation
+
+refineck_impl_assoc_reft_final = 
+    associated refinement `{$name}` is final and should not be implemented anywhere other than the trait definition
