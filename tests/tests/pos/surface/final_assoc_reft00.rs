@@ -1,5 +1,5 @@
 #[flux::assoc(fn f1() -> bool)]
-#[flux::final_assoc(fn f2() -> bool { <Self as Foo>::f1() })]
+#[flux::assoc(final fn f2() -> bool { <Self as Foo>::f1() })]
 trait Foo {
     #[flux::spec(fn () -> bool[<Self as Foo>::f1()])]
     fn get_bool() -> bool;

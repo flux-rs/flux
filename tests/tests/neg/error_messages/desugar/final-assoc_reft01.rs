@@ -1,4 +1,4 @@
-#[flux::final_assoc(fn foo() -> bool { true })] 
+#[flux::assoc(final fn foo() -> bool { true })] 
 #[flux::assoc(fn baz() -> bool)] 
 pub trait MyTrait {}
 

@@ -143,19 +143,19 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     Ok(SortDecl { name })
 }
 
-pub(crate) fn parse_trait_assoc_refts(
-    cx: &mut ParseCtxt,
-    final_: bool,
-) -> ParseResult<Vec<TraitAssocReft>> {
-    until(cx, Tok::Eof, |cx| parse_trait_assoc_reft(cx, final_))
+pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {
+    until(cx, Tok::Eof, parse_trait_assoc_reft)
 }
 
 /// ```text
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ;?
 ///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
+///                     | final fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
 /// ```
-fn parse_trait_assoc_reft(cx: &mut ParseCtxt, final_: bool) -> ParseResult<TraitAssocReft> {
+fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
+    // let final_ = cx.advance_if(Tok::Final);
+    let final_ = cx.advance_if("final");
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;

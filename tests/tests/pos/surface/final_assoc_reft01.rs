@@ -4,7 +4,7 @@ trait Baz {
     fn into_bool(self) -> bool;
 }
 
-#[flux::final_assoc(fn f2() -> bool { <T as Baz>::f1() })]
+#[flux::assoc(final fn f2() -> bool { <T as Baz>::f1() })]
 trait Foo<T: Baz> {}
 
 struct Bar<T: Baz, F: Foo<T>> {

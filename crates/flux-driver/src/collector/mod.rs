@@ -424,19 +424,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("sig" | "spec", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_fn_sig, FluxAttrKind::FnSig)?
             }
-            ("assoc" | "reft" | "final_assoc", hir::AttrArgs::Delimited(dargs)) => {
+            ("assoc" | "reft", hir::AttrArgs::Delimited(dargs)) => {
                 match def_kind {
                     DefKind::Trait => {
                         self.parse(
                             dargs,
-                            |parser: &mut ParseSess, toks: &TokenStream, span: Span| {
-                                ParseSess::parse_trait_assoc_reft(
-                                    parser,
-                                    toks,
-                                    span,
-                                    segment.as_str() == "final_assoc",
-                                )
-                            },
+                            ParseSess::parse_trait_assoc_reft,
                             FluxAttrKind::TraitAssocReft,
                         )?
                     }
