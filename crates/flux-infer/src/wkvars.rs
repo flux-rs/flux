@@ -20,7 +20,7 @@ use flux_middle::{
 };
 use liquid_fixpoint::SmtSolver;
 use rustc_hir::def_id::LocalDefId;
-use rustc_data_structures::fx::FxHashSet;
+use rustc_data_structures::{fx::FxHashSet, snapshot_map::SnapshotMap};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::{
@@ -290,7 +290,6 @@ pub fn iterative_solve(
                             match solutions.solutions.entry(wkvar.wkvid) {
                                 Entry::Occupied(mut entry) => {
                                     assert!(entry.get().vars() == instantiation.vars());
-                                    println!("assertion passed");
                                     entry.get_mut().skip_binder_ref_mut().insert(instantiation.skip_binder());
                                 }
                                 Entry::Vacant(entry) => {
@@ -345,9 +344,19 @@ pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
         if au_map.get(&blame_ctx.expr).is_some() {
             continue;
         }
+        for (e1, e2) in au_map.iter() {
+            match (e1.kind(), e2.kind()) {
+                (rty::ExprKind::Var(..), rty::ExprKind::Var(..)) => {},
+                _ => continue,
+            }
+        }
         // build a conjunction of equalities between each au pair.
-        let conjs = au_map.into_iter().map(|(e1, e2)| rty::Expr::eq(e1, e2));
+        let conjs = au_map.into_iter().map(|(e1, e2)| rty::Expr::eq(e1, e2)).collect_vec();
         candidates.push(rty::Expr::and_from_iter(conjs));
     }
+    candidates.retain_mut(|expr| {
+        expr.simplify(&SnapshotMap::default());
+        !(expr.is_trivially_false() || expr.is_trivially_true())
+    });
     return candidates;
 }
