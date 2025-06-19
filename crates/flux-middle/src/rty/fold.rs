@@ -235,7 +235,7 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectEarlyParams(FxHashSet::default());
-        self.visit_with(&mut collector);
+        let _ = self.visit_with(&mut collector);
         collector.0
     }
 }
