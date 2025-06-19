@@ -3,15 +3,16 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::{fixpoint_encoding::FixQueryCache, refine_tree, wkvars::Constraints};
+use flux_infer::{fixpoint_encoding::FixQueryCache, refine_tree, wkvars::{Constraints, WKVarSubst}};
 use flux_metadata::CStore;
 use flux_middle::{
-    Specs,
     def_id::MaybeExternId,
-    fhir,
+fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     timings,
+    rty::{self, fold::{TypeFolder, TypeVisitable}},
+Specs,
 };
 use flux_refineck::{self as refineck, report_fixpoint_errors};
 use itertools::Itertools;
@@ -103,7 +104,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("-----------------------");
         println!("Starting solution loop.");
 
-        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 15)
+        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 5)
         {
             Ok((solution, errors)) => (solution, errors),
             Err(e) => panic!("Encountered error {:?}", e),
@@ -114,7 +115,12 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         for (wkvid, bound_exprs) in &solution.solutions {
             let fn_name = genv.tcx().def_path_str(wkvid.0);
             println!("wkvar {} for {}:", wkvid.1.as_usize(), fn_name);
-            println!("  {:?}", bound_exprs.map_ref(|exprs| exprs.iter().map(|expr| format!("{:?}", expr)).join(" && ")));
+
+            let fn_sig = genv.fn_sig(wkvid.0).unwrap();
+            let solution = bound_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
+            let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(*wkvid, solution)].into() };
+            let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
+            format!("  {:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig))
         }
         if let Some((local_id, _)) = errors.last().clone() {
             let local_id = *local_id;
