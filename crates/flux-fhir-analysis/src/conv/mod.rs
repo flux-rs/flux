@@ -19,7 +19,7 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, ESpan, INNERMOST, List, RefineArgsExt, WfckResults,
+        self, BoundReftKind, ESpan, INNERMOST, List, RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
     },
@@ -32,7 +32,7 @@ use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashSet;
-use rustc_hir::{OwnerId, Safety, def::DefKind, def_id::DefId};
+use rustc_hir::{self as hir, BodyId, OwnerId, Safety, def::DefKind, def_id::DefId};
 use rustc_index::IndexVec;
 use rustc_middle::{
     middle::resolve_bound_vars::ResolvedArg,
@@ -649,7 +649,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
-        let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl)?;
+        let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
+        let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id)?;
 
         let vars = late_bound_regions
             .iter()
@@ -786,7 +787,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Sort::Loc => rty::Sort::Loc,
             fhir::Sort::Func(fsort) => rty::Sort::Func(self.conv_poly_func_sort(fsort)?),
             fhir::Sort::SortOf(bty) => {
-                let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(&mut Env::empty(), bty)? else {
+                let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(&mut Env::empty(), bty, None)?
+                else {
                     // FIXME: maybe we should have a dedicated error for this
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
@@ -933,6 +935,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         safety: Safety,
         abi: rustc_abi::ExternAbi,
         decl: &fhir::FnDecl,
+        body_id: Option<BodyId>,
     ) -> QueryResult<rty::FnSig> {
         let mut requires = vec![];
         for req in decl.requires {
@@ -940,8 +943,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
 
         let mut inputs = vec![];
-        for ty in decl.inputs {
-            inputs.push(self.conv_ty(env, ty)?);
+        let params =
+            if let Some(body_id) = body_id { self.tcx().hir_body(body_id).params } else { &[] };
+        for (i, ty) in decl.inputs.iter().enumerate() {
+            let ty = if let Some(param) = params.get(i)
+                && let hir::PatKind::Binding(_, _, ident, _) = param.pat.kind
+            {
+                self.conv_ty_with_name(env, ty, ident.name)?
+            } else {
+                self.conv_ty(env, ty)?
+            };
+            inputs.push(ty);
         }
 
         let output = self.conv_fn_output(env, &decl.output)?;
@@ -1143,12 +1155,25 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .find_by_ident_and_kind(self.tcx(), assoc_name, assoc_tag, trait_def_id)
     }
 
+    fn conv_ty_with_name(
+        &mut self,
+        env: &mut Env,
+        ty: &fhir::Ty,
+        name: Symbol,
+    ) -> QueryResult<rty::Ty> {
+        if let fhir::TyKind::BaseTy(bty) = &ty.kind {
+            Ok(self.conv_bty(env, bty, Some(name))?.to_ty())
+        } else {
+            self.conv_ty(env, ty)
+        }
+    }
+
     fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty)?.to_ty()),
+            fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty, None)?.to_ty()),
             fhir::TyKind::Indexed(bty, idx) => {
                 let fhir_id = bty.fhir_id;
-                let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty)? else {
+                let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty, None)? else {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
                 let idx = self.conv_expr(env, idx)?;
@@ -1183,7 +1208,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     &[],
                 ));
                 let fn_sig =
-                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl)?;
+                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl, None)?;
                 let vars = bare_fn
                     .generic_params
                     .iter()
@@ -1363,10 +1388,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         env: &mut Env,
         bty: &fhir::BaseTy,
+        name: Option<Symbol>,
     ) -> QueryResult<rty::TyOrCtor> {
         match &bty.kind {
             fhir::BaseTyKind::Path(fhir::QPath::Resolved(qself, path)) => {
-                self.conv_qpath(env, *qself, path)
+                self.conv_qpath(env, *qself, path, name)
             }
             fhir::BaseTyKind::Path(fhir::QPath::TypeRelative(qself, segment)) => {
                 let qself_res =
@@ -1586,6 +1612,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env: &mut Env,
         qself: Option<&fhir::Ty>,
         path: &fhir::Path,
+        name: Option<Symbol>,
     ) -> QueryResult<rty::TyOrCtor> {
         let bty = match path.res {
             fhir::Res::PrimTy(prim_ty) => {
@@ -1696,7 +1723,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         };
         let sort = bty.sort();
         let bty = bty.shift_in_escaping(1);
-        let ctor = rty::Binder::bind_with_sort(rty::Ty::indexed(bty, rty::Expr::nu()), sort);
+        let kind = match name {
+            Some(name) => BoundReftKind::Named(name),
+            None => BoundReftKind::Annon,
+        };
+        let var = rty::BoundVariableKind::Refine(sort, rty::InferMode::EVar, kind);
+        let ctor = rty::Binder::bind_with_vars(
+            rty::Ty::indexed(bty, rty::Expr::nu()),
+            List::singleton(var),
+        );
         Ok(rty::TyOrCtor::Ctor(ctor))
     }
 

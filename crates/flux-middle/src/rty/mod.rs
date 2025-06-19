@@ -789,7 +789,7 @@ impl AssocRefinements {
             .items
             .into_iter()
             .find(|it| it.def_id == assoc_id)
-            .unwrap_or_else(|| bug!("caller should guarantee existance of associated refinement"))
+            .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
     }
 
     pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
