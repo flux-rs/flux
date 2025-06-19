@@ -270,6 +270,9 @@ fn mk_rem_rules() -> RuleMatcher<2> {
                                    E::eq(v, E::binary_op(Mod(Sort::Int), a, b))) }
         requires E::ne(b, 0) => ConstrReason::Rem
         if T.is_signed()
+
+        fn (a: T, b: T) -> T
+        if T.is_float()
     }
 }
 
