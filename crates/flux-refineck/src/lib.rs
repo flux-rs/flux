@@ -37,7 +37,7 @@ use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{self, BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
-    wkvars::{Constraints, Order, WKVarInstantiator, WKVarSubst, find_solution_candidates},
+    wkvars::{Constraints, WKVarInstantiator, WKVarSubst, find_solution_candidates},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -288,7 +288,7 @@ fn report_errors(
             .flat_map(|wkvar| {
                 // Try to instantiate it to each candidate
                 solution_candidates.iter().flat_map(|expr| {
-                    WKVarInstantiator::try_instantiate_wkvar(wkvar, expr, Order::Forward)
+                    WKVarInstantiator::try_instantiate_wkvar(wkvar, expr)
                         .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
                 })
             })
@@ -503,7 +503,7 @@ fn add_fn_fix_diagnostic<'a>(
     diag.subdiagnostic(errors::WKVarFnFix {
         span: fn_span,
         fn_name,
-        fix: format!("{:?}", solved_fn_sig),
+        fix: format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)),
     });
 }
 

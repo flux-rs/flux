@@ -120,8 +120,13 @@ impl<T> Binder<T> {
         self.value
     }
 
+    // NOTE: if we use .as_ref() there is an unnecessary clone done
     pub fn skip_binder_ref(&self) -> &T {
-        self.as_ref().skip_binder()
+        &self.value
+    }
+
+    pub fn skip_binder_ref_mut(&mut self) -> &mut T {
+        &mut self.value
     }
 
     pub fn rebind<U>(&self, value: U) -> Binder<U> {
