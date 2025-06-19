@@ -83,16 +83,6 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
     }
 }
 
-pub enum Order {
-    /// Replace all occurrences of a wkvar's arg with its respective param
-    /// (used for creating a solution that can be put in place of this wkvar)
-    Forward,
-    /// Replace all occurrences of a wkvar's param with its respective arg
-    /// (used for taking an expression that uses the wkvar's original params
-    ///  but needs to stand for it in its current location)
-    Backward,
-}
-
 impl WKVarInstantiator<'_> {
     /// If it succeeds: creates an expression that can replace the weak kvar,
     /// which when used as a refinement will produce the original expr in this
@@ -104,7 +94,6 @@ impl WKVarInstantiator<'_> {
     pub fn try_instantiate_wkvar(
         wkvar: &rty::WKVar,
         expr: &rty::Expr,
-        order: Order,
     ) -> Option<rty::Binder<rty::Expr>> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
@@ -116,15 +105,6 @@ impl WKVarInstantiator<'_> {
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
         });
-        match order {
-            Order::Backward => {
-                args_to_param = args_to_param
-                    .into_iter()
-                    .map(|(arg, param)| (param, arg))
-                    .collect();
-            }
-            Order::Forward => {}
-        }
         let mut instantiator = WKVarInstantiator {
             args_to_param: &args_to_param,
             memo: &mut HashMap::new(),
@@ -220,7 +200,7 @@ impl<'a> ProductEtaExpander<'a> {
         expr_to_eta_expansion: &'a mut HashMap<rty::Expr, rty::Expr>,
     ) {
         let mut expander = ProductEtaExpander { current_path, expr_to_eta_expansion };
-        expr.visit_with(&mut expander);
+        let _ = expr.visit_with(&mut expander);
     }
 }
 
@@ -303,7 +283,6 @@ pub fn iterative_solve(
                         if let Some(instantiation) = WKVarInstantiator::try_instantiate_wkvar(
                             wkvar,
                             solution_candidate,
-                            Order::Forward,
                         ) {
                             // println!("Adding an instantiation for wkvar {:?}:", wkvar);
                             // println!("  {:?}", instantiation);
@@ -311,7 +290,8 @@ pub fn iterative_solve(
                             match solutions.solutions.entry(wkvar.wkvid) {
                                 Entry::Occupied(mut entry) => {
                                     assert!(entry.get().vars() == instantiation.vars());
-                                    entry.get_mut().to_owned().map(|mut bound_es| bound_es.insert(instantiation.skip_binder()));
+                                    println!("assertion passed");
+                                    entry.get_mut().skip_binder_ref_mut().insert(instantiation.skip_binder());
                                 }
                                 Entry::Vacant(entry) => {
                                     entry.insert(instantiation.map(|bound_e| {
