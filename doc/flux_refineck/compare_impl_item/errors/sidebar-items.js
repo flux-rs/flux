@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["IncompatibleSort","InvalidAssocReft","MissingAssocReft"]};
+window.SIDEBAR_ITEMS = {"struct":["ImplAssocReftOnFinal","IncompatibleSort","InvalidAssocReft","MissingAssocReft"]};
