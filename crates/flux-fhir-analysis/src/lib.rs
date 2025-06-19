@@ -38,11 +38,12 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_abi::FIRST_VARIANT;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
-    def::DefKind,
+    def::{CtorOf, DefKind},
     def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 
@@ -552,49 +553,56 @@ fn variants_of(
 
 fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     let def_id = genv.maybe_extern_id(def_id);
-    let fhir_fn_sig = match genv.map().node(def_id.local_id())? {
-        fhir::Node::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
-        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
-        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
-        | fhir::Node::ForeignItem(ForeignItem { kind: ForeignItemKind::Fn(fn_sig, ..), .. }) => {
-            Some(fn_sig)
+    match genv.map().node(def_id.local_id())? {
+        fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
+        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
+        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
+        | fhir::Node::ForeignItem(ForeignItem {
+            kind: ForeignItemKind::Fn(fhir_fn_sig, ..), ..
+        }) => {
+            let wfckresults = genv.check_wf(def_id.local_id())?;
+            let fn_sig = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_fn_sig(def_id, fhir_fn_sig)?;
+            let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
+            let fn_sig = fn_sig.hoist_input_binders();
+
+            if config::dump_rty() {
+                let generics = genv.generics_of(def_id)?;
+                let refinement_generics = genv.refinement_generics_of(def_id)?;
+                dbg::dump_item_info(
+                    genv.tcx(),
+                    def_id.resolved_id(),
+                    "rty",
+                    (generics, refinement_generics, &fn_sig),
+                )
+                .unwrap();
+            }
+            Ok(rty::EarlyBinder(fn_sig))
         }
         fhir::Node::Ctor => {
             let tcx = genv.tcx();
-            let variant_id = tcx.parent(def_id.resolved_id());
-            let enum_id = tcx.parent(variant_id);
-            let variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
+            let (adt_id, variant_idx) = match tcx.def_kind(def_id) {
+                DefKind::Ctor(CtorOf::Struct, _) => {
+                    let struct_id = tcx.parent(def_id.resolved_id());
+                    (struct_id, FIRST_VARIANT)
+                }
+                DefKind::Ctor(CtorOf::Variant, _) => {
+                    let variant_id = tcx.parent(def_id.resolved_id());
+                    let enum_id = tcx.parent(variant_id);
+                    let variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
+                    (enum_id, variant_idx)
+                }
+                _ => return Err(query_bug!("invalid `DefKind` for ctor node")),
+            };
             let sig = genv
-                .variant_sig(enum_id, variant_idx)?
+                .variant_sig(adt_id, variant_idx)?
                 .map(|sig| sig.to_poly_fn_sig(None))
-                .ok_or_else(|| query_bug!("non-transparent enum {enum_id:?} at {variant_idx:?}"))?;
-            return Ok(sig);
+                .ok_or_else(|| query_bug!("non-transparent adt {adt_id:?} at {variant_idx:?}"))?;
+            Ok(sig)
         }
-        _ => None,
-    };
-    let Some(fhir_fn_sig) = fhir_fn_sig else {
-        Err(query_bug!(def_id.local_id(), "expected fn item"))?
-    };
-
-    let wfckresults = genv.check_wf(def_id.local_id())?;
-    let fn_sig = AfterSortck::new(genv, &wfckresults)
-        .into_conv_ctxt()
-        .conv_fn_sig(def_id, fhir_fn_sig)?;
-    let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-    let fn_sig = fn_sig.hoist_input_binders();
-
-    if config::dump_rty() {
-        let generics = genv.generics_of(def_id)?;
-        let refinement_generics = genv.refinement_generics_of(def_id)?;
-        dbg::dump_item_info(
-            genv.tcx(),
-            def_id.resolved_id(),
-            "rty",
-            (generics, refinement_generics, &fn_sig),
-        )
-        .unwrap();
+        node => Err(query_bug!("fn_sig called on unsupported node {node:?}")),
     }
-    Ok(rty::EarlyBinder(fn_sig))
 }
 
 fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>> {
