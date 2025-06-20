@@ -38,7 +38,7 @@ impl Callbacks for FluxCallbacks {
     }
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
-        timings::enter(tcx, || self.verify(compiler, tcx));
+        self.verify(compiler, tcx);
         if config::full_compilation() { Compilation::Continue } else { Compilation::Stop }
     }
 }
@@ -63,7 +63,8 @@ impl FluxCallbacks {
         let cstore = CStore::load(tcx, &sess);
         let arena = fhir::Arena::new();
         GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-            if check_crate(genv).is_ok() {
+            let result = timings::enter(tcx, || check_crate(genv));
+            if result.is_ok() {
                 encode_and_save_metadata(genv);
             }
         });
