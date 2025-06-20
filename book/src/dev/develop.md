@@ -1,5 +1,16 @@
 # Developer's Guide
 
+## Backtraces
+
+You can use the usual `RUST_BACKTRACE=1` environment variable to enable backtraces.
+With the regular `release` build (`cargo x install`) you get some backtraces, but
+the `dev` build, which you can install as shown below, gives more information e.g.
+the source-spans of various calls in the backtrace.
+
+```sh
+$ cargo x install --profile dev
+```
+
 ## Regression Tests
 
 You can run the various regression tests in the `tests/pos` and `tests/neg` directories using

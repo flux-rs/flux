@@ -246,7 +246,7 @@ pub fn desugar<'genv>(
             if let Some(ident) = node.ident() {
                 span_bug!(ident.span, "unsupported node: {node:?}");
             } else {
-                bug!("unsupported node: {node:?}");
+                bug!("unsupported node: {node:?} for {def_id:?}");
             }
         }
     }

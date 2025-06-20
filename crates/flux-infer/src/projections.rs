@@ -285,8 +285,9 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                     .in_definition_order()
                     .find(|item| item.trait_item_def_id == Some(obligation.def_id))
                     .map(|item| item.def_id)
-                    .unwrap();
-
+                    .ok_or_else(|| {
+                        query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
+                    })?;
                 Ok(self
                     .genv()
                     .type_of(assoc_type_id)?
