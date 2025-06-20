@@ -1054,7 +1054,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 &alias_ty.refine_args,
             );
             for clause in &bounds {
-                if clause.kind().vars().len() > 0 {
+                if !clause.kind().vars().is_empty() {
                     Err(query_bug!("handle_opaque_types: clause with bound vars: `{clause:?}`"))?;
                 }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {

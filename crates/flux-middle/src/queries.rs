@@ -301,11 +301,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             Ok(nodes) => {
                 let mut cache = self.desugar.borrow_mut();
                 cache.extend_unord(nodes.into_items().map(|(def_id, node)| (def_id, Ok(node))));
-                if let Some(res) = cache.get(&def_id) {
-                    res.clone()
-                } else {
+                let Some(res) = cache.get(&def_id) else {
                     tracked_span_bug!("cannot desugar {def_id:?}")
-                }
+                };
+                res.clone()
             }
             Err(err) => {
                 self.desugar.borrow_mut().insert(def_id, Err(err.clone()));
