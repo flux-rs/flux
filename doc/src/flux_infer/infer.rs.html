@@ -1054,69 +1054,72 @@
 <a href=#1054 id=1054 data-nosnippet>1054</a>                <span class="kw-2">&amp;</span>alias_ty.refine_args,
 <a href=#1055 id=1055 data-nosnippet>1055</a>            );
 <a href=#1056 id=1056 data-nosnippet>1056</a>            <span class="kw">for </span>clause <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
-<a href=#1057 id=1057 data-nosnippet>1057</a>                <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
-<a href=#1058 id=1058 data-nosnippet>1058</a>                    <span class="kw">let </span>alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
-<a href=#1059 id=1059 data-nosnippet>1059</a>                    <span class="kw">let </span>ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
-<a href=#1060 id=1060 data-nosnippet>1060</a>                        .to_ty()
-<a href=#1061 id=1061 data-nosnippet>1061</a>                        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(<span class="self">self</span>.span))<span class="question-mark">?</span>;
-<a href=#1062 id=1062 data-nosnippet>1062</a>                    <span class="kw">let </span>ty2 = pred.term.to_ty();
-<a href=#1063 id=1063 data-nosnippet>1063</a>                    <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
-<a href=#1064 id=1064 data-nosnippet>1064</a>                }
-<a href=#1065 id=1065 data-nosnippet>1065</a>            }
-<a href=#1066 id=1066 data-nosnippet>1066</a>        }
-<a href=#1067 id=1067 data-nosnippet>1067</a>        <span class="prelude-val">Ok</span>(())
-<a href=#1068 id=1068 data-nosnippet>1068</a>    }
-<a href=#1069 id=1069 data-nosnippet>1069</a>}
-<a href=#1070 id=1070 data-nosnippet>1070</a>
-<a href=#1071 id=1071 data-nosnippet>1071</a><span class="kw">fn </span>mk_coroutine_obligations(
-<a href=#1072 id=1072 data-nosnippet>1072</a>    genv: GlobalEnv,
-<a href=#1073 id=1073 data-nosnippet>1073</a>    generator_did: <span class="kw-2">&amp;</span>DefId,
-<a href=#1074 id=1074 data-nosnippet>1074</a>    resume_ty: <span class="kw-2">&amp;</span>Ty,
-<a href=#1075 id=1075 data-nosnippet>1075</a>    upvar_tys: <span class="kw-2">&amp;</span>List&lt;Ty&gt;,
-<a href=#1076 id=1076 data-nosnippet>1076</a>    opaque_def_id: <span class="kw-2">&amp;</span>DefId,
-<a href=#1077 id=1077 data-nosnippet>1077</a>) -&gt; InferResult&lt;Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;&gt; {
-<a href=#1078 id=1078 data-nosnippet>1078</a>    <span class="kw">let </span>bounds = genv.item_bounds(<span class="kw-2">*</span>opaque_def_id)<span class="question-mark">?</span>.skip_binder();
-<a href=#1079 id=1079 data-nosnippet>1079</a>    <span class="kw">for </span>bound <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
-<a href=#1080 id=1080 data-nosnippet>1080</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(proj_clause) = bound.as_projection_clause() {
-<a href=#1081 id=1081 data-nosnippet>1081</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[proj_clause.map(|proj_clause| {
-<a href=#1082 id=1082 data-nosnippet>1082</a>                <span class="kw">let </span>output = proj_clause.term;
-<a href=#1083 id=1083 data-nosnippet>1083</a>                CoroutineObligPredicate {
-<a href=#1084 id=1084 data-nosnippet>1084</a>                    def_id: <span class="kw-2">*</span>generator_did,
-<a href=#1085 id=1085 data-nosnippet>1085</a>                    resume_ty: resume_ty.clone(),
-<a href=#1086 id=1086 data-nosnippet>1086</a>                    upvar_tys: upvar_tys.clone(),
-<a href=#1087 id=1087 data-nosnippet>1087</a>                    output: output.to_ty(),
-<a href=#1088 id=1088 data-nosnippet>1088</a>                }
-<a href=#1089 id=1089 data-nosnippet>1089</a>            })]);
-<a href=#1090 id=1090 data-nosnippet>1090</a>        }
-<a href=#1091 id=1091 data-nosnippet>1091</a>    }
-<a href=#1092 id=1092 data-nosnippet>1092</a>    <span class="macro">bug!</span>(<span class="string">"no projection predicate"</span>)
-<a href=#1093 id=1093 data-nosnippet>1093</a>}
-<a href=#1094 id=1094 data-nosnippet>1094</a>
-<a href=#1095 id=1095 data-nosnippet>1095</a><span class="attr">#[derive(Debug)]
-<a href=#1096 id=1096 data-nosnippet>1096</a></span><span class="kw">pub enum </span>InferErr {
-<a href=#1097 id=1097 data-nosnippet>1097</a>    UnsolvedEvar(EVid),
-<a href=#1098 id=1098 data-nosnippet>1098</a>    OpaqueStruct(DefId),
-<a href=#1099 id=1099 data-nosnippet>1099</a>    Query(QueryErr),
-<a href=#1100 id=1100 data-nosnippet>1100</a>}
-<a href=#1101 id=1101 data-nosnippet>1101</a>
-<a href=#1102 id=1102 data-nosnippet>1102</a><span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>InferErr {
-<a href=#1103 id=1103 data-nosnippet>1103</a>    <span class="kw">fn </span>from(v: QueryErr) -&gt; <span class="self">Self </span>{
-<a href=#1104 id=1104 data-nosnippet>1104</a>        <span class="self">Self</span>::Query(v)
-<a href=#1105 id=1105 data-nosnippet>1105</a>    }
-<a href=#1106 id=1106 data-nosnippet>1106</a>}
-<a href=#1107 id=1107 data-nosnippet>1107</a>
-<a href=#1108 id=1108 data-nosnippet>1108</a><span class="kw">mod </span>pretty {
-<a href=#1109 id=1109 data-nosnippet>1109</a>    <span class="kw">use </span>std::fmt;
+<a href=#1057 id=1057 data-nosnippet>1057</a>                <span class="kw">if </span>!clause.kind().vars().is_empty() {
+<a href=#1058 id=1058 data-nosnippet>1058</a>                    <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"handle_opaque_types: clause with bound vars: `{clause:?}`"</span>))<span class="question-mark">?</span>;
+<a href=#1059 id=1059 data-nosnippet>1059</a>                }
+<a href=#1060 id=1060 data-nosnippet>1060</a>                <span class="kw">if let </span>rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
+<a href=#1061 id=1061 data-nosnippet>1061</a>                    <span class="kw">let </span>alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
+<a href=#1062 id=1062 data-nosnippet>1062</a>                    <span class="kw">let </span>ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
+<a href=#1063 id=1063 data-nosnippet>1063</a>                        .to_ty()
+<a href=#1064 id=1064 data-nosnippet>1064</a>                        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(<span class="self">self</span>.span))<span class="question-mark">?</span>;
+<a href=#1065 id=1065 data-nosnippet>1065</a>                    <span class="kw">let </span>ty2 = pred.term.to_ty();
+<a href=#1066 id=1066 data-nosnippet>1066</a>                    <span class="self">self</span>.tys(infcx, <span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2)<span class="question-mark">?</span>;
+<a href=#1067 id=1067 data-nosnippet>1067</a>                }
+<a href=#1068 id=1068 data-nosnippet>1068</a>            }
+<a href=#1069 id=1069 data-nosnippet>1069</a>        }
+<a href=#1070 id=1070 data-nosnippet>1070</a>        <span class="prelude-val">Ok</span>(())
+<a href=#1071 id=1071 data-nosnippet>1071</a>    }
+<a href=#1072 id=1072 data-nosnippet>1072</a>}
+<a href=#1073 id=1073 data-nosnippet>1073</a>
+<a href=#1074 id=1074 data-nosnippet>1074</a><span class="kw">fn </span>mk_coroutine_obligations(
+<a href=#1075 id=1075 data-nosnippet>1075</a>    genv: GlobalEnv,
+<a href=#1076 id=1076 data-nosnippet>1076</a>    generator_did: <span class="kw-2">&amp;</span>DefId,
+<a href=#1077 id=1077 data-nosnippet>1077</a>    resume_ty: <span class="kw-2">&amp;</span>Ty,
+<a href=#1078 id=1078 data-nosnippet>1078</a>    upvar_tys: <span class="kw-2">&amp;</span>List&lt;Ty&gt;,
+<a href=#1079 id=1079 data-nosnippet>1079</a>    opaque_def_id: <span class="kw-2">&amp;</span>DefId,
+<a href=#1080 id=1080 data-nosnippet>1080</a>) -&gt; InferResult&lt;Vec&lt;Binder&lt;rty::CoroutineObligPredicate&gt;&gt;&gt; {
+<a href=#1081 id=1081 data-nosnippet>1081</a>    <span class="kw">let </span>bounds = genv.item_bounds(<span class="kw-2">*</span>opaque_def_id)<span class="question-mark">?</span>.skip_binder();
+<a href=#1082 id=1082 data-nosnippet>1082</a>    <span class="kw">for </span>bound <span class="kw">in </span><span class="kw-2">&amp;</span>bounds {
+<a href=#1083 id=1083 data-nosnippet>1083</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(proj_clause) = bound.as_projection_clause() {
+<a href=#1084 id=1084 data-nosnippet>1084</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[proj_clause.map(|proj_clause| {
+<a href=#1085 id=1085 data-nosnippet>1085</a>                <span class="kw">let </span>output = proj_clause.term;
+<a href=#1086 id=1086 data-nosnippet>1086</a>                CoroutineObligPredicate {
+<a href=#1087 id=1087 data-nosnippet>1087</a>                    def_id: <span class="kw-2">*</span>generator_did,
+<a href=#1088 id=1088 data-nosnippet>1088</a>                    resume_ty: resume_ty.clone(),
+<a href=#1089 id=1089 data-nosnippet>1089</a>                    upvar_tys: upvar_tys.clone(),
+<a href=#1090 id=1090 data-nosnippet>1090</a>                    output: output.to_ty(),
+<a href=#1091 id=1091 data-nosnippet>1091</a>                }
+<a href=#1092 id=1092 data-nosnippet>1092</a>            })]);
+<a href=#1093 id=1093 data-nosnippet>1093</a>        }
+<a href=#1094 id=1094 data-nosnippet>1094</a>    }
+<a href=#1095 id=1095 data-nosnippet>1095</a>    <span class="macro">bug!</span>(<span class="string">"no projection predicate"</span>)
+<a href=#1096 id=1096 data-nosnippet>1096</a>}
+<a href=#1097 id=1097 data-nosnippet>1097</a>
+<a href=#1098 id=1098 data-nosnippet>1098</a><span class="attr">#[derive(Debug)]
+<a href=#1099 id=1099 data-nosnippet>1099</a></span><span class="kw">pub enum </span>InferErr {
+<a href=#1100 id=1100 data-nosnippet>1100</a>    UnsolvedEvar(EVid),
+<a href=#1101 id=1101 data-nosnippet>1101</a>    OpaqueStruct(DefId),
+<a href=#1102 id=1102 data-nosnippet>1102</a>    Query(QueryErr),
+<a href=#1103 id=1103 data-nosnippet>1103</a>}
+<a href=#1104 id=1104 data-nosnippet>1104</a>
+<a href=#1105 id=1105 data-nosnippet>1105</a><span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>InferErr {
+<a href=#1106 id=1106 data-nosnippet>1106</a>    <span class="kw">fn </span>from(v: QueryErr) -&gt; <span class="self">Self </span>{
+<a href=#1107 id=1107 data-nosnippet>1107</a>        <span class="self">Self</span>::Query(v)
+<a href=#1108 id=1108 data-nosnippet>1108</a>    }
+<a href=#1109 id=1109 data-nosnippet>1109</a>}
 <a href=#1110 id=1110 data-nosnippet>1110</a>
-<a href=#1111 id=1111 data-nosnippet>1111</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-<a href=#1112 id=1112 data-nosnippet>1112</a>
-<a href=#1113 id=1113 data-nosnippet>1113</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1114 id=1114 data-nosnippet>1114</a>
-<a href=#1115 id=1115 data-nosnippet>1115</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
-<a href=#1116 id=1116 data-nosnippet>1116</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1117 id=1117 data-nosnippet>1117</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
-<a href=#1118 id=1118 data-nosnippet>1118</a>        }
-<a href=#1119 id=1119 data-nosnippet>1119</a>    }
-<a href=#1120 id=1120 data-nosnippet>1120</a>
-<a href=#1121 id=1121 data-nosnippet>1121</a>    <span class="macro">impl_debug_with_default_cx!</span>(Tag);
-<a href=#1122 id=1122 data-nosnippet>1122</a>}</code></pre></div></section></main></body></html>
+<a href=#1111 id=1111 data-nosnippet>1111</a><span class="kw">mod </span>pretty {
+<a href=#1112 id=1112 data-nosnippet>1112</a>    <span class="kw">use </span>std::fmt;
+<a href=#1113 id=1113 data-nosnippet>1113</a>
+<a href=#1114 id=1114 data-nosnippet>1114</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
+<a href=#1115 id=1115 data-nosnippet>1115</a>
+<a href=#1116 id=1116 data-nosnippet>1116</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#1117 id=1117 data-nosnippet>1117</a>
+<a href=#1118 id=1118 data-nosnippet>1118</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
+<a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1120 id=1120 data-nosnippet>1120</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
+<a href=#1121 id=1121 data-nosnippet>1121</a>        }
+<a href=#1122 id=1122 data-nosnippet>1122</a>    }
+<a href=#1123 id=1123 data-nosnippet>1123</a>
+<a href=#1124 id=1124 data-nosnippet>1124</a>    <span class="macro">impl_debug_with_default_cx!</span>(Tag);
+<a href=#1125 id=1125 data-nosnippet>1125</a>}</code></pre></div></section></main></body></html>

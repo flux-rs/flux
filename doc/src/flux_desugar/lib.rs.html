@@ -246,7 +246,7 @@
 <a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(ident) = node.ident() {
 <a href=#247 id=247 data-nosnippet>247</a>                <span class="macro">span_bug!</span>(ident.span, <span class="string">"unsupported node: {node:?}"</span>);
 <a href=#248 id=248 data-nosnippet>248</a>            } <span class="kw">else </span>{
-<a href=#249 id=249 data-nosnippet>249</a>                <span class="macro">bug!</span>(<span class="string">"unsupported node: {node:?}"</span>);
+<a href=#249 id=249 data-nosnippet>249</a>                <span class="macro">bug!</span>(<span class="string">"unsupported node: {node:?} for {def_id:?}"</span>);
 <a href=#250 id=250 data-nosnippet>250</a>            }
 <a href=#251 id=251 data-nosnippet>251</a>        }
 <a href=#252 id=252 data-nosnippet>252</a>    }
