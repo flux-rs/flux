@@ -479,10 +479,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
-        self.collect_specs()
-            .trusted_impl
-            .get(&def_id)
-            .is_some_and(|trusted| trusted.to_bool())
+        self.traverse_parents(def_id, |did| self.collect_specs().trusted_impl.get(&did))
+            .map(|trusted| trusted.to_bool())
+            .unwrap_or(false)
+
+        // self.collect_specs()
+        //     .trusted_impl
+        //     .get(&def_id)
+        //     .is_some_and(|trusted| trusted.to_bool())
     }
 
     /// Whether the item is a dummy item created by the extern spec macro.
