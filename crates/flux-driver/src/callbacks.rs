@@ -38,7 +38,6 @@ impl Callbacks for FluxCallbacks {
     }
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {
-        // timings::enter(tcx, || self.verify(compiler, tcx));
         self.verify(compiler, tcx);
         if config::full_compilation() { Compilation::Continue } else { Compilation::Stop }
     }
