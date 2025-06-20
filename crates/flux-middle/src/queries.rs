@@ -4,7 +4,7 @@ use std::{
 };
 
 use flux_arc_interner::List;
-use flux_common::bug;
+use flux_common::{bug, tracked_span_bug};
 use flux_errors::{E0999, ErrorGuaranteed};
 use flux_rustc_bridge::{
     self, def_id_to_string,
@@ -301,7 +301,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             Ok(nodes) => {
                 let mut cache = self.desugar.borrow_mut();
                 cache.extend_unord(nodes.into_items().map(|(def_id, node)| (def_id, Ok(node))));
-                cache[&def_id].clone()
+                if let Some(res) = cache.get(&def_id) {
+                    res.clone()
+                } else {
+                    tracked_span_bug!("cannot desugar {def_id:?}")
+                }
             }
             Err(err) => {
                 self.desugar.borrow_mut().insert(def_id, Err(err.clone()));

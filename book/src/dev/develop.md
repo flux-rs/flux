@@ -1,5 +1,13 @@
 # Developer's Guide
 
+## Backtraces
+
+You can use the usual `RUST_BACKTRACE=1` environment variable to enable backtraces, if you build and install `flux` as:
+
+```sh
+$ cargo x install --profile dev
+```
+
 ## Regression Tests
 
 You can run the various regression tests in the `tests/pos` and `tests/neg` directories using

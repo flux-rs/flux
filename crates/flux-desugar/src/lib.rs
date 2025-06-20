@@ -242,11 +242,14 @@ pub fn desugar<'genv>(
         rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => {
             nodes.insert(def_id, fhir::Node::Ctor);
         }
+        rustc_hir::Node::Synthetic => {
+            nodes.insert(def_id, fhir::Node::Synthetic);
+        }
         node => {
             if let Some(ident) = node.ident() {
-                span_bug!(ident.span, "unsupported node: {node:?}");
+                span_bug!(ident.span, "bunsupported node: {node:?}");
             } else {
-                bug!("unsupported node: {node:?}");
+                bug!("tunsupported node: {node:?} for {def_id:?}");
             }
         }
     }

@@ -21,6 +21,7 @@ use crate::{
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
     queries::{Providers, Queries, QueryErr, QueryResult},
+    query_bug,
     rty::{
         self,
         refining::{Refine as _, Refiner},
@@ -614,7 +615,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     }
 
     pub fn expect_owner_node(self, def_id: LocalDefId) -> QueryResult<fhir::OwnerNode<'genv>> {
-        Ok(self.node(def_id)?.as_owner().unwrap())
+        let Some(owner) = self.node(def_id)?.as_owner() else {
+            return Err(query_bug!(def_id, "cannot find owner node"));
+        };
+        Ok(owner)
+
+        // Ok(self.node(def_id)?.as_owner().unwrap())
     }
 }
 

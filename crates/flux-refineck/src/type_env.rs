@@ -523,8 +523,11 @@ impl BasicBlockEnvShape {
             | BaseTy::FnPtr(..)
             | BaseTy::Foreign(..)
             | BaseTy::Coroutine(..) => {
-                assert!(!scope.has_free_vars(bty));
-                bty.clone()
+                if scope.has_free_vars(bty) {
+                    tracked_span_bug!("unexpected type with free vars")
+                } else {
+                    bty.clone()
+                }
             }
             BaseTy::Infer(..) => {
                 tracked_span_bug!("unexpected infer type")
