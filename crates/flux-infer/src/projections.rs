@@ -280,17 +280,14 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 let args = subst.finish(self.tcx(), generics)?;
 
                 // 3. Get the associated type in the impl block and apply the substitution to it
-                let Some(assoc_type_id) = tcx
+                let assoc_type_id = tcx
                     .associated_items(impl_def_id)
                     .in_definition_order()
                     .find(|item| item.trait_item_def_id == Some(obligation.def_id))
                     .map(|item| item.def_id)
-                else {
-                    return Err(query_bug!(
-                        "no associated type for {obligation:?} in impl {impl_def_id:?}"
-                    ));
-                };
-
+                    .ok_or_else(|| {
+                        query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
+                    })?;
                 Ok(self
                     .genv()
                     .type_of(assoc_type_id)?

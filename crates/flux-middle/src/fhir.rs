@@ -124,7 +124,6 @@ pub enum Node<'fhir> {
     Ctor,
     AnonConst,
     Expr,
-    Synthetic,
 }
 
 impl<'fhir> Node<'fhir> {
@@ -138,7 +137,6 @@ impl<'fhir> Node<'fhir> {
             Node::AnonConst => None,
             Node::Expr => None,
             Node::Ctor => None,
-            Node::Synthetic => None,
         }
     }
 
