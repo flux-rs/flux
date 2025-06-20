@@ -341,10 +341,6 @@ impl Clause {
         self.kind.clone().skip_binder()
     }
 
-    pub fn has_bound_vars(&self) -> bool {
-        self.kind.vars().len() > 0
-    }
-
     /// Group `Fn` trait clauses with their corresponding `FnOnce::Output` projection
     /// predicate. This assumes there's exactly one corresponding projection predicate and will
     /// crash otherwise.

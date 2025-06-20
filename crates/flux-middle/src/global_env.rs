@@ -619,8 +619,6 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
             return Err(query_bug!(def_id, "cannot find owner node"));
         };
         Ok(owner)
-
-        // Ok(self.node(def_id)?.as_owner().unwrap())
     }
 }
 
