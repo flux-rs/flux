@@ -150,9 +150,11 @@ pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Tra
 /// ```text
 /// ⟨trait_assoc_reft⟩ := fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ;?
 ///                     | fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
+///                     | final fn ⟨ident⟩ ( ⟨refine_param⟩,* ) -> ⟨base_sort⟩ ⟨block⟩
 /// ```
 fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
+    let final_ = cx.advance_if("final");
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
@@ -165,7 +167,7 @@ fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
         None
     };
     let hi = cx.hi();
-    Ok(TraitAssocReft { name, params, output, body, span: cx.mk_span(lo, hi) })
+    Ok(TraitAssocReft { name, params, output, body, span: cx.mk_span(lo, hi), final_ })
 }
 
 pub(crate) fn parse_impl_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<ImplAssocReft>> {

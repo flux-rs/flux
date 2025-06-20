@@ -113,3 +113,16 @@ impl UnsupportedPosition {
         Self { span }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_final_assoc_without_body, code = E0999)]
+pub(super) struct FinalAssocReftWithoutBody {
+    #[primary_span]
+    span: Span,
+}
+
+impl FinalAssocReftWithoutBody {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}

@@ -755,9 +755,30 @@ pub struct CoroutineObligPredicate {
     pub output: Ty,
 }
 
+#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
+pub struct AssocReft {
+    pub def_id: FluxDefId,
+    // NOTE: Field is used to denote final associated generic refinements on Traits
+    pub final_: bool,
+}
+
+impl AssocReft {
+    pub fn new(def_id: FluxDefId, final_: bool) -> Self {
+        Self { def_id, final_ }
+    }
+
+    pub fn name(&self) -> Symbol {
+        self.def_id.name()
+    }
+
+    pub fn def_id(&self) -> FluxDefId {
+        self.def_id
+    }
+}
+
 #[derive(Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub items: List<FluxDefId>,
+    pub items: List<AssocReft>,
 }
 
 impl Default for AssocRefinements {
@@ -767,8 +788,21 @@ impl Default for AssocRefinements {
 }
 
 impl AssocRefinements {
+    pub fn get(&self, assoc_id: FluxDefId) -> AssocReft {
+        *self
+            .items
+            .into_iter()
+            .find(|it| it.def_id == assoc_id)
+            .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
+    }
+
     pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
-        self.items.iter().find(|it| it.name() == name).copied()
+        Some(
+            self.items
+                .into_iter()
+                .find(|it| it.name() == name)?
+                .def_id(),
+        )
     }
 }
 
@@ -2695,6 +2729,7 @@ impl_slice_internable!(
     RefineParam,
     FluxDefId,
     SortParamKind,
+    AssocReft
 );
 
 #[macro_export]

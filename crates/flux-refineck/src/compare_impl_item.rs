@@ -21,13 +21,17 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id)?;
     let impl_names: FxHashSet<_> = impl_assoc_refts.items.iter().map(|x| x.name()).collect();
 
-    for trait_assoc_id in &trait_assoc_refts.items {
+    for trait_assoc_reft in &trait_assoc_refts.items {
+        let trait_assoc_def_id = trait_assoc_reft.def_id();
         let has_default = genv
-            .default_assoc_refinement_body(*trait_assoc_id)?
+            .default_assoc_refinement_body(trait_assoc_def_id)?
             .is_some();
-        if !impl_names.contains(&trait_assoc_id.name()) && !has_default {
+        if !impl_names.contains(&trait_assoc_reft.name()) && !has_default {
             let span = genv.tcx().def_span(impl_id);
-            Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_id.name())))?;
+            Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_reft.name())))?;
+        } else if impl_names.contains(&trait_assoc_reft.name()) && trait_assoc_reft.final_ {
+            let span = genv.tcx().def_span(impl_id);
+            Err(genv.emit(errors::ImplAssocReftOnFinal::new(span, trait_assoc_reft.name())))?;
         }
     }
 
@@ -47,10 +51,16 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         .build()?;
     let mut infcx = root_ctxt.infcx(impl_id.resolved_id(), &rustc_infcx);
 
-    for impl_assoc_id in &impl_assoc_refts.items {
-        let name = impl_assoc_id.name();
+    for impl_assoc_reft in &impl_assoc_refts.items {
+        let name = impl_assoc_reft.name();
         if let Some(trait_assoc_id) = trait_assoc_refts.find(name) {
-            check_assoc_reft(&mut infcx, impl_id, &impl_trait_ref, trait_assoc_id, *impl_assoc_id)?;
+            check_assoc_reft(
+                &mut infcx,
+                impl_id,
+                &impl_trait_ref,
+                trait_assoc_id,
+                impl_assoc_reft.def_id(),
+            )?;
         } else {
             let fhir_impl_assoc_reft = genv
                 .map()
@@ -146,6 +156,20 @@ pub(crate) mod errors {
     }
 
     impl MissingAssocReft {
+        pub(crate) fn new(span: Span, name: Symbol) -> Self {
+            Self { span, name }
+        }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_impl_assoc_reft_final, code = E0999)]
+    pub struct ImplAssocReftOnFinal {
+        #[primary_span]
+        span: Span,
+        name: Symbol,
+    }
+
+    impl ImplAssocReftOnFinal {
         pub(crate) fn new(span: Span, name: Symbol) -> Self {
             Self { span, name }
         }
