@@ -21,3 +21,9 @@ pub fn cast_to_u8_and_back(x: char) -> char {
     let x = x as char;
     x
 }
+
+#[spec(fn (x:char['a']) -> u8[97])]
+pub fn const_to_u8(x: char) -> u8 {
+    let x = x as u8;
+    x
+}

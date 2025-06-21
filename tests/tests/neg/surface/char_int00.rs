@@ -33,3 +33,8 @@ pub fn test_err(x: char) {
         assert(x.is_ascii_digit()) //~ ERROR refinement type
     }
 }
+
+#[spec(fn (char{v: '0' <= v && v <= '9'}))]
+pub fn test_digit(x: char) {
+    assert(x.is_ascii_digit())
+}
