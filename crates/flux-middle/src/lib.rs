@@ -120,6 +120,8 @@ pub static THEORY_FUNCS: LazyLock<UnordMap<liquid_fixpoint::ThyFunc, TheoryFunc>
 pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> {
     let name = match func {
         ThyFunc::BvZeroExtend(_) | ThyFunc::BvSignExtend(_) => return None,
+        ThyFunc::CharToInt => "char_to_int",
+        ThyFunc::IntToChar => "int_to_char",
         ThyFunc::StrLen => "str_len",
         ThyFunc::IntToBv32 => "bv_int_to_bv32",
         ThyFunc::Bv32ToInt => "bv_bv32_to_int",
@@ -129,7 +131,6 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
         ThyFunc::BvSge => "bv_sge",
         ThyFunc::BvUdiv => "bv_udiv",
         ThyFunc::BvSdiv => "bv_sdiv",
-
         ThyFunc::BvSrem => "bv_srem",
         ThyFunc::BvUrem => "bv_urem",
         ThyFunc::BvLshr => "bv_lshr",
@@ -315,6 +316,14 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
                     Sort::app(Map, List::from_arr([Var(param0), Var(param1)])),
                 ),
             )
+        }
+        ThyFunc::CharToInt => {
+            // (Char) -> Int
+            rty::PolyFuncSort::new(List::empty(), rty::FuncSort::new(vec![Char], Int))
+        }
+        ThyFunc::IntToChar => {
+            // (Int) -> Char
+            rty::PolyFuncSort::new(List::empty(), rty::FuncSort::new(vec![Int], Char))
         }
     };
     Some(sort)

@@ -52,6 +52,7 @@ use crate::{
     ghost_statements::{GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
+    rty::Char,
     type_env::{
         BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, SpanTrace, TypeEnv, TypeEnvTrace,
     },
@@ -1503,6 +1504,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     (TyKind::Discr(adt_def, _place), RustTy::Uint(uint_ty)) => {
                         Self::discr_to_int_cast(adt_def, BaseTy::Uint(*uint_ty))
                     }
+                    (Char!(idx), RustTy::Uint(uint_ty)) => char_uint_cast(idx, *uint_ty),
+                    (Uint!(_, idx), RustTy::Char) => uint_char_cast(idx),
                     _ => {
                         tracked_span_bug!("invalid int to int cast {from:?} --> {to:?}")
                     }
@@ -1993,6 +1996,26 @@ impl Mode for RefineMode {
 fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
     let idx = Expr::ite(b, 1, 0);
     Ty::indexed(BaseTy::Int(int_ty), idx)
+}
+
+fn uint_char_cast(idx: &Expr) -> Ty {
+    let idx = Expr::app(
+        Expr::global_func(flux_middle::fhir::SpecFuncKind::Thy(
+            liquid_fixpoint::ThyFunc::IntToChar,
+        )),
+        rty::List::singleton(idx.clone()),
+    );
+    Ty::indexed(BaseTy::Char, idx)
+}
+
+fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
+    let idx = Expr::app(
+        Expr::global_func(flux_middle::fhir::SpecFuncKind::Thy(
+            liquid_fixpoint::ThyFunc::CharToInt,
+        )),
+        rty::List::singleton(idx.clone()),
+    );
+    Ty::indexed(BaseTy::Uint(uint_ty), idx)
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {

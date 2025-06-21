@@ -827,6 +827,7 @@ impl InferMode {
 pub enum PrimSort {
     Int,
     Bool,
+    Char,
     Real,
     Set,
     Map,
@@ -837,6 +838,7 @@ impl PrimSort {
         match self {
             PrimSort::Int => "int",
             PrimSort::Bool => "bool",
+            PrimSort::Char => "char",
             PrimSort::Real => "real",
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
@@ -846,9 +848,7 @@ impl PrimSort {
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int => 0,
-            PrimSort::Bool => 0,
-            PrimSort::Real => 0,
+            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1572,6 +1572,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Bool) => write!(f, "bool"),
             SortRes::PrimSort(PrimSort::Int) => write!(f, "int"),
             SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
+            SortRes::PrimSort(PrimSort::Char) => write!(f, "char"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::SortParam(n) => write!(f, "@{n}"),

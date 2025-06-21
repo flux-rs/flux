@@ -689,6 +689,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
         } else if segment.name == sym::bool {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Bool))
+        } else if segment.name == sym::char {
+            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Char))
         } else if segment.name == SORTS.real {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Real))
         } else if segment.name == SORTS.set {

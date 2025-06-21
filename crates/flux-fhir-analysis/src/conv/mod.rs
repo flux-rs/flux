@@ -828,6 +828,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Real)?;
                 return Ok(rty::Sort::Real);
             }
+            fhir::SortRes::PrimSort(fhir::PrimSort::Char) => {
+                self.check_prim_sort_generics(path, fhir::PrimSort::Char)?;
+                return Ok(rty::Sort::Char);
+            }
             fhir::SortRes::SortParam(n) => return Ok(rty::Sort::Var(rty::ParamSort::from(n))),
             fhir::SortRes::TyParam(def_id) => {
                 if !path.args.is_empty() {
