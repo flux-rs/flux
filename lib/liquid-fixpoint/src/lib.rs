@@ -305,6 +305,10 @@ pub enum ThyFunc {
     // STRINGS
     StrLen,
 
+    // CHARS
+    CharToInt,
+    IntToChar,
+
     // BIT VECTORS
     BvZeroExtend(u8),
     BvSignExtend(u8),
@@ -356,8 +360,17 @@ pub enum ThyFunc {
 }
 
 impl ThyFunc {
-    pub const ALL: [ThyFunc; 35] = [
+    pub fn is_erased_in_encoding(&self) -> bool {
+        match self {
+            ThyFunc::CharToInt | ThyFunc::IntToChar => true,
+            _ => false,
+        }
+    }
+
+    pub const ALL: [ThyFunc; 37] = [
         ThyFunc::StrLen,
+        ThyFunc::CharToInt,
+        ThyFunc::IntToChar,
         ThyFunc::IntToBv32,
         ThyFunc::Bv32ToInt,
         ThyFunc::IntToBv64,
@@ -438,6 +451,8 @@ impl fmt::Display for ThyFunc {
             ThyFunc::MapDefault => write!(f, "Map_default"),
             ThyFunc::MapSelect => write!(f, "Map_select"),
             ThyFunc::MapStore => write!(f, "Map_store"),
+            ThyFunc::CharToInt => write!(f, "char_to_int"),
+            ThyFunc::IntToChar => write!(f, "int_to_char"),
         }
     }
 }
