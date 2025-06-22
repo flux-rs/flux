@@ -2094,6 +2094,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::UnaryOp(op, e) => {
                 rty::Expr::unary_op(conv_un_op(op), self.conv_expr(env, e)?).at(espan)
             }
+
+            fhir::ExprKind::PrimApp(op, e1, e2) => {
+                rty::Expr::prim_app(
+                    self.conv_bin_op(op, expr.fhir_id),
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
+                )
+                .at(espan)
+            }
             fhir::ExprKind::App(func, args) => {
                 rty::Expr::app(self.conv_func(env, &func), self.conv_exprs(env, args)?).at(espan)
             }

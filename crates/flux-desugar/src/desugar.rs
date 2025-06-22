@@ -1409,6 +1409,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let e2 = self.desugar_expr(e2);
                 fhir::ExprKind::BinaryOp(*op, self.genv().alloc(e1), self.genv().alloc(e2))
             }
+            surface::ExprKind::PrimCall(op, box [e1, e2]) => {
+                let e1 = self.desugar_expr(e1);
+                let e2 = self.desugar_expr(e2);
+                fhir::ExprKind::PrimApp(*op, self.genv().alloc(e1), self.genv().alloc(e2))
+            }
             surface::ExprKind::UnaryOp(op, box e) => {
                 fhir::ExprKind::UnaryOp(*op, self.genv().alloc(self.desugar_expr(e)))
             }

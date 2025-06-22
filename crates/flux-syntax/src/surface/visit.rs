@@ -514,11 +514,14 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::Literal(lit) => {
             vis.visit_literal(*lit);
         }
-        ExprKind::BinaryOp(_un_op, box exprs) => {
+        ExprKind::BinaryOp(_bin_op, box exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
-        ExprKind::UnaryOp(_bin_op, e) => {
+        ExprKind::UnaryOp(_un_op, e) => {
             vis.visit_expr(e);
+        }
+        ExprKind::PrimCall(_bin_op, box exprs) => {
+            walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Call(callee, args) => {
             vis.visit_expr(callee);

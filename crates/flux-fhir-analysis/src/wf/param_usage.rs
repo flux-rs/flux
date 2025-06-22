@@ -76,7 +76,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
     /// Checks that refinement parameters of function sort are used in allowed positions.
     fn check_func_params_uses(&mut self, expr: &fhir::Expr, is_top_level_conj: bool) {
         match expr.kind {
-            fhir::ExprKind::BinaryOp(bin_op, e1, e2) => {
+            fhir::ExprKind::BinaryOp(bin_op, e1, e2) | fhir::ExprKind::PrimApp(bin_op, e1, e2) => {
                 let is_top_level_conj = is_top_level_conj && matches!(bin_op, fhir::BinOp::And);
                 self.check_func_params_uses(e1, is_top_level_conj);
                 self.check_func_params_uses(e2, is_top_level_conj);

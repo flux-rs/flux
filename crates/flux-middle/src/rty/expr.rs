@@ -308,6 +308,10 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
+    pub fn prim_app(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::PrimApp(op, e1.into(), e2.into()).intern()
+    }
+
     pub fn unit_struct(def_id: DefId) -> Expr {
         Expr::ctor_struct(def_id, List::empty())
     }
@@ -681,6 +685,8 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
+    /// An UIF application representing a primitive operation
+    PrimApp(BinOp, Expr, Expr),
     GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
@@ -1252,6 +1258,7 @@ pub(crate) mod pretty {
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
                 ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
+
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
                         w!(cx, f, "({:?})", e1)?;
@@ -1335,6 +1342,9 @@ pub(crate) mod pretty {
                             .iter()
                             .format_with(", ", |arg, f| f(&format_args_cx!(cx, "{:?}", arg)))
                     )
+                }
+                ExprKind::PrimApp(op, e1, e2) => {
+                    w!(cx, f, "[{op:?}]({e1:?}, {e2:?})")
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!(cx, f, "if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
@@ -1597,6 +1607,14 @@ pub(crate) mod pretty {
                     let e2_d = e2.fmt_nested(cx)?;
                     let text = format!("(if {} then {} else {})", p_d.text, e1_d.text, e2_d.text);
                     let children = float_children(vec![p_d.children, e1_d.children, e2_d.children]);
+                    Ok(NestedString { text, children, key: None })
+                }
+                ExprKind::PrimApp(op, e1, e2) => {
+                    let e1_d = e1.fmt_nested(cx)?;
+                    let e2_d = e2.fmt_nested(cx)?;
+                    let op_d = debug_nested(cx, op)?;
+                    let text = format!("[{}]({}, {})", op_d.text, e1_d.text, e2_d.text);
+                    let children = float_children(vec![e1_d.children, e2_d.children]);
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::BinaryOp(op, e1, e2) => {

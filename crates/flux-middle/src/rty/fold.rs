@@ -878,7 +878,7 @@ impl TypeSuperVisitable for Expr {
     fn super_visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self.kind() {
             ExprKind::Var(_) => ControlFlow::Continue(()),
-            ExprKind::BinaryOp(_, e1, e2) => {
+            ExprKind::BinaryOp(_, e1, e2) | ExprKind::PrimApp(_, e1, e2) => {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
@@ -931,7 +931,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
-            ExprKind::BinaryOp(op, e1, e2) => {
+            ExprKind::BinaryOp(op, e1, e2) | ExprKind::PrimApp(op, e1, e2) => {
                 Expr::binary_op(
                     op.try_fold_with(folder)?,
                     e1.try_fold_with(folder)?,
