@@ -55,6 +55,19 @@ pub(crate) fn desugar_qualifier<'genv>(
     })
 }
 
+pub(crate) fn desugar_prim_prop<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    resolver_output: &'genv ResolverOutput,
+    def_id: FluxLocalDefId,
+    prim_prop: &surface::PrimProp,
+) -> Result<fhir::PrimProp<'genv>> {
+    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
+        let body = cx.desugar_expr(&prim_prop.body);
+        let args = cx.desugar_refine_params(&prim_prop.params);
+        fhir::PrimProp { def_id, op: prim_prop.op, args, body }
+    })
+}
+
 pub(crate) fn desugar_spec_func<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,

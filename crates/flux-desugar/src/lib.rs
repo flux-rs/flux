@@ -330,9 +330,21 @@ impl CrateDesugar<'_, '_> {
                             .collect_err(&mut self.err);
                     }
                     surface::Item::SortDecl(_) => {}
+                    surface::Item::PrimProp(prim_prop) => {
+                        self.desugar_prim_prop(def_id, prim_prop)
+                            .collect_err(&mut self.err);
+                    }
                 }
             }
         }
+    }
+
+    fn desugar_prim_prop(&mut self, def_id: FluxLocalDefId, prop: &surface::PrimProp) -> Result {
+        let prop = desugar::desugar_prim_prop(self.genv, self.resolver_output, def_id, prop)?;
+        self.fhir
+            .items
+            .insert(def_id, fhir::FluxItem::PrimProp(self.genv.alloc(prop)));
+        Ok(())
     }
 
     fn desugar_func_defn(&mut self, def_id: FluxLocalDefId, func: &surface::SpecFunc) -> Result {
