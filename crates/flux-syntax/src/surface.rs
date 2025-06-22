@@ -32,6 +32,7 @@ pub enum Item {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
+    PrimProp(PrimProp),
 }
 
 impl Item {
@@ -40,6 +41,7 @@ impl Item {
             Item::Qualifier(qualifier) => qualifier.name,
             Item::FuncDef(spec_func) => spec_func.name,
             Item::SortDecl(sort_decl) => sort_decl.name,
+            Item::PrimProp(prim_prop) => prim_prop.name,
         }
     }
 }
@@ -67,6 +69,20 @@ pub struct SpecFunc {
     /// as uninterpreted by default (only makes sense if `body` is_some ...)
     /// as otherwise it is *always* uninterpreted.
     pub hide: bool,
+}
+
+/// A (currently global) *primop property*; see tests/tests/pos/surface/
+#[derive(Debug)]
+pub struct PrimProp {
+    /// The name of the property
+    pub name: Ident,
+    /// The binop it is attached to
+    pub op: BinOp,
+    /// The binders for the inputs of the primop; the output sort is always `Bool`
+    pub params: RefineParams,
+    /// The actual definition of the property
+    pub body: Expr,
+    pub span: Span,
 }
 
 #[derive(Debug)]

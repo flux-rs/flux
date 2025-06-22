@@ -92,6 +92,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
         parse_qualifier(cx).map(Item::Qualifier)
     } else if lookahead.peek(Tok::Opaque) {
         parse_sort_decl(cx).map(Item::SortDecl)
+    } else if lookahead.peek(Tok::Property) {
+        parse_prim_property(cx).map(Item::PrimProp)
     } else {
         Err(lookahead.into_error())
     }
