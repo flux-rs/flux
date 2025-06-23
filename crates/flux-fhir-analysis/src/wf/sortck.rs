@@ -213,7 +213,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let found = self.resolve_vars_if_possible(&found);
                 let expected = self.resolve_vars_if_possible(expected);
                 if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                    return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                    panic!("booger");
+                    // return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
             fhir::ExprKind::Err(_) => {

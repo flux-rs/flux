@@ -2,8 +2,6 @@
 
 #![flux::defs {
     qualifier MyQ1(x: int, a: int) { x == a + FORTY_TWO }
-    
-    qualifier MyQ2(x: int, a: int) { x + a + FORTY_TWO }
 }]
 
 const FORTY_TWO: usize = 21 + 21;
