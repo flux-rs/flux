@@ -520,9 +520,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::UnaryOp(_un_op, e) => {
             vis.visit_expr(e);
         }
-        ExprKind::PrimCall(_bin_op, box exprs) => {
-            walk_list!(vis, visit_expr, exprs);
-        }
+        ExprKind::PrimUIF(_) => {}
         ExprKind::Call(callee, args) => {
             vis.visit_expr(callee);
             walk_list!(vis, visit_expr, args);

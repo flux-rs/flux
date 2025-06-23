@@ -145,6 +145,14 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     Ok(SortDecl { name })
 }
 
+fn parse_binop(cx: &mut ParseCtxt) -> ParseResult<BinOp> {
+    let (op, ntokens) = cx
+        .peek_binop()
+        .ok_or_else(|| cx.unexpected_token(vec!["binary operator"]))?;
+    cx.advance_by(ntokens);
+    Ok(op)
+}
+
 fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimProp> {
     let lo = cx.lo();
     cx.expect(Tok::Property)?;
@@ -153,10 +161,7 @@ fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimProp> {
     cx.expect(Token::OpenBracket)?;
 
     // Parse the binary operation
-    let Some((op, ntokens)) = cx.peek_binop() else {
-        return Err(cx.unexpected_token(vec!["binary operator"]));
-    };
-    cx.advance_by(ntokens);
+    let op = parse_binop(cx)?;
 
     // Expect closing bracket
     cx.expect(Token::CloseBracket)?;
@@ -945,6 +950,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
 ///         |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
+///         | [binop]
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
 /// ```
@@ -992,11 +998,22 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         let hi = cx.hi();
         let kind = ExprKind::AssocReft(Box::new(qself), path, name);
         return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
+    } else if lookahead.peek(Tok::OpenBracket) {
+        parse_prim_uif(cx)
     } else if lookahead.peek([Tok::Exists, Tok::Forall]) {
         parse_bounded_quantifier(cx)
     } else {
         Err(lookahead.into_error())
     }
+}
+
+fn parse_prim_uif(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    let lo = cx.lo();
+    cx.expect(Tok::OpenBracket)?;
+    let op = parse_binop(cx)?;
+    cx.expect(Tok::CloseBracket)?;
+    let hi = cx.hi();
+    Ok(Expr { kind: ExprKind::PrimUIF(op), node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
 /// ```text

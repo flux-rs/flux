@@ -547,8 +547,8 @@ pub enum ExprKind {
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
-    /// A UIF application representing a PrimOp expression, e.g. [<<](x, y)
-    PrimCall(BinOp, Box<[Expr; 2]>),
+    /// A UIF representing a PrimOp expression, e.g. [<<](x, y)
+    PrimUIF(BinOp),
     /// `<qself as path>::name`
     AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
