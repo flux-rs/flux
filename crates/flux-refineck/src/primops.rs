@@ -33,11 +33,13 @@ use flux_rustc_bridge::mir;
 use rty::{BinOp::Mod, Expr as E};
 use rustc_data_structures::unord::UnordMap;
 
+#[derive(Debug)]
 pub(crate) struct MatchedRule {
     pub precondition: Option<Pre>,
     pub output_type: rty::Ty,
 }
 
+#[derive(Debug)]
 pub(crate) struct Pre {
     pub reason: ConstrReason,
     pub pred: Expr,
@@ -375,7 +377,7 @@ fn mk_gt_rules() -> RuleMatcher<2> {
 /// `a << b`
 fn mk_shl_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: S) -> T
+        fn(a: T, b: S) -> T[E::prim_app(rty::BinOp::BitShl, a, b)]
         if T.is_integral() && S.is_integral()
     }
 }

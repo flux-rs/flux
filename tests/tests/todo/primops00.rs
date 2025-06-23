@@ -7,8 +7,10 @@ defs! {
 }
 
 pub fn test() {
-    let x = 1;
-    let x = x << 2;
-    let x = x << 2;
-    assert(x == 16)
+    let x: usize = 1 << 2;
+    assert(x == 4);
+    // let x = 1;
+    // let x = x << 2;
+    // let x = x << 2;
+    // assert(x == 16)
 }

@@ -156,6 +156,10 @@ impl Renderer {
                 let bty = self.bty_arg_or_prim(bty)?;
                 quote!(rty::Ty::exists_with_constr( #bty, #pred))
             }
+            Output::Constr(bty, idx, pred) => {
+                let bty = self.bty_arg_or_prim(bty)?;
+                quote!(rty::Ty::constr(#pred, rty::Ty::indexed( #bty, #idx)))
+            }
         };
         Ok(out)
     }
@@ -300,6 +304,7 @@ enum Output {
     Base(syn::Ident),
     Indexed(syn::Ident, TokenStream),
     Exists(syn::Ident, TokenStream),
+    Constr(syn::Ident, TokenStream, TokenStream),
 }
 
 impl Parse for Output {
@@ -308,7 +313,14 @@ impl Parse for Output {
         if input.peek(token::Bracket) {
             let content;
             bracketed!(content in input);
-            Ok(Output::Indexed(bty, content.parse()?))
+            if input.peek(kw::ensures) {
+                let _: kw::ensures = input.parse()?;
+                let pred = content.parse()?;
+                let idx = content.parse()?;
+                Ok(Output::Constr(bty, idx, pred))
+            } else {
+                Ok(Output::Indexed(bty, content.parse()?))
+            }
         } else if input.peek(token::Brace) {
             let content;
             braced!(content in input);
@@ -400,4 +412,5 @@ where
 
 mod kw {
     syn::custom_keyword!(requires);
+    syn::custom_keyword!(ensures);
 }
