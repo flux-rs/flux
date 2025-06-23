@@ -2964,9 +2964,9 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
             (UnaryOp(e_uop, e_e1), UnaryOp(o_uop, o_e1)) if e_uop == o_uop => {
                 try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
             }
-            (FieldProj(e_e1, e_proj), FieldProj(o_e1, o_proj)) if e_proj == o_proj => {
-                try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
-            }
+            // (FieldProj(e_e1, e_proj), FieldProj(o_e1, o_proj)) if e_proj == o_proj => {
+            //     try_antiunify_subexprs(antiunifier_map, expr, other, [(e_e1, o_e1)])
+            // }
             (Ctor(e_ctor, es), Ctor(o_ctor, os)) if e_ctor == o_ctor => {
                 try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
             }

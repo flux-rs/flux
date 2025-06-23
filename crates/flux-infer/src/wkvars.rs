@@ -270,6 +270,7 @@ pub fn iterative_solve(
                 cstr.backend,
             )?;
             for error in &errors {
+                println!("failing constraint {:?}", &error.blame_ctx.expr);
                 let solution_candidates = find_solution_candidates(&error.blame_ctx);
                 let wkvars = error
                     .blame_ctx
@@ -284,8 +285,8 @@ pub fn iterative_solve(
                             wkvar,
                             solution_candidate,
                         ) {
-                            // println!("Adding an instantiation for wkvar {:?}:", wkvar);
-                            // println!("  {:?}", instantiation);
+                            println!("Adding an instantiation for wkvar {:?}:", wkvar);
+                            println!("  {:?}", instantiation);
                             any_solution = true;
                             match solutions.solutions.entry(wkvar.wkvid) {
                                 Entry::Occupied(mut entry) => {
@@ -336,8 +337,10 @@ pub fn iterative_solve(
 ///  are booleans --- a > b => x < y which is probably too trivial a constraint
 ///  to offer; we only equalities anyway)
 pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
+    println!("Failing constraint: {:?}", &blame_ctx.expr);
     let mut candidates = vec![blame_ctx.expr.clone()];
     for assumed_pred in &blame_ctx.blame_analysis.assumed_preds {
+        println!("Trying to unify against pred {:?}", assumed_pred);
         let au_map = rty::anti_unify(&blame_ctx.expr, assumed_pred);
         // This checks if the antiunification is trivial, i.e.
         // blame_ctx.expr == assumed_pred
@@ -346,17 +349,33 @@ pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
         }
         for (e1, e2) in au_map.iter() {
             match (e1.kind(), e2.kind()) {
+                // (rty::ExprKind::Constant(..), _) => continue,
+                // (_, rty::ExprKind::Constant(..)) => continue,
+                // _ => {},
                 (rty::ExprKind::Var(..), rty::ExprKind::Var(..)) => {},
                 _ => continue,
             }
         }
         // build a conjunction of equalities between each au pair.
-        let conjs = au_map.into_iter().map(|(e1, e2)| rty::Expr::eq(e1, e2)).collect_vec();
+        let conjs = au_map.into_iter()
+                          .flat_map(|(e1, e2)| {
+                              match (e1.kind(), e2.kind()) {
+                                  (rty::ExprKind::Constant(..), _) |
+                                  (_, rty::ExprKind::Constant(..)) => return None,
+                                  _ => {},
+                                  // (rty::ExprKind::Var(..), rty::ExprKind::Var(..)) => {},
+                                  // _ => return None,
+                              }
+                              Some(rty::Expr::eq(e1, e2))
+                          });
         candidates.push(rty::Expr::and_from_iter(conjs));
     }
     candidates.retain_mut(|expr| {
         expr.simplify(&SnapshotMap::default());
         !(expr.is_trivially_false() || expr.is_trivially_true())
     });
+    for candidate in &candidates {
+        println!("equality candidate: {:?}", candidate);
+    }
     return candidates;
 }
