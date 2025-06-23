@@ -1182,6 +1182,7 @@ pub struct PrimProp<'fhir> {
     pub op: BinOp,
     pub args: &'fhir [RefineParam<'fhir>],
     pub body: Expr<'fhir>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]

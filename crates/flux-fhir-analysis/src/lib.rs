@@ -38,6 +38,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
@@ -51,6 +52,7 @@ pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
     providers.func_sort = func_sort;
     providers.qualifiers = qualifiers;
+    providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
@@ -131,6 +133,26 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?.normalize(genv))
         })
         .try_collect()
+}
+
+fn prim_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimProp>> {
+    genv.map()
+        .prim_props()
+        .map(|prim_prop| {
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimProp(prim_prop))?;
+            Ok(conv::conv_prim_prop(genv, prim_prop, &wfckresults)?.normalize(genv))
+        })
+        .try_collect()
+}
+
+fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> {
+    // let prim_props = prim_props(genv)?;
+    let mut res = UnordMap::default();
+    for prim_prop in prim_props(genv)?.into_iter() {
+        let op = prim_prop.op.clone();
+        res.entry(op).or_insert_with(|| vec![]).push(prim_prop);
+    }
+    Ok(res)
 }
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {

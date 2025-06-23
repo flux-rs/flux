@@ -584,6 +584,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
+    pub fn prim_props(self) -> impl Iterator<Item = &'genv fhir::PrimProp<'genv>> {
+        self.fhir.items.values().filter_map(|item| {
+            if let fhir::FluxItem::PrimProp(prop) = item { Some(*prop) } else { None }
+        })
+    }
+
     pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxLocalDefId]> {
         // This is called on adts when checking invariants
         if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {

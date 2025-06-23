@@ -132,6 +132,7 @@ pub struct Providers {
     ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>>,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
+    pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
     pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
     pub func_sort: fn(GlobalEnv, FluxLocalDefId) -> rty::PolyFuncSort,
     pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
@@ -176,6 +177,7 @@ impl Default for Providers {
             normalized_defns: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
+            prim_rel: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
             check_wf: |_, _| empty_query!(),
             adt_def: |_, _| empty_query!(),
@@ -209,6 +211,7 @@ pub struct Queries<'genv, 'tcx> {
     normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
+    prim_rel: OnceCell<QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
     check_wf: Cache<LocalDefId, QueryResult<Rc<rty::WfckResults>>>,
     adt_def: Cache<DefId, QueryResult<rty::AdtDef>>,
@@ -244,6 +247,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             normalized_defns: Default::default(),
             func_sort: Default::default(),
             qualifiers: Default::default(),
+            prim_rel: Default::default(),
             adt_sort_def_of: Default::default(),
             check_wf: Default::default(),
             adt_def: Default::default(),
@@ -425,6 +429,17 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .get_or_init(|| (self.providers.qualifiers)(genv))
             .as_deref()
             .map_err(Clone::clone)
+    }
+
+    pub(crate) fn prim_rel(
+        &self,
+        genv: GlobalEnv,
+    ) -> QueryResult<&UnordMap<rty::BinOp, rty::PrimRel>> {
+        self.prim_rel
+            .get_or_init(|| (self.providers.prim_rel)(genv))
+            // .map(|prim_rel| &prim_rel)
+            .as_ref()
+            .map_err(|err| err.clone())
     }
 
     pub(crate) fn adt_sort_def_of(

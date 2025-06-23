@@ -34,6 +34,7 @@ pub(crate) fn check_flux_item<'genv>(
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(item.def_id());
     let mut infcx = InferCtxt::new(genv, owner);
+
     Wf::with(&mut infcx, |wf| {
         wf.declare_params_for_flux_item(item)?;
         wf.check_flux_item(item);
@@ -289,6 +290,18 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_qualifier(&mut self, qual: &fhir::Qualifier<'genv>) {
         self.infcx
             .check_expr(&qual.expr, &rty::Sort::Bool)
+            .collect_err(&mut self.errors);
+    }
+
+    fn visit_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) {
+        let &[arg0, arg1] = &prim_prop.args else {
+            self.errors
+                .emit(errors::InvalidPrimPropArgs::new(prim_prop));
+            return;
+        };
+
+        self.infcx
+            .check_expr(&prim_prop.body, &rty::Sort::Bool)
             .collect_err(&mut self.errors);
     }
 

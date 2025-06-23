@@ -1240,6 +1240,21 @@ pub struct Qualifier {
     pub global: bool,
 }
 
+/// A [`PrimProp`] is a single property for a primitive operation which
+/// can be conjoined to get the definition of the [`PrimRel`] for that
+/// primitive operation.
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct PrimProp {
+    pub def_id: FluxLocalDefId,
+    pub op: BinOp,
+    pub body: Binder<Expr>,
+}
+
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct PrimRel {
+    pub body: Binder<Expr>,
+}
+
 pub type TyCtor = Binder<Ty>;
 
 impl TyCtor {
