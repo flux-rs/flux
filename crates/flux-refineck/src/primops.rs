@@ -377,7 +377,7 @@ fn mk_gt_rules() -> RuleMatcher<2> {
 /// `a << b`
 fn mk_shl_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: S) -> T[E::prim_app(rty::BinOp::BitShl, a, b)]
+        fn(a: T, b: S) -> T[E::prim_val(rty::BinOp::BitShl, a, b)] [E::prim_rel(rty::BinOp::BitShl, a, b)]
         if T.is_integral() && S.is_integral()
     }
 }

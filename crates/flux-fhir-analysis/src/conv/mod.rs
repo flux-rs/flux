@@ -2096,7 +2096,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
 
             fhir::ExprKind::PrimApp(op, e1, e2) => {
-                rty::Expr::prim_app(
+                rty::Expr::prim_val(
                     self.conv_bin_op(op, expr.fhir_id),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,

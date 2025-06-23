@@ -1399,7 +1399,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             (TyKind::Indexed(bty1, idx1), TyKind::Indexed(bty2, idx2)) => {
                 let rule =
                     primops::match_bin_op(bin_op, bty1, idx1, bty2, idx2, infcx.check_overflow);
-                println!("TRACE: check_binary_op: {bin_op:?}({ty1:?}, {ty2:?}) ===> {rule:?}");
                 if let Some(pre) = rule.precondition {
                     infcx.at(stmt_span).check_pred(pre.pred, pre.reason);
                 }

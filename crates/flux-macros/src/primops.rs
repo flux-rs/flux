@@ -313,13 +313,13 @@ impl Parse for Output {
         if input.peek(token::Bracket) {
             let content;
             bracketed!(content in input);
-            if input.peek(kw::ensures) {
-                let _: kw::ensures = input.parse()?;
-                let pred = content.parse()?;
-                let idx = content.parse()?;
-                Ok(Output::Constr(bty, idx, pred))
+            let idx = content.parse()?;
+            if input.peek(token::Bracket) {
+                let pred;
+                bracketed!(pred in input);
+                Ok(Output::Constr(bty, idx, pred.parse()?))
             } else {
-                Ok(Output::Indexed(bty, content.parse()?))
+                Ok(Output::Indexed(bty, idx))
             }
         } else if input.peek(token::Brace) {
             let content;

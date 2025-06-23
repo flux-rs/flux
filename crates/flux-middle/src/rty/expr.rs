@@ -308,8 +308,12 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
-    pub fn prim_app(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::PrimApp(op, e1.into(), e2.into()).intern()
+    pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::PrimApp(PrimFunc::Val(op), e1.into(), e2.into()).intern()
+    }
+
+    pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        ExprKind::PrimApp(PrimFunc::Rel(op), e1.into(), e2.into()).intern()
     }
 
     pub fn unit_struct(def_id: DefId) -> Expr {
@@ -678,6 +682,27 @@ impl Ctor {
     }
 }
 
+/// Given a primop `op` with signature `(t1,...,tn) -> t`
+/// We define a refined type for `op` expressed as a [`RuleMatcher`]
+///
+/// ```rust
+/// op :: (x1: t1, ..., xn: tn) -> { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
+/// ```
+/// That is, using two *uninterpreted functions* `op_val` and `op_rel` that respectively denote
+/// 1. The _value_ of the primop, and
+/// 2. Some invariant _relation_ that holds for the primop.
+///
+/// The latter can be extended by the user via a `property` definition, which allows us
+/// to customize primops like `<<` with extra "facts" or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
+///
+#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
+pub enum PrimFunc {
+    /// UIF representing the value of a primop
+    Val(BinOp),
+    /// UIF representing the relationship of a primop
+    Rel(BinOp),
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
@@ -686,7 +711,7 @@ pub enum ExprKind {
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     /// An UIF application representing a primitive operation
-    PrimApp(BinOp, Expr, Expr),
+    PrimApp(PrimFunc, Expr, Expr),
     GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
@@ -1496,6 +1521,15 @@ pub(crate) mod pretty {
             match self {
                 Loc::Local(local) => w!(cx, f, "{:?}", ^local),
                 Loc::Var(var) => w!(cx, f, "{:?}", var),
+            }
+        }
+    }
+
+    impl Pretty for PrimFunc {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                PrimFunc::Val(op) => w!(cx, f, "[{:?}]", op),
+                PrimFunc::Rel(op) => w!(cx, f, "[{:?}]?", op),
             }
         }
     }

@@ -16,7 +16,10 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::{Var, VariantSig, expr::HoleKind},
+    rty::{
+        Var, VariantSig,
+        expr::{HoleKind, PrimFunc},
+    },
 };
 
 pub trait TypeVisitor: Sized {
@@ -931,8 +934,15 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
             ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
-            ExprKind::PrimApp(op, e1, e2) => {
-                Expr::prim_app(
+            ExprKind::PrimApp(PrimFunc::Val(op), e1, e2) => {
+                Expr::prim_val(
+                    op.try_fold_with(folder)?,
+                    e1.try_fold_with(folder)?,
+                    e2.try_fold_with(folder)?,
+                )
+            }
+            ExprKind::PrimApp(PrimFunc::Rel(op), e1, e2) => {
+                Expr::prim_rel(
                     op.try_fold_with(folder)?,
                     e1.try_fold_with(folder)?,
                     e2.try_fold_with(folder)?,

@@ -1071,13 +1071,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let args = self.exprs_to_fixpoint(args, scx)?;
                 fixpoint::Expr::App(Box::new(func), args)
             }
-            rty::ExprKind::PrimApp(op, e1, e2) => {
-                println!("TRACE: prim app encoding! {op:?} ( {e1:?}, {e2:?} )");
+            rty::ExprKind::PrimApp(rty::PrimFunc::Val(op), e1, e2) => {
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let e1 = self.expr_to_fixpoint(e1, scx)?;
                 let e2 = self.expr_to_fixpoint(e2, scx)?;
                 let res = fixpoint::Expr::App(Box::new(func), vec![e1, e2]);
                 res
+            }
+            rty::ExprKind::PrimApp(rty::PrimFunc::Rel(op), e1, e2) => {
+                todo!("plug in the prim-rel encoding: {op:?} {e1:?} {e2:?}")
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([
