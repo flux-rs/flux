@@ -146,7 +146,8 @@ fn prim_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimProp>> {
 }
 
 fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> {
-    // let prim_props = prim_props(genv)?;
+    let prim_props = prim_props(genv)?;
+
     let mut res = UnordMap::default();
     for prim_prop in prim_props(genv)?.into_iter() {
         let op = prim_prop.op.clone();

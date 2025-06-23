@@ -294,15 +294,16 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) {
-        let &[arg0, arg1] = &prim_prop.args else {
-            self.errors
-                .emit(errors::InvalidPrimPropArgs::new(prim_prop));
-            return;
-        };
-
-        self.infcx
-            .check_expr(&prim_prop.body, &rty::Sort::Bool)
-            .collect_err(&mut self.errors);
+        if let &[arg0, arg1] = &prim_prop.args
+            && let Ok(rty::Sort::Int) = self.as_conv_ctxt().conv_sort(&arg0.sort).emit(&self.errors)
+            && let Ok(rty::Sort::Int) = self.as_conv_ctxt().conv_sort(&arg1.sort).emit(&self.errors)
+        {
+            self.infcx
+                .check_expr(&prim_prop.body, &rty::Sort::Bool)
+                .collect_err(&mut self.errors);
+        } else {
+            panic!("FIXME: prim_prop args should always have two elements");
+        }
     }
 
     fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {
