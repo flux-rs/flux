@@ -14,7 +14,7 @@ extern crate rustc_type_ir;
 
 mod conv;
 mod wf;
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
@@ -31,7 +31,7 @@ use flux_middle::{
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, WfckResults,
+        self, AssocReft, Binder, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
@@ -145,13 +145,28 @@ fn prim_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimProp>> {
         .try_collect()
 }
 
+fn conjoin_bind_exprs(exprs: Vec<Binder<rty::Expr>>) -> Binder<rty::Expr> {
+    let mut iter = exprs.into_iter();
+    let first = iter.next().unwrap();
+    let sorts = first.sorts();
+    let bodies = iter::once(first.skip_binder()).chain(iter.map(|expr| expr.skip_binder()));
+    let expr = rty::Expr::and_from_iter(bodies);
+    Binder::bind_with_sorts(expr, &sorts)
+}
+
 fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> {
-    let prim_props = prim_props(genv)?;
+    let prim_props = prim_props(genv)?
+        .into_iter()
+        .into_group_map_by(|prim_prop| prim_prop.op.clone());
 
     let mut res = UnordMap::default();
-    for prim_prop in prim_props(genv)?.into_iter() {
-        let op = prim_prop.op.clone();
-        res.entry(op).or_insert_with(|| vec![]).push(prim_prop);
+    for (op, props) in prim_props.into_iter() {
+        let exprs = props
+            .iter()
+            .map(|prop| prop.body.clone())
+            .collect::<Vec<_>>();
+        let body = conjoin_bind_exprs(exprs);
+        res.insert(op, rty::PrimRel { body });
     }
     Ok(res)
 }

@@ -138,6 +138,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.normalized_defns(self, krate)
     }
 
+    pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
+        Ok(self.inner.queries.prim_rel(self)?.get(op))
+    }
+
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
         self.inner.queries.qualifiers(self)
     }

@@ -1079,7 +1079,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 res
             }
             rty::ExprKind::PrimApp(rty::PrimFunc::Rel(op), e1, e2) => {
-                todo!("plug in the prim-rel encoding: {op:?} {e1:?} {e2:?}")
+                let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
+                    prim_rel.body.replace_bound_refts(&[e1.clone(), e2.clone()])
+                } else {
+                    rty::Expr::tt()
+                };
+                self.expr_to_fixpoint(&expr, scx)?
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([

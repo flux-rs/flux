@@ -146,6 +146,18 @@ impl<T> Binder<T> {
             _ => tracked_span_bug!("expected single-sorted binder"),
         }
     }
+
+    pub fn sorts(&self) -> List<Sort> {
+        self.vars
+            .iter()
+            .map(|kind| {
+                let BoundVariableKind::Refine(sort, ..) = kind else {
+                    tracked_span_bug!("unexpected BoundVariable");
+                };
+                sort.clone()
+            })
+            .collect()
+    }
 }
 
 impl<T> Binder<T>
