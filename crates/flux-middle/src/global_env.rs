@@ -575,6 +575,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.items.iter().map(|(id, item)| (*id, *item))
     }
 
+    pub fn flux_item(&self, id: FluxLocalDefId) -> Option<&'genv fhir::FluxItem<'genv>> {
+        self.fhir.items.get(&id)
+    }
+
     pub fn spec_func(&self, def_id: FluxLocalDefId) -> Option<&'genv fhir::SpecFunc<'genv>> {
         self.fhir
             .items

@@ -945,6 +945,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         bounds: &[surface::TraitRef],
     ) -> fhir::TyKind<'genv>;
 
+    fn allow_prim_app(&self) -> bool {
+        false
+    }
+
     fn resolve_implicit_param(&self, node_id: NodeId) -> Option<(fhir::ParamId, fhir::ParamKind)> {
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
@@ -1469,7 +1473,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let path = self.desugar_epath(path);
                 fhir::ExprKind::App(path, args)
             }
-            surface::ExprKind::PrimUIF(op) if args.len() == 2 => {
+            surface::ExprKind::PrimUIF(op) if args.len() == 2 && self.allow_prim_app() => {
                 fhir::ExprKind::PrimApp(*op, &args[0], &args[1])
             }
             surface::ExprKind::AssocReft(qself, path, name) => {
@@ -1636,6 +1640,10 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'_, 'genv, 'tcx> {
 impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
     fn next_fhir_id(&self) -> FhirId {
         FhirId { owner: FluxOwnerId::Flux(self.owner), local_id: self.local_id_gen.fresh() }
+    }
+
+    fn allow_prim_app(&self) -> bool {
+        matches!(self.genv.map().flux_item(self.owner), Some(fhir::FluxItem::PrimProp(_)))
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {
