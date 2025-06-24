@@ -2768,6 +2768,14 @@ macro_rules! _Bool {
 pub use crate::_Bool as Bool;
 
 #[macro_export]
+macro_rules! _Char {
+    ($idxs:pat) => {
+        TyKind::Indexed(BaseTy::Char, $idxs)
+    };
+}
+pub use crate::_Char as Char;
+
+#[macro_export]
 macro_rules! _Ref {
     ($($pats:pat),+ $(,)?) => {
         $crate::rty::TyKind::Indexed($crate::rty::BaseTy::Ref($($pats),+), _)

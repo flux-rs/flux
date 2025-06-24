@@ -1067,9 +1067,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Var(var)
             }
             rty::ExprKind::App(func, args) => {
-                let func = self.expr_to_fixpoint(func, scx)?;
-                let args = self.exprs_to_fixpoint(args, scx)?;
-                fixpoint::Expr::App(Box::new(func), args)
+                if let rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(thy_func)) = func.kind()
+                    && thy_func.is_erased_in_encoding()
+                    && args.len() == 1
+                {
+                    self.expr_to_fixpoint(&args[0], scx)?
+                } else {
+                    let func = self.expr_to_fixpoint(func, scx)?;
+                    let args = self.exprs_to_fixpoint(args, scx)?;
+                    fixpoint::Expr::App(Box::new(func), args)
+                }
             }
             rty::ExprKind::PrimApp(rty::PrimFunc::Val(op), e1, e2) => {
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
