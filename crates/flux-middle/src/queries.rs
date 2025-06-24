@@ -437,7 +437,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     ) -> QueryResult<&UnordMap<rty::BinOp, rty::PrimRel>> {
         self.prim_rel
             .get_or_init(|| (self.providers.prim_rel)(genv))
-            // .map(|prim_rel| &prim_rel)
             .as_ref()
             .map_err(|err| err.clone())
     }
