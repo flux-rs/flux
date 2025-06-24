@@ -160,7 +160,7 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
         .into_group_map_by(|prim_prop| prim_prop.op.clone());
 
     let mut res = UnordMap::default();
-    for (op, props) in prim_props.into_iter() {
+    for (op, props) in prim_props {
         let exprs = props
             .iter()
             .map(|prop| prop.body.clone())
