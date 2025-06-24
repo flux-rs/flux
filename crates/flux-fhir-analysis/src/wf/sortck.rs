@@ -213,8 +213,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let found = self.resolve_vars_if_possible(&found);
                 let expected = self.resolve_vars_if_possible(expected);
                 if !self.is_coercible(&found, &expected, expr.fhir_id) {
-                    panic!("booger");
-                    // return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                    return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
                 }
             }
             fhir::ExprKind::Err(_) => {
@@ -252,10 +251,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         match expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_path(&var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
-            fhir::ExprKind::BinaryOp(op, e1, e2) | fhir::ExprKind::PrimApp(op, e1, e2) => {
-                self.synth_binary_op(expr, op, e1, e2)
-            }
-
+            fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
+            fhir::ExprKind::PrimApp(..) => Ok(rty::Sort::Int), // TODO(RJ): hack!
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(op, e),
             fhir::ExprKind::App(callee, args) => {
                 let sort = self.ensure_resolved_path(&callee)?;
