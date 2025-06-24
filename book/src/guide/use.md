@@ -666,3 +666,12 @@ You can switch on overflow checking
 ```rust
 {{#include ../../../tests/tests/pos/surface/check_overflow03.rs}}
 ```
+
+## Extensible Properties for Primitive Ops
+
+You can provide _properties_ to be used when doing computations with
+primitive operations like `<<` or `>>`.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/primops00.rs}}
+```
