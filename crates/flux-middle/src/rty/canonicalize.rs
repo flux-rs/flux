@@ -382,7 +382,11 @@ mod pretty {
 
     impl Pretty for CanonicalConstrTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            if self.pred().is_trivially_true() {
+                w!(cx, f, "{:?}", &self.ty)
+            } else {
+                w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            }
         }
     }
 
@@ -392,8 +396,16 @@ mod pretty {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     cx.with_bound_vars(poly_constr.vars(), || {
-                        cx.fmt_bound_vars(false, "∃", poly_constr.vars(), ". ", f)?;
-                        w!(cx, f, "{:?}", poly_constr.as_ref().skip_binder())
+                        let constr = poly_constr.skip_binder_ref();
+                        if constr.pred().is_trivially_true() {
+                            w!(cx, f, "{{ ")?;
+                            cx.fmt_bound_vars(false, "", poly_constr.vars(), ". ", f)?;
+                            w!(cx, f, "{:?} }}", &constr.ty)
+                        } else {
+                            w!(cx, f, "{{ ")?;
+                            cx.fmt_bound_vars(false, "", poly_constr.vars(), ". ", f)?;
+                            w!(cx, f, "{:?} | {:?} }}", &constr.ty, &constr.pred)
+                        }
                     })
                 }
             }

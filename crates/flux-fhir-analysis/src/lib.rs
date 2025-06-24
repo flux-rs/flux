@@ -22,19 +22,12 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
-    fhir::{
+    _with_cx, def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId}, fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
         TraitItemKind,
-    },
-    global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
-    query_bug,
-    rty::{
-        self, AssocReft, WfckResults,
-        fold::TypeFoldable,
-        refining::{self, Refiner},
-    },
+    }, global_env::GlobalEnv, pretty::PrettyCx, queries::{Providers, QueryResult}, query_bug, rty::{
+        self, fold::TypeFoldable, refining::{self, Refiner}, AssocReft, WfckResults
+    }
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
@@ -544,6 +537,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
         .conv_fn_sig(def_id, fhir_fn_sig)?;
     let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
     let fn_sig = fn_sig.hoist_input_binders();
+    println!("{:?}", _with_cx!(&PrettyCx::default(genv), &fn_sig));
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;

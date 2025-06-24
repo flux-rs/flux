@@ -23,13 +23,10 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
-    fhir,
-    global_env::GlobalEnv,
-    rty::{
+    _with_cx, def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId}, fhir, global_env::GlobalEnv, pretty::PrettyCx, rty::{
         self,
         refining::{self, Refine, Refiner},
-    },
+    }
 };
 
 type Cache<K, V> = RefCell<UnordMap<K, V>>;
@@ -739,6 +736,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
+                    println!("{:?}", _with_cx!(&PrettyCx::default(genv), &fn_sig));
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )

@@ -5,6 +5,7 @@ use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_abi::FieldIdx;
 use rustc_data_structures::unord::UnordMap;
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
@@ -194,7 +195,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
-    env: BoundVarEnv,
+    pub env: BoundVarEnv,
 }
 
 macro_rules! set_opts {
@@ -260,10 +261,19 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 
     pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
-        self.env.push_layer(vars);
+        self.env.push_layer(vars, None);
         let r = f();
         self.env.pop_layer();
         r
+    }
+
+    pub fn with_fn_root_bound_vars<R>(&self, vars: &[BoundVariableKind], fn_root_layer_type: FnRootLayerType, f: impl FnOnce() -> R) -> (R, FxHashSet<BoundVar>) {
+        self.env.push_layer(vars, Some(fn_root_layer_type));
+        let r = f();
+        match self.env.pop_layer() {
+            Some(BoundVarLayer::FnRootLayer(fn_root_layer)) => (r, fn_root_layer.seen_vars),
+            _ => unreachable!("The popped layer must exist and be an FnRootLayer")
+        }
     }
 
     pub fn fmt_bound_vars(
@@ -323,7 +333,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                 }
             }
             BoundReftKind::Named(name) => {
-                w!(self, f, "{name}<<⭡{}/#{:?}>>", ^debruijn.as_usize(), ^breft.var)
+                w!(self, f, "{name}")
             }
         }
     }
@@ -352,36 +362,110 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 newtype_index! {
     /// Name used during pretty printing to format anonymous bound variables
     #[debug_format = "b{}"]
-    struct BoundVarName {}
+    pub struct BoundVarName {}
+}
+
+#[derive(Copy, Clone)]
+pub enum FnRootLayerType {
+    FnArgs,
+    FnRet,
+}
+
+#[derive(Clone)]
+pub struct FnRootLayer {
+    name_map: UnordMap<BoundVar, BoundVarName>,
+    seen_vars: FxHashSet<BoundVar>,
+    layer_type: FnRootLayerType,
+}
+
+pub enum BoundVarLayer {
+    Layer(UnordMap<BoundVar, BoundVarName>),
+    /// We treat vars at the function root differently. The UnordMap
+    /// functions the same as in a regular layer (i.e. giving names to
+    /// anonymous bound vars), but we additionally track a set of
+    /// boundvars that have been seen previously.
+    ///
+    /// This set is used to render a signature like
+    ///
+    ///     fn(usize[@n], usize[n]) -> usize[#m] ensures m > 0
+    ///
+    /// The first time we visit `n`, we'll add the `@`, but the second
+    /// time we'll track that we've seen it and won't.
+    ///
+    /// We do the same thing for `m` but with a different layer.
+    ///
+    /// This is a behavior we _only_ do for bound vars at the fn root level.
+    FnRootLayer(FnRootLayer),
+}
+
+impl BoundVarLayer {
+    fn name_map(&self) -> &UnordMap<BoundVar, BoundVarName> {
+        match self {
+            Self::Layer(name_map) => name_map,
+            Self::FnRootLayer(root_layer) => &root_layer.name_map,
+        }
+    }
+
 }
 
 #[derive(Default)]
-struct BoundVarEnv {
+pub struct BoundVarEnv {
     name_gen: IndexGen<BoundVarName>,
-    layers: RefCell<Vec<UnordMap<BoundVar, BoundVarName>>>,
+    layers: RefCell<Vec<BoundVarLayer>>,
 }
 
 impl BoundVarEnv {
+    /// Checks if a variable is
+    /// 1. In the function root layer (`Some(..)` if so, `None` otherwise)
+    /// 2. Has been seen before (the `bool` inside of the `Some(..)`)
+    /// 3. At the args or ret layer type (the `FnRootLayerType` inside of the `Some(..)`)
+    ///
+    /// It updates the set of seen variables at the function root layer when it
+    /// does the check.
+    pub fn check_if_seen_fn_root_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<(bool, FnRootLayerType)> {
+        let num_layers = self.layers.borrow().len();
+        let mut layer = self
+             .layers.borrow_mut();
+        match layer.get_mut(num_layers.checked_sub(debruijn.as_usize() + 1)?)? {
+            BoundVarLayer::FnRootLayer(fn_root_layer) => {
+                Some((fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type))
+            }
+            BoundVarLayer::Layer(..) => None,
+        }
+    }
+
     fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
         let layers = self.layers.borrow();
         layers
             .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
+            .name_map()
             .get(&var)
             .copied()
     }
 
-    fn push_layer(&self, vars: &[BoundVariableKind]) {
-        let mut layer = UnordMap::default();
+    fn push_layer(&self, vars: &[BoundVariableKind], is_fn_root_layer: Option<FnRootLayerType>) {
+        let mut name_map = UnordMap::default();
         for (idx, var) in vars.iter().enumerate() {
             if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
-                layer.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
+                name_map.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
             }
         }
-        self.layers.borrow_mut().push(layer);
+        self.layers.borrow_mut().push(
+            if let Some(layer_type) = is_fn_root_layer {
+                BoundVarLayer::FnRootLayer(
+                    FnRootLayer {
+                        name_map,
+                        seen_vars: FxHashSet::default(),
+                        layer_type,
+                    })
+            } else {
+                BoundVarLayer::Layer(name_map)
+            }
+        );
     }
 
-    fn pop_layer(&self) {
-        self.layers.borrow_mut().pop();
+    fn pop_layer(&self) -> Option<BoundVarLayer> {
+        self.layers.borrow_mut().pop()
     }
 }
 
