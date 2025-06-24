@@ -256,12 +256,27 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_prim_app(&self, op: &fhir::BinOp, span: Span) -> Result<rty::Sort> {
-        if let Some((_, output)) = primop_sort(op) {
-            Ok(output)
-        } else {
-            Err(self.emit_err(errors::UnsupportedPrimOp::new(span, *op)))
-        }
+    fn synth_prim_app(
+        &mut self,
+        op: &fhir::BinOp,
+        e1: &fhir::Expr,
+        e2: &fhir::Expr,
+        span: Span,
+    ) -> Result<rty::Sort> {
+        let Some((inputs, output)) = primop_sort(op) else {
+            return Err(self.emit_err(errors::UnsupportedPrimOp::new(span, *op)));
+        };
+        let [sort1, sort2] = &inputs[..] else {
+            return Err(self.emit_err(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("primop app"),
+                inputs.len(),
+                2,
+            )));
+        };
+        self.check_expr(e1, &sort1)?;
+        self.check_expr(e2, &sort2)?;
+        Ok(output)
     }
 
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
@@ -269,7 +284,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::ExprKind::Var(var, _) => self.synth_path(&var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
-            fhir::ExprKind::PrimApp(op, _, _) => self.synth_prim_app(&op, expr.span),
+            fhir::ExprKind::PrimApp(op, e1, e2) => self.synth_prim_app(&op, e1, e2, expr.span),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(op, e),
             fhir::ExprKind::App(callee, args) => {
                 let sort = self.ensure_resolved_path(&callee)?;
