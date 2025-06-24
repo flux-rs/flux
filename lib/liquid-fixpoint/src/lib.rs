@@ -361,10 +361,7 @@ pub enum ThyFunc {
 
 impl ThyFunc {
     pub fn is_erased_in_encoding(&self) -> bool {
-        match self {
-            ThyFunc::CharToInt | ThyFunc::IntToChar => true,
-            _ => false,
-        }
+        matches!(self, ThyFunc::CharToInt | ThyFunc::IntToChar)
     }
 
     pub const ALL: [ThyFunc; 37] = [
