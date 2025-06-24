@@ -39,7 +39,15 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
-    pub prim_app_sort: FxHashMap<fhir::BinOp, rty::Sort>,
+}
+
+pub fn primop_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
+    match op {
+        fhir::BinOp::BitAnd | fhir::BinOp::BitOr | fhir::BinOp::BitShl | fhir::BinOp::BitShr => {
+            Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int))
+        }
+        _ => None,
+    }
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -60,7 +68,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
-            prim_app_sort: Default::default(),
         }
     }
 
@@ -234,13 +241,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn sort_of_prim_app(&self, op: &fhir::BinOp) -> Result<rty::Sort> {
-        self.prim_app_sort
-            .get(op)
-            .cloned()
-            .ok_or_else(|| bug!("TODO(decent error message) unexpected prim-app {op:?}"))
-    }
-
     fn synth_lit(&mut self, lit: fhir::Lit, expr: &fhir::Expr) -> rty::Sort {
         match lit {
             fhir::Lit::Int(_) => {
@@ -256,12 +256,20 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn synth_prim_app(&self, op: &fhir::BinOp, span: Span) -> Result<rty::Sort> {
+        if let Some((_, output)) = primop_sort(op) {
+            Ok(output)
+        } else {
+            Err(self.emit_err(errors::UnsupportedPrimOp::new(span, *op)))
+        }
+    }
+
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_path(&var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
-            fhir::ExprKind::PrimApp(op, _, _) => self.sort_of_prim_app(&op),
+            fhir::ExprKind::PrimApp(op, _, _) => self.synth_prim_app(&op, expr.span),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(op, e),
             fhir::ExprKind::App(callee, args) => {
                 let sort = self.ensure_resolved_path(&callee)?;

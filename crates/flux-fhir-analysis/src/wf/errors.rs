@@ -64,6 +64,20 @@ impl MissingEnsures {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_unsupported_primop, code = E0999)]
+pub(super) struct UnsupportedPrimOp {
+    #[primary_span]
+    span: Span,
+    op: fhir::BinOp,
+}
+
+impl UnsupportedPrimOp {
+    pub(super) fn new(span: Span, op: fhir::BinOp) -> Self {
+        Self { span, op }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_expected_fun, code = E0999)]
 pub(super) struct ExpectedFun<'a> {
     #[primary_span]

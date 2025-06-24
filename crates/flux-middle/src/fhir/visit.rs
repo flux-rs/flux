@@ -211,7 +211,6 @@ fn walk_func<'v, V: Visitor<'v>>(vis: &mut V, func: &SpecFunc<'v>) {
 
 fn walk_prim_prop<'v, V: Visitor<'v>>(vis: &mut V, prop: &PrimProp<'v>) {
     walk_list!(vis, visit_refine_param, prop.args);
-    vis.visit_sort(&prop.output);
     vis.visit_expr(&prop.body);
 }
 

@@ -31,7 +31,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
 use rustc_errors::Diagnostic;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, BodyId, OwnerId, Safety, def::DefKind, def_id::DefId};
 use rustc_index::IndexVec;
 use rustc_middle::{
@@ -57,7 +57,6 @@ pub(crate) struct AfterSortck<'a, 'genv, 'tcx> {
     next_type_index: u32,
     next_region_index: u32,
     next_const_index: u32,
-    prim_app_sort: FxHashMap<fhir::BinOp, rty::Sort>,
 }
 
 /// We do conversion twice: once before sort checking when we don't have elaborated information
@@ -98,8 +97,6 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
     /// Called after converting an [`fhir::ExprKind::Alias`] with the sort of the resulting
     /// [`rty::AliasReft`]. Used during the first phase to collect the sorts of refinement aliases.
     fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort);
-
-    fn insert_prim_app_sort(&mut self, op: fhir::BinOp, sort: rty::Sort);
 
     fn into_conv_ctxt(self) -> ConvCtxt<Self> {
         ConvCtxt(self)
@@ -170,10 +167,6 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for AfterSortck<'_, 'genv, 'tcx> {
     fn insert_path_args(&mut self, _: FhirId, _: rty::GenericArgs) {}
 
     fn insert_alias_reft_sort(&mut self, _: FhirId, _: rty::FuncSort) {}
-
-    fn insert_prim_app_sort(&mut self, op: fhir::BinOp, sort: rty::Sort) {
-        self.prim_app_sort.insert(op, sort);
-    }
 }
 
 impl WfckResultsProvider for WfckResults {
@@ -436,8 +429,6 @@ pub(crate) fn conv_prim_prop(
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     let mut env = Env::new(&[]);
     env.push_layer(Layer::list(wfckresults, 0, prim_prop.args));
-    let output = cx.conv_sort(&prim_prop.output)?;
-    cx.0.insert_prim_app_sort(prim_prop.op, output.clone());
     let body = cx.conv_expr(&mut env, &prim_prop.body)?;
     let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
     let op = match prim_prop.op {
@@ -453,7 +444,7 @@ pub(crate) fn conv_prim_prop(
             )
         }
     };
-    Ok(rty::PrimProp { def_id: prim_prop.def_id, op, output, body })
+    Ok(rty::PrimProp { def_id: prim_prop.def_id, op, body })
 }
 
 pub(crate) fn conv_qualifier(
@@ -495,7 +486,6 @@ impl<'a, 'genv, 'tcx> AfterSortck<'a, 'genv, 'tcx> {
             next_type_index: 1,
             next_region_index: 0,
             next_const_index: 0,
-            prim_app_sort: FxHashMap::default(),
         }
     }
 }

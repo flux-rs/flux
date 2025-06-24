@@ -24,7 +24,10 @@ use rustc_hir::{
 };
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{ConvPhase, WfckResultsProvider};
+use crate::{
+    conv::{ConvPhase, WfckResultsProvider},
+    wf::sortck::primop_sort,
+};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -294,21 +297,27 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) {
-        if let &[arg0, arg1] = &prim_prop.args
-            && let Ok(rty::Sort::Int) = self.as_conv_ctxt().conv_sort(&arg0.sort).emit(&self.errors)
-            && let Ok(rty::Sort::Int) = self.as_conv_ctxt().conv_sort(&arg1.sort).emit(&self.errors)
-            && let Ok(output) = self
-                .as_conv_ctxt()
-                .conv_sort(&prim_prop.output)
-                .emit(&self.errors)
-        {
-            self.infcx.prim_app_sort.insert(prim_prop.op, output);
-            self.infcx
-                .check_expr(&prim_prop.body, &rty::Sort::Bool)
-                .collect_err(&mut self.errors);
-        } else {
-            panic!("FIXME: prim_prop args should always have two elements");
+        let Some((sorts, _)) = primop_sort(&prim_prop.op) else {
+            self.errors
+                .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op));
+            return;
+        };
+
+        if prim_prop.args.len() != sorts.len() {
+            self.errors.emit(errors::ArgCountMismatch::new(
+                Some(prim_prop.span),
+                String::from("primop"),
+                sorts.len(),
+                prim_prop.args.len(),
+            ));
+            return;
         }
+        for (arg, sort) in prim_prop.args.iter().zip(sorts) {
+            self.infcx.declare_param(*arg, sort);
+        }
+        self.infcx
+            .check_expr(&prim_prop.body, &rty::Sort::Bool)
+            .collect_err(&mut self.errors);
     }
 
     fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {
@@ -506,10 +515,6 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
 
     fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
         self.infcx.insert_sort_for_alias_reft(fhir_id, fsort);
-    }
-
-    fn insert_prim_app_sort(&mut self, op: fhir::BinOp, sort: rty::Sort) {
-        self.infcx.prim_app_sort.insert(op, sort);
     }
 }
 

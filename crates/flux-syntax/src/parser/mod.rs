@@ -166,16 +166,12 @@ fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimProp> {
     cx.expect(Token::CloseBracket)?;
 
     // Parse the args
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
-
-    // Parse the output sort
-    cx.expect(Tok::RArrow)?;
-    let output = parse_sort(cx)?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, false))?;
 
     let body = parse_block(cx)?;
     let hi = cx.hi();
 
-    Ok(PrimProp { name, op, params, output, body, span: cx.mk_span(lo, hi) })
+    Ok(PrimProp { name, op, params, body, span: cx.mk_span(lo, hi) })
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {

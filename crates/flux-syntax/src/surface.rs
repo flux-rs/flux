@@ -1,6 +1,6 @@
 pub mod visit;
 
-use std::{fmt, ops::Range};
+use std::{borrow::Cow, fmt, ops::Range};
 
 pub use rustc_ast::{
     Mutability,
@@ -81,8 +81,6 @@ pub struct PrimProp {
     /// The sort _at_ which the primop is defined,
     /// The binders for the inputs of the primop; the output sort is always `Bool`
     pub params: RefineParams,
-    /// The sort of the output of the primop
-    pub output: Sort,
     /// The actual definition of the property
     pub body: Expr,
     pub span: Span,
@@ -625,6 +623,12 @@ impl fmt::Debug for BinOp {
             BinOp::BitShl => write!(f, "<<"),
             BinOp::BitShr => write!(f, ">>"),
         }
+    }
+}
+
+impl rustc_errors::IntoDiagArg for BinOp {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
