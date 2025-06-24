@@ -297,7 +297,12 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         if let &[arg0, arg1] = &prim_prop.args
             && let Ok(rty::Sort::Int) = self.as_conv_ctxt().conv_sort(&arg0.sort).emit(&self.errors)
             && let Ok(rty::Sort::Int) = self.as_conv_ctxt().conv_sort(&arg1.sort).emit(&self.errors)
+            && let Ok(output) = self
+                .as_conv_ctxt()
+                .conv_sort(&prim_prop.output)
+                .emit(&self.errors)
         {
+            self.infcx.prim_app_sort.insert(prim_prop.op, output);
             self.infcx
                 .check_expr(&prim_prop.body, &rty::Sort::Bool)
                 .collect_err(&mut self.errors);
@@ -501,6 +506,10 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
 
     fn insert_alias_reft_sort(&mut self, fhir_id: FhirId, fsort: rty::FuncSort) {
         self.infcx.insert_sort_for_alias_reft(fhir_id, fsort);
+    }
+
+    fn insert_prim_app_sort(&mut self, op: fhir::BinOp, sort: rty::Sort) {
+        self.infcx.prim_app_sort.insert(op, sort);
     }
 }
 

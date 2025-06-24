@@ -157,23 +157,25 @@ fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimProp> {
     let lo = cx.lo();
     cx.expect(Tok::Property)?;
 
-    // Parse property[op] - expect opening bracket
+    // Parse the name
+    let name = parse_ident(cx)?;
+
+    // Parse the operator
     cx.expect(Token::OpenBracket)?;
-
-    // Parse the binary operation
     let op = parse_binop(cx)?;
-
-    // Expect closing bracket
     cx.expect(Token::CloseBracket)?;
 
-    // Parse the rest like parse_reft_func but without hide attribute
-    cx.expect(Tok::Fn)?;
-    let name = parse_ident(cx)?;
+    // Parse the args
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
+
+    // Parse the output sort
+    cx.expect(Tok::RArrow)?;
+    let output = parse_sort(cx)?;
+
     let body = parse_block(cx)?;
     let hi = cx.hi();
 
-    Ok(PrimProp { name, op, params, body, span: cx.mk_span(lo, hi) })
+    Ok(PrimProp { name, op, params, output, body, span: cx.mk_span(lo, hi) })
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {

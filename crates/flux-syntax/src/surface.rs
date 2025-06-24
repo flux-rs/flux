@@ -78,8 +78,11 @@ pub struct PrimProp {
     pub name: Ident,
     /// The binop it is attached to
     pub op: BinOp,
+    /// The sort _at_ which the primop is defined,
     /// The binders for the inputs of the primop; the output sort is always `Bool`
     pub params: RefineParams,
+    /// The sort of the output of the primop
+    pub output: Sort,
     /// The actual definition of the property
     pub body: Expr,
     pub span: Span,
@@ -576,8 +579,7 @@ pub struct ExprPathSegment {
     pub ident: Ident,
     pub node_id: NodeId,
 }
-
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub enum BinOp {
     Iff,
     Imp,

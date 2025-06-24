@@ -1181,6 +1181,7 @@ pub struct PrimProp<'fhir> {
     pub def_id: FluxLocalDefId,
     pub op: BinOp,
     pub args: &'fhir [RefineParam<'fhir>],
+    pub output: Sort<'fhir>,
     pub body: Expr<'fhir>,
     pub span: Span,
 }

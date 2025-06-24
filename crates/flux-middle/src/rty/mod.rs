@@ -1248,6 +1248,7 @@ pub struct PrimProp {
     pub def_id: FluxLocalDefId,
     pub op: BinOp,
     pub body: Binder<Expr>,
+    pub output: Sort,
 }
 
 #[derive(Debug, TypeVisitable, TypeFoldable)]
