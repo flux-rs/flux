@@ -22,19 +22,11 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::{FluxDefId, FluxId, MaybeExternId},
-    fhir::{
+    _with_cx, def_id::{FluxDefId, FluxId, MaybeExternId}, fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
         TraitItemKind,
-    },
-    global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
-    query_bug,
-    rty::{
-        self, AssocReft, Binder, WfckResults,
-        fold::TypeFoldable,
-        refining::{self, Refiner},
-    },
+    }, global_env::GlobalEnv, pretty::PrettyCx, queries::{Providers, QueryResult}, query_bug, rty::{
+        self, Binder, fold::TypeFoldable, refining::{self, Refiner}, AssocReft, WfckResults, }
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
