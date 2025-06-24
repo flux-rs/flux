@@ -827,28 +827,28 @@
 <a href=#827 id=827 data-nosnippet>827</a></span><span class="kw">pub enum </span>PrimSort {
 <a href=#828 id=828 data-nosnippet>828</a>    Int,
 <a href=#829 id=829 data-nosnippet>829</a>    Bool,
-<a href=#830 id=830 data-nosnippet>830</a>    Real,
-<a href=#831 id=831 data-nosnippet>831</a>    Set,
-<a href=#832 id=832 data-nosnippet>832</a>    Map,
-<a href=#833 id=833 data-nosnippet>833</a>}
-<a href=#834 id=834 data-nosnippet>834</a>
-<a href=#835 id=835 data-nosnippet>835</a><span class="kw">impl </span>PrimSort {
-<a href=#836 id=836 data-nosnippet>836</a>    <span class="kw">pub fn </span>name_str(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#837 id=837 data-nosnippet>837</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#838 id=838 data-nosnippet>838</a>            PrimSort::Int =&gt; <span class="string">"int"</span>,
-<a href=#839 id=839 data-nosnippet>839</a>            PrimSort::Bool =&gt; <span class="string">"bool"</span>,
-<a href=#840 id=840 data-nosnippet>840</a>            PrimSort::Real =&gt; <span class="string">"real"</span>,
-<a href=#841 id=841 data-nosnippet>841</a>            PrimSort::Set =&gt; <span class="string">"Set"</span>,
-<a href=#842 id=842 data-nosnippet>842</a>            PrimSort::Map =&gt; <span class="string">"Map"</span>,
-<a href=#843 id=843 data-nosnippet>843</a>        }
-<a href=#844 id=844 data-nosnippet>844</a>    }
-<a href=#845 id=845 data-nosnippet>845</a>
-<a href=#846 id=846 data-nosnippet>846</a>    <span class="doccomment">/// Number of generics expected by this primitive sort
-<a href=#847 id=847 data-nosnippet>847</a>    </span><span class="kw">pub fn </span>generics(<span class="self">self</span>) -&gt; usize {
-<a href=#848 id=848 data-nosnippet>848</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#849 id=849 data-nosnippet>849</a>            PrimSort::Int =&gt; <span class="number">0</span>,
-<a href=#850 id=850 data-nosnippet>850</a>            PrimSort::Bool =&gt; <span class="number">0</span>,
-<a href=#851 id=851 data-nosnippet>851</a>            PrimSort::Real =&gt; <span class="number">0</span>,
+<a href=#830 id=830 data-nosnippet>830</a>    Char,
+<a href=#831 id=831 data-nosnippet>831</a>    Real,
+<a href=#832 id=832 data-nosnippet>832</a>    Set,
+<a href=#833 id=833 data-nosnippet>833</a>    Map,
+<a href=#834 id=834 data-nosnippet>834</a>}
+<a href=#835 id=835 data-nosnippet>835</a>
+<a href=#836 id=836 data-nosnippet>836</a><span class="kw">impl </span>PrimSort {
+<a href=#837 id=837 data-nosnippet>837</a>    <span class="kw">pub fn </span>name_str(<span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#838 id=838 data-nosnippet>838</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#839 id=839 data-nosnippet>839</a>            PrimSort::Int =&gt; <span class="string">"int"</span>,
+<a href=#840 id=840 data-nosnippet>840</a>            PrimSort::Bool =&gt; <span class="string">"bool"</span>,
+<a href=#841 id=841 data-nosnippet>841</a>            PrimSort::Char =&gt; <span class="string">"char"</span>,
+<a href=#842 id=842 data-nosnippet>842</a>            PrimSort::Real =&gt; <span class="string">"real"</span>,
+<a href=#843 id=843 data-nosnippet>843</a>            PrimSort::Set =&gt; <span class="string">"Set"</span>,
+<a href=#844 id=844 data-nosnippet>844</a>            PrimSort::Map =&gt; <span class="string">"Map"</span>,
+<a href=#845 id=845 data-nosnippet>845</a>        }
+<a href=#846 id=846 data-nosnippet>846</a>    }
+<a href=#847 id=847 data-nosnippet>847</a>
+<a href=#848 id=848 data-nosnippet>848</a>    <span class="doccomment">/// Number of generics expected by this primitive sort
+<a href=#849 id=849 data-nosnippet>849</a>    </span><span class="kw">pub fn </span>generics(<span class="self">self</span>) -&gt; usize {
+<a href=#850 id=850 data-nosnippet>850</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#851 id=851 data-nosnippet>851</a>            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char =&gt; <span class="number">0</span>,
 <a href=#852 id=852 data-nosnippet>852</a>            PrimSort::Set =&gt; <span class="number">1</span>,
 <a href=#853 id=853 data-nosnippet>853</a>            PrimSort::Map =&gt; <span class="number">2</span>,
 <a href=#854 id=854 data-nosnippet>854</a>        }
@@ -1572,44 +1572,45 @@
 <a href=#1572 id=1572 data-nosnippet>1572</a>            SortRes::PrimSort(PrimSort::Bool) =&gt; <span class="macro">write!</span>(f, <span class="string">"bool"</span>),
 <a href=#1573 id=1573 data-nosnippet>1573</a>            SortRes::PrimSort(PrimSort::Int) =&gt; <span class="macro">write!</span>(f, <span class="string">"int"</span>),
 <a href=#1574 id=1574 data-nosnippet>1574</a>            SortRes::PrimSort(PrimSort::Real) =&gt; <span class="macro">write!</span>(f, <span class="string">"real"</span>),
-<a href=#1575 id=1575 data-nosnippet>1575</a>            SortRes::PrimSort(PrimSort::Set) =&gt; <span class="macro">write!</span>(f, <span class="string">"Set"</span>),
-<a href=#1576 id=1576 data-nosnippet>1576</a>            SortRes::PrimSort(PrimSort::Map) =&gt; <span class="macro">write!</span>(f, <span class="string">"Map"</span>),
-<a href=#1577 id=1577 data-nosnippet>1577</a>            SortRes::SortParam(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"@{n}"</span>),
-<a href=#1578 id=1578 data-nosnippet>1578</a>            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
-<a href=#1579 id=1579 data-nosnippet>1579</a>            SortRes::SelfParam { trait_id } =&gt; {
-<a href=#1580 id=1580 data-nosnippet>1580</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
-<a href=#1581 id=1581 data-nosnippet>1581</a>            }
-<a href=#1582 id=1582 data-nosnippet>1582</a>            SortRes::SelfAlias { alias_to } =&gt; {
-<a href=#1583 id=1583 data-nosnippet>1583</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
-<a href=#1584 id=1584 data-nosnippet>1584</a>            }
-<a href=#1585 id=1585 data-nosnippet>1585</a>            SortRes::SelfParamAssoc { ident: assoc, .. } =&gt; {
-<a href=#1586 id=1586 data-nosnippet>1586</a>                <span class="macro">write!</span>(f, <span class="string">"Self::{assoc}"</span>)
-<a href=#1587 id=1587 data-nosnippet>1587</a>            }
-<a href=#1588 id=1588 data-nosnippet>1588</a>            SortRes::User { name } =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
-<a href=#1589 id=1589 data-nosnippet>1589</a>            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
-<a href=#1590 id=1590 data-nosnippet>1590</a>        }
-<a href=#1591 id=1591 data-nosnippet>1591</a>    }
-<a href=#1592 id=1592 data-nosnippet>1592</a>}
-<a href=#1593 id=1593 data-nosnippet>1593</a>
-<a href=#1594 id=1594 data-nosnippet>1594</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PolyFuncSort&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1595 id=1595 data-nosnippet>1595</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1596 id=1596 data-nosnippet>1596</a>        <span class="kw">if </span><span class="self">self</span>.params &gt; <span class="number">0 </span>{
-<a href=#1597 id=1597 data-nosnippet>1597</a>            <span class="macro">write!</span>(f, <span class="string">"for&lt;{}&gt;{:?}"</span>, <span class="self">self</span>.params, <span class="self">self</span>.fsort)
-<a href=#1598 id=1598 data-nosnippet>1598</a>        } <span class="kw">else </span>{
-<a href=#1599 id=1599 data-nosnippet>1599</a>            <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.fsort)
-<a href=#1600 id=1600 data-nosnippet>1600</a>        }
-<a href=#1601 id=1601 data-nosnippet>1601</a>    }
-<a href=#1602 id=1602 data-nosnippet>1602</a>}
-<a href=#1603 id=1603 data-nosnippet>1603</a>
-<a href=#1604 id=1604 data-nosnippet>1604</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FuncSort&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#1605 id=1605 data-nosnippet>1605</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1606 id=1606 data-nosnippet>1606</a>        <span class="kw">match </span><span class="self">self</span>.inputs() {
-<a href=#1607 id=1607 data-nosnippet>1607</a>            [input] =&gt; {
-<a href=#1608 id=1608 data-nosnippet>1608</a>                <span class="macro">write!</span>(f, <span class="string">"{:?} -&gt; {:?}"</span>, input, <span class="self">self</span>.output())
-<a href=#1609 id=1609 data-nosnippet>1609</a>            }
-<a href=#1610 id=1610 data-nosnippet>1610</a>            inputs =&gt; {
-<a href=#1611 id=1611 data-nosnippet>1611</a>                <span class="macro">write!</span>(f, <span class="string">"({:?}) -&gt; {:?}"</span>, inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output())
-<a href=#1612 id=1612 data-nosnippet>1612</a>            }
-<a href=#1613 id=1613 data-nosnippet>1613</a>        }
-<a href=#1614 id=1614 data-nosnippet>1614</a>    }
-<a href=#1615 id=1615 data-nosnippet>1615</a>}</code></pre></div></section></main></body></html>
+<a href=#1575 id=1575 data-nosnippet>1575</a>            SortRes::PrimSort(PrimSort::Char) =&gt; <span class="macro">write!</span>(f, <span class="string">"char"</span>),
+<a href=#1576 id=1576 data-nosnippet>1576</a>            SortRes::PrimSort(PrimSort::Set) =&gt; <span class="macro">write!</span>(f, <span class="string">"Set"</span>),
+<a href=#1577 id=1577 data-nosnippet>1577</a>            SortRes::PrimSort(PrimSort::Map) =&gt; <span class="macro">write!</span>(f, <span class="string">"Map"</span>),
+<a href=#1578 id=1578 data-nosnippet>1578</a>            SortRes::SortParam(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"@{n}"</span>),
+<a href=#1579 id=1579 data-nosnippet>1579</a>            SortRes::TyParam(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
+<a href=#1580 id=1580 data-nosnippet>1580</a>            SortRes::SelfParam { trait_id } =&gt; {
+<a href=#1581 id=1581 data-nosnippet>1581</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>trait_id))
+<a href=#1582 id=1582 data-nosnippet>1582</a>            }
+<a href=#1583 id=1583 data-nosnippet>1583</a>            SortRes::SelfAlias { alias_to } =&gt; {
+<a href=#1584 id=1584 data-nosnippet>1584</a>                <span class="macro">write!</span>(f, <span class="string">"{}::Self::sort"</span>, def_id_to_string(<span class="kw-2">*</span>alias_to))
+<a href=#1585 id=1585 data-nosnippet>1585</a>            }
+<a href=#1586 id=1586 data-nosnippet>1586</a>            SortRes::SelfParamAssoc { ident: assoc, .. } =&gt; {
+<a href=#1587 id=1587 data-nosnippet>1587</a>                <span class="macro">write!</span>(f, <span class="string">"Self::{assoc}"</span>)
+<a href=#1588 id=1588 data-nosnippet>1588</a>            }
+<a href=#1589 id=1589 data-nosnippet>1589</a>            SortRes::User { name } =&gt; <span class="macro">write!</span>(f, <span class="string">"{name}"</span>),
+<a href=#1590 id=1590 data-nosnippet>1590</a>            SortRes::Adt(def_id) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}::sort"</span>, def_id_to_string(<span class="kw-2">*</span>def_id)),
+<a href=#1591 id=1591 data-nosnippet>1591</a>        }
+<a href=#1592 id=1592 data-nosnippet>1592</a>    }
+<a href=#1593 id=1593 data-nosnippet>1593</a>}
+<a href=#1594 id=1594 data-nosnippet>1594</a>
+<a href=#1595 id=1595 data-nosnippet>1595</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>PolyFuncSort&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1596 id=1596 data-nosnippet>1596</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1597 id=1597 data-nosnippet>1597</a>        <span class="kw">if </span><span class="self">self</span>.params &gt; <span class="number">0 </span>{
+<a href=#1598 id=1598 data-nosnippet>1598</a>            <span class="macro">write!</span>(f, <span class="string">"for&lt;{}&gt;{:?}"</span>, <span class="self">self</span>.params, <span class="self">self</span>.fsort)
+<a href=#1599 id=1599 data-nosnippet>1599</a>        } <span class="kw">else </span>{
+<a href=#1600 id=1600 data-nosnippet>1600</a>            <span class="macro">write!</span>(f, <span class="string">"{:?}"</span>, <span class="self">self</span>.fsort)
+<a href=#1601 id=1601 data-nosnippet>1601</a>        }
+<a href=#1602 id=1602 data-nosnippet>1602</a>    }
+<a href=#1603 id=1603 data-nosnippet>1603</a>}
+<a href=#1604 id=1604 data-nosnippet>1604</a>
+<a href=#1605 id=1605 data-nosnippet>1605</a><span class="kw">impl </span>fmt::Debug <span class="kw">for </span>FuncSort&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#1606 id=1606 data-nosnippet>1606</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1607 id=1607 data-nosnippet>1607</a>        <span class="kw">match </span><span class="self">self</span>.inputs() {
+<a href=#1608 id=1608 data-nosnippet>1608</a>            [input] =&gt; {
+<a href=#1609 id=1609 data-nosnippet>1609</a>                <span class="macro">write!</span>(f, <span class="string">"{:?} -&gt; {:?}"</span>, input, <span class="self">self</span>.output())
+<a href=#1610 id=1610 data-nosnippet>1610</a>            }
+<a href=#1611 id=1611 data-nosnippet>1611</a>            inputs =&gt; {
+<a href=#1612 id=1612 data-nosnippet>1612</a>                <span class="macro">write!</span>(f, <span class="string">"({:?}) -&gt; {:?}"</span>, inputs.iter().format(<span class="string">", "</span>), <span class="self">self</span>.output())
+<a href=#1613 id=1613 data-nosnippet>1613</a>            }
+<a href=#1614 id=1614 data-nosnippet>1614</a>        }
+<a href=#1615 id=1615 data-nosnippet>1615</a>    }
+<a href=#1616 id=1616 data-nosnippet>1616</a>}</code></pre></div></section></main></body></html>

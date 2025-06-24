@@ -2753,104 +2753,112 @@
 <a href=#2753 id=2753 data-nosnippet>2753</a><span class="kw">pub use </span><span class="kw">crate</span>::_Bool <span class="kw">as </span>Bool;
 <a href=#2754 id=2754 data-nosnippet>2754</a>
 <a href=#2755 id=2755 data-nosnippet>2755</a><span class="attr">#[macro_export]
-<a href=#2756 id=2756 data-nosnippet>2756</a></span><span class="macro">macro_rules!</span> _Ref {
-<a href=#2757 id=2757 data-nosnippet>2757</a>    ($(<span class="macro-nonterminal">$pats</span>:pat),+ $(,)<span class="question-mark">?</span>) =&gt; {
-<a href=#2758 id=2758 data-nosnippet>2758</a>        <span class="macro-nonterminal">$crate::rty::TyKind::Indexed</span>(<span class="macro-nonterminal">$crate::rty::BaseTy::Ref</span>($(<span class="macro-nonterminal">$pats</span>),+), <span class="kw">_</span>)
+<a href=#2756 id=2756 data-nosnippet>2756</a></span><span class="macro">macro_rules!</span> _Char {
+<a href=#2757 id=2757 data-nosnippet>2757</a>    (<span class="macro-nonterminal">$idxs</span>:pat) =&gt; {
+<a href=#2758 id=2758 data-nosnippet>2758</a>        TyKind::Indexed(BaseTy::Char, <span class="macro-nonterminal">$idxs</span>)
 <a href=#2759 id=2759 data-nosnippet>2759</a>    };
 <a href=#2760 id=2760 data-nosnippet>2760</a>}
-<a href=#2761 id=2761 data-nosnippet>2761</a><span class="kw">pub use </span><span class="kw">crate</span>::_Ref <span class="kw">as </span>Ref;
+<a href=#2761 id=2761 data-nosnippet>2761</a><span class="kw">pub use </span><span class="kw">crate</span>::_Char <span class="kw">as </span>Char;
 <a href=#2762 id=2762 data-nosnippet>2762</a>
-<a href=#2763 id=2763 data-nosnippet>2763</a><span class="kw">pub struct </span>WfckResults {
-<a href=#2764 id=2764 data-nosnippet>2764</a>    <span class="kw">pub </span>owner: FluxOwnerId,
-<a href=#2765 id=2765 data-nosnippet>2765</a>    bin_op_sorts: ItemLocalMap&lt;Sort&gt;,
-<a href=#2766 id=2766 data-nosnippet>2766</a>    coercions: ItemLocalMap&lt;Vec&lt;Coercion&gt;&gt;,
-<a href=#2767 id=2767 data-nosnippet>2767</a>    field_projs: ItemLocalMap&lt;FieldProj&gt;,
-<a href=#2768 id=2768 data-nosnippet>2768</a>    node_sorts: ItemLocalMap&lt;Sort&gt;,
-<a href=#2769 id=2769 data-nosnippet>2769</a>    record_ctors: ItemLocalMap&lt;DefId&gt;,
-<a href=#2770 id=2770 data-nosnippet>2770</a>}
-<a href=#2771 id=2771 data-nosnippet>2771</a>
-<a href=#2772 id=2772 data-nosnippet>2772</a><span class="attr">#[derive(Clone, Copy, Debug)]
-<a href=#2773 id=2773 data-nosnippet>2773</a></span><span class="kw">pub enum </span>Coercion {
-<a href=#2774 id=2774 data-nosnippet>2774</a>    Inject(DefId),
-<a href=#2775 id=2775 data-nosnippet>2775</a>    Project(DefId),
-<a href=#2776 id=2776 data-nosnippet>2776</a>}
-<a href=#2777 id=2777 data-nosnippet>2777</a>
-<a href=#2778 id=2778 data-nosnippet>2778</a><span class="kw">pub type </span>ItemLocalMap&lt;T&gt; = UnordMap&lt;fhir::ItemLocalId, T&gt;;
+<a href=#2763 id=2763 data-nosnippet>2763</a><span class="attr">#[macro_export]
+<a href=#2764 id=2764 data-nosnippet>2764</a></span><span class="macro">macro_rules!</span> _Ref {
+<a href=#2765 id=2765 data-nosnippet>2765</a>    ($(<span class="macro-nonterminal">$pats</span>:pat),+ $(,)<span class="question-mark">?</span>) =&gt; {
+<a href=#2766 id=2766 data-nosnippet>2766</a>        <span class="macro-nonterminal">$crate::rty::TyKind::Indexed</span>(<span class="macro-nonterminal">$crate::rty::BaseTy::Ref</span>($(<span class="macro-nonterminal">$pats</span>),+), <span class="kw">_</span>)
+<a href=#2767 id=2767 data-nosnippet>2767</a>    };
+<a href=#2768 id=2768 data-nosnippet>2768</a>}
+<a href=#2769 id=2769 data-nosnippet>2769</a><span class="kw">pub use </span><span class="kw">crate</span>::_Ref <span class="kw">as </span>Ref;
+<a href=#2770 id=2770 data-nosnippet>2770</a>
+<a href=#2771 id=2771 data-nosnippet>2771</a><span class="kw">pub struct </span>WfckResults {
+<a href=#2772 id=2772 data-nosnippet>2772</a>    <span class="kw">pub </span>owner: FluxOwnerId,
+<a href=#2773 id=2773 data-nosnippet>2773</a>    bin_op_sorts: ItemLocalMap&lt;Sort&gt;,
+<a href=#2774 id=2774 data-nosnippet>2774</a>    coercions: ItemLocalMap&lt;Vec&lt;Coercion&gt;&gt;,
+<a href=#2775 id=2775 data-nosnippet>2775</a>    field_projs: ItemLocalMap&lt;FieldProj&gt;,
+<a href=#2776 id=2776 data-nosnippet>2776</a>    node_sorts: ItemLocalMap&lt;Sort&gt;,
+<a href=#2777 id=2777 data-nosnippet>2777</a>    record_ctors: ItemLocalMap&lt;DefId&gt;,
+<a href=#2778 id=2778 data-nosnippet>2778</a>}
 <a href=#2779 id=2779 data-nosnippet>2779</a>
-<a href=#2780 id=2780 data-nosnippet>2780</a><span class="attr">#[derive(Debug)]
-<a href=#2781 id=2781 data-nosnippet>2781</a></span><span class="kw">pub struct </span>LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
-<a href=#2782 id=2782 data-nosnippet>2782</a>    owner: FluxOwnerId,
-<a href=#2783 id=2783 data-nosnippet>2783</a>    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ItemLocalMap&lt;T&gt;,
+<a href=#2780 id=2780 data-nosnippet>2780</a><span class="attr">#[derive(Clone, Copy, Debug)]
+<a href=#2781 id=2781 data-nosnippet>2781</a></span><span class="kw">pub enum </span>Coercion {
+<a href=#2782 id=2782 data-nosnippet>2782</a>    Inject(DefId),
+<a href=#2783 id=2783 data-nosnippet>2783</a>    Project(DefId),
 <a href=#2784 id=2784 data-nosnippet>2784</a>}
 <a href=#2785 id=2785 data-nosnippet>2785</a>
-<a href=#2786 id=2786 data-nosnippet>2786</a><span class="kw">pub struct </span>LocalTableInContextMut&lt;<span class="lifetime">'a</span>, T&gt; {
-<a href=#2787 id=2787 data-nosnippet>2787</a>    owner: FluxOwnerId,
-<a href=#2788 id=2788 data-nosnippet>2788</a>    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ItemLocalMap&lt;T&gt;,
-<a href=#2789 id=2789 data-nosnippet>2789</a>}
-<a href=#2790 id=2790 data-nosnippet>2790</a>
-<a href=#2791 id=2791 data-nosnippet>2791</a><span class="kw">impl </span>WfckResults {
-<a href=#2792 id=2792 data-nosnippet>2792</a>    <span class="kw">pub fn </span>new(owner: <span class="kw">impl </span>Into&lt;FluxOwnerId&gt;) -&gt; <span class="self">Self </span>{
-<a href=#2793 id=2793 data-nosnippet>2793</a>        <span class="self">Self </span>{
-<a href=#2794 id=2794 data-nosnippet>2794</a>            owner: owner.into(),
-<a href=#2795 id=2795 data-nosnippet>2795</a>            bin_op_sorts: ItemLocalMap::default(),
-<a href=#2796 id=2796 data-nosnippet>2796</a>            coercions: ItemLocalMap::default(),
-<a href=#2797 id=2797 data-nosnippet>2797</a>            field_projs: ItemLocalMap::default(),
-<a href=#2798 id=2798 data-nosnippet>2798</a>            node_sorts: ItemLocalMap::default(),
-<a href=#2799 id=2799 data-nosnippet>2799</a>            record_ctors: ItemLocalMap::default(),
-<a href=#2800 id=2800 data-nosnippet>2800</a>        }
-<a href=#2801 id=2801 data-nosnippet>2801</a>    }
-<a href=#2802 id=2802 data-nosnippet>2802</a>
-<a href=#2803 id=2803 data-nosnippet>2803</a>    <span class="kw">pub fn </span>bin_op_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
-<a href=#2804 id=2804 data-nosnippet>2804</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.bin_op_sorts }
-<a href=#2805 id=2805 data-nosnippet>2805</a>    }
-<a href=#2806 id=2806 data-nosnippet>2806</a>
-<a href=#2807 id=2807 data-nosnippet>2807</a>    <span class="kw">pub fn </span>bin_op_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
-<a href=#2808 id=2808 data-nosnippet>2808</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.bin_op_sorts }
+<a href=#2786 id=2786 data-nosnippet>2786</a><span class="kw">pub type </span>ItemLocalMap&lt;T&gt; = UnordMap&lt;fhir::ItemLocalId, T&gt;;
+<a href=#2787 id=2787 data-nosnippet>2787</a>
+<a href=#2788 id=2788 data-nosnippet>2788</a><span class="attr">#[derive(Debug)]
+<a href=#2789 id=2789 data-nosnippet>2789</a></span><span class="kw">pub struct </span>LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
+<a href=#2790 id=2790 data-nosnippet>2790</a>    owner: FluxOwnerId,
+<a href=#2791 id=2791 data-nosnippet>2791</a>    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>ItemLocalMap&lt;T&gt;,
+<a href=#2792 id=2792 data-nosnippet>2792</a>}
+<a href=#2793 id=2793 data-nosnippet>2793</a>
+<a href=#2794 id=2794 data-nosnippet>2794</a><span class="kw">pub struct </span>LocalTableInContextMut&lt;<span class="lifetime">'a</span>, T&gt; {
+<a href=#2795 id=2795 data-nosnippet>2795</a>    owner: FluxOwnerId,
+<a href=#2796 id=2796 data-nosnippet>2796</a>    data: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>ItemLocalMap&lt;T&gt;,
+<a href=#2797 id=2797 data-nosnippet>2797</a>}
+<a href=#2798 id=2798 data-nosnippet>2798</a>
+<a href=#2799 id=2799 data-nosnippet>2799</a><span class="kw">impl </span>WfckResults {
+<a href=#2800 id=2800 data-nosnippet>2800</a>    <span class="kw">pub fn </span>new(owner: <span class="kw">impl </span>Into&lt;FluxOwnerId&gt;) -&gt; <span class="self">Self </span>{
+<a href=#2801 id=2801 data-nosnippet>2801</a>        <span class="self">Self </span>{
+<a href=#2802 id=2802 data-nosnippet>2802</a>            owner: owner.into(),
+<a href=#2803 id=2803 data-nosnippet>2803</a>            bin_op_sorts: ItemLocalMap::default(),
+<a href=#2804 id=2804 data-nosnippet>2804</a>            coercions: ItemLocalMap::default(),
+<a href=#2805 id=2805 data-nosnippet>2805</a>            field_projs: ItemLocalMap::default(),
+<a href=#2806 id=2806 data-nosnippet>2806</a>            node_sorts: ItemLocalMap::default(),
+<a href=#2807 id=2807 data-nosnippet>2807</a>            record_ctors: ItemLocalMap::default(),
+<a href=#2808 id=2808 data-nosnippet>2808</a>        }
 <a href=#2809 id=2809 data-nosnippet>2809</a>    }
 <a href=#2810 id=2810 data-nosnippet>2810</a>
-<a href=#2811 id=2811 data-nosnippet>2811</a>    <span class="kw">pub fn </span>coercions_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Vec&lt;Coercion&gt;&gt; {
-<a href=#2812 id=2812 data-nosnippet>2812</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.coercions }
+<a href=#2811 id=2811 data-nosnippet>2811</a>    <span class="kw">pub fn </span>bin_op_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
+<a href=#2812 id=2812 data-nosnippet>2812</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.bin_op_sorts }
 <a href=#2813 id=2813 data-nosnippet>2813</a>    }
 <a href=#2814 id=2814 data-nosnippet>2814</a>
-<a href=#2815 id=2815 data-nosnippet>2815</a>    <span class="kw">pub fn </span>coercions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Vec&lt;Coercion&gt;&gt; {
-<a href=#2816 id=2816 data-nosnippet>2816</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.coercions }
+<a href=#2815 id=2815 data-nosnippet>2815</a>    <span class="kw">pub fn </span>bin_op_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
+<a href=#2816 id=2816 data-nosnippet>2816</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.bin_op_sorts }
 <a href=#2817 id=2817 data-nosnippet>2817</a>    }
 <a href=#2818 id=2818 data-nosnippet>2818</a>
-<a href=#2819 id=2819 data-nosnippet>2819</a>    <span class="kw">pub fn </span>field_projs_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;FieldProj&gt; {
-<a href=#2820 id=2820 data-nosnippet>2820</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.field_projs }
+<a href=#2819 id=2819 data-nosnippet>2819</a>    <span class="kw">pub fn </span>coercions_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Vec&lt;Coercion&gt;&gt; {
+<a href=#2820 id=2820 data-nosnippet>2820</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.coercions }
 <a href=#2821 id=2821 data-nosnippet>2821</a>    }
 <a href=#2822 id=2822 data-nosnippet>2822</a>
-<a href=#2823 id=2823 data-nosnippet>2823</a>    <span class="kw">pub fn </span>field_projs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;FieldProj&gt; {
-<a href=#2824 id=2824 data-nosnippet>2824</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.field_projs }
+<a href=#2823 id=2823 data-nosnippet>2823</a>    <span class="kw">pub fn </span>coercions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Vec&lt;Coercion&gt;&gt; {
+<a href=#2824 id=2824 data-nosnippet>2824</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.coercions }
 <a href=#2825 id=2825 data-nosnippet>2825</a>    }
 <a href=#2826 id=2826 data-nosnippet>2826</a>
-<a href=#2827 id=2827 data-nosnippet>2827</a>    <span class="kw">pub fn </span>node_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
-<a href=#2828 id=2828 data-nosnippet>2828</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.node_sorts }
+<a href=#2827 id=2827 data-nosnippet>2827</a>    <span class="kw">pub fn </span>field_projs_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;FieldProj&gt; {
+<a href=#2828 id=2828 data-nosnippet>2828</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.field_projs }
 <a href=#2829 id=2829 data-nosnippet>2829</a>    }
 <a href=#2830 id=2830 data-nosnippet>2830</a>
-<a href=#2831 id=2831 data-nosnippet>2831</a>    <span class="kw">pub fn </span>node_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
-<a href=#2832 id=2832 data-nosnippet>2832</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.node_sorts }
+<a href=#2831 id=2831 data-nosnippet>2831</a>    <span class="kw">pub fn </span>field_projs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;FieldProj&gt; {
+<a href=#2832 id=2832 data-nosnippet>2832</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.field_projs }
 <a href=#2833 id=2833 data-nosnippet>2833</a>    }
 <a href=#2834 id=2834 data-nosnippet>2834</a>
-<a href=#2835 id=2835 data-nosnippet>2835</a>    <span class="kw">pub fn </span>record_ctors_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;DefId&gt; {
-<a href=#2836 id=2836 data-nosnippet>2836</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.record_ctors }
+<a href=#2835 id=2835 data-nosnippet>2835</a>    <span class="kw">pub fn </span>node_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
+<a href=#2836 id=2836 data-nosnippet>2836</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.node_sorts }
 <a href=#2837 id=2837 data-nosnippet>2837</a>    }
 <a href=#2838 id=2838 data-nosnippet>2838</a>
-<a href=#2839 id=2839 data-nosnippet>2839</a>    <span class="kw">pub fn </span>record_ctors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;DefId&gt; {
-<a href=#2840 id=2840 data-nosnippet>2840</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.record_ctors }
+<a href=#2839 id=2839 data-nosnippet>2839</a>    <span class="kw">pub fn </span>node_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
+<a href=#2840 id=2840 data-nosnippet>2840</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.node_sorts }
 <a href=#2841 id=2841 data-nosnippet>2841</a>    }
-<a href=#2842 id=2842 data-nosnippet>2842</a>}
-<a href=#2843 id=2843 data-nosnippet>2843</a>
-<a href=#2844 id=2844 data-nosnippet>2844</a><span class="kw">impl</span>&lt;T&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, T&gt; {
-<a href=#2845 id=2845 data-nosnippet>2845</a>    <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, value: T) {
-<a href=#2846 id=2846 data-nosnippet>2846</a>        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
-<a href=#2847 id=2847 data-nosnippet>2847</a>        <span class="self">self</span>.data.insert(fhir_id.local_id, value);
-<a href=#2848 id=2848 data-nosnippet>2848</a>    }
-<a href=#2849 id=2849 data-nosnippet>2849</a>}
-<a href=#2850 id=2850 data-nosnippet>2850</a>
-<a href=#2851 id=2851 data-nosnippet>2851</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
-<a href=#2852 id=2852 data-nosnippet>2852</a>    <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>T&gt; {
-<a href=#2853 id=2853 data-nosnippet>2853</a>        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
-<a href=#2854 id=2854 data-nosnippet>2854</a>        <span class="self">self</span>.data.get(<span class="kw-2">&amp;</span>fhir_id.local_id)
-<a href=#2855 id=2855 data-nosnippet>2855</a>    }
-<a href=#2856 id=2856 data-nosnippet>2856</a>}</code></pre></div></section></main></body></html>
+<a href=#2842 id=2842 data-nosnippet>2842</a>
+<a href=#2843 id=2843 data-nosnippet>2843</a>    <span class="kw">pub fn </span>record_ctors_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;DefId&gt; {
+<a href=#2844 id=2844 data-nosnippet>2844</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.record_ctors }
+<a href=#2845 id=2845 data-nosnippet>2845</a>    }
+<a href=#2846 id=2846 data-nosnippet>2846</a>
+<a href=#2847 id=2847 data-nosnippet>2847</a>    <span class="kw">pub fn </span>record_ctors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;DefId&gt; {
+<a href=#2848 id=2848 data-nosnippet>2848</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.record_ctors }
+<a href=#2849 id=2849 data-nosnippet>2849</a>    }
+<a href=#2850 id=2850 data-nosnippet>2850</a>}
+<a href=#2851 id=2851 data-nosnippet>2851</a>
+<a href=#2852 id=2852 data-nosnippet>2852</a><span class="kw">impl</span>&lt;T&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, T&gt; {
+<a href=#2853 id=2853 data-nosnippet>2853</a>    <span class="kw">pub fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fhir_id: FhirId, value: T) {
+<a href=#2854 id=2854 data-nosnippet>2854</a>        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
+<a href=#2855 id=2855 data-nosnippet>2855</a>        <span class="self">self</span>.data.insert(fhir_id.local_id, value);
+<a href=#2856 id=2856 data-nosnippet>2856</a>    }
+<a href=#2857 id=2857 data-nosnippet>2857</a>}
+<a href=#2858 id=2858 data-nosnippet>2858</a>
+<a href=#2859 id=2859 data-nosnippet>2859</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; LocalTableInContext&lt;<span class="lifetime">'a</span>, T&gt; {
+<a href=#2860 id=2860 data-nosnippet>2860</a>    <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, fhir_id: FhirId) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>T&gt; {
+<a href=#2861 id=2861 data-nosnippet>2861</a>        <span class="macro">tracked_span_assert_eq!</span>(<span class="self">self</span>.owner, fhir_id.owner);
+<a href=#2862 id=2862 data-nosnippet>2862</a>        <span class="self">self</span>.data.get(<span class="kw-2">&amp;</span>fhir_id.local_id)
+<a href=#2863 id=2863 data-nosnippet>2863</a>    }
+<a href=#2864 id=2864 data-nosnippet>2864</a>}</code></pre></div></section></main></body></html>
