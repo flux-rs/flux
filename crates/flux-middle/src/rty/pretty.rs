@@ -52,12 +52,19 @@ impl<T: Pretty> std::fmt::Debug for Binder<T> {
     }
 }
 
-fn format_fn_root_binder<T: Pretty>(binder: &Binder<T>, cx: &PrettyCx, fn_root_layer_type: FnRootLayerType, binder_name: &str,f: &mut fmt::Formatter<'_>) -> fmt::Result {
+fn format_fn_root_binder<T: Pretty>(
+    binder: &Binder<T>,
+    cx: &PrettyCx,
+    fn_root_layer_type: FnRootLayerType,
+    binder_name: &str,
+    f: &mut fmt::Formatter<'_>,
+) -> fmt::Result {
     let vars = binder.vars();
     // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
-    let (formatted_fn_body, seen_vars) = cx.with_fn_root_bound_vars(vars, fn_root_layer_type, || {
-        format!("{:?}", with_cx!(cx, binder.skip_binder_ref()))
-    });
+    let (formatted_fn_body, seen_vars) =
+        cx.with_fn_root_bound_vars(vars, fn_root_layer_type, || {
+            format!("{:?}", with_cx!(cx, binder.skip_binder_ref()))
+        });
     // Then remove any vars that we added a decorator to.
     //
     // The order is important here because we can't know which vars to
@@ -65,19 +72,15 @@ fn format_fn_root_binder<T: Pretty>(binder: &Binder<T>, cx: &PrettyCx, fn_root_l
     let filtered_vars = vars
         .iter()
         .enumerate()
-        .filter_map(|(i, var)|
-                    if seen_vars.contains(&BoundVar::from_usize(i)) {
-                        None
-                    } else {
-                        Some(var.clone())
-                    }
-        ).collect_vec();
+        .filter_map(|(i, var)| {
+            if seen_vars.contains(&BoundVar::from_usize(i)) { None } else { Some(var.clone()) }
+        })
+        .collect_vec();
     if !filtered_vars.is_empty() {
         cx.fmt_bound_vars(true, &format!("{binder_name}<"), &filtered_vars, "> ", f)?;
     }
     f.write_str(&formatted_fn_body)
 }
-
 
 impl Pretty for PolyFnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -198,7 +201,13 @@ impl Pretty for PolyFuncSort {
 
 impl Pretty for FnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        w!(cx, f, "fn({:?}) -> {:?}", join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())), &self.output)?;
+        w!(
+            cx,
+            f,
+            "fn({:?}) -> {:?}",
+            join!(", ", self.inputs.iter().map(|input| input.shallow_canonicalize())),
+            &self.output
+        )?;
         if !self.requires.is_empty() {
             w!(cx, f, " requires {:?}", join!(" ∧ ", &self.requires))?;
         }
@@ -268,11 +277,12 @@ impl Pretty for IdxFmt {
         match e.kind() {
             ExprKind::Ctor(ctor, flds)
                 if let Some(adt_sort_def) = cx.adt_sort_def_of(ctor.def_id())
-                && let Some(variant) = adt_sort_def.opt_struct_variant() => {
-            let fields = iter::zip(variant.field_names(), flds)
-                .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
-                .collect_vec();
-            w!(cx, f, "{{ {:?} }}", join!(", ", fields))
+                    && let Some(variant) = adt_sort_def.opt_struct_variant() =>
+            {
+                let fields = iter::zip(variant.field_names(), flds)
+                    .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
+                    .collect_vec();
+                w!(cx, f, "{{ {:?} }}", join!(", ", fields))
             }
             // The first time we encounter a var in an index position where it
             // can introduce an existential (at the function root level), we put
@@ -283,13 +293,15 @@ impl Pretty for IdxFmt {
             //
             // TODO: handle more complicated cases such as structs.
             ExprKind::Var(Var::Bound(debruijn, breft))
-                if let Some((seen, layer_type)) = cx.env.check_if_seen_fn_root_var(*debruijn, breft.var)
-                && seen => {
-                    match layer_type {
-                        FnRootLayerType::FnArgs => w!(cx, f, "@")?,
-                        FnRootLayerType::FnRet  => w!(cx, f, "#")?,
-                    }
-                    w!(cx, f, "{:?}", e)
+                if let Some((seen, layer_type)) =
+                    cx.env.check_if_seen_fn_root_var(*debruijn, breft.var)
+                    && seen =>
+            {
+                match layer_type {
+                    FnRootLayerType::FnArgs => w!(cx, f, "@")?,
+                    FnRootLayerType::FnRet => w!(cx, f, "#")?,
+                }
+                w!(cx, f, "{:?}", e)
             }
             _ => w!(cx, f, "{:?}", e),
         }
