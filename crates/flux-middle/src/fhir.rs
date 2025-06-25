@@ -1192,10 +1192,8 @@ pub enum SpecFuncKind {
     Uif(FluxDefId),
     /// User-defined functions with a body definition
     Def(FluxDefId),
-    // /// UIF representing the value of a primop
-    // Val(BinOp),
-    // /// UIF representing the relationship of a primop
-    // Rel(BinOp),
+    /// Char-Int Conversions
+    CharToInt,
 }
 
 impl SpecFuncKind {

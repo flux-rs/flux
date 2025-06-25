@@ -2281,24 +2281,26 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         expr
     }
 
-    fn conv_spec_func(func: &fhir::SpecFuncKind) -> rty::SpecFuncKind {
+    fn conv_spec_func(
+        func: &fhir::SpecFuncKind,
+    ) -> Result<rty::SpecFuncKind, rty::InternalFuncKind> {
         match func {
-            fhir::SpecFuncKind::Thy(thy_func) => rty::SpecFuncKind::Thy(*thy_func),
-            fhir::SpecFuncKind::Uif(flux_id) => rty::SpecFuncKind::Uif(*flux_id),
-            fhir::SpecFuncKind::Def(flux_id) => rty::SpecFuncKind::Def(*flux_id),
-            // fhir::SpecFuncKind::Val(bin_op) => {
-            //     rty::SpecFuncKind::Val(self.conv_bin_op(*bin_op, fhir_id))
-            // }
-            // fhir::SpecFuncKind::Rel(bin_op) => {
-            //     rty::SpecFuncKind::Rel(self.conv_bin_op(*bin_op, fhir_id))
-            // }
+            fhir::SpecFuncKind::Thy(thy_func) => Ok(rty::SpecFuncKind::Thy(*thy_func)),
+            fhir::SpecFuncKind::Uif(flux_id) => Ok(rty::SpecFuncKind::Uif(*flux_id)),
+            fhir::SpecFuncKind::Def(flux_id) => Ok(rty::SpecFuncKind::Def(*flux_id)),
+            fhir::SpecFuncKind::CharToInt => Err(rty::InternalFuncKind::CharToInt),
         }
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
         let expr = match func.res {
             ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind) => rty::Expr::global_func(Self::conv_spec_func(&kind)),
+            ExprRes::GlobalFunc(kind) => {
+                match Self::conv_spec_func(&kind) {
+                    Ok(func) => rty::Expr::global_func(func),
+                    Err(func) => rty::Expr::internal_func(func),
+                }
+            }
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         self.add_coercions(expr, func.fhir_id)

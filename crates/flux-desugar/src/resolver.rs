@@ -134,6 +134,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 .items()
                 .map(|(_, itf)| (itf.name, fhir::SpecFuncKind::Thy(itf.itf))),
         );
+        self.func_decls
+            .insert(Symbol::intern("char_to_int"), fhir::SpecFuncKind::CharToInt);
     }
 
     fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {

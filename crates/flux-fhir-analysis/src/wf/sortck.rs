@@ -10,7 +10,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        self, AdtSortDef, FuncSort, WfckResults,
+        self, AdtSortDef, FuncSort, List, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
     },
 };
@@ -274,8 +274,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 2,
             )));
         };
-        self.check_expr(e1, &sort1)?;
-        self.check_expr(e2, &sort2)?;
+        self.check_expr(e1, sort1)?;
+        self.check_expr(e2, sort2)?;
         Ok(output)
     }
 
@@ -398,6 +398,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 Ok(rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()))
+            }
+            ExprRes::GlobalFunc(SpecFuncKind::CharToInt) => {
+                Ok(rty::Sort::Func(rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(vec![rty::Sort::Char], rty::Sort::Int),
+                )))
             }
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
