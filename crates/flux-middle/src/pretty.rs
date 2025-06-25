@@ -267,12 +267,17 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         r
     }
 
-    pub fn with_fn_root_bound_vars<R>(&self, vars: &[BoundVariableKind], fn_root_layer_type: FnRootLayerType, f: impl FnOnce() -> R) -> (R, FxHashSet<BoundVar>) {
+    pub fn with_fn_root_bound_vars<R>(
+        &self,
+        vars: &[BoundVariableKind],
+        fn_root_layer_type: FnRootLayerType,
+        f: impl FnOnce() -> R,
+    ) -> (R, FxHashSet<BoundVar>) {
         self.env.push_layer(vars, Some(fn_root_layer_type));
         let r = f();
         match self.env.pop_layer() {
             Some(BoundVarLayer::FnRootLayer(fn_root_layer)) => (r, fn_root_layer.seen_vars),
-            _ => unreachable!("The popped layer must exist and be an FnRootLayer")
+            _ => unreachable!("The popped layer must exist and be an FnRootLayer"),
         }
     }
 
@@ -405,7 +410,6 @@ impl BoundVarLayer {
             Self::FnRootLayer(root_layer) => &root_layer.name_map,
         }
     }
-
 }
 
 #[derive(Default)]
@@ -422,10 +426,13 @@ impl BoundVarEnv {
     ///
     /// It updates the set of seen variables at the function root layer when it
     /// does the check.
-    pub fn check_if_seen_fn_root_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<(bool, FnRootLayerType)> {
+    pub fn check_if_seen_fn_root_var(
+        &self,
+        debruijn: DebruijnIndex,
+        var: BoundVar,
+    ) -> Option<(bool, FnRootLayerType)> {
         let num_layers = self.layers.borrow().len();
-        let mut layer = self
-             .layers.borrow_mut();
+        let mut layer = self.layers.borrow_mut();
         match layer.get_mut(num_layers.checked_sub(debruijn.as_usize() + 1)?)? {
             BoundVarLayer::FnRootLayer(fn_root_layer) => {
                 Some((fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type))
@@ -450,18 +457,17 @@ impl BoundVarEnv {
                 name_map.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
             }
         }
-        self.layers.borrow_mut().push(
-            if let Some(layer_type) = is_fn_root_layer {
-                BoundVarLayer::FnRootLayer(
-                    FnRootLayer {
-                        name_map,
-                        seen_vars: FxHashSet::default(),
-                        layer_type,
-                    })
+        self.layers
+            .borrow_mut()
+            .push(if let Some(layer_type) = is_fn_root_layer {
+                BoundVarLayer::FnRootLayer(FnRootLayer {
+                    name_map,
+                    seen_vars: FxHashSet::default(),
+                    layer_type,
+                })
             } else {
                 BoundVarLayer::Layer(name_map)
-            }
-        );
+            });
     }
 
     fn pop_layer(&self) -> Option<BoundVarLayer> {
