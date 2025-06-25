@@ -2281,10 +2281,24 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         expr
     }
 
+    fn conv_spec_func(func: &fhir::SpecFuncKind) -> rty::SpecFuncKind {
+        match func {
+            fhir::SpecFuncKind::Thy(thy_func) => rty::SpecFuncKind::Thy(*thy_func),
+            fhir::SpecFuncKind::Uif(flux_id) => rty::SpecFuncKind::Uif(*flux_id),
+            fhir::SpecFuncKind::Def(flux_id) => rty::SpecFuncKind::Def(*flux_id),
+            // fhir::SpecFuncKind::Val(bin_op) => {
+            //     rty::SpecFuncKind::Val(self.conv_bin_op(*bin_op, fhir_id))
+            // }
+            // fhir::SpecFuncKind::Rel(bin_op) => {
+            //     rty::SpecFuncKind::Rel(self.conv_bin_op(*bin_op, fhir_id))
+            // }
+        }
+    }
+
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
         let expr = match func.res {
             ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind) => rty::Expr::global_func(kind),
+            ExprRes::GlobalFunc(kind) => rty::Expr::global_func(Self::conv_spec_func(&kind)),
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         self.add_coercions(expr, func.fhir_id)

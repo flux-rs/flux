@@ -9,10 +9,10 @@ use toposort_scc::IndexGraph;
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
     def_id::{FluxDefId, FluxId, FluxLocalDefId},
-    fhir::SpecFuncKind,
     global_env::GlobalEnv,
     rty::{
         Binder, Expr, ExprKind,
+        expr::SpecFuncKind,
         fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };

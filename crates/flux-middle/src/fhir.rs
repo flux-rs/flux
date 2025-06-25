@@ -1175,7 +1175,6 @@ pub struct SpecFunc<'fhir> {
     pub body: Option<Expr<'fhir>>,
     pub hide: bool,
 }
-
 #[derive(Debug)]
 pub struct PrimProp<'fhir> {
     pub def_id: FluxLocalDefId,
@@ -1185,7 +1184,7 @@ pub struct PrimProp<'fhir> {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
@@ -1193,13 +1192,17 @@ pub enum SpecFuncKind {
     Uif(FluxDefId),
     /// User-defined functions with a body definition
     Def(FluxDefId),
+    // /// UIF representing the value of a primop
+    // Val(BinOp),
+    // /// UIF representing the relationship of a primop
+    // Rel(BinOp),
 }
 
 impl SpecFuncKind {
     pub fn def_id(&self) -> Option<FluxDefId> {
         match self {
-            SpecFuncKind::Thy(_) => None,
             SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) => Some(*flux_id),
+            _ => None,
         }
     }
 }

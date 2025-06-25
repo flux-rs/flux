@@ -17,10 +17,9 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
-    fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, ESpan, GenericArgsExt, Lambda, List, VariantIdx},
+    rty::{self, ESpan, GenericArgsExt, Lambda, List, SpecFuncKind, VariantIdx},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
@@ -1067,30 +1066,27 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Var(var)
             }
             rty::ExprKind::App(func, args) => {
-                if let rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(thy_func)) = func.kind()
+                if let rty::ExprKind::GlobalFunc(rty::SpecFuncKind::Thy(thy_func)) = func.kind()
                     && thy_func.is_erased_in_encoding()
                     && args.len() == 1
                 {
                     self.expr_to_fixpoint(&args[0], scx)?
+                } else if let rty::ExprKind::GlobalFunc(rty::SpecFuncKind::Val(op)) = func.kind() {
+                    let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
+                    let args = self.exprs_to_fixpoint(args, scx)?;
+                    fixpoint::Expr::App(Box::new(func), args)
+                } else if let rty::ExprKind::GlobalFunc(rty::SpecFuncKind::Rel(op)) = func.kind() {
+                    let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
+                        prim_rel.body.replace_bound_refts(args)
+                    } else {
+                        rty::Expr::tt()
+                    };
+                    self.expr_to_fixpoint(&expr, scx)?
                 } else {
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let args = self.exprs_to_fixpoint(args, scx)?;
                     fixpoint::Expr::App(Box::new(func), args)
                 }
-            }
-            rty::ExprKind::PrimApp(rty::PrimFunc::Val(op), e1, e2) => {
-                let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
-                let e1 = self.expr_to_fixpoint(e1, scx)?;
-                let e2 = self.expr_to_fixpoint(e2, scx)?;
-                fixpoint::Expr::App(Box::new(func), vec![e1, e2])
-            }
-            rty::ExprKind::PrimApp(rty::PrimFunc::Rel(op), e1, e2) => {
-                let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
-                    prim_rel.body.replace_bound_refts(&[e1.clone(), e2.clone()])
-                } else {
-                    rty::Expr::tt()
-                };
-                self.expr_to_fixpoint(&expr, scx)?
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
                 fixpoint::Expr::IfThenElse(Box::new([
@@ -1137,7 +1133,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
-            | rty::ExprKind::ForAll(_) => {
+            | rty::ExprKind::ForAll(_)
+            | rty::ExprKind::GlobalFunc(SpecFuncKind::Val(_))
+            | rty::ExprKind::GlobalFunc(SpecFuncKind::Rel(_)) => {
                 span_bug!(self.def_span, "unexpected expr: `{expr:?}`")
             }
             rty::ExprKind::BoundedQuant(kind, rng, body) => {

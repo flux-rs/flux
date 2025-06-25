@@ -28,7 +28,7 @@ use super::{
 use crate::{
     big_int::BigInt,
     def_id::FluxDefId,
-    fhir::{self, SpecFuncKind},
+    fhir::{self},
     global_env::GlobalEnv,
     pretty::*,
     queries::QueryResult,
@@ -309,11 +309,11 @@ impl Expr {
     }
 
     pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::PrimApp(PrimFunc::Val(op), e1.into(), e2.into()).intern()
+        Expr::app(SpecFuncKind::Val(op), List::from_arr([e1.into(), e2.into()]))
     }
 
     pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        ExprKind::PrimApp(PrimFunc::Rel(op), e1.into(), e2.into()).intern()
+        Expr::app(SpecFuncKind::Rel(op), List::from_arr([e1.into(), e2.into()]))
     }
 
     pub fn unit_struct(def_id: DefId) -> Expr {
@@ -682,6 +682,7 @@ impl Ctor {
     }
 }
 
+/// [NOTE: Primitive Properties]
 /// Given a primop `op` with signature `(t1,...,tn) -> t`
 /// We define a refined type for `op` expressed as a [`RuleMatcher`]
 ///
@@ -694,9 +695,15 @@ impl Ctor {
 ///
 /// The latter can be extended by the user via a `property` definition, which allows us
 /// to customize primops like `<<` with extra "facts" or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
-///
-#[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
-pub enum PrimFunc {
+
+#[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+pub enum SpecFuncKind {
+    /// Theory symbols *interpreted* by the SMT solver
+    Thy(liquid_fixpoint::ThyFunc),
+    /// User-defined uninterpreted functions with no definition
+    Uif(FluxDefId),
+    /// User-defined functions with a body definition
+    Def(FluxDefId),
     /// UIF representing the value of a primop
     Val(BinOp),
     /// UIF representing the relationship of a primop
@@ -711,7 +718,6 @@ pub enum ExprKind {
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     /// An UIF application representing a primitive operation
-    PrimApp(PrimFunc, Expr, Expr),
     GlobalFunc(SpecFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
@@ -999,6 +1005,12 @@ impl From<Name> for Expr {
 impl From<Var> for Expr {
     fn from(var: Var) -> Self {
         Expr::var(var)
+    }
+}
+
+impl From<SpecFuncKind> for Expr {
+    fn from(kind: SpecFuncKind) -> Self {
+        Expr::global_func(kind)
     }
 }
 
@@ -1368,9 +1380,6 @@ pub(crate) mod pretty {
                             .format_with(", ", |arg, f| f(&format_args_cx!(cx, "{:?}", arg)))
                     )
                 }
-                ExprKind::PrimApp(op, e1, e2) => {
-                    w!(cx, f, "[{op:?}]({e1:?}, {e2:?})")
-                }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     w!(cx, f, "if {:?} {{ {:?} }} else {{ {:?} }}", p, e1, e2)
                 }
@@ -1395,6 +1404,12 @@ pub(crate) mod pretty {
                     } else {
                         w!(cx, f, "<error>")
                     }
+                }
+                ExprKind::GlobalFunc(SpecFuncKind::Val(op)) => {
+                    w!(cx, f, "[{:?}]", op)
+                }
+                ExprKind::GlobalFunc(SpecFuncKind::Rel(op)) => {
+                    w!(cx, f, "[{:?}]?", op)
                 }
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
@@ -1525,15 +1540,6 @@ pub(crate) mod pretty {
         }
     }
 
-    impl Pretty for PrimFunc {
-        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            match self {
-                PrimFunc::Val(op) => w!(cx, f, "[{:?}]", op),
-                PrimFunc::Rel(op) => w!(cx, f, "[{:?}]?", op),
-            }
-        }
-    }
-
     impl Pretty for BinOp {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
@@ -1641,14 +1647,6 @@ pub(crate) mod pretty {
                     let e2_d = e2.fmt_nested(cx)?;
                     let text = format!("(if {} then {} else {})", p_d.text, e1_d.text, e2_d.text);
                     let children = float_children(vec![p_d.children, e1_d.children, e2_d.children]);
-                    Ok(NestedString { text, children, key: None })
-                }
-                ExprKind::PrimApp(op, e1, e2) => {
-                    let e1_d = e1.fmt_nested(cx)?;
-                    let e2_d = e2.fmt_nested(cx)?;
-                    let op_d = debug_nested(cx, op)?;
-                    let text = format!("[{}]({}, {})", op_d.text, e1_d.text, e2_d.text);
-                    let children = float_children(vec![e1_d.children, e2_d.children]);
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::BinaryOp(op, e1, e2) => {

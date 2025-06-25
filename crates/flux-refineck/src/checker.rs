@@ -12,13 +12,13 @@ use flux_infer::{
 use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryResult, try_query},
-    query_bug, rty,
+    query_bug,
     rty::{
-        AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr, FnOutput,
-        FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path, PolyFnSig,
-        PtrKind, RefineArgs, RefineArgsExt,
+        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
-        Ty, TyKind, Uint, UintTy, VariantIdx,
+        SpecFuncKind, Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -2000,9 +2000,7 @@ fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
 
 fn uint_char_cast(idx: &Expr) -> Ty {
     let idx = Expr::app(
-        Expr::global_func(flux_middle::fhir::SpecFuncKind::Thy(
-            liquid_fixpoint::ThyFunc::IntToChar,
-        )),
+        Expr::global_func(SpecFuncKind::Thy(liquid_fixpoint::ThyFunc::IntToChar)),
         rty::List::singleton(idx.clone()),
     );
     Ty::indexed(BaseTy::Char, idx)
@@ -2010,9 +2008,7 @@ fn uint_char_cast(idx: &Expr) -> Ty {
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
     let idx = Expr::app(
-        Expr::global_func(flux_middle::fhir::SpecFuncKind::Thy(
-            liquid_fixpoint::ThyFunc::CharToInt,
-        )),
+        Expr::global_func(SpecFuncKind::Thy(liquid_fixpoint::ThyFunc::CharToInt)),
         rty::List::singleton(idx.clone()),
     );
     Ty::indexed(BaseTy::Uint(uint_ty), idx)
