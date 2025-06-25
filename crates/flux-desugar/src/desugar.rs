@@ -45,7 +45,7 @@ pub(crate) fn desugar_qualifier<'genv>(
     def_id: FluxLocalDefId,
     qualifier: &surface::Qualifier,
 ) -> Result<fhir::Qualifier<'genv>> {
-    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, FluxItemKind::Qualifier, |cx| {
         fhir::Qualifier {
             def_id,
             args: cx.desugar_refine_params(&qualifier.params),
@@ -61,7 +61,7 @@ pub(crate) fn desugar_prim_prop<'genv>(
     def_id: FluxLocalDefId,
     prim_prop: &surface::PrimProp,
 ) -> Result<fhir::PrimProp<'genv>> {
-    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, FluxItemKind::PrimProp, |cx| {
         let body = cx.desugar_expr(&prim_prop.body);
         let args = cx.desugar_refine_params(&prim_prop.params);
         fhir::PrimProp { def_id, op: prim_prop.op, args, body, span: prim_prop.span }
@@ -74,7 +74,7 @@ pub(crate) fn desugar_spec_func<'genv>(
     def_id: FluxLocalDefId,
     spec_func: &surface::SpecFunc,
 ) -> Result<fhir::SpecFunc<'genv>> {
-    FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
+    FluxItemCtxt::with(genv, resolver_output, def_id, FluxItemKind::SpecFunc, |cx| {
         let body = spec_func.body.as_ref().map(|body| cx.desugar_expr(body));
         let params = spec_func.sort_vars.len();
         let sort = cx.desugar_sort(&spec_func.output, None);
@@ -889,11 +889,18 @@ impl ErrorCollector<ErrorGuaranteed> for RustItemCtxt<'_, '_, '_> {
     }
 }
 
+enum FluxItemKind {
+    SpecFunc,
+    Qualifier,
+    PrimProp,
+}
+
 struct FluxItemCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     resolver_output: &'genv ResolverOutput,
     local_id_gen: IndexGen<fhir::ItemLocalId>,
     owner: FluxLocalDefId,
+    kind: FluxItemKind,
     errors: Errors<'genv>,
 }
 
@@ -902,6 +909,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         resolver_output: &'genv ResolverOutput,
         owner: FluxLocalDefId,
+        kind: FluxItemKind,
         f: impl FnOnce(&mut Self) -> T,
     ) -> Result<T> {
         let mut cx = Self {
@@ -909,6 +917,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             resolver_output,
             local_id_gen: Default::default(),
             owner,
+            kind,
             errors: Errors::new(genv.sess()),
         };
         let r = f(&mut cx);
@@ -1643,7 +1652,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
     }
 
     fn allow_prim_app(&self) -> bool {
-        matches!(self.genv.map().flux_item(self.owner), Some(fhir::FluxItem::PrimProp(_)))
+        matches!(self.kind, FluxItemKind::PrimProp)
     }
 
     fn genv(&self) -> GlobalEnv<'genv, 'tcx> {

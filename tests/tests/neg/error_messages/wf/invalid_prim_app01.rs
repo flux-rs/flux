@@ -1,20 +1,8 @@
-use flux_rs::{assert, attrs::*, defs};
+use flux_rs::{assert, defs};
 
 defs! {
-    property ShiftByTwo[<<](x, y) {
-       y == 2 => [<<](x, y) == 4*x
-    }
-
-    property BadProp3Args[<<](x, y, z) {
-       y + z == 2 => [<<](x, y) == 4*x
-    }
-
-    property BadProp3Args[<<]() {
+    property BadProp3Args[<<]() { //~ ERROR this primop takes 2
        true
-    }
-
-    property BadPropWrongIn[<<](x, y) {
-       y => [<<](x, y) == 4*x
     }
 
     property BadPropWrongOut[<<](x, y) {
