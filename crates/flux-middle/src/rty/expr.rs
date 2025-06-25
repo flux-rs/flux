@@ -309,11 +309,11 @@ impl Expr {
     }
 
     pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::app(SpecFuncKind::Val(op), List::from_arr([e1.into(), e2.into()]))
+        Expr::app(InternalFuncKind::Val(op), List::from_arr([e1.into(), e2.into()]))
     }
 
     pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::app(SpecFuncKind::Rel(op), List::from_arr([e1.into(), e2.into()]))
+        Expr::app(InternalFuncKind::Rel(op), List::from_arr([e1.into(), e2.into()]))
     }
 
     pub fn unit_struct(def_id: DefId) -> Expr {
@@ -326,6 +326,10 @@ impl Expr {
 
     pub fn global_func(kind: SpecFuncKind) -> Expr {
         ExprKind::GlobalFunc(kind).intern()
+    }
+
+    pub fn internal_func(kind: InternalFuncKind) -> Expr {
+        ExprKind::InternalFunc(kind).intern()
     }
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -695,6 +699,16 @@ impl Ctor {
 ///
 /// The latter can be extended by the user via a `property` definition, which allows us
 /// to customize primops like `<<` with extra "facts" or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
+#[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+pub enum InternalFuncKind {
+    /// UIF representing the value of a primop
+    Val(BinOp),
+    /// UIF representing the relationship of a primop
+    Rel(BinOp),
+    // CHARS
+    CharToInt,
+    IntToChar,
+}
 
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
@@ -704,10 +718,6 @@ pub enum SpecFuncKind {
     Uif(FluxDefId),
     /// User-defined functions with a body definition
     Def(FluxDefId),
-    /// UIF representing the value of a primop
-    Val(BinOp),
-    /// UIF representing the relationship of a primop
-    Rel(BinOp),
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
@@ -717,8 +727,8 @@ pub enum ExprKind {
     Constant(Constant),
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
-    /// An UIF application representing a primitive operation
     GlobalFunc(SpecFuncKind),
+    InternalFunc(InternalFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
@@ -1014,6 +1024,12 @@ impl From<SpecFuncKind> for Expr {
     }
 }
 
+impl From<InternalFuncKind> for Expr {
+    fn from(kind: InternalFuncKind) -> Self {
+        Expr::internal_func(kind)
+    }
+}
+
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])
@@ -1283,6 +1299,17 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for InternalFuncKind {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
+                InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
+                InternalFuncKind::CharToInt => w!(cx, f, "char_to_int"),
+                InternalFuncKind::IntToChar => w!(cx, f, "int_to_char"),
+            }
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let e = if cx.simplify_exprs {
@@ -1405,11 +1432,8 @@ pub(crate) mod pretty {
                         w!(cx, f, "<error>")
                     }
                 }
-                ExprKind::GlobalFunc(SpecFuncKind::Val(op)) => {
-                    w!(cx, f, "[{:?}]", op)
-                }
-                ExprKind::GlobalFunc(SpecFuncKind::Rel(op)) => {
-                    w!(cx, f, "[{:?}]?", op)
+                ExprKind::InternalFunc(func) => {
+                    w!(cx, f, "{:?}", func)
                 }
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
@@ -1639,6 +1663,7 @@ pub(crate) mod pretty {
                 | ExprKind::ConstDefId(..)
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
+                | ExprKind::InternalFunc(..)
                 | ExprKind::KVar(..) => debug_nested(cx, &e),
 
                 ExprKind::IfThenElse(p, e1, e2) => {

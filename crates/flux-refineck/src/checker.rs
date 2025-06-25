@@ -15,10 +15,10 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, InternalFuncKind,
+        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
-        SpecFuncKind, Ty, TyKind, Uint, UintTy, VariantIdx,
+        Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
     },
@@ -2000,7 +2000,7 @@ fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
 
 fn uint_char_cast(idx: &Expr) -> Ty {
     let idx = Expr::app(
-        Expr::global_func(SpecFuncKind::Thy(liquid_fixpoint::ThyFunc::IntToChar)),
+        rty::Expr::internal_func(InternalFuncKind::IntToChar),
         rty::List::singleton(idx.clone()),
     );
     Ty::indexed(BaseTy::Char, idx)
@@ -2008,7 +2008,7 @@ fn uint_char_cast(idx: &Expr) -> Ty {
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
     let idx = Expr::app(
-        Expr::global_func(SpecFuncKind::Thy(liquid_fixpoint::ThyFunc::CharToInt)),
+        Expr::internal_func(InternalFuncKind::IntToChar),
         rty::List::singleton(idx.clone()),
     );
     Ty::indexed(BaseTy::Uint(uint_ty), idx)
