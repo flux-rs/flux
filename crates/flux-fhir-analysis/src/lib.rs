@@ -593,13 +593,17 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             kind: ForeignItemKind::Fn(fhir_fn_sig, ..), ..
         }) => {
             let wfckresults = genv.check_wf(def_id.local_id())?;
-            let fn_sig = AfterSortck::new(genv, &wfckresults)
+            let (fn_sig, weak_kvars) = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
                 .conv_fn_sig(def_id, fhir_fn_sig)?;
-            let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-            let fn_sig = fn_sig
-                .hoist_input_binders()
-                .add_weak_kvars(def_id.local_id().into());
+            genv.feed_weak_kvars(def_id.resolved_id(), weak_kvars);
+
+            let mut fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
+            if fn_sig.vars().is_empty() {
+                fn_sig = fn_sig
+                    .hoist_input_binders()
+                    .add_weak_kvars(def_id.local_id().into());
+            }
 
             if config::dump_rty() {
                 let generics = genv.generics_of(def_id)?;
