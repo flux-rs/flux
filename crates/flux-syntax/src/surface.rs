@@ -340,6 +340,14 @@ pub struct FnSpec {
     pub qual_names: Option<QualNames>,
     pub reveal_names: Option<RevealNames>,
     pub trusted: bool,
+    pub weak_kvars: Vec<WeakKvar>,
+}
+
+#[derive(Debug)]
+pub struct WeakKvar {
+    pub num: u32,
+    pub params: RefineParams,
+    pub solutions: Vec<Expr>,
 }
 
 #[derive(Debug)]
