@@ -148,7 +148,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
             }
             fhir::ExprKind::WeakKvar(_, args) => {
                 for arg in args {
-                    if let fhir::ExprRes::Param(_, id) = arg.res
+                    if let fhir::Res::Param(_, id) = arg.res
                         && let sort @ rty::Sort::Func(_) = self.infcx.param_sort(id)
                     {
                         self.errors.emit(InvalidParamPos::new(arg.span, &sort));
