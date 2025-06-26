@@ -353,12 +353,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let reveal_names: Option<surface::RevealNames> = attrs.reveal_names();
 
         let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
+        let weak_kvars = attrs.weak_kvars().unwrap_or_default();
 
         Ok(self
-            .specs
-            .fn_sigs
-            .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted }))
+        .specs
+        .fn_sigs
+        .entry(owner_id)
+        .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted, weak_kvars }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -492,6 +493,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
             }
+            ("vars", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_weak_kvars, FluxAttrKind::WeakKvar)?
+            }
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -580,6 +584,7 @@ enum FluxAttrKind {
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
     Ignore(Ignored),
+    WeakKvar(Vec<surface::WeakKvar>),
     ShouldFail,
     ExternSpec,
     /// See `detachXX.rs`
@@ -667,6 +672,10 @@ impl FluxAttrs {
         read_attr!(self, RevealNames)
     }
 
+    fn weak_kvars(&mut self) -> Option<Vec<surface::WeakKvar>> {
+        read_attr!(self, WeakKvar)
+    }
+
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }
@@ -751,6 +760,7 @@ impl FluxAttrKind {
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
+            FluxAttrKind::WeakKvar(_) => attr_name!(WeakKvar),
         }
     }
 }
