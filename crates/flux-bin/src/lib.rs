@@ -16,12 +16,14 @@ pub struct FluxMetadata {
     pub scrape_quals: Option<bool>,
     /// Enable overflow checking
     pub check_overflow: Option<bool>,
-    /// Enable overflow checking
+    /// Enable flux-defs to be defined as SMT functions
     pub smt_define_fun: Option<bool>,
-    /// Set trusted trusted
+    /// Set trusted to trusted
     pub default_trusted: Option<bool>,
-    /// Set trusted ignore
+    /// Set trusted to ignore
     pub default_ignore: Option<bool>,
+    /// Only check the files matching these paths
+    pub check_files: Option<Vec<String>>,
 }
 
 impl FluxMetadata {
@@ -47,6 +49,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.default_ignore {
             flags.push(format!("-Fignore={v}"));
+        }
+        if let Some(files) = self.check_files {
+            flags.push(format!("-Fcheck-files={}", files.join(",")));
         }
         flags
     }
