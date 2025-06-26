@@ -4,6 +4,14 @@ defs! {
     property ShiftByTwo[<<](x, y) {
        y == 2 => [<<](x, y) == 4*x
     }
+
+    property ShiftRightByFour[>>](x, y) {
+       16 * [>>](x, 4) == x
+    }
+
+    property MaskBy15[&](x, y) {
+        [&](x, y) <= y
+    }
 }
 
 pub fn test0() {
@@ -23,4 +31,13 @@ pub fn test2(x: u32) -> u32 {
     let x = x << 2;
     let x = x << 2;
     x
+}
+
+#[spec(fn (byte: u8{byte <= 127}))]
+pub fn test3(byte: u8) {
+    let tmp1 = byte >> 4;
+    let tmp2 = byte & 0xf;
+    assert(byte <= 127);
+    assert(tmp1 <= 0xf);
+    assert(tmp2 <= 0xf);
 }
