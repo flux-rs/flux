@@ -140,7 +140,7 @@ pub struct Paths {
 
 impl Paths {
     fn file_matches(p: &PathBuf, file: &str) -> bool {
-        p.to_str().map_or(false, |p| p == file)
+        p.to_str().map_or(false, |p| file.ends_with(p))
     }
 
     pub fn is_checked_file(&self, file: &str) -> bool {
