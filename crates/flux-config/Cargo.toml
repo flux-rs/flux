@@ -9,6 +9,7 @@ edition.workspace = true
 [dependencies]
 serde.workspace = true
 toml.workspace = true
+globset.workspace = true
 
 [lints]
 workspace = true

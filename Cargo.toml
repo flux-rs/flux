@@ -34,6 +34,7 @@ config = { version = "0.15.11", features = ["toml"], default-features = false }
 dashmap = { version = "5.5.3", features = ["raw-api"] }
 derive-where = "1.2.7"
 ena = "0.14.3"
+globset = "0.4"
 hashbrown = "0.14.5"
 home = "0.5.11"
 itertools = "0.14.0"
