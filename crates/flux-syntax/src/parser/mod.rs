@@ -22,9 +22,7 @@ use crate::{
         Generics, Ident, ImplAssocReft, Indices, Item, ItemKind, LetDecl, LitKind, Mutability,
         ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
-        Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef,
-        VariantRet, WhereBoundPredicate,
-    },
+        Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate, WeakKvar, },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
 };
@@ -204,7 +202,7 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Item<F
         .ident
         .ok_or(ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span })?;
     let path = ident_path(cx, ident);
-    let fn_spec = FnSpec { fn_sig: Some(fn_sig), qual_names: None, reveal_names: None, trusted };
+    let fn_spec = FnSpec { fn_sig: Some(fn_sig), qual_names: None, reveal_names: None, trusted, weak_kvars: vec![], };
     Ok(Item { path, kind: fn_spec })
 }
 
@@ -597,6 +595,29 @@ fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnI
         }
     }
     Ok(res)
+}
+
+pub(crate) fn parse_weak_kvars(cx: &mut ParseCtxt) -> ParseResult<Vec<WeakKvar>> {
+    until(cx, token::Eof, parse_weak_kvar)
+}
+
+fn parse_weak_kvar(cx: &mut ParseCtxt) -> ParseResult<WeakKvar> {
+    // check nums
+    let a = 0;
+    cx.expect(token::Dollar)?;
+    let ident = parse_ident(cx)?;
+    let name = ident.name.as_str();
+    let Some(name) = name.strip_prefix("wk") else {
+        return Err(cx.unexpected_token(vec![Expected::Str("wk{%d}")]));
+    };
+    let num: u32 = name
+        .parse()
+        .map_err(|_| cx.unexpected_token(vec![Expected::Str("wk{%d}")]))?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::No))?;
+    cx.expect(token::Eq)?;
+    let solutions = brackets(cx, Comma, |cx| parse_expr(cx, true))?;
+    cx.expect(token::Semi)?;
+    Ok(WeakKvar { num, params, solutions })
 }
 
 /// ```text
