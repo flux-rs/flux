@@ -604,8 +604,19 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 qualifiers: self.genv.alloc_slice(qual_names),
                 reveals: self.genv.alloc_slice(reveal_names),
                 decl: self.genv.alloc(decl),
+                weak_kvars: self.desugar_weak_kvars(&fn_spec.weak_kvars),
             },
         ))
+    }
+
+    fn desugar_weak_kvars(&mut self, wks: &[surface::WeakKvar]) -> &'genv [fhir::WeakKvar<'genv>] {
+        self.genv.alloc_slice_fill_iter(wks.iter().map(|wk| {
+            fhir::WeakKvar {
+                num: wk.num,
+                params: self.desugar_refine_params(&wk.params),
+                solutions: self.desugar_exprs(&wk.solutions),
+            }
+        }))
     }
 
     fn desugar_fn_sig_refine_params(

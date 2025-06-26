@@ -14,6 +14,7 @@ use super::{
     PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
     TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
+use crate::surface::WeakKvar;
 
 #[macro_export]
 macro_rules! walk_list {
@@ -102,6 +103,10 @@ pub trait Visitor: Sized {
 
     fn visit_fn_sig(&mut self, fn_sig: &FnSig) {
         walk_fn_sig(self, fn_sig);
+    }
+
+    fn visit_weak_kvar(&mut self, wk: &WeakKvar) {
+        walk_weak_kvar(self, wk);
     }
 
     fn visit_fn_output(&mut self, fn_output: &FnOutput) {
@@ -337,6 +342,11 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     }
     walk_list!(vis, visit_fn_input, &fn_sig.inputs);
     vis.visit_fn_output(&fn_sig.output);
+}
+
+pub fn walk_weak_kvar<V: Visitor>(vis: &mut V, wk: &WeakKvar) {
+    walk_list!(vis, visit_refine_param, &wk.params);
+    walk_list!(vis, visit_expr, &wk.solutions);
 }
 
 pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {

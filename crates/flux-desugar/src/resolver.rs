@@ -330,8 +330,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         if let Some(fn_sig) = &fn_spec.fn_sig {
             ItemResolver::run(self, owner_id, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
+                for wk in &fn_spec.weak_kvars {
+                    item_resolver.visit_weak_kvar(wk);
+                }
             })?;
             RefinementResolver::resolve_fn_sig(self, fn_sig)?;
+            for wk in &fn_spec.weak_kvars {
+                RefinementResolver::resolve_weak_kvar(self, wk)?;
+            }
         }
         Ok(())
     }

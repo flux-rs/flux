@@ -23,7 +23,7 @@ use crate::{
         Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
         Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        WeakKvar, WhereBoundPredicate,
     },
 };
 /// ```text
@@ -331,6 +331,29 @@ fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnI
         }
     }
     Ok(res)
+}
+
+pub(crate) fn parse_weak_kvars(cx: &mut ParseCtxt) -> ParseResult<Vec<WeakKvar>> {
+    until(cx, Tok::Eof, parse_weak_kvar)
+}
+
+fn parse_weak_kvar(cx: &mut ParseCtxt) -> ParseResult<WeakKvar> {
+    // check nums
+    let a = 0;
+    cx.expect(Tok::Dollar)?;
+    let ident = parse_ident(cx)?;
+    let name = ident.name.as_str();
+    let Some(name) = name.strip_prefix("wk") else {
+        return Err(cx.unexpected_token(vec!["wk{%d}"]));
+    };
+    let num: u32 = name
+        .parse()
+        .map_err(|_| cx.unexpected_token(vec!["wk{%d}"]))?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, false))?;
+    cx.expect(Tok::Eq)?;
+    let solutions = brackets(cx, Comma, |cx| parse_expr(cx, true))?;
+    cx.expect(Tok::Semi)?;
+    Ok(WeakKvar { num, params, solutions })
 }
 
 /// ```text
