@@ -338,22 +338,23 @@ pub(crate) fn parse_weak_kvars(cx: &mut ParseCtxt) -> ParseResult<Vec<WeakKvar>>
 }
 
 fn parse_weak_kvar(cx: &mut ParseCtxt) -> ParseResult<WeakKvar> {
-    // check nums
-    let a = 0;
     cx.expect(Tok::Dollar)?;
-    let ident = parse_ident(cx)?;
-    let name = ident.name.as_str();
-    let Some(name) = name.strip_prefix("wk") else {
-        return Err(cx.unexpected_token(vec!["wk{%d}"]));
-    };
-    let num: u32 = name
-        .parse()
-        .map_err(|_| cx.unexpected_token(vec!["wk{%d}"]))?;
+    let num = parse_weak_kvar_name(cx)?;
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, false))?;
     cx.expect(Tok::Eq)?;
     let solutions = brackets(cx, Comma, |cx| parse_expr(cx, true))?;
     cx.expect(Tok::Semi)?;
     Ok(WeakKvar { num, params, solutions })
+}
+
+fn parse_weak_kvar_name(cx: &mut ParseCtxt) -> ParseResult<u32> {
+    let ident = parse_ident(cx)?;
+    let name = ident.name.as_str();
+    let Some(name) = name.strip_prefix("wk") else {
+        return Err(cx.unexpected_token(vec!["wk{%d}"]));
+    };
+    name.parse()
+        .map_err(|_| cx.unexpected_token(vec!["wk{%d}"]))
 }
 
 /// ```text
@@ -914,6 +915,14 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 /// ```
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
+    if cx.advance_if(Tok::Dollar) {
+        let num = parse_weak_kvar_name(cx)?;
+        let args = parens(cx, Comma, parse_expr_path)?;
+        let kind = ExprKind::WeakKvar(num, args);
+        let hi = cx.hi();
+        return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
+    }
+
     let mut e = parse_atom(cx, allow_struct)?;
     loop {
         let kind = if cx.advance_if(Tok::Dot) {

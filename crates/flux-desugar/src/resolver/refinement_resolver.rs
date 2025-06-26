@@ -429,16 +429,15 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     pub(crate) fn resolve_fn_sig(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         fn_sig: &surface::FnSig,
+        weak_kvars: &[surface::WeakKvar],
     ) -> Result {
         IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_fn_sig(fn_sig))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_fn_sig(fn_sig))
-    }
-
-    pub(crate) fn resolve_weak_kvar(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        wk: &surface::WeakKvar,
-    ) -> Result {
-        Self::for_flux_item(resolver, &[]).run(|vis| vis.visit_weak_kvar(wk))
+        Self::for_rust_item(resolver).run(|vis| {
+            vis.visit_fn_sig(fn_sig);
+            for wk in weak_kvars {
+                vis.visit_weak_kvar(wk);
+            }
+        })
     }
 
     pub(crate) fn resolve_struct_def(

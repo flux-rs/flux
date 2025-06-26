@@ -334,10 +334,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     item_resolver.visit_weak_kvar(wk);
                 }
             })?;
-            RefinementResolver::resolve_fn_sig(self, fn_sig)?;
-            for wk in &fn_spec.weak_kvars {
-                RefinementResolver::resolve_weak_kvar(self, wk)?;
-            }
+            RefinementResolver::resolve_fn_sig(self, fn_sig, &fn_spec.weak_kvars)?;
         }
         Ok(())
     }

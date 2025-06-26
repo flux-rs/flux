@@ -39,6 +39,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
+    weak_kvars: UnordMap<u32, rty::List<rty::Sort>>,
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -59,7 +60,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
+            weak_kvars: Default::default(),
         }
+    }
+
+    pub(crate) fn declare_weak_kvar(&mut self, wk: &fhir::WeakKvar) {
+        let inputs = wk
+            .params
+            .iter()
+            .map(|param| self.param_sort(param.id))
+            .collect();
+        self.weak_kvars.insert(wk.num, inputs);
     }
 
     fn check_abs(
@@ -207,6 +218,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Literal(..)
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
+            | fhir::ExprKind::WeakKvar(..)
             | fhir::ExprKind::Constructor(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
@@ -331,6 +343,26 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     self.check_expr(&decl.init, &self.param_sort(decl.param.id))?;
                 }
                 self.synth_expr(body)
+            }
+            fhir::ExprKind::WeakKvar(num, args) => {
+                let inputs = self.weak_kvars[&num].clone();
+                if args.len() != inputs.len() {
+                    return Err(self.emit_err(errors::ArgCountMismatch::new(
+                        Some(expr.span),
+                        String::from("weak kvar"),
+                        inputs.len(),
+                        args.len(),
+                    )));
+                }
+                for (arg, expected) in iter::zip(args, &inputs) {
+                    let found = self.synth_path(&arg)?;
+                    let found = self.resolve_vars_if_possible(&found);
+                    let expected = self.resolve_vars_if_possible(expected);
+                    if !self.is_coercible(&found, &expected, expr.fhir_id) {
+                        return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                    }
+                }
+                Ok(rty::Sort::Bool)
             }
             _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
         }

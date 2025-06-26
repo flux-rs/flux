@@ -545,6 +545,7 @@ pub enum ExprKind {
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
     Block(Vec<LetDecl>, Box<Expr>),
+    WeakKvar(u32, Vec<ExprPath>),
 }
 
 #[derive(Debug)]

@@ -2168,6 +2168,29 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, &spread)?;
                 rty::Expr::ctor_struct(def_id, assns)
             }
+            fhir::ExprKind::WeakKvar(num, fhir_args) => {
+                let mut params = vec![];
+                let mut args = vec![];
+                for fhir_arg in fhir_args {
+                    let arg = env.lookup(fhir_arg).to_expr();
+                    let rty::ExprKind::Var(var) = *arg.kind() else {
+                        return Err(query_bug!(
+                            "arguments to weak kvars must resolve to parameters"
+                        ));
+                    };
+                    params.push(var);
+                    args.push(arg);
+                }
+                let Some(owner_id) = self.owner().def_id() else {
+                    return Err(query_bug!("weak kvars can only be used inside rust items"));
+                };
+                let wk = rty::WKVar {
+                    wkvid: (owner_id.to_def_id(), rty::KVid::from_u32(num)),
+                    params,
+                    args: List::from_vec(args),
+                };
+                rty::Expr::wkvar(wk)
+            }
             fhir::ExprKind::Err(err) => Err(QueryErr::Emitted(err))?,
         };
         Ok(self.add_coercions(expr, fhir_id))

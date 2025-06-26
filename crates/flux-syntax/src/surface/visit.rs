@@ -550,6 +550,9 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             }
             vis.visit_expr(body);
         }
+        ExprKind::WeakKvar(_, args) => {
+            walk_list!(vis, visit_path_expr, args);
+        }
     }
 }
 
