@@ -40,6 +40,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_literal: NodeMap<'genv, rty::Sort>,
     sort_of_bin_op: NodeMap<'genv, rty::Sort>,
     sort_args_of_app: NodeMap<'genv, List<rty::SortArg>>,
+    weak_kvars: UnordMap<u32, rty::List<rty::Sort>>,
 }
 
 pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
@@ -71,7 +72,17 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             sort_of_literal: Default::default(),
             sort_of_bin_op: Default::default(),
             sort_args_of_app: Default::default(),
+            weak_kvars: Default::default(),
         }
+    }
+
+    pub(crate) fn declare_weak_kvar(&mut self, wk: &fhir::WeakKvar) {
+        let inputs = wk
+            .params
+            .iter()
+            .map(|param| self.param_sort(param.id))
+            .collect();
+        self.weak_kvars.insert(wk.num, inputs);
     }
 
     fn check_abs(
@@ -220,8 +231,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Literal(..)
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
-            | fhir::ExprKind::Constructor(..)
-            | fhir::ExprKind::PrimApp(..) => {
+            | fhir::ExprKind::WeakKvar(..)
+            | fhir::ExprKind::Constructor(..)| fhir::ExprKind::PrimApp(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
                 let expected = self.resolve_vars_if_possible(expected);
@@ -372,6 +383,26 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     self.check_expr(&decl.init, &self.param_sort(decl.param.id))?;
                 }
                 self.synth_expr(body)
+            }
+            fhir::ExprKind::WeakKvar(num, args) => {
+                let inputs = self.weak_kvars[&num].clone();
+                if args.len() != inputs.len() {
+                    return Err(self.emit_err(errors::ArgCountMismatch::new(
+                        Some(expr.span),
+                        String::from("weak kvar"),
+                        inputs.len(),
+                        args.len(),
+                    )));
+                }
+                for (arg, expected) in iter::zip(args, &inputs) {
+                    let found = self.synth_path(&arg)?;
+                    let found = self.resolve_vars_if_possible(&found);
+                    let expected = self.resolve_vars_if_possible(expected);
+                    if !self.is_coercible(&found, &expected, expr.fhir_id) {
+                        return Err(self.emit_sort_mismatch(expr.span, &expected, &found));
+                    }
+                }
+                Ok(rty::Sort::Bool)
             }
             fhir::ExprKind::SetLiteral(elems) => {
                 let elem_sort = self.next_sort_var();

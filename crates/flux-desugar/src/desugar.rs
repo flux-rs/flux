@@ -1538,6 +1538,13 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     .alloc_slice_fill_iter(exprs.iter().map(|expr| self.desugar_expr(expr)));
                 fhir::ExprKind::SetLiteral(exprs)
             }
+            surface::ExprKind::WeakKvar(num, args) => {
+                fhir::ExprKind::WeakKvar(
+                    *num,
+                    self.genv()
+                        .alloc_slice_fill_iter(args.iter().map(|arg| self.desugar_epath(arg))),
+                )
+            }
         };
 
         fhir::Expr { kind, span: expr.span, fhir_id: self.next_fhir_id() }

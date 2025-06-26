@@ -637,6 +637,9 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
         ExprKind::SetLiteral(exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
+        ExprKind::WeakKvar(_, args) => {
+            walk_list!(vis, visit_path_expr, args);
+        }
     }
 }
 
