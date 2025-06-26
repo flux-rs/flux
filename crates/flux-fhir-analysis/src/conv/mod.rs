@@ -15,7 +15,7 @@ use flux_common::{bug, iter::IterExt, span_bug};
 use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
-    global_env::GlobalEnv,
+    global_env::{GlobalEnv, WeakKvarMap},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -638,9 +638,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         &mut self,
         fn_id: MaybeExternId,
         fn_sig: &fhir::FnSig,
-    ) -> QueryResult<rty::PolyFnSig> {
+    ) -> QueryResult<(rty::PolyFnSig, WeakKvarMap)> {
         let decl = &fn_sig.decl;
         let header = fn_sig.header;
+
+        let mut weak_kvars = WeakKvarMap::default();
+        for wk in fn_sig.weak_kvars {
+            weak_kvars.insert(wk.num, self.conv_weak_kvar(wk)?);
+        }
 
         let late_bound_regions =
             refining::refine_bound_variables(&self.genv().lower_late_bound_vars(fn_id.local_id())?);
@@ -658,7 +663,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .cloned()
             .collect();
 
-        Ok(rty::PolyFnSig::bind_with_vars(fn_sig, vars))
+        Ok((rty::PolyFnSig::bind_with_vars(fn_sig, vars), weak_kvars))
+    }
+
+    fn conv_weak_kvar(&mut self, wk: &fhir::WeakKvar) -> QueryResult<Vec<rty::Binder<rty::Expr>>> {
+        let mut solutions = vec![];
+        for solution in wk.solutions {
+            let mut env = Env::new(&[]);
+            env.push_layer(Layer::list(self.results(), 0, wk.params));
+            let e = self.conv_expr(&mut env, solution)?;
+            let vars = env.pop_layer().into_bound_vars(self.genv())?;
+            solutions.push(rty::Binder::bind_with_vars(e, vars))
+        }
+        Ok(solutions)
     }
 
     pub(crate) fn conv_generic_predicates(

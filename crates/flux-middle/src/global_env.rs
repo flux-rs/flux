@@ -1,11 +1,11 @@
-use std::{alloc, ptr, rc::Rc, slice};
+use std::{alloc, cell::RefCell, ptr, rc::Rc, slice};
 
 use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
-use rustc_data_structures::unord::UnordSet;
+use rustc_data_structures::unord::{UnordMap, UnordSet};
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
@@ -33,12 +33,15 @@ pub struct GlobalEnv<'genv, 'tcx> {
     inner: &'genv GlobalEnvInner<'genv, 'tcx>,
 }
 
+pub type WeakKvarMap = UnordMap<u32, Vec<rty::Binder<rty::Expr>>>;
+
 struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,
     sess: &'genv FluxSession,
     arena: &'genv fhir::Arena,
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
+    weak_kvars: RefCell<UnordMap<DefId, Rc<WeakKvarMap>>>,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -50,7 +53,14 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries: Queries::new(providers) };
+        let inner = GlobalEnvInner {
+            tcx,
+            sess,
+            cstore,
+            arena,
+            queries: Queries::new(providers),
+            weak_kvars: Default::default(),
+        };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -356,6 +366,17 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         def_id: impl IntoQueryParam<DefId>,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         self.inner.queries.fn_sig(self, def_id.into_query_param())
+    }
+
+    pub fn feed_weak_kvars(self, def_id: DefId, wk: WeakKvarMap) {
+        self.inner
+            .weak_kvars
+            .borrow_mut()
+            .insert(def_id, Rc::new(wk));
+    }
+
+    pub fn weak_kvars_for(self, def_id: DefId) -> Option<Rc<WeakKvarMap>> {
+        self.inner.weak_kvars.borrow().get(&def_id).cloned()
     }
 
     pub fn variants_of(
