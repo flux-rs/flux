@@ -139,10 +139,16 @@ pub struct Paths {
 }
 
 impl Paths {
+    fn file_matches(p: &PathBuf, file: &str) -> bool {
+        let res = p.to_str().map_or(false, |p| p == file);
+        println!("TRACE: file_matches[{p:?}] {file}) ==> {res}");
+        res
+    }
+
     pub fn is_checked_file(&self, file: &str) -> bool {
         self.paths
             .as_ref()
-            .is_none_or(|p| p.iter().any(|p| p.to_str().unwrap() == file))
+            .is_none_or(|p| p.iter().any(|p| Self::file_matches(p, file)))
     }
 }
 
