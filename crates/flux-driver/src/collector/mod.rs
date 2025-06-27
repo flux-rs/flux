@@ -943,6 +943,10 @@ mod errors {
                     ParseErrorKind::InvalidBinding => {
                         "identifier must be a mutable reference".to_string()
                     }
+                    ParseErrorKind::InvalidSort => {
+                        "property parameter sort is inherited from the primitive operator"
+                            .to_string()
+                    }
                 },
             );
             diag

@@ -63,6 +63,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    prim_props: UnordMap<Symbol, FluxDefId>,
     enum_variants: FxHashMap<DefId, EnumVariants>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
@@ -86,6 +87,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             err: None,
             qualifiers: Default::default(),
             func_decls: Default::default(),
+            prim_props: Default::default(),
             sort_decls: Default::default(),
             enum_variants: Default::default(),
             current_module: CRATE_OWNER_ID,
@@ -111,6 +113,12 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         };
                         self.func_decls.insert(defn.name.name, kind);
                     }
+                    surface::Item::PrimProp(prim_prop) => {
+                        let name = prim_prop.name.name;
+                        let parent = parent.def_id.to_def_id();
+                        let def_id = FluxDefId::new(parent, name);
+                        self.prim_props.insert(name, def_id);
+                    }
                     surface::Item::SortDecl(sort_decl) => {
                         self.sort_decls.insert(
                             sort_decl.name.name,
@@ -126,6 +134,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 .items()
                 .map(|(_, itf)| (itf.name, fhir::SpecFuncKind::Thy(itf.itf))),
         );
+        self.func_decls
+            .insert(Symbol::intern("char_to_int"), fhir::SpecFuncKind::CharToInt);
     }
 
     fn define_items(&mut self, item_ids: impl IntoIterator<Item = &'tcx ItemId>) {
@@ -264,6 +274,10 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     RefinementResolver::resolve_defn(self, defn).collect_err(&mut self.err);
                 }
                 surface::Item::SortDecl(_) => {}
+                surface::Item::PrimProp(prim_prop) => {
+                    RefinementResolver::resolve_prim_prop(self, prim_prop)
+                        .collect_err(&mut self.err);
+                }
             }
         }
     }

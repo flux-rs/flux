@@ -28,7 +28,7 @@ use super::{
 use crate::{
     big_int::BigInt,
     def_id::FluxDefId,
-    fhir::{self, SpecFuncKind},
+    fhir::{self},
     global_env::GlobalEnv,
     pretty::*,
     queries::QueryResult,
@@ -308,6 +308,14 @@ impl Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
 
+    pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        Expr::app(InternalFuncKind::Val(op), List::from_arr([e1.into(), e2.into()]))
+    }
+
+    pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
+        Expr::app(InternalFuncKind::Rel(op), List::from_arr([e1.into(), e2.into()]))
+    }
+
     pub fn unit_struct(def_id: DefId) -> Expr {
         Expr::ctor_struct(def_id, List::empty())
     }
@@ -318,6 +326,10 @@ impl Expr {
 
     pub fn global_func(kind: SpecFuncKind) -> Expr {
         ExprKind::GlobalFunc(kind).intern()
+    }
+
+    pub fn internal_func(kind: InternalFuncKind) -> Expr {
+        ExprKind::InternalFunc(kind).intern()
     }
 
     pub fn eq(e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
@@ -674,6 +686,40 @@ impl Ctor {
     }
 }
 
+/// [NOTE: Primitive Properties]
+/// Given a primop `op` with signature `(t1,...,tn) -> t`
+/// We define a refined type for `op` expressed as a [`RuleMatcher`]
+///
+/// ```rust
+/// op :: (x1: t1, ..., xn: tn) -> { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
+/// ```
+/// That is, using two *uninterpreted functions* `op_val` and `op_rel` that respectively denote
+/// 1. The _value_ of the primop, and
+/// 2. Some invariant _relation_ that holds for the primop.
+///
+/// The latter can be extended by the user via a `property` definition, which allows us
+/// to customize primops like `<<` with extra "facts" or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
+#[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+pub enum InternalFuncKind {
+    /// UIF representing the value of a primop
+    Val(BinOp),
+    /// UIF representing the relationship of a primop
+    Rel(BinOp),
+    // CHARS
+    CharToInt,
+    IntToChar,
+}
+
+#[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+pub enum SpecFuncKind {
+    /// Theory symbols *interpreted* by the SMT solver
+    Thy(liquid_fixpoint::ThyFunc),
+    /// User-defined uninterpreted functions with no definition
+    Uif(FluxDefId),
+    /// User-defined functions with a body definition
+    Def(FluxDefId),
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, Debug, TyDecodable)]
 pub enum ExprKind {
     Var(Var),
@@ -682,6 +728,7 @@ pub enum ExprKind {
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     GlobalFunc(SpecFuncKind),
+    InternalFunc(InternalFuncKind),
     UnaryOp(UnOp, Expr),
     FieldProj(Expr, FieldProj),
     /// A variant used in the logic to represent a variant of an ADT as a pair of the `DefId` and variant-index
@@ -971,6 +1018,18 @@ impl From<Var> for Expr {
     }
 }
 
+impl From<SpecFuncKind> for Expr {
+    fn from(kind: SpecFuncKind) -> Self {
+        Expr::global_func(kind)
+    }
+}
+
+impl From<InternalFuncKind> for Expr {
+    fn from(kind: InternalFuncKind) -> Self {
+        Expr::internal_func(kind)
+    }
+}
+
 impl From<Loc> for Path {
     fn from(loc: Loc) -> Self {
         Path::new(loc, vec![])
@@ -1240,6 +1299,17 @@ pub(crate) mod pretty {
         }
     }
 
+    impl Pretty for InternalFuncKind {
+        fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
+                InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
+                InternalFuncKind::CharToInt => w!(cx, f, "char_to_int"),
+                InternalFuncKind::IntToChar => w!(cx, f, "int_to_char"),
+            }
+        }
+    }
+
     impl Pretty for Expr {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let e = if cx.simplify_exprs {
@@ -1252,6 +1322,7 @@ pub(crate) mod pretty {
                 ExprKind::Local(local) => w!(cx, f, "{:?}", ^local),
                 ExprKind::ConstDefId(did) => w!(cx, f, "{}", ^def_id_to_string(*did)),
                 ExprKind::Constant(c) => w!(cx, f, "{:?}", c),
+
                 ExprKind::BinaryOp(op, e1, e2) => {
                     if should_parenthesize(op, e1) {
                         w!(cx, f, "({:?})", e1)?;
@@ -1360,6 +1431,9 @@ pub(crate) mod pretty {
                     } else {
                         w!(cx, f, "<error>")
                     }
+                }
+                ExprKind::InternalFunc(func) => {
+                    w!(cx, f, "{:?}", func)
                 }
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
@@ -1589,6 +1663,7 @@ pub(crate) mod pretty {
                 | ExprKind::ConstDefId(..)
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
+                | ExprKind::InternalFunc(..)
                 | ExprKind::KVar(..) => debug_nested(cx, &e),
 
                 ExprKind::IfThenElse(p, e1, e2) => {

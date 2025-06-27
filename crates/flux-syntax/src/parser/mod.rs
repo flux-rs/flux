@@ -20,10 +20,10 @@ use crate::{
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
         GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
-        Mutability, ParamMode, Path, PathSegment, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
-        Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind,
+        RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath,
+        SpecFunc, Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef,
+        VariantRet, WhereBoundPredicate,
     },
 };
 /// ```text
@@ -92,6 +92,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
         parse_qualifier(cx).map(Item::Qualifier)
     } else if lookahead.peek(Tok::Opaque) {
         parse_sort_decl(cx).map(Item::SortDecl)
+    } else if lookahead.peek(Tok::Property) {
+        parse_prim_property(cx).map(Item::PrimProp)
     } else {
         Err(lookahead.into_error())
     }
@@ -112,7 +114,7 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     cx.expect(Tok::RArrow)?;
     let output = parse_sort(cx)?;
     let body = if cx.peek(Token::OpenBrace) {
@@ -129,7 +131,7 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let local = cx.advance_if(Tok::Local);
     cx.expect(Tok::Qualifier)?;
     let name = parse_ident(cx)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     let expr = parse_block(cx)?;
     let hi = cx.hi();
     Ok(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
@@ -141,6 +143,35 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     let name = parse_ident(cx)?;
     cx.expect(Tok::Semi)?;
     Ok(SortDecl { name })
+}
+
+fn parse_binop(cx: &mut ParseCtxt) -> ParseResult<BinOp> {
+    let (op, ntokens) = cx
+        .peek_binop()
+        .ok_or_else(|| cx.unexpected_token(vec!["binary operator"]))?;
+    cx.advance_by(ntokens);
+    Ok(op)
+}
+
+fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
+    let lo = cx.lo();
+    cx.expect(Tok::Property)?;
+
+    // Parse the name
+    let name = parse_ident(cx)?;
+
+    // Parse the operator
+    cx.expect(Token::OpenBracket)?;
+    let op = parse_binop(cx)?;
+    cx.expect(Token::CloseBracket)?;
+
+    // Parse the args
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::No))?;
+
+    let body = parse_block(cx)?;
+    let hi = cx.hi();
+
+    Ok(PrimOpProp { name, op, params, body, span: cx.mk_span(lo, hi) })
 }
 
 pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<TraitAssocReft>> {
@@ -157,7 +188,7 @@ fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let final_ = cx.advance_if("final");
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     cx.expect(Tok::RArrow)?;
     let output = parse_base_sort(cx)?;
     let body = if cx.peek(Token::OpenBrace) {
@@ -181,7 +212,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
     let lo = cx.lo();
     cx.expect(Tok::Fn)?;
     let name = parse_ident(cx)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, true))?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     cx.expect(Tok::RArrow)?;
     let output = parse_base_sort(cx)?;
     let body = parse_block(cx)?;
@@ -193,7 +224,7 @@ fn parse_impl_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<ImplAssocReft> {
 /// ⟨refined_by⟩ := ⟨refine_param⟩,*
 /// ```
 pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> {
-    punctuated_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, true))
+    punctuated_until(cx, Comma, Tok::Eof, |cx| parse_refine_param(cx, RequireSort::Yes))
 }
 
 /// ```text
@@ -251,12 +282,12 @@ pub(crate) fn parse_type_alias(cx: &mut ParseCtxt) -> ParseResult<TyAlias> {
     let ident = parse_ident(cx)?;
     let generics = parse_opt_generics(cx)?;
     let params = if cx.peek(Token::OpenParen) {
-        parens(cx, Comma, |cx| parse_refine_param(cx, true))?
+        parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?
     } else {
         vec![]
     };
     let index = if cx.peek(Token::OpenBracket) {
-        Some(delimited(cx, Bracket, |cx| parse_refine_param(cx, true))?)
+        Some(delimited(cx, Bracket, |cx| parse_refine_param(cx, RequireSort::Yes))?)
     } else {
         None
     };
@@ -347,7 +378,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let ident = if cx.peek(AnyIdent) { Some(parse_ident(cx)?) } else { None };
     let mut generics = parse_opt_generics(cx)?;
     let params = if cx.peek(Token::OpenBracket) {
-        brackets(cx, Comma, |cx| parse_refine_param(cx, false))?
+        brackets(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Opt))?
     } else {
         vec![]
     };
@@ -388,7 +419,7 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
 fn parse_requires_clause(cx: &mut ParseCtxt) -> ParseResult<Requires> {
     let mut params = vec![];
     if cx.advance_if(Tok::Forall) {
-        params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
+        params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Opt))?;
         cx.expect(Tok::Dot)?;
     }
     let pred = parse_expr(cx, true)?;
@@ -606,7 +637,7 @@ fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
 /// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 /// ```
 fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
-    let params = sep1(cx, Comma, |cx| parse_refine_param(cx, false))?;
+    let params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Opt))?;
     cx.expect(Tok::Dot)?;
     let ty = parse_type(cx)?;
     let pred = if cx.advance_if(Tok::Caret) { Some(parse_block_expr(cx)?) } else { None };
@@ -786,7 +817,8 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
     } else if cx.advance_if(Caret) {
-        let params = punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, false))?;
+        let params =
+            punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, RequireSort::Opt))?;
         cx.expect(Caret)?;
         let body = parse_expr(cx, true)?;
         let hi = cx.hi();
@@ -798,22 +830,42 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
     Ok(arg)
 }
 
+enum RequireSort {
+    /// definitely require a sort
+    Yes,
+    /// don't require it, can use `Infer`
+    Opt,
+    /// definitely do not want a sort!
+    No,
+}
+
+fn parse_sort_if_required(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseResult<Sort> {
+    match require_sort {
+        RequireSort::No => Ok(Sort::Infer),
+        RequireSort::Opt => {
+            if cx.advance_if(Tok::Colon) {
+                parse_sort(cx)
+            } else {
+                Ok(Sort::Infer)
+            }
+        }
+        RequireSort::Yes => {
+            cx.expect(Tok::Colon)?;
+            parse_sort(cx)
+        }
+    }
+}
+
 /// ```text
-/// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if !require_sort
-///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort
+/// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if require_sort is Opt
+///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort is Yes
+///                 | ⟨mode⟩? ⟨ident⟩                  if require_sort is No
 /// ```
-fn parse_refine_param(cx: &mut ParseCtxt, require_sort: bool) -> ParseResult<RefineParam> {
+fn parse_refine_param(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseResult<RefineParam> {
     let lo = cx.lo();
     let mode = parse_opt_param_mode(cx);
     let ident = parse_ident(cx)?;
-    let sort = if require_sort {
-        cx.expect(Tok::Colon)?;
-        parse_sort(cx)?
-    } else if cx.advance_if(Tok::Colon) {
-        parse_sort(cx)?
-    } else {
-        Sort::Infer
-    };
+    let sort = parse_sort_if_required(cx, require_sort)?;
     let hi = cx.hi();
     Ok(RefineParam { mode, ident, sort, span: cx.mk_span(lo, hi), node_id: cx.next_node_id() })
 }
@@ -917,6 +969,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | ⟨epath⟩
 ///         | ⟨bounded_quant⟩
 ///         |  <⟨ty⟩ as ⟨path⟩> :: ⟨ident⟩
+///         | [binop]
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
 /// ```
@@ -964,11 +1017,22 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         let hi = cx.hi();
         let kind = ExprKind::AssocReft(Box::new(qself), path, name);
         return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
+    } else if lookahead.peek(Tok::OpenBracket) {
+        parse_prim_uif(cx)
     } else if lookahead.peek([Tok::Exists, Tok::Forall]) {
         parse_bounded_quantifier(cx)
     } else {
         Err(lookahead.into_error())
     }
+}
+
+fn parse_prim_uif(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    let lo = cx.lo();
+    cx.expect(Tok::OpenBracket)?;
+    let op = parse_binop(cx)?;
+    cx.expect(Tok::CloseBracket)?;
+    let hi = cx.hi();
+    Ok(Expr { kind: ExprKind::PrimUIF(op), node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
 /// ```text
@@ -985,7 +1049,7 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     } else {
         return Err(lookahead.into_error());
     };
-    let param = parse_refine_param(cx, false)?;
+    let param = parse_refine_param(cx, RequireSort::Opt)?;
     cx.expect(Tok::In)?;
     let start = parse_int(cx)?;
     cx.expect(Tok::DotDot)?;
@@ -1090,7 +1154,7 @@ fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 /// `⟨let_decl⟩ := let ⟨refine_param⟩ = ⟨expr⟩ ;`
 fn parse_let_decl(cx: &mut ParseCtxt) -> ParseResult<LetDecl> {
     cx.expect(Tok::Let)?;
-    let param = parse_refine_param(cx, false)?;
+    let param = parse_refine_param(cx, RequireSort::Opt)?;
     cx.expect(Tok::Eq)?;
     let init = parse_expr(cx, true)?;
     cx.expect(Tok::Semi)?;

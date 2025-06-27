@@ -33,6 +33,9 @@ fhir_analysis_invalid_constant =
 fhir_analysis_expected_fun =
     expected function, found `{$found}`
 
+fhir_analysis_unsupported_primop =
+    properties for `{$op}` are not yet supported
+
 fhir_analysis_invalid_param_in_func_pos =
     illegal use of refinement parameter
     .label = {$is_pred ->

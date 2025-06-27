@@ -1,6 +1,6 @@
 pub mod visit;
 
-use std::{fmt, ops::Range};
+use std::{borrow::Cow, fmt, ops::Range};
 
 pub use rustc_ast::{
     Mutability,
@@ -32,6 +32,7 @@ pub enum Item {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
+    PrimProp(PrimOpProp),
 }
 
 impl Item {
@@ -40,6 +41,7 @@ impl Item {
             Item::Qualifier(qualifier) => qualifier.name,
             Item::FuncDef(spec_func) => spec_func.name,
             Item::SortDecl(sort_decl) => sort_decl.name,
+            Item::PrimProp(prim_prop) => prim_prop.name,
         }
     }
 }
@@ -67,6 +69,21 @@ pub struct SpecFunc {
     /// as uninterpreted by default (only makes sense if `body` is_some ...)
     /// as otherwise it is *always* uninterpreted.
     pub hide: bool,
+}
+
+/// A (currently global) *primop property*; see tests/tests/pos/surface/
+#[derive(Debug)]
+pub struct PrimOpProp {
+    /// The name of the property
+    pub name: Ident,
+    /// The binop it is attached to
+    pub op: BinOp,
+    /// The sort _at_ which the primop is defined,
+    /// The binders for the inputs of the primop; the output sort is always `Bool`
+    pub params: RefineParams,
+    /// The actual definition of the property
+    pub body: Expr,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -531,6 +548,8 @@ pub enum ExprKind {
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>),
+    /// A UIF representing a PrimOp expression, e.g. [<<](x, y)
+    PrimUIF(BinOp),
     /// `<qself as path>::name`
     AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
@@ -558,8 +577,7 @@ pub struct ExprPathSegment {
     pub ident: Ident,
     pub node_id: NodeId,
 }
-
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -605,6 +623,12 @@ impl fmt::Debug for BinOp {
             BinOp::BitShl => write!(f, "<<"),
             BinOp::BitShr => write!(f, ">>"),
         }
+    }
+}
+
+impl rustc_errors::IntoDiagArg for BinOp {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 

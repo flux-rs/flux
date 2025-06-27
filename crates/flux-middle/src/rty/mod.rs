@@ -19,7 +19,8 @@ pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
-    ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
+    ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
+    SpecFuncKind, UnOp, Var,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
@@ -1238,6 +1239,21 @@ pub struct Qualifier {
     pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
     pub global: bool,
+}
+
+/// A [`PrimProp`] is a single property for a primitive operation which
+/// can be conjoined to get the definition of the [`PrimRel`] for that
+/// primitive operation.
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct PrimProp {
+    pub def_id: FluxLocalDefId,
+    pub op: BinOp,
+    pub body: Binder<Expr>,
+}
+
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct PrimRel {
+    pub body: Binder<Expr>,
 }
 
 pub type TyCtor = Binder<Ty>;

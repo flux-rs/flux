@@ -156,6 +156,10 @@ impl Renderer {
                 let bty = self.bty_arg_or_prim(bty)?;
                 quote!(rty::Ty::exists_with_constr( #bty, #pred))
             }
+            Output::Constr(bty, idx, pred) => {
+                let bty = self.bty_arg_or_prim(bty)?;
+                quote!(rty::Ty::constr(#pred, rty::Ty::indexed( #bty, #idx)))
+            }
         };
         Ok(out)
     }
@@ -300,25 +304,39 @@ enum Output {
     Base(syn::Ident),
     Indexed(syn::Ident, TokenStream),
     Exists(syn::Ident, TokenStream),
+    Constr(syn::Ident, TokenStream, TokenStream),
 }
 
 impl Parse for Output {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let bty: syn::Ident = input.parse()?;
-        if input.peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            Ok(Output::Indexed(bty, content.parse()?))
-        } else if input.peek(token::Brace) {
+        if input.peek(token::Brace) {
             let content;
             braced!(content in input);
-            let _: syn::Ident = content.parse()?;
-            let _: Token![:] = content.parse()?;
-            Ok(Output::Exists(bty, content.parse()?))
+            let bty = content.parse()?;
+            let idx = parse_index(&content)?;
+            let _: Token![|] = content.parse()?;
+            Ok(Output::Constr(bty, idx, content.parse()?))
         } else {
-            Ok(Output::Base(bty))
+            let bty: syn::Ident = input.parse()?;
+            if input.peek(token::Bracket) {
+                Ok(Output::Indexed(bty, parse_index(&input)?))
+            } else if input.peek(token::Brace) {
+                let content;
+                braced!(content in input);
+                let _: syn::Ident = content.parse()?;
+                let _: Token![:] = content.parse()?;
+                Ok(Output::Exists(bty, content.parse()?))
+            } else {
+                Ok(Output::Base(bty))
+            }
         }
     }
+}
+
+fn parse_index(input: ParseStream) -> syn::Result<TokenStream> {
+    let content;
+    bracketed!(content in input);
+    content.parse()
 }
 
 struct Requires {

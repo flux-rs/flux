@@ -24,7 +24,10 @@ use rustc_hir::{
 };
 
 use self::sortck::{ImplicitParamInferer, InferCtxt};
-use crate::conv::{ConvPhase, WfckResultsProvider};
+use crate::{
+    conv::{ConvPhase, WfckResultsProvider},
+    wf::sortck::prim_op_sort,
+};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -34,6 +37,7 @@ pub(crate) fn check_flux_item<'genv>(
 ) -> Result<WfckResults> {
     let owner = FluxOwnerId::Flux(item.def_id());
     let mut infcx = InferCtxt::new(genv, owner);
+
     Wf::with(&mut infcx, |wf| {
         wf.declare_params_for_flux_item(item)?;
         wf.check_flux_item(item);
@@ -134,9 +138,35 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         self.visit_node(node);
     }
 
+    // We special-case primop applications to declare their parameters because their
+    // parameters are implicit from the underlying primop and must not be declared explicitly.
+    fn declare_params_for_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) -> Result {
+        let Some((sorts, _)) = prim_op_sort(&prim_prop.op) else {
+            return Err(self
+                .errors
+                .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op)));
+        };
+        if prim_prop.args.len() != sorts.len() {
+            return Err(self.errors.emit(errors::ArgCountMismatch::new(
+                Some(prim_prop.span),
+                String::from("primop"),
+                sorts.len(),
+                prim_prop.args.len(),
+            )));
+        }
+        for (arg, sort) in prim_prop.args.iter().zip(sorts) {
+            self.infcx.declare_param(*arg, sort);
+        }
+        Ok(())
+    }
+
     /// Recursively traverse `item` and declare all refinement parameters
     fn declare_params_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> Result {
-        visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
+        if let fhir::FluxItem::PrimProp(prim_prop) = item {
+            self.declare_params_for_prim_prop(prim_prop)
+        } else {
+            visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
+        }
     }
 
     /// Recursively traverse `node` and declare all refinement parameters
@@ -289,6 +319,27 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_qualifier(&mut self, qual: &fhir::Qualifier<'genv>) {
         self.infcx
             .check_expr(&qual.expr, &rty::Sort::Bool)
+            .collect_err(&mut self.errors);
+    }
+
+    fn visit_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) {
+        let Some((sorts, _)) = prim_op_sort(&prim_prop.op) else {
+            self.errors
+                .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op));
+            return;
+        };
+
+        if prim_prop.args.len() != sorts.len() {
+            self.errors.emit(errors::ArgCountMismatch::new(
+                Some(prim_prop.span),
+                String::from("primop"),
+                sorts.len(),
+                prim_prop.args.len(),
+            ));
+            return;
+        }
+        self.infcx
+            .check_expr(&prim_prop.body, &rty::Sort::Bool)
             .collect_err(&mut self.errors);
     }
 

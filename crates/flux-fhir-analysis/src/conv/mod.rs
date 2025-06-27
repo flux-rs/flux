@@ -421,6 +421,32 @@ pub(crate) fn conv_defn(
     }
 }
 
+pub(crate) fn conv_prim_prop(
+    genv: GlobalEnv,
+    prim_prop: &fhir::PrimProp,
+    wfckresults: &WfckResults,
+) -> QueryResult<rty::PrimProp> {
+    let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
+    let mut env = Env::new(&[]);
+    env.push_layer(Layer::list(wfckresults, 0, prim_prop.args));
+    let body = cx.conv_expr(&mut env, &prim_prop.body)?;
+    let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
+    let op = match prim_prop.op {
+        fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
+        fhir::BinOp::BitOr => rty::BinOp::BitOr,
+        fhir::BinOp::BitShl => rty::BinOp::BitShl,
+        fhir::BinOp::BitShr => rty::BinOp::BitShr,
+        _ => {
+            span_bug!(
+                prim_prop.span,
+                "unexpected binary operator in primitive property: {:?}",
+                prim_prop.op
+            )
+        }
+    };
+    Ok(rty::PrimProp { def_id: prim_prop.def_id, op, body })
+}
+
 pub(crate) fn conv_qualifier(
     genv: GlobalEnv,
     qualifier: &fhir::Qualifier,
@@ -2098,6 +2124,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::UnaryOp(op, e) => {
                 rty::Expr::unary_op(conv_un_op(op), self.conv_expr(env, e)?).at(espan)
             }
+
+            fhir::ExprKind::PrimApp(op, e1, e2) => {
+                rty::Expr::prim_val(
+                    self.conv_bin_op(op, expr.fhir_id),
+                    self.conv_expr(env, e1)?,
+                    self.conv_expr(env, e2)?,
+                )
+                .at(espan)
+            }
             fhir::ExprKind::App(func, args) => {
                 rty::Expr::app(self.conv_func(env, &func), self.conv_exprs(env, args)?).at(espan)
             }
@@ -2246,10 +2281,26 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         expr
     }
 
+    fn conv_spec_func(
+        func: &fhir::SpecFuncKind,
+    ) -> Result<rty::SpecFuncKind, rty::InternalFuncKind> {
+        match func {
+            fhir::SpecFuncKind::Thy(thy_func) => Ok(rty::SpecFuncKind::Thy(*thy_func)),
+            fhir::SpecFuncKind::Uif(flux_id) => Ok(rty::SpecFuncKind::Uif(*flux_id)),
+            fhir::SpecFuncKind::Def(flux_id) => Ok(rty::SpecFuncKind::Def(*flux_id)),
+            fhir::SpecFuncKind::CharToInt => Err(rty::InternalFuncKind::CharToInt),
+        }
+    }
+
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
         let expr = match func.res {
             ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind) => rty::Expr::global_func(kind),
+            ExprRes::GlobalFunc(kind) => {
+                match Self::conv_spec_func(&kind) {
+                    Ok(func) => rty::Expr::global_func(func),
+                    Err(func) => rty::Expr::internal_func(func),
+                }
+            }
             _ => span_bug!(func.span, "unexpected path in function position"),
         };
         self.add_coercions(expr, func.fhir_id)

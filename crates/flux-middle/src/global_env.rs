@@ -138,6 +138,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.normalized_defns(self, krate)
     }
 
+    pub fn prim_rel_for(self, op: &rty::BinOp) -> QueryResult<Option<&'genv rty::PrimRel>> {
+        Ok(self.inner.queries.prim_rel(self)?.get(op))
+    }
+
     pub fn qualifiers(self) -> QueryResult<&'genv [rty::Qualifier]> {
         self.inner.queries.qualifiers(self)
     }
@@ -571,6 +575,10 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         self.fhir.items.iter().map(|(id, item)| (*id, *item))
     }
 
+    pub fn flux_item(&self, id: FluxLocalDefId) -> Option<&'genv fhir::FluxItem<'genv>> {
+        self.fhir.items.get(&id)
+    }
+
     pub fn spec_func(&self, def_id: FluxLocalDefId) -> Option<&'genv fhir::SpecFunc<'genv>> {
         self.fhir
             .items
@@ -581,6 +589,12 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
     pub fn qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
         self.fhir.items.values().filter_map(|item| {
             if let fhir::FluxItem::Qualifier(qual) = item { Some(*qual) } else { None }
+        })
+    }
+
+    pub fn prim_props(self) -> impl Iterator<Item = &'genv fhir::PrimProp<'genv>> {
+        self.fhir.items.values().filter_map(|item| {
+            if let fhir::FluxItem::PrimProp(prop) = item { Some(*prop) } else { None }
         })
     }
 

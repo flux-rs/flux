@@ -912,6 +912,7 @@ impl TypeSuperVisitable for Expr {
             | ExprKind::Hole(_)
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
+            | ExprKind::InternalFunc(..)
             | ExprKind::ConstDefId(_) => ControlFlow::Continue(()),
         }
     }
@@ -959,7 +960,8 @@ impl TypeSuperFoldable for Expr {
             ExprKind::BoundedQuant(kind, rng, body) => {
                 Expr::bounded_quant(*kind, *rng, body.try_fold_with(folder)?)
             }
-            ExprKind::GlobalFunc(kind) => Expr::global_func(*kind),
+            ExprKind::GlobalFunc(kind) => Expr::global_func(kind.clone()),
+            ExprKind::InternalFunc(kind) => Expr::internal_func(kind.clone()),
             ExprKind::Alias(alias, args) => {
                 Expr::alias(alias.try_fold_with(folder)?, args.try_fold_with(folder)?)
             }

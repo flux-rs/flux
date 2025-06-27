@@ -10,7 +10,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
-        self, AdtSortDef, FuncSort, WfckResults,
+        self, AdtSortDef, FuncSort, List, WfckResults,
         fold::{FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable},
     },
 };
@@ -39,6 +39,15 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
+}
+
+pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
+    match op {
+        fhir::BinOp::BitAnd | fhir::BinOp::BitOr | fhir::BinOp::BitShl | fhir::BinOp::BitShr => {
+            Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int))
+        }
+        _ => None,
+    }
 }
 
 impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
@@ -207,7 +216,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::Literal(..)
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
-            | fhir::ExprKind::Constructor(..) => {
+            | fhir::ExprKind::Constructor(..)
+            | fhir::ExprKind::PrimApp(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
                 let expected = self.resolve_vars_if_possible(expected);
@@ -246,11 +256,35 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn synth_prim_app(
+        &mut self,
+        op: &fhir::BinOp,
+        e1: &fhir::Expr,
+        e2: &fhir::Expr,
+        span: Span,
+    ) -> Result<rty::Sort> {
+        let Some((inputs, output)) = prim_op_sort(op) else {
+            return Err(self.emit_err(errors::UnsupportedPrimOp::new(span, *op)));
+        };
+        let [sort1, sort2] = &inputs[..] else {
+            return Err(self.emit_err(errors::ArgCountMismatch::new(
+                Some(span),
+                String::from("primop app"),
+                inputs.len(),
+                2,
+            )));
+        };
+        self.check_expr(e1, sort1)?;
+        self.check_expr(e2, sort2)?;
+        Ok(output)
+    }
+
     fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
         match expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_path(&var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
+            fhir::ExprKind::PrimApp(op, e1, e2) => self.synth_prim_app(&op, e1, e2, expr.span),
             fhir::ExprKind::UnaryOp(op, e) => self.synth_unary_op(op, e),
             fhir::ExprKind::App(callee, args) => {
                 let sort = self.ensure_resolved_path(&callee)?;
@@ -364,6 +398,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 Ok(rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()))
+            }
+            ExprRes::GlobalFunc(SpecFuncKind::CharToInt) => {
+                Ok(rty::Sort::Func(rty::PolyFuncSort::new(
+                    List::empty(),
+                    rty::FuncSort::new(vec![rty::Sort::Char], rty::Sort::Int),
+                )))
             }
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")

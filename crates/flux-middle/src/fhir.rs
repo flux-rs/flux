@@ -269,6 +269,7 @@ pub enum ImplItemKind<'fhir> {
 pub enum FluxItem<'fhir> {
     Qualifier(&'fhir Qualifier<'fhir>),
     Func(&'fhir SpecFunc<'fhir>),
+    PrimProp(&'fhir PrimProp<'fhir>),
 }
 
 impl FluxItem<'_> {
@@ -276,6 +277,7 @@ impl FluxItem<'_> {
         match self {
             FluxItem::Qualifier(qualifier) => qualifier.def_id,
             FluxItem::Func(func) => func.def_id,
+            FluxItem::PrimProp(prop) => prop.def_id,
         }
     }
 }
@@ -982,6 +984,8 @@ pub enum ExprKind<'fhir> {
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
     App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
+    /// UIF application representing a primitive operation, e.g. `[<<](x, y)`
+    PrimApp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
@@ -1171,8 +1175,16 @@ pub struct SpecFunc<'fhir> {
     pub body: Option<Expr<'fhir>>,
     pub hide: bool,
 }
+#[derive(Debug)]
+pub struct PrimProp<'fhir> {
+    pub def_id: FluxLocalDefId,
+    pub op: BinOp,
+    pub args: &'fhir [RefineParam<'fhir>],
+    pub body: Expr<'fhir>,
+    pub span: Span,
+}
 
-#[derive(Debug, Clone, Copy, Encodable, Decodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
@@ -1180,13 +1192,15 @@ pub enum SpecFuncKind {
     Uif(FluxDefId),
     /// User-defined functions with a body definition
     Def(FluxDefId),
+    /// Char-Int Conversions
+    CharToInt,
 }
 
 impl SpecFuncKind {
     pub fn def_id(&self) -> Option<FluxDefId> {
         match self {
-            SpecFuncKind::Thy(_) => None,
             SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) => Some(*flux_id),
+            _ => None,
         }
     }
 }
@@ -1475,6 +1489,7 @@ impl fmt::Debug for Expr<'_> {
         match self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::PrimApp(op, e1, e2) => write!(f, "[{op:?}]({e1:?}, {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),

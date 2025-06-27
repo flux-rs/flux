@@ -18,11 +18,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use desugar::RustItemCtxt;
-use flux_common::{
-    bug,
-    result::{ErrorCollector, ResultExt},
-    span_bug,
-};
+use flux_common::result::{ErrorCollector, ResultExt};
 use flux_macros::fluent_messages;
 use rustc_data_structures::unord::UnordMap;
 
@@ -38,6 +34,7 @@ use flux_middle::{
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
+    query_bug,
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
@@ -161,7 +158,7 @@ pub fn desugar<'genv>(
                         )?)),
                     );
                 }
-                _ => span_bug!(item.span, "unsupported item"),
+                _ => Err(query_bug!(def_id, "unsupported item"))?,
             }
         }
         rustc_hir::Node::TraitItem(trait_item) => {
@@ -244,9 +241,9 @@ pub fn desugar<'genv>(
         }
         node => {
             if let Some(ident) = node.ident() {
-                span_bug!(ident.span, "unsupported node: {node:?}");
+                Err(query_bug!(def_id, "unsupported item {ident:?}"))?;
             } else {
-                bug!("unsupported node: {node:?} for {def_id:?}");
+                Err(query_bug!(def_id, "unsupported item"))?;
             }
         }
     }
@@ -330,9 +327,21 @@ impl CrateDesugar<'_, '_> {
                             .collect_err(&mut self.err);
                     }
                     surface::Item::SortDecl(_) => {}
+                    surface::Item::PrimProp(prim_prop) => {
+                        self.desugar_prim_prop(def_id, prim_prop)
+                            .collect_err(&mut self.err);
+                    }
                 }
             }
         }
+    }
+
+    fn desugar_prim_prop(&mut self, def_id: FluxLocalDefId, prop: &surface::PrimOpProp) -> Result {
+        let prop = desugar::desugar_prim_prop(self.genv, self.resolver_output, def_id, prop)?;
+        self.fhir
+            .items
+            .insert(def_id, fhir::FluxItem::PrimProp(self.genv.alloc(prop)));
+        Ok(())
     }
 
     fn desugar_func_defn(&mut self, def_id: FluxLocalDefId, func: &surface::SpecFunc) -> Result {

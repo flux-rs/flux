@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::StructKind;
+use crate::fhir::{PrimProp, StructKind};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -32,6 +32,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_func(&mut self, func: &SpecFunc<'v>) {
         walk_func(self, func);
+    }
+
+    fn visit_prim_prop(&mut self, prop: &PrimProp<'v>) {
+        walk_prim_prop(self, prop);
     }
 
     fn visit_node(&mut self, node: &OwnerNode<'v>) {
@@ -205,6 +209,11 @@ fn walk_func<'v, V: Visitor<'v>>(vis: &mut V, func: &SpecFunc<'v>) {
     }
 }
 
+fn walk_prim_prop<'v, V: Visitor<'v>>(vis: &mut V, prop: &PrimProp<'v>) {
+    walk_list!(vis, visit_refine_param, prop.args);
+    vis.visit_expr(&prop.body);
+}
+
 fn walk_qualifier<'v, V: Visitor<'v>>(vis: &mut V, qualifier: &Qualifier<'v>) {
     walk_list!(vis, visit_refine_param, qualifier.args);
     vis.visit_expr(&qualifier.expr);
@@ -217,6 +226,9 @@ fn walk_flux_item<'v, V: Visitor<'v>>(vis: &mut V, item: &FluxItem<'v>) {
         }
         FluxItem::Func(func) => {
             vis.visit_func(func);
+        }
+        FluxItem::PrimProp(prop) => {
+            vis.visit_prim_prop(prop);
         }
     }
 }
@@ -532,6 +544,10 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
         }
         ExprKind::Literal(lit) => vis.visit_literal(&lit),
         ExprKind::BinaryOp(_op, e1, e2) => {
+            vis.visit_expr(e1);
+            vis.visit_expr(e2);
+        }
+        ExprKind::PrimApp(_op, e1, e2) => {
             vis.visit_expr(e1);
             vis.visit_expr(e2);
         }

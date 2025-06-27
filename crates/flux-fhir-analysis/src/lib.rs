@@ -14,7 +14,7 @@ extern crate rustc_type_ir;
 
 mod conv;
 mod wf;
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
@@ -31,13 +31,14 @@ use flux_middle::{
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, WfckResults,
+        self, AssocReft, Binder, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refiner},
     },
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
@@ -51,6 +52,7 @@ pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
     providers.func_sort = func_sort;
     providers.qualifiers = qualifiers;
+    providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
     providers.check_wf = check_wf;
     providers.adt_def = adt_def;
@@ -131,6 +133,42 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
             Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?.normalize(genv))
         })
         .try_collect()
+}
+
+fn prim_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimProp>> {
+    genv.map()
+        .prim_props()
+        .map(|prim_prop| {
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimProp(prim_prop))?;
+            Ok(conv::conv_prim_prop(genv, prim_prop, &wfckresults)?.normalize(genv))
+        })
+        .try_collect()
+}
+
+fn conjoin_bind_exprs(exprs: Vec<Binder<rty::Expr>>) -> Binder<rty::Expr> {
+    let mut iter = exprs.into_iter();
+    let first = iter.next().unwrap();
+    let sorts = first.sorts();
+    let bodies = iter::once(first.skip_binder()).chain(iter.map(|expr| expr.skip_binder()));
+    let expr = rty::Expr::and_from_iter(bodies);
+    Binder::bind_with_sorts(expr, &sorts)
+}
+
+fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> {
+    let prim_props = prim_props(genv)?
+        .into_iter()
+        .into_group_map_by(|prim_prop| prim_prop.op.clone());
+
+    let mut res = UnordMap::default();
+    for (op, props) in prim_props {
+        let exprs = props
+            .iter()
+            .map(|prop| prop.body.clone())
+            .collect::<Vec<_>>();
+        let body = conjoin_bind_exprs(exprs);
+        res.insert(op, rty::PrimRel { body });
+    }
+    Ok(res)
 }
 
 fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
