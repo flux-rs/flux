@@ -584,7 +584,7 @@ impl CoroutineArgs {
         self.split().resume_ty
     }
 
-    fn split(&self) -> CoroutineArgsParts {
+    fn split(&self) -> CoroutineArgsParts<'_> {
         match &self.args[..] {
             [parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
                 CoroutineArgsParts {
@@ -610,7 +610,7 @@ impl ClosureArgs {
         self.tupled_upvars_ty().tuple_fields()
     }
 
-    pub fn split(&self) -> ClosureArgsParts<GenericArg> {
+    pub fn split(&self) -> ClosureArgsParts<'_, GenericArg> {
         match &self.args[..] {
             [parent_args @ .., closure_kind_ty, closure_sig_as_fn_ptr_ty, tupled_upvars_ty] => {
                 ClosureArgsParts {

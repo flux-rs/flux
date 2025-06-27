@@ -72,7 +72,7 @@ impl RefineTree {
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
-    pub(crate) fn cursor_at_root(&mut self) -> Cursor {
+    pub(crate) fn cursor_at_root(&mut self) -> Cursor<'_> {
         Cursor { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 
@@ -96,7 +96,7 @@ impl Cursor<'_> {
     /// within those children.
     ///
     /// [marker]: Marker
-    pub(crate) fn move_to(&mut self, marker: &Marker, clear_children: bool) -> Option<Cursor> {
+    pub(crate) fn move_to(&mut self, marker: &Marker, clear_children: bool) -> Option<Cursor<'_>> {
         let ptr = marker.ptr.upgrade()?;
         if clear_children {
             ptr.borrow_mut().children.clear();
@@ -111,7 +111,7 @@ impl Cursor<'_> {
     }
 
     #[must_use]
-    pub(crate) fn branch(&mut self) -> Cursor {
+    pub(crate) fn branch(&mut self) -> Cursor<'_> {
         Cursor { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 

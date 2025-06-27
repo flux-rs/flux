@@ -37,7 +37,7 @@ impl<T> RSet<T> {
     }
 
     #[flux::trusted]
-    pub fn iter(self: &Self) -> std::collections::hash_set::Iter<T> {
+    pub fn iter(self: &Self) -> std::collections::hash_set::Iter<'_, T> {
         self.inner.iter()
     }
 }

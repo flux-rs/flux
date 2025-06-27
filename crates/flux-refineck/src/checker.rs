@@ -108,7 +108,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         Ok(Self { ghost_stmts, mode, closures })
     }
 
-    fn reborrow(&mut self) -> Inherited<M> {
+    fn reborrow(&mut self) -> Inherited<'_, M> {
         Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, closures: self.closures }
     }
 }

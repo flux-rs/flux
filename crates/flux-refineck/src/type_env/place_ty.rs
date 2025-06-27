@@ -167,7 +167,7 @@ impl PlacesTree {
         &mut self,
         key: &impl LookupKey,
         mut mode: M,
-    ) -> Result<LookupResult, M::Error> {
+    ) -> Result<LookupResult<'_>, M::Error> {
         let mut cursor = self.cursor_for(key);
         let mut ty = self.get_loc(&cursor.loc).ty.clone();
         let mut is_strg = true;
@@ -236,11 +236,11 @@ impl PlacesTree {
         infcx: &mut InferCtxt,
         key: &impl LookupKey,
         span: Span,
-    ) -> InferResult<LookupResult> {
+    ) -> InferResult<LookupResult<'_>> {
         self.lookup_inner(key, Unfold(infcx, span))
     }
 
-    pub(crate) fn lookup(&mut self, key: &impl LookupKey, _span: Span) -> LookupResult {
+    pub(crate) fn lookup(&mut self, key: &impl LookupKey, _span: Span) -> LookupResult<'_> {
         self.lookup_inner(key, NoUnfold).into_ok()
     }
 

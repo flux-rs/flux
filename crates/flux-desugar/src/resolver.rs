@@ -687,7 +687,7 @@ impl Rib {
     }
 }
 
-fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
+fn module_children(tcx: TyCtxt<'_>, def_id: DefId) -> &[ModChild] {
     #[expect(clippy::disallowed_methods, reason = "modules cannot have extern specs")]
     if let Some(local_id) = def_id.as_local() {
         tcx.module_children_local(local_id)
@@ -698,7 +698,7 @@ fn module_children(tcx: TyCtxt, def_id: DefId) -> &[ModChild] {
 
 /// Iterator over module children visible form `curr_mod`
 fn visible_module_children(
-    tcx: TyCtxt,
+    tcx: TyCtxt<'_>,
     module_id: DefId,
     curr_mod: DefId,
 ) -> impl Iterator<Item = &ModChild> {

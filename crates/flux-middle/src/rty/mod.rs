@@ -2824,43 +2824,43 @@ impl WfckResults {
         }
     }
 
-    pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.bin_op_sorts }
     }
 
-    pub fn bin_op_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn bin_op_sorts(&self) -> LocalTableInContext<'_, Sort> {
         LocalTableInContext { owner: self.owner, data: &self.bin_op_sorts }
     }
 
-    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<'_, Vec<Coercion>> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
     }
 
-    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+    pub fn coercions(&self) -> LocalTableInContext<'_, Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 
-    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<FieldProj> {
+    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<'_, FieldProj> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.field_projs }
     }
 
-    pub fn field_projs(&self) -> LocalTableInContext<FieldProj> {
+    pub fn field_projs(&self) -> LocalTableInContext<'_, FieldProj> {
         LocalTableInContext { owner: self.owner, data: &self.field_projs }
     }
 
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn node_sorts(&self) -> LocalTableInContext<'_, Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<'_, DefId> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
     }
 
-    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+    pub fn record_ctors(&self) -> LocalTableInContext<'_, DefId> {
         LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 }
