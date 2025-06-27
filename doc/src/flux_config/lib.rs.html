@@ -57,8 +57,8 @@
 <a href=#57 id=57 data-nosnippet>57</a>    FLAGS.ignore_default
 <a href=#58 id=58 data-nosnippet>58</a>}
 <a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a><span class="kw">pub fn </span>is_checked_file(file: <span class="kw-2">&amp;</span>str) -&gt; bool {
-<a href=#61 id=61 data-nosnippet>61</a>    FLAGS.check_files.is_checked_file(file)
+<a href=#60 id=60 data-nosnippet>60</a><span class="kw">pub fn </span>is_checked_file(file: <span class="kw-2">&amp;</span>Path) -&gt; bool {
+<a href=#61 id=61 data-nosnippet>61</a>    <span class="kw">if let </span><span class="prelude-val">Some</span>(globset) = <span class="kw-2">&amp;</span>FLAGS.include { globset.is_match(file) } <span class="kw">else </span>{ <span class="bool-val">true </span>}
 <a href=#62 id=62 data-nosnippet>62</a>}
 <a href=#63 id=63 data-nosnippet>63</a>
 <a href=#64 id=64 data-nosnippet>64</a><span class="kw">pub fn </span>cache_path() -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>Path&gt; {
