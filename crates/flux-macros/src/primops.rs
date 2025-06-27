@@ -319,7 +319,7 @@ impl Parse for Output {
         } else {
             let bty: syn::Ident = input.parse()?;
             if input.peek(token::Bracket) {
-                Ok(Output::Indexed(bty, parse_index(&input)?))
+                Ok(Output::Indexed(bty, parse_index(input)?))
             } else if input.peek(token::Brace) {
                 let content;
                 braced!(content in input);

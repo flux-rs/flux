@@ -686,11 +686,11 @@ impl Ctor {
     }
 }
 
-/// [NOTE: Primitive Properties]
+/// # Primitive Properties
 /// Given a primop `op` with signature `(t1,...,tn) -> t`
-/// We define a refined type for `op` expressed as a [`RuleMatcher`]
+/// We define a refined type for `op` expressed as a `RuleMatcher`
 ///
-/// ```rust
+/// ```text
 /// op :: (x1: t1, ..., xn: tn) -> { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
 /// ```
 /// That is, using two *uninterpreted functions* `op_val` and `op_rel` that respectively denote
