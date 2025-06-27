@@ -285,8 +285,8 @@ pub fn iterative_solve(
                             wkvar,
                             solution_candidate,
                         ) {
-                            println!("Adding an instantiation for wkvar {:?}:", wkvar);
-                            println!("  {:?}", instantiation);
+                            // println!("Adding an instantiation for wkvar {:?}:", wkvar);
+                            // println!("  {:?}", instantiation);
                             any_solution = true;
                             match solutions.solutions.entry(wkvar.wkvid) {
                                 Entry::Occupied(mut entry) => {
@@ -337,10 +337,10 @@ pub fn iterative_solve(
 ///  are booleans --- a > b => x < y which is probably too trivial a constraint
 ///  to offer; we only equalities anyway)
 pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
-    println!("Failing constraint: {:?}", &blame_ctx.expr);
+    // println!("Failing constraint: {:?}", &blame_ctx.expr);
     let mut candidates = vec![blame_ctx.expr.clone()];
     for assumed_pred in &blame_ctx.blame_analysis.assumed_preds {
-        println!("Trying to unify against pred {:?}", assumed_pred);
+        // println!("Trying to unify against pred {:?}", assumed_pred);
         let au_map = rty::anti_unify(&blame_ctx.expr, assumed_pred);
         // This checks if the antiunification is trivial, i.e.
         // blame_ctx.expr == assumed_pred
@@ -374,8 +374,8 @@ pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
         expr.simplify(&SnapshotMap::default());
         !(expr.is_trivially_false() || expr.is_trivially_true())
     });
-    for candidate in &candidates {
-        println!("equality candidate: {:?}", candidate);
-    }
+    // for candidate in &candidates {
+    //     println!("equality candidate: {:?}", candidate);
+    // }
     return candidates;
 }
