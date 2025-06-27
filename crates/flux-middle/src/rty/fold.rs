@@ -1,5 +1,5 @@
 //! This modules follows the implementation of folding in rustc. For more information read the
-//! documentation in [`rustc_middle::ty::fold`].
+//! documentation in `rustc_type_ir::fold`.
 
 use std::ops::ControlFlow;
 

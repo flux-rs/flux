@@ -84,7 +84,7 @@ struct Inherited<'ck, M> {
     ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
     mode: &'ck mut M,
 
-    /// This map has the "templates" generated for the closures constructed (in [`check_rvalue_closure`]).
+    /// This map has the "templates" generated for the closures constructed (in [`Checker::check_rvalue_closure`]).
     /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
     /// we need to be careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
