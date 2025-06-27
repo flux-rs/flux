@@ -167,11 +167,6 @@ fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
 
     // Parse the args
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::No))?;
-    // CUT for param in &params {
-    // CUT     if !matches!(param.sort, Sort::Infer) {
-    // CUT         return Err(ParseError { kind: crate::ParseErrorKind::InvalidSort, span: param.span });
-    // CUT     }
-    // CUT }
 
     let body = parse_block(cx)?;
     let hi = cx.hi();
