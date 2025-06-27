@@ -106,12 +106,22 @@ incremental = false
 
         for package in metadata.packages {
             let flux_metadata: FluxMetadata = config::Config::builder()
-                .add_source(FluxMetadataSource::new(package.manifest_path, package.metadata))
+                .add_source(FluxMetadataSource::new(
+                    package.manifest_path.to_string(),
+                    package.metadata,
+                ))
                 .add_source(flux_toml.clone())
                 .build()?
                 .try_deserialize()?;
 
             if flux_metadata.enabled {
+                // members must be hierarchicaly bellow the workspace root, so the
+                // following should never fail
+                let manifest_dir_relative_to_workspace = package
+                    .manifest_path
+                    .strip_prefix(&metadata.workspace_root)?
+                    .parent()
+                    .ok_or_else(|| anyhow!("no parent for manifest file"))?;
                 write!(
                     w,
                     r#"
@@ -120,7 +130,7 @@ rustflags = [{:?}]
                         "#,
                     package.id,
                     flux_metadata
-                        .into_flags(&metadata.target_directory)
+                        .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
                         .iter()
                         .chain(flux_flags.iter().flatten())
                         .map(|s| s.as_ref())
@@ -140,8 +150,8 @@ struct FluxMetadataSource {
 }
 
 impl FluxMetadataSource {
-    fn new(origin: impl Into<String>, value: serde_json::Value) -> Self {
-        Self { origin: origin.into(), value }
+    fn new(origin: String, value: serde_json::Value) -> Self {
+        Self { origin, value }
     }
 }
 

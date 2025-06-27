@@ -1,5 +1,6 @@
 use std::{env, path::PathBuf, process, sync::LazyLock};
 
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 pub use toml::Value;
 
@@ -15,8 +16,10 @@ pub struct Flags {
     pub log_dir: PathBuf,
     /// Only checks definitions containing `name` as a substring
     pub check_def: String,
-    /// Only checks the specified files. Takes a list of comma separated paths
-    pub check_files: Paths,
+    /// If present, only check files matching a glob pattern. This flag can be specified multiple
+    /// times and a file will be checked if it matches any of the patterns. Patterns are checked
+    /// relative to the current working directory.
+    pub include: Option<GlobSet>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
     pub pointer_width: PointerWidth,
@@ -75,7 +78,7 @@ impl Default for Flags {
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             check_def: String::new(),
-            check_files: Paths::default(),
+            include: None,
             cache: None,
             check_overflow: false,
             scrape_quals: false,
@@ -94,6 +97,7 @@ impl Default for Flags {
 
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
+    let mut include: Option<GlobSetBuilder> = None;
     for arg in env::args() {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
@@ -115,7 +119,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "timings" => parse_bool(&mut flags.timings, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "check-def" => parse_string(&mut flags.check_def, value),
-            "check-files" => parse_check_files(&mut flags.check_files, value),
+            "include" => parse_include(&mut include, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -129,6 +133,13 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");
             process::exit(1);
         }
+    }
+    if let Some(include) = include {
+        let include = include.build().unwrap_or_else(|err| {
+            eprintln!("error: invalid include pattern: {err:?}");
+            process::exit(1);
+        });
+        flags.include = Some(include);
     }
     flags
 });
@@ -244,16 +255,11 @@ fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> 
     }
 }
 
-fn parse_check_files(slot: &mut Paths, v: Option<&str>) -> Result<(), &'static str> {
+fn parse_include(slot: &mut Option<GlobSetBuilder>, v: Option<&str>) -> Result<(), &'static str> {
     match v {
         Some(s) => {
-            let paths: Vec<PathBuf> = s
-                .split(",")
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(PathBuf::from)
-                .collect();
-            *slot = Paths { paths: if paths.is_empty() { None } else { Some(paths) } };
+            slot.get_or_insert_with(GlobSetBuilder::new)
+                .add(Glob::new(s.trim()).map_err(|_| "invalid glob pattern")?);
             Ok(())
         }
         None => Err("a comma separated list of paths"),
