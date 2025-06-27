@@ -84,7 +84,7 @@
 <a href=#84 id=84 data-nosnippet>84</a>    </span>ghost_stmts: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span>UnordMap&lt;LocalDefId, GhostStatements&gt;,
 <a href=#85 id=85 data-nosnippet>85</a>    mode: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span><span class="kw-2">mut </span>M,
 <a href=#86 id=86 data-nosnippet>86</a>
-<a href=#87 id=87 data-nosnippet>87</a>    <span class="doccomment">/// This map has the "templates" generated for the closures constructed (in [`check_rvalue_closure`]).
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="doccomment">/// This map has the "templates" generated for the closures constructed (in [`Checker::check_rvalue_closure`]).
 <a href=#88 id=88 data-nosnippet>88</a>    /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
 <a href=#89 id=89 data-nosnippet>89</a>    /// we need to be careful and only use it in the correct scope.
 <a href=#90 id=90 data-nosnippet>90</a>    </span>closures: <span class="kw-2">&amp;</span><span class="lifetime">'ck </span><span class="kw-2">mut </span>UnordMap&lt;DefId, PolyFnSig&gt;,
