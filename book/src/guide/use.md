@@ -672,6 +672,22 @@ You can switch on overflow checking
 You can provide _properties_ to be used when doing computations with
 primitive operations like `<<` or `>>`.
 
+Given a primop `op` with signature `(t1,...,tn) -> t` we define
+a refined type for `op` expressed as a [`RuleMatcher`]
+
+```rust
+op :: (x1: t1, ..., xn: tn) -> { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
+```
+
+that is, using two _uninterpreted functions_ `op_val` and `op_rel` that respectively denote
+
+1. The _value_ of the primop, and
+2. Some invariant _relation_ that holds for the primop.
+
+The latter can be extended by the user via a `property` definition,
+which allows us to customize primops like `<<` with extra "facts"
+or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
+
 ```rust
 {{#include ../../../tests/tests/pos/surface/primops00.rs}}
 ```
