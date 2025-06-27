@@ -51,7 +51,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{Symbol, sym, symbol::kw};
+use rustc_span::{DUMMY_SP, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{INNERMOST, TyVid};
 
@@ -1388,7 +1388,7 @@ impl Ty {
     }
 
     pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
         let adt_def = genv.adt_def(def_id)?;
 
         let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
@@ -1398,7 +1398,7 @@ impl Ty {
     }
 
     pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
 
         let generics = genv.generics_of(def_id)?;
         let alloc_ty = genv

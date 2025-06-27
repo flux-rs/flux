@@ -146,12 +146,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     match kind {
                         hir::UseKind::Single(ident) => {
                             let name = ident.name;
-                            for res in &path.res {
-                                if let Some(ns @ (TypeNS | ValueNS)) = res.ns()
-                                    && let Ok(res) = fhir::Res::try_from(*res)
-                                {
-                                    self.define_res_in(name, res, ns);
-                                }
+                            if let Some(res) = path.res.value_ns
+                                && let Ok(res) = fhir::Res::try_from(res)
+                            {
+                                self.define_res_in(name, res, ValueNS);
+                            }
+                            if let Some(res) = path.res.type_ns
+                                && let Ok(res) = fhir::Res::try_from(res)
+                            {
+                                self.define_res_in(name, res, TypeNS);
                             }
                         }
                         hir::UseKind::Glob => {
