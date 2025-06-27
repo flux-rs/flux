@@ -309,28 +309,34 @@ enum Output {
 
 impl Parse for Output {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let bty: syn::Ident = input.parse()?;
-        if input.peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            let idx = content.parse()?;
-            if input.peek(token::Bracket) {
-                let pred;
-                bracketed!(pred in input);
-                Ok(Output::Constr(bty, idx, pred.parse()?))
-            } else {
-                Ok(Output::Indexed(bty, idx))
-            }
-        } else if input.peek(token::Brace) {
+        if input.peek(token::Brace) {
             let content;
             braced!(content in input);
-            let _: syn::Ident = content.parse()?;
-            let _: Token![:] = content.parse()?;
-            Ok(Output::Exists(bty, content.parse()?))
+            let bty = content.parse()?;
+            let idx = parse_index(&content)?;
+            let _: Token![|] = content.parse()?;
+            Ok(Output::Constr(bty, idx, content.parse()?))
         } else {
-            Ok(Output::Base(bty))
+            let bty: syn::Ident = input.parse()?;
+            if input.peek(token::Bracket) {
+                Ok(Output::Indexed(bty, parse_index(&input)?))
+            } else if input.peek(token::Brace) {
+                let content;
+                braced!(content in input);
+                let _: syn::Ident = content.parse()?;
+                let _: Token![:] = content.parse()?;
+                Ok(Output::Exists(bty, content.parse()?))
+            } else {
+                Ok(Output::Base(bty))
+            }
         }
     }
+}
+
+fn parse_index(input: ParseStream) -> syn::Result<TokenStream> {
+    let content;
+    bracketed!(content in input);
+    content.parse()
 }
 
 struct Requires {

@@ -281,7 +281,7 @@ fn mk_rem_rules() -> RuleMatcher<2> {
 /// `a & b`
 fn mk_bit_and_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> T[E::prim_val(rty::BinOp::BitAnd, a, b)] [E::prim_rel(rty::BinOp::BitAnd, a, b)]
+        fn(a: T, b: T) -> { T[E::prim_val(rty::BinOp::BitAnd, a, b)] | E::prim_rel(rty::BinOp::BitAnd, a, b) }
         if T.is_integral()
 
         fn(a: bool, b: bool) -> bool[E::and(a, b)]
@@ -291,7 +291,7 @@ fn mk_bit_and_rules() -> RuleMatcher<2> {
 /// `a | b`
 fn mk_bit_or_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> T[E::prim_val(rty::BinOp::BitOr, a, b)] [E::prim_rel(rty::BinOp::BitOr, a, b)]
+        fn(a: T, b: T) -> { T[E::prim_val(rty::BinOp::BitOr, a, b)] | E::prim_rel(rty::BinOp::BitOr, a, b) }
         if T.is_integral()
 
         fn(a: bool, b: bool) -> bool[E::or(a, b)]
@@ -377,7 +377,7 @@ fn mk_gt_rules() -> RuleMatcher<2> {
 /// `a << b`
 fn mk_shl_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: S) -> T[E::prim_val(rty::BinOp::BitShl, a, b)] [E::prim_rel(rty::BinOp::BitShl, a, b)]
+        fn(a: T, b: S) -> { T[E::prim_val(rty::BinOp::BitShl, a, b)] | E::prim_rel(rty::BinOp::BitShl, a, b) }
         if T.is_integral() && S.is_integral()
     }
 }
@@ -385,7 +385,7 @@ fn mk_shl_rules() -> RuleMatcher<2> {
 /// `a >> b`
 fn mk_shr_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: S) -> T[E::prim_val(rty::BinOp::BitShr, a, b)] [E::prim_rel(rty::BinOp::BitShr, a, b)]
+        fn(a: T, b: S) -> { T[E::prim_val(rty::BinOp::BitShr, a, b)] | E::prim_rel(rty::BinOp::BitShr, a, b) }
         if T.is_integral() && S.is_integral()
     }
 }

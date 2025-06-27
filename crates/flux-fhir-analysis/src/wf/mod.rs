@@ -163,7 +163,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     /// Recursively traverse `item` and declare all refinement parameters
     fn declare_params_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> Result {
         if let fhir::FluxItem::PrimProp(prim_prop) = item {
-            self.declare_params_for_prim_prop(&prim_prop)
+            self.declare_params_for_prim_prop(prim_prop)
         } else {
             visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
         }
