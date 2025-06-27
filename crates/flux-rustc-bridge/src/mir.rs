@@ -292,7 +292,7 @@ impl Place {
         Place { local, projection }
     }
 
-    pub fn as_ref(&self) -> PlaceRef {
+    pub fn as_ref(&self) -> PlaceRef<'_> {
         PlaceRef { local: self.local, projection: &self.projection[..] }
     }
 

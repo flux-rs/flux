@@ -123,7 +123,7 @@ impl GhostStatements {
         }
     }
 
-    fn at(&mut self, point: Point) -> StatementsAt {
+    fn at(&mut self, point: Point) -> StatementsAt<'_> {
         StatementsAt { stmts: self, point }
     }
 

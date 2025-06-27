@@ -777,7 +777,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         args: &'genv [fhir::GenericArg<'genv>],
         constraints: &'genv [fhir::AssocItemConstraint<'genv>],
     ) -> fhir::Path<'genv> {
-        let def_id = self.genv.tcx().require_lang_item(lang_item, Some(span));
+        let def_id = self.genv.tcx().require_lang_item(lang_item, span);
         let def_kind = self.genv.def_kind(def_id);
         let res = Res::Def(def_kind, def_id);
         fhir::Path {

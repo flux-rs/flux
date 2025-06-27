@@ -13,13 +13,13 @@ pub struct RSlice<'a, T> {
 impl<'a, T> RSlice<'a, T> {
     #[flux::trusted]
     #[flux::sig(fn(vec: &mut RVec<T>[@n]) -> RSlice<T>[n, |i,j| true])]
-    pub fn from_vec(vec: &mut RVec<T>) -> RSlice<T> {
+    pub fn from_vec(vec: &mut RVec<T>) -> RSlice<'_, T> {
         RSlice::from_slice(vec.as_mut_slice())
     }
 
     #[flux::trusted]
     #[flux::sig(fn(slice: &mut [T][@n]) -> RSlice<T>[n, |i,j| true])]
-    pub fn from_slice(slice: &mut [T]) -> RSlice<T> {
+    pub fn from_slice(slice: &mut [T]) -> RSlice<'_, T> {
         RSlice { data: slice.as_mut_ptr(), len: slice.len(), _marker: PhantomData }
     }
 

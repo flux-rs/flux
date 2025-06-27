@@ -51,7 +51,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{Symbol, sym, symbol::kw};
+use rustc_span::{DUMMY_SP, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{INNERMOST, TyVid};
 
@@ -1388,7 +1388,7 @@ impl Ty {
     }
 
     pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
         let adt_def = genv.adt_def(def_id)?;
 
         let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
@@ -1398,7 +1398,7 @@ impl Ty {
     }
 
     pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
 
         let generics = genv.generics_of(def_id)?;
         let alloc_ty = genv
@@ -2824,43 +2824,43 @@ impl WfckResults {
         }
     }
 
-    pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.bin_op_sorts }
     }
 
-    pub fn bin_op_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn bin_op_sorts(&self) -> LocalTableInContext<'_, Sort> {
         LocalTableInContext { owner: self.owner, data: &self.bin_op_sorts }
     }
 
-    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<'_, Vec<Coercion>> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
     }
 
-    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+    pub fn coercions(&self) -> LocalTableInContext<'_, Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 
-    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<FieldProj> {
+    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<'_, FieldProj> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.field_projs }
     }
 
-    pub fn field_projs(&self) -> LocalTableInContext<FieldProj> {
+    pub fn field_projs(&self) -> LocalTableInContext<'_, FieldProj> {
         LocalTableInContext { owner: self.owner, data: &self.field_projs }
     }
 
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn node_sorts(&self) -> LocalTableInContext<'_, Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<'_, DefId> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
     }
 
-    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+    pub fn record_ctors(&self) -> LocalTableInContext<'_, DefId> {
         LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 }

@@ -418,8 +418,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// inherit it, so this should suffice to check if the `def_id`
     /// corresponds to `LangItem::FnOnceOutput`.
     pub fn is_fn_output(&self, def_id: DefId) -> bool {
+        let def_span = self.tcx().def_span(def_id);
         self.tcx()
-            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, None)
+            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, def_span)
             == def_id
     }
 

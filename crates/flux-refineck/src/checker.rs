@@ -108,7 +108,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         Ok(Self { ghost_stmts, mode, closures })
     }
 
-    fn reborrow(&mut self) -> Inherited<M> {
+    fn reborrow(&mut self) -> Inherited<'_, M> {
         Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, closures: self.closures }
     }
 }
@@ -1804,16 +1804,17 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
     }
     let mut vis = Collector { params: Default::default() };
 
+    let span = genv.tcx().def_span(def_id);
     for (clause, _) in all_predicates_of(tcx, def_id) {
         if let Some(trait_pred) = clause.as_trait_clause() {
             let trait_id = trait_pred.def_id();
-            if tcx.require_lang_item(LangItem::Sized, None) == trait_id {
+            if tcx.require_lang_item(LangItem::Sized, span) == trait_id {
                 continue;
             }
-            if tcx.require_lang_item(LangItem::Tuple, None) == trait_id {
+            if tcx.require_lang_item(LangItem::Tuple, span) == trait_id {
                 continue;
             }
-            if tcx.require_lang_item(LangItem::Copy, None) == trait_id {
+            if tcx.require_lang_item(LangItem::Copy, span) == trait_id {
                 continue;
             }
 

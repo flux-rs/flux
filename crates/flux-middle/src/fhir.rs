@@ -1231,11 +1231,11 @@ impl<'fhir> From<PolyFuncSort<'fhir>> for Sort<'fhir> {
 }
 
 impl FuncSort<'_> {
-    pub fn inputs(&self) -> &[Sort] {
+    pub fn inputs(&self) -> &[Sort<'_>] {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
 
-    pub fn output(&self) -> &Sort {
+    pub fn output(&self) -> &Sort<'_> {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }

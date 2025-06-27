@@ -2393,7 +2393,7 @@ impl Env {
         self.layers.last().expect("bottom of layer stack")
     }
 
-    fn lookup(&self, var: &fhir::PathExpr) -> LookupResult {
+    fn lookup(&self, var: &fhir::PathExpr) -> LookupResult<'_> {
         let (_, id) = var.res.expect_param();
         for (i, layer) in self.layers.iter().rev().enumerate() {
             if let Some((idx, entry)) = layer.get(id) {
