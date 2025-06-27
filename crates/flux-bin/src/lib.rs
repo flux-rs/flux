@@ -28,11 +28,7 @@ pub struct FluxMetadata {
 }
 
 impl FluxMetadata {
-    pub fn into_flags(
-        self,
-        target_dir: &Utf8Path,
-        relative_manifest_dir: &Utf8Path,
-    ) -> Vec<String> {
+    pub fn into_flags(self, target_dir: &Utf8Path, glob_prefix: Option<&Utf8Path>) -> Vec<String> {
         let mut flags = vec![];
         if let Some(true) = self.cache {
             flags.push(format!("-Fcache={}", target_dir.join("FLUXCACHE")));
@@ -57,12 +53,13 @@ impl FluxMetadata {
         }
         if let Some(patterns) = self.include {
             for pat in patterns {
-                // Append the pattern to the manifest dir relative to the workspace. This way
-                // patterns will be relative to the working directory which cargo sets to the
-                // root of the workspace when calling `flux`. I haven't tested this on windows,
-                // but it should work because `globset` will normalize patterns to use `/` as
-                // separator
-                flags.push(format!("-Finclude={relative_manifest_dir}/{pat}"));
+                if let Some(glob_prefix) = glob_prefix {
+                    // I haven't tested this on windows, but it should work because `globset`
+                    // will normalize patterns to use `/` as separator
+                    flags.push(format!("-Finclude={glob_prefix}/{pat}"));
+                } else {
+                    flags.push(format!("-Finclude={pat}"));
+                }
             }
         }
         flags

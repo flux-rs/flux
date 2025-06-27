@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use cargo_metadata::{Metadata, MetadataCommand};
+use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use flux_bin::{
     FluxMetadata,
     utils::{
@@ -115,13 +115,14 @@ incremental = false
                 .try_deserialize()?;
 
             if flux_metadata.enabled {
-                // members must be hierarchicaly bellow the workspace root, so the
-                // following should never fail
+                // For workspace members, cargo sets the workspace's root as the working dir
+                // when running flux. Paths will be relative to that, so we must normalize
+                // glob patterns to be relative to the workspace's root.
                 let manifest_dir_relative_to_workspace = package
                     .manifest_path
-                    .strip_prefix(&metadata.workspace_root)?
-                    .parent()
-                    .ok_or_else(|| anyhow!("no parent for manifest file"))?;
+                    .strip_prefix(&metadata.workspace_root)
+                    .ok()
+                    .and_then(Utf8Path::parent);
                 write!(
                     w,
                     r#"
