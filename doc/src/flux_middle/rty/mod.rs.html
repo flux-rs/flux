@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (99e7c15e8 2025-06-01)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../static.files/storage-4e99c027.js"></script><script defer src="../../../static.files/src-script-63605ae7.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-middle/src/rty/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-84e720fa.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_middle" data-themes="" data-resource-suffix="" data-rustdoc-version="1.89.0-nightly (45acf54ee 2025-06-16)" data-channel="nightly" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../static.files/storage-4e99c027.js"></script><script defer src="../../../static.files/src-script-63605ae7.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-fd3af306.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_middle/rty/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Defines how flux represents refinement types internally. Definitions in this module are used
 <a href=#2 id=2 data-nosnippet>2</a>//! during refinement type checking. A couple of important differences between definitions in this
 <a href=#3 id=3 data-nosnippet>3</a>//! module and in [`crate::fhir`] are:
 <a href=#4 id=4 data-nosnippet>4</a>//!
@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>    mir::Mutability,
 <a href=#52 id=52 data-nosnippet>52</a>    ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 <a href=#53 id=53 data-nosnippet>53</a>};
-<a href=#54 id=54 data-nosnippet>54</a><span class="kw">use </span>rustc_span::{Symbol, sym, symbol::kw};
+<a href=#54 id=54 data-nosnippet>54</a><span class="kw">use </span>rustc_span::{DUMMY_SP, Symbol, sym, symbol::kw};
 <a href=#55 id=55 data-nosnippet>55</a><span class="kw">use </span>rustc_type_ir::Upcast <span class="kw">as _</span>;
 <a href=#56 id=56 data-nosnippet>56</a><span class="kw">pub use </span>rustc_type_ir::{INNERMOST, TyVid};
 <a href=#57 id=57 data-nosnippet>57</a>
@@ -1388,7 +1388,7 @@
 <a href=#1388 id=1388 data-nosnippet>1388</a>    }
 <a href=#1389 id=1389 data-nosnippet>1389</a>
 <a href=#1390 id=1390 data-nosnippet>1390</a>    <span class="kw">pub fn </span>mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -&gt; QueryResult&lt;Ty&gt; {
-<a href=#1391 id=1391 data-nosnippet>1391</a>        <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
+<a href=#1391 id=1391 data-nosnippet>1391</a>        <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
 <a href=#1392 id=1392 data-nosnippet>1392</a>        <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
 <a href=#1393 id=1393 data-nosnippet>1393</a>
 <a href=#1394 id=1394 data-nosnippet>1394</a>        <span class="kw">let </span>args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
@@ -1398,7 +1398,7 @@
 <a href=#1398 id=1398 data-nosnippet>1398</a>    }
 <a href=#1399 id=1399 data-nosnippet>1399</a>
 <a href=#1400 id=1400 data-nosnippet>1400</a>    <span class="kw">pub fn </span>mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -&gt; QueryResult&lt;Ty&gt; {
-<a href=#1401 id=1401 data-nosnippet>1401</a>        <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, <span class="prelude-val">None</span>);
+<a href=#1401 id=1401 data-nosnippet>1401</a>        <span class="kw">let </span>def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
 <a href=#1402 id=1402 data-nosnippet>1402</a>
 <a href=#1403 id=1403 data-nosnippet>1403</a>        <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
 <a href=#1404 id=1404 data-nosnippet>1404</a>        <span class="kw">let </span>alloc_ty = genv
@@ -2824,43 +2824,43 @@
 <a href=#2824 id=2824 data-nosnippet>2824</a>        }
 <a href=#2825 id=2825 data-nosnippet>2825</a>    }
 <a href=#2826 id=2826 data-nosnippet>2826</a>
-<a href=#2827 id=2827 data-nosnippet>2827</a>    <span class="kw">pub fn </span>bin_op_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
+<a href=#2827 id=2827 data-nosnippet>2827</a>    <span class="kw">pub fn </span>bin_op_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, Sort&gt; {
 <a href=#2828 id=2828 data-nosnippet>2828</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.bin_op_sorts }
 <a href=#2829 id=2829 data-nosnippet>2829</a>    }
 <a href=#2830 id=2830 data-nosnippet>2830</a>
-<a href=#2831 id=2831 data-nosnippet>2831</a>    <span class="kw">pub fn </span>bin_op_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
+<a href=#2831 id=2831 data-nosnippet>2831</a>    <span class="kw">pub fn </span>bin_op_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;<span class="lifetime">'_</span>, Sort&gt; {
 <a href=#2832 id=2832 data-nosnippet>2832</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.bin_op_sorts }
 <a href=#2833 id=2833 data-nosnippet>2833</a>    }
 <a href=#2834 id=2834 data-nosnippet>2834</a>
-<a href=#2835 id=2835 data-nosnippet>2835</a>    <span class="kw">pub fn </span>coercions_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Vec&lt;Coercion&gt;&gt; {
+<a href=#2835 id=2835 data-nosnippet>2835</a>    <span class="kw">pub fn </span>coercions_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, Vec&lt;Coercion&gt;&gt; {
 <a href=#2836 id=2836 data-nosnippet>2836</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.coercions }
 <a href=#2837 id=2837 data-nosnippet>2837</a>    }
 <a href=#2838 id=2838 data-nosnippet>2838</a>
-<a href=#2839 id=2839 data-nosnippet>2839</a>    <span class="kw">pub fn </span>coercions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Vec&lt;Coercion&gt;&gt; {
+<a href=#2839 id=2839 data-nosnippet>2839</a>    <span class="kw">pub fn </span>coercions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;<span class="lifetime">'_</span>, Vec&lt;Coercion&gt;&gt; {
 <a href=#2840 id=2840 data-nosnippet>2840</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.coercions }
 <a href=#2841 id=2841 data-nosnippet>2841</a>    }
 <a href=#2842 id=2842 data-nosnippet>2842</a>
-<a href=#2843 id=2843 data-nosnippet>2843</a>    <span class="kw">pub fn </span>field_projs_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;FieldProj&gt; {
+<a href=#2843 id=2843 data-nosnippet>2843</a>    <span class="kw">pub fn </span>field_projs_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, FieldProj&gt; {
 <a href=#2844 id=2844 data-nosnippet>2844</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.field_projs }
 <a href=#2845 id=2845 data-nosnippet>2845</a>    }
 <a href=#2846 id=2846 data-nosnippet>2846</a>
-<a href=#2847 id=2847 data-nosnippet>2847</a>    <span class="kw">pub fn </span>field_projs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;FieldProj&gt; {
+<a href=#2847 id=2847 data-nosnippet>2847</a>    <span class="kw">pub fn </span>field_projs(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;<span class="lifetime">'_</span>, FieldProj&gt; {
 <a href=#2848 id=2848 data-nosnippet>2848</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.field_projs }
 <a href=#2849 id=2849 data-nosnippet>2849</a>    }
 <a href=#2850 id=2850 data-nosnippet>2850</a>
-<a href=#2851 id=2851 data-nosnippet>2851</a>    <span class="kw">pub fn </span>node_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;Sort&gt; {
+<a href=#2851 id=2851 data-nosnippet>2851</a>    <span class="kw">pub fn </span>node_sorts_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, Sort&gt; {
 <a href=#2852 id=2852 data-nosnippet>2852</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.node_sorts }
 <a href=#2853 id=2853 data-nosnippet>2853</a>    }
 <a href=#2854 id=2854 data-nosnippet>2854</a>
-<a href=#2855 id=2855 data-nosnippet>2855</a>    <span class="kw">pub fn </span>node_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;Sort&gt; {
+<a href=#2855 id=2855 data-nosnippet>2855</a>    <span class="kw">pub fn </span>node_sorts(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;<span class="lifetime">'_</span>, Sort&gt; {
 <a href=#2856 id=2856 data-nosnippet>2856</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.node_sorts }
 <a href=#2857 id=2857 data-nosnippet>2857</a>    }
 <a href=#2858 id=2858 data-nosnippet>2858</a>
-<a href=#2859 id=2859 data-nosnippet>2859</a>    <span class="kw">pub fn </span>record_ctors_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;DefId&gt; {
+<a href=#2859 id=2859 data-nosnippet>2859</a>    <span class="kw">pub fn </span>record_ctors_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; LocalTableInContextMut&lt;<span class="lifetime">'_</span>, DefId&gt; {
 <a href=#2860 id=2860 data-nosnippet>2860</a>        LocalTableInContextMut { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;mut </span><span class="self">self</span>.record_ctors }
 <a href=#2861 id=2861 data-nosnippet>2861</a>    }
 <a href=#2862 id=2862 data-nosnippet>2862</a>
-<a href=#2863 id=2863 data-nosnippet>2863</a>    <span class="kw">pub fn </span>record_ctors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;DefId&gt; {
+<a href=#2863 id=2863 data-nosnippet>2863</a>    <span class="kw">pub fn </span>record_ctors(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; LocalTableInContext&lt;<span class="lifetime">'_</span>, DefId&gt; {
 <a href=#2864 id=2864 data-nosnippet>2864</a>        LocalTableInContext { owner: <span class="self">self</span>.owner, data: <span class="kw-2">&amp;</span><span class="self">self</span>.record_ctors }
 <a href=#2865 id=2865 data-nosnippet>2865</a>    }
 <a href=#2866 id=2866 data-nosnippet>2866</a>}
