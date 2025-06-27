@@ -912,6 +912,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
                 Ok(())
             }
+            (BaseTy::Never, BaseTy::Never) => Ok(()),
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
