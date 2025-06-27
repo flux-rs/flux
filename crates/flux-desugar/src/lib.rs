@@ -336,7 +336,7 @@ impl CrateDesugar<'_, '_> {
         }
     }
 
-    fn desugar_prim_prop(&mut self, def_id: FluxLocalDefId, prop: &surface::PrimProp) -> Result {
+    fn desugar_prim_prop(&mut self, def_id: FluxLocalDefId, prop: &surface::PrimOpProp) -> Result {
         let prop = desugar::desugar_prim_prop(self.genv, self.resolver_output, def_id, prop)?;
         self.fhir
             .items

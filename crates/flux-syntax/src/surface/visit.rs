@@ -14,7 +14,7 @@ use super::{
     PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
     TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
-use crate::surface::PrimProp;
+use crate::surface::PrimOpProp;
 
 #[macro_export]
 macro_rules! walk_list {
@@ -37,7 +37,7 @@ pub trait Visitor: Sized {
         walk_defn(self, defn);
     }
 
-    fn visit_prim_prop(&mut self, prop: &PrimProp) {
+    fn visit_prim_prop(&mut self, prop: &PrimOpProp) {
         walk_prim_prop(self, prop);
     }
 
@@ -205,7 +205,7 @@ pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {
     }
 }
 
-pub fn walk_prim_prop<V: Visitor>(vis: &mut V, prop: &PrimProp) {
+pub fn walk_prim_prop<V: Visitor>(vis: &mut V, prop: &PrimOpProp) {
     vis.visit_ident(prop.name);
     walk_list!(vis, visit_refine_param, &prop.params);
     vis.visit_expr(&prop.body);

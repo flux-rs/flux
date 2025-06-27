@@ -138,9 +138,33 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         self.visit_node(node);
     }
 
+    fn declare_params_for_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) -> Result {
+        let Some((sorts, _)) = primop_sort(&prim_prop.op) else {
+            return Err(self
+                .errors
+                .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op)));
+        };
+        if prim_prop.args.len() != sorts.len() {
+            return Err(self.errors.emit(errors::ArgCountMismatch::new(
+                Some(prim_prop.span),
+                String::from("primop"),
+                sorts.len(),
+                prim_prop.args.len(),
+            )));
+        }
+        for (arg, sort) in prim_prop.args.iter().zip(sorts) {
+            self.infcx.declare_param(*arg, sort);
+        }
+        Ok(())
+    }
+
     /// Recursively traverse `item` and declare all refinement parameters
     fn declare_params_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> Result {
-        visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
+        if let fhir::FluxItem::PrimProp(prim_prop) = item {
+            self.declare_params_for_prim_prop(&prim_prop)
+        } else {
+            visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
+        }
     }
 
     /// Recursively traverse `node` and declare all refinement parameters
@@ -311,9 +335,6 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 prim_prop.args.len(),
             ));
             return;
-        }
-        for (arg, sort) in prim_prop.args.iter().zip(sorts) {
-            self.infcx.declare_param(*arg, sort);
         }
         self.infcx
             .check_expr(&prim_prop.body, &rty::Sort::Bool)

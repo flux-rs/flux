@@ -2,7 +2,7 @@ use flux_rs::{assert, attrs::*, defs};
 
 defs! {
     property ShiftByTwo[<<](x, y) {
-       y == 2 => [<<](x, y) == 4*x
+       [<<](x, 2) == 4*x
     }
 
     property ShiftRightByFour[>>](x, y) {

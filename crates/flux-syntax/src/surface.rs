@@ -32,7 +32,7 @@ pub enum Item {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
-    PrimProp(PrimProp),
+    PrimProp(PrimOpProp),
 }
 
 impl Item {
@@ -73,7 +73,7 @@ pub struct SpecFunc {
 
 /// A (currently global) *primop property*; see tests/tests/pos/surface/
 #[derive(Debug)]
-pub struct PrimProp {
+pub struct PrimOpProp {
     /// The name of the property
     pub name: Ident,
     /// The binop it is attached to

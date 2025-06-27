@@ -1,11 +1,9 @@
 use flux_rs::{assert, defs};
 
 defs! {
-
-    property BadPropWrongIn[<<](x, y) {
-       y => [<<](x, 2) == 4*x //~ ERROR mismatched sorts
+    property ShiftByTwo[<<](x:int, y:int) { //~ ERROR syntax error
+       [<<](x, 2) == 4*x
     }
-
 }
 
 pub fn test0() {

@@ -197,4 +197,5 @@ pub enum ParseErrorKind {
     UnexpectedEof,
     CannotBeChained,
     InvalidBinding,
+    InvalidSort,
 }

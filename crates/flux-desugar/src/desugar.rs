@@ -59,7 +59,7 @@ pub(crate) fn desugar_prim_prop<'genv>(
     genv: GlobalEnv<'genv, '_>,
     resolver_output: &'genv ResolverOutput,
     def_id: FluxLocalDefId,
-    prim_prop: &surface::PrimProp,
+    prim_prop: &surface::PrimOpProp,
 ) -> Result<fhir::PrimProp<'genv>> {
     FluxItemCtxt::with(genv, resolver_output, def_id, FluxItemKind::PrimProp, |cx| {
         let body = cx.desugar_expr(&prim_prop.body);
