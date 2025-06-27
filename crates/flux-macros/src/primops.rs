@@ -418,5 +418,4 @@ where
 
 mod kw {
     syn::custom_keyword!(requires);
-    syn::custom_keyword!(ensures);
 }
