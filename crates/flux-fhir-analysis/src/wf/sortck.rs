@@ -41,7 +41,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
 
-pub fn primop_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
+pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
     match op {
         fhir::BinOp::BitAnd | fhir::BinOp::BitOr | fhir::BinOp::BitShl | fhir::BinOp::BitShr => {
             Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int))
@@ -263,7 +263,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         e2: &fhir::Expr,
         span: Span,
     ) -> Result<rty::Sort> {
-        let Some((inputs, output)) = primop_sort(op) else {
+        let Some((inputs, output)) = prim_op_sort(op) else {
             return Err(self.emit_err(errors::UnsupportedPrimOp::new(span, *op)));
         };
         let [sort1, sort2] = &inputs[..] else {

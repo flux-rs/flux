@@ -1064,6 +1064,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.expr_to_fixpoint(&expr, scx)
             }
             InternalFuncKind::CharToInt | InternalFuncKind::IntToChar => {
+                // We can erase the "call" because fixpoint uses `int` to represent `char`
+                // so the conversions are unnecessary.
                 self.expr_to_fixpoint(&args[0], scx)
             }
         }
@@ -1437,6 +1439,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         })
     }
 
+    /// The logic below is a bit "duplicated" with the `[`prim_op_sort`] in sortck.rs;
+    /// They are not exactly the same because this is on rty and the other one on fhir.
+    /// We should make sure these two remain in sync.
+    ///
+    /// [NOTE:PrimOpSort] We are somewhat "overloading" the BinOps: as we are using them
+    /// for (a) interpreted operations on bit vectors AND (b) uninterpreted functions on integers.
+    /// So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means bit vectors, but
+    /// (b) inside ExprKind::InternalFunc it means int.
     fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
         match op {
             rty::BinOp::BitAnd | rty::BinOp::BitOr | rty::BinOp::BitShl | rty::BinOp::BitShr => {

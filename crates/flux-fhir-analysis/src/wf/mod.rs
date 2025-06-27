@@ -26,7 +26,7 @@ use rustc_hir::{
 use self::sortck::{ImplicitParamInferer, InferCtxt};
 use crate::{
     conv::{ConvPhase, WfckResultsProvider},
-    wf::sortck::primop_sort,
+    wf::sortck::prim_op_sort,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -138,8 +138,10 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         self.visit_node(node);
     }
 
+    // We special-case primop applications to declare their parameters because their
+    // parameters are implicit from the underlying primop and must not be declared explicitly.
     fn declare_params_for_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) -> Result {
-        let Some((sorts, _)) = primop_sort(&prim_prop.op) else {
+        let Some((sorts, _)) = prim_op_sort(&prim_prop.op) else {
             return Err(self
                 .errors
                 .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op)));
@@ -321,7 +323,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) {
-        let Some((sorts, _)) = primop_sort(&prim_prop.op) else {
+        let Some((sorts, _)) = prim_op_sort(&prim_prop.op) else {
             self.errors
                 .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op));
             return;
