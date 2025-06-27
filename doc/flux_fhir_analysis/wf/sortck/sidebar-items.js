@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["FullResolver","ImplicitParamInferer","InferCtxt","OpportunisticResolver","ShallowResolver"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["prim_op_sort"],"struct":["FullResolver","ImplicitParamInferer","InferCtxt","OpportunisticResolver","ShallowResolver"],"type":["Result"]};

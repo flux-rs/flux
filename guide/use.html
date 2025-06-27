@@ -3685,6 +3685,69 @@ impl MyTrait for MyStruct {
     }
 }
 <span class="boring">}</span></code></pre></pre>
+<h2 id="extensible-properties-for-primitive-ops"><a class="header" href="#extensible-properties-for-primitive-ops">Extensible Properties for Primitive Ops</a></h2>
+<p>You can provide <em>properties</em> to be used when doing computations with
+primitive operations like <code>&lt;&lt;</code> or <code>&gt;&gt;</code>.</p>
+<p>Given a primop <code>op</code> with signature <code>(t1,...,tn) -&gt; t</code> we define
+a refined type for <code>op</code> expressed as a [<code>RuleMatcher</code>]</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>op :: (x1: t1, ..., xn: tn) -&gt; { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
+<span class="boring">}</span></code></pre></pre>
+<p>that is, using two <em>uninterpreted functions</em> <code>op_val</code> and <code>op_rel</code> that respectively denote</p>
+<ol>
+<li>The <em>value</em> of the primop, and</li>
+<li>Some invariant <em>relation</em> that holds for the primop.</li>
+</ol>
+<p>The latter can be extended by the user via a <code>property</code> definition,
+which allows us to customize primops like <code>&lt;&lt;</code> with extra "facts"
+or lemmas. See <code>tests/tests/pos/surface/primops00.rs</code> for an example.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::{assert, attrs::*, defs};
+
+defs! {
+    property ShiftByTwo[&lt;&lt;](x, y) {
+       [&lt;&lt;](x, 2) == 4*x
+    }
+
+    property ShiftRightByFour[&gt;&gt;](x, y) {
+       16 * [&gt;&gt;](x, 4) == x
+    }
+
+    property MaskBy15[&amp;](x, y) {
+        [&amp;](x, y) &lt;= y
+    }
+}
+
+pub fn test0() {
+    let x: usize = 1 &lt;&lt; 2;
+    assert(x == 4);
+}
+
+pub fn test1() {
+    let x = 1;
+    let x = x &lt;&lt; 2;
+    let x = x &lt;&lt; 2;
+    assert(x == 16)
+}
+
+#[spec(fn (x: u32) -&gt; u32[16*x])]
+pub fn test2(x: u32) -&gt; u32 {
+    let x = x &lt;&lt; 2;
+    let x = x &lt;&lt; 2;
+    x
+}
+
+#[spec(fn (byte: u8{byte &lt;= 127}))]
+pub fn test3(byte: u8) {
+    let tmp1 = byte &gt;&gt; 4;
+    let tmp2 = byte &amp; 0xf;
+    assert(byte &lt;= 127);
+    assert(tmp1 &lt;= 0xf);
+    assert(tmp2 &lt;= 0xf);
+}
+<span class="boring">}</span></code></pre></pre>
 
                     </main>
 

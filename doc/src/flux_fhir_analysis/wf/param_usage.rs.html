@@ -76,7 +76,7 @@
 <a href=#76 id=76 data-nosnippet>76</a>    <span class="doccomment">/// Checks that refinement parameters of function sort are used in allowed positions.
 <a href=#77 id=77 data-nosnippet>77</a>    </span><span class="kw">fn </span>check_func_params_uses(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr, is_top_level_conj: bool) {
 <a href=#78 id=78 data-nosnippet>78</a>        <span class="kw">match </span>expr.kind {
-<a href=#79 id=79 data-nosnippet>79</a>            fhir::ExprKind::BinaryOp(bin_op, e1, e2) =&gt; {
+<a href=#79 id=79 data-nosnippet>79</a>            fhir::ExprKind::BinaryOp(bin_op, e1, e2) | fhir::ExprKind::PrimApp(bin_op, e1, e2) =&gt; {
 <a href=#80 id=80 data-nosnippet>80</a>                <span class="kw">let </span>is_top_level_conj = is_top_level_conj &amp;&amp; <span class="macro">matches!</span>(bin_op, fhir::BinOp::And);
 <a href=#81 id=81 data-nosnippet>81</a>                <span class="self">self</span>.check_func_params_uses(e1, is_top_level_conj);
 <a href=#82 id=82 data-nosnippet>82</a>                <span class="self">self</span>.check_func_params_uses(e2, is_top_level_conj);
