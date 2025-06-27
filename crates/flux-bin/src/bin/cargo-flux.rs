@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::anyhow;
-use cargo_metadata::{Metadata, MetadataCommand};
+use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use flux_bin::{
     FluxMetadata,
     utils::{
@@ -106,12 +106,23 @@ incremental = false
 
         for package in metadata.packages {
             let flux_metadata: FluxMetadata = config::Config::builder()
-                .add_source(FluxMetadataSource::new(package.manifest_path, package.metadata))
+                .add_source(FluxMetadataSource::new(
+                    package.manifest_path.to_string(),
+                    package.metadata,
+                ))
                 .add_source(flux_toml.clone())
                 .build()?
                 .try_deserialize()?;
 
             if flux_metadata.enabled {
+                // For workspace members, cargo sets the workspace's root as the working dir
+                // when running flux. Paths will be relative to that, so we must normalize
+                // glob patterns to be relative to the workspace's root.
+                let manifest_dir_relative_to_workspace = package
+                    .manifest_path
+                    .strip_prefix(&metadata.workspace_root)
+                    .ok()
+                    .and_then(Utf8Path::parent);
                 write!(
                     w,
                     r#"
@@ -120,7 +131,7 @@ rustflags = [{:?}]
                         "#,
                     package.id,
                     flux_metadata
-                        .into_flags(&metadata.target_directory)
+                        .into_flags(&metadata.target_directory, manifest_dir_relative_to_workspace)
                         .iter()
                         .chain(flux_flags.iter().flatten())
                         .map(|s| s.as_ref())
@@ -140,8 +151,8 @@ struct FluxMetadataSource {
 }
 
 impl FluxMetadataSource {
-    fn new(origin: impl Into<String>, value: serde_json::Value) -> Self {
-        Self { origin: origin.into(), value }
+    fn new(origin: String, value: serde_json::Value) -> Self {
+        Self { origin, value }
     }
 }
 

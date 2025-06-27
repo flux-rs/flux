@@ -57,8 +57,8 @@ pub fn ignore_default() -> bool {
     FLAGS.ignore_default
 }
 
-pub fn is_checked_file(file: &str) -> bool {
-    FLAGS.check_files.is_checked_file(file)
+pub fn is_checked_file(file: &Path) -> bool {
+    if let Some(globset) = &FLAGS.include { globset.is_match(file) } else { true }
 }
 
 pub fn cache_path() -> Option<&'static Path> {

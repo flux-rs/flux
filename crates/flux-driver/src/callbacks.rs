@@ -137,22 +137,23 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         def_path.contains(config::check_def())
     }
 
-    fn matches_check_file(&self, def_id: LocalDefId) -> bool {
+    /// Check whether the file where `def_id` is defined is included in the list of glob patterns.
+    /// This function will conservatively return `true` if anything unexpected happens.
+    fn file_is_included(&self, def_id: LocalDefId) -> bool {
         let tcx = self.genv.tcx();
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
-        let current_dir = tcx.sess.opts.working_dir.clone();
-        if let FileName::Real(file_name) = sm.span_to_filename(span)
-            && let Some(file_path) = file_name.local_path()
-            && let Some(current_dir_path) = current_dir.local_path()
-        {
-            let file = current_dir_path
-                .join(file_path)
-                .to_string_lossy()
-                .to_string();
-            return config::is_checked_file(&file);
+        let FileName::Real(file_name) = sm.span_to_filename(span) else { return true };
+        let mut file_path = file_name.local_path_if_available();
+
+        // If the path is absolute try to normalize it to be relative to the working_dir
+        if file_path.is_absolute() {
+            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
+            let Ok(p) = file_path.strip_prefix(working_dir) else { return true };
+            file_path = p;
         }
-        true
+
+        config::is_checked_file(file_path)
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -170,7 +171,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
-        if !self.matches_check_file(def_id.local_id()) {
+        if !self.file_is_included(def_id.local_id()) {
             return Ok(());
         }
 

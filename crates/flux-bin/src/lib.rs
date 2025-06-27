@@ -16,16 +16,19 @@ pub struct FluxMetadata {
     pub scrape_quals: Option<bool>,
     /// Enable overflow checking
     pub check_overflow: Option<bool>,
-    /// Enable overflow checking
+    /// Enable flux-defs to be defined as SMT functions
     pub smt_define_fun: Option<bool>,
-    /// Set trusted trusted
+    /// Set trusted to trusted
     pub default_trusted: Option<bool>,
-    /// Set trusted ignore
+    /// Set trusted to ignore
     pub default_ignore: Option<bool>,
+    /// If present, only check files that match any of the glob patterns. Patterns are checked
+    /// relative to the location of the manifest file.
+    pub include: Option<Vec<String>>,
 }
 
 impl FluxMetadata {
-    pub fn into_flags(self, target_dir: &Utf8Path) -> Vec<String> {
+    pub fn into_flags(self, target_dir: &Utf8Path, glob_prefix: Option<&Utf8Path>) -> Vec<String> {
         let mut flags = vec![];
         if let Some(true) = self.cache {
             flags.push(format!("-Fcache={}", target_dir.join("FLUXCACHE")));
@@ -47,6 +50,17 @@ impl FluxMetadata {
         }
         if let Some(v) = self.default_ignore {
             flags.push(format!("-Fignore={v}"));
+        }
+        if let Some(patterns) = self.include {
+            for pat in patterns {
+                if let Some(glob_prefix) = glob_prefix {
+                    // I haven't tested this on windows, but it should work because `globset`
+                    // will normalize patterns to use `/` as separator
+                    flags.push(format!("-Finclude={glob_prefix}/{pat}"));
+                } else {
+                    flags.push(format!("-Finclude={pat}"));
+                }
+            }
         }
         flags
     }
