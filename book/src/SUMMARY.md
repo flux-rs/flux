@@ -2,7 +2,7 @@
 
 [Introduction](README.md)
 [Install & Run](guide/install.md)
-[About](ABOUT.md)
+[About](about.md)
 
 
 # Interactive Tutorial
