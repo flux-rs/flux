@@ -1,29 +1,28 @@
 # Summary
 
 [Introduction](README.md)
-
-# User's Guide
-
-- [Install](guide/install.md)
-- [Run](guide/run.md)
-- [Specs](guide/specs.md)
-- [Use](guide/use.md)
-
-# Developer's Guide
-
-- [Develop](dev/develop.md)
-- [Architecture](dev/architecture.md)
-
-# Examples
-
-- [Introducing Flux](blog/01-introducing-flux.md)
-- [Ownership in Flux](blog/02-ownership.md)
-- [Refined Vectors](blog/03-vectors.md)
-- [Arrays and Const Generics](blog/04-arrays.md)
-- [Iterators]()
-- [Structs]()
-- [Enums]()
-
----
-
+[Install & Run](guide/install.md)
 [About](about.md)
+
+
+# Online Tutorial
+
+- [Refinements](./01-refinements.md)
+- [References](./02-ownership.md)
+- [Structs](./03-structs.md)
+- [Enums](./04-enums.md)
+- [Opaques](./05-vectors.md)
+- [Consts](./06-consts.md)
+- [Externs]()
+- [Traits]()
+- [Closures]()
+- [Case Study: Sparse Matrices]()
+- [Case Study: Normal Forms]()
+- [Case Study: Neural Networks]()
+- [Case Study: Maps & Interpreters]()
+
+# Appendix
+
+- [Specifications](guide/specs.md)
+- [Developer's Guide](dev/develop.md)
+- [Architecture](dev/architecture.md)

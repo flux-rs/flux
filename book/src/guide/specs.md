@@ -1,6 +1,8 @@
-# Flux Specification Guide
+# Flux Specifications
 
-This is a WIP guide to writing specifications in `flux`.
+One day, this will be an actual user's guide, but for now,
+it is a WIP guide to writing specifications in `flux`, as
+illustrated by examples from the regression tests.
 
 ## Refinement Types
 
@@ -48,7 +50,649 @@ This will desugar to:
 
 `fn(i32[@x], {i32[@y] | x > y}) -> i32[x + y]`
 
-## Extern specs
+## Grammar of Refinements
+
+The grammar of refinements (expressions that can appear as an index or constraint) is as follows:
+
+```text
+r ::= n                     // numbers 1,2,3...
+    | x                     // identifiers x,y,z...
+    | x.f                   // index-field access
+    | r + r                 // addition
+    | r - r                 // subtraction
+    | n * e                 // multiplication by constant
+    | if r { r } else { r } // if-then-else
+    | f(r...)               // function application
+    | true | false          // booleans
+    | r == r                // equality
+    | r != r                // not equal
+    | r < r                 // less than
+    | r <= r                // less than or equal
+    | r > r                 // greater than
+    | r >= r                // greater than or equal
+    | r || r                // disjunction
+    | r && r                // conjunction
+    | r => r                // implication
+    | !r                    // negation
+```
+
+
+## Index Refinements
+
+Of the form `i32[e]` (`i32` equal to `e`) values.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/index00.rs}}
+```
+
+**NOTE:** We use the `sig(..)` annotation to specify the refinement type of a function;
+you can optionally also add the _name_ of the function as shown for `fn five`.
+
+## Existential Refinements
+
+Of the form `i32{v: 0 <= v}` (non-negative `i32`) values.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/test00.rs}}
+```
+
+## Combining Index and Existential Refinements
+
+```rust
+{{#include ../../../tests/tests/pos/surface/loop00.rs:6:}}
+```
+
+## Mutable References
+
+```rust
+{{#include ../../../tests/tests/pos/surface/test01.rs:58:61}}
+```
+
+```rust
+{{#include ../../../tests/tests/neg/surface/test01.rs:15:19}}
+```
+
+## Strong References
+
+Like `&mut T` but which allow _strong updates_ via `ensures` clauses
+
+```rust
+{{#include ../../../tests/tests/pos/surface/test03.rs}}
+```
+
+## Mixing Mutable and Strong References
+
+```rust
+{{#include ../../../tests/tests/pos/surface/local_ptr00.rs}}
+```
+
+## Refined Arrays
+
+`flux` supports _refined arrays_ of the form `[i32{v: 0 <= v}; 20]`
+denoting arrays of size `20` of non-negative `i32` values.
+
+```rust
+{{#include ../../../tests/tests/pos/array/array00.rs}}
+```
+
+## Refined Vectors `rvec`
+
+`RVec` specification
+
+```rust
+{{#include ../../../tests/tests/lib/rvec.rs}}
+```
+
+`RVec` clients
+
+```rust
+{{#include ../../../tests/tests/pos/surface/rvec00.rs}}
+```
+
+**Binary Search**
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bsearch.rs}}
+```
+
+**Heapsort**
+
+```rust
+{{#include ../../../tests/tests/pos/surface/heapsort.rs}}
+```
+
+## Refined Slices
+
+```rust
+{{#include ../../../tests/tests/pos/surface/slice00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/rslice00.rs}}
+```
+
+## Refined `Vec`
+
+This uses `extern_spec` which is [described below](#extern-specs).
+
+**Standalone**
+
+```rust
+{{#include ../../../tests/tests/pos/vec/vec00.rs}}
+```
+
+**Associated Refinements** for indexing
+
+```rust
+{{#include ../../../tests/tests/lib/vec.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/neg/surface/vec02.rs}}
+```
+
+## Named Function Signatures
+
+You can also write _named_ function signatures using the `spec`
+annotation (instead of the anonymous `sig` annotation).
+
+## Requires Clauses
+
+Used to specify preconditions in a single spot, if needed.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/test01_where.rs}}
+```
+
+## Refining Structs
+
+```rust
+{{#include ../../../tests/tests/pos/structs/dot01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/date.rs}}
+```
+
+### Invariants on Structs
+
+```rust
+{{#include ../../../tests/tests/pos/structs/invariant00.rs}}
+```
+
+with `const` generics
+
+```rust
+{{#include ../../../tests/tests/pos/surface/invariant_with_const_generic.rs}}
+```
+
+### Opaque Structs
+
+Flux offers an attribute `opaque` which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, `RMap` (see below) defines a refined HashMap, indexed by a `Map` - a primitive sort defined by flux.
+
+```rust
+use flux_rs::*;
+
+#[opaque]
+#[refined_by(vals: Map<K, V>)]
+pub struct RMap<K, V> {
+    inner: std::collections::HashMap<K, V>,
+}
+```
+
+**Note that opaque structs **can not** have refined fields.**
+
+Now, we can define `get` for our refined map as follows:
+
+```rust
+#[generics(K as base, V as base)]
+impl<K, V> RMap<K, V> {
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_select(m.vals, k)]>)]
+    pub fn get(&self, k: &K) -> Option<&V>
+    where
+        K: Eq + Hash,
+    {
+        self.inner.get(k)
+    }
+
+}
+```
+
+Note that if we do not mark these methods as `trusted`, we will get an error that looks like...
+
+```rust
+error[E0999]: cannot access fields of opaque struct `RMap`.
+  --> ../opaque.rs:22:9
+   |
+22 |         self.inner.get(k)
+   |         ^^^^^^^^^^
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
+   |
+help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
+  --> ../opaque.rs:18:5
+   |
+18 | /     pub fn get(&self, k: &K) -> Option<&V>
+19 | |     where
+20 | |         K: Eq + std::hash::Hash,
+   | |________________________________^
+   = note: fields of opaque structs can only be accessed inside trusted code
+```
+
+Here is an example of how to use the `opaque` attribute:
+
+```rust
+{{#include ../../../tests/tests/pos/structs/opaque-range.rs}}
+```
+
+## Refining Enums
+
+```rust
+{{#include ../../../tests/tests/pos/enums/opt01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/enums/pos00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/enums/list00.rs}}
+```
+
+### Invariants on Enums
+
+```rust
+{{#include ../../../tests/tests/pos/enums/invariant00.rs}}
+```
+
+### Reflecting Enums
+
+```rust
+{{#include ../../../tests/tests/neg/surface/reflect00.rs}}
+```
+
+## Field Syntax for Indices
+
+### Structs
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test00.rs}}
+```
+
+### Enums
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test01.rs}}
+```
+
+### Updates
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test03.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test04.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test05.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/constructors/test11.rs}}
+```
+
+## Const
+
+You can use `int`-ish `const` in refinements e.g.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const07.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const08.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const10.rs}}
+```
+
+## Requires with `forall`
+
+We allow a `forall` on the requires clauses, e.g.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/forall01.rs}}
+```
+
+## Refined Associated Types
+
+```rust
+{{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type00.rs}}
+```
+
+## Ignored and trusted code
+
+Flux offers two attributes for controlling which parts of your code it analyzes: `#[flux_rs::ignore]` and `#[flux_rs::trusted]`.
+
+- `#[flux_rs::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
+- `#[flux_rs::trusted]`: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
+
+The above means that an _ignored_ function can only be called from ignored or trusted code, while a _trusted_ function can also be called from analyzed code.
+
+Both attributes apply recursively. For instance, if a module is marked as `#[flux_rs::ignore]`, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with `#[flux_rs::ignore(no)]`[^ignore-shorthand], which will include all nested elements for analysis. Similarly,
+the action of `#[flux_rs::trusted]` can be reverted using `#[flux_rs::trusted(no)]`.
+
+Consider the following example:
+
+```rust
+#[flux_rs::ignore]
+mod A {
+
+   #[flux_rs::ignore(no)]
+   mod B {
+      mod C {
+         fn f1() {}
+      }
+   }
+
+   mod D {
+      fn f2() {}
+   }
+
+   fn f3() {}
+}
+```
+
+In this scenario, functions `f2` and `f3` will be ignored, while `f1` will be analyzed.
+
+A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute `#![flux_rs::ignore]` at the top of the crate) and then selectively include specific sections for analysis.
+
+[^ignore-shorthand]: `#[flux_rs::ignore]` (resp. `#[flux_rs::trusted]`) is shorthand for `#[flux_rs::ignore(yes)]` (resp. `#[flux_rs::trusted(yes)]`).
+
+Here is an example
+
+```rust
+{{#include ../../../tests/tests/neg/surface/ignore02.rs}}
+```
+
+## Pragma: `should_fail`
+
+Used to tell `flux` to _expect_ a failure when checking a function.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/should_fail.rs}}
+```
+
+## Const Generics
+
+`flux` lets you use Rust's const-generics inside refinements.
+
+**Refining Array Lengths**
+
+```rust
+{{#include ../../../tests/tests/neg/surface/const04.rs}}
+```
+
+**Refining Struct Fields**
+
+```rust
+{{#include ../../../tests/tests/pos/const_generics/struct_invariant.rs}}
+```
+
+**Refining Function Signatures**
+
+```rust
+{{#include ../../../tests/tests/pos/const_generics/matrix.rs}}
+```
+
+## Type Aliases
+
+You can define refined **type aliases** for Rust types.
+
+**Note**
+
+1. They are connected to an underlying Rust type,
+2. They may also be parameterized by refinements, e.g. `Lb`
+3. There are two different kinds of parametrizations
+   - _early_ (`Nat`) and
+   - _late_ (`Lb`).
+
+```rust
+{{#include ../../../tests/tests/pos/surface/alias00.rs}}
+```
+
+## Spec Function Definitions
+
+You can define **spec functions** that abstract complicated refinements into refinement-level
+functions, which can then be used in refinements.
+
+### Plain Expressions
+
+```rust
+{{#include ../../../tests/tests/pos/surface/date.rs}}
+```
+
+### `let` binders
+
+```rust
+{{#include ../../../tests/tests/pos/surface/let-exprs00.rs}}
+```
+
+### Bounded Quantification
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bounded_quant00.rs}}
+```
+
+### No Cycles!
+
+However, there should be no _cyclic dependencies_ in the function definitions.
+
+```rust
+{{#include ../../../tests/tests/neg/error_messages/dfn_cycle.rs}}
+```
+
+## Uninterpreted Function Declarations
+
+You can also declare _uninterpreted_ functions -- about which `flux` knows nothing
+other than the congruence property -- and then use them in refinements. Note that
+in this case you have to use a `trusted` annotation for the function (e.g. `is_valid`)
+that asserts facts over the uninterpreted function
+
+```rust
+{{#include ../../../tests/tests/pos/surface/uif00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/uif01.rs}}
+```
+
+## Hiding and Revealing Function Definitions
+
+By default all the function definitions are either _inlined_ or sent to the SMT solver
+as `define-fun` (when run with `FLUX_SMT_DEFINE_FUN=1`). Sometimes we want to _hide_ the
+definition because reasoning about those functions can kill the solver -- or the function
+is super complex and we just want to reason about it via congruence. For that you can
+
+- use the `#[hide]` attribute at the spec function definition, to make the function _uninterpreted_ by default, and
+- use the `#[reveal]` attribute at specific Rust function definition, to indicate you
+  want to use the actual definition when checking that Rust function.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/hide00.rs}}
+```
+
+## Spec Functions in SMTLIB
+
+By default `flux` inlines all such function definitions.
+
+Monomorphic functions may _optionally_ be encoded
+as functions in SMT by using the `FLUX_SMT_DEFINE_FUN=1`
+environment variable.
+
+## Type Holes
+
+You can (sometimes!) use `_` in the `flux` signatures to omit the Rust components, e.g.
+
+### Function Signatures
+
+```rust
+{{#include ../../../tests/tests/pos/surface/type_holes00.rs}}
+```
+
+### Structs and Enums
+
+```rust
+{{#include ../../../tests/tests/pos/surface/type_holes01.rs}}
+```
+
+### Type Aliases
+
+```rust
+{{#include ../../../tests/tests/pos/surface/type_holes02.rs}}
+```
+
+### Generic Args
+
+```rust
+{{#include ../../../tests/tests/pos/surface/const11.rs}}
+```
+
+## Closures
+
+```rust
+{{#include ../../../tests/tests/pos/surface/closure00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/closure02.rs}}
+```
+
+## Function Pointers
+
+```rust
+{{#include ../../../tests/tests/pos/surface/fndef00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/fndef01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/fndef02.rs}}
+```
+
+## Traits and Implementations
+
+```rust
+{{#include ../../../tests/tests/pos/surface/impl00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/impl01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/impl02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/refined_fn_in_trait_01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/trait-subtyping01.rs}}
+```
+
+## Impl Trait
+
+```rust
+{{#include ../../../tests/tests/pos/impl_trait/impl_trait00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/impl_trait/impl_trait01.rs}}
+```
+
+## Dynamic Trait Objects
+
+```rust
+{{#include ../../../tests/tests/neg/trait_objects/dyn01.rs}}
+```
+
+## Generic Refinements
+
+`flux` supports _generic refinements_ see [this paper for details](https://dl.acm.org/doi/10.1145/3704885)
+
+**Horn Refinements**
+
+```rust
+{{#include ../../../tests/tests/pos/abstract_refinements/test00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/abstract_refinements/test01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/abstract_refinements/test03.rs}}
+```
+
+**Hindley Refinements**
+
+TODO
+
+## Bitvector Refinements
+
+### Operators
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bitvec03.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bitvec_const02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bv_ord.rs}}
+```
+
+### Specification functions
+
+```rust
+{{#include ../../../tests/tests/pos/surface/bitvec05.rs}}
+```
+
+### Extensions
+
+```rust
+{{#include ../../../tests/tests/neg/surface/bitvec02.rs}}
+```
+
+### Bitvector Constants
+
+```rust
+{{#include ../../../tests/tests/neg/surface/bitvec_const00.rs}}
+```
+
+## `char` Literals
+
+```rust
+{{#include ../../../tests/tests/pos/surface/char02.rs}}
+```
+
+## `String` Literals
+
+```rust
+{{#include ../../../tests/tests/neg/surface/str02.rs}}
+```
+
+## Extern Specs
 
 Sometimes you may want to refine a struct or function that outside your code. We
 refer to such a specification as an "extern spec," which is short for "external
@@ -65,7 +709,10 @@ by the procedural macros package `flux_rs`.
 use flux_rs::extern_spec;
 ```
 
-### Extern functions
+
+The `extern_spec` is used to provide `flux` signatures for functions defined in _external_ crates. See the [specifications guide](specs.md) for more details.
+
+### Extern Functions
 
 An example of refining an extern function can be found
 [here](https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs).
@@ -113,7 +760,27 @@ It does this to get information about the function `std::mem::swap` and its
 arguments (this turns out to be difficult to do without giving the compiler
 something to inspect and type check).
 
-### Extern `struct` and `impl`
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_macro.rs}}
+```
+
+### Options
+
+```rust
+{{#include ../../../tests/tests/lib/option.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/enums/option00.rs}}
+```
+
+### Vec
+
+```rust
+{{#include ../../../tests/tests/lib/option.rs}}
+```
+
+### Extern Structs
 
 Here is an example of refining an extern struct
 
@@ -176,119 +843,136 @@ impl String {
 If you do the above, you can use the above methods of`std::string::String` as if
 they were refined.
 
-## Grammar of Refinements
-
-```text
-r ::= n                     // numbers 1,2,3...
-    | x                     // identifiers x,y,z...
-    | x.f                   // index-field access
-    | r + r                 // addition
-    | r - r                 // subtraction
-    | n * e                 // multiplication by constant
-    | if r { r } else { r } // if-then-else
-    | f(r...)               // function application
-    | true | false          // booleans
-    | r == r                // equality
-    | r != r                // not equal
-    | r < r                 // less than
-    | r <= r                // less than or equal
-    | r > r                 // greater than
-    | r >= r                // greater than or equal
-    | r || r                // disjunction
-    | r && r                // conjunction
-    | r => r                // implication
-    | !r                    // negation
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_struct03.rs}}
 ```
 
-## Ignored and trusted code
-
-Flux offers two attributes for controlling which parts of your code it analyzes: `#[flux_rs::ignore]` and `#[flux_rs::trusted]`.
-
-- `#[flux_rs::ignore]`: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.
-- `#[flux_rs::trusted]`: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.
-
-The above means that an _ignored_ function can only be called from ignored or trusted code, while a _trusted_ function can also be called from analyzed code.
-
-Both attributes apply recursively. For instance, if a module is marked as `#[flux_rs::ignore]`, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with `#[flux_rs::ignore(no)]`[^ignore-shorthand], which will include all nested elements for analysis. Similarly,
-the action of `#[flux_rs::trusted]` can be reverted using `#[flux_rs::trusted(no)]`.
-
-Consider the following example:
-
 ```rust
-#[flux_rs::ignore]
-mod A {
-
-   #[flux_rs::ignore(no)]
-   mod B {
-      mod C {
-         fn f1() {}
-      }
-   }
-
-   mod D {
-      fn f2() {}
-   }
-
-   fn f3() {}
-}
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl03.rs}}
 ```
 
-In this scenario, functions `f2` and `f3` will be ignored, while `f1` will be analyzed.
-
-A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute `#![flux_rs::ignore]` at the top of the crate) and then selectively include specific sections for analysis.
-
-[^ignore-shorthand]: `#[flux_rs::ignore]` (resp. `#[flux_rs::trusted]`) is shorthand for `#[flux_rs::ignore(yes)]` (resp. `#[flux_rs::trusted(yes)]`).
-
-## Opaque
-
-Flux offers an attribute `opaque` which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, `RMap` (see below) defines a refined HashMap, indexed by a `Map` - a primitive sort defined by flux.
+### Extern Impls
 
 ```rust
-use flux_rs::*;
-
-#[opaque]
-#[refined_by(vals: Map<K, V>)]
-pub struct RMap<K, V> {
-    inner: std::collections::HashMap<K, V>,
-}
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl00.rs}}
 ```
 
-**Note that opaque structs **can not** have refined fields.**
-
-Now, we can define `get` for our refined map as follows:
-
 ```rust
-#[generics(K as base, V as base)]
-impl<K, V> RMap<K, V> {
-
-    #[flux_rs::trusted]
-    #[flux_rs::sig(fn(&RMap<K, V>[@m], &K[@k]) -> Option<&V[map_select(m.vals, k)]>)]
-    pub fn get(&self, k: &K) -> Option<&V>
-    where
-        K: Eq + Hash,
-    {
-        self.inner.get(k)
-    }
-
-}
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl01.rs}}
 ```
 
-Note that if we do not mark these methods as `trusted`, we will get an error that looks like...
+### Extern Traits
 
 ```rust
-error[E0999]: cannot access fields of opaque struct `RMap`.
-  --> ../opaque.rs:22:9
-   |
-22 |         self.inner.get(k)
-   |         ^^^^^^^^^^
--Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
-   |
-help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
-  --> ../opaque.rs:18:5
-   |
-18 | /     pub fn get(&self, k: &K) -> Option<&V>
-19 | |     where
-20 | |         K: Eq + std::hash::Hash,
-   | |________________________________^
-   = note: fields of opaque structs can only be accessed inside trusted code
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_trait00.rs}}
+```
+
+### `for` loops with range `i..j`
+
+To see how `flux` handles `for i in 0..n` style loops:
+
+```rust
+{{#include ../../../tests/tests/pos/surface/for_range00.rs}}
+```
+
+## Associated Refinements
+
+### Basic
+
+```rust
+{{#include ../../../tests/tests/pos/surface/assoc_reft01.rs}}
+```
+
+### Check Subtyping at Impl
+
+```rust
+{{#include ../../../tests/tests/pos/surface/trait-subtyping08.rs}}
+```
+
+### Default
+
+```rust
+{{#include ../../../tests/tests/neg/surface/assoc_reft03.rs}}
+```
+
+### Use in Extern Spec
+
+```rust
+{{#include ../../../tests/tests/pos/extern_specs/extern_spec_trait00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/lib/vec.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/lib/iter.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/iter02.rs}}
+```
+
+### Associated Types
+
+```rust
+{{#include ../../../tests/tests/neg/surface/assoc_reft02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/assoc_reft04.rs}}
+```
+
+### Refined Associated Types
+
+```rust
+{{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type01.rs}}
+```
+
+## Checking Overflows
+
+You can switch on overflow checking
+
+- _globally_ [with a flag](http://localhost:3000/guide/run.html?highlight=cache#flux-flags) or
+- _locally_ with an attribute as shown below
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow00.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow01.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow02.rs}}
+```
+
+```rust
+{{#include ../../../tests/tests/pos/surface/check_overflow03.rs}}
+```
+
+## Extensible Properties for Primitive Ops
+
+You can provide _properties_ to be used when doing computations with
+primitive operations like `<<` or `>>`.
+
+Given a primop `op` with signature `(t1,...,tn) -> t` we define
+a refined type for `op` expressed as a [`RuleMatcher`]
+
+```rust
+op :: (x1: t1, ..., xn: tn) -> { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
+```
+
+that is, using two _uninterpreted functions_ `op_val` and `op_rel` that respectively denote
+
+1. The _value_ of the primop, and
+2. Some invariant _relation_ that holds for the primop.
+
+The latter can be extended by the user via a `property` definition,
+which allows us to customize primops like `<<` with extra "facts"
+or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
+
+```rust
+{{#include ../../../tests/tests/pos/surface/primops00.rs}}
 ```

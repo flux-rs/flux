@@ -4,7 +4,7 @@
 
 Types bring order to code. For example, if a variable `i:usize`
 then we know `i` is a number that can be used to index a vector.
-Similarly, if `v: vec<&str>` then we can be sure that `v` is a
+Similarly, if `v: Vec<&str>` then we can be sure that `v` is a
 collection of strings which may _be_ indexed but of course,
 not used _as_ an index. However, by itself `usize` doesn't
 tell us how big or small the number and hence the programmer
