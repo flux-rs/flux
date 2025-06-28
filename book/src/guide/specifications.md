@@ -737,27 +737,11 @@ happen to correspond to each of the below lines.
 If you do the above, you can use `std::mem::swap` as if it were refined by the
 above type.
 
+Here are two examples:
 
 ```rust
 {{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:9:16}}
 ```
-
-You shouldn't need to know the details, but if you're curious,
-here's how the macro works. In the code above, flux parses the
-`std::mem` into a module path and then transforms the function into
-
-```rust
-#[extern_spec]
-#[spec(fn(x: &mut T[@vx], y: &mut T[@vy]) ensures x: T[vy], y: T[vx])]
-#[allow(unused, dead_code)]
-fn __flux_extern_spec_swap<T>(x: &mut T, y: &mut T) {
-    std::mem::swap(x, y)
-}
-```
-
-It does this to get information about the function `std::mem::swap` and its
-arguments (this turns out to be difficult to do without giving the compiler
-something to inspect and type check).
 
 ```rust
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_macro.rs}}
