@@ -1,10 +1,31 @@
 # Ownership in Flux
 
+```rust, editable, hidden
+#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;
+```
+
 [Online demo](https://flux.goto.ucsd.edu/?example=ownership.rs)
 
-[Previously][blog-intro] we saw how to refine basic Rust
+[Previously](./01-introducing-flux.md) we saw how to refine basic Rust
 types like `i32` and `bool` with _indices_ and _constraints_ to
-constrain the set of values described by those types.
+constrain the set of values described by those types. For instance, we
+wrote the function `assert` function which can _only_ be called with `true`
+
+```rust,editable
+#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}
+
+fn test_assert() {
+    assert(2 + 2 == 4);
+    assert(2 + 2 == 5); // fails to type check
+}
+```
 
 The whole point of Rust, of course, is to allow for efficient
 imperative _sharing_ and _updates_, via the clever type system
@@ -12,28 +33,32 @@ that keeps an eye on the _ownership_ of resources to make sure
 that aliasing and mutation cannot happen at the same time.
 
 Next, lets see how Flux melds refinements and Rust's ownership
-mechanisms to make refinements work in the imperative setting.
+mechanisms to make refinements pleasant in the imperative setting.
+
+<!-- SLIDE -->
 
 ## Exclusive Ownership
 
-Rust's most basic form of ownership is _exclusive_ ownership,
+Rust's most basic form of sharing is _exclusive_ ownership,
 in which exactly one variable in a function has the right to
 mutate a memory location. When a location is exclusively
 owned, we can be sure that there are _no other references_
-to it, which lets flux _update_ the type whenever the location
-is changed. For example, consider the program
+to it. Consequently, `flux` can _update_ the type to precisely
+track the value whenever the location is changed.
 
-```rust
-#[flux_rs::sig(fn () -> i32[3])]
+For example, consider the program
+
+```rust, editable
+#[flux_rs::spec(fn () -> i32[3])]
 pub fn mk_three() -> i32 {
-    let mut r = 0;  // r: i32[0]
-    r += 1;
-    assert(r == 1); // r: i32[1]
-    r += 1;
-    assert(r == 2); // r: i32[2]
-    r += 1;
-    assert(r == 3); // r: i32[3]
-    r
+  let mut r = 0;  // r: i32[0]
+  r += 1;
+  assert(r == 1); // r: i32[1]
+  r += 1;
+  assert(r == 2); // r: i32[2]
+  r += 1;
+  assert(r == 3); // r: i32[3]
+  r
 }
 ```
 
@@ -41,19 +66,21 @@ The variable `r` has _different types_ at each point inside `mk_three`.
 It starts off as `i32[0]`. The first increment changes it to `i32[1]`,
 then `i32[2]` and finally, the returned type `i32[3]`.
 
-<img src="../img/mk_three.gif" width="100%">
+<!-- SLIDE -->
+
+## Exclusive Ownership and Loops
 
 This exclusive ownership mechanism is at work in the `factorial` example
-we signed off with [previously][blog-intro]
+we signed off with [previously](./01-introducing-flux.md)
 
-```rust
-#[flux_rs::sig(fn (n:i32{0 <= n}) -> i32{v:n <= v})]
+```rust, editable
+#[flux_rs::spec(fn (n:i32{0 <= n}) -> i32{v:n <= v})]
 pub fn factorial(n: i32) -> i32 {
     let mut i = 0;  // i: i32[0]
     let mut r = 1;  // r: i32[1]
     while i < n {
-                    // i: i32{v:0<=v<=n}
-                    // r: i32{v:1<=v && i<=v}
+                    // i: i32{v:0 <= v <= n}
+                    // r: i32{v:1 <= v && i <= v}
         i += 1;
         r = r * i;
     }
@@ -62,27 +89,34 @@ pub fn factorial(n: i32) -> i32 {
 ```
 
 In the above code, `i` and `r` start off at `0` and `1` but then
-Rust _infers_ (a story for another day) that inside the `while`-loop[^1]
+flux _infers_ (a story for another day) that inside the `while`-loop[^1]
 
 - `i` has type `i32{v:0<=v && v < n}`
 - `r` has type `i32{v:1<=v && i <= v}`
 
 and hence, upon exit since `i == n` we get that the result is at least `n`.
 
+<!-- SLIDE -->
+
 ## Borrowing: Shared References
 
-Exclusive ownership suffices for simple local updates like in `factorial`.
-However, for more complex data, functions must temporarily relinquish
-ownership to allow _other_ functions to mutate the data. Rust cleverly
-allows this via the notion of _borrowing_ using two kinds of references
-that give callees temporary access to a memory location.
+Exclusive ownership suffices for simple local updates
+like in `factorial`. However, for more complex data,
+functions must temporarily relinquish ownership to
+allow _other_ functions to mutate the data.
 
-The simplest kind of references are of the form `&T` which denote _read-only_
-access to a value of type `T`. For example, we might write `abs` to take
+Rust cleverly allows this via the notion of
+_borrowing_ using two kinds of references
+that give callee functions temporary access
+to memory location.
+
+The simplest kind of references are `&T`
+which denote _read-only_ access to a value
+of type `T`. For example, we might write `abs` to take
 a shared reference to an `i32`
 
-```rust
-#[flux_rs::sig(fn (p: &i32[@n]) -> i32{v:0<=v && n<=v})]
+```rust, editable
+#[flux_rs::spec(fn (p: &i32[@n]) -> i32{v:0<=v && n<=v})]
 pub fn abs(p: &i32) -> i32 {
     let n = *p;
     if 0 <= n {
@@ -93,31 +127,38 @@ pub fn abs(p: &i32) -> i32 {
 }
 ```
 
-Notice that the _input_ type has changed: the function now
+Notice that the _input_ type has changed. Now, the function
 
-- Accepts `p` a _reference_ to an `i32` whose value is `n` as denoted by `@n`
-- Returns an `i32` that is non-negative and larger than `n`
+- **accepts** `p`, a _reference_ to an `i32` whose value is `n` as denoted by `@n`
+- **returns** an `i32` that is non-negative and larger than `n`
 
 The `@` marks the `n` as a _refinement parameter_ whose value
 is automatically computed by flux during type checking.
 
+<!-- SLIDE -->
+
+### Calling `abs` with a reference
+
 So, for example, Flux can check the below code by automatically
 determining that the refinement parameter at the call-site is `10`.
 
-```rust
+```rust, editable
 pub fn test_abs() {
     let z = 10;
-    assert(0 <= abs(&z))
+    assert(0 <= abs(&z));
     assert(10 <= abs(&z))
 }
 ```
 
+<!-- SLIDE -->
+
 ### Refinement Parameters
 
 As an aside, we have secretly been using _refinement parameters_
-like `@n` all along. For example, Flux automatically _desugars_ the signature `fn(n:i32{0 <= n} -> ...` that we wrote for `factorial` into
+like `@n` all along. For example, Flux automatically _desugars_
+the signature `fn(n:i32{0 <= n} -> ...` that we wrote for `factorial` into
 
-```rust
+```
 fn ({i32[@n] : 0 <= n}) -> i32{v:n <= v}
 ```
 
@@ -128,12 +169,15 @@ In `abs` the `rust` parameter `p` names the reference but the
 `@n` names the (input) _value_ and lets us use it to provide
 more information about the output of `abs`.
 
-Flux is _modular_ in that the _only_ information it
-knows about the implementation of `abs` is the signature: for example
-if we remove the fact that the output exceeds `n` then Flux will
-reject the assertion `10 <= abs(&z)`.
+**EXERCISE** Flux is _modular_ in that the
+_only_ information it knows about the
+implementation of `abs` is the signature.
+For example, suppose we change the output type
+of `abs` to `i32{v:0<=v}`, that is, we remove the
+`n <= v` conjunct. Can you predict which `assert`
+will be rejected by flux?
 
-<img src="../img/test_abs.gif" width="100%">
+<!-- SLIDE -->
 
 ## Borrowing: Mutable References
 
@@ -148,49 +192,38 @@ of the underlying data. As an example, consider the following function
 that _decrements_ the value of a mutable reference while ensuring the
 data is non-negative:
 
-```rust
-#[flux_rs::sig(fn(p: &mut i32{v:0 <= v}))]
+```rust, editable
+#[flux_rs::spec(fn(p: &mut i32{v:0 <= v}))]
 pub fn decr(p: &mut i32) {
     *p = *p - 1;
 }
 ```
 
-Flux will complain with the following message
+Flux complains that
 
-```rust
+```
 error[FLUX]: assignment might be unsafe
-  --> src/basics.rs:13:9
    |
 13 |         *p = *p - 1;
    |         ^^^^^^^^^^^
 ```
 
 as in fact, we _may_ be writing a negative value into `*p`
-if, for example, the old value was zero. We can fix this
+for example, if the old value was zero. We can fix this
 code by guarding the update with a test that ensures the
 original contents are in fact _non-zero_
 
-```rust
-#[flux_rs::sig(fn(p: &mut i32{v:0 <= v}))]
-pub fn decr(p: &mut i32) {
-    let n = *p;
-    if n != 0 {
-        *p = n - 1;
-    }
-}
-```
+**EXERCISE** Can you _modify_ the code for `decr` so that flux verifies it?
 
-at which point Flux is happy to sign off on the code.
+<!-- SLIDE -->
 
-<img src="../img/decr.gif" width="100%">
-
-## Aliased References
+### Aliased References
 
 Flux uses Rust's borrowing rules to track invariants even when
 there may be aliasing. As an example, consider the function
 
-```rust
-#[flux_rs::sig(fn (bool) -> i32{v:0 <= v})]
+```rust, editable
+#[flux_rs::spec(fn (bool) -> i32{v:0 <= v})]
 fn test_alias(z: bool) -> i32 {
     let mut x = 1;  // x: i32[1]
     let mut y = 2;  // y: i32[2]
@@ -209,41 +242,49 @@ infers `r : &mut i32{v:0<=v}` which allows us it to then call
 `decr` with the reference and guarantee the result (after `decr`)
 is still non-negative.
 
-## Borrowing: Strong References
+<!-- SLIDE -->
+
+### Invariants are not enough!
 
 In many situations, we want to lend a value to another function
 that actually _changes_ the value's (refinement) type upon exit.
-For example, consider the following function to increment a reference
-to a non-negative `i32`
+For example, consider the following function to _increment_
+a reference to a non-negative `i32`
 
-```rust
-#[flux_rs::sig(fn (p: &mut i32{v:0 <= v}))]
-fn incr(p: &mut i32) {
+```rust, editable
+#[flux_rs::spec(fn (p: &mut i32{v:0 <= v}))]
+fn incr_inv(p: &mut i32) {
   *p += 1
+}
+
+fn test_incr_inv() {
+  let mut z = 10;
+  incr_inv(&mut z);
+  assert(z == 11);
 }
 ```
 
-Recall that Flux is _modular_ in that the _only_ information it
-has about `incr` is what is said in the signature. The signature
-for `incr` only says `p` remains non-negative: Flux does _not_
-know that `incr` actually _increments_ the value of `p`.
+The only information that `flux` has about `incr` what
+it says in its `spec`, namely, that `p` remains non-negative.
+Flux is blissfully unaware that `incr` _increments_
+the value of `p`, and it cannot prove that after the
+call, `z == 11` and hence, complains that `assert`
+may fail even though it will obviously succeed!
 
-Hence, Flux fusses that the following `assert` may fail even though
-its patently obvious that it will succeed!
+<!-- SLIDE -->
 
-<img src="../img/test_incr.gif" width="100%">
+## Borrowing: _Updatable_ References
 
 To verify `test_incr` we need a signature for `incr` that says
 that its _output_ is indeed one greater[^2] than its input.
-Flux extends Rust with the notion of **strong references**
-of the form `&strg T` which refine Rust's `&mut T` to grant
-_exclusive_ access to the underlying `T`. Crucially, strong
-references also let us specify how the type is _updated_ when
-the function exits[^3]. Thus, we can use strong references to
-type `incr` as
 
-```rust
-#[flux_rs::sig(fn(p: &strg i32[@n]) ensures p:i32[n+1])]
+Flux extends Rust `&mut T` with the notion of **updatable references**
+which _additionally_ specify how the type is _changed_ when
+the function exits[^3], using an `ensures` clause that specifies
+the _modified_ type of the reference.
+
+```rust, editable
+#[flux_rs::spec(fn(p: &mut i32[@n]) ensures p:i32[n+1])]
 fn incr(p: &mut i32) {
   *p += 1
 }
@@ -259,20 +300,25 @@ With this specification, Flux merrily checks `test_incr`, by
 determining that the refinement parameter `@n` is `10` and
 hence, that upon return `x: i32[11]`.
 
+```rust, editable
+fn test_incr() {
+  let mut z = 10;
+  incr_inv(&mut z);
+  assert(z == 11);
+}
+```
+
+<!-- SLIDE -->
+
 ## Summary
 
-To sum up, Flux exploits Rust's ownership mechanisms to track properties
-of _shared_ (`&T`) and _mutable_ (`&mut T`) references, and additionally
-adds a _strong_ (`&strg T`) reference -- a special case of `&mut` -- to
-support the cases where the type itself is _changed_ by a call.
-
-Next, we'll see how refinements and ownership yield a simple refined API
-for _vectors_ that lets Flux check bounds safety at compile time...
+To sum up, Flux exploits Rust's ownership mechanisms
+to track properties of _shared_ (`&T`) and _mutable_
+(`&mut T`) references, and additionally uses (`ensures`)
+clauses to specify when the type itself is _changed_ by a call.
 
 [^1]: For those familiar with the term, these types are _loop invariants_
 
 [^2]: Setting aside the issue of overflows for now
 
 [^3]: Thereby allowing so-called _strong updates_ in the type specifications
-
-[blog-intro]: https://liquid-rust.github.io/2022/11/14/introducing-flux/
