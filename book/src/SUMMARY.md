@@ -5,7 +5,7 @@
 [About](ABOUT.md)
 
 
-# Online Tutorial
+# Interactive Tutorial
 
 - [Refinements](tutorial/01-refinements.md)
 - [Ownership](tutorial/02-ownership.md)

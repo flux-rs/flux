@@ -15,19 +15,19 @@ a dash of optimism, to ensure that all the different
 bits snap together correctly at run-time. -->
 
 
-Flux is a **refinement type checker** plugin for Rust
-that lets you *specify* a range of correctness properties
+Flux is a [**refinement type checker**][flux-github] plugin
+for Rust that lets you *specify* a range of correctness properties
 and have them be *verified* at compile time.
-Flux works by extending Rust's types with
-[refinements][jhala-vazou] which are logical
-assertions describing additional correctness
-requirements that are then checked during compilation,
-to eliminate various classes of run-time problems.
 
-You can try it on the [**flux playground**](https://flux.goto.ucsd.edu/).
+Flux works by extending Rust's types with [refinements][jhala-vazou]:
+logical assertions describing additional correctness requirements
+that are checked during compilation, thereby eliminating various
+classes of run-time problems.
 
-Better still, see the the [**online tutorial**](./01-refinements.md), to learn how you
-can use Flux on your Rust code.
+You can try it on the [**online playground**](https://flux.goto.ucsd.edu/).
+
+Better still, read the [**interactive tutorial**](./01-refinements.md),
+to learn how you can use Flux on your Rust code.
 
 [jhala-vazou]: https://arxiv.org/abs/2010.07763
 [flux-github]: https://github.com/flux-rs/flux/
