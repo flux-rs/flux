@@ -8,7 +8,7 @@ where
 
 pub fn test2(c: Option<&mut [i32]>) {
     map(&c, |arr| stuff(arr));
-    // map(&c, |arr| for v in arr.iter_mut() {});
+    map(&c, |arr| for _v in arr.iter_mut() {});
 }
 
 #[flux::trusted]
