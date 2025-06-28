@@ -856,8 +856,17 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
-                self.tys(infcx, ty_a, ty_b)?;
-                self.tys(infcx, ty_b, ty_a)
+                if ty_a.is_slice()
+                    && let TyKind::Indexed(_, idx_a) = ty_a.kind()
+                    && let TyKind::Exists(bty_b) = ty_b.kind()
+                {
+                    // &mut [T1][stuff1] <: &mut [T2][stuff2]; we want to skip the stuff2 <: stuff1 because the index is immutable
+                    self.tys(infcx, ty_a, ty_b)?;
+                    self.tys(infcx, &bty_b.replace_bound_reft(idx_a), ty_a)
+                } else {
+                    self.tys(infcx, ty_a, ty_b)?;
+                    self.tys(infcx, ty_b, ty_a)
+                }
             }
             (BaseTy::Ref(_, ty_a, Mutability::Not), BaseTy::Ref(_, ty_b, Mutability::Not)) => {
                 self.tys(infcx, ty_a, ty_b)
