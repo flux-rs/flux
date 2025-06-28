@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Introduction - Flux Documentation</title>
+        <title>Introduction - The Flux Book</title>
 
 
         <!-- Custom HTML head -->
@@ -12,7 +12,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
         <link rel="shortcut icon" href="favicon.png">
         <link rel="stylesheet" href="css/variables.css">
         <link rel="stylesheet" href="css/general.css">
@@ -29,7 +28,8 @@
         <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="css/flux.css">
+        <link rel="stylesheet" href="flux_theme/slides.css">
+        <link rel="stylesheet" href="flux_theme/flux.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -135,7 +135,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">Flux Documentation</h1>
+                    <h1 class="menu-title">The Flux Book</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
@@ -168,11 +168,29 @@
                 <div id="content" class="content">
                     <main>
                         <img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
-<p>Flux is a <strong>refinement type checker</strong> for Rust that lets you <em>specify</em>
-a range of correctness properties and have them be <em>verified</em> at compile
-time.</p>
-<p>See the <strong>examples</strong>  -- listed in the summary on the left -- to learn about Refinement types and Rust.</p>
-<p>You can try it online <a href="https://flux.goto.ucsd.edu/">here</a>.</p>
+<!-- Types bring order to code.
+
+For example, if a variable `i:usize` then we know `i`
+is a number that can be used to index a vector.
+Similarly, if `v: Vec<&str>` then we can be sure that
+`v` is a collection of strings which may _be_ indexed
+but of course, not used _as_ an index.
+
+However, by itself, `usize` doesn't tell us how big
+or small the number and hence the programmer must
+still rely on their own wits, a lot of tests, and
+a dash of optimism, to ensure that all the different
+bits snap together correctly at run-time. -->
+<p>Flux is a <a href="https://github.com/flux-rs/flux/"><strong>refinement type checker</strong></a> plugin
+for Rust that lets you <em>specify</em> a range of correctness properties
+and have them be <em>verified</em> at compile time.</p>
+<p>Flux works by extending Rust's types with <a href="https://arxiv.org/abs/2010.07763">refinements</a>:
+logical assertions describing additional correctness requirements
+that are checked during compilation, thereby eliminating various
+classes of run-time problems.</p>
+<p>You can try it on the <a href="https://flux.goto.ucsd.edu/"><strong>online playground</strong></a>.</p>
+<p>Better still, read the <a href="./01-refinements.html"><strong>interactive tutorial</strong></a>,
+to learn how you can use Flux on your Rust code.</p>
 
                     </main>
 
@@ -204,6 +222,11 @@ time.</p>
             window.playground_copyable = true;
         </script>
 
+        <script src="ace.js"></script>
+        <script src="mode-rust.js"></script>
+        <script src="editor.js"></script>
+        <script src="theme-dawn.js"></script>
+        <script src="theme-tomorrow_night.js"></script>
 
         <script src="elasticlunr.min.js"></script>
         <script src="mark.min.js"></script>
@@ -214,7 +237,7 @@ time.</p>
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src="js/flux.js"></script>
+        <script src="flux_theme/slides.js"></script>
 
 
     </div>

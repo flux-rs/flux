@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Ownership in Flux - Flux Documentation</title>
+        <title>Ownership - The Flux Book</title>
 
 
         <!-- Custom HTML head -->
@@ -12,7 +12,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="../favicon.svg">
         <link rel="shortcut icon" href="../favicon.png">
         <link rel="stylesheet" href="../css/variables.css">
         <link rel="stylesheet" href="../css/general.css">
@@ -29,7 +28,8 @@
         <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="../css/flux.css">
+        <link rel="stylesheet" href="../flux_theme/slides.css">
+        <link rel="stylesheet" href="../flux_theme/flux.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -135,7 +135,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">Flux Documentation</h1>
+                    <h1 class="menu-title">The Flux Book</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -168,77 +168,92 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;</code></pre></pre>
 <p><a href="https://flux.goto.ucsd.edu/?example=ownership.rs">Online demo</a></p>
-<p><a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">Previously</a> we saw how to refine basic Rust
+<p><a href="./01-introducing-flux.html">Previously</a> we saw how to refine basic Rust
 types like <code>i32</code> and <code>bool</code> with <em>indices</em> and <em>constraints</em> to
-constrain the set of values described by those types.</p>
+constrain the set of values described by those types. For instance, we
+wrote the function <code>assert</code> function which can <em>only</em> be called with <code>true</code></p>
+<pre><pre class="playground"><code class="language-rust editable">#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}
+
+fn test_assert() {
+    assert(2 + 2 == 4);
+    assert(2 + 2 == 5); // fails to type check
+}</code></pre></pre>
 <p>The whole point of Rust, of course, is to allow for efficient
 imperative <em>sharing</em> and <em>updates</em>, via the clever type system
 that keeps an eye on the <em>ownership</em> of resources to make sure
 that aliasing and mutation cannot happen at the same time.</p>
 <p>Next, lets see how Flux melds refinements and Rust's ownership
-mechanisms to make refinements work in the imperative setting.</p>
+mechanisms to make refinements pleasant in the imperative setting.</p>
+<!-- SLIDE -->
 <h2 id="exclusive-ownership"><a class="header" href="#exclusive-ownership">Exclusive Ownership</a></h2>
-<p>Rust's most basic form of ownership is <em>exclusive</em> ownership,
+<p>Rust's most basic form of sharing is <em>exclusive</em> ownership,
 in which exactly one variable in a function has the right to
 mutate a memory location. When a location is exclusively
 owned, we can be sure that there are <em>no other references</em>
-to it, which lets flux <em>update</em> the type whenever the location
-is changed. For example, consider the program</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn () -&gt; i32[3])]
+to it. Consequently, <code>flux</code> can <em>update</em> the type to precisely
+track the value whenever the location is changed.</p>
+<p>For example, consider the program</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn () -&gt; i32[3])]
 pub fn mk_three() -&gt; i32 {
-    let mut r = 0;  // r: i32[0]
-    r += 1;
-    assert(r == 1); // r: i32[1]
-    r += 1;
-    assert(r == 2); // r: i32[2]
-    r += 1;
-    assert(r == 3); // r: i32[3]
-    r
-}
-<span class="boring">}</span></code></pre></pre>
+  let mut r = 0;  // r: i32[0]
+  r += 1;
+  assert(r == 1); // r: i32[1]
+  r += 1;
+  assert(r == 2); // r: i32[2]
+  r += 1;
+  assert(r == 3); // r: i32[3]
+  r
+}</code></pre></pre>
 <p>The variable <code>r</code> has <em>different types</em> at each point inside <code>mk_three</code>.
 It starts off as <code>i32[0]</code>. The first increment changes it to <code>i32[1]</code>,
 then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
-<img src="../img/mk_three.gif" width="100%">
+<!-- SLIDE -->
+<h2 id="exclusive-ownership-and-loops"><a class="header" href="#exclusive-ownership-and-loops">Exclusive Ownership and Loops</a></h2>
 <p>This exclusive ownership mechanism is at work in the <code>factorial</code> example
-we signed off with <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">previously</a></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
+we signed off with <a href="./01-introducing-flux.html">previously</a></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
 pub fn factorial(n: i32) -&gt; i32 {
     let mut i = 0;  // i: i32[0]
     let mut r = 1;  // r: i32[1]
     while i &lt; n {
-                    // i: i32{v:0&lt;=v&lt;=n}
-                    // r: i32{v:1&lt;=v &amp;&amp; i&lt;=v}
+                    // i: i32{v:0 &lt;= v &lt;= n}
+                    // r: i32{v:1 &lt;= v &amp;&amp; i &lt;= v}
         i += 1;
         r = r * i;
     }
     r
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre></pre>
 <p>In the above code, <code>i</code> and <code>r</code> start off at <code>0</code> and <code>1</code> but then
-Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
+flux <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
 <ul>
 <li><code>i</code> has type <code>i32{v:0&lt;=v &amp;&amp; v &lt; n}</code></li>
 <li><code>r</code> has type <code>i32{v:1&lt;=v &amp;&amp; i &lt;= v}</code></li>
 </ul>
 <p>and hence, upon exit since <code>i == n</code> we get that the result is at least <code>n</code>.</p>
+<!-- SLIDE -->
 <h2 id="borrowing-shared-references"><a class="header" href="#borrowing-shared-references">Borrowing: Shared References</a></h2>
-<p>Exclusive ownership suffices for simple local updates like in <code>factorial</code>.
-However, for more complex data, functions must temporarily relinquish
-ownership to allow <em>other</em> functions to mutate the data. Rust cleverly
-allows this via the notion of <em>borrowing</em> using two kinds of references
-that give callees temporary access to a memory location.</p>
-<p>The simplest kind of references are of the form <code>&amp;T</code> which denote <em>read-only</em>
-access to a value of type <code>T</code>. For example, we might write <code>abs</code> to take
+<p>Exclusive ownership suffices for simple local updates
+like in <code>factorial</code>. However, for more complex data,
+functions must temporarily relinquish ownership to
+allow <em>other</em> functions to mutate the data.</p>
+<p>Rust cleverly allows this via the notion of
+<em>borrowing</em> using two kinds of references
+that give callee functions temporary access
+to memory location.</p>
+<p>The simplest kind of references are <code>&amp;T</code>
+which denote <em>read-only</em> access to a value
+of type <code>T</code>. For example, we might write <code>abs</code> to take
 a shared reference to an <code>i32</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
 pub fn abs(p: &amp;i32) -&gt; i32 {
     let n = *p;
     if 0 &lt;= n {
@@ -246,43 +261,44 @@ pub fn abs(p: &amp;i32) -&gt; i32 {
     } else {
         0 - n
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Notice that the <em>input</em> type has changed: the function now</p>
+}</code></pre></pre>
+<p>Notice that the <em>input</em> type has changed. Now, the function</p>
 <ul>
-<li>Accepts <code>p</code> a <em>reference</em> to an <code>i32</code> whose value is <code>n</code> as denoted by <code>@n</code></li>
-<li>Returns an <code>i32</code> that is non-negative and larger than <code>n</code></li>
+<li><strong>accepts</strong> <code>p</code>, a <em>reference</em> to an <code>i32</code> whose value is <code>n</code> as denoted by <code>@n</code></li>
+<li><strong>returns</strong> an <code>i32</code> that is non-negative and larger than <code>n</code></li>
 </ul>
 <p>The <code>@</code> marks the <code>n</code> as a <em>refinement parameter</em> whose value
 is automatically computed by flux during type checking.</p>
+<!-- SLIDE -->
+<h3 id="calling-abs-with-a-reference"><a class="header" href="#calling-abs-with-a-reference">Calling <code>abs</code> with a reference</a></h3>
 <p>So, for example, Flux can check the below code by automatically
 determining that the refinement parameter at the call-site is <code>10</code>.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn test_abs() {
+<pre><pre class="playground"><code class="language-rust  editable">pub fn test_abs() {
     let z = 10;
-    assert(0 &lt;= abs(&amp;z))
+    assert(0 &lt;= abs(&amp;z));
     assert(10 &lt;= abs(&amp;z))
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre></pre>
+<!-- SLIDE -->
 <h3 id="refinement-parameters"><a class="header" href="#refinement-parameters">Refinement Parameters</a></h3>
 <p>As an aside, we have secretly been using <em>refinement parameters</em>
-like <code>@n</code> all along. For example, Flux automatically <em>desugars</em> the signature <code>fn(n:i32{0 &lt;= n} -&gt; ...</code> that we wrote for <code>factorial</code> into</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn ({i32[@n] : 0 &lt;= n}) -&gt; i32{v:n &lt;= v}
-<span class="boring">}</span></code></pre></pre>
+like <code>@n</code> all along. For example, Flux automatically <em>desugars</em>
+the signature <code>fn(n:i32{0 &lt;= n} -&gt; ...</code> that we wrote for <code>factorial</code> into</p>
+<pre><code>fn ({i32[@n] : 0 &lt;= n}) -&gt; i32{v:n &lt;= v}
+</code></pre>
 <p>where <code>@n</code> is a refinement parameter that is <em>implicitly</em> determined
 from the rust parameter <code>n:i32</code>. However, <em>explicit</em> parameters are
 essential to <em>name</em> the value of what a reference points to.
 In <code>abs</code> the <code>rust</code> parameter <code>p</code> names the reference but the
 <code>@n</code> names the (input) <em>value</em> and lets us use it to provide
 more information about the output of <code>abs</code>.</p>
-<p>Flux is <em>modular</em> in that the <em>only</em> information it
-knows about the implementation of <code>abs</code> is the signature: for example
-if we remove the fact that the output exceeds <code>n</code> then Flux will
-reject the assertion <code>10 &lt;= abs(&amp;z)</code>.</p>
-<img src="../img/test_abs.gif" width="100%">
+<p><strong>EXERCISE</strong> Flux is <em>modular</em> in that the
+<em>only</em> information it knows about the
+implementation of <code>abs</code> is the signature.
+For example, suppose we change the output type
+of <code>abs</code> to <code>i32{v:0&lt;=v}</code>, that is, we remove the
+<code>n &lt;= v</code> conjunct. Can you predict which <code>assert</code>
+will be rejected by flux?</p>
+<!-- SLIDE -->
 <h2 id="borrowing-mutable-references"><a class="header" href="#borrowing-mutable-references">Borrowing: Mutable References</a></h2>
 <p>References of type <code>&amp;mut T</code> denote <em>mutable</em> references that can be
 used to (read and) write or update the contents of a <code>T</code> value.
@@ -293,44 +309,26 @@ reference at any point in time.</p>
 of the underlying data. As an example, consider the following function
 that <em>decrements</em> the value of a mutable reference while ensuring the
 data is non-negative:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn(p: &amp;mut i32{v:0 &lt;= v}))]
 pub fn decr(p: &amp;mut i32) {
     *p = *p - 1;
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Flux will complain with the following message</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: assignment might be unsafe
-  --&gt; src/basics.rs:13:9
+}</code></pre></pre>
+<p>Flux complains that</p>
+<pre><code>error[FLUX]: assignment might be unsafe
    |
 13 |         *p = *p - 1;
    |         ^^^^^^^^^^^
-<span class="boring">}</span></code></pre></pre>
+</code></pre>
 <p>as in fact, we <em>may</em> be writing a negative value into <code>*p</code>
-if, for example, the old value was zero. We can fix this
+for example, if the old value was zero. We can fix this
 code by guarding the update with a test that ensures the
 original contents are in fact <em>non-zero</em></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
-pub fn decr(p: &amp;mut i32) {
-    let n = *p;
-    if n != 0 {
-        *p = n - 1;
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>at which point Flux is happy to sign off on the code.</p>
-<img src="../img/decr.gif" width="100%">
-<h2 id="aliased-references"><a class="header" href="#aliased-references">Aliased References</a></h2>
+<p><strong>EXERCISE</strong> Can you <em>modify</em> the code for <code>decr</code> so that flux verifies it?</p>
+<!-- SLIDE -->
+<h3 id="aliased-references"><a class="header" href="#aliased-references">Aliased References</a></h3>
 <p>Flux uses Rust's borrowing rules to track invariants even when
 there may be aliasing. As an example, consider the function</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (bool) -&gt; i32{v:0 &lt;= v})]
 fn test_alias(z: bool) -&gt; i32 {
     let mut x = 1;  // x: i32[1]
     let mut y = 2;  // y: i32[2]
@@ -338,8 +336,7 @@ fn test_alias(z: bool) -&gt; i32 {
                     // r: &amp;mut i32{v:0 &lt;= v}
     decr(r);
     *r
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre></pre>
 <p>The reference <code>r</code> could point to <em>either</em> <code>x</code> or <code>y</code> depending
 on the (unknown) value of the boolean <code>z</code>. Nevertheless, Flux
 determines that <em>both</em> references <code>&amp;mut x</code> and <code>&amp;mut y</code> point
@@ -347,40 +344,40 @@ to values of the more general type <code>i32{v:0&lt;=v}</code> and hence,
 infers <code>r : &amp;mut i32{v:0&lt;=v}</code> which allows us it to then call
 <code>decr</code> with the reference and guarantee the result (after <code>decr</code>)
 is still non-negative.</p>
-<h2 id="borrowing-strong-references"><a class="header" href="#borrowing-strong-references">Borrowing: Strong References</a></h2>
+<!-- SLIDE -->
+<h3 id="invariants-are-not-enough"><a class="header" href="#invariants-are-not-enough">Invariants are not enough!</a></h3>
 <p>In many situations, we want to lend a value to another function
 that actually <em>changes</em> the value's (refinement) type upon exit.
-For example, consider the following function to increment a reference
-to a non-negative <code>i32</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
-fn incr(p: &amp;mut i32) {
+For example, consider the following function to <em>increment</em>
+a reference to a non-negative <code>i32</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (p: &amp;mut i32{v:0 &lt;= v}))]
+fn incr_inv(p: &amp;mut i32) {
   *p += 1
 }
-<span class="boring">}</span></code></pre></pre>
-<p>Recall that Flux is <em>modular</em> in that the <em>only</em> information it
-has about <code>incr</code> is what is said in the signature. The signature
-for <code>incr</code> only says <code>p</code> remains non-negative: Flux does <em>not</em>
-know that <code>incr</code> actually <em>increments</em> the value of <code>p</code>.</p>
-<p>Hence, Flux fusses that the following <code>assert</code> may fail even though
-its patently obvious that it will succeed!</p>
-<img src="../img/test_incr.gif" width="100%">
+
+fn test_incr_inv() {
+  let mut z = 10;
+  incr_inv(&amp;mut z);
+  assert(z == 11);
+}</code></pre></pre>
+<p>The only information that <code>flux</code> has about <code>incr</code> what
+it says in its <code>spec</code>, namely, that <code>p</code> remains non-negative.
+Flux is blissfully unaware that <code>incr</code> <em>increments</em>
+the value of <code>p</code>, and it cannot prove that after the
+call, <code>z == 11</code> and hence, complains that <code>assert</code>
+may fail even though it will obviously succeed!</p>
+<!-- SLIDE -->
+<h2 id="borrowing-updatable-references"><a class="header" href="#borrowing-updatable-references">Borrowing: <em>Updatable</em> References</a></h2>
 <p>To verify <code>test_incr</code> we need a signature for <code>incr</code> that says
-that its <em>output</em> is indeed one greater<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> than its input.
-Flux extends Rust with the notion of <strong>strong references</strong>
-of the form <code>&amp;strg T</code> which refine Rust's <code>&amp;mut T</code> to grant
-<em>exclusive</em> access to the underlying <code>T</code>. Crucially, strong
-references also let us specify how the type is <em>updated</em> when
-the function exits<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>. Thus, we can use strong references to
-type <code>incr</code> as</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
+that its <em>output</em> is indeed one greater<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> than its input.</p>
+<p>Flux extends Rust <code>&amp;mut T</code> with the notion of <strong>updatable references</strong>
+which <em>additionally</em> specify how the type is <em>changed</em> when
+the function exits<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>, using an <code>ensures</code> clause that specifies
+the <em>modified</em> type of the reference.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn(p: &amp;mut i32[@n]) ensures p:i32[n+1])]
 fn incr(p: &amp;mut i32) {
   *p += 1
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre></pre>
 <p>The Flux signature refines the plain Rust one to specify that</p>
 <ol>
 <li><code>p</code> is a strong reference to an <code>i32</code>,</li>
@@ -390,13 +387,17 @@ fn incr(p: &amp;mut i32) {
 <p>With this specification, Flux merrily checks <code>test_incr</code>, by
 determining that the refinement parameter <code>@n</code> is <code>10</code> and
 hence, that upon return <code>x: i32[11]</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_incr() {
+  let mut z = 10;
+  incr_inv(&amp;mut z);
+  assert(z == 11);
+}</code></pre></pre>
+<!-- SLIDE -->
 <h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
-<p>To sum up, Flux exploits Rust's ownership mechanisms to track properties
-of <em>shared</em> (<code>&amp;T</code>) and <em>mutable</em> (<code>&amp;mut T</code>) references, and additionally
-adds a <em>strong</em> (<code>&amp;strg T</code>) reference -- a special case of <code>&amp;mut</code> -- to
-support the cases where the type itself is <em>changed</em> by a call.</p>
-<p>Next, we'll see how refinements and ownership yield a simple refined API
-for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
+<p>To sum up, Flux exploits Rust's ownership mechanisms
+to track properties of <em>shared</em> (<code>&amp;T</code>) and <em>mutable</em>
+(<code>&amp;mut T</code>) references, and additionally uses (<code>ensures</code>)
+clauses to specify when the type itself is <em>changed</em> by a call.</p>
 <hr>
 <ol class="footnote-definition"><li id="footnote-1">
 <p>For those familiar with the term, these types are <em>loop invariants</em> <a href="#fr-1-1">↩</a></p>
@@ -412,11 +413,11 @@ for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../blog/01-introducing-flux.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/01-refinements.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="../blog/03-vectors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../tutorial/03-structs.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -426,11 +427,11 @@ for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../blog/01-introducing-flux.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/01-refinements.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="../blog/03-vectors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../tutorial/03-structs.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>
@@ -444,6 +445,11 @@ for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
             window.playground_copyable = true;
         </script>
 
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
 
         <script src="../elasticlunr.min.js"></script>
         <script src="../mark.min.js"></script>
@@ -454,7 +460,7 @@ for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
         <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src="../js/flux.js"></script>
+        <script src="../flux_theme/slides.js"></script>
 
 
     </div>

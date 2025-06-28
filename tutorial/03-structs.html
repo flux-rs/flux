@@ -1,0 +1,473 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Structs - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/slides.css">
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="refining-structs"><a class="header" href="#refining-structs">Refining Structs</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;
+
+#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}</code></pre></pre>
+<p>Previously, we saw how to slap refinements on existing <em>built-in</em>
+or <em>primitive</em> Rust types. For example,</p>
+<ul>
+<li><code>i32[10]</code> specifies the <code>i32</code> that is <em>exactly</em> equal to <code>10</code> and</li>
+<li><code>i32{v: 0 &lt;= v &amp;&amp; v &lt; 10}</code> specifies an <code>i32</code> between <code>0</code> and <code>10</code>.</li>
+</ul>
+<p>Next, lets see how to attach refinements to <em>user-defined</em> types,
+so we can precisely define the set of <em>legal</em> values of those types.</p>
+<!-- SLIDE -->
+<h2 id="positive-integers"><a class="header" href="#positive-integers">Positive Integers</a></h2>
+<p>Lets start with an example posted on the <a href="https://github.com/flux-rs/flux/issues/1106">flux gitHub</a>:</p>
+<blockquote>
+<p>how do you create a Positivei32? I can think of two ways: <code>struct Positivei32 { val: i32, }</code> and struct <code>Positivei32(i32);</code> but I do not know how to apply the refinements for them. I want it to be an invariant that the i32 value is &gt;= 0. How would I do this?</p>
+</blockquote>
+<p>With flux, you can define the <code>Positivei32</code> type as follows:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(n: int)]
+#[invariant(n &gt; 0)]
+struct Positivei32 {
+  #[field(i32[n])]
+  val: i32
+}</code></pre></pre>
+<p>In addition to defining the plain Rust type <code>Positivei32</code>,
+the flux refinements say <em>three</em> distinct things.</p>
+<ol>
+<li>The <code>refined_by(n: int)</code> tells flux to refine each
+<code>Positivei32</code> with a special <code>int</code>-sorted <em>index</em> named <code>n</code>,</li>
+<li>the <code>invariant(n &gt; 0)</code> says that the index <code>n</code>
+is always positive, and,</li>
+<li>the <code>field</code> attribute on <code>val</code> says that the
+type of the field <code>val</code> is an <code>i32[n]</code>
+i.e. is an <code>i32</code> whose exact value is <code>n</code>.</li>
+</ol>
+<!-- SLIDE -->
+<h3 id="creating-positive-integers"><a class="header" href="#creating-positive-integers">Creating Positive Integers</a></h3>
+<p>Now, you would create a <code>Positivei32</code> pretty much as you might in Rust:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Positivei32)]
+fn mk_positive_1() -&gt; Positivei32 {
+  Positivei32 { val: 1 }
+}</code></pre></pre>
+<p>and flux will prevent you from creating an <em>illegal</em> <code>Positivei32</code>, like</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Positivei32)]
+fn mk_positive_0() -&gt; Positivei32 {
+  Positivei32 { val: 0 }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="a-constructor"><a class="header" href="#a-constructor">A Constructor</a></h3>
+<p><strong>EXERCISE</strong> Consider the following <code>new</code> constructor for <code>Positivei32</code>. Why does flux reject it?
+Can you figure out how to fix the <code>spec</code> for the constructor so flux will be appeased?</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Positivei32 {
+  pub fn new(val: i32) -&gt; Self {
+    Positivei32 { val }
+  }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="a-smart-constructor"><a class="header" href="#a-smart-constructor">A "Smart" Constructor</a></h3>
+<p><strong>EXERCISE</strong> Here is a different, constructor that should work
+for <em>any</em> input <code>n</code> but which may return <code>None</code> if the input is
+invalid. Can you fix the code so that flux accepts <code>new_opt</code>?</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Positivei32 {
+  pub fn new_opt(val: i32) -&gt; Option&lt;Self&gt; {
+      Some(Positivei32 { val })
+  }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="tracking-the-field-value"><a class="header" href="#tracking-the-field-value">Tracking the Field Value</a></h3>
+<p>In addition to letting us constrain the underlying <code>i32</code> to be positive,
+the <code>n: int</code> index lets flux precisely <em>track</em> the value of the <code>Positivei32</code>.
+For example, we can say that the following function returns a very specific <code>Positivei32</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Positivei32[{n:10}])]
+fn mk_positive_10() -&gt; Positivei32 {
+  Positivei32 { val: 10 }
+}</code></pre></pre>
+<p>(When there is a single index, we can just write <code>Positivei32[10]</code>.)</p>
+<p>Since the field <code>val</code> corresponds to the <em>tracked index</em>,
+flux "knows" what <code>val</code> is from the index, and hence lets us check that</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; i32[10])]
+fn test_ten() -&gt; i32 {
+    let p = mk_positive_10(); // p   : Positivei32[{n: 10}]
+    let res = p.val;          // res : i32[10]
+    res
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="tracking-the-value-in-the-constructor"><a class="header" href="#tracking-the-value-in-the-constructor">Tracking the Value in the Constructor</a></h3>
+<p><strong>EXERCISE</strong> Scroll back up, and modify the <code>spec</code> for <code>new</code>
+so that the below code verifies. That is, modify the <code>spec</code>
+so that it says what the value of <code>val</code> is when <code>new</code> returns
+a <code>Positivei32</code>. You will likely need to <em>combine</em> indexes
+and constraints as shown in <a href="./01-refinements.html#combining-indexes-and-constraints">the example <code>add_points</code></a>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; i32[99])]
+fn test_new() -&gt; i32 {
+    let p = Positivei32::new(99);
+    let res = p.val;
+    res
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="field-vs-index"><a class="header" href="#field-vs-index">Field vs. Index?</a></h3>
+<p>At this point, you might be wondering why, since <code>n</code> is the value of the field <code>val</code>,
+we didn't just name the index <code>val</code> instead of <code>n</code>?</p>
+<p>Indeed, we could have named it <code>val</code>.</p>
+<p>However, we picked a different name to emphasize that the index is <em>distinct from</em>
+the field. The field actually exists at run-time, but in contrast, the index is a
+<em>type-level property</em> that only lives at compile-time.</p>
+<!-- SLIDE -->
+<h2 id="integers-in-a-range"><a class="header" href="#integers-in-a-range">Integers in a Range</a></h2>
+<p>Of course, once we can index and constrain a single field, we can do so for many fields.</p>
+<p>For instance, suppose we wanted to write a <code>Range</code> type with two fields <code>start</code> and <code>end</code>
+which are integers such that <code>start &lt;= end</code>. We might do so as</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(start: int, end: int)]
+#[invariant(start &lt;= end)]
+struct Range {
+  #[field(i32[start])]
+  start: i32,
+  #[field(i32[end])]
+  end: i32,
+}</code></pre></pre>
+<p>Note that this time around, we're using the <em>same names</em> for the index as the field
+names (even though they are conceptually distinct things).</p>
+<!-- SLIDE -->
+<h3 id="legal-ranges"><a class="header" href="#legal-ranges">Legal Ranges</a></h3>
+<p>Again, the refined <code>struct</code> specification will ensure we only create legal <code>Range</code> values.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_range() {
+    vec![
+        Range { start: 0, end: 10 }, // ok
+        Range { start: 15, end: 5 }, // rejected!
+    ];
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="a-range-constructor"><a class="header" href="#a-range-constructor">A Range Constructor</a></h3>
+<p><strong>EXERCISE</strong> Fix the specification of the <code>new</code>
+constructor for <code>Range</code> so that both <code>new</code> and
+<code>test_range_new</code> are accepted by flux. (Again,
+you will need to <em>combine</em> indexes and constraints
+as shown in <a href="./01-refinements.html#combining-indexes-and-constraints">the example <code>add_points</code></a>.)</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Range {
+    pub fn new(start: i32, end: i32) -&gt; Self {
+        Range { start, end }
+    }
+}
+
+#[spec(fn() -&gt; Range[{start: 0, end: 10}])]
+fn test_range_new() -&gt; Range {
+    let rng = Range::new(0, 10);
+    assert(rng.start == 0);
+    assert(rng.end == 10);
+    rng
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="combining-ranges"><a class="header" href="#combining-ranges">Combining Ranges</a></h3>
+<p>Lets write a function that computes the <em>union</em> of two ranges.
+For example, given the range from <code>10-20</code> and <code>15-25</code>, we might
+want to return the the union is <code>10-25</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn min(x:i32, y:i32) -&gt; i32 {
+  if x &lt; y { x } else { y }
+}
+
+fn max(x:i32, y:i32) -&gt; i32 {
+  if x &lt; y { y } else { x }
+}
+
+fn union(r1: Range, r2: Range) -&gt; Range {
+  let start = min(r1.start, r2.start);
+  let end = max(r2.end, r2.end);
+  Range { start, end }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Can you figure out how to fix the <code>spec</code> for <code>min</code> and <code>max</code>
+so that flux will accept that <code>union</code> only constructs legal <code>Range</code> values?</p>
+<!-- SLIDE -->
+<h2 id="refinement-functions"><a class="header" href="#refinement-functions">Refinement Functions</a></h2>
+<p>When <em>code</em> get's more complicated, we like to abstract it into reusable
+functions. Flux lets us do the same for refinements too. For example, we
+can define refinement-level functions <code>min</code> and <code>max</code> which take <code>int</code>
+(not <code>i32</code> or <code>usize</code> but logical <code>int</code>) as input and return that as output.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn min(x: int, y: int) -&gt; int {
+        if x &lt; y { x } else { y }
+    }
+    fn max(x: int, y: int) -&gt; int {
+        if x &lt; y { y } else { x }
+    }
+}</code></pre></pre>
+<p>We can now use refinement functions like <code>min</code> and <code>max</code> inside types.
+For example, the output type of <code>decr</code> precisely tracks the decremented value.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Positivei32 {
+  #[spec(fn(&amp;Self[@p]) -&gt; Self[max(1, p.n - 1)])]
+  fn decr(&amp;self) -&gt; Self {
+    let val = if self.val &gt; 1 { self.val - 1 } else { self.val };
+    Positivei32 { val }
+  }
+}
+
+fn test_decr() {
+  let p = Positivei32{val: 2}; // p : Positivei32[2]
+  assert(p.val == 2);
+  let p = p.decr();            // p : Positivei32[1]
+  assert(p.val == 1);
+  let p = p.decr();            // p : Positivei32[1]
+  assert(p.val == 1);
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="combining-ranges-precisely"><a class="header" href="#combining-ranges-precisely">Combining Ranges, Precisely</a></h3>
+<p><strong>EXERCISE</strong> The <code>union</code> function that we wrote
+above says <em>some</em> <code>Range</code> is returned, but nothing
+about <em>what</em> that range actually is! Fix the <code>spec</code>
+for <code>union</code> below, so that flux accepts <code>test_union</code> below.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Range {
+  #[spec(fn(&amp;Self[@r1], &amp;Self[@r2]) -&gt; Self)]
+  pub fn union(&amp;self, other: &amp;Range) -&gt; Range {
+    let start = if self.start &lt; other.start {
+        self.start
+    } else {
+        other.start
+    };
+    let end = if self.end &lt; other.end {
+        other.end
+    } else {
+        self.end
+    };
+    Range { start, end }
+  }
+}
+
+fn test_union() {
+  let r1 = Range { start: 10, end: 20 };
+  let r2 = Range { start: 15, end: 25 };
+  let r3 = r1.union(&amp;r2);
+  assert(r3.start == 10);
+  assert(r3.end == 25);
+}</code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>To conclude, we saw how you can use flux to refine user-defined <code>struct</code> to track,
+at the type-level, the values of fields, and to then constrain the sets of <em>legal</em>
+values for those structs.</p>
+<p>To see a more entertaining example, <a href="https://github.com/flux-rs/flux/blob/f200714dfae5e7c9a3bdf7231191499f56aac45b/tests/tests/pos/surface/date.rs">check out this code</a>
+which shows how we can use refinements to ensure that only legal <code>Date</code>s can be constructed
+at compile time!</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/02-ownership.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorial/04-enums.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/02-ownership.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorial/04-enums.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="../flux_theme/slides.js"></script>
+
+
+    </div>
+    </body>
+</html>

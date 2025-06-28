@@ -11,7 +11,6 @@
 /* Tomorrow Red */
 .hljs-variable,
 .hljs-attribute,
-.hljs-attr,
 .hljs-tag,
 .hljs-regexp,
 .ruby .hljs-constant,
@@ -55,7 +54,6 @@
 
 /* Tomorrow Aqua */
 .hljs-title,
-.hljs-section,
 .css .hljs-hexcolor {
   color: #8abeb7;
 }
@@ -101,4 +99,20 @@
 
 .hljs-deletion {
   color: #c82829;
+}
+
+.tooltip {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  position: absolute;
+  background-color: #2D2D2D; /* Dark Gray */
+  color: #FFFFFF; /* White text */
+  border-radius: 4px;
+  padding: 8px 12px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3); /* Soft shadow */
+  /* border: 1px solid #333; */
+  display: none;
+  z-index: 1000;
+  letter-spacing: 0.5px;
+  white-space: pre; /* Preserves line breaks */
 }

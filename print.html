@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Flux Documentation</title>
+        <title>The Flux Book</title>
         <meta name="robots" content="noindex">
 
 
@@ -13,7 +13,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
         <link rel="shortcut icon" href="favicon.png">
         <link rel="stylesheet" href="css/variables.css">
         <link rel="stylesheet" href="css/general.css">
@@ -30,7 +29,8 @@
         <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="css/flux.css">
+        <link rel="stylesheet" href="flux_theme/slides.css">
+        <link rel="stylesheet" href="flux_theme/flux.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -136,7 +136,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">Flux Documentation</h1>
+                    <h1 class="menu-title">The Flux Book</h1>
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
@@ -169,12 +169,31 @@
                 <div id="content" class="content">
                     <main>
                         <img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
-<p>Flux is a <strong>refinement type checker</strong> for Rust that lets you <em>specify</em>
-a range of correctness properties and have them be <em>verified</em> at compile
-time.</p>
-<p>See the <strong>examples</strong>  -- listed in the summary on the left -- to learn about Refinement types and Rust.</p>
-<p>You can try it online <a href="https://flux.goto.ucsd.edu/">here</a>.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="installing-flux"><a class="header" href="#installing-flux">Installing Flux</a></h1>
+<!-- Types bring order to code.
+
+For example, if a variable `i:usize` then we know `i`
+is a number that can be used to index a vector.
+Similarly, if `v: Vec<&str>` then we can be sure that
+`v` is a collection of strings which may _be_ indexed
+but of course, not used _as_ an index.
+
+However, by itself, `usize` doesn't tell us how big
+or small the number and hence the programmer must
+still rely on their own wits, a lot of tests, and
+a dash of optimism, to ensure that all the different
+bits snap together correctly at run-time. -->
+<p>Flux is a <a href="https://github.com/flux-rs/flux/"><strong>refinement type checker</strong></a> plugin
+for Rust that lets you <em>specify</em> a range of correctness properties
+and have them be <em>verified</em> at compile time.</p>
+<p>Flux works by extending Rust's types with <a href="https://arxiv.org/abs/2010.07763">refinements</a>:
+logical assertions describing additional correctness requirements
+that are checked during compilation, thereby eliminating various
+classes of run-time problems.</p>
+<p>You can try it on the <a href="https://flux.goto.ucsd.edu/"><strong>online playground</strong></a>.</p>
+<p>Better still, read the <a href="./01-refinements.html"><strong>interactive tutorial</strong></a>,
+to learn how you can use Flux on your Rust code.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="installing-and-running-flux"><a class="header" href="#installing-and-running-flux">Installing and Running Flux</a></h1>
+<p>You can install and then run Flux either on a single file or on an entire crate.</p>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
 <li><a href="https://rustup.rs/">rustup</a></li>
@@ -182,7 +201,7 @@ time.</p>
 <li><a href="https://github.com/Z3Prover/z3">z3</a></li>
 </ul>
 <p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your <code>$PATH</code>.</p>
-<h2 id="installing"><a class="header" href="#installing">Installing</a></h2>
+<h2 id="install"><a class="header" href="#install">Install</a></h2>
 <p>The only way to use Flux is to build it from source.</p>
 <p>First you need to clone the repository</p>
 <pre><code class="language-bash">git clone https://github.com/flux-rs/flux
@@ -202,10 +221,7 @@ following to your Cargo.toml</p>
 <pre><code class="language-toml">[dependencies]
 flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 </code></pre>
-<p>This will add the procedural macros Flux uses to your project; it is not a susbstitute
-for installing Flux, which must still be done.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="running-flux"><a class="header" href="#running-flux">Running Flux</a></h1>
-<p>You can run <code>flux</code> on a single file or entire crate.</p>
+<p>This will add the procedural macros Flux uses to your project; it is not a substitute for installing Flux, which must still be done.</p>
 <h2 id="running-on-a-file-flux"><a class="header" href="#running-on-a-file-flux">Running on a File: <code>flux</code></a></h2>
 <p>You can use <code>flux</code> as you would use <code>rustc</code>.
 For example, the following command checks the file <code>test.rs</code>.</p>
@@ -226,7 +242,8 @@ fn inc(x: i32) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="running-on-a-package-cargo-flux"><a class="header" href="#running-on-a-package-cargo-flux">Running on a package: <code>cargo-flux</code></a></h2>
-<p>Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
+<p>See this an
+Flux is integrated with <code>cargo</code> and can be invoked in a package as follows:</p>
 <pre><code class="language-bash">cargo flux
 </code></pre>
 <p>By default, Flux won't verify a package unless it's explicitly enabled in the manifest.
@@ -308,7 +325,7 @@ qualifier scrapping:</p>
 </code></pre>
 <p>For all available flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
 <h3 id="cargo-projects"><a class="header" href="#cargo-projects">Cargo Projects</a></h3>
-<p>When working with a Cargo project, some of the <a href="guide/run.html#Flux-Flags">flags</a> can be configured in the
+<p>When working with a Cargo project, some of the <a href="guide/install.html#Flux-Flags">flags</a> can be configured in the
 <code>[package.metadata.flux]</code> table in <code>Cargo.toml</code>. For example, to enable query caching and set
 <code>cvc5</code> as the solver:</p>
 <pre><code class="language-toml"># Cargo.toml
@@ -329,8 +346,1503 @@ of <code>cargo flux</code>.</p>
 for example, to print timing information for all crates checked by Flux:</p>
 <pre><code class="language-console">FLUXFLAGS="-Ftimings" cargo flux
 </code></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specification-guide"><a class="header" href="#flux-specification-guide">Flux Specification Guide</a></h1>
-<p>This is a WIP guide to writing specifications in <code>flux</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="about"><a class="header" href="#about">About</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="refining-types"><a class="header" href="#refining-types">Refining Types</a></h1>
+<p>Types bring order to code. For example, if a variable <code>i:usize</code>
+then we know <code>i</code> is a number that can be used to index a vector.
+Similarly, if <code>v: Vec&lt;&amp;str&gt;</code> then we can be sure that <code>v</code> is a
+collection of strings which may <em>be</em> indexed but of course,
+not used <em>as</em> an index. However, by itself <code>usize</code> doesn't
+tell us how big or small the number and hence the programmer
+must still rely on their own wits, a lot of tests, and a dash
+of optimism, to ensure that all the different bits fit properly
+at run-time.</p>
+<p><a href="https://arxiv.org/abs/2010.07763">Refinements</a> are a promising new way to extend
+type checkers with logical constraints that <em>specify</em> additional
+correctness requirements that can be <em>verified</em> by the compiler,
+thereby entirely eliminating various classes of run-time problems.</p>
+<p>To begin, lets see how flux lets you refine <em>basic</em> or <em>primitive</em>
+types like <code>i32</code> or <code>usize</code> or <code>bool</code> with logical constraints that
+can be checked at compile time.</p>
+<!-- more -->
+<!-- SLIDE -->
+<h2 id="indexed-types"><a class="header" href="#indexed-types">Indexed Types</a></h2>
+<p>The simplest kind of refinement type in flux is a type that is
+<em>indexed</em> by a logical value. For example</p>
+<div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
+<tr><td style="text-align: left"><code>i32[10]</code></td><td style="text-align: left">The (singleton) set of <code>i32</code> values equal to <code>10</code></td></tr>
+<tr><td style="text-align: left"><code>bool[true]</code></td><td style="text-align: left">The (singleton) set of <code>bool</code> values equal to <code>true</code></td></tr>
+</tbody></table>
+</div><!-- SLIDE -->
+<h3 id="flux-specifications"><a class="header" href="#flux-specifications">Flux Specifications</a></h3>
+<p>First off, we need to add some incantations that pull in the mechanisms
+for writing flux specifications as Rust <em>attributes</em>.</p>
+<pre><pre class="playground"><code class="language-rust editable">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="post-conditions"><a class="header" href="#post-conditions">Post-Conditions</a></h3>
+<p>We can already start using these indexed types to start writing (and checking)
+code. For example, we can write the following specification which says that
+the value <em>returned</em> by <code>mk_ten</code> must in fact be <code>10</code></p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn() -&gt; i32[10])]
+pub fn mk_ten() -&gt; i32 {
+    5 + 4
+}</code></pre></pre>
+<p><strong>Push Play</strong>
+Push the "run" button in the pane above. You will see a red squiggle that
+and when you hover over the squiggle you will see an error message</p>
+<pre><code class="language-bash">error[...]: refinement type error
+  |
+7 |     5 + 4
+  |     ^^^^^ a postcondition cannot be proved
+</code></pre>
+<p>which says that that the <em>postcondition might not hold</em> which means
+that the <em>output</em> produced by <code>mk_ten</code> may not in fact be an <code>i32[10]</code>
+as indeed, in this case, the result is <code>9</code>! You can eliminate the error
+by <em>editing</em> the body to <code>5 + 4 + 1</code> or <code>5 + 5</code> or just <code>10</code>.</p>
+<!-- SLIDE -->
+<h3 id="pre-conditions"><a class="header" href="#pre-conditions">Pre-Conditions</a></h3>
+<p>You can use an index to <em>restrict the inputs</em> that a function expects
+to be called with.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (b:bool[true]))]
+pub fn assert(b:bool) {
+  if !b { panic!("assertion failed") }
+}</code></pre></pre>
+<p>The specification for <code>assert</code> says you can <em>only</em> call
+it with <code>true</code> as the input. So if you write</p>
+<pre><pre class="playground"><code class="language-rust editable">fn test(){
+  assert(2 + 2 == 4);
+  assert(2 + 2 == 5); // fails to type check
+}</code></pre></pre>
+<p>then <code>flux</code> will complain that</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+   |
+12 |     assert(2 + 2 == 5); // fails to type check
+   |     ^^^^^^^^^^^^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<p>meaning at the second call to <code>assert</code> the input <em>may not</em>
+be <code>true</code>, as of course, in this case, it is not!</p>
+<p>Can you edit the code of <code>test</code> to fix the error?</p>
+<!-- SLIDE -->
+<h2 id="index-parameters-and-expressions"><a class="header" href="#index-parameters-and-expressions">Index Parameters and Expressions</a></h2>
+<p>Its not terribly exciting to only talk about <em>fixed</em> values
+like <code>10</code> or <code>true</code>. To be more useful, <code>flux</code> lets you index
+types by refinement <em>parameters</em>. For example, you can write</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(n:i32) -&gt; bool[0 &lt; n])]
+pub fn is_pos(n: i32) -&gt; bool {
+  if 0 &lt; n {
+    true
+  } else {
+    false
+  }
+}</code></pre></pre>
+<p>Here, the type says that <code>is_pos</code></p>
+<ul>
+<li><strong>takes</strong> as <em>input</em> some <code>i32</code> <em>indexed by</em> <code>n</code></li>
+<li><strong>returns</strong> as <em>output</em> the <code>bool</code> <em>indexed by</em> <code>0 &lt; n</code></li>
+</ul>
+<p>That is, <code>is_pos</code> returns <code>true</code> <em>exactly when</em> <code>0 &lt; n</code>.</p>
+<p>We might use this function to check that:</p>
+<pre><pre class="playground"><code class="language-rust editable">pub fn test_pos(n: i32) {
+  let m = if is_pos(n) { n - 1 } else { 0 };
+  assert(0 &lt;= m);
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="existential-types"><a class="header" href="#existential-types">Existential Types</a></h2>
+<p>Often we don't care about the <em>exact</em> value of a thing -- but just
+care about some <em>properties</em> that it may have. For example, we don't
+care that an <code>i32</code> is equal to <code>5</code> or <code>10</code> or <code>n</code> but that it is
+non-negative.</p>
+<div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
+<tr><td style="text-align: left"><code>i32{v: 0 &lt;  v}</code></td><td style="text-align: left">The set of <code>i32</code> values that positive</td></tr>
+<tr><td style="text-align: left"><code>i32{v: n &lt;= v}</code></td><td style="text-align: left">The set of <code>i32</code> values greater than or equal to <code>n</code></td></tr>
+</tbody></table>
+</div>
+<p>Flux allows such specifications by pairing plain Rust types
+with <em>assertions</em> <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> that constrain the value.</p>
+<!-- SLIDE -->
+<h2 id="existential-output-types"><a class="header" href="#existential-output-types">Existential Output Types</a></h2>
+<p>For example, we can rewrite <code>mk_10</code> with the output type
+<code>i32{v:0&lt;v}</code> that specifies a weaker property:
+the value returned by <code>mk_ten_pos</code> is positive.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn() -&gt; i32{v: 0 &lt; v})]
+pub fn mk_ten_pos() -&gt; i32 {
+    5 + 5
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="example-absolute-value"><a class="header" href="#example-absolute-value">Example: <code>abs</code>olute value</a></h2>
+<p>Similarly, you might specify that a function that computes the <em>absolute</em>
+value of an <code>i32</code> with a type which says the result is non-negative <em>and</em>
+exceeds the input <code>n</code>.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+pub fn abs(n: i32) -&gt; i32 {
+    if 0 &lt;= n {
+        n
+    } else {
+        0 - n
+    }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="combining-indexes-and-constraints"><a class="header" href="#combining-indexes-and-constraints">Combining Indexes and Constraints</a></h2>
+<p>Sometimes, we want to <em>combine</em> indexes and constraints in a specification.</p>
+<p>For example, suppose we have some code that manipulates
+<em>scores</em> which are required to be between <code>0</code> and <code>100</code>.
+Now, suppose we want to write a function that adds <code>k</code>
+points to a score <code>s</code>. We want to specify that</p>
+<ul>
+<li>The <em>inputs</em> <code>s</code> and <code>k</code> must be non-negative,</li>
+<li>the <em>inputs</em> <code>s + k &lt;= 100</code>, and</li>
+<li>The <em>output</em> equals <code>s + k</code></li>
+</ul>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn ({usize[@s] | s + k &lt;= 100}, k:usize) -&gt; usize[s + k])]
+fn add_points(s: usize, k: usize) -&gt; usize {
+    s + k
+}
+
+fn test_add_points() {
+    assert(add_points(20, 30) == 50);
+    assert(add_points(90, 30) == 120); // fails to type check
+}</code></pre></pre>
+<p>Note that we use the <code>@s</code> to <em>index</em> the value of the <code>s</code> parameter,
+so that we can</p>
+<ol>
+<li><em>constrain</em> the inputs to <code>s + k &lt;= 100</code>, and</li>
+<li><em>refine</em> the value of the output to be exactly <code>usize[s + k]</code>.</li>
+</ol>
+<p><strong>EXERCISE</strong> Why does flux reject the second call to <code>add_points</code>?</p>
+<!-- SLIDE -->
+<h2 id="example-factorial"><a class="header" href="#example-factorial">Example: <code>factorial</code></a></h2>
+<p>As a last example, you might write a function to compute the factorial of <code>n</code></p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
+pub fn factorial(n: i32) -&gt; i32 {
+    let mut i = 0;
+    let mut res = 1;
+    while i &lt; n {
+        i += 1;
+        res = res * i;
+    }
+    res
+}</code></pre></pre>
+<p>Here the specification says the input must be non-negative, and the
+output is at least as large as the input. Note, that unlike the previous
+examples, here we're actually <em>changing</em> the values of <code>i</code> and <code>res</code>.</p>
+<!-- SLIDE -->
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>In this post, we saw how Flux lets you</p>
+<ol>
+<li>
+<p><em>decorate</em> basic Rust types like <code>i32</code> and <code>bool</code> with
+<strong>indices</strong> and <strong>constraints</strong> that let you respectively
+<em>refine</em> the sets of values that inhabit that type, and</p>
+</li>
+<li>
+<p><em>specify</em> contracts on functions that state <strong>pre-conditions</strong> on
+the sets of legal inputs that they accept, and <strong>post-conditions</strong>
+that describe the outputs that they produce.</p>
+</li>
+</ol>
+<p>The whole point of Rust, of course, is to allow for efficient <em>imperative</em>
+sharing and updates, without sacrificing thread- or memory-safety. Next time,
+we'll see how Flux melds refinements and Rust's ownership to make refinements
+happily coexist with imperative code.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>These are not arbitrary Rust expressions but a subset of expressions from logics that can be efficiently decided by <a href="https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements">SMT Solvers</a> <a href="#fr-1-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;</code></pre></pre>
+<p><a href="https://flux.goto.ucsd.edu/?example=ownership.rs">Online demo</a></p>
+<p><a href="tutorial/./01-introducing-flux.html">Previously</a> we saw how to refine basic Rust
+types like <code>i32</code> and <code>bool</code> with <em>indices</em> and <em>constraints</em> to
+constrain the set of values described by those types. For instance, we
+wrote the function <code>assert</code> function which can <em>only</em> be called with <code>true</code></p>
+<pre><pre class="playground"><code class="language-rust editable">#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}
+
+fn test_assert() {
+    assert(2 + 2 == 4);
+    assert(2 + 2 == 5); // fails to type check
+}</code></pre></pre>
+<p>The whole point of Rust, of course, is to allow for efficient
+imperative <em>sharing</em> and <em>updates</em>, via the clever type system
+that keeps an eye on the <em>ownership</em> of resources to make sure
+that aliasing and mutation cannot happen at the same time.</p>
+<p>Next, lets see how Flux melds refinements and Rust's ownership
+mechanisms to make refinements pleasant in the imperative setting.</p>
+<!-- SLIDE -->
+<h2 id="exclusive-ownership"><a class="header" href="#exclusive-ownership">Exclusive Ownership</a></h2>
+<p>Rust's most basic form of sharing is <em>exclusive</em> ownership,
+in which exactly one variable in a function has the right to
+mutate a memory location. When a location is exclusively
+owned, we can be sure that there are <em>no other references</em>
+to it. Consequently, <code>flux</code> can <em>update</em> the type to precisely
+track the value whenever the location is changed.</p>
+<p>For example, consider the program</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn () -&gt; i32[3])]
+pub fn mk_three() -&gt; i32 {
+  let mut r = 0;  // r: i32[0]
+  r += 1;
+  assert(r == 1); // r: i32[1]
+  r += 1;
+  assert(r == 2); // r: i32[2]
+  r += 1;
+  assert(r == 3); // r: i32[3]
+  r
+}</code></pre></pre>
+<p>The variable <code>r</code> has <em>different types</em> at each point inside <code>mk_three</code>.
+It starts off as <code>i32[0]</code>. The first increment changes it to <code>i32[1]</code>,
+then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
+<!-- SLIDE -->
+<h2 id="exclusive-ownership-and-loops"><a class="header" href="#exclusive-ownership-and-loops">Exclusive Ownership and Loops</a></h2>
+<p>This exclusive ownership mechanism is at work in the <code>factorial</code> example
+we signed off with <a href="tutorial/./01-introducing-flux.html">previously</a></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
+pub fn factorial(n: i32) -&gt; i32 {
+    let mut i = 0;  // i: i32[0]
+    let mut r = 1;  // r: i32[1]
+    while i &lt; n {
+                    // i: i32{v:0 &lt;= v &lt;= n}
+                    // r: i32{v:1 &lt;= v &amp;&amp; i &lt;= v}
+        i += 1;
+        r = r * i;
+    }
+    r
+}</code></pre></pre>
+<p>In the above code, <code>i</code> and <code>r</code> start off at <code>0</code> and <code>1</code> but then
+flux <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
+<ul>
+<li><code>i</code> has type <code>i32{v:0&lt;=v &amp;&amp; v &lt; n}</code></li>
+<li><code>r</code> has type <code>i32{v:1&lt;=v &amp;&amp; i &lt;= v}</code></li>
+</ul>
+<p>and hence, upon exit since <code>i == n</code> we get that the result is at least <code>n</code>.</p>
+<!-- SLIDE -->
+<h2 id="borrowing-shared-references"><a class="header" href="#borrowing-shared-references">Borrowing: Shared References</a></h2>
+<p>Exclusive ownership suffices for simple local updates
+like in <code>factorial</code>. However, for more complex data,
+functions must temporarily relinquish ownership to
+allow <em>other</em> functions to mutate the data.</p>
+<p>Rust cleverly allows this via the notion of
+<em>borrowing</em> using two kinds of references
+that give callee functions temporary access
+to memory location.</p>
+<p>The simplest kind of references are <code>&amp;T</code>
+which denote <em>read-only</em> access to a value
+of type <code>T</code>. For example, we might write <code>abs</code> to take
+a shared reference to an <code>i32</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
+pub fn abs(p: &amp;i32) -&gt; i32 {
+    let n = *p;
+    if 0 &lt;= n {
+        n
+    } else {
+        0 - n
+    }
+}</code></pre></pre>
+<p>Notice that the <em>input</em> type has changed. Now, the function</p>
+<ul>
+<li><strong>accepts</strong> <code>p</code>, a <em>reference</em> to an <code>i32</code> whose value is <code>n</code> as denoted by <code>@n</code></li>
+<li><strong>returns</strong> an <code>i32</code> that is non-negative and larger than <code>n</code></li>
+</ul>
+<p>The <code>@</code> marks the <code>n</code> as a <em>refinement parameter</em> whose value
+is automatically computed by flux during type checking.</p>
+<!-- SLIDE -->
+<h3 id="calling-abs-with-a-reference"><a class="header" href="#calling-abs-with-a-reference">Calling <code>abs</code> with a reference</a></h3>
+<p>So, for example, Flux can check the below code by automatically
+determining that the refinement parameter at the call-site is <code>10</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">pub fn test_abs() {
+    let z = 10;
+    assert(0 &lt;= abs(&amp;z));
+    assert(10 &lt;= abs(&amp;z))
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="refinement-parameters"><a class="header" href="#refinement-parameters">Refinement Parameters</a></h3>
+<p>As an aside, we have secretly been using <em>refinement parameters</em>
+like <code>@n</code> all along. For example, Flux automatically <em>desugars</em>
+the signature <code>fn(n:i32{0 &lt;= n} -&gt; ...</code> that we wrote for <code>factorial</code> into</p>
+<pre><code>fn ({i32[@n] : 0 &lt;= n}) -&gt; i32{v:n &lt;= v}
+</code></pre>
+<p>where <code>@n</code> is a refinement parameter that is <em>implicitly</em> determined
+from the rust parameter <code>n:i32</code>. However, <em>explicit</em> parameters are
+essential to <em>name</em> the value of what a reference points to.
+In <code>abs</code> the <code>rust</code> parameter <code>p</code> names the reference but the
+<code>@n</code> names the (input) <em>value</em> and lets us use it to provide
+more information about the output of <code>abs</code>.</p>
+<p><strong>EXERCISE</strong> Flux is <em>modular</em> in that the
+<em>only</em> information it knows about the
+implementation of <code>abs</code> is the signature.
+For example, suppose we change the output type
+of <code>abs</code> to <code>i32{v:0&lt;=v}</code>, that is, we remove the
+<code>n &lt;= v</code> conjunct. Can you predict which <code>assert</code>
+will be rejected by flux?</p>
+<!-- SLIDE -->
+<h2 id="borrowing-mutable-references"><a class="header" href="#borrowing-mutable-references">Borrowing: Mutable References</a></h2>
+<p>References of type <code>&amp;mut T</code> denote <em>mutable</em> references that can be
+used to (read and) write or update the contents of a <code>T</code> value.
+Crucially, Rust ensures that while there may be multiple read-only (shared)
+references to a location, there is at most one <em>active</em> writeable (mutable)
+reference at any point in time.</p>
+<p>Flux exploits the semantics of <code>&amp;mut T</code> to treat <code>T</code> as an <em>invariant</em>
+of the underlying data. As an example, consider the following function
+that <em>decrements</em> the value of a mutable reference while ensuring the
+data is non-negative:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn(p: &amp;mut i32{v:0 &lt;= v}))]
+pub fn decr(p: &amp;mut i32) {
+    *p = *p - 1;
+}</code></pre></pre>
+<p>Flux complains that</p>
+<pre><code>error[FLUX]: assignment might be unsafe
+   |
+13 |         *p = *p - 1;
+   |         ^^^^^^^^^^^
+</code></pre>
+<p>as in fact, we <em>may</em> be writing a negative value into <code>*p</code>
+for example, if the old value was zero. We can fix this
+code by guarding the update with a test that ensures the
+original contents are in fact <em>non-zero</em></p>
+<p><strong>EXERCISE</strong> Can you <em>modify</em> the code for <code>decr</code> so that flux verifies it?</p>
+<!-- SLIDE -->
+<h3 id="aliased-references"><a class="header" href="#aliased-references">Aliased References</a></h3>
+<p>Flux uses Rust's borrowing rules to track invariants even when
+there may be aliasing. As an example, consider the function</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (bool) -&gt; i32{v:0 &lt;= v})]
+fn test_alias(z: bool) -&gt; i32 {
+    let mut x = 1;  // x: i32[1]
+    let mut y = 2;  // y: i32[2]
+    let r = if z { &amp;mut x } else { &amp;mut y };
+                    // r: &amp;mut i32{v:0 &lt;= v}
+    decr(r);
+    *r
+}</code></pre></pre>
+<p>The reference <code>r</code> could point to <em>either</em> <code>x</code> or <code>y</code> depending
+on the (unknown) value of the boolean <code>z</code>. Nevertheless, Flux
+determines that <em>both</em> references <code>&amp;mut x</code> and <code>&amp;mut y</code> point
+to values of the more general type <code>i32{v:0&lt;=v}</code> and hence,
+infers <code>r : &amp;mut i32{v:0&lt;=v}</code> which allows us it to then call
+<code>decr</code> with the reference and guarantee the result (after <code>decr</code>)
+is still non-negative.</p>
+<!-- SLIDE -->
+<h3 id="invariants-are-not-enough"><a class="header" href="#invariants-are-not-enough">Invariants are not enough!</a></h3>
+<p>In many situations, we want to lend a value to another function
+that actually <em>changes</em> the value's (refinement) type upon exit.
+For example, consider the following function to <em>increment</em>
+a reference to a non-negative <code>i32</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn (p: &amp;mut i32{v:0 &lt;= v}))]
+fn incr_inv(p: &amp;mut i32) {
+  *p += 1
+}
+
+fn test_incr_inv() {
+  let mut z = 10;
+  incr_inv(&amp;mut z);
+  assert(z == 11);
+}</code></pre></pre>
+<p>The only information that <code>flux</code> has about <code>incr</code> what
+it says in its <code>spec</code>, namely, that <code>p</code> remains non-negative.
+Flux is blissfully unaware that <code>incr</code> <em>increments</em>
+the value of <code>p</code>, and it cannot prove that after the
+call, <code>z == 11</code> and hence, complains that <code>assert</code>
+may fail even though it will obviously succeed!</p>
+<!-- SLIDE -->
+<h2 id="borrowing-updatable-references"><a class="header" href="#borrowing-updatable-references">Borrowing: <em>Updatable</em> References</a></h2>
+<p>To verify <code>test_incr</code> we need a signature for <code>incr</code> that says
+that its <em>output</em> is indeed one greater<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> than its input.</p>
+<p>Flux extends Rust <code>&amp;mut T</code> with the notion of <strong>updatable references</strong>
+which <em>additionally</em> specify how the type is <em>changed</em> when
+the function exits<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>, using an <code>ensures</code> clause that specifies
+the <em>modified</em> type of the reference.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::spec(fn(p: &amp;mut i32[@n]) ensures p:i32[n+1])]
+fn incr(p: &amp;mut i32) {
+  *p += 1
+}</code></pre></pre>
+<p>The Flux signature refines the plain Rust one to specify that</p>
+<ol>
+<li><code>p</code> is a strong reference to an <code>i32</code>,</li>
+<li>the <em>input type</em> of <code>*p</code> is <code>i32[n]</code>, and</li>
+<li>the <em>output type</em> of <code>*p</code> is <code>i32[n+1]</code>.</li>
+</ol>
+<p>With this specification, Flux merrily checks <code>test_incr</code>, by
+determining that the refinement parameter <code>@n</code> is <code>10</code> and
+hence, that upon return <code>x: i32[11]</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_incr() {
+  let mut z = 10;
+  incr_inv(&amp;mut z);
+  assert(z == 11);
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
+<p>To sum up, Flux exploits Rust's ownership mechanisms
+to track properties of <em>shared</em> (<code>&amp;T</code>) and <em>mutable</em>
+(<code>&amp;mut T</code>) references, and additionally uses (<code>ensures</code>)
+clauses to specify when the type itself is <em>changed</em> by a call.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>For those familiar with the term, these types are <em>loop invariants</em> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Setting aside the issue of overflows for now <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p>Thereby allowing so-called <em>strong updates</em> in the type specifications <a href="#fr-3-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="refining-structs"><a class="header" href="#refining-structs">Refining Structs</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;
+
+#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}</code></pre></pre>
+<p>Previously, we saw how to slap refinements on existing <em>built-in</em>
+or <em>primitive</em> Rust types. For example,</p>
+<ul>
+<li><code>i32[10]</code> specifies the <code>i32</code> that is <em>exactly</em> equal to <code>10</code> and</li>
+<li><code>i32{v: 0 &lt;= v &amp;&amp; v &lt; 10}</code> specifies an <code>i32</code> between <code>0</code> and <code>10</code>.</li>
+</ul>
+<p>Next, lets see how to attach refinements to <em>user-defined</em> types,
+so we can precisely define the set of <em>legal</em> values of those types.</p>
+<!-- SLIDE -->
+<h2 id="positive-integers"><a class="header" href="#positive-integers">Positive Integers</a></h2>
+<p>Lets start with an example posted on the <a href="https://github.com/flux-rs/flux/issues/1106">flux gitHub</a>:</p>
+<blockquote>
+<p>how do you create a Positivei32? I can think of two ways: <code>struct Positivei32 { val: i32, }</code> and struct <code>Positivei32(i32);</code> but I do not know how to apply the refinements for them. I want it to be an invariant that the i32 value is &gt;= 0. How would I do this?</p>
+</blockquote>
+<p>With flux, you can define the <code>Positivei32</code> type as follows:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(n: int)]
+#[invariant(n &gt; 0)]
+struct Positivei32 {
+  #[field(i32[n])]
+  val: i32
+}</code></pre></pre>
+<p>In addition to defining the plain Rust type <code>Positivei32</code>,
+the flux refinements say <em>three</em> distinct things.</p>
+<ol>
+<li>The <code>refined_by(n: int)</code> tells flux to refine each
+<code>Positivei32</code> with a special <code>int</code>-sorted <em>index</em> named <code>n</code>,</li>
+<li>the <code>invariant(n &gt; 0)</code> says that the index <code>n</code>
+is always positive, and,</li>
+<li>the <code>field</code> attribute on <code>val</code> says that the
+type of the field <code>val</code> is an <code>i32[n]</code>
+i.e. is an <code>i32</code> whose exact value is <code>n</code>.</li>
+</ol>
+<!-- SLIDE -->
+<h3 id="creating-positive-integers"><a class="header" href="#creating-positive-integers">Creating Positive Integers</a></h3>
+<p>Now, you would create a <code>Positivei32</code> pretty much as you might in Rust:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Positivei32)]
+fn mk_positive_1() -&gt; Positivei32 {
+  Positivei32 { val: 1 }
+}</code></pre></pre>
+<p>and flux will prevent you from creating an <em>illegal</em> <code>Positivei32</code>, like</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Positivei32)]
+fn mk_positive_0() -&gt; Positivei32 {
+  Positivei32 { val: 0 }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="a-constructor"><a class="header" href="#a-constructor">A Constructor</a></h3>
+<p><strong>EXERCISE</strong> Consider the following <code>new</code> constructor for <code>Positivei32</code>. Why does flux reject it?
+Can you figure out how to fix the <code>spec</code> for the constructor so flux will be appeased?</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Positivei32 {
+  pub fn new(val: i32) -&gt; Self {
+    Positivei32 { val }
+  }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="a-smart-constructor"><a class="header" href="#a-smart-constructor">A "Smart" Constructor</a></h3>
+<p><strong>EXERCISE</strong> Here is a different, constructor that should work
+for <em>any</em> input <code>n</code> but which may return <code>None</code> if the input is
+invalid. Can you fix the code so that flux accepts <code>new_opt</code>?</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Positivei32 {
+  pub fn new_opt(val: i32) -&gt; Option&lt;Self&gt; {
+      Some(Positivei32 { val })
+  }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="tracking-the-field-value"><a class="header" href="#tracking-the-field-value">Tracking the Field Value</a></h3>
+<p>In addition to letting us constrain the underlying <code>i32</code> to be positive,
+the <code>n: int</code> index lets flux precisely <em>track</em> the value of the <code>Positivei32</code>.
+For example, we can say that the following function returns a very specific <code>Positivei32</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Positivei32[{n:10}])]
+fn mk_positive_10() -&gt; Positivei32 {
+  Positivei32 { val: 10 }
+}</code></pre></pre>
+<p>(When there is a single index, we can just write <code>Positivei32[10]</code>.)</p>
+<p>Since the field <code>val</code> corresponds to the <em>tracked index</em>,
+flux "knows" what <code>val</code> is from the index, and hence lets us check that</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; i32[10])]
+fn test_ten() -&gt; i32 {
+    let p = mk_positive_10(); // p   : Positivei32[{n: 10}]
+    let res = p.val;          // res : i32[10]
+    res
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="tracking-the-value-in-the-constructor"><a class="header" href="#tracking-the-value-in-the-constructor">Tracking the Value in the Constructor</a></h3>
+<p><strong>EXERCISE</strong> Scroll back up, and modify the <code>spec</code> for <code>new</code>
+so that the below code verifies. That is, modify the <code>spec</code>
+so that it says what the value of <code>val</code> is when <code>new</code> returns
+a <code>Positivei32</code>. You will likely need to <em>combine</em> indexes
+and constraints as shown in <a href="tutorial/./01-refinements.html#combining-indexes-and-constraints">the example <code>add_points</code></a>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; i32[99])]
+fn test_new() -&gt; i32 {
+    let p = Positivei32::new(99);
+    let res = p.val;
+    res
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="field-vs-index"><a class="header" href="#field-vs-index">Field vs. Index?</a></h3>
+<p>At this point, you might be wondering why, since <code>n</code> is the value of the field <code>val</code>,
+we didn't just name the index <code>val</code> instead of <code>n</code>?</p>
+<p>Indeed, we could have named it <code>val</code>.</p>
+<p>However, we picked a different name to emphasize that the index is <em>distinct from</em>
+the field. The field actually exists at run-time, but in contrast, the index is a
+<em>type-level property</em> that only lives at compile-time.</p>
+<!-- SLIDE -->
+<h2 id="integers-in-a-range"><a class="header" href="#integers-in-a-range">Integers in a Range</a></h2>
+<p>Of course, once we can index and constrain a single field, we can do so for many fields.</p>
+<p>For instance, suppose we wanted to write a <code>Range</code> type with two fields <code>start</code> and <code>end</code>
+which are integers such that <code>start &lt;= end</code>. We might do so as</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(start: int, end: int)]
+#[invariant(start &lt;= end)]
+struct Range {
+  #[field(i32[start])]
+  start: i32,
+  #[field(i32[end])]
+  end: i32,
+}</code></pre></pre>
+<p>Note that this time around, we're using the <em>same names</em> for the index as the field
+names (even though they are conceptually distinct things).</p>
+<!-- SLIDE -->
+<h3 id="legal-ranges"><a class="header" href="#legal-ranges">Legal Ranges</a></h3>
+<p>Again, the refined <code>struct</code> specification will ensure we only create legal <code>Range</code> values.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_range() {
+    vec![
+        Range { start: 0, end: 10 }, // ok
+        Range { start: 15, end: 5 }, // rejected!
+    ];
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="a-range-constructor"><a class="header" href="#a-range-constructor">A Range Constructor</a></h3>
+<p><strong>EXERCISE</strong> Fix the specification of the <code>new</code>
+constructor for <code>Range</code> so that both <code>new</code> and
+<code>test_range_new</code> are accepted by flux. (Again,
+you will need to <em>combine</em> indexes and constraints
+as shown in <a href="tutorial/./01-refinements.html#combining-indexes-and-constraints">the example <code>add_points</code></a>.)</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Range {
+    pub fn new(start: i32, end: i32) -&gt; Self {
+        Range { start, end }
+    }
+}
+
+#[spec(fn() -&gt; Range[{start: 0, end: 10}])]
+fn test_range_new() -&gt; Range {
+    let rng = Range::new(0, 10);
+    assert(rng.start == 0);
+    assert(rng.end == 10);
+    rng
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="combining-ranges"><a class="header" href="#combining-ranges">Combining Ranges</a></h3>
+<p>Lets write a function that computes the <em>union</em> of two ranges.
+For example, given the range from <code>10-20</code> and <code>15-25</code>, we might
+want to return the the union is <code>10-25</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn min(x:i32, y:i32) -&gt; i32 {
+  if x &lt; y { x } else { y }
+}
+
+fn max(x:i32, y:i32) -&gt; i32 {
+  if x &lt; y { y } else { x }
+}
+
+fn union(r1: Range, r2: Range) -&gt; Range {
+  let start = min(r1.start, r2.start);
+  let end = max(r2.end, r2.end);
+  Range { start, end }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Can you figure out how to fix the <code>spec</code> for <code>min</code> and <code>max</code>
+so that flux will accept that <code>union</code> only constructs legal <code>Range</code> values?</p>
+<!-- SLIDE -->
+<h2 id="refinement-functions"><a class="header" href="#refinement-functions">Refinement Functions</a></h2>
+<p>When <em>code</em> get's more complicated, we like to abstract it into reusable
+functions. Flux lets us do the same for refinements too. For example, we
+can define refinement-level functions <code>min</code> and <code>max</code> which take <code>int</code>
+(not <code>i32</code> or <code>usize</code> but logical <code>int</code>) as input and return that as output.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn min(x: int, y: int) -&gt; int {
+        if x &lt; y { x } else { y }
+    }
+    fn max(x: int, y: int) -&gt; int {
+        if x &lt; y { y } else { x }
+    }
+}</code></pre></pre>
+<p>We can now use refinement functions like <code>min</code> and <code>max</code> inside types.
+For example, the output type of <code>decr</code> precisely tracks the decremented value.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Positivei32 {
+  #[spec(fn(&amp;Self[@p]) -&gt; Self[max(1, p.n - 1)])]
+  fn decr(&amp;self) -&gt; Self {
+    let val = if self.val &gt; 1 { self.val - 1 } else { self.val };
+    Positivei32 { val }
+  }
+}
+
+fn test_decr() {
+  let p = Positivei32{val: 2}; // p : Positivei32[2]
+  assert(p.val == 2);
+  let p = p.decr();            // p : Positivei32[1]
+  assert(p.val == 1);
+  let p = p.decr();            // p : Positivei32[1]
+  assert(p.val == 1);
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="combining-ranges-precisely"><a class="header" href="#combining-ranges-precisely">Combining Ranges, Precisely</a></h3>
+<p><strong>EXERCISE</strong> The <code>union</code> function that we wrote
+above says <em>some</em> <code>Range</code> is returned, but nothing
+about <em>what</em> that range actually is! Fix the <code>spec</code>
+for <code>union</code> below, so that flux accepts <code>test_union</code> below.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Range {
+  #[spec(fn(&amp;Self[@r1], &amp;Self[@r2]) -&gt; Self)]
+  pub fn union(&amp;self, other: &amp;Range) -&gt; Range {
+    let start = if self.start &lt; other.start {
+        self.start
+    } else {
+        other.start
+    };
+    let end = if self.end &lt; other.end {
+        other.end
+    } else {
+        self.end
+    };
+    Range { start, end }
+  }
+}
+
+fn test_union() {
+  let r1 = Range { start: 10, end: 20 };
+  let r2 = Range { start: 15, end: 25 };
+  let r3 = r1.union(&amp;r2);
+  assert(r3.start == 10);
+  assert(r3.end == 25);
+}</code></pre></pre>
+<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
+<p>To conclude, we saw how you can use flux to refine user-defined <code>struct</code> to track,
+at the type-level, the values of fields, and to then constrain the sets of <em>legal</em>
+values for those structs.</p>
+<p>To see a more entertaining example, <a href="https://github.com/flux-rs/flux/blob/f200714dfae5e7c9a3bdf7231191499f56aac45b/tests/tests/pos/surface/date.rs">check out this code</a>
+which shows how we can use refinements to ensure that only legal <code>Date</code>s can be constructed
+at compile time!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="refining-enums"><a class="header" href="#refining-enums">Refining Enums</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;
+
+#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}</code></pre></pre>
+<p><a href="tutorial/./03-structs.html">Previously</a> we saw how to refine structs to constrain the space
+of legal values, for example, to define a <code>Positivei32</code> or a <code>Range</code> <code>struct</code> where
+the <code>start</code> was less than or equal to the <code>end</code>. Next, lets see how the same mechanism
+can be profitably used to let us check properties of <code>enums</code> at compile time.</p>
+<!-- SLIDE -->
+<h2 id="failure-is-an-option"><a class="header" href="#failure-is-an-option">Failure is an Option</a></h2>
+<p>Rust's type system is really terrific for spotting all
+manner of bugs at compile time. However, that just makes
+it all the more disheartening to get runtime errors like</p>
+<pre><code>thread ... panicked at ... called `Option::unwrap()` on a `None` value
+</code></pre>
+<p>Lets see how to refine <code>enum</code>'s like <code>Option</code> to
+let us <code>unwrap</code> without the anxiety of run-time failure.</p>
+<!-- SLIDE -->
+<h3 id="a-refined-option"><a class="header" href="#a-refined-option">A Refined Option</a></h3>
+<p>To do so, lets define a custom <code>Option</code> type <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> that
+is indexed by a <code>bool</code> which indicates whether or not
+the option is valid (i.e. <code>Some</code> or <code>None</code>):</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(valid: bool)]
+enum Option&lt;T&gt; {
+    #[variant((T) -&gt; Option&lt;T&gt;[{valid: true}])]
+    Some(T),
+    #[variant(Option&lt;T&gt;[{valid: false}])]
+    None,
+}</code></pre></pre>
+<p>As with <code>std::option::Option</code>, we have two variants</p>
+<ul>
+<li><code>Some</code>, with the "payload" <code>T</code> and</li>
+<li><code>None</code>, without.</li>
+</ul>
+<p>However, we have tricked out the type in two ways.</p>
+<ul>
+<li>First, we added a <code>bool</code> sorted index that aims to track whether the option is <code>valid</code>;</li>
+<li>Second, we used the <code>variant</code> attribute to specify the value of the index for the <code>Some</code> and <code>None</code> cases.</li>
+</ul>
+<!-- SLIDE -->
+<h3 id="constructing-options"><a class="header" href="#constructing-options">Constructing Options</a></h3>
+<p>The definition above tells flux that <code>Some(...)</code>
+has the refined type <code>Option&lt;...&gt;[{valid: true}]</code>,
+and <code>None</code> has the refined type <code>Option&lt;...&gt;[{valid: false}]</code>.</p>
+<p><strong>NOTE</strong> When there is a <em>single</em> refinement index, we can skip the <code>{valid:b}</code>
+and just write <code>b</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn () -&gt; Option&lt;i32&gt;[true])]
+fn test_some() -&gt; Option&lt;i32&gt; {
+  Option::Some(12)
+}
+
+#[spec(fn () -&gt; Option&lt;i32&gt;[false])]
+fn test_none() -&gt; Option&lt;i32&gt; {
+  Option::None
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="destructing-options-by-pattern-matching"><a class="header" href="#destructing-options-by-pattern-matching">Destructing Options by Pattern Matching</a></h3>
+<p>The neat thing about refining variants is that <em>pattern matching</em>
+on the <code>enum</code> tells flux what the variant's refinements are.</p>
+<p>For example, consider the following implementation of <code>is_some</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T&gt; Option&lt;T&gt; {
+  #[spec(fn(&amp;Self[@valid]) -&gt; bool[valid])]
+  pub fn is_some(&amp;self) -&gt; bool {
+    match self {
+      Option::Some(_) =&gt; true,  // self : &amp;Option&lt;..&gt;[true]
+      Option::None =&gt; false,    // self : &amp;Option&lt;..&gt;[false]
+    }
+  }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="never-do-this"><a class="header" href="#never-do-this">Never Do This!</a></h3>
+<p>When working with <code>Option</code> types, or more generally,
+with <code>enum</code>s, we often have situations in pattern-match
+cases where we "know" that that case will not arise.</p>
+<p>Typically we mark those cases with an <code>unreachable!()</code> call.</p>
+<p>With flux, we can do even more: we can <em>prove</em>, at compile-time,
+that those cases will never, in fact, be executed.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn () -&gt; _ requires false)]
+fn unreachable() -&gt; ! {
+    assert(false);  // flux will prove this is unreachable
+    unreachable!(); // panic if we ever get here
+}</code></pre></pre>
+<p>The <em>precondition</em> <code>false</code> ensures that the <em>only</em> way that
+a call to <code>unreachable</code> can be verified is when flux can prove
+that the call-site is "dead code".</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_unreachable(n: usize) {
+  let x = 12;           // x : usize[12]
+  let x = 12 + n;       // x : usize[12 + n] where 0 &lt;= n
+  if x &lt; 12 {
+    unreachable();      // impossible, as x &gt;= 12
+  }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="unwrap-without-anxiety"><a class="header" href="#unwrap-without-anxiety">Unwrap Without Anxiety!</a></h3>
+<p>Lets use our refined <code>Option</code> to implement a safe <code>unwrap</code> function.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl &lt;T&gt; Option&lt;T&gt; {
+  #[spec(fn(Self[true]) -&gt; T)]
+  pub fn unwrap(self) -&gt; T {
+    match self {
+      Option::Some(v) =&gt; v,
+      Option::None =&gt; unreachable(),
+    }
+  }
+}</code></pre></pre>
+<p>The <code>spec</code> requires that <code>unwrap</code> is <em>only</em> called
+with an <code>Option</code> whose (<code>valid</code>) index is <code>true</code>,
+i.e. <code>Some(...)</code>.</p>
+<p>The <code>None</code> pattern is matched only when the index
+is <code>false</code> which is impossible, as it contradicts
+the precondition.</p>
+<p>Hence, flux concludes that pattern is dead code
+(like the <code>x &lt; 12</code> branch is dead code in the
+<code>test_unreachable</code> above.)</p>
+<!-- SLIDE -->
+<h2 id="using-unwrap"><a class="header" href="#using-unwrap">Using <code>unwrap</code></a></h2>
+<p>Next, lets see some examples of how to use refined options
+to safely <code>unwrap</code>.</p>
+<!-- SLIDE -->
+<h3 id="safe-division"><a class="header" href="#safe-division">Safe Division</a></h3>
+<p>Here's a safe divide-by-zero function that returns an <code>Option&lt;i32&gt;</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(n:i32, k:i32) -&gt; Option&lt;i32&gt;)]
+pub fn safe_divide(n: i32, k: i32) -&gt; Option&lt;i32&gt; {
+  if k &gt; 0 {
+    Option::Some(n / k)
+  } else {
+    Option::None
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Why does the test below fail to type check?
+Can you fix the <code>spec</code> for <code>safe_divide</code> so flux is happy
+with <code>test_safe_divide</code>?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_safe_divide() -&gt; i32 {
+    safe_divide(10, 2).unwrap()
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="smart-constructors-revisited"><a class="header" href="#smart-constructors-revisited">Smart Constructors Revisited</a></h3>
+<p>Recall the <a href="tutorial/./03-structs.html#positive-integers"><code>struct Positivei32</code></a>
+and the smart constructor we wrote for it.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(n: int)]
+#[invariant(n &gt; 0)]
+struct Positivei32 {
+    #[field(i32[n])]
+    val: i32
+}
+
+impl Positivei32 {
+  #[spec(fn(val: i32) -&gt; Option&lt;Self&gt;)]
+  pub fn new(val: i32) -&gt; Option&lt;Self&gt; {
+    if val &gt; 0 {
+      Option::Some(Positivei32 { val })
+    } else {
+      Option::None
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> The code below has a function that
+invokes the smart constructor and then <code>unwrap</code>s
+the result. Why is flux complaining? Can you fix
+the <code>spec</code> of <code>new</code> so that the <code>test_unwrap</code> figure
+out how to fix the <code>spec</code> of <code>new</code> so that <code>test_new_unwrap</code>
+is accepted?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_new_unwrap() {
+    Positivei32::new(10).unwrap();
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="typestates-a-refined-timer"><a class="header" href="#typestates-a-refined-timer">TypeStates: A Refined Timer</a></h2>
+<p>Lets look a different way to use refined <code>enum</code>s.
+On the <a href="https://flux-rs.zulipchat.com/#narrow/channel/486098-general/topic/greetings/near/509911720">flux zulip</a> we were asked
+if we could write an <code>enum</code> to represent a <code>Timer</code>
+with two variants:</p>
+<ul>
+<li><code>Inactive</code> indicating that the timer is not running, and</li>
+<li><code>CountDown(n)</code> indicating that the timer is counting down from <code>n</code> seconds.</li>
+</ul>
+<p>Somehow using refinements to ensure that the timer can only
+be set to <code>Inactive</code> when <code>n &lt; 1</code>.</p>
+<!-- SLIDE -->
+<h3 id="refined-timers"><a class="header" href="#refined-timers">Refined Timers</a></h3>
+<p>To do so, lets define the <code>Timer</code>, refined with an <code>int</code> index that tracks
+the number of remaining seconds.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux::refined_by(remaining: int)]
+enum Timer {
+    #[flux::variant(Timer[0])]
+    Inactive,
+
+    #[flux::variant((usize[@n]) -&gt; Timer[n])]
+    CountDown(usize)
+}</code></pre></pre>
+<p>The flux definitions ensure that <code>Timer</code> has two variants</p>
+<ul>
+<li><code>Inactive</code>, which has a <code>remaining</code> index of <code>0</code>, and</li>
+<li><code>CountDown(n)</code>, which has a <code>remaining</code> index of <code>n</code>.</li>
+</ul>
+<!-- SLIDE -->
+<h3 id="timer-implementation"><a class="header" href="#timer-implementation">Timer Implementation</a></h3>
+<p>We can now implement the <code>Timer</code> with a constructor and a method to set it to <code>Inactive</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Timer {
+    #[spec(fn (n: usize) -&gt; Timer[n])]
+    pub fn new(n: usize) -&gt; Self {
+       Timer::CountDown(n)
+    }
+
+    #[spec(fn (self: &amp;mut Self[0]))]
+    fn deactivate(&amp;mut self) {
+        *self = Timer::Inactive
+    }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="deactivate-the-timer"><a class="header" href="#deactivate-the-timer">Deactivate the Timer</a></h3>
+<p>Now, you can see that flux will only let us <code>set_inactive</code>
+a timer whose countdown is at <code>0</code>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn test_deactivate() {
+  let mut t0 = Timer::new(0);
+  t0.deactivate(); // verifies
+
+  let mut t3 = Timer::new(3);
+  t3.deactivate(); // rejected
+}
+<span class="boring">}</span></code></pre></pre>
+<!-- SLIDE -->
+<h3 id="ticking-the-timer"><a class="header" href="#ticking-the-timer">Ticking the Timer</a></h3>
+<p>Here is a function to <code>tick</code> the timer down by one second.</p>
+<!-- // #[spec(fn (self: &mut Self[@s]) ensures self: Self[if n > 1 then n-1 else 0])] -->
+<pre><pre class="playground"><code class="language-rust  editable">impl Timer {
+  #[spec(fn (self: &amp;mut Self[@s]) ensures self: Self)]
+  fn tick(&amp;mut self) {
+    match self {
+      Timer::CountDown(s) =&gt; {
+        let n = *s;
+        if n &gt; 0 {
+          *s = n - 1;
+        }
+      }
+      Timer::Inactive =&gt; {},
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Can you fix the <code>spec</code> for <code>tick</code> so that flux accepts the following test?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_tick() {
+  let mut t = Timer::new(3);
+  t.tick();       // should decrement to 2
+  t.tick();       // should decrement to 1
+  t.tick();       // should decrement to 0
+  t.deactivate(); // should set to Inactive
+}</code></pre></pre>
+<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
+<p>In this chapter, we saw how you refine an <code>enum</code> with indices, and then specify
+the values of the indices for each <code>variant</code>. This let us, for example, determine
+whether an <code>Option</code> is <code>Some</code> or <code>None</code> at compile time, and to safely <code>unwrap</code>
+the former, and to encode a "typestate" mechanism for a <code>Timer</code> that tracks how
+many seconds remain in a countdown, ensuring we only <code>deactivate</code> when the timer
+has expired.</p>
+<p>You can do various other fun things, like</p>
+<ul>
+<li>track the <a href="https://github.com/flux-rs/flux/blob/main/tests/tests/pos/enums/list00.rs">length</a> of a linked list or</li>
+<li>track the set of <a href="https://github.com/flux-rs/flux/blob/main/tests/tests/pos/enums/list01.rs">elements</a> in the list, or</li>
+<li>determine whether an expression is in <a href="tutorial/./10-case-study-anf.html">normal form</a>, or</li>
+<li>ensure the layers of a <a href="tutorial/./12-case-study-neural.html">neural network</a>
+are composed correctly.</li>
+</ul>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>In the chapter on <a href="tutorial/06-extern-specs.html">extern specifications</a> we will explain how to "retrofit" these refinements onto the existing <code>std::option::Option</code> type. <a href="#fr-1-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="opaque-types-refined-vectors"><a class="header" href="#opaque-types-refined-vectors">Opaque Types: Refined Vectors</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::attrs::*;
+
+#[flux_rs::spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}</code></pre></pre>
+<p><a href="https://flux.goto.ucsd.edu/index.html#?demo=vectors.rs">Online demo</a></p>
+<p>While <code>rustc</code> has a keen eye for spotting nasty bugs at
+compile time, it is not omniscient. We've all groaned in
+dismay at seeing deployed code crash with messages like</p>
+<pre><code>panicked at 'index out of bounds: the len is ... but the index is ...'
+</code></pre>
+<p>Next, lets see how flux's <a href="tutorial/./01-refinements.html">refinement</a>
+and <a href="tutorial/./02-ownership.html">ownership</a> mechanisms let us write
+a <em>refined vector</em> API whose types track vector sizes and
+ensure --- at compile time --- that vector accesses cannot
+fail at runtime.</p>
+<!-- SLIDE -->
+<h2 id="refining-vectors-"><a class="header" href="#refining-vectors-">Refining Vectors ...</a></h2>
+<p>To track sizes, lets define a <code>struct</code> that
+is just a <em>wrapper</em> around the <code>std::vec::Vec</code>
+type, but with a refinement index that tracks
+the size of the vector.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[opaque]
+#[refined_by(len: int)]
+pub struct RVec&lt;T&gt; {
+    inner: Vec&lt;T&gt;,
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="-to-track-their-size"><a class="header" href="#-to-track-their-size">... to Track their Size</a></h3>
+<p>As <a href="tutorial/./03-structs.html">with other structs</a> we're using <code>refined_by</code>
+to <em>index</em> the <code>RVec</code> with an <code>int</code> value (that will represent
+the vector's length.)</p>
+<p>The idea is that</p>
+<ul>
+<li><code>RVec&lt;i32&gt;[10]</code> represents a vector of <code>i32</code> size 10, and</li>
+<li><code>RVec&lt;bool&gt;{v:0 &lt; v}</code> represents a <em>non-empty</em> vector of <code>bool</code>, and</li>
+<li><code>RVec&lt;RVec&lt;f32&gt;[n]&gt;[m]</code> represents a vector of vectors of <code>f32</code> of size <code>m</code> and
+<em>each of</em> whose elements is a vector of size <code>n</code>.</li>
+</ul>
+<!-- SLIDE -->
+<h3 id="-but-opaquely"><a class="header" href="#-but-opaquely">... but <em>Opaquely</em></a></h3>
+<p>The <code>opaque</code> attribute tells flux that we're not
+going to <em>directly</em> connect the <code>len</code> to any of
+the <code>RVec</code>'s fields' values.</p>
+<p>This is quite <em>unlike</em> <a href="tutorial/./03-structs.html"><code>Positivei32</code> example</a>
+where the index held the actual value of the field,
+or the [<code>Timer</code> example)(./04-enums.md) where the
+index held the value of the countdown.</p>
+<p>Instead, with an <em>opaque</em> <code>struct</code> the idea is that the value
+of the index will be tracked solely by the API for that struct.</p>
+<p>Next, lets see how to build such an API for creating and
+manipulating <code>RVec</code>, where the length is precisely tracked
+in the index.</p>
+<!-- SLIDE -->
+<h3 id="creating-vectors"><a class="header" href="#creating-vectors">Creating Vectors</a></h3>
+<p>I suppose one must start with nothing: the empty vector.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T&gt; RVec&lt;T&gt; {
+    #[spec(fn() -&gt; RVec&lt;T&gt;[0])]
+    pub fn new() -&gt; Self {
+        Self { inner: Vec::new() }
+    }
+}</code></pre></pre>
+<p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
+The <code>#[trusted]</code> attribute tells flux to <em>not check</em> this code,
+i.e. to simply <em>trust</em> that the specification is correct.
+Indeed, flux <em>cannot</em> check this code.</p>
+<p>If you remove the <code>#trusted</code> (do it!) then flux will
+complain that you <em>cannot</em> access the <code>inner</code> field
+of the opaque <code>struct</code>!</p>
+<p>So the only way to use an <code>RVec</code> is to define a "trusted" API,
+and then use that in client code, where for example, callers
+of <code>RVec::new</code> get back an <code>RVec</code> indexed with <code>0</code> : the empty vector.</p>
+<!-- SLIDE -->
+<h3 id="pushing-values"><a class="header" href="#pushing-values">Pushing Values</a></h3>
+<p>An empty vector is a rather desolate thing.</p>
+<p>To be of any use, we need to be able to <code>push</code>
+values into it, like so</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T&gt; RVec&lt;T&gt; {
+    #[spec(fn(self: &amp;mut RVec&lt;T&gt;[@n], T) ensures self: RVec&lt;T&gt;[n+1])]
+    pub fn push(&amp;mut self, item: T) {
+        self.inner.push(item);
+    }
+}</code></pre></pre>
+<p>The refined type for <code>push</code> says that it takes a <a href="tutorial/./02-ownership.html#borrowing-updatable-references"><em>updatable</em> reference</a> to an <code>RVec&lt;T&gt;</code> of size <code>n</code> and, a value <code>T</code>
+and ensures that upon return, the size of <code>self</code> is increased by <code>1</code>.</p>
+<h3 id="creating-a-vector-with-push"><a class="header" href="#creating-a-vector-with-push">Creating a Vector with <code>push</code></a></h3>
+<p>Lets test that the types are in fact tracking sizes.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn () -&gt; RVec&lt;i32&gt;[3])]
+fn test_push() -&gt; RVec&lt;i32&gt; {
+    let mut v = RVec::new(); // v: RVec&lt;i32&gt;[0]
+    v.push(1);               // v: RVec&lt;i32&gt;[1]
+    v.push(2);               // v: RVec&lt;i32&gt;[2]
+    v.push(3);               // v: RVec&lt;i32&gt;[3]
+    v
+}</code></pre></pre>
+<p><strong>EXERCISE</strong>: Can you correctly implement the code
+for <code>zeros</code> so that it typechecks?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(n: usize) -&gt; RVec&lt;i32&gt;[n])]
+fn zeros(n:usize) -&gt; RVec&lt;i32&gt; {
+    let mut v = RVec::new(); // v: RVec&lt;i32&gt;[0]
+    let mut i = 0;
+    while i &lt;= n {
+        v.push(0);           // v: RVec&lt;i32&gt;[i]
+        i += 1;
+    }
+    v
+}</code></pre></pre>
+<h3 id="popping-values"><a class="header" href="#popping-values">Popping Values</a></h3>
+<p>Not much point stuffing things into a vector if we can't get them out again.
+For that, we might implement a <code>pop</code> method that returns the <em>last</em> element
+of the vector.</p>
+<p>Aha, but what if the vector is empty? You <em>could</em> return an
+<code>Option&lt;T&gt;</code> <em>or</em> since we're tracking sizes, we could
+<em>require</em> that <code>pop</code> only be called with non-empty vectors.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T&gt; RVec&lt;T&gt; {
+    #[spec(fn(self: &amp;mut {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+           ensures self: RVec&lt;T&gt;[n-1])]
+    pub fn pop(&amp;mut self) -&gt; T {
+      self.inner.pop().unwrap()
+    }
+}</code></pre></pre>
+<p>Note that unlike <code>push</code> which works for <em>any</em> <code>RVec&lt;T&gt;[@n]</code>, the <code>pop</code>
+method requires that <code>0 &lt; n</code> i.e. that the vector is <em>not</em> empty.</p>
+<h3 id="using-the-pushpop-api"><a class="header" href="#using-the-pushpop-api">Using the <code>push/pop</code> API</a></h3>
+<p>Now already <code>flux</code> can start checking some code, for example if you <code>push</code> two
+elements, then you can <code>pop</code> twice, but flux will reject the third <code>pop</code> at
+compile-time</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_push_pop() {
+    let mut vec = RVec::new();   // vec: RVec&lt;i32&gt;[0]
+    vec.push(10);                // vec: RVec&lt;i32&gt;[1]
+    vec.push(20);                // vec: RVec&lt;i32&gt;[2]
+    vec.pop();                   // vec: RVec&lt;i32&gt;[1]
+    vec.pop();                   // vec: RVec&lt;i32&gt;[0]
+    vec.pop();                   // rejected!
+}</code></pre></pre>
+<p>In fact, the error message from <code>flux</code> will point to exact condition that
+does not hold</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+   |
+24 |     v.pop();
+   |     ^^^^^^^ call site
+   |
+   = note: a precondition cannot be proved at this call site
+note: this is the condition that cannot be proved
+   |
+78 |     #[spec(fn(self: &amp;mut{RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
+   |                                        ^^^^^
+<span class="boring">}</span></code></pre></pre>
+<!--
+We can use `push` to implement an `rvec!` macro for constructing vectors
+and then test that lengths are tracked correctly
+
+<img src="tutorial/../img/test_macro_pop.gif" width="100%"> -->
+<!-- SLIDE -->
+<h3 id="querying-the-size"><a class="header" href="#querying-the-size">Querying the Size</a></h3>
+<p>Perhaps we should <em>peek</em> at the size of the vector
+to make sure its not empty <em>before</em> we <code>pop</code> it.</p>
+<p>We can do that by writing a <code>len</code> method that returns
+a <code>usize</code> corresponding to (and hence, by indexed by)
+the size of the input vector</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[flux_rs::trusted]
+impl&lt;T&gt; RVec&lt;T&gt; {
+    #[spec(fn(&amp;RVec&lt;T&gt;[@vec]) -&gt; usize)]
+    pub fn len(&amp;self) -&gt; usize {
+        self.inner.len()
+    }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Can you fix the <code>spec</code> for <code>len</code> so that the code below
+verifies, i.e. so that flux "knows" that</p>
+<ul>
+<li>after two <code>push</code>es, the value returned by <code>.len()</code> is exactly <code>2</code>, and</li>
+<li>after two <code>pop</code>s the size is <code>0</code> again.</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_len() {
+    let mut vec = RVec::new();
+    vec.push(10);
+    vec.push(20);
+    assert(vec.len() == 2);
+    vec.pop();
+    vec.pop();
+    assert(vec.len() == 0);
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="random-access"><a class="header" href="#random-access">Random Access</a></h2>
+<p>Of course, vectors are not just <em>stacks</em>, they also allow
+<em>random</em> access to their elements which is where those
+pesky panics occur, and where the refined vector API
+gets rather useful.</p>
+<p>Now that we're tracking sizes, we can <em>require</em>
+that the method to <code>get</code> an element only be called
+with a <em>valid index</em> less than the vector's size</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T&gt; RVec&lt;T&gt; {
+    #[spec(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
+    pub fn get(&amp;self, i: usize) -&gt; &amp;T {
+        &amp;self.inner[i]
+    }
+
+    #[spec(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
+    pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
+        &amp;mut self.inner[i]
+    }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="summing-the-elements-of-an-rvec"><a class="header" href="#summing-the-elements-of-an-rvec">Summing the Elements of an <code>RVec</code></a></h3>
+<p><strong>EXERCISE</strong> Can you spot and fix the <em>off-by-one</em> error
+in the code below which loops over the elements
+of an <code>RVec</code> and sums them up? <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
+<pre><pre class="playground"><code class="language-rust  editable">fn sum_vec(vec: &amp;RVec&lt;i32&gt;) -&gt; i32 {
+    let mut res = 0;
+    let mut i = 0;
+    while i &lt;= vec.len() {
+        res += vec.get(i);
+        i += 1;
+    }
+    sum
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="using-the-index-trait"><a class="header" href="#using-the-index-trait">Using the <code>Index</code> trait</a></h3>
+<p>Its a bit of an eyesore to to use <code>get</code> and <code>get_mut</code> directly.</p>
+<p>Instead lets implement the <code>Index</code> and <code>IndexMut</code>
+traits for <code>RVec</code> which allows us to use the <code>[..]</code>
+operator to access elements</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
+    type Output = T;
+    #[spec(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
+    fn index(&amp;self, index: usize) -&gt; &amp;T {
+        self.get(index)
+    }
+}
+
+impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
+    #[spec(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
+    fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
+        self.get_mut(index)
+    }
+}</code></pre></pre>
+<!-- SLIDE -->
+<h3 id="summing-nicely"><a class="header" href="#summing-nicely">Summing Nicely</a></h3>
+<p>Now the above <code>vec_sum</code> example looks a little nicer</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn sum_vec_fixed(vec: &amp;RVec&lt;i32&gt;) -&gt; i32 {
+    let mut res = 0;
+    let mut i = 0;
+    while i &lt; vec.len() {
+        res += vec[i]
+        i += 1;
+    }
+    sum
+}</code></pre></pre>
+<!-- SLIDE -->
+<h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
+<p>Lets put the whole API to work in this "memoized" version of the fibonacci
+function which uses a vector to store the results of previous calls</p>
+<pre><pre class="playground"><code class="language-rust  editable">pub fn fib(n: usize) -&gt; i32 {
+    let mut r = RVec::new();
+    let mut i = 0;
+    while i &lt; n {
+        if i == 0 {
+            r.push(0);
+        } else if i == 1 {
+            r.push(1);
+        } else {
+            let a = r[i - 1];
+            let b = r[i - 2];
+            r.push(a + b);
+        }
+        i += 1;
+    }
+    r.pop()
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Flux is unhappy with the <code>pop</code> at the end of the function
+which returns the <em>last</em> value as the result: it thinks the vector
+<em>may be empty</em> and so the <code>pop</code> call may fail ... Can you spot and fix
+the problem?</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+  --&gt; src/vectors.rs:40:5
+   |
+40 |     r.pop()
+   |     ^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<!-- Indeed, we missed a "corner" case -- when `n` is `0` we skip the loop and
+so the vector is empty! Once we add a test for that, flux is happy.
+
+<img src="tutorial/../img/fib.gif" width="100%"> -->
+<!-- SLIDE -->
+<h2 id="binary-search"><a class="header" href="#binary-search">Binary Search</a></h2>
+<p>As a last example, lets look at a simplified version of the
+<a href="https://doc.rust-lang.org/src/core/slice/mod.rs.html#2423-2425"><code>binary_search</code> method from <code>std::vec</code></a>, into which
+we've snuck a tiny little bug</p>
+<pre><pre class="playground"><code class="language-rust  editable">pub fn binary_search(vec: &amp;RVec&lt;i32&gt;, x: i32) -&gt; Result&lt;usize, usize&gt; {
+    let mut size = vec.len();
+    let mut left = 0;
+    let mut right = size;
+    while left &lt;= right {
+        let mid = left + size / 2;
+        let val = vec[mid];
+        if val &lt; x {
+            left = mid + 1;
+        } else if x &lt; val {
+            right = mid;
+        } else {
+            return Ok(mid);
+        }
+        size = right - left;
+    }
+    Err(left)
+}</code></pre></pre>
+<p>Flux complains in <em>two</em> places</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>error[FLUX]: precondition might not hold
+   --&gt; src/vectors.rs:152:19
+    |
+152 |         let val = vec[mid];
+    |                   ^^^^^^^^ call site
+    |
+    = note: a precondition cannot be proved at this call site
+note: this is the condition that cannot be proved
+   --&gt; src/rvec.rs:189:44
+    |
+189 |     #[spec(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
+    |                                       ^^^^^
+
+error[FLUX]: arithmetic operation may overflow
+   --&gt; src/vectors.rs:160:9
+    |
+160 |         size = right - left;
+    |         ^^^^^^^^^^^^^^^^^^^
+<span class="boring">}</span></code></pre></pre>
+<ul>
+<li>
+<p>The vector access may be <em>unsafe</em> as <code>mid</code> could be out of bounds!</p>
+</li>
+<li>
+<p>The <code>size</code> variable may <em>underflow</em> as <code>left</code> may exceed <code>right</code>!</p>
+</li>
+</ul>
+<p><strong>EXERCISE</strong> Can you the spot off-by-one and figure out a fix?</p>
+<h2 id="summary-4"><a class="header" href="#summary-4">Summary</a></h2>
+<p>Well then. We just saw how Flux's index and constraint
+mechanisms combine with Rust's ownership to let us write
+a <em>refined vector API</em> that ensures the safety of all
+accesses at compile time.</p>
+<p>These mechanisms are <em>compositional</em> : we can use standard
+type machinery to build up compound structures and APIs from
+simple ones, as we will see when we use <code>RVec</code> to implment
+<a href="tutorial/./10-case-study-sparse.html">sparse matrices</a> and a small
+<a href="tutorial/./12-case-study-neural.html">neural network</a> library.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>Why not use an iterator? We'll get there in <a href="tutorial/./07-traits.html">due course</a>! <a href="#fr-1-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="const-generics"><a class="header" href="#const-generics">Const Generics</a></h1>
+<p><a href="https://flux.goto.ucsd.edu/index.html#?demo=arrays.rs">Online demo</a></p>
+<p>Rust has a built-in notion of <em>arrays</em> : collections of objects of
+the same type <code>T</code> whose size is known at compile time. The fact that
+the sizes are known allows them to be allocated contiguously in memory,
+which makes for fast access and manipulation.</p>
+<p>When I asked ChatGPT what arrays were useful for, it replied
+with several nice examples, including low-level systems programming (e.g.
+packets of data represented as <code>struct</code>s with array-valued fields), storing configuration data, or small sets of related values (e.g. RGB values for a pixel).</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>type Pixel = [u8; 3]; // RGB values
+
+let pix0: Pixel = [255,   0, 127];
+let pix1: Pixel = [  0, 255, 127];
+<span class="boring">}</span></code></pre></pre>
+<h2 id="compile-time-safety"><a class="header" href="#compile-time-safety">Compile-time Safety...</a></h2>
+<p>As the size of the array is known at compile time, Rust can make sure that
+we don't <em>create</em> arrays of the wrong size, or <em>access</em> them out of bounds.</p>
+<p>For example, <code>rustc</code> will grumble if you try to make a <code>Pixel</code> with 4 elements:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>   |
+52 | let pix2 : Pixel = [0,0,0,0];
+   |            -----   ^^^^^^^^^ expected an array with a fixed size of 3 elements, found one with 4 elements
+   |            |
+   |            expected due to this
+<span class="boring">}</span></code></pre></pre>
+<p>Similarly, <code>rustc</code> will wag a finger if you try to access a <code>Pixel</code> at an invalid index.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>   |
+54 |  let blue0 = pix0[3];
+   |              ^^^^^^^ index out of bounds: the length is 3 but the index is 3
+   |
+<span class="boring">}</span></code></pre></pre>
+<h2 id="-run-time-panic"><a class="header" href="#-run-time-panic">... Run-time Panic!</a></h2>
+<p>However, the plain type system works only upto a point. For example, consider the
+following function to compute the average <code>color</code> value of a collection of <code>&amp;[Pixel]</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn average_color(pixels: &amp;[Pixel], i: usize) -&gt; u64 {
+    let mut sum = 0;
+    for p in pixels {
+        sum += p[i] as u64;
+    }
+    sum / pixels.len() as u64
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now, <code>rustc</code> will not complain about the above code, even though it may panic if
+<code>color</code> is out of bounds (or of course, if the slice <code>pixels</code> is empty!).
+For example, the following code</p>
+<pre><pre class="playground"><code class="language-rust">fn main() {
+    let pixels = [ [255, 0, 0], [0, 255, 0], [0, 0, 255] ];
+    let avg = average(&amp;pixels, 3);
+    println!("Average: {}", avg);
+}</code></pre></pre>
+<p>panics at runtime:</p>
+<pre><code>thread 'main' panicked ... index out of bounds: the len is 3 but the index is 3
+</code></pre>
+<h2 id="refined-compile-time-safety"><a class="header" href="#refined-compile-time-safety">Refined Compile-time Safety</a></h2>
+<p>Fortunately, <code>flux</code> knows about the sizes of arrays and slices. At compile time,
+<code>flux</code> warns about two possible errors in <code>average_color</code></p>
+<img src="tutorial/../img/04-arrays-average-error.png" width="100%">
+<ol>
+<li>The index <code>i</code> may be out of bounds when accessing <code>p[i]</code> and</li>
+<li>The division can panic as <code>pixels</code> may be empty (i.e. have length <code>0</code>).</li>
+</ol>
+<p>We can fix these errors by requiring that the input</p>
+<ul>
+<li><code>i</code> be a valid color index, i.e. <code>i &lt; 3</code> and</li>
+<li><code>pixels</code> be non-empty, i.e. have size <code>n</code> where <code>n &gt; 0</code></li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[sig(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
+<span class="boring">}</span></code></pre></pre>
+<img src="tutorial/../img/04-arrays-average-fix.gif" width="100%">
+<h2 id="const-generics-1"><a class="header" href="#const-generics-1">Const Generics</a></h2>
+<p>Rust also lets us write arrays that are <em>generic</em> over the size. For example,
+suppose we want to take two input arrays <code>x</code> and <code>y</code> of the same size <code>N</code> and
+compute their dot product. We can write</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn dot&lt;const N:usize&gt;(x: [f32;N], y: [f32;N]) -&gt; f32 {
+    let mut sum = 0.0;
+    for i in 0..N {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<p>This is very convenient because <code>rustc</code> will prevent us from calling <code>dot</code> with
+arrays of different sizes, for example we get a compile-time error</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>   |
+68 |     dot([1.0, 2.0], [3.0, 4.0, 5.0]);
+   |     ---             ^^^^^^^^^^^^^^^ expected an array with a fixed size of 2 elements, found one with 3 elements
+   |     |
+   |     arguments to this function are incorrect
+   |
+<span class="boring">}</span></code></pre></pre>
+<p>However, suppose we wanted to compute the <code>dot</code> product of just the first <code>k</code> elements</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
+    let mut sum = 0.0;
+    for i in 0..k {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Now, unfortunately, <code>rustc</code> will not prevent us from calling <code>dot_k</code> with <code>k</code> set to a value that is too large!</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>thread 'main' panicked at ... index out of bounds: the len is 2 but the index is 2
+<span class="boring">}</span></code></pre></pre>
+<p>Yikes.</p>
+<h2 id="refined-const-generics"><a class="header" href="#refined-const-generics">Refined Const Generics</a></h2>
+<p>Fortunately, <code>flux</code> understands const-generics as well!</p>
+<p>First off, it warns us about the fact that the accesses with the index may be out of bounds.</p>
+<img src="tutorial/../img/04-arrays-dotk-error.png" width="100%">
+<p>We can fix it in two ways.</p>
+<ul>
+<li>The <strong>permissive</strong> approach is to accept any <code>k</code> but restrict the iteration to the valid elements</li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
+    let mut sum = 0.0;
+    let n = if k &lt; N { k } else { N };
+    for i in 0..n {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<img src="tutorial/../img/04-arrays-dotk-permissive.gif" width="100%">
+<ul>
+<li>The <strong>strict</strong> approach is to require that <code>k</code> be less than or equal to <code>N</code></li>
+</ul>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32)]
+fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
+    let mut sum = 0.0;
+    for i in 0..k {
+        sum += x[i] * y[i];
+    }
+    sum
+}
+<span class="boring">}</span></code></pre></pre>
+<img src="tutorial/../img/04-arrays-dotk-strict.gif" width="100%">
+<p>Do you understand why</p>
+<p>(1) Adding the type signature moved the error from the body of <code>dot_k</code> into the call-site inside <code>test</code>?
+(2) Then editing <code>test</code> to call <code>dot_k</code> with <code>k=2</code> fixed the error?</p>
+<h2 id="summary-5"><a class="header" href="#summary-5">Summary</a></h2>
+<p>Rust's (sized) arrays are great, and <code>flux</code>'s refinements make them even better,
+by ensuring indices are guaranteed to be within the arrays bounds. Const generics
+let us write functions that are polymorphic over array sizes, and again, refinements
+let us precisely track those sizes to prevent out-of-bounds errors!</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specifications-1"><a class="header" href="#flux-specifications-1">Flux Specifications</a></h1>
+<p>One day, this will be an actual user's guide, but for now,
+it is a WIP guide to writing specifications in <code>flux</code>, as
+illustrated by examples from the regression tests.</p>
 <h2 id="refinement-types"><a class="header" href="#refinement-types">Refinement Types</a></h2>
 <ul>
 <li>
@@ -371,187 +1883,8 @@ to specify that <code>y</code> must be greater than <code>x</code> using argumen
 <p><code>fn(x: i32, y: i32{x &gt; y}) -&gt; i32[x + y]</code></p>
 <p>This will desugar to:</p>
 <p><code>fn(i32[@x], {i32[@y] | x &gt; y}) -&gt; i32[x + y]</code></p>
-<h2 id="extern-specs"><a class="header" href="#extern-specs">Extern specs</a></h2>
-<p>Sometimes you may want to refine a struct or function that outside your code. We
-refer to such a specification as an "extern spec," which is short for "external
-specification."</p>
-<p>Currently, Flux supports extern specs for functions, structs, enums, traits and impls.
-The support is a bit rudimentary. For example, multiple impls for a struct (such as <code>&amp;[T]</code>
-and <code>[T]</code>) may conflict, and extern specs for structs only support opaque refinements.</p>
-<p>Extern specs are given using <code>extern_spec</code> attribute macro, which is provided
-by the procedural macros package <code>flux_rs</code>.</p>
-<pre><code>use flux_rs::extern_spec;
-</code></pre>
-<h3 id="extern-functions"><a class="header" href="#extern-functions">Extern functions</a></h3>
-<p>An example of refining an extern function can be found
-<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs">here</a>.</p>
-<p>To define an extern spec on a function, you need to do three things, which
-happen to correspond to each of the below lines.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[extern_spec(std::mem)]
-#[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
-fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);
-<span class="boring">}</span></code></pre></pre>
-<ol>
-<li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
-in the above example, this is <code>std::mem</code>. You can use this path to qualify
-the function. So in the above example, the function we are targeting has the
-full path of <code>std::mem::swap</code>.</li>
-<li>Add a <code>#[spec(...)]</code> (or equivalently <code>#[flux_rs::sig(...)]</code>) attribute, which
-is required for any extern spec on a function. This signature behaves as if
-the <code>#[flux_rs::trusted]</code> attribute was added, because we cannot <em>actually</em>
-check the implementation. Instead, flux just verifies some simple things,
-like that the function arguments have compatible types.</li>
-<li>Write a function stub whose rust signature matches the external function.</li>
-</ol>
-<p>If you do the above, you can use <code>std::mem::swap</code> as if it were refined by the
-above type.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn test_swap() {
-    let mut x = 5;
-    let mut y = 10;
-    swap(&amp;mut x, &amp;mut y); // actually calls `std::mem::swap`
-    assert(x == 10); // verified by flux
-    assert(y == 5); // verified by flux
-    assert(y == 10); //~ ERROR refinement type
-}
-<span class="boring">}</span></code></pre></pre>
-<p>You shouldn't need to know the details, but if you're curious,
-here's how the macro works. In the code above, flux parses the
-<code>std::mem</code> into a module path and then transforms the function into</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[extern_spec]
-#[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
-#[allow(unused, dead_code)]
-fn __flux_extern_spec_swap&lt;T&gt;(x: &amp;mut T, y: &amp;mut T) {
-    std::mem::swap(x, y)
-}
-<span class="boring">}</span></code></pre></pre>
-<p>It does this to get information about the function <code>std::mem::swap</code> and its
-arguments (this turns out to be difficult to do without giving the compiler
-something to inspect and type check).</p>
-<h3 id="extern-struct-and-impl"><a class="header" href="#extern-struct-and-impl">Extern <code>struct</code> and <code>impl</code></a></h3>
-<p>Here is an example of refining an extern struct</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
-
-#[extern_spec(std::string)]
-#[flux::refined_by(len: int)]
-struct String;
-
-#[flux::sig(fn(String[@n]) requires n == 3)]
-fn expect_string_len_3(s: String) {}
-
-#[flux::sig(fn(String[2]))]
-fn test_string_len_2(s: String) {
-    expect_string_len_3(s); //~ ERROR refinement type
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Here's a longer example of refining an extern <code>struct</code> as well as an <code>impl</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
-
-#[extern_spec]
-#[flux::refined_by(len: int)]
-struct String;
-
-#[extern_spec]
-impl String {
-    #[flux::sig(fn() -&gt; String[0])]
-    fn new() -&gt; String;
-
-    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
-    fn len(s: &amp;String) -&gt; usize;
-
-    #[flux::sig(fn(&amp;String[@n]) -&gt; bool[n == 0])]
-    fn is_empty(s: &amp;String) -&gt; bool;
-
-    #[flux::sig(fn(s: &amp;mut String[@n], char) ensures s: String[n+1])]
-    fn push(s: &amp;mut String, c: char);
-
-    #[flux::sig(fn(s: &amp;mut String[@n]) -&gt; Option&lt;char&gt;
-                requires n &gt; 0
-                ensures s: String[n-1])]
-    fn pop(s: &amp;mut String) -&gt; Option&lt;char&gt;;
-
-    #[flux::sig(fn(&amp;String[@n]) -&gt; &amp;[u8][n])]
-    fn as_bytes(s: &amp;String) -&gt; &amp;[u8];
-}
-
-#[extern_spec]
-impl&lt;T&gt; [T] {
-    #[flux::sig(fn(&amp;[T][@n]) -&gt; usize[n])]
-    fn len(v: &amp;[T]) -&gt; usize;
-
-    #[flux::sig(fn(&amp;[T][@n]) -&gt; bool[n == 0])]
-    fn is_empty(v: &amp;[T]) -&gt; bool;
-}
-
-#[flux::sig(fn(bool[@b]) requires b)]
-pub fn assert_true(_: bool) {}
-
-pub fn test_string() {
-    let mut s = String::new();
-    assert_true(s.is_empty());
-    assert_true(s.as_bytes().is_empty());
-    s.push('h');
-    s.push('i');
-    assert_true(s.len() == 2);
-    s.pop();
-    assert_true(s.len() == 1);
-    s.pop();
-    assert_true(s.is_empty());
-    assert_true(s.as_bytes().is_empty());
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The syntax for an extern spec on a struct is very similar to that for a
-function. Once again, each line in the example happens to correspond to a step.</p>
-<pre><code>#[extern_spec(std::string)]
-#[flux_rs::refined_by(len: int)]
-struct String;
-</code></pre>
-<ol>
-<li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
-in the above example, this is <code>std::string</code>. You can use this path to qualify
-the function. So in the above example, the struct we are targeting has the
-full path of <code>std::string::String</code>.</li>
-<li>Add a <code>#[flux_rs::refined_by(...)]</code> attribute. This is required for any extern
-spec on a struct. Right now these attributes behave as if they were opaque
-(<code>#[flux_rs::opaque]</code>), although we may support non-opaque extern structs.</li>
-<li>Write a stub for the extern struct.</li>
-</ol>
-<p>If you do the above, you can use <code>std::string::String</code> as if it were refined by
-an integer index.</p>
-<p>The syntax for an extern impl is a little different than that for functions or
-structs.</p>
-<pre><code>#[extern_spec(std::string)]
-impl String {
-    #[flux_rs::sig(fn() -&gt; String[0])]
-    fn new() -&gt; String;
-
-    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
-    fn len(s: &amp;String) -&gt; usize;
-}
-</code></pre>
-<ol>
-<li>You still need to add the <code>#[extern_spec]</code> attribute, with the same optional
-argument of the path as above.</li>
-<li>You need to write out the <code>impl</code> block for the struct you want to refine.
-This struct does not need an extern spec, since by refining the <code>impl</code> you're
-only refining its methods.</li>
-<li>Write an extern spec for each function you wish to refine (this may be a
-subset). This is written just like a function extern spec with the caveat
-that the <code>self</code> parameter is not presently supported. So for example, instead
-of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>fn len(s: &amp;String) -&gt; usize;</code>.</li>
-</ol>
-<p>If you do the above, you can use the above methods of<code>std::string::String</code> as if
-they were refined.</p>
 <h2 id="grammar-of-refinements"><a class="header" href="#grammar-of-refinements">Grammar of Refinements</a></h2>
+<p>The grammar of refinements (expressions that can appear as an index or constraint) is as follows:</p>
 <pre><code class="language-text">r ::= n                     // numbers 1,2,3...
     | x                     // identifiers x,y,z...
     | x.f                   // index-field access
@@ -572,93 +1905,6 @@ they were refined.</p>
     | r =&gt; r                // implication
     | !r                    // negation
 </code></pre>
-<h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
-<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux_rs::ignore]</code> and <code>#[flux_rs::trusted]</code>.</p>
-<ul>
-<li><code>#[flux_rs::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
-<li><code>#[flux_rs::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
-</ul>
-<p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
-<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference" id="fr-ignore-shorthand-1"><a href="#footnote-ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
-the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
-<p>Consider the following example:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::ignore]
-mod A {
-
-   #[flux_rs::ignore(no)]
-   mod B {
-      mod C {
-         fn f1() {}
-      }
-   }
-
-   mod D {
-      fn f2() {}
-   }
-
-   fn f3() {}
-}
-<span class="boring">}</span></code></pre></pre>
-<p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
-<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
-<h2 id="opaque"><a class="header" href="#opaque">Opaque</a></h2>
-<p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
-
-#[opaque]
-#[refined_by(vals: Map&lt;K, V&gt;)]
-pub struct RMap&lt;K, V&gt; {
-    inner: std::collections::HashMap&lt;K, V&gt;,
-}
-<span class="boring">}</span></code></pre></pre>
-<p><strong>Note that opaque structs <strong>can not</strong> have refined fields.</strong></p>
-<p>Now, we can define <code>get</code> for our refined map as follows:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[generics(K as base, V as base)]
-impl&lt;K, V&gt; RMap&lt;K, V&gt; {
-
-    #[flux_rs::trusted]
-    #[flux_rs::sig(fn(&amp;RMap&lt;K, V&gt;[@m], &amp;K[@k]) -&gt; Option&lt;&amp;V[map_select(m.vals, k)]&gt;)]
-    pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
-    where
-        K: Eq + Hash,
-    {
-        self.inner.get(k)
-    }
-
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Note that if we do not mark these methods as <code>trusted</code>, we will get an error that looks like...</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[E0999]: cannot access fields of opaque struct `RMap`.
-  --&gt; ../opaque.rs:22:9
-   |
-22 |         self.inner.get(k)
-   |         ^^^^^^^^^^
--Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
-   |
-help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
-  --&gt; ../opaque.rs:18:5
-   |
-18 | /     pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
-19 | |     where
-20 | |         K: Eq + std::hash::Hash,
-   | |________________________________^
-   = note: fields of opaque structs can only be accessed inside trusted code
-<span class="boring">}</span></code></pre></pre>
-<hr>
-<ol class="footnote-definition"><li id="footnote-ignore-shorthand">
-<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
-</li>
-</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="users-guide"><a class="header" href="#users-guide">User's Guide</a></h1>
-<p>One day, this will be an actual user's guide.</p>
-<p>For now, it is a collection of various <code>flux</code> features as illustrated by examples from the regression tests.</p>
 <h2 id="index-refinements"><a class="header" href="#index-refinements">Index Refinements</a></h2>
 <p>Of the form <code>i32[e]</code> (<code>i32</code> equal to <code>e</code>) values.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -1173,7 +2419,7 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
 }
 <span class="boring">}</span></code></pre></pre>
 <h2 id="refined-vec"><a class="header" href="#refined-vec">Refined <code>Vec</code></a></h2>
-<p>This uses <code>extern_spec</code> which is described in the <a href="guide/specs.html">specifications guide</a>.</p>
+<p>This uses <code>extern_spec</code> which is <a href="guide/specifications.html#extern-specs">described below</a>.</p>
 <p><strong>Standalone</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![feature(allocator_api)]
@@ -1407,7 +2653,7 @@ pub fn test1(vec: &amp;mut RVec&lt;i32&gt;, b: bool) -&gt; i32 {
     0
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="refining-structs"><a class="header" href="#refining-structs">Refining Structs</a></h2>
+<h2 id="refining-structs-1"><a class="header" href="#refining-structs-1">Refining Structs</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![flux::defs {
 <span class="boring">fn main() {
@@ -1525,7 +2771,52 @@ fn foo&lt;const M: usize&gt;(x: S&lt;M&gt;) -&gt; usize {
 }
 <span class="boring">}</span></code></pre></pre>
 <h3 id="opaque-structs"><a class="header" href="#opaque-structs">Opaque Structs</a></h3>
-<p>See the <a href="guide/specs.html">specifications guide</a> for more about the <code>opaque</code> annotation.</p>
+<p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::*;
+
+#[opaque]
+#[refined_by(vals: Map&lt;K, V&gt;)]
+pub struct RMap&lt;K, V&gt; {
+    inner: std::collections::HashMap&lt;K, V&gt;,
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>Note that opaque structs <strong>can not</strong> have refined fields.</strong></p>
+<p>Now, we can define <code>get</code> for our refined map as follows:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl&lt;K, V&gt; RMap&lt;K, V&gt; {
+
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(&amp;RMap&lt;K, V&gt;[@m], &amp;K[@k]) -&gt; Option&lt;&amp;V[map_select(m.vals, k)]&gt;)]
+    pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
+    where
+        K: Eq + Hash,
+    {
+        self.inner.get(k)
+    }
+
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Note that if we do not mark these methods as <code>trusted</code>, we will get an error that looks like...</p>
+<pre><code class="language-text">error[E0999]: cannot access fields of opaque struct `RMap`.
+  --&gt; ../opaque.rs:22:9
+   |
+22 |         self.inner.get(k)
+   |         ^^^^^^^^^^
+-Ztrack-diagnostics: created at crates/flux-refineck/src/lib.rs:111:14
+   |
+help: if you'd like to use fields of `RMap`, try annotating this method with `#[flux::trusted]`
+  --&gt; ../opaque.rs:18:5
+   |
+18 | /     pub fn get(&amp;self, k: &amp;K) -&gt; Option&lt;&amp;V&gt;
+19 | |     where
+20 | |         K: Eq + std::hash::Hash,
+   | |________________________________^
+   = note: fields of opaque structs can only be accessed inside trusted code
+</code></pre>
+<p>Here is an example of how to use the <code>opaque</code> attribute:</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[flux::opaque]
@@ -1561,7 +2852,7 @@ fn test(r: Range) -&gt; bool {
     r.snd() - r.fst() &gt;= 0
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="refining-enums"><a class="header" href="#refining-enums">Refining Enums</a></h2>
+<h2 id="refining-enums-1"><a class="header" href="#refining-enums-1">Refining Enums</a></h2>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[flux::refined_by(b:bool)]
@@ -2025,8 +3316,38 @@ fn test01() {
     assert(x == 0);
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="pragma-ignore"><a class="header" href="#pragma-ignore">Pragma: <code>ignore</code></a></h2>
-<p>Used to tell <code>flux</code> to <em>ignore</em> (checking) a bunch of definitions.</p>
+<h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
+<p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux_rs::ignore]</code> and <code>#[flux_rs::trusted]</code>.</p>
+<ul>
+<li><code>#[flux_rs::ignore]</code>: This attribute is applicable to any item, and it instructs Flux to completely skip some code. Flux won't even look at it.</li>
+<li><code>#[flux_rs::trusted]</code>: This attribute affects whether Flux checks the body of a function. If a function is marked as trusted, Flux won't verify its body against its signature. However, it will still be able to reason about its signature when used elsewhere.</li>
+</ul>
+<p>The above means that an <em>ignored</em> function can only be called from ignored or trusted code, while a <em>trusted</em> function can also be called from analyzed code.</p>
+<p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference" id="fr-ignore-shorthand-1"><a href="#footnote-ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
+the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
+<p>Consider the following example:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[flux_rs::ignore]
+mod A {
+
+   #[flux_rs::ignore(no)]
+   mod B {
+      mod C {
+         fn f1() {}
+      }
+   }
+
+   mod D {
+      fn f2() {}
+   }
+
+   fn f3() {}
+}
+<span class="boring">}</span></code></pre></pre>
+<p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
+<p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
+<p>Here is an example</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span>#![flux::ignore] // default to ignore for the entire crate
 
@@ -2068,7 +3389,7 @@ fn test00(x: i32) -&gt; i32 {
     x + 2
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="const-generics"><a class="header" href="#const-generics">Const Generics</a></h2>
+<h2 id="const-generics-2"><a class="header" href="#const-generics-2">Const Generics</a></h2>
 <p><code>flux</code> lets you use Rust's const-generics inside refinements.</p>
 <p><strong>Refining Array Lengths</strong></p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
@@ -3308,9 +4629,55 @@ pub fn test_eq() {
     require_eq("a", "b"); //~ ERROR refinement type
 }
 <span class="boring">}</span></code></pre></pre>
-<h2 id="extern-specs-1"><a class="header" href="#extern-specs-1">Extern Specs</a></h2>
+<h2 id="extern-specs"><a class="header" href="#extern-specs">Extern Specs</a></h2>
+<p>Sometimes you may want to refine a struct or function that outside your code. We
+refer to such a specification as an "extern spec," which is short for "external
+specification."</p>
+<p>Currently, Flux supports extern specs for functions, structs, enums, traits and impls.
+The support is a bit rudimentary. For example, multiple impls for a struct (such as <code>&amp;[T]</code>
+and <code>[T]</code>) may conflict, and extern specs for structs only support opaque refinements.</p>
+<p>Extern specs are given using <code>extern_spec</code> attribute macro, which is provided
+by the procedural macros package <code>flux_rs</code>.</p>
+<pre><code>use flux_rs::extern_spec;
+</code></pre>
 <p>The <code>extern_spec</code> is used to provide <code>flux</code> signatures for functions defined in <em>external</em> crates. See the <a href="guide/specs.html">specifications guide</a> for more details.</p>
-<h3 id="functions"><a class="header" href="#functions">Functions</a></h3>
+<h3 id="extern-functions"><a class="header" href="#extern-functions">Extern Functions</a></h3>
+<p>An example of refining an extern function can be found
+<a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs">here</a>.</p>
+<p>To define an extern spec on a function, you need to do three things, which
+happen to correspond to each of the below lines.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[extern_spec(std::mem)]
+#[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
+fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);
+<span class="boring">}</span></code></pre></pre>
+<ol>
+<li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
+in the above example, this is <code>std::mem</code>. You can use this path to qualify
+the function. So in the above example, the function we are targeting has the
+full path of <code>std::mem::swap</code>.</li>
+<li>Add a <code>#[spec(...)]</code> (or equivalently <code>#[flux_rs::sig(...)]</code>) attribute, which
+is required for any extern spec on a function. This signature behaves as if
+the <code>#[flux_rs::trusted]</code> attribute was added, because we cannot <em>actually</em>
+check the implementation. Instead, flux just verifies some simple things,
+like that the function arguments have compatible types.</li>
+<li>Write a function stub whose rust signature matches the external function.</li>
+</ol>
+<p>If you do the above, you can use <code>std::mem::swap</code> as if it were refined by the
+above type.</p>
+<p>Here are two examples:</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub fn test_swap() {
+    let mut x = 5;
+    let mut y = 10;
+    swap(&amp;mut x, &amp;mut y); // actually calls `std::mem::swap`
+    assert(x == 10); // verified by flux
+    assert(y == 5); // verified by flux
+    assert(y == 10); //~ ERROR refinement type
+}
+<span class="boring">}</span></code></pre></pre>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use std::slice::from_ref;
@@ -3411,7 +4778,124 @@ impl&lt;T&gt; Option&lt;T&gt; {
     const fn is_none(&amp;self) -&gt; bool;
 }
 <span class="boring">}</span></code></pre></pre>
-<h3 id="structs-1"><a class="header" href="#structs-1">Structs</a></h3>
+<h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
+<p>Here is an example of refining an extern struct</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::extern_spec;
+
+#[extern_spec(std::string)]
+#[flux::refined_by(len: int)]
+struct String;
+
+#[flux::sig(fn(String[@n]) requires n == 3)]
+fn expect_string_len_3(s: String) {}
+
+#[flux::sig(fn(String[2]))]
+fn test_string_len_2(s: String) {
+    expect_string_len_3(s); //~ ERROR refinement type
+}
+<span class="boring">}</span></code></pre></pre>
+<p>Here's a longer example of refining an extern <code>struct</code> as well as an <code>impl</code></p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use flux_rs::extern_spec;
+
+#[extern_spec]
+#[flux::refined_by(len: int)]
+struct String;
+
+#[extern_spec]
+impl String {
+    #[flux::sig(fn() -&gt; String[0])]
+    fn new() -&gt; String;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    fn len(s: &amp;String) -&gt; usize;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; bool[n == 0])]
+    fn is_empty(s: &amp;String) -&gt; bool;
+
+    #[flux::sig(fn(s: &amp;mut String[@n], char) ensures s: String[n+1])]
+    fn push(s: &amp;mut String, c: char);
+
+    #[flux::sig(fn(s: &amp;mut String[@n]) -&gt; Option&lt;char&gt;
+                requires n &gt; 0
+                ensures s: String[n-1])]
+    fn pop(s: &amp;mut String) -&gt; Option&lt;char&gt;;
+
+    #[flux::sig(fn(&amp;String[@n]) -&gt; &amp;[u8][n])]
+    fn as_bytes(s: &amp;String) -&gt; &amp;[u8];
+}
+
+#[extern_spec]
+impl&lt;T&gt; [T] {
+    #[flux::sig(fn(&amp;[T][@n]) -&gt; usize[n])]
+    fn len(v: &amp;[T]) -&gt; usize;
+
+    #[flux::sig(fn(&amp;[T][@n]) -&gt; bool[n == 0])]
+    fn is_empty(v: &amp;[T]) -&gt; bool;
+}
+
+#[flux::sig(fn(bool[@b]) requires b)]
+pub fn assert_true(_: bool) {}
+
+pub fn test_string() {
+    let mut s = String::new();
+    assert_true(s.is_empty());
+    assert_true(s.as_bytes().is_empty());
+    s.push('h');
+    s.push('i');
+    assert_true(s.len() == 2);
+    s.pop();
+    assert_true(s.len() == 1);
+    s.pop();
+    assert_true(s.is_empty());
+    assert_true(s.as_bytes().is_empty());
+}
+<span class="boring">}</span></code></pre></pre>
+<p>The syntax for an extern spec on a struct is very similar to that for a
+function. Once again, each line in the example happens to correspond to a step.</p>
+<pre><code>#[extern_spec(std::string)]
+#[flux_rs::refined_by(len: int)]
+struct String;
+</code></pre>
+<ol>
+<li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
+in the above example, this is <code>std::string</code>. You can use this path to qualify
+the function. So in the above example, the struct we are targeting has the
+full path of <code>std::string::String</code>.</li>
+<li>Add a <code>#[flux_rs::refined_by(...)]</code> attribute. This is required for any extern
+spec on a struct. Right now these attributes behave as if they were opaque
+(<code>#[flux_rs::opaque]</code>), although we may support non-opaque extern structs.</li>
+<li>Write a stub for the extern struct.</li>
+</ol>
+<p>If you do the above, you can use <code>std::string::String</code> as if it were refined by
+an integer index.</p>
+<p>The syntax for an extern impl is a little different than that for functions or
+structs.</p>
+<pre><code>#[extern_spec(std::string)]
+impl String {
+    #[flux_rs::sig(fn() -&gt; String[0])]
+    fn new() -&gt; String;
+
+    #[flux_rs::sig(fn(&amp;String[@n]) -&gt; usize[n])]
+    fn len(s: &amp;String) -&gt; usize;
+}
+</code></pre>
+<ol>
+<li>You still need to add the <code>#[extern_spec]</code> attribute, with the same optional
+argument of the path as above.</li>
+<li>You need to write out the <code>impl</code> block for the struct you want to refine.
+This struct does not need an extern spec, since by refining the <code>impl</code> you're
+only refining its methods.</li>
+<li>Write an extern spec for each function you wish to refine (this may be a
+subset). This is written just like a function extern spec with the caveat
+that the <code>self</code> parameter is not presently supported. So for example, instead
+of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>fn len(s: &amp;String) -&gt; usize;</code>.</li>
+</ol>
+<p>If you do the above, you can use the above methods of<code>std::string::String</code> as if
+they were refined.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// Testing we can add external specs to "transparent" structs.
@@ -3473,7 +4957,7 @@ fn test00(x: &amp;[i32]) -&gt; &amp;[i32] {
     x.iter().as_slice()
 }
 <span class="boring">}</span></code></pre></pre>
-<h3 id="impls"><a class="header" href="#impls">Impls</a></h3>
+<h3 id="extern-impls"><a class="header" href="#extern-impls">Extern Impls</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use flux_rs::extern_spec;
@@ -3551,7 +5035,7 @@ pub fn test_ok() -&gt; i32 {
     &lt;Vec&lt;i32&gt; as MyTrait&gt;::foo()
 }
 <span class="boring">}</span></code></pre></pre>
-<h3 id="traits"><a class="header" href="#traits">Traits</a></h3>
+<h3 id="extern-traits"><a class="header" href="#extern-traits">Extern Traits</a></h3>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use flux_rs::*;
@@ -4237,7 +5721,11 @@ pub fn test3(byte: u8) {
     assert(tmp2 &lt;= 0xf);
 }
 <span class="boring">}</span></code></pre></pre>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
+<hr>
+<ol class="footnote-definition"><li id="footnote-ignore-shorthand">
+<p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="developers-guide"><a class="header" href="#developers-guide">Developer's Guide</a></h1>
 <h2 id="backtraces"><a class="header" href="#backtraces">Backtraces</a></h2>
 <p>You can use the usual <code>RUST_BACKTRACE=1</code> environment variable to enable backtraces.
 With the regular <code>release</code> build (<code>cargo x install</code>) you get some backtraces, but
@@ -4377,7 +5865,7 @@ python3  path/to/flux/tools/logreader.py
 </ul>
 <h2 id="intermediate-representations"><a class="header" href="#intermediate-representations">Intermediate Representations</a></h2>
 <p>Flux has several intermediate representations (IR) for types. They represent a refined version of an equivalent type in some <code>rustc</code> IR. We have picked a distinct <em>verb</em> to refer to the process of going between these different representations to make it easier to refer to them. The following image summarizes all the IRs and the process for going between them.</p>
-<p><img src="dev/../img/irs.svg" alt="IRs diagram" /></p>
+<p><img src="guide/../img/irs.svg" alt="IRs diagram" /></p>
 <h3 id="surface"><a class="header" href="#surface">Surface</a></h3>
 <p>The surface IR represents source level Flux annotations. It corresponds to the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_ast/index.html"><code>rustc_ast</code></a> data structures in <code>rustc</code>. The definition as well as the parser is located in the <code>flux-syntax</code> crate.</p>
 <h3 id="fhir"><a class="header" href="#fhir">Fhir</a></h3>
@@ -4388,899 +5876,6 @@ python3  path/to/flux/tools/logreader.py
 <p>The definition in the <code>flux_middle::rustc</code> module correspond to simplified version of data structures in <code>rustc</code>. They can be understood as the currently supported subset of Rust. The process of going from a definition in <code>rustc_middle</code> into <code>flux_middle::rustc</code> is called <em>lowering</em> and it is implemented in <code>flux_middle::rustc::lowering</code>.</p>
 <h3 id="lifting-and-refining"><a class="header" href="#lifting-and-refining">Lifting and Refining</a></h3>
 <p>Besides the different translation between Flux intermediate representations, there are two ways to get a refined version from a rust type. The process of going from a type in <code>hir</code> into a type in <code>fhir</code> is called <em>lifting</em>, and it is implemented in <code>flux_middle::fhir::lift</code>. The process for going from a type in <code>flux_middle::rustc::ty</code> into a <code>flux_middle::rty</code> is called <em>refining</em>, and it is implemented <code>flux_middle::rty::refining</code>.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="introducing-flux"><a class="header" href="#introducing-flux">Introducing Flux</a></h1>
-<p><a href="https://flux.goto.ucsd.edu/?example=refinements.rs">Online demo</a></p>
-<p>Types bring order to code. For example, if a variable <code>i:usize</code>
-then we know <code>i</code> is a number that can be used to index a vector.
-Similarly, if <code>v: vec&lt;&amp;str&gt;</code> then we can be sure that <code>v</code> is a
-collection of strings which may <em>be</em> indexed but of course,
-not used <em>as</em> an index. However, by itself <code>usize</code> doesn't
-tell us how big or small the number and hence the programmer
-must still rely on their own wits, a lot of tests, and a dash
-of optimism, to ensure that all the different bits fit properly
-at run-time.</p>
-<p><a href="https://arxiv.org/abs/2010.07763">Refinements</a> are a promising new way to extend
-type checkers with logical constraints that <em>specify</em> additional
-correctness requirements that can be <em>verified</em> by the compiler,
-thereby entirely eliminating various classes of run-time problems.</p>
-<p>We're excited to introduce <a href="https://github.com/liquid-rust/flux/">Flux</a>, a refinement type
-checker plugin that brings this technology to <code>Rust</code>.</p>
-<!-- more -->
-<h2 id="indexed-types"><a class="header" href="#indexed-types">Indexed Types</a></h2>
-<p>The most basic form of refinement type in <code>flux</code> is a type that is
-<em>indexed</em> by a logical value. For example</p>
-<div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
-<tr><td style="text-align: left"><code>i32[10]</code></td><td style="text-align: left">The (singleton) set of <code>i32</code> values equal to <code>10</code></td></tr>
-<tr><td style="text-align: left"><code>bool[true]</code></td><td style="text-align: left">The (singleton) set of <code>bool</code> values equal to <code>true</code></td></tr>
-</tbody></table>
-</div>
-<h3 id="post-conditions"><a class="header" href="#post-conditions">Post-Conditions</a></h3>
-<p>We can already start using these indexed types to start writing (and checking)
-code. For example, we can write the following specification which says that
-the value <em>returned</em> by <code>mk_ten</code> must in fact be <code>10</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn() -&gt; i32[10])]
-pub fn mk_ten() -&gt; i32 {
-    5 + 4
-}
-<span class="boring">}</span></code></pre></pre>
-<p>but when you compile it, <code>flux</code> will say</p>
-<pre><code class="language-bash">error[FLUX]: postcondition might not hold
- --&gt; src/basics.rs:7:5
-  |
-7 |     5 + 4
-  |     ^^^^^
-</code></pre>
-<p>The error says that that the <em>postcondition might not hold</em> which means
-that the <em>output</em> produced by <code>mk_ten</code> may not in fact be an <code>i32[10]</code>
-as indeed, in this case, the result is <code>9</code>! You can eliminate the error
-by replacing the body with <code>5 + 5</code> or just <code>10</code>.</p>
-<img src="blog/../img/mk10.gif" width="100%">
-<h3 id="pre-conditions"><a class="header" href="#pre-conditions">Pre-Conditions</a></h3>
-<p>Here's a second example that shows how you can use an index to restrict
-the space of <em>inputs</em> that a function expects.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (b:bool[true]))]
-pub fn assert(b:bool) {
-  if !b { panic!("assertion failed") }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Here, the refined specification for <code>assert</code> says that you can <em>only</em> call
-it with <code>true</code> as the input. So if you write</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn test(){
-  assert(2 + 2 == 4);
-  assert(2 + 2 == 5); // fails to type check
-}
-<span class="boring">}</span></code></pre></pre>
-<p>then <code>flux</code> will complain that</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: precondition might not hold
-  --&gt; src/basics.rs:12:5
-   |
-12 |     assert(2 + 2 == 5); // fails to type check
-   |     ^^^^^^^^^^^^^^^^^^
-<span class="boring">}</span></code></pre></pre>
-<p>meaning that the call to <code>assert</code> fails to establish that
-the input is indeed <code>true</code> (as of course, in this case, it is not!)</p>
-<img src="blog/../img/assert.gif" width="100%">
-<h2 id="index-parameters-and-expressions"><a class="header" href="#index-parameters-and-expressions">Index Parameters and Expressions</a></h2>
-<p>It's not terribly exciting to only talk about <em>fixed</em> values
-like <code>10</code> or <code>true</code>. To be more useful, <code>flux</code> lets you index
-types by refinement <em>parameters</em>. For example, you can write</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(n:i32) -&gt; bool[0 &lt; n])]
-pub fn is_pos(n: i32) -&gt; bool {
-    if 0 &lt; n {
-        true
-    } else {
-        false
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Here, the type says that <code>is_pos</code></p>
-<ul>
-<li>takes as <em>input</em> some <code>i32</code> <em>indexed by</em> <code>n</code></li>
-<li>returns as <em>output</em> the <code>bool</code> <em>indexed by</em> <code>0 &lt; n</code></li>
-</ul>
-<p>in other words, the output is <code>true</code> <em>exactly when</em> <code>0 &lt; n</code>.</p>
-<p>We might use this function to check that:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn test_pos(n: i32) {
-  let m = if is_pos(n) { n - 1 } else { 0 };
-  assert(0 &lt;= m);
-}
-<span class="boring">}</span></code></pre></pre>
-<img src="blog/../img/test_pos.gif" width="100%">
-<h2 id="existential-types"><a class="header" href="#existential-types">Existential Types</a></h2>
-<p>Often we don't care about the <em>exact</em> value of a thing -- but just
-care about some <em>properties</em> that it may have. For example, we don't
-care that an <code>i32</code> is equal to <code>5</code> or <code>10</code> or <code>n</code> but that it is
-non-negative.</p>
-<div class="table-wrapper"><table><thead><tr><th style="text-align: left"><strong>Type</strong></th><th style="text-align: left"><strong>Meaning</strong></th></tr></thead><tbody>
-<tr><td style="text-align: left"><code>i32{v: 0 &lt;  v}</code></td><td style="text-align: left">The set of <code>i32</code> values that positive</td></tr>
-<tr><td style="text-align: left"><code>i32{v: n &lt;= v}</code></td><td style="text-align: left">The set of <code>i32</code> values greater than or equal to <code>n</code></td></tr>
-</tbody></table>
-</div>
-<p>Flux allows such specifications by pairing plain Rust types
-with <em>assertions</em> <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> that constrain the value. For example, we can rewrite
-<code>mk_10</code> with the output type <code>i32{v:0&lt;v}</code> that specifies a weaker property:
-the value returned by <code>mk_ten</code> is positive.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn() -&gt; i32{v: 0 &lt; v})]
-pub fn mk_ten() -&gt; i32 {
-    5 + 5
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Similarly, you might specify that a function that computes the <em>absolute</em>
-value of an <code>i32</code> with a type which says the result is non-negative <em>and</em>
-exceeds the input <code>n</code>.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (n:i32) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
-pub fn abs(n: i32) -&gt; i32 {
-    if 0 &lt;= n {
-        n
-    } else {
-        0 - n
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>As a last example, you might write a function to compute the factorial of <code>n</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (n:i32) -&gt; i32{v:1&lt;=v &amp;&amp; n&lt;=v})]
-pub fn factorial(n: i32) -&gt; i32 {
-    let mut i = 0;
-    let mut res = 1;
-    while i &lt; n {
-        i += 1;
-        res = res * i;
-    }
-    res
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Here the specification says the input must be non-negative, and the
-output is at least as large as the input. Note, that unlike the previous
-examples, here we're actually <em>changing</em> the values of <code>i</code> and <code>res</code>.</p>
-<img src="blog/../img/factorial.gif" width="100%">
-<p>Can you guess why the copilot suggestions <em>failed</em> to pass flux, and
-what refinements were <em>inferred</em> for <code>i</code> and <code>res</code> in the <em>fixed</em> code
-at the end?</p>
-<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
-<p>In this post, we saw how Flux lets you</p>
-<ol>
-<li>
-<p><em>decorate</em> basic Rust types like <code>i32</code> and <code>bool</code> with
-<strong>indices</strong> and <strong>constraints</strong> that let you respectively
-<em>refine</em> the sets of values that inhabit that type, and</p>
-</li>
-<li>
-<p><em>specify</em> contracts on functions that state <strong>pre-conditions</strong> on
-the sets of legal inputs that they accept, and <strong>post-conditions</strong>
-that describe the outputs that they produce.</p>
-</li>
-</ol>
-<p>The whole point of Rust, of course, is to allow for efficient <em>imperative</em>
-sharing and updates, without sacrificing thread- or memory-safety. Next time,
-we'll see how Flux melds refinements and Rust's ownership to make refinements
-happily coexist with imperative code.</p>
-<hr>
-<ol class="footnote-definition"><li id="footnote-1">
-<p>These are not arbitrary Rust expressions but a subset of expressions
-from logics that can be efficiently decided by <a href="https://github.com/flux-rs/flux/blob/main/book/src/guide/specs.md#grammar-of-refinements">SMT Solvers</a> <a href="#fr-1-1">↩</a></p>
-</li>
-</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="ownership-in-flux"><a class="header" href="#ownership-in-flux">Ownership in Flux</a></h1>
-<p><a href="https://flux.goto.ucsd.edu/?example=ownership.rs">Online demo</a></p>
-<p><a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">Previously</a> we saw how to refine basic Rust
-types like <code>i32</code> and <code>bool</code> with <em>indices</em> and <em>constraints</em> to
-constrain the set of values described by those types.</p>
-<p>The whole point of Rust, of course, is to allow for efficient
-imperative <em>sharing</em> and <em>updates</em>, via the clever type system
-that keeps an eye on the <em>ownership</em> of resources to make sure
-that aliasing and mutation cannot happen at the same time.</p>
-<p>Next, lets see how Flux melds refinements and Rust's ownership
-mechanisms to make refinements work in the imperative setting.</p>
-<h2 id="exclusive-ownership"><a class="header" href="#exclusive-ownership">Exclusive Ownership</a></h2>
-<p>Rust's most basic form of ownership is <em>exclusive</em> ownership,
-in which exactly one variable in a function has the right to
-mutate a memory location. When a location is exclusively
-owned, we can be sure that there are <em>no other references</em>
-to it, which lets flux <em>update</em> the type whenever the location
-is changed. For example, consider the program</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn () -&gt; i32[3])]
-pub fn mk_three() -&gt; i32 {
-    let mut r = 0;  // r: i32[0]
-    r += 1;
-    assert(r == 1); // r: i32[1]
-    r += 1;
-    assert(r == 2); // r: i32[2]
-    r += 1;
-    assert(r == 3); // r: i32[3]
-    r
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The variable <code>r</code> has <em>different types</em> at each point inside <code>mk_three</code>.
-It starts off as <code>i32[0]</code>. The first increment changes it to <code>i32[1]</code>,
-then <code>i32[2]</code> and finally, the returned type <code>i32[3]</code>.</p>
-<img src="blog/../img/mk_three.gif" width="100%">
-<p>This exclusive ownership mechanism is at work in the <code>factorial</code> example
-we signed off with <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">previously</a></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (n:i32{0 &lt;= n}) -&gt; i32{v:n &lt;= v})]
-pub fn factorial(n: i32) -&gt; i32 {
-    let mut i = 0;  // i: i32[0]
-    let mut r = 1;  // r: i32[1]
-    while i &lt; n {
-                    // i: i32{v:0&lt;=v&lt;=n}
-                    // r: i32{v:1&lt;=v &amp;&amp; i&lt;=v}
-        i += 1;
-        r = r * i;
-    }
-    r
-}
-<span class="boring">}</span></code></pre></pre>
-<p>In the above code, <code>i</code> and <code>r</code> start off at <code>0</code> and <code>1</code> but then
-Rust <em>infers</em> (a story for another day) that inside the <code>while</code>-loop<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
-<ul>
-<li><code>i</code> has type <code>i32{v:0&lt;=v &amp;&amp; v &lt; n}</code></li>
-<li><code>r</code> has type <code>i32{v:1&lt;=v &amp;&amp; i &lt;= v}</code></li>
-</ul>
-<p>and hence, upon exit since <code>i == n</code> we get that the result is at least <code>n</code>.</p>
-<h2 id="borrowing-shared-references"><a class="header" href="#borrowing-shared-references">Borrowing: Shared References</a></h2>
-<p>Exclusive ownership suffices for simple local updates like in <code>factorial</code>.
-However, for more complex data, functions must temporarily relinquish
-ownership to allow <em>other</em> functions to mutate the data. Rust cleverly
-allows this via the notion of <em>borrowing</em> using two kinds of references
-that give callees temporary access to a memory location.</p>
-<p>The simplest kind of references are of the form <code>&amp;T</code> which denote <em>read-only</em>
-access to a value of type <code>T</code>. For example, we might write <code>abs</code> to take
-a shared reference to an <code>i32</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (p: &amp;i32[@n]) -&gt; i32{v:0&lt;=v &amp;&amp; n&lt;=v})]
-pub fn abs(p: &amp;i32) -&gt; i32 {
-    let n = *p;
-    if 0 &lt;= n {
-        n
-    } else {
-        0 - n
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Notice that the <em>input</em> type has changed: the function now</p>
-<ul>
-<li>Accepts <code>p</code> a <em>reference</em> to an <code>i32</code> whose value is <code>n</code> as denoted by <code>@n</code></li>
-<li>Returns an <code>i32</code> that is non-negative and larger than <code>n</code></li>
-</ul>
-<p>The <code>@</code> marks the <code>n</code> as a <em>refinement parameter</em> whose value
-is automatically computed by flux during type checking.</p>
-<p>So, for example, Flux can check the below code by automatically
-determining that the refinement parameter at the call-site is <code>10</code>.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn test_abs() {
-    let z = 10;
-    assert(0 &lt;= abs(&amp;z))
-    assert(10 &lt;= abs(&amp;z))
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="refinement-parameters"><a class="header" href="#refinement-parameters">Refinement Parameters</a></h3>
-<p>As an aside, we have secretly been using <em>refinement parameters</em>
-like <code>@n</code> all along. For example, Flux automatically <em>desugars</em> the signature <code>fn(n:i32{0 &lt;= n} -&gt; ...</code> that we wrote for <code>factorial</code> into</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn ({i32[@n] : 0 &lt;= n}) -&gt; i32{v:n &lt;= v}
-<span class="boring">}</span></code></pre></pre>
-<p>where <code>@n</code> is a refinement parameter that is <em>implicitly</em> determined
-from the rust parameter <code>n:i32</code>. However, <em>explicit</em> parameters are
-essential to <em>name</em> the value of what a reference points to.
-In <code>abs</code> the <code>rust</code> parameter <code>p</code> names the reference but the
-<code>@n</code> names the (input) <em>value</em> and lets us use it to provide
-more information about the output of <code>abs</code>.</p>
-<p>Flux is <em>modular</em> in that the <em>only</em> information it
-knows about the implementation of <code>abs</code> is the signature: for example
-if we remove the fact that the output exceeds <code>n</code> then Flux will
-reject the assertion <code>10 &lt;= abs(&amp;z)</code>.</p>
-<img src="blog/../img/test_abs.gif" width="100%">
-<h2 id="borrowing-mutable-references"><a class="header" href="#borrowing-mutable-references">Borrowing: Mutable References</a></h2>
-<p>References of type <code>&amp;mut T</code> denote <em>mutable</em> references that can be
-used to (read and) write or update the contents of a <code>T</code> value.
-Crucially, Rust ensures that while there may be multiple read-only (shared)
-references to a location, there is at most one <em>active</em> writeable (mutable)
-reference at any point in time.</p>
-<p>Flux exploits the semantics of <code>&amp;mut T</code> to treat <code>T</code> as an <em>invariant</em>
-of the underlying data. As an example, consider the following function
-that <em>decrements</em> the value of a mutable reference while ensuring the
-data is non-negative:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
-pub fn decr(p: &amp;mut i32) {
-    *p = *p - 1;
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Flux will complain with the following message</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: assignment might be unsafe
-  --&gt; src/basics.rs:13:9
-   |
-13 |         *p = *p - 1;
-   |         ^^^^^^^^^^^
-<span class="boring">}</span></code></pre></pre>
-<p>as in fact, we <em>may</em> be writing a negative value into <code>*p</code>
-if, for example, the old value was zero. We can fix this
-code by guarding the update with a test that ensures the
-original contents are in fact <em>non-zero</em></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(p: &amp;mut i32{v:0 &lt;= v}))]
-pub fn decr(p: &amp;mut i32) {
-    let n = *p;
-    if n != 0 {
-        *p = n - 1;
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>at which point Flux is happy to sign off on the code.</p>
-<img src="blog/../img/decr.gif" width="100%">
-<h2 id="aliased-references"><a class="header" href="#aliased-references">Aliased References</a></h2>
-<p>Flux uses Rust's borrowing rules to track invariants even when
-there may be aliasing. As an example, consider the function</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (bool) -&gt; i32{v:0 &lt;= v})]
-fn test_alias(z: bool) -&gt; i32 {
-    let mut x = 1;  // x: i32[1]
-    let mut y = 2;  // y: i32[2]
-    let r = if z { &amp;mut x } else { &amp;mut y };
-                    // r: &amp;mut i32{v:0 &lt;= v}
-    decr(r);
-    *r
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The reference <code>r</code> could point to <em>either</em> <code>x</code> or <code>y</code> depending
-on the (unknown) value of the boolean <code>z</code>. Nevertheless, Flux
-determines that <em>both</em> references <code>&amp;mut x</code> and <code>&amp;mut y</code> point
-to values of the more general type <code>i32{v:0&lt;=v}</code> and hence,
-infers <code>r : &amp;mut i32{v:0&lt;=v}</code> which allows us it to then call
-<code>decr</code> with the reference and guarantee the result (after <code>decr</code>)
-is still non-negative.</p>
-<h2 id="borrowing-strong-references"><a class="header" href="#borrowing-strong-references">Borrowing: Strong References</a></h2>
-<p>In many situations, we want to lend a value to another function
-that actually <em>changes</em> the value's (refinement) type upon exit.
-For example, consider the following function to increment a reference
-to a non-negative <code>i32</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn (p: &amp;mut i32{v:0 &lt;= v}))]
-fn incr(p: &amp;mut i32) {
-  *p += 1
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Recall that Flux is <em>modular</em> in that the <em>only</em> information it
-has about <code>incr</code> is what is said in the signature. The signature
-for <code>incr</code> only says <code>p</code> remains non-negative: Flux does <em>not</em>
-know that <code>incr</code> actually <em>increments</em> the value of <code>p</code>.</p>
-<p>Hence, Flux fusses that the following <code>assert</code> may fail even though
-its patently obvious that it will succeed!</p>
-<img src="blog/../img/test_incr.gif" width="100%">
-<p>To verify <code>test_incr</code> we need a signature for <code>incr</code> that says
-that its <em>output</em> is indeed one greater<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> than its input.
-Flux extends Rust with the notion of <strong>strong references</strong>
-of the form <code>&amp;strg T</code> which refine Rust's <code>&amp;mut T</code> to grant
-<em>exclusive</em> access to the underlying <code>T</code>. Crucially, strong
-references also let us specify how the type is <em>updated</em> when
-the function exits<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>. Thus, we can use strong references to
-type <code>incr</code> as</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(p: &amp;strg i32[@n]) ensures p:i32[n+1])]
-fn incr(p: &amp;mut i32) {
-  *p += 1
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The Flux signature refines the plain Rust one to specify that</p>
-<ol>
-<li><code>p</code> is a strong reference to an <code>i32</code>,</li>
-<li>the <em>input type</em> of <code>*p</code> is <code>i32[n]</code>, and</li>
-<li>the <em>output type</em> of <code>*p</code> is <code>i32[n+1]</code>.</li>
-</ol>
-<p>With this specification, Flux merrily checks <code>test_incr</code>, by
-determining that the refinement parameter <code>@n</code> is <code>10</code> and
-hence, that upon return <code>x: i32[11]</code>.</p>
-<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
-<p>To sum up, Flux exploits Rust's ownership mechanisms to track properties
-of <em>shared</em> (<code>&amp;T</code>) and <em>mutable</em> (<code>&amp;mut T</code>) references, and additionally
-adds a <em>strong</em> (<code>&amp;strg T</code>) reference -- a special case of <code>&amp;mut</code> -- to
-support the cases where the type itself is <em>changed</em> by a call.</p>
-<p>Next, we'll see how refinements and ownership yield a simple refined API
-for <em>vectors</em> that lets Flux check bounds safety at compile time...</p>
-<hr>
-<ol class="footnote-definition"><li id="footnote-1">
-<p>For those familiar with the term, these types are <em>loop invariants</em> <a href="#fr-1-1">↩</a></p>
-</li>
-<li id="footnote-2">
-<p>Setting aside the issue of overflows for now <a href="#fr-2-1">↩</a></p>
-</li>
-<li id="footnote-3">
-<p>Thereby allowing so-called <em>strong updates</em> in the type specifications <a href="#fr-3-1">↩</a></p>
-</li>
-</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="refined-vectors"><a class="header" href="#refined-vectors">Refined Vectors</a></h1>
-<p><a href="https://flux.goto.ucsd.edu/index.html#?demo=vectors.rs">Online demo</a></p>
-<p>While <code>rustc</code> has a keen eye for spotting nasty bugs at
-compile time, it is not omniscient. We've all groaned in
-dismay at seeing deployed code crash with messages like</p>
-<pre><code>panicked at 'index out of bounds: the len is ... but the index is ...'
-</code></pre>
-<p>Next, lets see how flux's <a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">refinement</a> and <a href="https://liquid-rust.github.io/2022/11/16/ownership-in-flux/">ownership</a>
-mechanisms let us write a <em>refined vector</em> API whose types track vector sizes
-and ensure --- at compile time --- that vector accesses <em>cannot</em> fail at runtime.</p>
-<h2 id="refining-vectors-to-track-their-size"><a class="header" href="#refining-vectors-to-track-their-size">Refining Vectors to Track their Size</a></h2>
-<p>To begin with, we will defined a <em>refined</em> vector type which is simply a wrapper
-around the standard <code>Vec</code> type</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::refined_by(len: int)]
-pub struct RVec&lt;T&gt; {
-    inner: Vec&lt;T&gt;,
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The <code>#[flux_rs::refined_by(len: int)]</code> attribute tells flux that the type <code>RVec&lt;T&gt;</code> struct
-is indexed by a <code>len</code> refinement which tracks the <em>size</em> of the underlying vector, just
-like the indices for <code>i32</code> and <code>bool</code> tracked the actual <em>value</em> of the underlying
-<a href="https://liquid-rust.github.io/2022/11/14/introducing-flux/">integer or boolean</a>). The idea is that the type</p>
-<ul>
-<li><code>RVec&lt;i32&gt;[10]</code> represents a vector of <code>i32</code> size 10, and</li>
-<li><code>RVec&lt;bool&gt;{v:0 &lt; v}</code> represents a <em>non-empty</em> vector of <code>bool</code>, and</li>
-<li><code>RVec&lt;RVec&lt;f32&gt;[n]&gt;[m]</code> represents a vector of vectors of <code>f32</code> of size <code>m</code> and
-<em>each of</em> whose elements is a vector of size <code>n</code>.</li>
-</ul>
-<h3 id="creating-vectors"><a class="header" href="#creating-vectors">Creating Vectors</a></h3>
-<p>Now that we can talk about the size of a vector, lets build up an API for creating and
-manipulating vectors. I suppose one must start with nothing: an empty vector.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>impl&lt;T&gt; RVec&lt;T&gt; {
-    #[flux_rs::trusted]
-    #[flux_rs::sig(fn() -&gt; RVec&lt;T&gt;[0])]
-    pub fn new() -&gt; Self {
-        Self { inner: Vec::new() }
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The above implements <code>RVec::new</code> as a wrapper around <code>Vec::new</code>.
-The <code>#[flux_rs::trusted]</code> attribute tells Flux there is nothing to
-"check" here, as we are <em>defining</em> the API itself and trusting
-that the implementation (using <code>vec</code> is correct).
-However, the signature says that <em>callers</em> of the <code>RVec::new</code> get
-back a vector indexed with <code>0</code> i.e. an empty vector.</p>
-<h3 id="pushing-values"><a class="header" href="#pushing-values">Pushing Values</a></h3>
-<p>An empty vector is a rather desolate thing.</p>
-<p>To be of any use, we need to be able to <code>push</code> values into the container, like so</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::trusted]
-#[flux_rs::sig(fn(self: &amp;strg RVec&lt;T&gt;[@n], T)
-            ensures self: RVec&lt;T&gt;[n+1])]
-pub fn push(&amp;mut self, item: T) {
-    self.inner.push(item);
-}
-<span class="boring">}</span></code></pre></pre>
-<p>The refined type for <code>push</code> says that it takes a <em>strong</em> reference (<code>self</code>)
---- where <code>strg</code> means the refined type may be <a href="blog/blog-owners">changed by the function</a> ---
-to an <code>RVec&lt;T&gt;</code> of size <code>n</code> and a value <code>T</code> and upon exit, the size of <code>self</code>
-is increased by <code>1</code>.</p>
-<h3 id="popping-values"><a class="header" href="#popping-values">Popping Values</a></h3>
-<p>Not much point stuffing things into a vector if we can't get them out again.</p>
-<p>For that, we might implement a <code>pop</code> method that returns the last element
-of the vector. Aha, but what if the vector is empty? You could return an
-<code>Option&lt;T&gt;</code> <em>or</em> since we're tracking sizes, we could <em>require</em> that <code>pop</code>
-only be called with non-empty vectors.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::trusted]
-#[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
-            ensures self: RVec&lt;T&gt;[n-1])]
-pub fn pop(&amp;mut self) -&gt; T {
-  self.inner.pop().unwrap()
-}
-<span class="boring">}</span></code></pre></pre>
-<h3 id="using-the-api"><a class="header" href="#using-the-api">Using the API</a></h3>
-<p>Now already <code>flux</code> can start checking some code, for example if you <code>push</code> two
-elements, then you can <code>pop</code> twice, but flux will reject the third <code>pop</code> at
-compile-time</p>
-<img src="blog/../img/push_pop.gif" width="100%">
-<p>In fact, the error message from <code>flux</code> will point to exact condition that
-does not hold</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: precondition might not hold
-  --&gt; src/vectors.rs:24:5
-   |
-24 |     v.pop();
-   |     ^^^^^^^ call site
-   |
-   = note: a precondition cannot be proved at this call site
-note: this is the condition that cannot be proved
-  --&gt; src/rvec.rs:78:47
-   |
-78 |     #[flux_rs::sig(fn(self: &amp;strg {RVec&lt;T&gt;[@n] | 0 &lt; n}) -&gt; T
-   |                                               ^^^^^
-<span class="boring">}</span></code></pre></pre>
-<!--
-We can use `push` to implement an `rvec!` macro for constructing vectors
-and then test that lengths are tracked correctly
-
-<img src="blog/../img/test_macro_pop.gif" width="100%"> -->
-<h3 id="querying-the-size"><a class="header" href="#querying-the-size">Querying the Size</a></h3>
-<p>Perhaps we should <em>peek</em> at the size of the vector to make sure its not empty <em>before</em>
-we <code>pop</code> it. We can do that with a <code>len</code> method whose type says that the returned <code>usize</code>
-is, in fact, the size of the input vector</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::trusted]
-#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n]) -&gt; usize[n])]
-pub fn len(&amp;self) -&gt; usize {
-    self.inner.len()
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Now, flux "knows" that after two <code>push</code>es, the size of the vector is <code>2</code> and after
-the two <code>pop</code>s, the size is <code>0</code> again</p>
-<img src="blog/../img/push_pop_len.gif" width="100%">
-<h3 id="random-access"><a class="header" href="#random-access">Random Access</a></h3>
-<p>Of course, vectors are not just <em>stacks</em>, they also allow
-<em>random</em> access to their elements which is where those
-pesky panics occur, and where the refined vector API
-gets rather useful. Since we're tracking sizes, we can
-<em>require</em> that the method to <code>get</code> an element only be
-called with a <em>valid index</em> that is between <code>0</code> and the
-vector's size</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;T)]
-pub fn get(&amp;self, i: usize) -&gt; &amp;T {
-    &amp;self.inner[i]
-}
-
-#[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i: usize{i &lt; n}) -&gt; &amp;mut T)]
-pub fn get_mut(&amp;mut self, i: usize) -&gt; &amp;mut T {
-    &amp;mut self.inner[i]
-}
-<span class="boring">}</span></code></pre></pre>
-<p>With these refined <code>get</code> methods, flux can now spot the
-``off-by-one'' error in the following code and accepts
-the fix <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
-<img src="blog/../img/vec_sum.gif" width="100%">
-<p>Its a bit gross to use <code>get</code> and <code>get_mut</code> directly, so instead we implement
-the <code>Index</code> and <code>IndexMut</code> traits for <code>RVec</code> which allows us to use the
-<code>[]</code> operator to access elements</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>impl&lt;T&gt; std::ops::Index&lt;usize&gt; for RVec&lt;T&gt; {
-    type Output = T;
-    #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;T)]
-    fn index(&amp;self, index: usize) -&gt; &amp;T {
-        self.get(index)
-    }
-}
-
-impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
-    #[flux_rs::sig(fn(&amp;mut RVec&lt;T&gt;[@n], i:usize{i &lt; n}) -&gt; &amp;mut T)]
-    fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
-        self.get_mut(index)
-    }
-}
-<span class="boring">}</span></code></pre></pre>
-<p>And now the above <code>vec_sum</code> example looks a little nicer</p>
-<img src="blog/../img/vec_sum_index.gif" width="100%">
-<h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
-<p>Lets put the whole API to work in this "memoized" version of the fibonacci
-function which uses a vector to store the results of previous calls</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn fib(n: usize) -&gt; i32 {
-    let mut r = RVec::new();
-    let mut i = 0;
-    while i &lt; n {
-        if i == 0 {
-            r.push(0);
-        } else if i == 1 {
-            r.push(1);
-        } else {
-            let a = r[i - 1];
-            let b = r[i - 2];
-            r.push(a + b);
-        }
-        i += 1;
-    }
-    r.pop()
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Oops, flux is not happy with the call to <code>pop</code> at the end of the function
-which returns the <em>last</em> value as the result.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: precondition might not hold
-  --&gt; src/vectors.rs:40:5
-   |
-40 |     r.pop()
-   |     ^^^^^^^
-<span class="boring">}</span></code></pre></pre>
-<p>Flux complains that the vector may be <em>empty</em> and so the <code>pop</code> call may
-fail ... but why? Can you spot the problem?</p>
-<p>Indeed, we missed a "corner" case -- when <code>n</code> is <code>0</code> we skip the loop and
-so the vector is empty! Once we add a test for that, flux is happy.</p>
-<img src="blog/../img/fib.gif" width="100%">
-<h2 id="binary-search"><a class="header" href="#binary-search">Binary Search</a></h2>
-<p>As a last example, lets look at a simplified version of the
-<a href="https://doc.rust-lang.org/src/core/slice/mod.rs.html#2423-2425"><code>binary_search</code> method from <code>std::vec</code></a>, into which I've snuck a tiny little bug</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn binary_search(vec: &amp;RVec&lt;i32&gt;, x: i32) -&gt; Result&lt;usize, usize&gt; {
-    let mut size = vec.len();
-    let mut left = 0;
-    let mut right = size;
-    while left &lt;= right {
-        let mid = left + size / 2;
-        let val = vec[mid];
-        if val &lt; x {
-            left = mid + 1;
-        } else if x &lt; val {
-            right = mid;
-        } else {
-            return Ok(mid);
-        }
-        size = right - left;
-    }
-    Err(left)
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Flux complains in <em>two</em> places</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>error[FLUX]: precondition might not hold
-   --&gt; src/vectors.rs:152:19
-    |
-152 |         let val = vec[mid];
-    |                   ^^^^^^^^ call site
-    |
-    = note: a precondition cannot be proved at this call site
-note: this is the condition that cannot be proved
-   --&gt; src/rvec.rs:189:44
-    |
-189 |     #[flux_rs::sig(fn(&amp;RVec&lt;T&gt;[@n], usize{v : v &lt; n}) -&gt; &amp;T)]
-    |                                            ^^^^^
-
-error[FLUX]: arithmetic operation may overflow
-   --&gt; src/vectors.rs:160:9
-    |
-160 |         size = right - left;
-    |         ^^^^^^^^^^^^^^^^^^^
-<span class="boring">}</span></code></pre></pre>
-<ul>
-<li>
-<p>The vector access may be <em>unsafe</em> as <code>mid</code> could be out of bounds!</p>
-</li>
-<li>
-<p>The <code>size</code> variable may <em>underflow</em> as <code>left</code> may exceed <code>right</code>!</p>
-</li>
-</ul>
-<p>Can you the spot off-by-one and figure out a fix?</p>
-<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
-<p>So, we saw how Flux's index and constraint mechanisms combine
-with Rust's ownership to let us write a <em>refined vector API</em>
-that ensures the safety of all accesses at compile time.</p>
-<p>Next time, we'll see how these mechanisms are <em>compositional</em>
-in that we can use standard type machinery to build up
-compound structures and APIs from simple ones.</p>
-<hr>
-<ol class="footnote-definition"><li id="footnote-1">
-<p>Why not use an iterator? We'll get there in due course! <a href="#fr-1-1">↩</a></p>
-</li>
-</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="arrays-and-const-generics"><a class="header" href="#arrays-and-const-generics">Arrays and Const Generics</a></h1>
-<p><a href="https://flux.goto.ucsd.edu/index.html#?demo=arrays.rs">Online demo</a></p>
-<p>Rust has a built-in notion of <em>arrays</em> : collections of objects of
-the same type <code>T</code> whose size is known at compile time. The fact that
-the sizes are known allows them to be allocated contiguously in memory,
-which makes for fast access and manipulation.</p>
-<p>When I asked ChatGPT what arrays were useful for, it replied
-with several nice examples, including low-level systems programming (e.g.
-packets of data represented as <code>struct</code>s with array-valued fields), storing configuration data, or small sets of related values (e.g. RGB values for a pixel).</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>type Pixel = [u8; 3]; // RGB values
-
-let pix0: Pixel = [255,   0, 127];
-let pix1: Pixel = [  0, 255, 127];
-<span class="boring">}</span></code></pre></pre>
-<h2 id="compile-time-safety"><a class="header" href="#compile-time-safety">Compile-time Safety...</a></h2>
-<p>As the size of the array is known at compile time, Rust can make sure that
-we don't <em>create</em> arrays of the wrong size, or <em>access</em> them out of bounds.</p>
-<p>For example, <code>rustc</code> will grumble if you try to make a <code>Pixel</code> with 4 elements:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>   |
-52 | let pix2 : Pixel = [0,0,0,0];
-   |            -----   ^^^^^^^^^ expected an array with a fixed size of 3 elements, found one with 4 elements
-   |            |
-   |            expected due to this
-<span class="boring">}</span></code></pre></pre>
-<p>Similarly, <code>rustc</code> will wag a finger if you try to access a <code>Pixel</code> at an invalid index.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>   |
-54 |  let blue0 = pix0[3];
-   |              ^^^^^^^ index out of bounds: the length is 3 but the index is 3
-   |
-<span class="boring">}</span></code></pre></pre>
-<h2 id="-run-time-panic"><a class="header" href="#-run-time-panic">... Run-time Panic!</a></h2>
-<p>However, the plain type system works only upto a point. For example, consider the
-following function to compute the average <code>color</code> value of a collection of <code>&amp;[Pixel]</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn average_color(pixels: &amp;[Pixel], i: usize) -&gt; u64 {
-    let mut sum = 0;
-    for p in pixels {
-        sum += p[i] as u64;
-    }
-    sum / pixels.len() as u64
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Now, <code>rustc</code> will not complain about the above code, even though it may panic if
-<code>color</code> is out of bounds (or of course, if the slice <code>pixels</code> is empty!).
-For example, the following code</p>
-<pre><pre class="playground"><code class="language-rust">fn main() {
-    let pixels = [ [255, 0, 0], [0, 255, 0], [0, 0, 255] ];
-    let avg = average(&amp;pixels, 3);
-    println!("Average: {}", avg);
-}</code></pre></pre>
-<p>panics at runtime:</p>
-<pre><code>thread 'main' panicked ... index out of bounds: the len is 3 but the index is 3
-</code></pre>
-<h2 id="refined-compile-time-safety"><a class="header" href="#refined-compile-time-safety">Refined Compile-time Safety</a></h2>
-<p>Fortunately, <code>flux</code> knows about the sizes of arrays and slices. At compile time,
-<code>flux</code> warns about two possible errors in <code>average_color</code></p>
-<img src="blog/../img/04-arrays-average-error.png" width="100%">
-<ol>
-<li>The index <code>i</code> may be out of bounds when accessing <code>p[i]</code> and</li>
-<li>The division can panic as <code>pixels</code> may be empty (i.e. have length <code>0</code>).</li>
-</ol>
-<p>We can fix these errors by requiring that the input</p>
-<ul>
-<li><code>i</code> be a valid color index, i.e. <code>i &lt; 3</code> and</li>
-<li><code>pixels</code> be non-empty, i.e. have size <code>n</code> where <code>n &gt; 0</code></li>
-</ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[sig(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
-<span class="boring">}</span></code></pre></pre>
-<img src="blog/../img/04-arrays-average-fix.gif" width="100%">
-<h2 id="const-generics-1"><a class="header" href="#const-generics-1">Const Generics</a></h2>
-<p>Rust also lets us write arrays that are <em>generic</em> over the size. For example,
-suppose we want to take two input arrays <code>x</code> and <code>y</code> of the same size <code>N</code> and
-compute their dot product. We can write</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn dot&lt;const N:usize&gt;(x: [f32;N], y: [f32;N]) -&gt; f32 {
-    let mut sum = 0.0;
-    for i in 0..N {
-        sum += x[i] * y[i];
-    }
-    sum
-}
-<span class="boring">}</span></code></pre></pre>
-<p>This is very convenient because <code>rustc</code> will prevent us from calling <code>dot</code> with
-arrays of different sizes, for example we get a compile-time error</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>   |
-68 |     dot([1.0, 2.0], [3.0, 4.0, 5.0]);
-   |     ---             ^^^^^^^^^^^^^^^ expected an array with a fixed size of 2 elements, found one with 3 elements
-   |     |
-   |     arguments to this function are incorrect
-   |
-<span class="boring">}</span></code></pre></pre>
-<p>However, suppose we wanted to compute the <code>dot</code> product of just the first <code>k</code> elements</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
-    let mut sum = 0.0;
-    for i in 0..k {
-        sum += x[i] * y[i];
-    }
-    sum
-}
-<span class="boring">}</span></code></pre></pre>
-<p>Now, unfortunately, <code>rustc</code> will not prevent us from calling <code>dot_k</code> with <code>k</code> set to a value that is too large!</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>thread 'main' panicked at ... index out of bounds: the len is 2 but the index is 2
-<span class="boring">}</span></code></pre></pre>
-<p>Yikes.</p>
-<h2 id="refined-const-generics"><a class="header" href="#refined-const-generics">Refined Const Generics</a></h2>
-<p>Fortunately, <code>flux</code> understands const-generics as well!</p>
-<p>First off, it warns us about the fact that the accesses with the index may be out of bounds.</p>
-<img src="blog/../img/04-arrays-dotk-error.png" width="100%">
-<p>We can fix it in two ways.</p>
-<ul>
-<li>The <strong>permissive</strong> approach is to accept any <code>k</code> but restrict the iteration to the valid elements</li>
-</ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
-    let mut sum = 0.0;
-    let n = if k &lt; N { k } else { N };
-    for i in 0..n {
-        sum += x[i] * y[i];
-    }
-    sum
-}
-<span class="boring">}</span></code></pre></pre>
-<img src="blog/../img/04-arrays-dotk-permissive.gif" width="100%">
-<ul>
-<li>The <strong>strict</strong> approach is to require that <code>k</code> be less than or equal to <code>N</code></li>
-</ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32)]
-fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
-    let mut sum = 0.0;
-    for i in 0..k {
-        sum += x[i] * y[i];
-    }
-    sum
-}
-<span class="boring">}</span></code></pre></pre>
-<img src="blog/../img/04-arrays-dotk-strict.gif" width="100%">
-<p>Do you understand why</p>
-<p>(1) Adding the type signature moved the error from the body of <code>dot_k</code> into the call-site inside <code>test</code>?
-(2) Then editing <code>test</code> to call <code>dot_k</code> with <code>k=2</code> fixed the error?</p>
-<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
-<p>Rust's (sized) arrays are great, and <code>flux</code>'s refinements make them even better,
-by ensuring indices are guaranteed to be within the arrays bounds. Const generics
-let us write functions that are polymorphic over array sizes, and again, refinements
-let us precisely track those sizes to prevent out-of-bounds errors!</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="about-flux"><a class="header" href="#about-flux">About Flux</a></h1>
-<img src="img/logo-wide.svg" class="flux-logo" alt="Flux Logo">
-<h2 id="team"><a class="header" href="#team">Team</a></h2>
-<p>Flux is being developed by</p>
-<ul>
-<li><a href="https://github.com/nilehmann">Nico Lehmann</a>,</li>
-<li><a href="https://www.cs.ubc.ca/~atgeller/">Adam Geller</a></li>
-<li><a href="https://www.cole-k.com/">Cole Kurashige</a></li>
-<li><a href="https://gbarthe.github.io/">Gilles Barthe</a></li>
-<li><a href="https://nikivazou.github.io/">Niki Vazou</a></li>
-<li><a href="https://cseweb.ucsd.edu/~rjhala">Ranjit Jhala</a></li>
-</ul>
-<h2 id="code"><a class="header" href="#code">Code</a></h2>
-<p>Flux is open-source and available <a href="http://github.com/liquid-rust/flux">here</a></p>
-<h2 id="publications"><a class="header" href="#publications">Publications</a></h2>
-<ul>
-<li><a href="https://dl.acm.org/doi/pdf/10.1145/3591283">Lehmann, Nico, Adam T. Geller, Niki Vazou, and Ranjit Jhala. "Flux: Liquid types for rust."  PLDI (2023)</a></li>
-<li><a href="https://dl.acm.org/doi/pdf/10.1145/3704885">Lehmann, Nico, Cole Kurashige, Nikhil Akiti, Niroop Krishnakumar, and Ranjit Jhala. "Generic Refinement Types." POPL (2025)</a></li>
-</ul>
-<h2 id="talks"><a class="header" href="#talks">Talks</a></h2>
-<ul>
-<li><a href="https://www.youtube.com/watch?v=3iYt2JTXCwM">PLDI'23</a></li>
-<li><a href="https://www.youtube.com/watch?v=NIJtZ0yUDX0">SOAP'23</a></li>
-</ul>
-<h2 id="thanks"><a class="header" href="#thanks">Thanks</a></h2>
-<p>This work was supported by the National Science Foundation, European Research Council,
-and by generous gifts from Microsoft Research.</p>
-<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
-<p>This is a prototype! Use at your own risk. Everything could break and it will break.</p>
 
                     </main>
 
@@ -5306,6 +5901,11 @@ and by generous gifts from Microsoft Research.</p>
             window.playground_copyable = true;
         </script>
 
+        <script src="ace.js"></script>
+        <script src="mode-rust.js"></script>
+        <script src="editor.js"></script>
+        <script src="theme-dawn.js"></script>
+        <script src="theme-tomorrow_night.js"></script>
 
         <script src="elasticlunr.min.js"></script>
         <script src="mark.min.js"></script>
@@ -5316,7 +5916,7 @@ and by generous gifts from Microsoft Research.</p>
         <script src="book.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src="js/flux.js"></script>
+        <script src="flux_theme/slides.js"></script>
 
         <script>
         window.addEventListener('load', function() {
