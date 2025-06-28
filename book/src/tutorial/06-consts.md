@@ -1,4 +1,4 @@
-# Arrays and Const Generics
+# Const Generics
 
 [Online demo](https://flux.goto.ucsd.edu/index.html#?demo=arrays.rs)
 

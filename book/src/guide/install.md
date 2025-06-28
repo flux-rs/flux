@@ -77,6 +77,7 @@ fn inc(x: i32) -> i32 {
 
 ## Running on a package: `cargo-flux`
 
+See this an
 Flux is integrated with `cargo` and can be invoked in a package as follows:
 
 ```bash
@@ -90,6 +91,8 @@ To do so add the following to `Cargo.toml`:
 [package.metadata.flux]
 enabled = true
 ```
+
+
 
 ### Refinement Annotations on a Cargo Projects
 

@@ -2,17 +2,17 @@
 
 [Introduction](README.md)
 [Install & Run](guide/install.md)
-[About](about.md)
+[About](ABOUT.md)
 
 
 # Online Tutorial
 
-- [Refinements](./01-refinements.md)
-- [References](./02-ownership.md)
-- [Structs](./03-structs.md)
-- [Enums](./04-enums.md)
-- [Opaques](./05-vectors.md)
-- [Consts](./06-consts.md)
+- [Refinements](tutorial/01-refinements.md)
+- [Ownership](tutorial/02-ownership.md)
+- [Structs](tutorial/03-structs.md)
+- [Enums](tutorial/04-enums.md)
+- [Opaques](tutorial/05-vectors.md)
+- [Consts](tutorial/06-consts.md)
 - [Externs]()
 - [Traits]()
 - [Case Study: Sparse Matrices]()
@@ -22,6 +22,6 @@
 
 # Appendix
 
-- [Specifications](guide/specs.md)
-- [Developer's Guide](dev/develop.md)
-- [Architecture](dev/architecture.md)
+- [Specifications](guide/specifications.md)
+- [Developer's Guide](guide/develop.md)
+- [Architecture](guide/architecture.md)
