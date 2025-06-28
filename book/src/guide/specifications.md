@@ -245,7 +245,6 @@ pub struct RMap<K, V> {
 Now, we can define `get` for our refined map as follows:
 
 ```rust
-#[generics(K as base, V as base)]
 impl<K, V> RMap<K, V> {
 
     #[flux_rs::trusted]
@@ -262,7 +261,7 @@ impl<K, V> RMap<K, V> {
 
 Note that if we do not mark these methods as `trusted`, we will get an error that looks like...
 
-```rust
+```text
 error[E0999]: cannot access fields of opaque struct `RMap`.
   --> ../opaque.rs:22:9
    |
