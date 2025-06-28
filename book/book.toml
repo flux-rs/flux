@@ -5,6 +5,11 @@ multilingual = false
 src = "src"
 title = "The Flux Book"
 
+[output.html.playground]
+editable = true
+line-numbers = false
+
 [output.html]
-additional-css = ["css/flux.css"]
-additional-js = ["js/flux.js"]
+theme = "flux_theme"
+additional-css = ["flux_theme/slides.css", "flux_theme/flux.css"]
+additional-js = ["flux_theme/slides.js"]

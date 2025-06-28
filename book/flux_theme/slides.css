@@ -1,0 +1,72 @@
+/* slides.css - Styling for mdbook slides */
+
+/* Hide slides container initially to prevent flash of unstyled content */
+#slides-container {
+    display: block;
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+}
+
+/* Navigation controls */
+.nav-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+button {
+    background-color: transparent; /* Or white if background is white */
+    color: inherit;                /* Match text color */
+    border: none;                  /* Remove border */
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.nav-btn {
+    color: inherit;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 0px;
+    cursor: pointer;
+    font-size: 16px;
+    filter: opacity(100%);
+    transition: filter 0.3s ease;
+}
+
+.nav-btn:hover {
+    filter: opacity(60%);
+}
+
+.nav-btn:disabled {
+    cursor: not-allowed;
+}
+
+.slide-counter {
+    font-size: 16px;
+    color: #333;
+}
+
+/* Slides styling */
+.slides {
+    display: none;
+    overflow: auto;
+}
+
+.active-slide {
+    display: block;
+}
+
+/* Make images in slides responsive */
+.slides img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Ensure slide content looks good */
+.slides h1:first-child,
+.slides h2:first-child,
+.slides h3:first-child {
+    margin-top: 0;
+}

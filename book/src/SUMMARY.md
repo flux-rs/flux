@@ -15,7 +15,6 @@
 - [Consts](./06-consts.md)
 - [Externs]()
 - [Traits]()
-- [Closures]()
 - [Case Study: Sparse Matrices]()
 - [Case Study: Normal Forms]()
 - [Case Study: Neural Networks]()
