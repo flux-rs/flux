@@ -245,7 +245,6 @@ pub struct RMap<K, V> {
 Now, we can define `get` for our refined map as follows:
 
 ```rust
-#[generics(K as base, V as base)]
 impl<K, V> RMap<K, V> {
 
     #[flux_rs::trusted]
