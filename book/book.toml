@@ -7,11 +7,8 @@ title = "The Flux Book"
 
 [output.html.playground]
 editable = true
-runnable = true      # But still runnable
 line-numbers = false
-
 
 [output.html]
 theme = "flux_theme"
 additional-css = ["flux_theme/flux.css"]
-# additional-js = ["flux_theme/slides.js"]
