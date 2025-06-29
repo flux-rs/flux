@@ -28,7 +28,6 @@
         <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
 
         <!-- Custom theme stylesheets -->
-        <link rel="stylesheet" href="../flux_theme/slides.css">
         <link rel="stylesheet" href="../flux_theme/flux.css">
 
 
@@ -235,9 +234,7 @@ to specify that <code>y</code> must be greater than <code>x</code> using argumen
 </code></pre>
 <h2 id="index-refinements"><a class="header" href="#index-refinements">Index Refinements</a></h2>
 <p>Of the form <code>i32[e]</code> (<code>i32</code> equal to <code>e</code>) values.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(bool[true]))]
+<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 
 pub fn test00() {
@@ -262,15 +259,12 @@ pub fn test01() {
     let a = five();
     let b = incr(a);
     assert(b == 6);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>NOTE:</strong> We use the <code>sig(..)</code> annotation to specify the refinement type of a function;
 you can optionally also add the <em>name</em> of the function as shown for <code>fn five</code>.</p>
 <h2 id="existential-refinements"><a class="header" href="#existential-refinements">Existential Refinements</a></h2>
 <p>Of the form <code>i32{v: 0 &lt;= v}</code> (non-negative <code>i32</code>) values.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x:i32) -&gt; i32{v: v &gt; x})]
+<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(x:i32) -&gt; i32{v: v &gt; x})]
 pub fn inc(x: i32) -&gt; i32 {
     x + 1
 }
@@ -278,12 +272,9 @@ pub fn inc(x: i32) -&gt; i32 {
 #[flux::sig(fn(x:i32) -&gt; i32{v: v &lt; x})]
 pub fn dec(x: i32) -&gt; i32 {
     x - 1
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="combining-index-and-existential-refinements"><a class="header" href="#combining-index-and-existential-refinements">Combining Index and Existential Refinements</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(k: i32{0 &lt;= k}) -&gt; i32[0])]
+<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(k: i32{0 &lt;= k}) -&gt; i32[0])]
 pub fn test(mut k: i32) -&gt; i32 {
     while toss() &amp;&amp; k &lt; i32::MAX - 1 {
         k += 1;
@@ -292,28 +283,19 @@ pub fn test(mut k: i32) -&gt; i32 {
         k -= 1;
     }
     k
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="mutable-references"><a class="header" href="#mutable-references">Mutable References</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x: &amp;mut i32{v: 0 &lt;= v}))]
+<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(x: &amp;mut i32{v: 0 &lt;= v}))]
 pub fn test4(x: &amp;mut i32) {
     *x += 1;
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x: &amp;mut i32{v: 0 &lt;= v}))]
+}</code></pre>
+<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(x: &amp;mut i32{v: 0 &lt;= v}))]
 pub fn test4(x: &amp;mut i32) {
     *x -= 1; //~ ERROR assignment might be unsafe
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="strong-references"><a class="header" href="#strong-references">Strong References</a></h2>
 <p>Like <code>&amp;mut T</code> but which allow <em>strong updates</em> via <code>ensures</code> clauses</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x: &amp;strg i32[@n]) ensures x: i32[n+1])]
+<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(x: &amp;strg i32[@n]) ensures x: i32[n+1])]
 pub fn inc(x: &amp;mut i32) {
     *x += 1;
 }
@@ -323,12 +305,9 @@ pub fn test_inc() -&gt; i32 {
     let mut x = 0;
     inc(&amp;mut x);
     x
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="mixing-mutable-and-strong-references"><a class="header" href="#mixing-mutable-and-strong-references">Mixing Mutable and Strong References</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn (x: &amp;strg i32[@n]) ensures x: i32[n+1])]
+<pre><code class="language-rust noplayground">#[flux::sig(fn (x: &amp;strg i32[@n]) ensures x: i32[n+1])]
 pub fn incr(x: &amp;mut i32) {
     *x += 1;
 }
@@ -336,14 +315,11 @@ pub fn incr(x: &amp;mut i32) {
 #[flux::sig(fn (x: &amp;mut i32{v: 0&lt;=v}))]
 pub fn client_safe(z: &amp;mut i32) {
     incr(z);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refined-arrays"><a class="header" href="#refined-arrays">Refined Arrays</a></h2>
 <p><code>flux</code> supports <em>refined arrays</em> of the form <code>[i32{v: 0 &lt;= v}; 20]</code>
 denoting arrays of size <code>20</code> of non-negative <code>i32</code> values.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn() -&gt; [i32{v : v &gt;= 0}; 2])]
+<pre><code class="language-rust noplayground">#[flux::sig(fn() -&gt; [i32{v : v &gt;= 0}; 2])]
 pub fn array00() -&gt; [i32; 2] {
     [0, 1]
 }
@@ -357,15 +333,12 @@ pub fn read_u16() -&gt; u16 {
 pub fn write() -&gt; i32 {
     let bytes: [i32; 2] = [10, 20];
     bytes[0] + bytes[1]
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refined-vectors-rvec"><a class="header" href="#refined-vectors-rvec">Refined Vectors <code>rvec</code></a></h2>
 <p><code>RVec</code> specification</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![allow(dead_code)]
+<pre><code class="language-rust noplayground">#![allow(dead_code)]
 
-<span class="boring">fn main() {
-</span>pub mod rslice;
+pub mod rslice;
 
 #[macro_export]
 macro_rules! rvec {
@@ -555,12 +528,9 @@ impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
     fn index_mut(&amp;mut self, index: usize) -&gt; &amp;mut T {
         self.get_mut(index)
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><code>RVec</code> clients</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+<pre><code class="language-rust noplayground">#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
@@ -585,14 +555,11 @@ pub fn test3() -&gt; usize {
     let r = v[0];
     let r = r + v[1];
     r
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>Binary Search</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![allow(unused_attributes)]
+<pre><code class="language-rust noplayground">#![allow(unused_attributes)]
 
-<span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+#[path = "../../lib/rvec.rs"]
 pub mod rvec;
 use rvec::RVec;
 
@@ -627,12 +594,9 @@ pub fn binary_search(k: i32, items: &amp;RVec&lt;i32&gt;) -&gt; usize {
         }
     }
     size
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>Heapsort</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+<pre><code class="language-rust noplayground">#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
@@ -685,12 +649,9 @@ pub fn shift_down(vec: &amp;mut RVec&lt;i32&gt;, start: usize, end: usize) -&gt;
         }
     }
     0
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refined-slices"><a class="header" href="#refined-slices">Refined Slices</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(&amp;[i32{v : v &gt; 0}]) -&gt; &amp;[i32{v : v &gt;= 0}])]
+<pre><code class="language-rust noplayground">#[flux::sig(fn(&amp;[i32{v : v &gt; 0}]) -&gt; &amp;[i32{v : v &gt;= 0}])]
 fn first_half(slice: &amp;[i32]) -&gt; &amp;[i32] {
     let mid = slice.len() / 2;
     let (fst, snd) = slice.split_at(mid);
@@ -707,11 +668,8 @@ fn inc_fst(slice: &amp;mut [i32]) {
     if let Some(x) = slice.first_mut() {
         *x += 1;
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::{RVec, rslice::RSlice};
 
@@ -744,16 +702,13 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
     let mut s1 = s.subslice(0, n / 2 - 1);
     let s2 = s.subslice(n / 2, n - 1);
     add(s1.as_mut_slice(), s2.as_slice())
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refined-vec"><a class="header" href="#refined-vec">Refined <code>Vec</code></a></h2>
 <p>This uses <code>extern_spec</code> which is <a href="#extern-specs">described below</a>.</p>
 <p><strong>Standalone</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(allocator_api)]
+<pre><code class="language-rust noplayground">#![feature(allocator_api)]
 
-<span class="boring">fn main() {
-</span>use std::alloc::{Allocator, Global};
+use std::alloc::{Allocator, Global};
 
 use flux_rs::extern_spec;
 
@@ -821,12 +776,9 @@ pub fn test_is_empty() {
 //     for x in &amp;xs {
 //         assert(0 &lt;= *x)
 //     }
-// }
-<span class="boring">}</span></code></pre></pre>
+// }</code></pre>
 <p><strong>Associated Refinements</strong> for indexing</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use std::{
+<pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
     ops::{Index, IndexMut},
     slice::{Iter, SliceIndex},
@@ -887,13 +839,10 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 
 #[extern_spec]
 #[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
-impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(allocator_api)]
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
+<pre><code class="language-rust noplayground">#![feature(allocator_api)]
 
-<span class="boring">fn main() {
-</span>use std::ops::Index;
+use std::ops::Index;
 
 #[path = "../../lib/option.rs"]
 mod option;
@@ -953,16 +902,13 @@ pub fn test2(xs: Vec&lt;i32&gt;, i: usize) {
         let _ = xs[i];
         let _ = xs[i + 1]; //~ ERROR refinement type
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="named-function-signatures"><a class="header" href="#named-function-signatures">Named Function Signatures</a></h2>
 <p>You can also write <em>named</em> function signatures using the <code>spec</code>
 annotation (instead of the anonymous <code>sig</code> annotation).</p>
 <h2 id="requires-clauses"><a class="header" href="#requires-clauses">Requires Clauses</a></h2>
 <p>Used to specify preconditions in a single spot, if needed.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+<pre><code class="language-rust noplayground">#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
@@ -979,13 +925,10 @@ pub fn test1(vec: &amp;mut RVec&lt;i32&gt;, b: bool) -&gt; i32 {
     }
     *r = 12;
     0
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refining-structs"><a class="header" href="#refining-structs">Refining Structs</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    qualifier Sub2(x: int, a: int, b:int) { x == a - b }
+<pre><code class="language-rust noplayground">#![flux::defs {
+    qualifier Sub2(x: int, a: int, b:int) { x == a - b }
 }]
 #[path = "../../lib/rvec.rs"]
 pub mod rvec;
@@ -1010,12 +953,9 @@ pub fn mk_pairs_with_bound(a: i32) -&gt; RVec&lt;Pair&gt; {
         i += 1;
     }
     res
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn is_btwn(v:int, lo:int, hi: int) -&gt; bool { lo &lt;= v &amp;&amp; v &lt;= hi }
+}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn is_btwn(v:int, lo:int, hi: int) -&gt; bool { lo &lt;= v &amp;&amp; v &lt;= hi }
     fn ok_day(d:int) -&gt; bool { is_btwn(d, 1, 31) }
     fn is_month30(m:int) -&gt; bool { m == 4 || m == 6 || m == 9 || m == 11 }
     fn ok_month(d:int, m:int) -&gt; bool { is_btwn(m, 1, 12) &amp;&amp; (is_month30(m) =&gt; d &lt;= 30) }
@@ -1068,12 +1008,9 @@ pub fn mk_date(day: usize, month: usize, year: usize) -&gt; Option&lt;Date&gt; {
         }
     }
     return None;
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="invariants-on-structs"><a class="header" href="#invariants-on-structs">Invariants on Structs</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(a: int, b: int)]
+<pre><code class="language-rust noplayground">#[flux::refined_by(a: int, b: int)]
 #[flux::invariant(a &gt; 0)]
 #[flux::invariant(b &gt; 0)]
 pub struct S {
@@ -1081,12 +1018,9 @@ pub struct S {
     fst: i32,
     #[flux::field({i32[b] | b &gt;= a})]
     snd: i32,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>with <code>const</code> generics</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Test that const generics in invariants are properly instantiated
+<pre><code class="language-rust noplayground">// Test that const generics in invariants are properly instantiated
 
 use flux_rs::attrs::*;
 
@@ -1096,25 +1030,19 @@ struct S&lt;const N: usize&gt; {}
 #[sig(fn(_) -&gt; usize{v : v &gt; 0})]
 fn foo&lt;const M: usize&gt;(x: S&lt;M&gt;) -&gt; usize {
     M
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="opaque-structs"><a class="header" href="#opaque-structs">Opaque Structs</a></h3>
 <p>Flux offers an attribute <code>opaque</code> which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, <code>RMap</code> (see below) defines a refined HashMap, indexed by a <code>Map</code> - a primitive sort defined by flux.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[opaque]
 #[refined_by(vals: Map&lt;K, V&gt;)]
 pub struct RMap&lt;K, V&gt; {
     inner: std::collections::HashMap&lt;K, V&gt;,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>Note that opaque structs <strong>can not</strong> have refined fields.</strong></p>
 <p>Now, we can define <code>get</code> for our refined map as follows:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>impl&lt;K, V&gt; RMap&lt;K, V&gt; {
+<pre><code class="language-rust noplayground">impl&lt;K, V&gt; RMap&lt;K, V&gt; {
 
     #[flux_rs::trusted]
     #[flux_rs::sig(fn(&amp;RMap&lt;K, V&gt;[@m], &amp;K[@k]) -&gt; Option&lt;&amp;V[map_select(m.vals, k)]&gt;)]
@@ -1125,8 +1053,7 @@ pub struct RMap&lt;K, V&gt; {
         self.inner.get(k)
     }
 
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>Note that if we do not mark these methods as <code>trusted</code>, we will get an error that looks like...</p>
 <pre><code class="language-text">error[E0999]: cannot access fields of opaque struct `RMap`.
   --&gt; ../opaque.rs:22:9
@@ -1145,9 +1072,7 @@ help: if you'd like to use fields of `RMap`, try annotating this method with `#[
    = note: fields of opaque structs can only be accessed inside trusted code
 </code></pre>
 <p>Here is an example of how to use the <code>opaque</code> attribute:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::opaque]
+<pre><code class="language-rust noplayground">#[flux::opaque]
 #[flux::refined_by(a: int, b: int)]
 #[flux::invariant(a &lt;= b)]
 pub struct Range {
@@ -1178,12 +1103,9 @@ impl Range {
 #[flux::sig(fn(Range) -&gt; bool[true])]
 fn test(r: Range) -&gt; bool {
     r.snd() - r.fst() &gt;= 0
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refining-enums"><a class="header" href="#refining-enums">Refining Enums</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(b:bool)]
+<pre><code class="language-rust noplayground">#[flux::refined_by(b:bool)]
 pub enum Opt&lt;T&gt; {
     #[flux::variant(Opt&lt;T&gt;[false])]
     None,
@@ -1218,11 +1140,8 @@ pub fn unwrap&lt;T&gt;(x: Opt&lt;T&gt;) -&gt; T {
         Opt::Some(v) =&gt; v,
         Opt::None =&gt; never(0),
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(n: int)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[flux::refined_by(n: int)]
 #[flux::invariant(n &gt; 0)]
 pub enum Pos {
     #[flux::variant({Box&lt;Pos[@n]&gt;} -&gt; Pos[2*n])]
@@ -1251,11 +1170,8 @@ impl Pos {
             Pos::XO(_) =&gt; false,
         }
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(i32{v: false}) -&gt; T)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[flux::sig(fn(i32{v: false}) -&gt; T)]
 pub fn never&lt;T&gt;(_: i32) -&gt; T {
     loop {}
 }
@@ -1338,12 +1254,9 @@ pub fn get_nth(l: &amp;List, k: usize) -&gt; i32 {
         }
         List::Nil =&gt; never(0),
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="invariants-on-enums"><a class="header" href="#invariants-on-enums">Invariants on Enums</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(n: int)]
+<pre><code class="language-rust noplayground">#[flux::refined_by(n: int)]
 #[flux::invariant(n &gt;= 0)]
 pub enum E {
     #[flux::variant({{i32[@n] | n &gt; 0}} -&gt; E[n])]
@@ -1355,12 +1268,9 @@ pub enum E {
 #[flux::sig(fn(E[@n], i32[n]) -&gt; i32{v: v &gt; 0})]
 pub fn is_zero(_: E, x: i32) -&gt; i32 {
     x + 1
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="reflecting-enums"><a class="header" href="#reflecting-enums">Reflecting Enums</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::reflect]
+<pre><code class="language-rust noplayground">#[flux::reflect]
 pub enum State {
     On,
     Off,
@@ -1413,13 +1323,10 @@ pub fn test05(s: State, _zig: usize, _tag: Day) -&gt; usize {
         State::On =&gt; 1,  //~ ERROR refinement type
         State::Off =&gt; 0, //~ ERROR refinement type
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="field-syntax-for-indices"><a class="header" href="#field-syntax-for-indices">Field Syntax for Indices</a></h2>
 <h3 id="structs"><a class="header" href="#structs">Structs</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(x: int, y: int)]
+<pre><code class="language-rust noplayground">#[flux::refined_by(x: int, y: int)]
 pub struct X {
     #[flux::field(u32[x])]
     x: u32,
@@ -1432,12 +1339,9 @@ fn f(mut x: X) -&gt; X {
     x.x = 1;
     x.y = 2;
     x
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="enums"><a class="header" href="#enums">Enums</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(x: int, y: int)]
+<pre><code class="language-rust noplayground">#[flux::refined_by(x: int, y: int)]
 pub enum E {
     #[flux::variant(E[0, 1])]
     Variant1,
@@ -1450,12 +1354,9 @@ pub enum E {
 #[flux::sig(fn (e: E[@old_enum]) -&gt; E[E { x: 1, y: 2 }])]
 fn f(e: E) -&gt; E {
     E::Variant2
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="updates"><a class="header" href="#updates">Updates</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(x: int, y: int)]
+<pre><code class="language-rust noplayground">#[flux::refined_by(x: int, y: int)]
 pub struct S {
     #[flux::field(u32[x])]
     x: u32,
@@ -1468,12 +1369,9 @@ impl S {
     pub fn update(&amp;mut self) {
         self.x = 1;
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn some_computation(s: S) -&gt; S { s }
+}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn some_computation(s: S) -&gt; S { s }
 }]
 
 #[flux::refined_by(x: int, y: int)]
@@ -1494,11 +1392,8 @@ impl S {
     pub fn update2(&amp;mut self) {
         self.x = 1;
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[refined_by(start: T, end: T)]
 pub struct Range&lt;T&gt; {
@@ -1517,12 +1412,9 @@ pub fn foo&lt;T&gt;(r: Range&lt;T&gt;) -&gt; Range&lt;T&gt; {
 pub fn foo2(_r: Range&lt;i32&gt;) {}
 
 #[sig(fn(r: Range&lt;i32&gt;[Range { start: 0, end: 0 } ]))]
-pub fn foo3(_r: Range&lt;i32&gt;) {}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn some_computation(s: S) -&gt; S { s }
+pub fn foo3(_r: Range&lt;i32&gt;) {}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn some_computation(s: S) -&gt; S { s }
 }]
 
 #[flux::refined_by(x: int, y: int)]
@@ -1543,13 +1435,10 @@ impl S {
     pub fn update2(&amp;mut self) {
         self.x = 1;
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="const"><a class="header" href="#const">Const</a></h2>
 <p>You can use <code>int</code>-ish <code>const</code> in refinements e.g.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub struct Cow {}
+<pre><code class="language-rust noplayground">pub struct Cow {}
 
 impl Cow {
     const GRASS: usize = 12;
@@ -1558,11 +1447,8 @@ impl Cow {
     pub fn test() -&gt; usize {
         Self::GRASS
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[repr(u32)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[repr(u32)]
 pub enum SyscallReturnVariant {
     Failure = 0,
 }
@@ -1570,11 +1456,8 @@ pub enum SyscallReturnVariant {
 #[flux_rs::sig(fn() -&gt; u32[0])]
 pub fn test() -&gt; u32 {
     SyscallReturnVariant::Failure as u32
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub struct Cow {}
+}</code></pre>
+<pre><code class="language-rust noplayground">pub struct Cow {}
 
 const GRASS: usize = 12;
 impl Cow {
@@ -1582,13 +1465,10 @@ impl Cow {
     fn test() -&gt; usize {
         GRASS
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="requires-with-forall"><a class="header" href="#requires-with-forall">Requires with <code>forall</code></a></h2>
 <p>We allow a <code>forall</code> on the requires clauses, e.g.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(bool[true]))]
+<pre><code class="language-rust noplayground">#[flux::sig(fn(bool[true]))]
 fn assert(_: bool) {}
 #[flux::sig(
     fn(x: i32)
@@ -1600,12 +1480,9 @@ fn requires_negative(x: i32) {
 
 fn test2() {
     requires_negative(-1);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="refined-associated-types"><a class="header" href="#refined-associated-types">Refined Associated Types</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[sig(fn(bool[true]))]
 fn assert(_: bool) {}
@@ -1642,8 +1519,7 @@ fn test00() {
 fn test01() {
     let x = &lt;() as MyTrait&gt;::f1(0);
     assert(x == 0);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="ignored-and-trusted-code"><a class="header" href="#ignored-and-trusted-code">Ignored and trusted code</a></h2>
 <p>Flux offers two attributes for controlling which parts of your code it analyzes: <code>#[flux_rs::ignore]</code> and <code>#[flux_rs::trusted]</code>.</p>
 <ul>
@@ -1654,9 +1530,7 @@ fn test01() {
 <p>Both attributes apply recursively. For instance, if a module is marked as <code>#[flux_rs::ignore]</code>, all its nested elements will also be ignored. This transitive behavior can be disabled by marking an item with <code>#[flux_rs::ignore(no)]</code><sup class="footnote-reference" id="fr-ignore-shorthand-1"><a href="#footnote-ignore-shorthand">1</a></sup>, which will include all nested elements for analysis. Similarly,
 the action of <code>#[flux_rs::trusted]</code> can be reverted using <code>#[flux_rs::trusted(no)]</code>.</p>
 <p>Consider the following example:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::ignore]
+<pre><code class="language-rust noplayground">#[flux_rs::ignore]
 mod A {
 
    #[flux_rs::ignore(no)]
@@ -1671,16 +1545,13 @@ mod A {
    }
 
    fn f3() {}
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>In this scenario, functions <code>f2</code> and <code>f3</code> will be ignored, while <code>f1</code> will be analyzed.</p>
 <p>A typical pattern when retroactively adding Flux annotations to existing code is to ignore an entire crate (using the inner attribute <code>#![flux_rs::ignore]</code> at the top of the crate) and then selectively include specific sections for analysis.</p>
 <p>Here is an example</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::ignore] // default to ignore for the entire crate
+<pre><code class="language-rust noplayground">#![flux::ignore] // default to ignore for the entire crate
 
-<span class="boring">fn main() {
-</span>#[flux::ignore(no)] // include this module
+#[flux::ignore(no)] // include this module
 mod included {
     #[flux::sig(fn(bool[true]))]
     pub fn assert(_: bool) {}
@@ -1701,13 +1572,10 @@ mod included {
 pub fn malformed(_: i32) {}
 
 // an ignored function that cannot be used in included code
-pub fn ignored_fun() {}
-<span class="boring">}</span></code></pre></pre>
+pub fn ignored_fun() {}</code></pre>
 <h2 id="pragma-should_fail"><a class="header" href="#pragma-should_fail">Pragma: <code>should_fail</code></a></h2>
 <p>Used to tell <code>flux</code> to <em>expect</em> a failure when checking a function.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// This function has an error
+<pre><code class="language-rust noplayground">// This function has an error
 // but it's marked as should_fail so that ok.
 // flux would yell if instead it verified!
 
@@ -1715,14 +1583,11 @@ pub fn ignored_fun() {}
 #[flux::sig(fn(x: i32) -&gt; i32[x + 1])]
 fn test00(x: i32) -&gt; i32 {
     x + 2
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="const-generics"><a class="header" href="#const-generics">Const Generics</a></h2>
 <p><code>flux</code> lets you use Rust's const-generics inside refinements.</p>
 <p><strong>Refining Array Lengths</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// https://github.com/flux-rs/flux/issues/625
+<pre><code class="language-rust noplayground">// https://github.com/flux-rs/flux/issues/625
 
 const BUFLEN: usize = 100;
 
@@ -1744,12 +1609,9 @@ pub fn test_blob(blob: Blob) -&gt; i32 {
     let x2 = blob.data[BUFLEN - 1];
     let xbad = blob.data[BUFLEN]; //~ ERROR assertion might fail
     x0 + x1 + x2 + xbad
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>Refining Struct Fields</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::invariant(N &gt; 0)]
+<pre><code class="language-rust noplayground">#[flux::invariant(N &gt; 0)]
 pub struct MPU&lt;const N: usize&gt; {
     #[flux::field({ i32 | N &gt; 0 })]
     field: i32,
@@ -1775,12 +1637,9 @@ pub fn baz&lt;const N: usize&gt;() -&gt; i32 {
     } else {
         0
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>Refining Function Signatures</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+<pre><code class="language-rust noplayground">#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
@@ -1804,8 +1663,7 @@ impl&lt;const N: usize, const M: usize&gt; Matrix&lt;N, M&gt; {
     fn get(&amp;self, i: usize, j: usize) -&gt; i32 {
         self.inner[i * M + j]
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="type-aliases"><a class="header" href="#type-aliases">Type Aliases</a></h2>
 <p>You can define refined <strong>type aliases</strong> for Rust types.</p>
 <p><strong>Note</strong></p>
@@ -1819,9 +1677,7 @@ impl&lt;const N: usize, const M: usize&gt; Matrix&lt;N, M&gt; {
 </ul>
 </li>
 </ol>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::alias(type Nat[n: int] = {i32[n] | 0 &lt;= n})]
+<pre><code class="language-rust noplayground">#[flux::alias(type Nat[n: int] = {i32[n] | 0 &lt;= n})]
 type Nat = i32;
 
 #[flux::alias(type Lb(n: int)[v: int] = {i32[v] | n &lt;= v})]
@@ -1835,16 +1691,13 @@ pub fn test1(x: Nat) -&gt; Nat {
 #[flux::sig(fn(x: Lb(10)) -&gt; Lb(10))]
 pub fn test2(x: Lb) -&gt; Lb {
     x + 1
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="spec-function-definitions"><a class="header" href="#spec-function-definitions">Spec Function Definitions</a></h2>
 <p>You can define <strong>spec functions</strong> that abstract complicated refinements into refinement-level
 functions, which can then be used in refinements.</p>
 <h3 id="plain-expressions"><a class="header" href="#plain-expressions">Plain Expressions</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn is_btwn(v:int, lo:int, hi: int) -&gt; bool { lo &lt;= v &amp;&amp; v &lt;= hi }
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn is_btwn(v:int, lo:int, hi: int) -&gt; bool { lo &lt;= v &amp;&amp; v &lt;= hi }
     fn ok_day(d:int) -&gt; bool { is_btwn(d, 1, 31) }
     fn is_month30(m:int) -&gt; bool { m == 4 || m == 6 || m == 9 || m == 11 }
     fn ok_month(d:int, m:int) -&gt; bool { is_btwn(m, 1, 12) &amp;&amp; (is_month30(m) =&gt; d &lt;= 30) }
@@ -1897,12 +1750,9 @@ pub fn mk_date(day: usize, month: usize, year: usize) -&gt; Option&lt;Date&gt; {
         }
     }
     return None;
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="let-binders"><a class="header" href="#let-binders"><code>let</code> binders</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
 
 defs! {
     fn times2(x: int) -&gt; int {
@@ -1919,13 +1769,10 @@ defs! {
 #[sig(fn() -&gt; i32[test(10)])]
 fn test() -&gt; i32 {
     32000
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="bounded-quantification"><a class="header" href="#bounded-quantification">Bounded Quantification</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn magic(xing:int, yonk:int) -&gt; bool;
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn magic(xing:int, yonk:int) -&gt; bool;
 
     fn magic_all(noob:int) -&gt; bool {
         forall i in 0 .. 4 {
@@ -1966,31 +1813,25 @@ pub fn test_exi_l(n: i32) -&gt; bool {
 #[flux::sig(fn(n:i32) -&gt; bool[magic_ex(n)])]
 pub fn test_exi_r(n: i32) -&gt; bool {
     n == 0 || n == 1 || n == 2 || n == 3
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="no-cycles"><a class="header" href="#no-cycles">No Cycles!</a></h3>
 <p>However, there should be no <em>cyclic dependencies</em> in the function definitions.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn even(x: int) -&gt; bool { x == 0 || odd(x-1) }
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn even(x: int) -&gt; bool { x == 0 || odd(x-1) }
     fn odd(x: int) -&gt; bool { x == 1 || even(x-1) } //~ ERROR cycle
 }]
 
 #[flux::sig(fn(x:i32) -&gt; i32[x+1])]
 pub fn test(x: i32) -&gt; i32 {
     x + 1
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="uninterpreted-function-declarations"><a class="header" href="#uninterpreted-function-declarations">Uninterpreted Function Declarations</a></h2>
 <p>You can also declare <em>uninterpreted</em> functions -- about which <code>flux</code> knows nothing
 other than the congruence property -- and then use them in refinements. Note that
 in this case you have to use a <code>trusted</code> annotation for the function (e.g. <code>is_valid</code>)
 that asserts facts over the uninterpreted function</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn valid(x:int) -&gt; bool;
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn valid(x:int) -&gt; bool;
 }]
 
 #[flux::trusted]
@@ -2010,12 +1851,9 @@ pub fn test(n: i32) {
     if ok {
         bar(n);
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    fn foo(x:int, y:int) -&gt; int;
+}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::defs {
+    fn foo(x:int, y:int) -&gt; int;
 }]
 
 #[flux::trusted]
@@ -2035,8 +1873,7 @@ pub fn test() {
     let b = 20;
     let c = foo(a, b);
     bar(c);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="hiding-and-revealing-function-definitions"><a class="header" href="#hiding-and-revealing-function-definitions">Hiding and Revealing Function Definitions</a></h2>
 <p>By default all the function definitions are either <em>inlined</em> or sent to the SMT solver
 as <code>define-fun</code> (when run with <code>FLUX_SMT_DEFINE_FUN=1</code>). Sometimes we want to <em>hide</em> the
@@ -2047,10 +1884,8 @@ is super complex and we just want to reason about it via congruence. For that yo
 <li>use the <code>#[reveal]</code> attribute at specific Rust function definition, to indicate you
 want to use the actual definition when checking that Rust function.</li>
 </ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs {
-<span class="boring">fn main() {
-</span>    #[hide]
+<pre><code class="language-rust noplayground">#![flux::defs {
+    #[hide]
     fn mod33(n:int) -&gt; int {
         n % 33
     }
@@ -2076,8 +1911,7 @@ pub fn use_foo(n: i32) {
 #[flux::sig(fn (xs: &amp;[i32{v: foo(v, 7)}][100]) -&gt; i32{v : foo(v, 7)})]
 pub fn bar(xs: &amp;[i32]) -&gt; i32 {
     xs[0] // `foo` as uninterpreted works fine
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="spec-functions-in-smtlib"><a class="header" href="#spec-functions-in-smtlib">Spec Functions in SMTLIB</a></h2>
 <p>By default <code>flux</code> inlines all such function definitions.</p>
 <p>Monomorphic functions may <em>optionally</em> be encoded
@@ -2086,9 +1920,7 @@ environment variable.</p>
 <h2 id="type-holes"><a class="header" href="#type-holes">Type Holes</a></h2>
 <p>You can (sometimes!) use <code>_</code> in the <code>flux</code> signatures to omit the Rust components, e.g.</p>
 <h3 id="function-signatures"><a class="header" href="#function-signatures">Function Signatures</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn(_) -&gt; Option&lt;_&gt;)]
+<pre><code class="language-rust noplayground">#[flux::sig(fn(_) -&gt; Option&lt;_&gt;)]
 fn test00(x: i32) -&gt; Option&lt;i32&gt; {
     Some(x)
 }
@@ -2101,12 +1933,9 @@ fn test01(x: &amp;mut i32) {
 #[flux::sig(fn(x: &amp;strg i32) ensures x: _)]
 fn test02(x: &amp;mut i32) {
     *x = 0;
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="structs-and-enums"><a class="header" href="#structs-and-enums">Structs and Enums</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Type holes in structs and enums
+<pre><code class="language-rust noplayground">// Type holes in structs and enums
 
 pub struct S {
     #[flux::field(Option&lt;_&gt;)]
@@ -2126,22 +1955,16 @@ pub fn test_e(e: E) -&gt; i32 {
     match e {
         E::A(x) =&gt; x,
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="type-aliases-1"><a class="header" href="#type-aliases-1">Type Aliases</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::alias(type Test = Vec&lt;_&gt;)]
+<pre><code class="language-rust noplayground">#[flux::alias(type Test = Vec&lt;_&gt;)]
 type Test = Vec&lt;i32&gt;;
 
 fn test(x: Test) -&gt; Vec&lt;i32&gt; {
     x
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="generic-args"><a class="header" href="#generic-args">Generic Args</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux_rs::refined_by(m: Map&lt;int, int&gt;)]
+<pre><code class="language-rust noplayground">#[flux_rs::refined_by(m: Map&lt;int, int&gt;)]
 #[flux_rs::opaque]
 pub struct S1&lt;const N: usize&gt; {
     _arr: [usize; N],
@@ -2159,12 +1982,9 @@ pub struct S2 {
 pub struct S3&lt;const M: usize&gt; {
     #[field(S1&lt;_&gt;[zoo])]
     pub s1: S1&lt;M&gt;,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="closures"><a class="header" href="#closures">Closures</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
 
 #[trusted]
 #[spec(fn(c: Option&lt;bool&gt;) -&gt; Option&lt;i32{v:0 &lt;= v}&gt;)]
@@ -2197,11 +2017,8 @@ pub fn test0(c: Option&lt;bool&gt;) -&gt; Option&lt;i32&gt; {
 // #[flux::sig(fn(n:usize, m:usize) -&gt; Option&lt;usize[n + m]&gt;)]
 // pub fn checked_add(n: usize, m: usize) -&gt; Option&lt;usize&gt; {
 //     n.checked_add(m)
-// }
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/rvec.rs"]
+// }</code></pre>
+<pre><code class="language-rust noplayground">#[path = "../../lib/rvec.rs"]
 mod rvec;
 use rvec::RVec;
 
@@ -2256,14 +2073,11 @@ fn frob(_vec: &amp;RVec&lt;RVec&lt;i32&gt;&gt;) -&gt; Foo {
 pub fn test3(c: Option&lt;bool&gt;, vec: RVec&lt;RVec&lt;i32&gt;&gt;) -&gt; Option&lt;Foo&gt; {
     // let mut vec = rvec![rvec![100, 200, 300]];
     c.map(|b| if b { frob(&amp;vec) } else { Foo { val: 20 } })
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="function-pointers"><a class="header" href="#function-pointers">Function Pointers</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![allow(unused)]
+<pre><code class="language-rust noplayground">#![allow(unused)]
 
-<span class="boring">fn main() {
-</span>#[flux::sig(fn (x:usize) -&gt; usize[x+1])]
+#[flux::sig(fn (x:usize) -&gt; usize[x+1])]
 fn inc(x: usize) -&gt; usize {
     x + 1
 }
@@ -2271,13 +2085,10 @@ fn inc(x: usize) -&gt; usize {
 #[flux::sig(fn(c: Option&lt;usize[99]&gt;) -&gt; Option&lt;usize[100]&gt;)]
 pub fn test_ok(c: Option&lt;usize&gt;) -&gt; Option&lt;usize&gt; {
     c.map(inc)
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![allow(unused)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#![allow(unused)]
 
-<span class="boring">fn main() {
-</span>fn id&lt;T&gt;(x: T) -&gt; T {
+fn id&lt;T&gt;(x: T) -&gt; T {
     x
 }
 
@@ -2290,11 +2101,8 @@ pub fn test_ok(c: Option&lt;usize&gt;) -&gt; Option&lt;usize&gt; {
 fn test_also_ok(x: Option&lt;i32&gt;) -&gt; Option&lt;i32&gt; {
     let f = id;
     x.map(f)
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[sig(fn(x: i32{x != 0}) -&gt; i32[1/x])]
 fn div(x: i32) -&gt; i32 {
@@ -2308,12 +2116,9 @@ fn apply&lt;A, B&gt;(f: impl FnOnce(A) -&gt; B, x: A) -&gt; B {
 #[sig(fn() -&gt; i32[0])]
 fn test() -&gt; i32 {
     apply(div, 10)
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="traits-and-implementations"><a class="header" href="#traits-and-implementations">Traits and Implementations</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub trait MyTrait {
+<pre><code class="language-rust noplayground">pub trait MyTrait {
     fn foo() -&gt; i32;
     fn bar();
 }
@@ -2334,11 +2139,8 @@ pub fn test() -&gt; i32 {
     let n = MyTy::foo();
     MyTy::bar();
     n
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub trait Mono {
+}</code></pre>
+<pre><code class="language-rust noplayground">pub trait Mono {
     #[flux::sig(fn (zing: &amp;strg i32[@n]) ensures zing: i32{v:n &lt; v})]
     fn foo(z: &amp;mut i32);
 }
@@ -2359,11 +2161,8 @@ impl Mono for Snake {
     fn foo(pig: &amp;mut i32) {
         *pig += 1;
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub trait Mono {
+}</code></pre>
+<pre><code class="language-rust noplayground">pub trait Mono {
     #[flux::sig(fn (zing: &amp;strg i32[@n])
                   requires 100 &lt; n
                   ensures zing: i32{v:n &lt; v})]
@@ -2389,11 +2188,8 @@ impl Mono for Snake {
     fn foo(pig: &amp;mut i32) {
         *pig += 1;
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::generics(Self as base)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[flux::generics(Self as base)]
 pub trait MyTrait {
     #[flux::sig(fn[hrn p: Self -&gt; bool](&amp;Self{v: p(v)}) -&gt; Self{v: p(v)})]
     fn foo1(&amp;self) -&gt; Self;
@@ -2426,11 +2222,8 @@ pub fn test() {
     let x = 42;
     assert(bar1(&amp;x) == 42);
     assert(x.foo2() == 42);
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub trait Silly&lt;A&gt; {
+}</code></pre>
+<pre><code class="language-rust noplayground">pub trait Silly&lt;A&gt; {
     #[flux::sig(fn(&amp;Self, z: A) -&gt; i32{v:100 &lt; v})]
     fn bloop(&amp;self, z: A) -&gt; i32;
 }
@@ -2451,12 +2244,9 @@ pub fn client(x: i32) -&gt; i32 {
 #[flux::sig(fn(_, _) -&gt; i32{v:100 &lt; v})]
 pub fn client2&lt;A, B: Silly&lt;A&gt;&gt;(x: B, y: A) -&gt; i32 {
     x.bloop(y)
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="impl-trait"><a class="header" href="#impl-trait">Impl Trait</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn test1() -&gt; impl Iterator&lt;Item = i32&gt; {
+<pre><code class="language-rust noplayground">pub fn test1() -&gt; impl Iterator&lt;Item = i32&gt; {
     Some(10).into_iter()
 }
 
@@ -2474,11 +2264,8 @@ pub fn test_lib() -&gt; impl Iterator&lt;Item = i32&gt; {
 pub fn test_client() -&gt; Option&lt;i32&gt; {
     let mut it = test_lib();
     it.next()
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn (x:i32) -&gt; impl Iterator&lt;Item = i32{v:x&lt;=v}&gt;)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[flux::sig(fn (x:i32) -&gt; impl Iterator&lt;Item = i32{v:x&lt;=v}&gt;)]
 pub fn lib(x: i32) -&gt; impl Iterator&lt;Item = i32&gt; {
     Some(x).into_iter()
 }
@@ -2487,10 +2274,9 @@ pub fn lib(x: i32) -&gt; impl Iterator&lt;Item = i32&gt; {
 pub fn test_client(k: i32) -&gt; Option&lt;i32&gt; {
     let mut it = lib(k);
     it.next()
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="dynamic-trait-objects"><a class="header" href="#dynamic-trait-objects">Dynamic Trait Objects</a></h2>
-<pre><pre class="playground"><code class="language-rust">#![allow(unused)]
+<pre><code class="language-rust noplayground">#![allow(unused)]
 
 // ------------------------------------------------------
 
@@ -2526,13 +2312,11 @@ fn main() {
     let c = Circle {};
     count(&amp;c);
     count_bad(&amp;c);
-}</code></pre></pre>
+}</code></pre>
 <h2 id="generic-refinements"><a class="header" href="#generic-refinements">Generic Refinements</a></h2>
 <p><code>flux</code> supports <em>generic refinements</em> see <a href="https://dl.acm.org/doi/10.1145/3704885">this paper for details</a></p>
 <p><strong>Horn Refinements</strong></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Define a function whose type uses the Horn generic refinement `p`
+<pre><code class="language-rust noplayground">// Define a function whose type uses the Horn generic refinement `p`
 #[flux::sig(
     fn[hrn p: int -&gt; bool](x: i32, y: i32) -&gt; i32{v: p(v) &amp;&amp; v &gt;= x &amp;&amp; v &gt;= y}
     requires p(x) &amp;&amp; p(y)
@@ -2551,11 +2335,8 @@ pub fn test00() -&gt; i32 {
 #[flux::sig(fn() -&gt; i32[10])]
 pub fn test01() -&gt; i32 {
     max(4, 10)
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::refined_by(a: int, b: int, hrn p: (int, int) -&gt; bool)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[flux::refined_by(a: int, b: int, hrn p: (int, int) -&gt; bool)]
 struct Pair {
     #[flux::field(i32[a])]
     fst: i32,
@@ -2586,11 +2367,8 @@ fn test03(x: i32, pair: Pair) -&gt; i32 {
 fn test04() {
     let pair = Pair { fst: 10, snd: 0 };
     test03(0, pair);
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[derive(Clone, Copy)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[derive(Clone, Copy)]
 #[flux::refined_by(hrn p: int -&gt; bool)]
 pub struct S;
 
@@ -2616,15 +2394,12 @@ pub fn test() {
     let s = or(gt(10), lt(0));
     check(s, 11);
     check(s, -1);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p><strong>Hindley Refinements</strong></p>
 <p>TODO</p>
 <h2 id="bitvector-refinements"><a class="header" href="#bitvector-refinements">Bitvector Refinements</a></h2>
 <h3 id="operators"><a class="header" href="#operators">Operators</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// https://github.com/flux-rs/flux/issues/1010
+<pre><code class="language-rust noplayground">// https://github.com/flux-rs/flux/issues/1010
 
 use flux_rs::{attrs::*, bitvec::BV32};
 
@@ -2650,11 +2425,8 @@ pub fn test_or_b(_x: BV32) {}
 pub fn test_and_a(_x: BV32) {}
 
 #[sig(fn (x:BV32{x == 10}) ensures (x &amp; 3 == 2))]
-pub fn test_and_b(_x: BV32) {}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::{attrs::*, bitvec::BV32};
+pub fn test_and_b(_x: BV32) {}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::{attrs::*, bitvec::BV32};
 
 #[sig(fn(x: BV32) -&gt; BV32[bv_add(x, bv_int_to_bv32(1))])]
 pub fn test_00(x: BV32) -&gt; BV32 {
@@ -2694,11 +2466,8 @@ pub fn test_06(x: BV32, y: BV32) -&gt; bool {
 #[sig(fn(x: BV32, y:BV32) -&gt; bool[x + y &gt; x - y])]
 pub fn test_07(x: BV32, y: BV32) -&gt; bool {
     x + y &gt; x - y
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use std::ops::{Add, Sub};
+}</code></pre>
+<pre><code class="language-rust noplayground">use std::ops::{Add, Sub};
 
 #[flux::opaque]
 #[flux::refined_by(x: bitvec&lt;32&gt;)]
@@ -2829,12 +2598,9 @@ fn gt_imp(x: BV32, y: BV32) -&gt; bool {
 #[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_uge(x, y) &amp;&amp; bv_uge(y, bv_int_to_bv32(0x20)) &amp;&amp; bv_ule(x, bv_int_to_bv32(0xFF)))]
 fn ge_imp(x: BV32, y: BV32) -&gt; bool {
     x + BV32::new(0x20) &gt;= y - BV32::new(0x20)
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="specification-functions"><a class="header" href="#specification-functions">Specification functions</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::{attrs::*, bitvec::BV32};
+<pre><code class="language-rust noplayground">use flux_rs::{attrs::*, bitvec::BV32};
 
 defs! {
     fn is_pow2(x: bitvec&lt;32&gt;) -&gt; bool {
@@ -2843,12 +2609,9 @@ defs! {
 }
 
 #[sig(fn(x: BV32) requires is_pow2(x) &amp;&amp; 8 &lt;= x ensures x % 8 == 0)]
-fn theorem_pow2_octet(x: BV32) {}
-<span class="boring">}</span></code></pre></pre>
+fn theorem_pow2_octet(x: BV32) {}</code></pre>
 <h3 id="extensions"><a class="header" href="#extensions">Extensions</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// https://github.com/flux-rs/flux/issues/686
+<pre><code class="language-rust noplayground">// https://github.com/flux-rs/flux/issues/686
 
 #[allow(dead_code)]
 #[flux::sig(fn(x: bool[true]))]
@@ -2886,13 +2649,10 @@ pub fn test_bv_extensions() {
     assert(r.zero_extend() == 12); //~ ERROR refinement type
     assert(r.sign_extend() == u64::MAX);
     assert(r.sign_extend() == 12); //~ ERROR refinement type
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="bitvector-constants"><a class="header" href="#bitvector-constants">Bitvector Constants</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![flux::defs(
-<span class="boring">fn main() {
-</span>    fn is_start(x:bitvec&lt;32&gt;) -&gt; bool { x == START }
+<pre><code class="language-rust noplayground">#![flux::defs(
+    fn is_start(x:bitvec&lt;32&gt;) -&gt; bool { x == START }
 )]
 
 #[flux::opaque]
@@ -2923,12 +2683,9 @@ pub fn test2() -&gt; BV32 {
 #[flux_rs::sig(fn () -&gt; BV32{v: is_start(v)})]
 pub fn test3() -&gt; BV32 {
     BV32::new(0x4568) //~ ERROR: refinement type
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="char-literals"><a class="header" href="#char-literals"><code>char</code> Literals</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn() -&gt; char['a'])]
+<pre><code class="language-rust noplayground">#[flux::sig(fn() -&gt; char['a'])]
 pub fn char00() -&gt; char {
     'a'
 }
@@ -2936,12 +2693,9 @@ pub fn char00() -&gt; char {
 #[flux::sig(fn(c: char{v: 'a' &lt;= v &amp;&amp; v &lt;= 'z'}) -&gt; bool[true])]
 pub fn lowercase(c: char) -&gt; bool {
     'c' == 'c'
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="string-literals"><a class="header" href="#string-literals"><code>String</code> Literals</a></h2>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::sig(fn (&amp;str["cat"]))]
+<pre><code class="language-rust noplayground">#[flux::sig(fn (&amp;str["cat"]))]
 fn require_cat(_x: &amp;str) {}
 
 pub fn test_cat() {
@@ -2955,8 +2709,7 @@ fn require_eq(_x: &amp;str, _y: &amp;str) {}
 pub fn test_eq() {
     require_eq("a", "a");
     require_eq("a", "b"); //~ ERROR refinement type
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="extern-specs"><a class="header" href="#extern-specs">Extern Specs</a></h2>
 <p>Sometimes you may want to refine a struct or function that outside your code. We
 refer to such a specification as an "extern spec," which is short for "external
@@ -2974,12 +2727,9 @@ by the procedural macros package <code>flux_rs</code>.</p>
 <a href="https://github.com/flux-rs/flux/blob/d49a74dc59b2b9bb1dda01ee019d0ab9a66cdd89/flux-tests/tests/pos/surface/extern_spec_macro.rs">here</a>.</p>
 <p>To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[extern_spec(std::mem)]
+<pre><code class="language-rust noplayground">#[extern_spec(std::mem)]
 #[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
-fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);
-<span class="boring">}</span></code></pre></pre>
+fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);</code></pre>
 <ol>
 <li>Add the <code>#[extern_spec]</code> attribute. This attribute optionally takes a path;
 in the above example, this is <code>std::mem</code>. You can use this path to qualify
@@ -2995,20 +2745,15 @@ like that the function arguments have compatible types.</li>
 <p>If you do the above, you can use <code>std::mem::swap</code> as if it were refined by the
 above type.</p>
 <p>Here are two examples:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>pub fn test_swap() {
+<pre><code class="language-rust noplayground">pub fn test_swap() {
     let mut x = 5;
     let mut y = 10;
     swap(&amp;mut x, &amp;mut y); // actually calls `std::mem::swap`
     assert(x == 10); // verified by flux
     assert(y == 5); // verified by flux
     assert(y == 10); //~ ERROR refinement type
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use std::slice::from_ref;
+}</code></pre>
+<pre><code class="language-rust noplayground">use std::slice::from_ref;
 
 use flux_rs::extern_spec;
 
@@ -3019,12 +2764,9 @@ fn from_ref&lt;T&gt;(s: &amp;T) -&gt; &amp;[T];
 #[flux::sig(fn(&amp;i32) -&gt; &amp;[i32]{n: n &gt; 0})]
 pub fn test(x: &amp;i32) -&gt; &amp;[i32] {
     from_ref(x)
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="options"><a class="header" href="#options">Options</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(b:bool)]
@@ -3042,11 +2784,8 @@ impl&lt;T&gt; Option&lt;T&gt; {
 
     #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[path = "../../lib/option.rs"]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[path = "../../lib/option.rs"]
 mod option;
 
 #[flux::trusted]
@@ -3081,12 +2820,9 @@ pub fn test3() {
     let x = Option::Some(42);
     let y = my_unwrap(x);
     assert(y == 42);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(b:bool)]
@@ -3104,13 +2840,10 @@ impl&lt;T&gt; Option&lt;T&gt; {
 
     #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
 
 #[extern_spec(std::string)]
 #[flux::refined_by(len: int)]
@@ -3122,12 +2855,9 @@ fn expect_string_len_3(s: String) {}
 #[flux::sig(fn(String[2]))]
 fn test_string_len_2(s: String) {
     expect_string_len_3(s); //~ ERROR refinement type
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>Here's a longer example of refining an extern <code>struct</code> as well as an <code>impl</code></p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(len: int)]
@@ -3180,8 +2910,7 @@ pub fn test_string() {
     s.pop();
     assert_true(s.is_empty());
     assert_true(s.as_bytes().is_empty());
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <p>The syntax for an extern spec on a struct is very similar to that for a
 function. Once again, each line in the example happens to correspond to a step.</p>
 <pre><code>#[extern_spec(std::string)]
@@ -3224,9 +2953,7 @@ of writing <code>fn len(&amp;self) -&gt; usize;</code>, you need to write <code>
 </ol>
 <p>If you do the above, you can use the above methods of<code>std::string::String</code> as if
 they were refined.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Testing we can add external specs to "transparent" structs.
+<pre><code class="language-rust noplayground">// Testing we can add external specs to "transparent" structs.
 
 use flux_rs::extern_spec;
 
@@ -3254,11 +2981,8 @@ fn assert(_: bool) {}
 fn test00() {
     let r = 0..1;
     assert(!r.is_empty());
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Extern spec of a type with a lifetime
+}</code></pre>
+<pre><code class="language-rust noplayground">// Extern spec of a type with a lifetime
 
 use std::slice::Iter;
 
@@ -3283,12 +3007,9 @@ impl&lt;T&gt; [T] {
 #[spec(fn test00(x: &amp;[i32][@n]) -&gt; &amp;[i32][n])]
 fn test00(x: &amp;[i32]) -&gt; &amp;[i32] {
     x.iter().as_slice()
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="extern-impls"><a class="header" href="#extern-impls">Extern Impls</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
+<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
 
 #[extern_spec]
 #[flux::refined_by(len: int)]
@@ -3341,11 +3062,8 @@ pub fn test_string() {
     s.pop();
     assert_true(s.is_empty());
     assert_true(s.as_bytes().is_empty());
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>//@aux-build:extern_spec_impl01_aux.rs
+}</code></pre>
+<pre><code class="language-rust noplayground">//@aux-build:extern_spec_impl01_aux.rs
 
 extern crate extern_spec_impl01_aux;
 
@@ -3361,12 +3079,9 @@ impl&lt;T&gt; MyTrait for Vec&lt;T&gt; {
 #[flux::sig(fn () -&gt; i32[10])]
 pub fn test_ok() -&gt; i32 {
     &lt;Vec&lt;i32&gt; as MyTrait&gt;::foo()
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="extern-traits"><a class="header" href="#extern-traits">Extern Traits</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[extern_spec(std::cmp)]
 #[generics(Self as base, Rhs as base)]
@@ -3395,16 +3110,13 @@ fn test00&lt;T: PartialEq&gt;(x: T, y: T) -&gt; bool {
 #[sig(fn(x: MyInt, y: MyInt) -&gt; bool[x == y])]
 fn test01(x: MyInt, y: MyInt) -&gt; bool {
     test00(x, y)
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="for-loops-with-range-ij"><a class="header" href="#for-loops-with-range-ij"><code>for</code> loops with range <code>i..j</code></a></h3>
 <p>To see how <code>flux</code> handles <code>for i in 0..n</code> style loops:</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![feature(step_trait)]
+<pre><code class="language-rust noplayground">#![feature(step_trait)]
 #![allow(unused)]
 
-<span class="boring">fn main() {
-</span>#[path = "../../lib/iterator.rs"]
+#[path = "../../lib/iterator.rs"]
 mod iterator;
 
 #[flux_rs::sig(fn (bool[true]))]
@@ -3456,15 +3168,12 @@ fn test(len: i32) {
         }
         assert(del &lt;= len)
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="associated-refinements"><a class="header" href="#associated-refinements">Associated Refinements</a></h2>
 <h3 id="basic"><a class="header" href="#basic">Basic</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![allow(dead_code)]
+<pre><code class="language-rust noplayground">#![allow(dead_code)]
 
-<span class="boring">fn main() {
-</span>use flux_rs::attrs::*;
+use flux_rs::attrs::*;
 
 trait MyTrait {
     #![reft(fn f(x: int) -&gt; int)]
@@ -3483,12 +3192,9 @@ fn test00(_x: i32) {}
 
 fn test01() {
     test00(1);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="check-subtyping-at-impl"><a class="header" href="#check-subtyping-at-impl">Check Subtyping at Impl</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// test that implementations with extra const generics work as expected
+<pre><code class="language-rust noplayground">// test that implementations with extra const generics work as expected
 
 use flux_rs::attrs::*;
 
@@ -3507,12 +3213,9 @@ impl&lt;const N: i32&gt; MyTrait for MyStruct&lt;N&gt; {
     fn method() -&gt; i32 {
         N
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="default"><a class="header" href="#default">Default</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
 
 pub trait MyTrait {
     #![reft(fn f(x: int) -&gt; int { x + 1 })]
@@ -3549,12 +3252,9 @@ impl MyTrait for Add2 {
 #[flux::sig(fn() -&gt; i32{v: v == &lt;Add2 as MyTrait&gt;::f(0)})]
 pub fn test2() -&gt; i32 {
     2
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="use-in-extern-spec"><a class="header" href="#use-in-extern-spec">Use in Extern Spec</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[extern_spec(std::cmp)]
 #[generics(Self as base, Rhs as base)]
@@ -3583,11 +3283,8 @@ fn test00&lt;T: PartialEq&gt;(x: T, y: T) -&gt; bool {
 #[sig(fn(x: MyInt, y: MyInt) -&gt; bool[x == y])]
 fn test01(x: MyInt, y: MyInt) -&gt; bool {
     test00(x, y)
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use std::{
+}</code></pre>
+<pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
     ops::{Index, IndexMut},
     slice::{Iter, SliceIndex},
@@ -3648,11 +3345,8 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 
 #[extern_spec]
 #[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
-impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::extern_spec;
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
+<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
 
 // Specs for std::slice::Iter and Enumerate
 #[extern_spec(std::slice)]
@@ -3742,14 +3436,11 @@ trait IntoIterator {
 impl&lt;I: Iterator&gt; IntoIterator for I {
     #[flux_rs::sig(fn(self: I[@s]) -&gt; I[s])]
     fn into_iter(self) -&gt; I;
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span>#![allow(unused)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#![allow(unused)]
 #![feature(allocator_api)]
 
-<span class="boring">fn main() {
-</span>use std::{iter::Enumerate, slice::Iter};
+use std::{iter::Enumerate, slice::Iter};
 
 #[path = "../../lib/option.rs"]
 mod option;
@@ -3815,12 +3506,9 @@ pub fn test_enumer4(slice: &amp;[usize]) {
     for (idx, _) in slice.iter().enumerate() {
         assert(idx &lt; slice.len())
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="associated-types"><a class="header" href="#associated-types">Associated Types</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::attrs::*;
+<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
 
 trait MyTrait {
     #![reft(fn f(x: int) -&gt; int)]
@@ -3837,11 +3525,8 @@ fn test00(x: i32) {}
 
 fn test01() {
     test00(0); //~ ERROR refinement type error
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Testing that we properly map generics in trait's default associated refinement
+}</code></pre>
+<pre><code class="language-rust noplayground">// Testing that we properly map generics in trait's default associated refinement
 // body into the impl.
 
 use flux_rs::attrs::*;
@@ -3865,12 +3550,9 @@ impl&lt;T&gt; MyTrait for S&lt;T&gt; {
 
 struct S&lt;T&gt; {
     f: T,
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h3 id="refined-associated-types-1"><a class="header" href="#refined-associated-types-1">Refined Associated Types</a></h3>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::*;
+<pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[assoc(fn can_fit(self: Self, animal: Self::Animal) -&gt; bool)]
 trait Barn {
@@ -3906,28 +3588,22 @@ fn test00() {
     let horse = Horse { size: 10 };
 
     barn.put_animal_in_house(horse);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="checking-overflows"><a class="header" href="#checking-overflows">Checking Overflows</a></h2>
 <p>You can switch on overflow checking</p>
 <ul>
 <li><em>globally</em> <a href="http://localhost:3000/guide/run.html?highlight=cache#flux-flags">with a flag</a> or</li>
 <li><em>locally</em> with an attribute as shown below</li>
 </ul>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>const MAX: u32 = std::u32::MAX;
+<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
 
 // Error on this as it may overflow
 #[flux::opts(check_overflow = true)]
 #[flux::sig(fn (u32[@x], u32[@y], u32[@z]) -&gt; u32[x + y + z] requires x + y + z &lt;= MAX)]
 fn add_three(x: u32, y: u32, z: u32) -&gt; u32 {
     x + y + z
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[flux::opts(check_overflow = true)]
+}</code></pre>
+<pre><code class="language-rust noplayground">#[flux::opts(check_overflow = true)]
 mod my_mod {
     const MAX: u32 = std::u32::MAX;
 
@@ -3940,11 +3616,8 @@ mod my_mod {
     fn add2(x: u32) -&gt; u32 {
         x + 2
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>const MAX: u32 = std::u32::MAX;
+}</code></pre>
+<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
 
 #[flux_rs::refined_by(inner: int)]
 struct MyStruct {
@@ -3963,11 +3636,8 @@ impl MyStruct {
     fn add2(&amp;self) -&gt; u32 {
         self.inner + 2
     }
-}
-<span class="boring">}</span></code></pre></pre>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>const MAX: u32 = std::u32::MAX;
+}</code></pre>
+<pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
 
 struct MyStruct {
     inner: u32,
@@ -3984,17 +3654,13 @@ impl MyTrait for MyStruct {
     fn add(x: u32, y: u32) -&gt; u32 {
         x + y
     }
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <h2 id="extensible-properties-for-primitive-ops"><a class="header" href="#extensible-properties-for-primitive-ops">Extensible Properties for Primitive Ops</a></h2>
 <p>You can provide <em>properties</em> to be used when doing computations with
 primitive operations like <code>&lt;&lt;</code> or <code>&gt;&gt;</code>.</p>
 <p>Given a primop <code>op</code> with signature <code>(t1,...,tn) -&gt; t</code> we define
 a refined type for <code>op</code> expressed as a [<code>RuleMatcher</code>]</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>op :: (x1: t1, ..., xn: tn) -&gt; { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
-<span class="boring">}</span></code></pre></pre>
+<pre><code class="language-rust noplayground">op :: (x1: t1, ..., xn: tn) -&gt; { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }</code></pre>
 <p>that is, using two <em>uninterpreted functions</em> <code>op_val</code> and <code>op_rel</code> that respectively denote</p>
 <ol>
 <li>The <em>value</em> of the primop, and</li>
@@ -4003,9 +3669,7 @@ a refined type for <code>op</code> expressed as a [<code>RuleMatcher</code>]</p>
 <p>The latter can be extended by the user via a <code>property</code> definition,
 which allows us to customize primops like <code>&lt;&lt;</code> with extra "facts"
 or lemmas. See <code>tests/tests/pos/surface/primops00.rs</code> for an example.</p>
-<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>use flux_rs::{assert, attrs::*, defs};
+<pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*, defs};
 
 defs! {
     property ShiftByTwo[&lt;&lt;](x, y) {
@@ -4047,8 +3711,7 @@ pub fn test3(byte: u8) {
     assert(byte &lt;= 127);
     assert(tmp1 &lt;= 0xf);
     assert(tmp2 &lt;= 0xf);
-}
-<span class="boring">}</span></code></pre></pre>
+}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
@@ -4105,7 +3768,6 @@ pub fn test3(byte: u8) {
         <script src="../book.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src="../flux_theme/slides.js"></script>
 
 
     </div>
