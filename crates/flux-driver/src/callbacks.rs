@@ -109,9 +109,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             let solution = bound_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
             let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(*wkvid, solution)].into() };
             let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
-            println!("  {:?}", bound_exprs.map_ref(|exprs| exprs.iter().map(|expr| format!("{:?}", expr)).join(" && ")));
-            println!("fn_sig for {}:", fn_name);
-            println!("  {}", format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)));
+            println!(" (found)  {:?}", bound_exprs.map_ref(|exprs| exprs.iter().map(|expr| format!("{:?}", expr)).join(" && ")));
+            println!(" (actual) {:?}", genv.weak_kvars_for(wkvid.0).unwrap()[&wkvid.1.as_u32()].iter().map(|expr| format!("{:?}", expr)).join(" && "));
+            println!(" fn_sig: {}", format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)));
         }
         if let Some((local_id, _)) = errors.last().clone() {
             let local_id = *local_id;
