@@ -103,7 +103,7 @@ fn test(){
 
 then `flux` will complain that
 
-```rust
+```bash
 error[FLUX]: precondition might not hold
    |
 12 |     assert(2 + 2 == 5); // fails to type check
@@ -123,7 +123,7 @@ Its not terribly exciting to only talk about _fixed_ values
 like `10` or `true`. To be more useful, `flux` lets you index
 types by refinement _parameters_. For example, you can write
 
-```rust, editable
+```rust,editable
 #[spec(fn(n:i32) -> bool[0 < n])]
 pub fn is_pos(n: i32) -> bool {
   if 0 < n {

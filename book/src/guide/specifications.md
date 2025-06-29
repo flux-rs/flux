@@ -76,12 +76,11 @@ r ::= n                     // numbers 1,2,3...
     | !r                    // negation
 ```
 
-
 ## Index Refinements
 
 Of the form `i32[e]` (`i32` equal to `e`) values.
 
-```rust
+```rust,noplayground,noplayground
 {{#include ../../../tests/tests/pos/surface/index00.rs}}
 ```
 
@@ -92,23 +91,23 @@ you can optionally also add the _name_ of the function as shown for `fn five`.
 
 Of the form `i32{v: 0 <= v}` (non-negative `i32`) values.
 
-```rust
+```rust,noplayground,noplayground
 {{#include ../../../tests/tests/pos/surface/test00.rs}}
 ```
 
 ## Combining Index and Existential Refinements
 
-```rust
+```rust,noplayground,noplayground
 {{#include ../../../tests/tests/pos/surface/loop00.rs:6:}}
 ```
 
 ## Mutable References
 
-```rust
+```rust,noplayground,noplayground
 {{#include ../../../tests/tests/pos/surface/test01.rs:58:61}}
 ```
 
-```rust
+```rust,noplayground,noplayground
 {{#include ../../../tests/tests/neg/surface/test01.rs:15:19}}
 ```
 
@@ -116,13 +115,13 @@ Of the form `i32{v: 0 <= v}` (non-negative `i32`) values.
 
 Like `&mut T` but which allow _strong updates_ via `ensures` clauses
 
-```rust
+```rust,noplayground,noplayground
 {{#include ../../../tests/tests/pos/surface/test03.rs}}
 ```
 
 ## Mixing Mutable and Strong References
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/local_ptr00.rs}}
 ```
 
@@ -131,7 +130,7 @@ Like `&mut T` but which allow _strong updates_ via `ensures` clauses
 `flux` supports _refined arrays_ of the form `[i32{v: 0 <= v}; 20]`
 denoting arrays of size `20` of non-negative `i32` values.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/array/array00.rs}}
 ```
 
@@ -139,35 +138,35 @@ denoting arrays of size `20` of non-negative `i32` values.
 
 `RVec` specification
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/lib/rvec.rs}}
 ```
 
 `RVec` clients
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/rvec00.rs}}
 ```
 
 **Binary Search**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/bsearch.rs}}
 ```
 
 **Heapsort**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/heapsort.rs}}
 ```
 
 ## Refined Slices
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/slice00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/rslice00.rs}}
 ```
 
@@ -177,17 +176,17 @@ This uses `extern_spec` which is [described below](#extern-specs).
 
 **Standalone**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/vec/vec00.rs}}
 ```
 
 **Associated Refinements** for indexing
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/lib/vec.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/vec02.rs}}
 ```
 
@@ -200,29 +199,29 @@ annotation (instead of the anonymous `sig` annotation).
 
 Used to specify preconditions in a single spot, if needed.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/test01_where.rs}}
 ```
 
 ## Refining Structs
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/structs/dot01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/date.rs}}
 ```
 
 ### Invariants on Structs
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/structs/invariant00.rs}}
 ```
 
 with `const` generics
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/invariant_with_const_generic.rs}}
 ```
 
@@ -230,7 +229,7 @@ with `const` generics
 
 Flux offers an attribute `opaque` which can be used on structs. A module defining an opaque struct should define a trusted API, and clients of the API should not access struct fields directly. This is particularly useful in cases where users need to define a type indexed by a different type than the structs fields. For example, `RMap` (see below) defines a refined HashMap, indexed by a `Map` - a primitive sort defined by flux.
 
-```rust
+```rust,noplayground
 use flux_rs::*;
 
 #[opaque]
@@ -244,7 +243,7 @@ pub struct RMap<K, V> {
 
 Now, we can define `get` for our refined map as follows:
 
-```rust
+```rust,noplayground
 impl<K, V> RMap<K, V> {
 
     #[flux_rs::trusted]
@@ -281,33 +280,33 @@ help: if you'd like to use fields of `RMap`, try annotating this method with `#[
 
 Here is an example of how to use the `opaque` attribute:
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/structs/opaque-range.rs}}
 ```
 
 ## Refining Enums
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/enums/opt01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/enums/pos00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/enums/list00.rs}}
 ```
 
 ### Invariants on Enums
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/enums/invariant00.rs}}
 ```
 
 ### Reflecting Enums
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/reflect00.rs}}
 ```
 
@@ -315,31 +314,31 @@ Here is an example of how to use the `opaque` attribute:
 
 ### Structs
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/constructors/test00.rs}}
 ```
 
 ### Enums
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/constructors/test01.rs}}
 ```
 
 ### Updates
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/constructors/test03.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/constructors/test04.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/constructors/test05.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/constructors/test11.rs}}
 ```
 
@@ -347,15 +346,15 @@ Here is an example of how to use the `opaque` attribute:
 
 You can use `int`-ish `const` in refinements e.g.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/const07.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/const08.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/const10.rs}}
 ```
 
@@ -363,13 +362,13 @@ You can use `int`-ish `const` in refinements e.g.
 
 We allow a `forall` on the requires clauses, e.g.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/forall01.rs}}
 ```
 
 ## Refined Associated Types
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type00.rs}}
 ```
 
@@ -387,7 +386,7 @@ the action of `#[flux_rs::trusted]` can be reverted using `#[flux_rs::trusted(no
 
 Consider the following example:
 
-```rust
+```rust,noplayground
 #[flux_rs::ignore]
 mod A {
 
@@ -414,7 +413,7 @@ A typical pattern when retroactively adding Flux annotations to existing code is
 
 Here is an example
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/ignore02.rs}}
 ```
 
@@ -422,7 +421,7 @@ Here is an example
 
 Used to tell `flux` to _expect_ a failure when checking a function.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/should_fail.rs}}
 ```
 
@@ -432,19 +431,19 @@ Used to tell `flux` to _expect_ a failure when checking a function.
 
 **Refining Array Lengths**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/const04.rs}}
 ```
 
 **Refining Struct Fields**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/const_generics/struct_invariant.rs}}
 ```
 
 **Refining Function Signatures**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/const_generics/matrix.rs}}
 ```
 
@@ -460,7 +459,7 @@ You can define refined **type aliases** for Rust types.
    - _early_ (`Nat`) and
    - _late_ (`Lb`).
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/alias00.rs}}
 ```
 
@@ -471,19 +470,19 @@ functions, which can then be used in refinements.
 
 ### Plain Expressions
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/date.rs}}
 ```
 
 ### `let` binders
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/let-exprs00.rs}}
 ```
 
 ### Bounded Quantification
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/bounded_quant00.rs}}
 ```
 
@@ -491,7 +490,7 @@ functions, which can then be used in refinements.
 
 However, there should be no _cyclic dependencies_ in the function definitions.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/error_messages/dfn_cycle.rs}}
 ```
 
@@ -502,11 +501,11 @@ other than the congruence property -- and then use them in refinements. Note tha
 in this case you have to use a `trusted` annotation for the function (e.g. `is_valid`)
 that asserts facts over the uninterpreted function
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/uif00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/uif01.rs}}
 ```
 
@@ -521,7 +520,7 @@ is super complex and we just want to reason about it via congruence. For that yo
 - use the `#[reveal]` attribute at specific Rust function definition, to indicate you
   want to use the actual definition when checking that Rust function.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/hide00.rs}}
 ```
 
@@ -539,87 +538,87 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 
 ### Function Signatures
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/type_holes00.rs}}
 ```
 
 ### Structs and Enums
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/type_holes01.rs}}
 ```
 
 ### Type Aliases
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/type_holes02.rs}}
 ```
 
 ### Generic Args
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/const11.rs}}
 ```
 
 ## Closures
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/closure00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/closure02.rs}}
 ```
 
 ## Function Pointers
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/fndef00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/fndef01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/fndef02.rs}}
 ```
 
 ## Traits and Implementations
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/impl00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/impl01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/impl02.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/refined_fn_in_trait_01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/trait-subtyping01.rs}}
 ```
 
 ## Impl Trait
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/impl_trait/impl_trait00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/impl_trait/impl_trait01.rs}}
 ```
 
 ## Dynamic Trait Objects
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/trait_objects/dyn01.rs}}
 ```
 
@@ -629,15 +628,15 @@ You can (sometimes!) use `_` in the `flux` signatures to omit the Rust component
 
 **Horn Refinements**
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/abstract_refinements/test00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/abstract_refinements/test01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/abstract_refinements/test03.rs}}
 ```
 
@@ -649,45 +648,45 @@ TODO
 
 ### Operators
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/bitvec03.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/bitvec_const02.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/bv_ord.rs}}
 ```
 
 ### Specification functions
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/bitvec05.rs}}
 ```
 
 ### Extensions
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/bitvec02.rs}}
 ```
 
 ### Bitvector Constants
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/bitvec_const00.rs}}
 ```
 
 ## `char` Literals
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/char02.rs}}
 ```
 
 ## `String` Literals
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/str02.rs}}
 ```
 
@@ -708,7 +707,6 @@ by the procedural macros package `flux_rs`.
 use flux_rs::extern_spec;
 ```
 
-
 The `extern_spec` is used to provide `flux` signatures for functions defined in _external_ crates. See the [specifications guide](specs.md) for more details.
 
 ### Extern Functions
@@ -719,7 +717,7 @@ An example of refining an extern function can be found
 To define an extern spec on a function, you need to do three things, which
 happen to correspond to each of the below lines.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:5:7}}
 ```
 
@@ -739,27 +737,27 @@ above type.
 
 Here are two examples:
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/extern_spec_swap.rs:9:16}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_macro.rs}}
 ```
 
 ### Options
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/lib/option.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/enums/option00.rs}}
 ```
 
 ### Vec
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/lib/option.rs}}
 ```
 
@@ -767,13 +765,13 @@ Here are two examples:
 
 Here is an example of refining an extern struct
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/extern_specs/extern_spec_struct.rs}}
 ```
 
 Here's a longer example of refining an extern `struct` as well as an `impl`
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl00.rs}}
 ```
 
@@ -826,27 +824,27 @@ impl String {
 If you do the above, you can use the above methods of`std::string::String` as if
 they were refined.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_struct03.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl03.rs}}
 ```
 
 ### Extern Impls
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_impl01.rs}}
 ```
 
 ### Extern Traits
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_trait00.rs}}
 ```
 
@@ -854,7 +852,7 @@ they were refined.
 
 To see how `flux` handles `for i in 0..n` style loops:
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/for_range00.rs}}
 ```
 
@@ -862,53 +860,53 @@ To see how `flux` handles `for i in 0..n` style loops:
 
 ### Basic
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/assoc_reft01.rs}}
 ```
 
 ### Check Subtyping at Impl
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/trait-subtyping08.rs}}
 ```
 
 ### Default
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/assoc_reft03.rs}}
 ```
 
 ### Use in Extern Spec
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/extern_specs/extern_spec_trait00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/lib/vec.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/lib/iter.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/iter02.rs}}
 ```
 
 ### Associated Types
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/assoc_reft02.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/assoc_reft04.rs}}
 ```
 
 ### Refined Associated Types
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/refined_assoc_type/refined_assoc_type01.rs}}
 ```
 
@@ -919,19 +917,19 @@ You can switch on overflow checking
 - _globally_ [with a flag](http://localhost:3000/guide/run.html?highlight=cache#flux-flags) or
 - _locally_ with an attribute as shown below
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/check_overflow00.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/check_overflow01.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/check_overflow02.rs}}
 ```
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/check_overflow03.rs}}
 ```
 
@@ -943,7 +941,7 @@ primitive operations like `<<` or `>>`.
 Given a primop `op` with signature `(t1,...,tn) -> t` we define
 a refined type for `op` expressed as a [`RuleMatcher`]
 
-```rust
+```rust,noplayground
 op :: (x1: t1, ..., xn: tn) -> { t[op_val[op](x1,...,xn)] | op_rel[x1,...,xn] }
 ```
 
@@ -956,6 +954,6 @@ The latter can be extended by the user via a `property` definition,
 which allows us to customize primops like `<<` with extra "facts"
 or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 
-```rust
+```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/primops00.rs}}
 ```
