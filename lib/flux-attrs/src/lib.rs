@@ -109,6 +109,11 @@ pub fn reft(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::reft(attrs, tokens)
 }
 
+#[proc_macro_attribute]
+pub fn vars(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::vars(attrs, tokens)
+}
+
 #[cfg(flux_sysroot)]
 mod attr_sysroot {
     use super::*;
@@ -153,6 +158,7 @@ mod attr_sysroot {
         ignore,
         should_fail,
         reft,
+        vars,
     );
 }
 
@@ -200,5 +206,6 @@ mod attr_dummy {
         ignore,
         should_fail,
         reft,
+        vars,
     );
 }

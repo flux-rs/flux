@@ -347,9 +347,20 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             .collect_err(&mut self.errors);
     }
 
-    fn visit_fn_decl(&mut self, decl: &fhir::FnDecl<'genv>) {
-        fhir::visit::walk_fn_decl(self, decl);
-        self.check_output_locs(decl);
+    fn visit_fn_sig(&mut self, sig: &fhir::FnSig<'genv>) {
+        for wk in sig.weak_kvars {
+            self.infcx.declare_weak_kvar(wk);
+        }
+        fhir::visit::walk_fn_sig(self, sig);
+        self.check_output_locs(sig.decl);
+    }
+
+    fn visit_weak_kvar(&mut self, wk: &fhir::WeakKvar<'genv>) {
+        for solution in wk.solutions {
+            self.infcx
+                .check_expr(solution, &rty::Sort::Bool)
+                .collect_err(&mut self.errors);
+        }
     }
 
     fn visit_requires(&mut self, requires: &fhir::Requires<'genv>) {

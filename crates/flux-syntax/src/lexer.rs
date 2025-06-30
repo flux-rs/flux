@@ -75,6 +75,7 @@ pub enum Token {
     Hrn,
     Hdl,
     DotDot,
+    Dollar,
     Eof,
 }
 
@@ -147,6 +148,7 @@ impl Token {
             Token::Hrn => "rn",
             Token::Hdl => "hdl",
             Token::DotDot => "..",
+            Token::Dollar => "$",
             Token::Eof => "<eof>",
         }
     }
@@ -337,6 +339,7 @@ impl<'t> Cursor<'t> {
             TokenKind::Bang => Token::Bang,
             TokenKind::PathSep => Token::PathSep,
             TokenKind::DotDot => Token::DotDot,
+            TokenKind::Dollar => Token::Dollar,
             _ => Token::Invalid,
         };
         self.tokens.push_back((span.lo(), token, span.hi()));

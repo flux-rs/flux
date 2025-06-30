@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::StructKind;
+use crate::fhir::{StructKind, WeakKvar};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -112,6 +112,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_fn_sig(&mut self, sig: &FnSig<'v>) {
         walk_fn_sig(self, sig);
+    }
+
+    fn visit_weak_kvar(&mut self, wk: &WeakKvar<'v>) {
+        walk_weak_kvar(self, wk);
     }
 
     fn visit_fn_decl(&mut self, decl: &FnDecl<'v>) {
@@ -361,6 +365,12 @@ pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBo
 
 pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
     vis.visit_fn_decl(sig.decl);
+    walk_list!(vis, visit_weak_kvar, sig.weak_kvars);
+}
+
+pub fn walk_weak_kvar<'v, V: Visitor<'v>>(vis: &mut V, wk: &WeakKvar<'v>) {
+    walk_list!(vis, visit_refine_param, wk.params);
+    walk_list!(vis, visit_expr, wk.solutions);
 }
 
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {
@@ -574,6 +584,9 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
                 vis.visit_refine_param(&decl.param);
             }
             vis.visit_expr(body);
+        }
+        ExprKind::WeakKvar(_, args) => {
+            walk_list!(vis, visit_path_expr, args);
         }
         ExprKind::Err(_) => {}
     }

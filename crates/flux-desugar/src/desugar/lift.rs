@@ -446,6 +446,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             qualifiers: &[],
             reveals: &[],
             decl: self.genv.alloc(decl),
+            weak_kvars: &[],
         }
     }
 

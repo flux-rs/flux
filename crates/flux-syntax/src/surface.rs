@@ -246,6 +246,14 @@ pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
     pub reveal_names: Option<RevealNames>,
+    pub weak_kvars: Vec<WeakKvar>,
+}
+
+#[derive(Debug)]
+pub struct WeakKvar {
+    pub num: u32,
+    pub params: RefineParams,
+    pub solutions: Vec<Expr>,
 }
 
 #[derive(Debug)]
@@ -537,6 +545,7 @@ pub enum ExprKind {
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
     Block(Vec<LetDecl>, Box<Expr>),
+    WeakKvar(u32, Vec<ExprPath>),
 }
 
 #[derive(Debug)]

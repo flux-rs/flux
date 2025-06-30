@@ -361,11 +361,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let reveal_names: Option<surface::RevealNames> = attrs.reveal_names();
 
+        let weak_kvars = attrs.weak_kvars().unwrap_or_default();
+
         Ok(self
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names }))
+            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, weak_kvars }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -499,6 +501,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("vars", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_weak_kvars, FluxAttrKind::WeakKvar)?
+            }
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -587,6 +592,7 @@ enum FluxAttrKind {
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
     Ignore(Ignored),
+    WeakKvar(Vec<surface::WeakKvar>),
     ShouldFail,
     ExternSpec,
 }
@@ -672,6 +678,10 @@ impl FluxAttrs {
         read_attr!(self, RevealNames)
     }
 
+    fn weak_kvars(&mut self) -> Option<Vec<surface::WeakKvar>> {
+        read_attr!(self, WeakKvar)
+    }
+
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }
@@ -751,6 +761,7 @@ impl FluxAttrKind {
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::WeakKvar(_) => attr_name!(WeakKvar),
         }
     }
 }

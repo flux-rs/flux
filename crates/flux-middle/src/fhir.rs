@@ -495,6 +495,14 @@ pub struct FnSig<'fhir> {
     //// List of reveals for this function
     pub reveals: &'fhir [FluxDefId],
     pub decl: &'fhir FnDecl<'fhir>,
+    pub weak_kvars: &'fhir [WeakKvar<'fhir>],
+}
+
+#[derive(Debug)]
+pub struct WeakKvar<'fhir> {
+    pub num: u32,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub solutions: &'fhir [Expr<'fhir>],
 }
 
 #[derive(Clone, Copy)]
@@ -989,6 +997,7 @@ pub enum ExprKind<'fhir> {
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
+    WeakKvar(u32, &'fhir [PathExpr<'fhir>]),
     Err(ErrorGuaranteed),
 }
 
@@ -1520,6 +1529,7 @@ impl fmt::Debug for Expr<'_> {
                 }
                 write!(f, "{body:?}")
             }
+            ExprKind::WeakKvar(num, args) => write!(f, "$wk{num}({:?})", args.iter().format(", ")),
         }
     }
 }
