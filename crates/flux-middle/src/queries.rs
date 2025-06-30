@@ -77,6 +77,10 @@ pub enum QueryErr {
         trait_id: DefId,
         name: Symbol,
     },
+    /// An operation tried to access the internals of an opaque struct.
+    OpaqueStruct {
+        struct_id: DefId,
+    },
     /// Used to report bugs, typically this means executing an arm in a match we thought it was
     /// unreachable. Use this instead of panicking if it is easy to return a [`QueryErr`]. Use
     /// [`QueryErr::bug`] or [`crate::query_bug!`] to construct this variant to track source location.
@@ -112,15 +116,40 @@ impl QueryErr {
         }
     }
 
-    pub fn at(self, span: Span) -> QueryErrAt {
-        QueryErrAt { span, err: self }
+    pub fn at(self, cx: impl Into<ErrCtxt>) -> QueryErrAt {
+        QueryErrAt { cx: cx.into(), err: self }
     }
 }
 
-/// See [`QueryErr`]
+/// A [`QueryErr`] with extra context information
 pub struct QueryErrAt {
-    span: Span,
+    cx: ErrCtxt,
     err: QueryErr,
+}
+
+/// The "use site" context in which an error is reported
+#[derive(Clone, Copy)]
+pub enum ErrCtxt {
+    /// The error was triggered when checking a function body. The `Span` is the span in
+    /// the mir associated with the error. The `LocalDefId` is the id of the function.
+    FnCheck(Span, LocalDefId),
+    /// A miscellaneous context for which we only have a span
+    Misc(Span),
+}
+
+impl From<Span> for ErrCtxt {
+    fn from(v: Span) -> Self {
+        Self::Misc(v)
+    }
+}
+
+impl ErrCtxt {
+    fn span(self) -> Span {
+        match self {
+            ErrCtxt::Misc(span) => span,
+            ErrCtxt::FnCheck(span, _) => span,
+        }
+    }
 }
 
 pub struct Providers {
@@ -882,6 +911,13 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.downgrade_to_delayed_bug();
                         diag
                     }
+                    QueryErr::OpaqueStruct { struct_id } => {
+                        let struct_span = tcx.def_span(struct_id);
+                        let mut diag =
+                            dcx.struct_span_err(struct_span, fluent::middle_query_opaque_struct);
+                        diag.arg("struct", tcx.def_path_str(struct_id));
+                        diag
+                    }
                 }
             },
         )
@@ -901,10 +937,11 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
             #[track_caller]
             |tcx| {
                 let tcx = tcx.expect("no TyCtxt stored in tls");
+                let cx_span = self.cx.span();
                 let mut diag = match self.err {
                     QueryErr::Unsupported { def_id, err, .. } => {
                         let mut diag =
-                            dcx.struct_span_err(self.span, fluent::middle_query_unsupported_at);
+                            dcx.struct_span_err(cx_span, fluent::middle_query_unsupported_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         if let Some(def_ident_span) = tcx.def_ident_span(def_id) {
                             diag.span_note(def_ident_span, fluent::_subdiag::note);
@@ -914,24 +951,35 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                     }
                     QueryErr::Ignored { def_id } => {
                         let mut diag =
-                            dcx.struct_span_err(self.span, fluent::middle_query_ignored_at);
+                            dcx.struct_span_err(cx_span, fluent::middle_query_ignored_at);
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
-                        diag.span_label(self.span, fluent::_subdiag::label);
+                        diag.span_label(cx_span, fluent::_subdiag::label);
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
                         let mut diag = dcx
-                            .struct_span_err(self.span, fluent::middle_query_missing_assoc_reft_at);
+                            .struct_span_err(cx_span, fluent::middle_query_missing_assoc_reft_at);
                         diag.arg("name", name);
                         diag.code(E0999);
+                        diag
+                    }
+                    QueryErr::OpaqueStruct { struct_id } => {
+                        let mut diag =
+                            dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
+                        diag.arg("struct", tcx.def_path_str(struct_id));
+                        if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
+                            let fn_span = tcx.def_span(fn_def_id);
+                            diag.span_help(fn_span, fluent::middle_query_opaque_struct_help);
+                            diag.note(fluent::middle_query_opaque_struct_note);
+                        }
                         diag
                     }
                     QueryErr::InvalidGenericArg { .. }
                     | QueryErr::Emitted(_)
                     | QueryErr::Bug { .. } => {
                         let mut diag = self.err.into_diag(dcx, level);
-                        diag.span(self.span);
+                        diag.span(cx_span);
                         diag
                     }
                 };

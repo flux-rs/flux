@@ -814,8 +814,9 @@ fn downcast_struct(
 fn struct_variant(genv: GlobalEnv, def_id: DefId) -> InferResult<EarlyBinder<Binder<VariantSig>>> {
     let adt_def = genv.adt_def(def_id)?;
     debug_assert!(adt_def.is_struct() || adt_def.is_union());
-    genv.variant_sig(def_id, VariantIdx::from_u32(0))?
-        .ok_or_else(|| InferErr::OpaqueStruct(def_id))
+    Ok(genv
+        .variant_sig(def_id, VariantIdx::from_u32(0))?
+        .ok_or_query_err(def_id)?)
 }
 
 /// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
