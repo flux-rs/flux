@@ -1099,28 +1099,27 @@
 <a href=#1099 id=1099 data-nosnippet>1099</a><span class="attr">#[derive(Debug)]
 <a href=#1100 id=1100 data-nosnippet>1100</a></span><span class="kw">pub enum </span>InferErr {
 <a href=#1101 id=1101 data-nosnippet>1101</a>    UnsolvedEvar(EVid),
-<a href=#1102 id=1102 data-nosnippet>1102</a>    OpaqueStruct(DefId),
-<a href=#1103 id=1103 data-nosnippet>1103</a>    Query(QueryErr),
-<a href=#1104 id=1104 data-nosnippet>1104</a>}
-<a href=#1105 id=1105 data-nosnippet>1105</a>
-<a href=#1106 id=1106 data-nosnippet>1106</a><span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>InferErr {
-<a href=#1107 id=1107 data-nosnippet>1107</a>    <span class="kw">fn </span>from(v: QueryErr) -&gt; <span class="self">Self </span>{
-<a href=#1108 id=1108 data-nosnippet>1108</a>        <span class="self">Self</span>::Query(v)
-<a href=#1109 id=1109 data-nosnippet>1109</a>    }
-<a href=#1110 id=1110 data-nosnippet>1110</a>}
-<a href=#1111 id=1111 data-nosnippet>1111</a>
-<a href=#1112 id=1112 data-nosnippet>1112</a><span class="kw">mod </span>pretty {
-<a href=#1113 id=1113 data-nosnippet>1113</a>    <span class="kw">use </span>std::fmt;
-<a href=#1114 id=1114 data-nosnippet>1114</a>
-<a href=#1115 id=1115 data-nosnippet>1115</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-<a href=#1116 id=1116 data-nosnippet>1116</a>
-<a href=#1117 id=1117 data-nosnippet>1117</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1118 id=1118 data-nosnippet>1118</a>
-<a href=#1119 id=1119 data-nosnippet>1119</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
-<a href=#1120 id=1120 data-nosnippet>1120</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1121 id=1121 data-nosnippet>1121</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
-<a href=#1122 id=1122 data-nosnippet>1122</a>        }
-<a href=#1123 id=1123 data-nosnippet>1123</a>    }
-<a href=#1124 id=1124 data-nosnippet>1124</a>
-<a href=#1125 id=1125 data-nosnippet>1125</a>    <span class="macro">impl_debug_with_default_cx!</span>(Tag);
-<a href=#1126 id=1126 data-nosnippet>1126</a>}</code></pre></div></section></main></body></html>
+<a href=#1102 id=1102 data-nosnippet>1102</a>    Query(QueryErr),
+<a href=#1103 id=1103 data-nosnippet>1103</a>}
+<a href=#1104 id=1104 data-nosnippet>1104</a>
+<a href=#1105 id=1105 data-nosnippet>1105</a><span class="kw">impl </span>From&lt;QueryErr&gt; <span class="kw">for </span>InferErr {
+<a href=#1106 id=1106 data-nosnippet>1106</a>    <span class="kw">fn </span>from(v: QueryErr) -&gt; <span class="self">Self </span>{
+<a href=#1107 id=1107 data-nosnippet>1107</a>        <span class="self">Self</span>::Query(v)
+<a href=#1108 id=1108 data-nosnippet>1108</a>    }
+<a href=#1109 id=1109 data-nosnippet>1109</a>}
+<a href=#1110 id=1110 data-nosnippet>1110</a>
+<a href=#1111 id=1111 data-nosnippet>1111</a><span class="kw">mod </span>pretty {
+<a href=#1112 id=1112 data-nosnippet>1112</a>    <span class="kw">use </span>std::fmt;
+<a href=#1113 id=1113 data-nosnippet>1113</a>
+<a href=#1114 id=1114 data-nosnippet>1114</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
+<a href=#1115 id=1115 data-nosnippet>1115</a>
+<a href=#1116 id=1116 data-nosnippet>1116</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#1117 id=1117 data-nosnippet>1117</a>
+<a href=#1118 id=1118 data-nosnippet>1118</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
+<a href=#1119 id=1119 data-nosnippet>1119</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1120 id=1120 data-nosnippet>1120</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
+<a href=#1121 id=1121 data-nosnippet>1121</a>        }
+<a href=#1122 id=1122 data-nosnippet>1122</a>    }
+<a href=#1123 id=1123 data-nosnippet>1123</a>
+<a href=#1124 id=1124 data-nosnippet>1124</a>    <span class="macro">impl_debug_with_default_cx!</span>(Tag);
+<a href=#1125 id=1125 data-nosnippet>1125</a>}</code></pre></div></section></main></body></html>

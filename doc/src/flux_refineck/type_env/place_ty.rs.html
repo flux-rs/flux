@@ -814,152 +814,153 @@
 <a href=#814 id=814 data-nosnippet>814</a><span class="kw">fn </span>struct_variant(genv: GlobalEnv, def_id: DefId) -&gt; InferResult&lt;EarlyBinder&lt;Binder&lt;VariantSig&gt;&gt;&gt; {
 <a href=#815 id=815 data-nosnippet>815</a>    <span class="kw">let </span>adt_def = genv.adt_def(def_id)<span class="question-mark">?</span>;
 <a href=#816 id=816 data-nosnippet>816</a>    <span class="macro">debug_assert!</span>(adt_def.is_struct() || adt_def.is_union());
-<a href=#817 id=817 data-nosnippet>817</a>    genv.variant_sig(def_id, VariantIdx::from_u32(<span class="number">0</span>))<span class="question-mark">?
-<a href=#818 id=818 data-nosnippet>818</a>        </span>.ok_or_else(|| InferErr::OpaqueStruct(def_id))
-<a href=#819 id=819 data-nosnippet>819</a>}
-<a href=#820 id=820 data-nosnippet>820</a>
-<a href=#821 id=821 data-nosnippet>821</a><span class="doccomment">/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
-<a href=#822 id=822 data-nosnippet>822</a>/// Given
-<a href=#823 id=823 data-nosnippet>823</a>///     * a "place" `x : T[i]`
-<a href=#824 id=824 data-nosnippet>824</a>///     * a "variant" of type `forall z..,(y:t...) =&gt; E[j]`
-<a href=#825 id=825 data-nosnippet>825</a>/// We want `downcast` to return a vector of types _and an assertion_ by
-<a href=#826 id=826 data-nosnippet>826</a>///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) =&gt; T[j']`
-<a href=#827 id=827 data-nosnippet>827</a>///     2. *Unpack* the fields using `y:t'...`
-<a href=#828 id=828 data-nosnippet>828</a>///     3. *Assume* the constraint `i == j'`
-<a href=#829 id=829 data-nosnippet>829</a></span><span class="kw">fn </span>downcast_enum(
-<a href=#830 id=830 data-nosnippet>830</a>    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
-<a href=#831 id=831 data-nosnippet>831</a>    adt: <span class="kw-2">&amp;</span>AdtDef,
-<a href=#832 id=832 data-nosnippet>832</a>    variant_idx: VariantIdx,
-<a href=#833 id=833 data-nosnippet>833</a>    args: <span class="kw-2">&amp;</span>[GenericArg],
-<a href=#834 id=834 data-nosnippet>834</a>    idx1: <span class="kw-2">&amp;</span>Expr,
-<a href=#835 id=835 data-nosnippet>835</a>    span: Span,
-<a href=#836 id=836 data-nosnippet>836</a>) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
-<a href=#837 id=837 data-nosnippet>837</a>    <span class="kw">let </span>tcx = infcx.genv.tcx();
-<a href=#838 id=838 data-nosnippet>838</a>    <span class="kw">let </span>variant_sig = infcx
-<a href=#839 id=839 data-nosnippet>839</a>        .genv
-<a href=#840 id=840 data-nosnippet>840</a>        .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
-<a href=#841 id=841 data-nosnippet>841</a>        </span>.expect(<span class="string">"enums cannot be opaque"</span>)
-<a href=#842 id=842 data-nosnippet>842</a>        .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
-<a href=#843 id=843 data-nosnippet>843</a>        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
-<a href=#844 id=844 data-nosnippet>844</a>        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))<span class="question-mark">?</span>;
-<a href=#845 id=845 data-nosnippet>845</a>
-<a href=#846 id=846 data-nosnippet>846</a>    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
-<a href=#847 id=847 data-nosnippet>847</a>
-<a href=#848 id=848 data-nosnippet>848</a>    <span class="prelude-val">Ok</span>(variant_sig.fields.to_vec())
-<a href=#849 id=849 data-nosnippet>849</a>}
-<a href=#850 id=850 data-nosnippet>850</a>
-<a href=#851 id=851 data-nosnippet>851</a><span class="kw">fn </span>fold(
-<a href=#852 id=852 data-nosnippet>852</a>    bindings: <span class="kw-2">&amp;mut </span>PlacesTree,
-<a href=#853 id=853 data-nosnippet>853</a>    infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
-<a href=#854 id=854 data-nosnippet>854</a>    ty: <span class="kw-2">&amp;</span>Ty,
-<a href=#855 id=855 data-nosnippet>855</a>    is_strg: bool,
-<a href=#856 id=856 data-nosnippet>856</a>) -&gt; QueryResult&lt;Ty&gt; {
-<a href=#857 id=857 data-nosnippet>857</a>    <span class="kw">match </span>ty.kind() {
-<a href=#858 id=858 data-nosnippet>858</a>        TyKind::Ptr(PtrKind::Box, path) =&gt; {
-<a href=#859 id=859 data-nosnippet>859</a>            <span class="kw">let </span>loc = path.to_loc().unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
-<a href=#860 id=860 data-nosnippet>860</a>            <span class="kw">let </span>binding = bindings.remove(<span class="kw-2">&amp;</span>loc);
-<a href=#861 id=861 data-nosnippet>861</a>            <span class="kw">let </span>LocKind::Box(alloc) = binding.kind <span class="kw">else </span>{
-<a href=#862 id=862 data-nosnippet>862</a>                <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);
-<a href=#863 id=863 data-nosnippet>863</a>            };
-<a href=#864 id=864 data-nosnippet>864</a>            <span class="kw">let </span>deref_ty = fold(bindings, infcx, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
-<a href=#865 id=865 data-nosnippet>865</a>            <span class="prelude-val">Ok</span>(Ty::mk_box(infcx.genv, deref_ty, alloc)<span class="question-mark">?</span>)
-<a href=#866 id=866 data-nosnippet>866</a>        }
-<a href=#867 id=867 data-nosnippet>867</a>        <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; {
-<a href=#868 id=868 data-nosnippet>868</a>            <span class="kw">let </span>deref_ty = fold(bindings, infcx, deref_ty, is_strg)<span class="question-mark">?</span>;
-<a href=#869 id=869 data-nosnippet>869</a>            <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty, <span class="kw-2">*</span>mutbl))
-<a href=#870 id=870 data-nosnippet>870</a>        }
-<a href=#871 id=871 data-nosnippet>871</a>        TyKind::Downcast(adt, args, ty_, variant_idx, fields) =&gt; {
-<a href=#872 id=872 data-nosnippet>872</a>            <span class="kw">if </span>is_strg {
-<a href=#873 id=873 data-nosnippet>873</a>                <span class="kw">let </span>variant_sig = infcx
-<a href=#874 id=874 data-nosnippet>874</a>                    .genv
-<a href=#875 id=875 data-nosnippet>875</a>                    .variant_sig(adt.did(), <span class="kw-2">*</span>variant_idx)<span class="question-mark">?
-<a href=#876 id=876 data-nosnippet>876</a>                    </span>.expect(<span class="string">"unexpected opaque struct"</span>);
-<a href=#877 id=877 data-nosnippet>877</a>
-<a href=#878 id=878 data-nosnippet>878</a>                <span class="kw">let </span>fields = fields
-<a href=#879 id=879 data-nosnippet>879</a>                    .iter()
-<a href=#880 id=880 data-nosnippet>880</a>                    .map(|ty| fold(bindings, infcx, ty, is_strg))
-<a href=#881 id=881 data-nosnippet>881</a>                    .try_collect_vec()<span class="question-mark">?</span>;
-<a href=#882 id=882 data-nosnippet>882</a>
-<a href=#883 id=883 data-nosnippet>883</a>                <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);
-<a href=#884 id=884 data-nosnippet>884</a>                <span class="kw">let </span>ty = <span class="kw">if </span>partially_moved {
-<a href=#885 id=885 data-nosnippet>885</a>                    Ty::uninit()
-<a href=#886 id=886 data-nosnippet>886</a>                } <span class="kw">else </span>{
-<a href=#887 id=887 data-nosnippet>887</a>                    infcx
-<a href=#888 id=888 data-nosnippet>888</a>                        .check_constructor(variant_sig, args, <span class="kw-2">&amp;</span>fields, ConstrReason::Fold)
-<a href=#889 id=889 data-nosnippet>889</a>                        .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>))
-<a href=#890 id=890 data-nosnippet>890</a>                };
-<a href=#891 id=891 data-nosnippet>891</a>
-<a href=#892 id=892 data-nosnippet>892</a>                <span class="prelude-val">Ok</span>(ty)
-<a href=#893 id=893 data-nosnippet>893</a>            } <span class="kw">else </span>{
-<a href=#894 id=894 data-nosnippet>894</a>                <span class="prelude-val">Ok</span>(ty_.clone())
-<a href=#895 id=895 data-nosnippet>895</a>            }
-<a href=#896 id=896 data-nosnippet>896</a>        }
-<a href=#897 id=897 data-nosnippet>897</a>        TyKind::Indexed(BaseTy::Tuple(fields), idx) =&gt; {
-<a href=#898 id=898 data-nosnippet>898</a>            <span class="macro">debug_assert_eq!</span>(idx, <span class="kw-2">&amp;</span>Expr::unit());
-<a href=#899 id=899 data-nosnippet>899</a>
-<a href=#900 id=900 data-nosnippet>900</a>            <span class="kw">let </span>fields = fields
-<a href=#901 id=901 data-nosnippet>901</a>                .iter()
-<a href=#902 id=902 data-nosnippet>902</a>                .map(|ty| fold(bindings, infcx, ty, is_strg))
-<a href=#903 id=903 data-nosnippet>903</a>                .try_collect_vec()<span class="question-mark">?</span>;
-<a href=#904 id=904 data-nosnippet>904</a>
-<a href=#905 id=905 data-nosnippet>905</a>            <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);
-<a href=#906 id=906 data-nosnippet>906</a>            <span class="kw">let </span>ty = <span class="kw">if </span>partially_moved { Ty::uninit() } <span class="kw">else </span>{ Ty::tuple(fields) };
-<a href=#907 id=907 data-nosnippet>907</a>            <span class="prelude-val">Ok</span>(ty)
-<a href=#908 id=908 data-nosnippet>908</a>        }
-<a href=#909 id=909 data-nosnippet>909</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(ty.clone()),
-<a href=#910 id=910 data-nosnippet>910</a>    }
-<a href=#911 id=911 data-nosnippet>911</a>}
-<a href=#912 id=912 data-nosnippet>912</a>
-<a href=#913 id=913 data-nosnippet>913</a><span class="kw">mod </span>pretty {
-<a href=#914 id=914 data-nosnippet>914</a>
-<a href=#915 id=915 data-nosnippet>915</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
-<a href=#916 id=916 data-nosnippet>916</a>    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<a href=#917 id=917 data-nosnippet>917</a>
-<a href=#918 id=918 data-nosnippet>918</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#919 id=919 data-nosnippet>919</a>
-<a href=#920 id=920 data-nosnippet>920</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>PlacesTree {
-<a href=#921 id=921 data-nosnippet>921</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#922 id=922 data-nosnippet>922</a>            <span class="macro">w!</span>(
-<a href=#923 id=923 data-nosnippet>923</a>                cx, f,
-<a href=#924 id=924 data-nosnippet>924</a>                <span class="string">"{{{}}}"</span>,
-<a href=#925 id=925 data-nosnippet>925</a>                ^<span class="self">self
-<a href=#926 id=926 data-nosnippet>926</a>                    </span>.iter()
-<a href=#927 id=927 data-nosnippet>927</a>                    .filter(|(<span class="kw">_</span>, binding)| !cx.hide_uninit || !binding.ty.is_uninit())
-<a href=#928 id=928 data-nosnippet>928</a>                    .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
-<a href=#929 id=929 data-nosnippet>929</a>                    .format_with(<span class="string">", "</span>, |(loc, binding), f| {
-<a href=#930 id=930 data-nosnippet>930</a>                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}:{:?} {:?}"</span>, loc, <span class="kw-2">&amp;</span>binding.kind, <span class="kw-2">&amp;</span>binding.ty))
-<a href=#931 id=931 data-nosnippet>931</a>                    })
-<a href=#932 id=932 data-nosnippet>932</a>            )
-<a href=#933 id=933 data-nosnippet>933</a>        }
-<a href=#934 id=934 data-nosnippet>934</a>
-<a href=#935 id=935 data-nosnippet>935</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
-<a href=#936 id=936 data-nosnippet>936</a>            PrettyCx::default(tcx).kvar_args(KVarArgs::Hide)
-<a href=#937 id=937 data-nosnippet>937</a>        }
-<a href=#938 id=938 data-nosnippet>938</a>    }
-<a href=#939 id=939 data-nosnippet>939</a>
-<a href=#940 id=940 data-nosnippet>940</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>LocKind {
-<a href=#941 id=941 data-nosnippet>941</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#942 id=942 data-nosnippet>942</a>            <span class="kw">match </span><span class="self">self </span>{
-<a href=#943 id=943 data-nosnippet>943</a>                LocKind::Local | LocKind::Universal =&gt; <span class="prelude-val">Ok</span>(()),
-<a href=#944 id=944 data-nosnippet>944</a>                LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"[box]"</span>),
-<a href=#945 id=945 data-nosnippet>945</a>                LocKind::LocalPtr(ty) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"[local-ptr({:?})]"</span>, ty),
-<a href=#946 id=946 data-nosnippet>946</a>            }
-<a href=#947 id=947 data-nosnippet>947</a>        }
-<a href=#948 id=948 data-nosnippet>948</a>    }
-<a href=#949 id=949 data-nosnippet>949</a>
-<a href=#950 id=950 data-nosnippet>950</a>    <span class="macro">impl_debug_with_default_cx!</span>(PlacesTree);
-<a href=#951 id=951 data-nosnippet>951</a>}
-<a href=#952 id=952 data-nosnippet>952</a>
-<a href=#953 id=953 data-nosnippet>953</a><span class="kw">impl </span>TypeVisitable <span class="kw">for </span>PlacesTree {
-<a href=#954 id=954 data-nosnippet>954</a>    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
-<a href=#955 id=955 data-nosnippet>955</a>        <span class="macro">unimplemented!</span>()
-<a href=#956 id=956 data-nosnippet>956</a>    }
-<a href=#957 id=957 data-nosnippet>957</a>}
-<a href=#958 id=958 data-nosnippet>958</a>
-<a href=#959 id=959 data-nosnippet>959</a><span class="kw">impl </span>TypeFoldable <span class="kw">for </span>PlacesTree {
-<a href=#960 id=960 data-nosnippet>960</a>    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
-<a href=#961 id=961 data-nosnippet>961</a>        <span class="kw">let </span><span class="kw-2">mut </span>this = <span class="self">self</span>.clone();
-<a href=#962 id=962 data-nosnippet>962</a>        this.try_fmap_mut(|ty| ty.try_fold_with(folder))<span class="question-mark">?</span>;
-<a href=#963 id=963 data-nosnippet>963</a>        <span class="prelude-val">Ok</span>(this)
-<a href=#964 id=964 data-nosnippet>964</a>    }
-<a href=#965 id=965 data-nosnippet>965</a>}</code></pre></div></section></main></body></html>
+<a href=#817 id=817 data-nosnippet>817</a>    <span class="prelude-val">Ok</span>(genv
+<a href=#818 id=818 data-nosnippet>818</a>        .variant_sig(def_id, VariantIdx::from_u32(<span class="number">0</span>))<span class="question-mark">?
+<a href=#819 id=819 data-nosnippet>819</a>        </span>.ok_or_query_err(def_id)<span class="question-mark">?</span>)
+<a href=#820 id=820 data-nosnippet>820</a>}
+<a href=#821 id=821 data-nosnippet>821</a>
+<a href=#822 id=822 data-nosnippet>822</a><span class="doccomment">/// In contrast (w.r.t. `struct`) downcast on `enum` works as follows.
+<a href=#823 id=823 data-nosnippet>823</a>/// Given
+<a href=#824 id=824 data-nosnippet>824</a>///     * a "place" `x : T[i]`
+<a href=#825 id=825 data-nosnippet>825</a>///     * a "variant" of type `forall z..,(y:t...) =&gt; E[j]`
+<a href=#826 id=826 data-nosnippet>826</a>/// We want `downcast` to return a vector of types _and an assertion_ by
+<a href=#827 id=827 data-nosnippet>827</a>///     1. *Instantiate* the type to fresh names `z'...` to get `(y:t'...) =&gt; T[j']`
+<a href=#828 id=828 data-nosnippet>828</a>///     2. *Unpack* the fields using `y:t'...`
+<a href=#829 id=829 data-nosnippet>829</a>///     3. *Assume* the constraint `i == j'`
+<a href=#830 id=830 data-nosnippet>830</a></span><span class="kw">fn </span>downcast_enum(
+<a href=#831 id=831 data-nosnippet>831</a>    infcx: <span class="kw-2">&amp;mut </span>InferCtxt,
+<a href=#832 id=832 data-nosnippet>832</a>    adt: <span class="kw-2">&amp;</span>AdtDef,
+<a href=#833 id=833 data-nosnippet>833</a>    variant_idx: VariantIdx,
+<a href=#834 id=834 data-nosnippet>834</a>    args: <span class="kw-2">&amp;</span>[GenericArg],
+<a href=#835 id=835 data-nosnippet>835</a>    idx1: <span class="kw-2">&amp;</span>Expr,
+<a href=#836 id=836 data-nosnippet>836</a>    span: Span,
+<a href=#837 id=837 data-nosnippet>837</a>) -&gt; InferResult&lt;Vec&lt;Ty&gt;&gt; {
+<a href=#838 id=838 data-nosnippet>838</a>    <span class="kw">let </span>tcx = infcx.genv.tcx();
+<a href=#839 id=839 data-nosnippet>839</a>    <span class="kw">let </span>variant_sig = infcx
+<a href=#840 id=840 data-nosnippet>840</a>        .genv
+<a href=#841 id=841 data-nosnippet>841</a>        .variant_sig(adt.did(), variant_idx)<span class="question-mark">?
+<a href=#842 id=842 data-nosnippet>842</a>        </span>.expect(<span class="string">"enums cannot be opaque"</span>)
+<a href=#843 id=843 data-nosnippet>843</a>        .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
+<a href=#844 id=844 data-nosnippet>844</a>        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
+<a href=#845 id=845 data-nosnippet>845</a>        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))<span class="question-mark">?</span>;
+<a href=#846 id=846 data-nosnippet>846</a>
+<a href=#847 id=847 data-nosnippet>847</a>    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
+<a href=#848 id=848 data-nosnippet>848</a>
+<a href=#849 id=849 data-nosnippet>849</a>    <span class="prelude-val">Ok</span>(variant_sig.fields.to_vec())
+<a href=#850 id=850 data-nosnippet>850</a>}
+<a href=#851 id=851 data-nosnippet>851</a>
+<a href=#852 id=852 data-nosnippet>852</a><span class="kw">fn </span>fold(
+<a href=#853 id=853 data-nosnippet>853</a>    bindings: <span class="kw-2">&amp;mut </span>PlacesTree,
+<a href=#854 id=854 data-nosnippet>854</a>    infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt,
+<a href=#855 id=855 data-nosnippet>855</a>    ty: <span class="kw-2">&amp;</span>Ty,
+<a href=#856 id=856 data-nosnippet>856</a>    is_strg: bool,
+<a href=#857 id=857 data-nosnippet>857</a>) -&gt; QueryResult&lt;Ty&gt; {
+<a href=#858 id=858 data-nosnippet>858</a>    <span class="kw">match </span>ty.kind() {
+<a href=#859 id=859 data-nosnippet>859</a>        TyKind::Ptr(PtrKind::Box, path) =&gt; {
+<a href=#860 id=860 data-nosnippet>860</a>            <span class="kw">let </span>loc = path.to_loc().unwrap_or_else(|| <span class="macro">tracked_span_bug!</span>());
+<a href=#861 id=861 data-nosnippet>861</a>            <span class="kw">let </span>binding = bindings.remove(<span class="kw-2">&amp;</span>loc);
+<a href=#862 id=862 data-nosnippet>862</a>            <span class="kw">let </span>LocKind::Box(alloc) = binding.kind <span class="kw">else </span>{
+<a href=#863 id=863 data-nosnippet>863</a>                <span class="macro">tracked_span_bug!</span>(<span class="string">"box pointer to non-box loc"</span>);
+<a href=#864 id=864 data-nosnippet>864</a>            };
+<a href=#865 id=865 data-nosnippet>865</a>            <span class="kw">let </span>deref_ty = fold(bindings, infcx, <span class="kw-2">&amp;</span>binding.ty, is_strg)<span class="question-mark">?</span>;
+<a href=#866 id=866 data-nosnippet>866</a>            <span class="prelude-val">Ok</span>(Ty::mk_box(infcx.genv, deref_ty, alloc)<span class="question-mark">?</span>)
+<a href=#867 id=867 data-nosnippet>867</a>        }
+<a href=#868 id=868 data-nosnippet>868</a>        <span class="macro">Ref!</span>(re, deref_ty, mutbl) =&gt; {
+<a href=#869 id=869 data-nosnippet>869</a>            <span class="kw">let </span>deref_ty = fold(bindings, infcx, deref_ty, is_strg)<span class="question-mark">?</span>;
+<a href=#870 id=870 data-nosnippet>870</a>            <span class="prelude-val">Ok</span>(Ty::mk_ref(<span class="kw-2">*</span>re, deref_ty, <span class="kw-2">*</span>mutbl))
+<a href=#871 id=871 data-nosnippet>871</a>        }
+<a href=#872 id=872 data-nosnippet>872</a>        TyKind::Downcast(adt, args, ty_, variant_idx, fields) =&gt; {
+<a href=#873 id=873 data-nosnippet>873</a>            <span class="kw">if </span>is_strg {
+<a href=#874 id=874 data-nosnippet>874</a>                <span class="kw">let </span>variant_sig = infcx
+<a href=#875 id=875 data-nosnippet>875</a>                    .genv
+<a href=#876 id=876 data-nosnippet>876</a>                    .variant_sig(adt.did(), <span class="kw-2">*</span>variant_idx)<span class="question-mark">?
+<a href=#877 id=877 data-nosnippet>877</a>                    </span>.expect(<span class="string">"unexpected opaque struct"</span>);
+<a href=#878 id=878 data-nosnippet>878</a>
+<a href=#879 id=879 data-nosnippet>879</a>                <span class="kw">let </span>fields = fields
+<a href=#880 id=880 data-nosnippet>880</a>                    .iter()
+<a href=#881 id=881 data-nosnippet>881</a>                    .map(|ty| fold(bindings, infcx, ty, is_strg))
+<a href=#882 id=882 data-nosnippet>882</a>                    .try_collect_vec()<span class="question-mark">?</span>;
+<a href=#883 id=883 data-nosnippet>883</a>
+<a href=#884 id=884 data-nosnippet>884</a>                <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);
+<a href=#885 id=885 data-nosnippet>885</a>                <span class="kw">let </span>ty = <span class="kw">if </span>partially_moved {
+<a href=#886 id=886 data-nosnippet>886</a>                    Ty::uninit()
+<a href=#887 id=887 data-nosnippet>887</a>                } <span class="kw">else </span>{
+<a href=#888 id=888 data-nosnippet>888</a>                    infcx
+<a href=#889 id=889 data-nosnippet>889</a>                        .check_constructor(variant_sig, args, <span class="kw-2">&amp;</span>fields, ConstrReason::Fold)
+<a href=#890 id=890 data-nosnippet>890</a>                        .unwrap_or_else(|err| <span class="macro">tracked_span_bug!</span>(<span class="string">"{err:?}"</span>))
+<a href=#891 id=891 data-nosnippet>891</a>                };
+<a href=#892 id=892 data-nosnippet>892</a>
+<a href=#893 id=893 data-nosnippet>893</a>                <span class="prelude-val">Ok</span>(ty)
+<a href=#894 id=894 data-nosnippet>894</a>            } <span class="kw">else </span>{
+<a href=#895 id=895 data-nosnippet>895</a>                <span class="prelude-val">Ok</span>(ty_.clone())
+<a href=#896 id=896 data-nosnippet>896</a>            }
+<a href=#897 id=897 data-nosnippet>897</a>        }
+<a href=#898 id=898 data-nosnippet>898</a>        TyKind::Indexed(BaseTy::Tuple(fields), idx) =&gt; {
+<a href=#899 id=899 data-nosnippet>899</a>            <span class="macro">debug_assert_eq!</span>(idx, <span class="kw-2">&amp;</span>Expr::unit());
+<a href=#900 id=900 data-nosnippet>900</a>
+<a href=#901 id=901 data-nosnippet>901</a>            <span class="kw">let </span>fields = fields
+<a href=#902 id=902 data-nosnippet>902</a>                .iter()
+<a href=#903 id=903 data-nosnippet>903</a>                .map(|ty| fold(bindings, infcx, ty, is_strg))
+<a href=#904 id=904 data-nosnippet>904</a>                .try_collect_vec()<span class="question-mark">?</span>;
+<a href=#905 id=905 data-nosnippet>905</a>
+<a href=#906 id=906 data-nosnippet>906</a>            <span class="kw">let </span>partially_moved = fields.iter().any(Ty::is_uninit);
+<a href=#907 id=907 data-nosnippet>907</a>            <span class="kw">let </span>ty = <span class="kw">if </span>partially_moved { Ty::uninit() } <span class="kw">else </span>{ Ty::tuple(fields) };
+<a href=#908 id=908 data-nosnippet>908</a>            <span class="prelude-val">Ok</span>(ty)
+<a href=#909 id=909 data-nosnippet>909</a>        }
+<a href=#910 id=910 data-nosnippet>910</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(ty.clone()),
+<a href=#911 id=911 data-nosnippet>911</a>    }
+<a href=#912 id=912 data-nosnippet>912</a>}
+<a href=#913 id=913 data-nosnippet>913</a>
+<a href=#914 id=914 data-nosnippet>914</a><span class="kw">mod </span>pretty {
+<a href=#915 id=915 data-nosnippet>915</a>
+<a href=#916 id=916 data-nosnippet>916</a>    <span class="kw">use </span>flux_middle::pretty::<span class="kw-2">*</span>;
+<a href=#917 id=917 data-nosnippet>917</a>    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
+<a href=#918 id=918 data-nosnippet>918</a>
+<a href=#919 id=919 data-nosnippet>919</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#920 id=920 data-nosnippet>920</a>
+<a href=#921 id=921 data-nosnippet>921</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>PlacesTree {
+<a href=#922 id=922 data-nosnippet>922</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#923 id=923 data-nosnippet>923</a>            <span class="macro">w!</span>(
+<a href=#924 id=924 data-nosnippet>924</a>                cx, f,
+<a href=#925 id=925 data-nosnippet>925</a>                <span class="string">"{{{}}}"</span>,
+<a href=#926 id=926 data-nosnippet>926</a>                ^<span class="self">self
+<a href=#927 id=927 data-nosnippet>927</a>                    </span>.iter()
+<a href=#928 id=928 data-nosnippet>928</a>                    .filter(|(<span class="kw">_</span>, binding)| !cx.hide_uninit || !binding.ty.is_uninit())
+<a href=#929 id=929 data-nosnippet>929</a>                    .sorted_by(|(loc1, <span class="kw">_</span>), (loc2, <span class="kw">_</span>)| loc1.cmp(loc2))
+<a href=#930 id=930 data-nosnippet>930</a>                    .format_with(<span class="string">", "</span>, |(loc, binding), f| {
+<a href=#931 id=931 data-nosnippet>931</a>                        f(<span class="kw-2">&amp;</span><span class="macro">format_args_cx!</span>(cx, <span class="string">"{:?}:{:?} {:?}"</span>, loc, <span class="kw-2">&amp;</span>binding.kind, <span class="kw-2">&amp;</span>binding.ty))
+<a href=#932 id=932 data-nosnippet>932</a>                    })
+<a href=#933 id=933 data-nosnippet>933</a>            )
+<a href=#934 id=934 data-nosnippet>934</a>        }
+<a href=#935 id=935 data-nosnippet>935</a>
+<a href=#936 id=936 data-nosnippet>936</a>        <span class="kw">fn </span>default_cx(tcx: TyCtxt) -&gt; PrettyCx {
+<a href=#937 id=937 data-nosnippet>937</a>            PrettyCx::default(tcx).kvar_args(KVarArgs::Hide)
+<a href=#938 id=938 data-nosnippet>938</a>        }
+<a href=#939 id=939 data-nosnippet>939</a>    }
+<a href=#940 id=940 data-nosnippet>940</a>
+<a href=#941 id=941 data-nosnippet>941</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>LocKind {
+<a href=#942 id=942 data-nosnippet>942</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#943 id=943 data-nosnippet>943</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#944 id=944 data-nosnippet>944</a>                LocKind::Local | LocKind::Universal =&gt; <span class="prelude-val">Ok</span>(()),
+<a href=#945 id=945 data-nosnippet>945</a>                LocKind::Box(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"[box]"</span>),
+<a href=#946 id=946 data-nosnippet>946</a>                LocKind::LocalPtr(ty) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"[local-ptr({:?})]"</span>, ty),
+<a href=#947 id=947 data-nosnippet>947</a>            }
+<a href=#948 id=948 data-nosnippet>948</a>        }
+<a href=#949 id=949 data-nosnippet>949</a>    }
+<a href=#950 id=950 data-nosnippet>950</a>
+<a href=#951 id=951 data-nosnippet>951</a>    <span class="macro">impl_debug_with_default_cx!</span>(PlacesTree);
+<a href=#952 id=952 data-nosnippet>952</a>}
+<a href=#953 id=953 data-nosnippet>953</a>
+<a href=#954 id=954 data-nosnippet>954</a><span class="kw">impl </span>TypeVisitable <span class="kw">for </span>PlacesTree {
+<a href=#955 id=955 data-nosnippet>955</a>    <span class="kw">fn </span>visit_with&lt;V: TypeVisitor&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, _visitor: <span class="kw-2">&amp;mut </span>V) -&gt; ControlFlow&lt;V::BreakTy&gt; {
+<a href=#956 id=956 data-nosnippet>956</a>        <span class="macro">unimplemented!</span>()
+<a href=#957 id=957 data-nosnippet>957</a>    }
+<a href=#958 id=958 data-nosnippet>958</a>}
+<a href=#959 id=959 data-nosnippet>959</a>
+<a href=#960 id=960 data-nosnippet>960</a><span class="kw">impl </span>TypeFoldable <span class="kw">for </span>PlacesTree {
+<a href=#961 id=961 data-nosnippet>961</a>    <span class="kw">fn </span>try_fold_with&lt;F: FallibleTypeFolder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, folder: <span class="kw-2">&amp;mut </span>F) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, F::Error&gt; {
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="kw">let </span><span class="kw-2">mut </span>this = <span class="self">self</span>.clone();
+<a href=#963 id=963 data-nosnippet>963</a>        this.try_fmap_mut(|ty| ty.try_fold_with(folder))<span class="question-mark">?</span>;
+<a href=#964 id=964 data-nosnippet>964</a>        <span class="prelude-val">Ok</span>(this)
+<a href=#965 id=965 data-nosnippet>965</a>    }
+<a href=#966 id=966 data-nosnippet>966</a>}</code></pre></div></section></main></body></html>
