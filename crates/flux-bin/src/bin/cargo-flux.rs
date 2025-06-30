@@ -50,9 +50,16 @@ fn run() -> anyhow::Result<i32> {
     }
     args.extend(["--profile".to_string(), "flux".to_string()]);
 
+    // We set `RUSTC` as an environment variable and not in in the [build]
+    // section of the config file to make sure we run flux even when the
+    // variable is already set. We also unset `RUSTC_WRAPPER` to avoid
+    // conflicts, e.g., see https://github.com/flux-rs/flux/issues/1155
+    let sysroot = sysroot_dir();
+    let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let exit_code = Command::new("cargo")
+        .env("RUSTC", flux_driver_path)
+        .env("RUSTC_WRAPPER", "")
         .arg(format!("+{toolchain}"))
-        .arg("-Zprofile-rustflags")
         .arg("--config")
         .arg(config_file.path())
         .args(args)
@@ -63,8 +70,6 @@ fn run() -> anyhow::Result<i32> {
 }
 
 fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<NamedTempFile> {
-    let sysroot = sysroot_dir();
-    let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let ld_library_path = get_rustc_driver_lib_path(toolchain)?;
     let extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)?;
 
@@ -88,8 +93,8 @@ fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<Nam
         write!(
             w,
             r#"
-[build]
-rustc = "{flux_driver}"
+[unstable]
+profile-rustflags = true
 
 [env]
 LIB_PATH = "{lib_path}"
@@ -100,7 +105,6 @@ FLUX_CARGO = "1"
 inherits = "dev"
 incremental = false
         "#,
-            flux_driver = flux_driver_path.display(),
             lib_path = extended_lib_path.display(),
         )?;
 
