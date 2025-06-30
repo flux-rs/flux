@@ -204,10 +204,11 @@ impl<T> Option<T> {
 }
 ```
 
-The definition mirrors the actual one, except that it
-wears the `#[extern_spec]` attribute on top, and the
-methods have no definitions (as we want to use those
-from the extern crate, i.e. the standard library.
+The definition looks rather like the actual one,
+except that it wears the `#[extern_spec]` attribute
+on top, and the methods have no definitions, as we
+want to use those from the extern crate, in this case,
+the standard library.
 
 ### Using Extern Method Specifications
 
@@ -255,12 +256,143 @@ pub fn test_safe_div() {
 
 ## Extern Specs for Structs: `Vec`
 
-- struct : tests/neg/extern_specs/extern_spec_impl.rs
-- both : vec00.rs
+Previously, we saw how to define a *new* type `RVec<T>`
+for [refined vectors](./05-vectors.html) and to write
+an API that let us track the vector's size, and hence
+check the safety of vector accesses at compile time.
+Next, lets see how we can use `extern_spec` to implement
+(most of) the refined API directly on structs like
+`std::vec::Vec` which are defined in external crates.
+
+### Extern Specs for the Type Definition
+
+As with `enum`s we start by sprinkling refinement
+indices on the `struct` definition. Since we want
+to track sizes, lets write
+
+```rust,editable
+#[extern_spec]
+#[refined_by(len: int)]
+#[invariant(len >= 0)]
+struct Vec<T, A: Allocator = Global>;
+```
+
+### Extern Invariants
+
+Note that we can additionally attach **invariants** to the `struct`
+definition, which correspond to facts that are _always_ true about
+the indices. For example, that the `len` of a `Vec` is always non-negative.
+These are handy, because, for example, we can
 
 
+### Extern `struct`s are Opaque
+
+Unlike with `enum`, the `extern_spec` is oblivious
+to the _internals_ of the `struct`. That is (currently) we
+assume that the fields are all "private", and so the
+refinements must be tracked solely using the _methods_
+used to construct and manipulate the `struct`.
+
+The simplest of these is the one that births an *empty* `Vec`
+
+```rust,editable
+#[extern_spec]
+impl<T> Vec<T> {
+    #[spec(fn() -> Vec<T>[0])]
+    fn new() -> Vec<T>;
+}
+```
+
+We can test this out by creating an empty vector
+
+```rust,editable
+#[spec(fn () -> Vec<i32>[0])]
+fn test_new() -> Vec<i32> {
+    Vec::new()
+}
+```
+
+### Extern Specs for Impl Methods
+
+Lets beef up our refined `Vec` API with a few more methods
+like `push`, `pop`, `len` and so on.
+
+We might be tempted to just bundle them together with `new`
+in the `impl` above, but it is important to Flux that the
+the `extern_spec` implementations **mirror the original
+implementations**[^mirror]. As it happens, `push` and `pop`
+are defined in a *separate* `impl` block, parameterized by
+a generic `A: Allocator`, so our `extern_spec` mirrors this
+block as follows:
+
+```rust, editable
+#[extern_spec]
+impl<T, A: Allocator> Vec<T, A> {
+    #[spec(fn(self: &mut Vec<T, A>[@n], T)
+           ensures self: Vec<T, A>[n+1])]
+    fn push(&mut self, value: T);
+
+    #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T>
+           ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
+    fn pop(&mut self) -> Option<T>;
+
+    #[spec(fn(self: &Vec<T, A>[@n]) -> usize[n])]
+    fn len(&self) -> usize;
+
+    #[spec(fn(self: &Vec<T, A>[@n]) -> bool[n == 0])]
+    fn is_empty(&self) -> bool;
+}
+```
+
+### Extern Impls Mirror Original Impls
+
+show
+- test_push
+- test_vec_macro
+
+### Testing Emptiness
+
+**EXERCISE** is_empty
+
+FIX spec for `is_empty`
+
+```rust, editable
+fn test_is_empty() {
+   let v0 = test_new();
+   assert(v0.is_empty());
+
+   let v1 = test_push();
+   assert(!v1.is_empty());
+}
+```
+
+### exercise
+
+FIX THE SPEC
+
+```rust,editable
+#[spec(fn (vec: &mut Vec<T>[@n]) -> Option<(T, T)>
+       ensures vec: Vec<T>[n-2])]
+fn pop2<T>(vec: &mut Vec<T>) -> Option<(T, T)> {
+  let v1 = vec.pop()?;
+  let v2 = vec.pop()?;
+  Some((v1, v2))
+}
+```
+
+### exercise
+- pop_unwrap
+- pop2
+
+- both : tests/tests/pos/vec/vec00.rs
+
+## Summary
 
 [^assumption]: We say *assumption* because we're presuming that
 the actual code for the library is not available to verify; if
 it was, you could of course actually *guarantee* that the library
 correctly implements those specifications.
+
+[^mirror]: So that Flux can accurately match (i.e. "resolve")
+the `extern_spec` method with the original method, and thus,
+attach the specification to uses of the original method.
