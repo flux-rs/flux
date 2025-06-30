@@ -1295,7 +1295,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let sig = genv
                     .variant_sig(*def_id, *variant_idx)
                     .with_span(stmt_span)?
-                    .ok_or_else(|| CheckerError::opaque_struct(*def_id, stmt_span))?
+                    .ok_or_query_err(*def_id)
+                    .with_span(stmt_span)?
                     .to_poly_fn_sig(*field_idx);
 
                 let args =
@@ -2089,9 +2090,9 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_middle::{def_id_to_string, global_env::GlobalEnv};
+    use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
-    use rustc_hir::def_id::{DefId, LocalDefId};
+    use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
@@ -2103,10 +2104,6 @@ pub(crate) mod errors {
     }
 
     impl CheckerError {
-        pub fn opaque_struct(def_id: DefId, span: Span) -> Self {
-            Self { kind: InferErr::OpaqueStruct(def_id), span }
-        }
-
         pub fn emit(self, genv: GlobalEnv, fn_def_id: LocalDefId) -> ErrorGuaranteed {
             let dcx = genv.sess().dcx().handle();
             match self.kind {
@@ -2116,19 +2113,11 @@ pub(crate) mod errors {
                     diag.code(E0999);
                     diag.emit()
                 }
-                InferErr::OpaqueStruct(def_id) => {
-                    let mut diag =
-                        dcx.struct_span_err(self.span, fluent::refineck_opaque_struct_error);
-                    let fn_span = genv.tcx().def_span(fn_def_id);
-                    diag.span_help(fn_span, fluent::refineck_opaque_struct_help);
-                    diag.note(fluent::refineck_opaque_struct_note);
-                    diag.arg("struct", def_id_to_string(def_id));
-                    diag.code(E0999);
-                    diag.emit()
-                }
                 InferErr::Query(err) => {
                     let level = rustc_errors::Level::Error;
-                    err.at(self.span).into_diag(dcx, level).emit()
+                    err.at(ErrCtxt::FnCheck(self.span, fn_def_id))
+                        .into_diag(dcx, level)
+                        .emit()
                 }
             }
         }

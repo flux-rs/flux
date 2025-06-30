@@ -63,7 +63,7 @@ use crate::{
     fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     pretty::{Pretty, PrettyCx},
-    queries::QueryResult,
+    queries::{QueryErr, QueryResult},
     rty::subst::SortSubst,
 };
 
@@ -1165,6 +1165,61 @@ pub struct AdtDefData {
 pub enum Opaqueness<T> {
     Opaque,
     Transparent(T),
+}
+
+impl<T> Opaqueness<T> {
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Opaqueness<S> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(f(value)),
+        }
+    }
+
+    pub fn as_ref(&self) -> Opaqueness<&T> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value),
+        }
+    }
+
+    pub fn as_deref(&self) -> Opaqueness<&T::Target>
+    where
+        T: std::ops::Deref,
+    {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value.deref()),
+        }
+    }
+
+    pub fn ok_or_else<E>(self, err: impl FnOnce() -> E) -> Result<T, E> {
+        match self {
+            Opaqueness::Transparent(v) => Ok(v),
+            Opaqueness::Opaque => Err(err()),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect(self, msg: &str) -> T {
+        match self {
+            Opaqueness::Transparent(val) => val,
+            Opaqueness::Opaque => bug!("{}", msg),
+        }
+    }
+
+    pub fn ok_or_query_err(self, struct_id: DefId) -> Result<T, QueryErr> {
+        self.ok_or_else(|| QueryErr::OpaqueStruct { struct_id })
+    }
+}
+
+impl<T, E> Opaqueness<Result<T, E>> {
+    pub fn transpose(self) -> Result<Opaqueness<T>, E> {
+        match self {
+            Opaqueness::Transparent(Ok(x)) => Ok(Opaqueness::Transparent(x)),
+            Opaqueness::Transparent(Err(e)) => Err(e),
+            Opaqueness::Opaque => Ok(Opaqueness::Opaque),
+        }
+    }
 }
 
 pub static INT_TYS: [IntTy; 6] =
@@ -2565,57 +2620,6 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
-    }
-}
-
-impl<T> Opaqueness<T> {
-    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Opaqueness<S> {
-        match self {
-            Opaqueness::Opaque => Opaqueness::Opaque,
-            Opaqueness::Transparent(value) => Opaqueness::Transparent(f(value)),
-        }
-    }
-
-    pub fn as_ref(&self) -> Opaqueness<&T> {
-        match self {
-            Opaqueness::Opaque => Opaqueness::Opaque,
-            Opaqueness::Transparent(value) => Opaqueness::Transparent(value),
-        }
-    }
-
-    pub fn as_deref(&self) -> Opaqueness<&T::Target>
-    where
-        T: std::ops::Deref,
-    {
-        match self {
-            Opaqueness::Opaque => Opaqueness::Opaque,
-            Opaqueness::Transparent(value) => Opaqueness::Transparent(value.deref()),
-        }
-    }
-
-    pub fn ok_or_else<E>(self, err: impl FnOnce() -> E) -> Result<T, E> {
-        match self {
-            Opaqueness::Transparent(v) => Ok(v),
-            Opaqueness::Opaque => Err(err()),
-        }
-    }
-
-    #[track_caller]
-    pub fn expect(self, msg: &str) -> T {
-        match self {
-            Opaqueness::Transparent(val) => val,
-            Opaqueness::Opaque => bug!("{}", msg),
-        }
-    }
-}
-
-impl<T, E> Opaqueness<Result<T, E>> {
-    pub fn transpose(self) -> Result<Opaqueness<T>, E> {
-        match self {
-            Opaqueness::Transparent(Ok(x)) => Ok(Opaqueness::Transparent(x)),
-            Opaqueness::Transparent(Err(e)) => Err(e),
-            Opaqueness::Opaque => Ok(Opaqueness::Opaque),
-        }
     }
 }
 
