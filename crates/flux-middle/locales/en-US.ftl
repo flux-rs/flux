@@ -30,10 +30,11 @@ middle_query_missing_assoc_reft_at =
     associated refinement `{$name}` is missing from implementation
 
 middle_query_opaque_struct =
-    cannot access fields of opaque struct `{$struct}`.
+    invalid use of opaque struct
+    .label = operation accesses the internal representation of `{$struct}`.
 
 middle_query_opaque_struct_help =
-    if you'd like to use fields of `{$struct}`, try annotating this method with `#[flux::trusted]`
+    help: try annotating this {$def_kind} with `#[trusted]`
 
 middle_query_opaque_struct_note =
-    fields of opaque structs can only be accessed inside trusted code (see: https://flux-rs.github.io/flux/guide/specs.html#opaque)
+    opaque structs can only be accessed in trusted code (see <https://flux-rs.github.io/flux/guide/specifications.html#opaque-structs>)

@@ -968,9 +968,11 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         let mut diag =
                             dcx.struct_span_err(cx_span, fluent::middle_query_opaque_struct);
                         diag.arg("struct", tcx.def_path_str(struct_id));
+                        diag.span_label(cx_span, fluent::_subdiag::label);
                         if let ErrCtxt::FnCheck(_, fn_def_id) = self.cx {
                             let fn_span = tcx.def_span(fn_def_id);
-                            diag.span_help(fn_span, fluent::middle_query_opaque_struct_help);
+                            diag.arg("def_kind", tcx.def_descr(fn_def_id.to_def_id()));
+                            diag.span_label(fn_span, fluent::middle_query_opaque_struct_help);
                             diag.note(fluent::middle_query_opaque_struct_note);
                         }
                         diag

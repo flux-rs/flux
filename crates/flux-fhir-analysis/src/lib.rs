@@ -595,11 +595,9 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
                 }
                 _ => return Err(query_bug!("invalid `DefKind` for ctor node")),
             };
-            let sig = genv
-                .variant_sig(adt_id, variant_idx)?
+            genv.variant_sig(adt_id, variant_idx)?
                 .map(|sig| sig.to_poly_fn_sig(None))
-                .ok_or_else(|| query_bug!("non-transparent adt {adt_id:?} at {variant_idx:?}"))?;
-            Ok(sig)
+                .ok_or_query_err(adt_id)
         }
         node => Err(query_bug!("fn_sig called on unsupported node {node:?}")),
     }
