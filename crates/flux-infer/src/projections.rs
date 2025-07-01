@@ -26,6 +26,7 @@ use rustc_trait_selection::{
     solve::deeply_normalize,
     traits::{FulfillmentError, SelectionContext},
 };
+use rustc_type_ir::TypeVisitableExt;
 
 use crate::{
     fixpoint_encoding::KVarEncoding,
@@ -435,6 +436,11 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
             self.rustc_param_env(),
             trait_ref,
         );
+        // FIXME(nilehmann) This is a patch to not panic inside rustc so we are
+        // able to catch the bug
+        if trait_pred.has_escaping_bound_vars() {
+            tracked_span_bug!();
+        }
         match self.selcx.select(&trait_pred) {
             Ok(Some(ImplSource::UserDefined(impl_data))) => {
                 candidates.push(Candidate::UserDefinedImpl(impl_data.impl_def_id));
