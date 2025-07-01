@@ -887,11 +887,11 @@
 <a href=#887 id=887 data-nosnippet>887</a>                BaseTy::Alias(AliasKind::Projection, alias_ty_a),
 <a href=#888 id=888 data-nosnippet>888</a>                BaseTy::Alias(AliasKind::Projection, alias_ty_b),
 <a href=#889 id=889 data-nosnippet>889</a>            ) =&gt; {
-<a href=#890 id=890 data-nosnippet>890</a>                <span class="macro">debug_assert_eq!</span>(alias_ty_a, alias_ty_b);
+<a href=#890 id=890 data-nosnippet>890</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(alias_ty_a, alias_ty_b);
 <a href=#891 id=891 data-nosnippet>891</a>                <span class="prelude-val">Ok</span>(())
 <a href=#892 id=892 data-nosnippet>892</a>            }
 <a href=#893 id=893 data-nosnippet>893</a>            (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) =&gt; {
-<a href=#894 id=894 data-nosnippet>894</a>                <span class="macro">debug_assert_eq!</span>(len_a, len_b);
+<a href=#894 id=894 data-nosnippet>894</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(len_a, len_b);
 <a href=#895 id=895 data-nosnippet>895</a>                <span class="self">self</span>.tys(infcx, ty_a, ty_b)
 <a href=#896 id=896 data-nosnippet>896</a>            }
 <a href=#897 id=897 data-nosnippet>897</a>            (BaseTy::Param(param_a), BaseTy::Param(param_b)) =&gt; {
@@ -933,7 +933,7 @@
 <a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">let </span>(ty_a, ty_b) = <span class="kw">match </span>(a, b) {
 <a href=#934 id=934 data-nosnippet>934</a>            (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) =&gt; (ty_a.clone(), ty_b.clone()),
 <a href=#935 id=935 data-nosnippet>935</a>            (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) =&gt; {
-<a href=#936 id=936 data-nosnippet>936</a>                <span class="macro">debug_assert_eq!</span>(ctor_a.sort(), ctor_b.sort());
+<a href=#936 id=936 data-nosnippet>936</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(ctor_a.sort(), ctor_b.sort());
 <a href=#937 id=937 data-nosnippet>937</a>                (ctor_a.to_ty(), ctor_b.to_ty())
 <a href=#938 id=938 data-nosnippet>938</a>            }
 <a href=#939 id=939 data-nosnippet>939</a>            (GenericArg::Lifetime(<span class="kw">_</span>), GenericArg::Lifetime(<span class="kw">_</span>)) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),

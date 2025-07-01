@@ -668,7 +668,7 @@
 <a href=#668 id=668 data-nosnippet>668</a>    <span class="kw">fn </span>join_bty(<span class="kw-2">&amp;</span><span class="self">self</span>, bty1: <span class="kw-2">&amp;</span>BaseTy, bty2: <span class="kw-2">&amp;</span>BaseTy) -&gt; BaseTy {
 <a href=#669 id=669 data-nosnippet>669</a>        <span class="kw">match </span>(bty1, bty2) {
 <a href=#670 id=670 data-nosnippet>670</a>            (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) =&gt; {
-<a href=#671 id=671 data-nosnippet>671</a>                <span class="macro">debug_assert_eq!</span>(def1.did(), def2.did());
+<a href=#671 id=671 data-nosnippet>671</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(def1.did(), def2.did());
 <a href=#672 id=672 data-nosnippet>672</a>                <span class="kw">let </span>args = iter::zip(args1, args2)
 <a href=#673 id=673 data-nosnippet>673</a>                    .map(|(arg1, arg2)| <span class="self">self</span>.join_generic_arg(arg1, arg2))
 <a href=#674 id=674 data-nosnippet>674</a>                    .collect();
@@ -681,13 +681,13 @@
 <a href=#681 id=681 data-nosnippet>681</a>                BaseTy::Tuple(fields)
 <a href=#682 id=682 data-nosnippet>682</a>            }
 <a href=#683 id=683 data-nosnippet>683</a>            (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) =&gt; {
-<a href=#684 id=684 data-nosnippet>684</a>                <span class="macro">debug_assert_eq!</span>(kind1, kind2);
-<a href=#685 id=685 data-nosnippet>685</a>                <span class="macro">debug_assert_eq!</span>(alias_ty1, alias_ty2);
+<a href=#684 id=684 data-nosnippet>684</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(kind1, kind2);
+<a href=#685 id=685 data-nosnippet>685</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(alias_ty1, alias_ty2);
 <a href=#686 id=686 data-nosnippet>686</a>                BaseTy::Alias(<span class="kw-2">*</span>kind1, alias_ty1.clone())
 <a href=#687 id=687 data-nosnippet>687</a>            }
 <a href=#688 id=688 data-nosnippet>688</a>            (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) =&gt; {
-<a href=#689 id=689 data-nosnippet>689</a>                <span class="macro">debug_assert_eq!</span>(r1, r2);
-<a href=#690 id=690 data-nosnippet>690</a>                <span class="macro">debug_assert_eq!</span>(mutbl1, mutbl2);
+<a href=#689 id=689 data-nosnippet>689</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(r1, r2);
+<a href=#690 id=690 data-nosnippet>690</a>                <span class="macro">tracked_span_dbg_assert_eq!</span>(mutbl1, mutbl2);
 <a href=#691 id=691 data-nosnippet>691</a>                BaseTy::Ref(<span class="kw-2">*</span>r1, <span class="self">self</span>.join_ty(ty1, ty2), <span class="kw-2">*</span>mutbl1)
 <a href=#692 id=692 data-nosnippet>692</a>            }
 <a href=#693 id=693 data-nosnippet>693</a>            (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) =&gt; {
