@@ -887,11 +887,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 BaseTy::Alias(AliasKind::Projection, alias_ty_a),
                 BaseTy::Alias(AliasKind::Projection, alias_ty_b),
             ) => {
-                debug_assert_eq!(alias_ty_a, alias_ty_b);
+                tracked_span_dbg_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {
-                debug_assert_eq!(len_a, len_b);
+                tracked_span_dbg_assert_eq!(len_a, len_b);
                 self.tys(infcx, ty_a, ty_b)
             }
             (BaseTy::Param(param_a), BaseTy::Param(param_b)) => {
@@ -933,7 +933,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
-                debug_assert_eq!(ctor_a.sort(), ctor_b.sort());
+                tracked_span_dbg_assert_eq!(ctor_a.sort(), ctor_b.sort());
                 (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),

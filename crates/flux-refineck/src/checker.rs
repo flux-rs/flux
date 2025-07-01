@@ -1,6 +1,9 @@
 use std::{collections::hash_map::Entry, iter, vec};
 
-use flux_common::{bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug};
+use flux_common::{
+    bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
+    tracked_span_dbg_assert_eq,
+};
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
@@ -1975,7 +1978,7 @@ impl Mode for RefineMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
-        debug_assert_eq!(
+        tracked_span_dbg_assert_eq!(
             &ck.marker_at_dominator(target)
                 .scope()
                 .unwrap_or_else(|| tracked_span_bug!()),

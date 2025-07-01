@@ -668,7 +668,7 @@ impl BasicBlockEnvShape {
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) => {
-                debug_assert_eq!(def1.did(), def2.did());
+                tracked_span_dbg_assert_eq!(def1.did(), def2.did());
                 let args = iter::zip(args1, args2)
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();
@@ -681,13 +681,13 @@ impl BasicBlockEnvShape {
                 BaseTy::Tuple(fields)
             }
             (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) => {
-                debug_assert_eq!(kind1, kind2);
-                debug_assert_eq!(alias_ty1, alias_ty2);
+                tracked_span_dbg_assert_eq!(kind1, kind2);
+                tracked_span_dbg_assert_eq!(alias_ty1, alias_ty2);
                 BaseTy::Alias(*kind1, alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
-                debug_assert_eq!(r1, r2);
-                debug_assert_eq!(mutbl1, mutbl2);
+                tracked_span_dbg_assert_eq!(r1, r2);
+                tracked_span_dbg_assert_eq!(mutbl1, mutbl2);
                 BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
