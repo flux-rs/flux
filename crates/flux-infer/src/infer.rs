@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
+use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
@@ -416,7 +416,13 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn move_to(&mut self, marker: &Marker, clear_children: bool) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { cursor: self.cursor.move_to(marker, clear_children).unwrap(), ..*self }
+        InferCtxt {
+            cursor: self
+                .cursor
+                .move_to(marker, clear_children)
+                .unwrap_or_else(|| tracked_span_bug!()),
+            ..*self
+        }
     }
 
     pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
