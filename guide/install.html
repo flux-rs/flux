@@ -235,7 +235,7 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 </span><span class="boring">fn main() {
 </span>use flux_rs::*;
 
-#[sig(fn(x: i32) -&gt; i32{v: x &lt; v)]
+#[sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
 fn inc(x: i32) -&gt; i32 {
     x - 1
 }
