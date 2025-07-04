@@ -108,7 +108,7 @@ Then, import attributes from `flux_rs` and add the appropriate refinement annoat
 ```rust
 use flux_rs::*;
 
-#[sig(fn(x: i32) -> i32{v: x < v)]
+#[sig(fn(x: i32) -> i32{v: x < v})]
 fn inc(x: i32) -> i32 {
     x - 1
 }
