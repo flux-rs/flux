@@ -20,13 +20,14 @@ impl<T, A: Allocator> Vec<T, A> {
     #[spec(fn(self: &mut Vec<T, A>[@n], T) ensures self: Vec<T, A>[n+1])]
     fn push(&mut self, value: T);
 
-    #[spec(fn(&Vec<T, A>[@n]) -> usize[n])]
+    #[spec(fn(self: &Vec<T, A>[@n]) -> usize[n])]
     fn len(&self) -> usize;
 
-    #[spec(fn(&Vec<T, A>[@n]) -> bool[n == 0])]
+    #[spec(fn(self: &Vec<T, A>[@n]) -> bool[n == 0])]
     fn is_empty(&self) -> bool;
 
-    #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T> ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T>
+           ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
     fn pop(&mut self) -> Option<T>;
 }
 
@@ -41,6 +42,13 @@ impl<T> [T] {
 #[spec(fn() -> Vec<i32>[3])]
 pub fn test_vec_macro() -> Vec<i32> {
     vec![10, 20, 30]
+}
+
+#[spec(fn() -> Vec<i32>[4])]
+pub fn test_push_macro() -> Vec<i32> {
+    let res = vec![10, 20, 30, 40];
+    assert(res.len() == 4);
+    res
 }
 
 #[spec(fn() -> Vec<i32>[2])]
@@ -72,3 +80,11 @@ pub fn test_is_empty() {
 //         assert(0 <= *x)
 //     }
 // }
+
+#[spec(fn (vec: &mut Vec<T>[@n]) -> Option<(T, T)>
+       ensures vec: Vec<T>[n-2])]
+fn pop2<T>(vec: &mut Vec<T>) -> Option<(T, T)> {
+    let v1 = vec.pop()?;
+    let v2 = vec.pop()?;
+    Some((v1, v2))
+}

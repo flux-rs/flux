@@ -1,9 +1,18 @@
 # Extern Specifications
 
-```rust, editable
+```rust, editable, hidden
+#![feature(allocator_api)]
 #![allow(unused)]
 extern crate flux_rs;
-use flux_rs::{assert, attrs::*, extern_spec};
+use flux_rs::{attrs::*, extern_spec};
+use std::alloc::{Allocator, Global};
+
+#[spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}
 ```
 
 No man is an island.
@@ -148,10 +157,10 @@ First, lets add the `bool` index to the `Option` type definition.
 #[extern_spec]
 #[refined_by(valid: bool)]
 enum Option<T> {
-    #[variant((T) -> Option<T>[{valid: true}])]
-    Some(T),
     #[variant(Option<T>[{valid: false}])]
     None,
+    #[variant((T) -> Option<T>[{valid: true}])]
+    Some(T),
 }
 ```
 
@@ -187,8 +196,8 @@ or `Option<i32>[false]`.
 The extern specs become especially useful when we use them to refine
 the methods that `impl` the various key operations on `Option`s.
 
-To do so, we can make an `extern impl` for `Option` (much like
-we did for slices, [back here](#getting-the-length-of-a-slice)
+To do so, we can make an `extern impl` for `Option`, much like
+we did for slices, [back here](#getting-the-length-of-a-slice).
 
 ```rust,editable
 #[extern_spec]
@@ -210,6 +219,11 @@ on top, and the methods have no definitions, as we
 want to use those from the extern crate, in this case,
 the standard library.
 
+Notice that the spec for
+
+- `is_some` returns `true` if the input `Option` was indeed `valid`, i.e. was a `Some(..)`;
+- `is_none` returns `true` if the input `Option` was *not* `valid`, i.e. was a `None`.
+
 ### Using Extern Method Specifications
 
 We can test these new specifications out in our client code.
@@ -220,12 +234,43 @@ fn test_opt_specs(){
     assert(a.is_some());
     let b: Option<i32> = None;
     assert(b.is_none());
-    let c = a.unwrap();
-    assert(c == 42);
 }
 ```
 
-### A Safe Indexing Function
+### Safely Unwrapping
+
+Of course, we all know that we _shouldn't_ directly use `unwrap`.
+However, sometimes, its ok, if we somehow *know* that the value
+is indeed a valid `Some(..)`. The refined type for `unwrap` keeps
+us honest with a **precondition** that tells flux that it should
+**only** be invoked when the underlying `Option` can be provably
+`valid`.
+
+```rust,editable
+#[spec(fn (n:u32) -> Option<u8>)]
+fn into_u8(n: u32) -> Option<u8> {
+   if n <= 255 {
+       Some(n as u8)
+   } else {
+       None
+   }
+}
+
+fn test_unwrap() -> u8 {
+    into_u8(42).unwrap()
+}
+```
+
+**EXERCISE** The function `test_unwrap` above
+merrily `unwrap`s the result of the call `into_u8`.
+Flux is unhappy and flags an error even though surely
+the call will not panic! The trouble is that the "default"
+`spec` for `into_u8` -- the Rust type -- says it can
+return *any* `Option<i32>`, including those that might
+well blow up `unwrap`. Can you fix the `spec` for `into_u8`
+so that flux verifies `test_unwrap`?
+
+### A Safe Division Function
 
 Lets write a safe-division function, that checks if the divisor
 is non-zero before doing the division.
@@ -241,7 +286,7 @@ pub fn safe_div(num: u32, denom: u32) -> Option<u32> {
 }
 ```
 
-**EXERCISE** Look at this client that uses `safe_div` --- surely it is safe to
+**EXERCISE** The client `test_safe_div` shown below is certainly it is safe to
 divide by two! Alas, Flux thinks otherwise: it cannot determine that output of
 `safe_div` may be safely `unwrap`ped. Can you figure out how to fix the specification
 for `safe_div` so that the code below verifies?
@@ -339,22 +384,38 @@ impl<T, A: Allocator> Vec<T, A> {
     #[spec(fn(self: &Vec<T, A>[@n]) -> usize[n])]
     fn len(&self) -> usize;
 
-    #[spec(fn(self: &Vec<T, A>[@n]) -> bool[n == 0])]
+    #[spec(fn(self: &Vec<T, A>) -> bool)]
     fn is_empty(&self) -> bool;
 }
 ```
 
-### Extern Impls Mirror Original Impls
+### Constructing Vectors
 
-show
-- test_push
-- test_vec_macro
+Lets take the refined `vec` API out for a spin.
+
+```rust, editable
+#[spec(fn() -> Vec<i32>[3])]
+pub fn test_push() -> Vec<i32> {
+    let mut res = Vec::new();   // res: Vec<i32>[0]
+    res.push(10);               // res: Vec<i32>[1]
+    res.push(20);               // res: Vec<i32>[2]
+    res.push(30);               // res: Vec<i32>[3]
+    assert(res.len() == 3);
+    res
+}
+```
+
+Flux uses the refinements to type `res` as a 0-sized `Vec<i32>[0]`.
+Each subsequent `push` [updates the reference's type](./02-ownership.html#borrowing-updatable-references)
+by increasing the size by one.
+Finally, the `len` returns the size at that point, `3`, thereby
+proving the assert.
+
 
 ### Testing Emptiness
 
-**EXERCISE** is_empty
-
-FIX spec for `is_empty`
+**EXERCISE** Can you fix the spec for `is_empty` above so that the
+two assertions below are verified?
 
 ```rust, editable
 fn test_is_empty() {
@@ -366,27 +427,70 @@ fn test_is_empty() {
 }
 ```
 
-### exercise
+### The Refined `vec!` Macro
 
-FIX THE SPEC
+The ubiquitous `vec!` macro internally allocates a slice
+and then calls `into_vec` to create a `Vec`.
 
 ```rust,editable
-#[spec(fn (vec: &mut Vec<T>[@n]) -> Option<(T, T)>
-       ensures vec: Vec<T>[n-2])]
-fn pop2<T>(vec: &mut Vec<T>) -> Option<(T, T)> {
-  let v1 = vec.pop()?;
-  let v2 = vec.pop()?;
-  Some((v1, v2))
+#[extern_spec]
+impl<T> [T] {
+    #[spec(fn(self: Box<[T], A>) -> Vec<T, A>)]
+    fn into_vec<A>(self: Box<[T], A>) -> Vec<T, A>
+    where
+        A: Allocator;
 }
 ```
 
-### exercise
-- pop_unwrap
-- pop2
+**EXERCISE** Can you fix the `extern_spec` for `into_vec` so that
+the code below verifies?
 
-- both : tests/tests/pos/vec/vec00.rs
+```rust, editable
+#[spec(fn() -> Vec<i32>[3])]
+pub fn test_push_macro() -> Vec<i32> {
+    let res = vec![10, 20, 30];
+    assert(res.len() == 3);
+    res
+}
+```
+
+### Pop-and-Unwrap
+
+Suppose we wanted to write a function that popped the last element
+of a non-empty vector.
+
+```rust,editable
+#[spec(fn (vec: &mut Vec<T>[@n]) -> T
+       requires 0 < n
+       ensures  vec: Vec<T>[n-1])]
+fn pop_and_unwrap<T>(vec: &mut Vec<T>) -> T {
+    vec.pop().unwrap()
+}
+```
+
+**EXERCISE** Flux chafes because the spec for `pop`
+above does not tell us _when_ the returned value is
+safe to unwrap! Can you go back and fix the spec for
+`fn pop` so that `pop_and_unwrap` verifies?
+
+### PopPop!
+
+**EXERCISE** Fix the spec TODO
+
+```rust,editable
+#[spec(fn (vec: &mut Vec<T>[@n]) -> (T, T)
+       requires 2 < n
+       ensures vec: Vec<T>[n-2] )]
+fn pop2<T>(vec: &mut Vec<T>) -> (T, T)  {
+    let v1 = pop_and_unwrap(vec);
+    let v2 = pop_and_unwrap(vec);
+    (v1, v2)
+}
+```
 
 ## Summary
+
+TODO
 
 [^assumption]: We say *assumption* because we're presuming that
 the actual code for the library is not available to verify; if
