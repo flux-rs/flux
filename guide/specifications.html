@@ -710,56 +710,67 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
 
 use std::alloc::{Allocator, Global};
 
-use flux_rs::extern_spec;
+use flux_rs::{assert, attrs::*, extern_spec};
 
 #[extern_spec]
 #[refined_by(len: int)]
+#[invariant(len &gt;= 0)]
 struct Vec&lt;T, A: Allocator = Global&gt;;
 
 #[extern_spec]
 impl&lt;T&gt; Vec&lt;T&gt; {
-    #[sig(fn() -&gt; Vec&lt;T&gt;[0])]
+    #[spec(fn() -&gt; Vec&lt;T&gt;[0])]
     fn new() -&gt; Vec&lt;T&gt;;
 }
 
 #[extern_spec]
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
-    #[sig(fn(self: &amp;strg Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(&amp;mut self, value: T);
 
-    #[sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(&amp;self) -&gt; usize;
 
-    #[sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
     fn is_empty(&amp;self) -&gt; bool;
+
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt;
+           ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
 }
 
 #[extern_spec]
 impl&lt;T&gt; [T] {
-    #[sig(fn(self: Box&lt;[T][@n], A&gt;) -&gt; Vec&lt;T, A&gt;[n])]
+    #[spec(fn(self: Box&lt;[T][@n], A&gt;) -&gt; Vec&lt;T, A&gt;[n])]
     fn into_vec&lt;A&gt;(self: Box&lt;[T], A&gt;) -&gt; Vec&lt;T, A&gt;
     where
         A: Allocator;
 }
 
-#[flux::sig(fn(bool[true]))]
-fn assert(_: bool) {}
-
-#[flux::sig(fn() -&gt; Vec&lt;i32&gt;[3])]
+#[spec(fn() -&gt; Vec&lt;i32&gt;[3])]
 pub fn test_vec_macro() -&gt; Vec&lt;i32&gt; {
     vec![10, 20, 30]
 }
 
-#[flux::sig(fn() -&gt; Vec&lt;i32&gt;[3])]
+#[spec(fn() -&gt; Vec&lt;i32&gt;[4])]
+pub fn test_push_macro() -&gt; Vec&lt;i32&gt; {
+    let res = vec![10, 20, 30, 40];
+    assert(res.len() == 4);
+    res
+}
+
+#[spec(fn() -&gt; Vec&lt;i32&gt;[2])]
 pub fn test_push() -&gt; Vec&lt;i32&gt; {
     let mut res = Vec::new();
     res.push(10);
     res.push(20);
     res.push(30);
+    let val = res.pop().unwrap();
+    assert(val &gt;= 10);
     res
 }
 
-#[flux::sig(fn() -&gt; usize[3])]
+#[spec(fn() -&gt; usize[2])]
 pub fn test_len() -&gt; usize {
     let res = test_push();
     res.len()
@@ -771,12 +782,21 @@ pub fn test_is_empty() {
 }
 
 // TODO: https://github.com/flux-rs/flux/issues/578
-// #[flux::sig(fn (Vec&lt;i32{v:10 &lt;= v}&gt;))]
+// #[spec(fn (Vec&lt;i32{v:10 &lt;= v}&gt;))]
 // pub fn test3(xs: Vec&lt;i32&gt;) {
 //     for x in &amp;xs {
 //         assert(0 &lt;= *x)
 //     }
-// }</code></pre>
+// }
+
+#[spec(fn (vec: &amp;mut Vec&lt;T&gt;[@n]) -&gt; Option&lt;(T, T)&gt;
+       requires n &gt; 2
+       ensures vec: Vec&lt;T&gt;[n-2])]
+pub fn pop2&lt;T&gt;(vec: &amp;mut Vec&lt;T&gt;) -&gt; Option&lt;(T, T)&gt; {
+    let v1 = vec.pop().unwrap();
+    let v2 = vec.pop().unwrap();
+    Some((v1, v2))
+}</code></pre>
 <p><strong>Associated Refinements</strong> for indexing</p>
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
@@ -824,11 +844,14 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 
 #[extern_spec]
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
-    #[flux::sig(fn(self: &amp;strg Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
 
     #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
+
+    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
 }
 
 #[extern_spec]
@@ -2784,17 +2807,22 @@ impl&lt;T&gt; Option&lt;T&gt; {
 
     #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
+
+    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    const fn unwrap(self) -&gt; T;
 }</code></pre>
-<pre><code class="language-rust noplayground">#[path = "../../lib/option.rs"]
+<pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*};
+
+#[path = "../../lib/option.rs"]
 mod option;
 
 #[flux::trusted]
-#[flux::sig(fn(i32{v: false}) -&gt; T)]
+#[spec(fn(i32{v: false}) -&gt; T)]
 pub fn never&lt;T&gt;(_: i32) -&gt; T {
     loop {}
 }
 
-#[flux::sig(fn(x:Option&lt;T&gt;[true]) -&gt; T)]
+#[spec(fn(x:Option&lt;T&gt;[true]) -&gt; T)]
 pub fn my_unwrap&lt;T&gt;(x: Option&lt;T&gt;) -&gt; T {
     match x {
         Option::Some(v) =&gt; v,
@@ -2802,13 +2830,10 @@ pub fn my_unwrap&lt;T&gt;(x: Option&lt;T&gt;) -&gt; T {
     }
 }
 
-#[flux::sig(fn(T) -&gt; Option&lt;T&gt;[true])]
+#[spec(fn(T) -&gt; Option&lt;T&gt;[true])]
 fn my_some&lt;T&gt;(x: T) -&gt; Option&lt;T&gt; {
     Option::Some(x)
 }
-
-#[flux::sig(fn(bool[true]))]
-fn assert(_b: bool) {}
 
 pub fn test1() {
     let x = my_some(42);
@@ -2820,6 +2845,25 @@ pub fn test3() {
     let x = Option::Some(42);
     let y = my_unwrap(x);
     assert(y == 42);
+}
+
+pub fn test_opt_specs() {
+    let a = Some(42);
+    assert(a.is_some());
+    let b: Option&lt;i32&gt; = None;
+    assert(b.is_none());
+    let c = a.unwrap();
+    assert(c == 42);
+}
+
+#[spec(fn (numerator: u32, denominator: u32) -&gt; Option&lt;u32[numerator / denominator]&gt;[denominator != 0])]
+pub fn safe_div(numerator: u32, denominator: u32) -&gt; Option&lt;u32&gt; {
+    if denominator == 0 { None } else { Some(numerator / denominator) }
+}
+
+pub fn test_safe_div() {
+    let res = safe_div(42, 2).unwrap();
+    assert(res == 21);
 }</code></pre>
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
 <pre><code class="language-rust noplayground">use flux_rs::extern_spec;
@@ -2840,6 +2884,9 @@ impl&lt;T&gt; Option&lt;T&gt; {
 
     #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
+
+    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    const fn unwrap(self) -&gt; T;
 }</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
@@ -3330,11 +3377,14 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 
 #[extern_spec]
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
-    #[flux::sig(fn(self: &amp;strg Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
 
     #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
+
+    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
 }
 
 #[extern_spec]
@@ -3721,7 +3771,7 @@ pub fn test3(byte: u8) {
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/06-consts.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/07-externs.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -3735,7 +3785,7 @@ pub fn test3(byte: u8) {
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/06-consts.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/07-externs.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

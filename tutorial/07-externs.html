@@ -1,0 +1,594 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Externs - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="extern-specifications"><a class="header" href="#extern-specifications">Extern Specifications</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable">#![feature(allocator_api)]
+#![allow(unused)]
+extern crate flux_rs;
+use flux_rs::{attrs::*, extern_spec};
+use std::alloc::{Allocator, Global};
+use std::mem::swap;</code></pre></pre>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#[spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}</code></pre></pre>
+<p>No man is an island.</p>
+<p>Every substantial Rust code base will make use
+of <em>external crates</em>. To <em>check</em> properties of
+such code bases, Flux requires some way to reason
+about the uses of the external crate's APIs.</p>
+<p>Let's look at how Flux lets you write
+<em>assumptions</em><sup class="footnote-reference" id="fr-assumption-1"><a href="#footnote-assumption">1</a></sup> about the behavior of those
+libraries via <em>extern specifications</em> (abbreviated to
+<em>extern-specs</em>) which can then let us check facts about
+the uses of the external crate's APIs.</p>
+<p>To this end, flux lets you write extern-specs for</p>
+<ol>
+<li>Functions,</li>
+<li>Structs,</li>
+<li>Enums,</li>
+<li>Traits and their Impls.</li>
+</ol>
+<p>In this chapter, we'll look at the first three,
+and then we'll see how the idea <a href="./08-traits.html">extends to traits
+and their implementations</a>.</p>
+<h2 id="extern-specs-for-functions"><a class="header" href="#extern-specs-for-functions">Extern Specs for Functions</a></h2>
+<p>As a first example, lets see how to write an extern spec for
+the function <code>std::mem::swap</code>.</p>
+<h3 id="using-extern-functions"><a class="header" href="#using-extern-functions">Using Extern Functions</a></h3>
+<p>Lets write a little test that creates to references and swaps them</p>
+<pre><pre class="playground"><code class="language-rust editable">pub fn test_swap() {
+    let mut x = 5;
+    let mut y = 10;
+    std::mem::swap(&amp;mut x, &amp;mut y);
+    assert(x == 10);
+    assert(y == 5);
+}</code></pre></pre>
+<p>Now, if you push the <strong>play button</strong> you should see that Flux cannot prove
+the two <code>assert</code>s. The little red squiggles indicate it does not know that
+after the <code>swap</code> the values of <code>x</code> and <code>y</code> are swapped to <code>10</code> and <code>5</code>, as,
+well, it has no idea about how <code>swap</code> behaves!</p>
+<h3 id="writing-extern-specs"><a class="header" href="#writing-extern-specs">Writing Extern Specs</a></h3>
+<p>We can fill this gap in flux's understanding by providing
+an <strong>extern-spec</strong>  that gives flux a refined type
+specification for <code>swap</code></p>
+<pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
+// UNCOMMENT THIS LINE to verify `test_swap`
+// #[spec(fn(x: &amp;mut T[@vx], y: &amp;mut T[@vy]) ensures x: T[vy], y: T[vx])]
+fn swap&lt;T&gt;(a: &amp;mut T, b: &amp;mut T);</code></pre></pre>
+<p><strong>The refined specification</strong> says that <code>swap</code> takes as input
+two <em>mutable</em> references <code>x</code> and <code>y</code> that refer to values of
+type <code>T</code> with respective indices <code>vx</code> and <code>vy</code>. Upon finishing,
+the types referred to by <code>x</code> and <code>y</code> are "swapped".</p>
+<p>Now, if you uncomment and push play, flux will verify <code>test_swap</code> as
+it knows that at the call-site, <code>vx</code> and <code>vy</code> are respectively <code>5</code> and <code>10</code>.</p>
+<h3 id="features-of-extern-spec-functions"><a class="header" href="#features-of-extern-spec-functions">Features of Extern Spec Functions</a></h3>
+<p>Note two things about the <code>extern_spec</code> specification.</p>
+<ol>
+<li>First, up at the top, we had to import the <code>extern_spec</code> macro,
+implemented in the <code>flux_rs</code> crate,</li>
+<li>Second, importantly, we <em>do not write an implementation</em> for the function,
+as that is going to be taken from <code>std::mem</code>. Instead, we're just telling
+flux to use the (uncommented) type specification when checking clients.</li>
+</ol>
+<h3 id="getting-the-length-of-a-slice"><a class="header" href="#getting-the-length-of-a-slice">Getting the Length of a Slice</a></h3>
+<p>Here is a function below that returns the <code>first</code> (well, <code>0</code>th)
+element of a slice of <code>u32</code>s.</p>
+<pre><pre class="playground"><code class="language-rust editable">fn first(slice: &amp;[u32]) -&gt; Option&lt;u32&gt; {
+    let n = slice.len();
+    if n &gt; 0 {
+        Some(slice[0])
+    } else {
+        None
+    }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Unfortunately, flux does not know what <code>slice.len()</code> returns, and
+so, cannot verify that the access <code>slice[0]</code> is safe! Can you help
+it by <em>fixing</em> the <code>extern_spec</code> for the method shown below?
+You might want to refresh your memory about the meaning of
+<code>&amp;[T][@n]</code> by quickly skimming the previous chapter on the <a href="./06-consts.html#refined-compile-time-safety">sizes of arrays
+and slices</a>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[extern_spec]
+impl&lt;T&gt; [T] {
+    #[spec(fn(&amp;[T][@n]) -&gt; usize)]
+    fn len(v: &amp;[T]) -&gt; usize;
+}</code></pre></pre>
+<h2 id="extern-specs-for-enums-option"><a class="header" href="#extern-specs-for-enums-option">Extern Specs for Enums: <code>Option</code></a></h2>
+<p>In the <a href="./04-enums.html">chapter on enums</a> we saw how you can
+refine <code>enum</code> types with extra indices that track extra information
+about the underlying value. For example, we saw how to implement
+a <a href="./04-enums.html#a-refined-option">refined Option</a> that is indexed
+by a boolean that tracks whether the value is <code>Some</code> (and hence, safe
+to <code>unwrap</code>)or <code>None</code>.</p>
+<p>The <code>extern_spec</code> mechanism lets us do the same thing, but directly on
+<code>std::option::Option</code>. To do so we need only</p>
+<ol>
+<li>write extern-specs for the <strong>enum definition</strong> that add the indices
+and connect them to the variant constructors,</li>
+<li>write extern-specs for the <strong>method signatures</strong> that let us use the
+indices to describe a refined API that is used to check client code.</li>
+</ol>
+<h3 id="extern-specs-for-the-type-definition"><a class="header" href="#extern-specs-for-the-type-definition">Extern Specs for the Type Definition</a></h3>
+<p>First, lets add the <code>bool</code> index to the <code>Option</code> type definition.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
+#[refined_by(valid: bool)]
+enum Option&lt;T&gt; {
+    #[variant(Option&lt;T&gt;[{valid: false}])]
+    None,
+    #[variant((T) -&gt; Option&lt;T&gt;[{valid: true}])]
+    Some(T),
+}</code></pre></pre>
+<p>As you might have noticed, this bit is <em>identical</em>
+to the refined version of <code>Option</code> that we saw in
+the <a href="./04-enums.html#a-refined-option">chapter on enums</a>,
+except for the <code>#[extern_spec]</code> topping.</p>
+<h3 id="using-the-type-definition"><a class="header" href="#using-the-type-definition">Using the Type Definition</a></h3>
+<p>Adding the above "retrofits" the <code>bool</code> index directly
+into the <code>std::option::Option</code> type. So, for example
+we can write</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn () -&gt; Option&lt;i32&gt;[{valid: true}])]
+fn test_some() -&gt; Option&lt;i32&gt; {
+    Some(42)
+}
+
+#[spec(fn () -&gt; Option&lt;i32&gt;[{valid: false}])]
+fn test_none() -&gt; Option&lt;i32&gt; {
+    None
+}</code></pre></pre>
+<p><strong>TIP:</strong> When there is a single field like <code>valid</code>
+you can drop it, and just write <code>Option&lt;i32&gt;[true]</code>
+or <code>Option&lt;i32&gt;[false]</code>.</p>
+<h3 id="extern-specs-for-impl-methods"><a class="header" href="#extern-specs-for-impl-methods">Extern Specs for Impl Methods</a></h3>
+<p>The extern specs become especially useful when we use them to refine
+the methods that <code>impl</code>ement various key operations on <code>Option</code>s.</p>
+<p>To do so, we can make an <code>extern_spec</code> <code>impl</code> for <code>Option</code>, much like
+we did for slices, <a href="#getting-the-length-of-a-slice">back here</a>.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
+impl&lt;T&gt; Option&lt;T&gt; {
+    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
+    const fn is_some(&amp;self) -&gt; bool;
+
+    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
+    const fn is_none(&amp;self) -&gt; bool;
+
+    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    const fn unwrap(self) -&gt; T;
+}</code></pre></pre>
+<p>The definition looks rather like the actual one,
+except that it wears the <code>#[extern_spec]</code> attribute
+on top, and the methods have no definitions, as we
+want to use those from the extern crate, in this case,
+the standard library.</p>
+<p>Notice that the spec for</p>
+<ul>
+<li><code>is_some</code> returns <code>true</code> if the input <code>Option</code> was indeed <code>valid</code>, i.e. was a <code>Some(..)</code>;</li>
+<li><code>is_none</code> returns <code>true</code> if the input <code>Option</code> was <em>not</em> <code>valid</code>, i.e. was a <code>None</code>.</li>
+</ul>
+<h3 id="using-extern-method-specifications"><a class="header" href="#using-extern-method-specifications">Using Extern Method Specifications</a></h3>
+<p>We can test these new specifications out in our client code.</p>
+<pre><pre class="playground"><code class="language-rust editable">fn test_opt_specs(){
+    let a = Some(42);
+    assert(a.is_some());
+    let b: Option&lt;i32&gt; = None;
+    assert(b.is_none());
+}</code></pre></pre>
+<h3 id="safely-unwrapping"><a class="header" href="#safely-unwrapping">Safely Unwrapping</a></h3>
+<p>Of course, we all know that we <em>shouldn't</em> directly use <code>unwrap</code>.
+However, sometimes, its ok, if we somehow <em>know</em> that the value
+is indeed a valid <code>Some(..)</code>. The refined type for <code>unwrap</code> keeps
+us honest with a <strong>precondition</strong> that tells flux that it should
+<strong>only</strong> be invoked when the underlying <code>Option</code> can be provably
+<code>valid</code>.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (n:u32) -&gt; Option&lt;u8&gt;)]
+fn into_u8(n: u32) -&gt; Option&lt;u8&gt; {
+   if n &lt;= 255 {
+       Some(n as u8)
+   } else {
+       None
+   }
+}
+
+fn test_unwrap() -&gt; u8 {
+    into_u8(42).unwrap()
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> The function <code>test_unwrap</code> above
+merrily <code>unwrap</code>s the result of the call <code>into_u8</code>.
+Flux is unhappy and flags an error even though surely
+the call will not panic! The trouble is that the "default"
+<code>spec</code> for <code>into_u8</code> -- the Rust type -- says it can
+return <em>any</em> <code>Option&lt;i32&gt;</code>, including those that might
+well blow up <code>unwrap</code>. Can you fix the <code>spec</code> for <code>into_u8</code>
+so that flux verifies <code>test_unwrap</code>?</p>
+<h3 id="a-safe-division-function"><a class="header" href="#a-safe-division-function">A Safe Division Function</a></h3>
+<p>Lets write a safe-division function, that checks if the divisor
+is non-zero before doing the division.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (num: u32, denom: u32) -&gt; Option&lt;u32[num / denom]&gt;)]
+pub fn safe_div(num: u32, denom: u32) -&gt; Option&lt;u32&gt; {
+    if denom == 0 {
+        None
+    } else {
+        Some(num / denom)
+    }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> The client <code>test_safe_div</code> shown below is certainly it is safe to
+divide by two! Alas, Flux thinks otherwise: it cannot determine that output of
+<code>safe_div</code> may be safely <code>unwrap</code>ped. Can you figure out how to fix the specification
+for <code>safe_div</code> so that the code below verifies?</p>
+<pre><pre class="playground"><code class="language-rust editable">pub fn test_safe_div() {
+    let res = safe_div(42, 2).unwrap();
+    assert(res == 21);
+}</code></pre></pre>
+<h2 id="extern-specs-for-structs-vec"><a class="header" href="#extern-specs-for-structs-vec">Extern Specs for Structs: <code>Vec</code></a></h2>
+<p>Previously, we saw how to define a <em>new</em> type <code>RVec&lt;T&gt;</code>
+for <a href="./05-vectors.html">refined vectors</a> and to write
+an API that let us track the vector's size, and hence
+check the safety of vector accesses at compile time.
+Next, lets see how we can use <code>extern_spec</code> to implement
+(most of) the refined API directly on structs like
+<code>std::vec::Vec</code> which are defined in external crates.</p>
+<h3 id="extern-specs-for-the-type-definition-1"><a class="header" href="#extern-specs-for-the-type-definition-1">Extern Specs for the Type Definition</a></h3>
+<p>As with <code>enum</code>s we start by sprinkling refinement
+indices on the <code>struct</code> definition. Since we want
+to track sizes, lets write</p>
+<pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
+#[refined_by(len: int)]
+#[invariant(0 &lt;= len)]
+struct Vec&lt;T, A: Allocator = Global&gt;;</code></pre></pre>
+<h3 id="extern-invariants"><a class="header" href="#extern-invariants">Extern Invariants</a></h3>
+<p>Note that we can additionally attach <strong>invariants</strong> to the <code>struct</code>
+definition, which correspond to facts that are <em>always</em> true about
+the indices, for example, that the <code>len</code> of a <code>Vec</code> is always non-negative.</p>
+<h3 id="extern-structs-are-opaque"><a class="header" href="#extern-structs-are-opaque">Extern <code>struct</code>s are Opaque</a></h3>
+<p>Unlike with <code>enum</code>, the <code>extern_spec</code> is oblivious
+to the <em>internals</em> of the <code>struct</code>. That is flux
+assumes that the fields are all "private", and so the
+refinements must be tracked solely using the <em>methods</em>
+used to construct and manipulate the <code>struct</code>.</p>
+<p>The simplest of these is the one that births an <em>empty</em> <code>Vec</code></p>
+<pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
+impl&lt;T&gt; Vec&lt;T&gt; {
+    #[spec(fn() -&gt; Vec&lt;T&gt;[0])]
+    fn new() -&gt; Vec&lt;T&gt;;
+}</code></pre></pre>
+<p>We can test this out by creating an empty vector</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn () -&gt; Vec&lt;i32&gt;[0])]
+fn test_new() -&gt; Vec&lt;i32&gt; {
+    Vec::new()
+}</code></pre></pre>
+<h3 id="extern-specs-for-impl-methods-1"><a class="header" href="#extern-specs-for-impl-methods-1">Extern Specs for Impl Methods</a></h3>
+<p>Lets beef up our refined <code>Vec</code> API with a few more methods
+like <code>push</code>, <code>pop</code>, <code>len</code> and so on.</p>
+<p>We might be tempted to just bundle them together with <code>new</code>
+in the <code>impl</code> above, but it is important to Flux that the
+the <code>extern_spec</code> implementations <strong>mirror the original
+implementations</strong> so that Flux can accurately match (i.e. "resolve")
+the <code>extern_spec</code> method with the original method, and thus,
+attach the specification to uses of the original method.</p>
+<p>As it happens, <code>push</code> and <code>pop</code> are defined in a <em>separate</em>
+<code>impl</code> block, parameterized by a generic <code>A: Allocator</code>, so
+our <code>extern_spec</code> mirrors this block:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[extern_spec]
+impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T)
+           ensures self: Vec&lt;T, A&gt;[n+1])]
+    fn push(&amp;mut self, value: T);
+
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt;
+           ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
+
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
+    fn len(&amp;self) -&gt; usize;
+
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;) -&gt; bool)]
+    fn is_empty(&amp;self) -&gt; bool;
+}</code></pre></pre>
+<h3 id="constructing-vectors"><a class="header" href="#constructing-vectors">Constructing Vectors</a></h3>
+<p>Lets take the refined <code>vec</code> API out for a spin.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Vec&lt;i32&gt;[3])]
+pub fn test_push() -&gt; Vec&lt;i32&gt; {
+    let mut res = Vec::new();   // res: Vec&lt;i32&gt;[0]
+    res.push(10);               // res: Vec&lt;i32&gt;[1]
+    res.push(20);               // res: Vec&lt;i32&gt;[2]
+    res.push(30);               // res: Vec&lt;i32&gt;[3]
+    assert(res.len() == 3);
+    res
+}</code></pre></pre>
+<p>Flux uses the refinements to type <code>res</code> as a 0-sized <code>Vec&lt;i32&gt;[0]</code>.
+Each subsequent <code>push</code> <a href="./02-ownership.html#borrowing-updatable-references">updates the reference's type</a>
+by increasing the size by one.
+Finally, the <code>len</code> returns the size at that point, <code>3</code>, thereby
+proving the assert.</p>
+<h3 id="testing-emptiness"><a class="header" href="#testing-emptiness">Testing Emptiness</a></h3>
+<p><strong>EXERCISE</strong> Can you fix the spec for <code>is_empty</code> above so that the
+two assertions below are verified?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_is_empty() {
+   let v0 = test_new();
+   assert(v0.is_empty());
+
+   let v1 = test_push();
+   assert(!v1.is_empty());
+}</code></pre></pre>
+<h3 id="the-refined-vec-macro"><a class="header" href="#the-refined-vec-macro">The Refined <code>vec!</code> Macro</a></h3>
+<p>The ubiquitous <code>vec!</code> macro internally allocates a slice
+and then calls <code>into_vec</code> to create a <code>Vec</code>.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
+impl&lt;T&gt; [T] {
+    #[spec(fn(self: Box&lt;[T], A&gt;) -&gt; Vec&lt;T, A&gt;)]
+    fn into_vec&lt;A&gt;(self: Box&lt;[T], A&gt;) -&gt; Vec&lt;T, A&gt;
+    where
+        A: Allocator;
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Can you fix the <code>extern_spec</code> for <code>into_vec</code> so that
+the code below verifies?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Vec&lt;i32&gt;[3])]
+pub fn test_push_macro() -&gt; Vec&lt;i32&gt; {
+    let res = vec![10, 20, 30];
+    assert(res.len() == 3);
+    res
+}</code></pre></pre>
+<h3 id="pop-and-unwrap"><a class="header" href="#pop-and-unwrap">Pop-and-Unwrap</a></h3>
+<p>Suppose we wanted to write a function that popped the last element
+of a non-empty vector.</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (vec: &amp;mut Vec&lt;T&gt;[@n]) -&gt; T
+       requires 0 &lt; n
+       ensures  vec: Vec&lt;T&gt;[n-1])]
+fn pop_and_unwrap&lt;T&gt;(vec: &amp;mut Vec&lt;T&gt;) -&gt; T {
+    vec.pop().unwrap()
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Flux chafes because the spec for <code>pop</code> is too <em>weak</em>:
+above does not tell us <em>when</em> the returned value is safe to unwrap.
+Can you go back and fix the spec for <code>fn pop</code> so that <code>pop_and_unwrap</code>
+verifies?</p>
+<h3 id="poppop"><a class="header" href="#poppop">PopPop!</a></h3>
+<p><strong>EXERCISE</strong> Finally, as a parting exercise, can you work out
+why flux rejects the <code>pop2</code> function below, and modify the spec
+so that it is accepted?</p>
+<pre><pre class="playground"><code class="language-rust editable">#[spec(fn (vec: &amp;mut Vec&lt;T&gt;[@n]) -&gt; (T, T)
+       ensures vec: Vec&lt;T&gt;[n-2] )]
+fn pop2&lt;T&gt;(vec: &amp;mut Vec&lt;T&gt;) -&gt; (T, T)  {
+    let v1 = pop_and_unwrap(vec);
+    let v2 = pop_and_unwrap(vec);
+    (v1, v2)
+}</code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>Previously, we saw how to attach refined specifications for
+<a href="./01-refinements.html">functions</a>, <a href="03-structs.html">structs</a>
+and <a href="04-enums.html">enums</a>.</p>
+<p>In this chapter, we saw that you can use the <code>extern_spec</code>
+mechanism to do the same things for objects defined elsewhere,
+e.g. in external crates being used by your code.</p>
+<p>Next, we'll learn how to use <code>extern_spec</code> to refine <em>traits</em>
+(and their implementations), which is key to checking idiomatic
+Rust code.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-assumption">
+<p>We say <em>assumption</em> because we're presuming that
+the actual code for the library is not available to verify; if
+it was, you could of course actually <em>guarantee</em> that the library
+correctly implements those specifications. <a href="#fr-assumption-1">↩</a></p>
+</li>
+</ol>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/06-consts.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../guide/specifications.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/06-consts.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../guide/specifications.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
