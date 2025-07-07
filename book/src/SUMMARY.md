@@ -14,7 +14,7 @@
 - [Opaques](tutorial/05-vectors.md)
 - [Consts](tutorial/06-consts.md)
 - [Externs](tutorial/07-externs.md)
-- [Traits](tutorial/08-traits.md)
+- [Traits]()
 - [Case Study: Sparse Matrices]()
 - [Case Study: Normal Forms]()
 - [Case Study: Neural Networks]()
