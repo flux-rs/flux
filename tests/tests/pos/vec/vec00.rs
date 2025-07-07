@@ -82,9 +82,10 @@ pub fn test_is_empty() {
 // }
 
 #[spec(fn (vec: &mut Vec<T>[@n]) -> Option<(T, T)>
+       requires n > 2
        ensures vec: Vec<T>[n-2])]
-fn pop2<T>(vec: &mut Vec<T>) -> Option<(T, T)> {
-    let v1 = vec.pop()?;
-    let v2 = vec.pop()?;
+pub fn pop2<T>(vec: &mut Vec<T>) -> Option<(T, T)> {
+    let v1 = vec.pop().unwrap();
+    let v2 = vec.pop().unwrap();
     Some((v1, v2))
 }
