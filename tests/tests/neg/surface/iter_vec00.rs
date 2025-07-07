@@ -10,9 +10,7 @@ use std::{
 
 use flux_rs::extern_spec;
 
-// needed for the iter-spec which indexes options
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/vec.rs"]
 mod vec;
@@ -30,7 +28,7 @@ fn test_iter_for_loop_vec(vec: &Vec<u8>) -> usize {
     for v in vec {
         count += 1;
     }
-    count+1   //~ ERROR refinement type 
+    count + 1 //~ ERROR refinement type
 }
 
 #[flux::sig(fn(slice: &Vec<u8>[@n]) -> Vec<u8>[10])]

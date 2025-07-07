@@ -1,5 +1,7 @@
 use flux_rs::attrs::*;
 
+// extern crate flux_core;
+
 #[path = "../../lib/option.rs"]
 mod option;
 

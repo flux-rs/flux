@@ -1,8 +1,7 @@
 #![feature(step_trait, allocator_api)]
 #![allow(unused)]
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/iter.rs"]
 mod iter;

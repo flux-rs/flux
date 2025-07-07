@@ -1,5 +1,4 @@
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[flux::trusted]
 #[flux::sig(fn(i32{v: false}) -> T)]

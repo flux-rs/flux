@@ -1,8 +1,7 @@
 #![allow(unused)]
 use std::slice::Iter;
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/slice.rs"]
 mod slice;

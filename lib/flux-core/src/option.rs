@@ -12,10 +12,13 @@ enum Option<T> {
 #[extern_spec]
 impl<T> Option<T> {
     #[sig(fn(&Self[@b]) -> bool[b])]
-    fn is_some(&self) -> bool;
+    const fn is_some(&self) -> bool;
 
     #[sig(fn(&Self[@b]) -> bool[!b])]
-    fn is_none(&self) -> bool;
+    const fn is_none(&self) -> bool;
+
+    #[sig(fn(Option<T>[true]) -> T)]
+    const fn unwrap(self) -> T;
 
     #[sig(fn(&Self[@b]) -> Option<&T>[b])]
     fn as_ref(&self) -> Option<&T>;
