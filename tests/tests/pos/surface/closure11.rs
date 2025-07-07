@@ -9,9 +9,6 @@ mod iter;
 #[path = "../../lib/vec.rs"]
 mod vec;
 
-#[path = "../../lib/range.rs"]
-mod range;
-
 #[flux_rs::sig(fn (bool[true]))]
 pub fn assert(b: bool) {}
 

@@ -6,11 +6,10 @@ use std::{
     slice::Iter,
 };
 
+extern crate flux_core;
+
 #[path = "step.rs"]
 mod step;
-
-#[path = "range.rs"]
-mod range;
 
 #[path = "iter.rs"]
 mod iter;
