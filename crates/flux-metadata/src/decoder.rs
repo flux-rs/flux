@@ -16,11 +16,11 @@ use rustc_middle::{
 use rustc_serialize::{Decodable, Decoder as _, opaque::MemDecoder};
 use rustc_session::StableCrateId;
 use rustc_span::{
-    BytePos, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
+    BytePos, ByteSymbol, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
 };
 
-use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREINTERNED, SYMBOL_STR};
+use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR};
 
 struct DecodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -111,12 +111,16 @@ impl SpanDecoder for DecodeContext<'_, '_> {
                     Symbol::intern(s)
                 })
             }
-            SYMBOL_PREINTERNED => {
+            SYMBOL_PREDEFINED => {
                 let symbol_index = self.read_u32();
                 Symbol::new(symbol_index)
             }
             _ => unreachable!(),
         }
+    }
+
+    fn decode_byte_symbol(&mut self) -> ByteSymbol {
+        ByteSymbol::intern(self.read_byte_str())
     }
 }
 

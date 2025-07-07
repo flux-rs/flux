@@ -4,7 +4,6 @@
     box_patterns,
     closure_track_caller,
     if_let_guard,
-    let_chains,
     map_try_insert,
     min_specialization,
     never_type,
