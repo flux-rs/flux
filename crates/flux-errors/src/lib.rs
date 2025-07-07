@@ -15,6 +15,7 @@ use rustc_errors::{
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
     emitter::{Emitter, HumanEmitter, HumanReadableErrorType, stderr_destination},
     json::JsonEmitter,
+    translation::Translator,
 };
 use rustc_session::{
     config::{self, ErrorOutputType},
@@ -76,25 +77,20 @@ impl FluxSession {
 fn emitter(
     opts: &config::Options,
     source_map: Arc<SourceMap>,
-    fallback_bundle: LazyFallbackBundle,
+    fallback_fluent_bundle: LazyFallbackBundle,
 ) -> Box<dyn Emitter + sync::DynSend> {
-    let bundle = None;
     let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
+    let translator = Translator { fluent_bundle: None, fallback_fluent_bundle };
     match opts.error_format {
         ErrorOutputType::HumanReadable { kind, color_config } => {
             if let HumanReadableErrorType::AnnotateSnippet = kind {
-                let emitter = AnnotateSnippetEmitter::new(
-                    Some(source_map),
-                    None,
-                    fallback_bundle,
-                    false,
-                    false,
-                );
+                let emitter =
+                    AnnotateSnippetEmitter::new(Some(source_map), translator, false, false);
                 Box::new(emitter)
             } else {
                 let dst = stderr_destination(color_config);
-                let emitter = HumanEmitter::new(dst, fallback_bundle)
+                let emitter = HumanEmitter::new(dst, translator)
                     .sm(Some(source_map))
                     .short_message(kind.short())
                     .diagnostic_width(opts.diagnostic_width)
@@ -108,12 +104,11 @@ fn emitter(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
                     Some(source_map),
-                    fallback_bundle,
+                    translator,
                     pretty,
                     json_rendered,
                     color_config,
                 )
-                .fluent_bundle(bundle)
                 .track_diagnostics(track_diagnostics)
                 .diagnostic_width(opts.diagnostic_width)
                 .terminal_url(opts.unstable_opts.terminal_urls),
