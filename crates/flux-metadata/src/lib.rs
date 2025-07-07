@@ -32,7 +32,7 @@ use flux_middle::{
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_hir::{
-    def::DefKind,
+    def::{CtorOf, DefKind},
     def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -387,6 +387,9 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 tables
                     .refinement_generics_of
                     .insert(key, genv.refinement_generics_of(def_id));
+            }
+            DefKind::Ctor(CtorOf::Variant, _) => {
+                tables.fn_sig.insert(key, genv.fn_sig(def_id));
             }
             _ => {}
         }
