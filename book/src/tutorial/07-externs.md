@@ -1,12 +1,15 @@
 # Extern Specifications
 
-```rust, editable, hidden
+```rust, editable
 #![feature(allocator_api)]
 #![allow(unused)]
 extern crate flux_rs;
 use flux_rs::{attrs::*, extern_spec};
 use std::alloc::{Allocator, Global};
+use std::mem::swap;
+```
 
+```rust, editable, hidden
 #[spec(fn (bool[true]))]
 fn assert(b: bool) {
     if !b {
@@ -30,7 +33,7 @@ the uses of the external crate's APIs.
 
 To this end, flux lets you write extern-specs for
 
-1. Standalone functions,
+1. Functions,
 2. Structs,
 3. Enums,
 4. Traits and their Impls.
@@ -44,10 +47,6 @@ and their implementations](./08-traits.md).
 As a first example, lets see how to write an extern spec for
 the function `std::mem::swap`.
 
-```rust,editable
-use std::mem::swap;
-```
-
 ### Using Extern Functions
 
 Lets write a little test that creates to references and swaps them
@@ -56,7 +55,7 @@ Lets write a little test that creates to references and swaps them
 pub fn test_swap() {
     let mut x = 5;
     let mut y = 10;
-    swap(&mut x, &mut y);
+    std::mem::swap(&mut x, &mut y);
     assert(x == 10);
     assert(y == 5);
 }
@@ -82,7 +81,7 @@ fn swap<T>(a: &mut T, b: &mut T);
 
 **The refined specification** says that `swap` takes as input
 two _mutable_ references `x` and `y` that refer to values of
-type `T` with respective indices `vx` and `vy`, and upon finishing,
+type `T` with respective indices `vx` and `vy`. Upon finishing,
 the types referred to by `x` and `y` are "swapped".
 
 Now, if you uncomment and push play, flux will verify `test_swap` as
@@ -118,6 +117,9 @@ fn first(slice: &[u32]) -> Option<u32> {
 **EXERCISE** Unfortunately, flux does not know what `slice.len()` returns, and
 so, cannot verify that the access `slice[0]` is safe! Can you help
 it by *fixing* the `extern_spec` for the method shown below?
+You might want to refresh your memory about the meaning of
+`&[T][@n]` by quickly skimming the previous chapter on the [sizes of arrays
+and slices](./06-consts.html#refined-compile-time-safety).
 
 ```rust, editable
 #[extern_spec]
@@ -126,11 +128,6 @@ impl<T> [T] {
     fn len(v: &[T]) -> usize;
 }
 ```
-
-**HINT:** You might want to refresh your memory about the meaning of
-`&[T][@n]` by quickly skimming the previous [chapter on the sizes of arrays
-and slices](./06-consts.html#refined-compile-time-safety).
-http://localhost:3001/tutorial/06-consts.html#refined-compile-time-safety
 
 ## Extern Specs for Enums: `Option`
 
@@ -144,9 +141,9 @@ to `unwrap`)or `None`.
 The `extern_spec` mechanism lets us do the same thing, but directly on
 `std::option::Option`. To do so we need only
 
-1. write extern-specs for the *enum definition* that add the indices
+1. write extern-specs for the **enum definition** that add the indices
    and connect them to the variant constructors,
-2. write extern-specs for the *method signatures* that let us use the
+2. write extern-specs for the **method signatures** that let us use the
    indices to describe a refined API that is used to check client code.
 
 ### Extern Specs for the Type Definition
@@ -194,9 +191,9 @@ or `Option<i32>[false]`.
 ### Extern Specs for Impl Methods
 
 The extern specs become especially useful when we use them to refine
-the methods that `impl` the various key operations on `Option`s.
+the methods that `impl`ement various key operations on `Option`s.
 
-To do so, we can make an `extern impl` for `Option`, much like
+To do so, we can make an `extern_spec` `impl` for `Option`, much like
 we did for slices, [back here](#getting-the-length-of-a-slice).
 
 ```rust,editable
@@ -318,7 +315,7 @@ to track sizes, lets write
 ```rust,editable
 #[extern_spec]
 #[refined_by(len: int)]
-#[invariant(len >= 0)]
+#[invariant(0 <= len)]
 struct Vec<T, A: Allocator = Global>;
 ```
 
@@ -326,15 +323,13 @@ struct Vec<T, A: Allocator = Global>;
 
 Note that we can additionally attach **invariants** to the `struct`
 definition, which correspond to facts that are _always_ true about
-the indices. For example, that the `len` of a `Vec` is always non-negative.
-These are handy, because, for example, we can
-
+the indices, for example, that the `len` of a `Vec` is always non-negative.
 
 ### Extern `struct`s are Opaque
 
 Unlike with `enum`, the `extern_spec` is oblivious
-to the _internals_ of the `struct`. That is (currently) we
-assume that the fields are all "private", and so the
+to the _internals_ of the `struct`. That is flux
+assumes that the fields are all "private", and so the
 refinements must be tracked solely using the _methods_
 used to construct and manipulate the `struct`.
 
@@ -365,10 +360,13 @@ like `push`, `pop`, `len` and so on.
 We might be tempted to just bundle them together with `new`
 in the `impl` above, but it is important to Flux that the
 the `extern_spec` implementations **mirror the original
-implementations**[^mirror]. As it happens, `push` and `pop`
-are defined in a *separate* `impl` block, parameterized by
-a generic `A: Allocator`, so our `extern_spec` mirrors this
-block as follows:
+implementations** so that Flux can accurately match (i.e. "resolve")
+the `extern_spec` method with the original method, and thus,
+attach the specification to uses of the original method.
+
+As it happens, `push` and `pop` are defined in a *separate*
+`impl` block, parameterized by a generic `A: Allocator`, so
+our `extern_spec` mirrors this block:
 
 ```rust, editable
 #[extern_spec]
@@ -468,18 +466,19 @@ fn pop_and_unwrap<T>(vec: &mut Vec<T>) -> T {
 }
 ```
 
-**EXERCISE** Flux chafes because the spec for `pop`
-above does not tell us _when_ the returned value is
-safe to unwrap! Can you go back and fix the spec for
-`fn pop` so that `pop_and_unwrap` verifies?
+**EXERCISE** Flux chafes because the spec for `pop` is too _weak_:
+above does not tell us _when_ the returned value is safe to unwrap.
+Can you go back and fix the spec for `fn pop` so that `pop_and_unwrap`
+verifies?
 
 ### PopPop!
 
-**EXERCISE** Fix the spec TODO
+**EXERCISE** Finally, as a parting exercise, can you work out
+why flux rejects the `pop2` function below, and modify the spec
+so that it is accepted?
 
 ```rust,editable
 #[spec(fn (vec: &mut Vec<T>[@n]) -> (T, T)
-       requires 2 < n
        ensures vec: Vec<T>[n-2] )]
 fn pop2<T>(vec: &mut Vec<T>) -> (T, T)  {
     let v1 = pop_and_unwrap(vec);
@@ -490,13 +489,20 @@ fn pop2<T>(vec: &mut Vec<T>) -> (T, T)  {
 
 ## Summary
 
-TODO
+Previously, we saw how to attach refined specifications for
+[functions](./01-refinements.html), [structs](03-structs.html)
+and [enums](04-enums.html).
+
+In this chapter, we saw that you can use the `extern_spec`
+mechanism to do the same things for objects defined elsewhere,
+e.g. in external crates being used by your code.
+
+Next, we'll learn how to use `extern_spec` to refine _traits_
+(and their implementations), which is key to checking idiomatic
+Rust code.
+
 
 [^assumption]: We say *assumption* because we're presuming that
 the actual code for the library is not available to verify; if
 it was, you could of course actually *guarantee* that the library
 correctly implements those specifications.
-
-[^mirror]: So that Flux can accurately match (i.e. "resolve")
-the `extern_spec` method with the original method, and thus,
-attach the specification to uses of the original method.
