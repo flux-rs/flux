@@ -1812,6 +1812,9 @@ fn collect_params_in_clauses(genv: GlobalEnv, def_id: DefId) -> FxHashSet<usize>
     for (clause, _) in all_predicates_of(tcx, def_id) {
         if let Some(trait_pred) = clause.as_trait_clause() {
             let trait_id = trait_pred.def_id();
+            if tcx.require_lang_item(LangItem::MetaSized, span) == trait_id {
+                continue;
+            }
             if tcx.require_lang_item(LangItem::Sized, span) == trait_id {
                 continue;
             }
