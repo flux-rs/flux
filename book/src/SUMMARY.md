@@ -13,7 +13,7 @@
 - [Enums](tutorial/04-enums.md)
 - [Opaques](tutorial/05-vectors.md)
 - [Consts](tutorial/06-consts.md)
-- [Externs]()
+- [Externs](tutorial/07-externs.md)
 - [Traits]()
 - [Case Study: Sparse Matrices]()
 - [Case Study: Normal Forms]()
