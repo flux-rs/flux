@@ -3,21 +3,13 @@
 
 use std::{
     iter::{Enumerate, Skip, Step, Zip},
+    ops::Range,
     slice::Iter,
 };
-
 extern crate flux_core;
 
 #[path = "iter.rs"]
 mod iter;
-
-#[flux_rs::extern_spec(std::iter)]
-#[flux_rs::refined_by(n: int, inner: I)]
-struct Skip<I>;
-
-#[flux_rs::extern_spec(std::iter)]
-#[flux_rs::refined_by(a: A, b: B, idx: int, len: int, a_len: int)]
-struct Zip<A, B>;
 
 #[flux_rs::extern_spec(core::iter)]
 #[flux_rs::assoc(fn size(r: Skip<I>) -> int { <I as Iterator>::size(r.inner) } )]
