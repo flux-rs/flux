@@ -1,5 +1,3 @@
-// use std::iter::Step;
-
 use flux_attrs::*;
 
 // TODO(RJ): use default spec `true` for `can_step_forward` and `can_step_backward`
