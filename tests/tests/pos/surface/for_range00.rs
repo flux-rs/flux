@@ -1,8 +1,9 @@
 #![feature(step_trait)]
 #![allow(unused)]
 
-#[path = "../../lib/iterator.rs"]
-mod iterator;
+extern crate flux_core;
+#[path = "../../lib/iter.rs"]
+mod iter;
 
 #[flux_rs::sig(fn (bool[true]))]
 fn assert(b: bool) {}
