@@ -32,7 +32,7 @@
 <a href=#32 id=32 data-nosnippet>32</a>};
 <a href=#33 id=33 data-nosnippet>33</a><span class="kw">use </span>rustc_data_structures::unord::{ExtendUnord, UnordMap};
 <a href=#34 id=34 data-nosnippet>34</a><span class="kw">use </span>rustc_hir::{
-<a href=#35 id=35 data-nosnippet>35</a>    def::DefKind,
+<a href=#35 id=35 data-nosnippet>35</a>    def::{CtorKind, DefKind},
 <a href=#36 id=36 data-nosnippet>36</a>    def_id::{LOCAL_CRATE, LocalDefId},
 <a href=#37 id=37 data-nosnippet>37</a>};
 <a href=#38 id=38 data-nosnippet>38</a><span class="kw">use </span>rustc_macros::{TyDecodable, TyEncodable};
@@ -351,7 +351,7 @@
 <a href=#351 id=351 data-nosnippet>351</a>                    tables.assoc_refinements_of.insert(key, assocs);
 <a href=#352 id=352 data-nosnippet>352</a>                }
 <a href=#353 id=353 data-nosnippet>353</a>            }
-<a href=#354 id=354 data-nosnippet>354</a>            DefKind::Fn | DefKind::AssocFn =&gt; {
+<a href=#354 id=354 data-nosnippet>354</a>            DefKind::Fn | DefKind::AssocFn | DefKind::Ctor(<span class="kw">_</span>, CtorKind::Fn) =&gt; {
 <a href=#355 id=355 data-nosnippet>355</a>                tables.generics_of.insert(key, genv.generics_of(def_id));
 <a href=#356 id=356 data-nosnippet>356</a>                tables.predicates_of.insert(key, genv.predicates_of(def_id));
 <a href=#357 id=357 data-nosnippet>357</a>                tables

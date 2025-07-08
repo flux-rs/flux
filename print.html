@@ -2934,8 +2934,7 @@ impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 
 use std::ops::Index;
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/slice.rs"]
 mod slice;
@@ -4856,32 +4855,10 @@ pub fn test(x: &amp;i32) -&gt; &amp;[i32] {
     from_ref(x)
 }</code></pre>
 <h3 id="options"><a class="header" href="#options">Options</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
-
-#[extern_spec]
-#[flux::refined_by(b:bool)]
-enum Option&lt;T&gt; {
-    #[flux::variant(Option&lt;T&gt;[false])]
-    None,
-    #[flux::variant({T} -&gt; Option&lt;T&gt;[true])]
-    Some(T),
-}
-
-#[extern_spec]
-impl&lt;T&gt; Option&lt;T&gt; {
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
-    const fn is_some(&amp;self) -&gt; bool;
-
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
-    const fn is_none(&amp;self) -&gt; bool;
-
-    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
-    const fn unwrap(self) -&gt; T;
-}</code></pre>
+<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/option.rs}}</code></pre>
 <pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*};
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[flux::trusted]
 #[spec(fn(i32{v: false}) -&gt; T)]
@@ -4933,28 +4910,7 @@ pub fn test_safe_div() {
     assert(res == 21);
 }</code></pre>
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
-<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
-
-#[extern_spec]
-#[flux::refined_by(b:bool)]
-enum Option&lt;T&gt; {
-    #[flux::variant(Option&lt;T&gt;[false])]
-    None,
-    #[flux::variant({T} -&gt; Option&lt;T&gt;[true])]
-    Some(T),
-}
-
-#[extern_spec]
-impl&lt;T&gt; Option&lt;T&gt; {
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
-    const fn is_some(&amp;self) -&gt; bool;
-
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
-    const fn is_none(&amp;self) -&gt; bool;
-
-    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
-    const fn unwrap(self) -&gt; T;
-}</code></pre>
+<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/option.rs}}</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
 <pre><code class="language-rust noplayground">use flux_rs::extern_spec;
@@ -5559,8 +5515,7 @@ impl&lt;I: Iterator&gt; IntoIterator for I {
 
 use std::{iter::Enumerate, slice::Iter};
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/slice.rs"]
 mod slice;
