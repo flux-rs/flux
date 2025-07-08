@@ -1,7 +1,6 @@
 use flux_rs::{assert, attrs::*};
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[flux::trusted]
 #[spec(fn(i32{v: false}) -> T)]

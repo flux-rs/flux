@@ -32,7 +32,7 @@ use flux_middle::{
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_hir::{
-    def::DefKind,
+    def::{CtorKind, DefKind},
     def_id::{LOCAL_CRATE, LocalDefId},
 };
 use rustc_macros::{TyDecodable, TyEncodable};
@@ -351,7 +351,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     tables.assoc_refinements_of.insert(key, assocs);
                 }
             }
-            DefKind::Fn | DefKind::AssocFn => {
+            DefKind::Fn | DefKind::AssocFn | DefKind::Ctor(_, CtorKind::Fn) => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));
                 tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables

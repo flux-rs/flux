@@ -1,17 +1,13 @@
 #![feature(step_trait, allocator_api)]
 #![allow(unused)]
 
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/iter.rs"]
 mod iter;
 
 #[path = "../../lib/vec.rs"]
 mod vec;
-
-#[path = "../../lib/range.rs"]
-mod range;
 
 #[flux_rs::sig(fn (bool[true]))]
 pub fn assert(b: bool) {}

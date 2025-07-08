@@ -3,8 +3,7 @@
 
 use flux_rs::attrs::*;
 
-#[path = "option.rs"]
-mod option;
+extern crate flux_core;
 
 use std::iter::Step;
 

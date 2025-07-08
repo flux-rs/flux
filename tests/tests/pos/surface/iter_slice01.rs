@@ -9,10 +9,7 @@ use std::{
 };
 
 use flux_rs::extern_spec;
-
-// needed for the iter-spec which indexes options
-#[path = "../../lib/option.rs"]
-mod option;
+extern crate flux_core;
 
 #[path = "../../lib/slice.rs"]
 mod slice;
