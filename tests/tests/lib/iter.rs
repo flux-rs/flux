@@ -17,38 +17,6 @@ struct Map<I, F>;
 #[flux::assoc(fn with_size(self: Self, n:int) -> bool { true })] // default: don't know!
 trait FromIterator<A> {}
 
-#[extern_spec(std::iter)]
-#[flux::assoc(fn valid_item(self: Self, item: Self::Item) -> bool { true })]
-#[flux::assoc(fn size(self: Self) -> int)]
-#[flux::assoc(fn done(self: Self) -> bool)]
-#[flux::assoc(fn step(self: Self, other: Self) -> bool)]
-trait Iterator {
-    #[flux::sig(fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)})]
-    fn next(&mut self) -> Option<Self::Item>;
-
-    #[flux::sig(fn(Self[@s]) -> Enumerate<Self>[0, s])]
-    fn enumerate(self) -> Enumerate<Self>
-    where
-        Self: Sized;
-
-    #[flux::sig(fn(Self[@s], f: F) -> Map<Self, F>[s] where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> B)]
-    fn map<B, F>(self, f: F) -> Map<Self, F>
-    where
-        Self: Sized,
-        F: FnMut(Self::Item) -> B;
-
-    #[flux::sig(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
-    fn for_each<F>(self, f: F)
-    where
-        Self: Sized,
-        F: FnMut(Self::Item);
-
-    #[flux::sig(fn (Self[@s]) -> B{v: <B as FromIterator<Self::Item>>::with_size(v, <Self as Iterator>::size(s))})]
-    fn collect<B: FromIterator<Self::Item>>(self) -> B
-    where
-        Self: Sized;
-}
-
 #[extern_spec(std::slice)]
 #[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
 #[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]

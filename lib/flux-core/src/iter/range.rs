@@ -1,3 +1,5 @@
+use core::{iter::Step, ops};
+
 use flux_attrs::*;
 // The below are "default" implementations of the associated refinements
 // for the `Step` trait, that we put in so that types for which no explicit
@@ -50,4 +52,17 @@ impl Step for i32 {
         fn size(lo: int, hi: int) -> int { hi - lo }
     )]
     //
+}
+
+#[extern_spec(core::ops)]
+#[assoc(fn valid_item(self: Range<A>, item: A) -> bool { self.start <= item && item < self.end })]
+#[assoc(fn size(self: Range<A>) -> int { <A as Step>::size(self.start, self.end) })]
+#[assoc(fn done(self: Range<A>) -> bool { <A as Step>::size(self.start, self.end) <= 0})]
+#[assoc(fn step(self: Range<A>, other: Range<A>) -> bool { <A as Step>::can_step_forward(self.start, 1) => other.start == <A as Step>::step_forward(self.start, 1) } )]
+impl<A: Step> Iterator for ops::Range<A> {
+    #[spec(
+        fn(self: &mut Range<A>[@old]) -> Option<A[old.start]>[old.start < old.end]
+            ensures self: Range<A>{r: (old.start < old.end => r.start == <A as Step>::step_forward(old.start, 1)) && r.end == old.end }
+    )]
+    fn next(&mut self) -> Option<A>;
 }
