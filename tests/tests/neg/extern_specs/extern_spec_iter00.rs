@@ -3,9 +3,6 @@ use std::slice::Iter;
 
 extern crate flux_core;
 
-#[path = "../../lib/slice.rs"]
-mod slice;
-
 #[flux_rs::extern_spec(std::slice)]
 #[flux_rs::refined_by(idx: int, len: int)]
 struct Iter<'a, T>;

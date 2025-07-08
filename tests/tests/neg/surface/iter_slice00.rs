@@ -12,9 +12,6 @@ use flux_rs::extern_spec;
 
 extern crate flux_core;
 
-#[path = "../../lib/slice.rs"]
-mod slice;
-
 #[path = "../../lib/iter.rs"]
 mod iter;
 
