@@ -1,10 +1,5 @@
 use flux_rs::extern_spec;
 
-// Specs for std::slice::Iter and Enumerate
-#[extern_spec(std::slice)]
-#[refined_by(idx: int, len: int)]
-struct Iter<'a, T>;
-
 #[extern_spec(std::slice)]
 #[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
 #[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
