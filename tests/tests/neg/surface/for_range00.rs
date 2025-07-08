@@ -2,8 +2,6 @@
 #![allow(unused)]
 
 extern crate flux_core;
-#[path = "../../lib/iter.rs"]
-mod iter;
 
 #[flux_rs::sig(fn (bool[true]))]
 fn assert(b: bool) {}

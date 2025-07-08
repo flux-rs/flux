@@ -9,9 +9,6 @@ extern crate flux_core;
 #[path = "../../lib/vec.rs"]
 mod vec;
 
-#[path = "../../lib/iter.rs"]
-mod iter;
-
 #[spec(fn (bool[true]))]
 pub fn assert(b: bool) {}
 

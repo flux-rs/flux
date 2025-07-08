@@ -12,9 +12,6 @@ use flux_rs::extern_spec;
 
 extern crate flux_core;
 
-#[path = "../../lib/iter.rs"]
-mod iter;
-
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 

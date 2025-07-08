@@ -14,9 +14,6 @@ extern crate flux_core;
 #[path = "../../lib/vec.rs"]
 mod vec;
 
-#[path = "../../lib/iter.rs"]
-mod iter;
-
 // -------------------------------------------------------------------------------------
 
 #[flux::sig(fn(bool[true]))]

@@ -3,9 +3,6 @@
 
 extern crate flux_core;
 
-#[path = "../../lib/iter.rs"]
-mod iter;
-
 #[path = "../../lib/vec.rs"]
 mod vec;
 
