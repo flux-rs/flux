@@ -10,8 +10,6 @@ use std::{
 use flux_rs::extern_spec;
 
 extern crate flux_core;
-#[path = "../../lib/slice.rs"]
-mod slice;
 
 #[path = "../../lib/vec.rs"]
 mod vec;
