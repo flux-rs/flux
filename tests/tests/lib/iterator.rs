@@ -19,13 +19,3 @@ impl<I: Iterator> Iterator for Skip<I> {
     #[flux_rs::sig(fn(&mut Skip<I>[@n, @inner]) -> Option<I::Item>[<I as Iterator>::done(inner)])]
     fn next(&mut self) -> Option<I::Item>;
 }
-
-#[flux_rs::extern_spec(core::iter)]
-// VTOCK todo: Is this really the right thing (see A::MAY_HAVE_SIDE_EFFECT)
-#[flux_rs::assoc(fn size(r: Zip<A, B>) -> int { r.len })]
-#[flux_rs::assoc(fn done(r: Zip<A, B>) -> bool { r.idx >= r.len && r.idx >= r.a_len })]
-#[flux_rs::assoc(fn step(self: Zip<A, B>, other: Zip<A, B>) -> bool { self.idx + 1 == other.idx } )]
-impl<A: Iterator, B: Iterator> Iterator for Zip<A, B> {
-    #[flux_rs::sig(fn(&mut Zip<A, B>[@a, @b, @idx, @len, @a_len]) -> Option<_>[idx >= len || idx >= a_len])]
-    fn next(&mut self) -> Option<<Zip<A, B> as Iterator>::Item>;
-}
