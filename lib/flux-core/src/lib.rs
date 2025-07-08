@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(step_trait)]
+#![cfg_attr(flux, feature(step_trait))]
 
 mod iter;
 mod ops;
