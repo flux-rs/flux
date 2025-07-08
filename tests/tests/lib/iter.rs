@@ -1,14 +1,5 @@
 use flux_rs::extern_spec;
 
-#[extern_spec(std::slice)]
-#[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
-#[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
-#[flux::assoc(fn step(x: Iter, y: Iter) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
-impl<'a, T> Iterator for Iter<'a, T> {
-    #[flux::sig(fn(self: &strg Iter<T>[@curr_s]) -> Option<_>[curr_s.idx < curr_s.len] ensures self: Iter<T>{next_s: curr_s.idx + 1 == next_s.idx && curr_s.len == next_s.len})]
-    fn next(&mut self) -> Option<&'a T>;
-}
-
 #[extern_spec(std::iter)]
 #[flux::assoc(fn size(x: Enumerate<I>) -> int { <I as Iterator>::size(x.inner) })]
 #[flux::assoc(fn done(x: Enumerate<I>) -> bool { <I as Iterator>::done(x.inner)})]
