@@ -1,2 +1,2 @@
-mod map;
 mod enumerate;
+mod map;

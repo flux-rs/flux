@@ -1,2 +1,2 @@
-mod iterator;
 mod collect;
+mod iterator;
