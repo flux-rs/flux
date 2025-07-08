@@ -8,9 +8,6 @@ use std::{
 
 extern crate flux_core;
 
-#[path = "step.rs"]
-mod step;
-
 #[path = "iter.rs"]
 mod iter;
 

@@ -1,15 +1,10 @@
-#![allow(unused)]
-#![feature(step_trait)]
+// use std::iter::Step;
 
-use flux_rs::attrs::*;
-
-extern crate flux_core;
-
-use std::iter::Step;
+use flux_attrs::*;
 
 // TODO(RJ): use default spec `true` for `can_step_forward` and `can_step_backward`
 
-#[extern_spec(core::ops)]
+#[extern_spec(core::iter)]
 trait Step {
     #![reft(
         fn can_step_forward(start: Self, count: int) -> bool;
@@ -19,7 +14,7 @@ trait Step {
     //
 }
 
-#[extern_spec(std::iter)]
+#[extern_spec(core::iter)]
 impl Step for usize {
     #![reft(
         fn can_step_forward(start: int, count: int) -> bool  { true }
@@ -29,7 +24,7 @@ impl Step for usize {
     //
 }
 
-#[flux_rs::extern_spec(std::iter)]
+#[extern_spec(core::iter)]
 impl Step for i32 {
     #![reft(
         fn can_step_forward(start: int, count: int) -> bool  { true }
