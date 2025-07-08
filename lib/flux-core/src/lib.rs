@@ -1,5 +1,4 @@
 #![no_std]
-#![allow(unused)]
 #![feature(step_trait)]
 
 mod iter;
