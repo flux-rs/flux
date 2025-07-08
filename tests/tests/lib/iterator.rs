@@ -26,8 +26,8 @@ struct Zip<A, B>;
 #[flux_rs::assoc(fn step(self: Range<A>, other: Range<A>) -> bool { <A as Step>::can_step_forward(self.start, 1) => other.start == <A as Step>::step_forward(self.start, 1) } )]
 impl<A: Step> Iterator for Range<A> {
     #[flux_rs::sig(
-        fn(self: &strg Range<A>[@old_range]) -> Option<A[old_range.start]>[old_range.start < old_range.end]
-            ensures self: Range<A>{r: (<A as Step>::can_step_forward(old_range.start, 1) && old_range.start < old_range.end)=> (r.start == <A as Step>::step_forward(old_range.start, 1) && r.end == old_range.end) }
+        fn(self: &mut Range<A>[@old]) -> Option<A[old.start]>[old.start < old.end]
+            ensures self: Range<A>{r: (old.start < old.end => r.start == <A as Step>::step_forward(old.start, 1)) && r.end == old.end }
     )]
     fn next(&mut self) -> Option<A>;
 }
