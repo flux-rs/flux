@@ -4,7 +4,7 @@ use flux_attrs::*;
 #[assoc(fn valid_item(self: Self, item: Self::Item) -> bool { true })]
 #[assoc(fn size(self: Self) -> int)]
 #[assoc(fn done(self: Self) -> bool)]
-#[assoc(fn step(self: Self, other: Self) -> bool)]
+#[assoc(fn step(self: Self, other: Self) -> bool { true })]
 trait Iterator {
     #[flux::sig(fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)})]
     fn next(&mut self) -> Option<Self::Item>;

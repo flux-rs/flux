@@ -5,18 +5,6 @@ use flux_rs::extern_spec;
 #[refined_by(idx: int, len: int)]
 struct Iter<'a, T>;
 
-#[extern_spec(std::iter)]
-#[refined_by(idx: int, inner: I)]
-struct Enumerate<I>;
-
-#[extern_spec(std::iter)]
-#[refined_by(inner: I)]
-struct Map<I, F>;
-
-#[extern_spec]
-#[flux::assoc(fn with_size(self: Self, n:int) -> bool { true })] // default: don't know!
-trait FromIterator<A> {}
-
 #[extern_spec(std::slice)]
 #[flux::assoc(fn size(x: Iter) -> int { x.len - x.idx })]
 #[flux::assoc(fn done(x: Iter) -> bool { x.idx >= x.len })]
