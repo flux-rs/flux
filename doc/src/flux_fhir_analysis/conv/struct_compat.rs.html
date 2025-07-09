@@ -239,7 +239,7 @@
 <a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">for </span>(i, ensures) <span class="kw">in </span>a.ensures.iter().enumerate() {
 <a href=#240 id=240 data-nosnippet>240</a>            <span class="kw">if let </span>rty::Ensures::Type(path, ty_a) = ensures {
 <a href=#241 id=241 data-nosnippet>241</a>                <span class="kw">let </span>loc = path.to_loc().unwrap();
-<a href=#242 id=242 data-nosnippet>242</a>                <span class="kw">let </span>ty_b = <span class="self">self</span>.locs.get(<span class="kw-2">&amp;</span>loc).unwrap().clone().shift_in_escaping(<span class="number">1</span>);
+<a href=#242 id=242 data-nosnippet>242</a>                <span class="kw">let </span>ty_b = <span class="self">self</span>.locs.get(<span class="kw-2">&amp;</span>loc).unwrap().shift_in_escaping(<span class="number">1</span>);
 <a href=#243 id=243 data-nosnippet>243</a>                <span class="self">self</span>.zip_ty(ty_a, <span class="kw-2">&amp;</span>ty_b)
 <a href=#244 id=244 data-nosnippet>244</a>                    .map_err(|<span class="kw">_</span>| FnSigErr::Ensures { i, expected: ty_b })<span class="question-mark">?</span>;
 <a href=#245 id=245 data-nosnippet>245</a>            }
