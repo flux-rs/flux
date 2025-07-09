@@ -1,10 +1,15 @@
 use flux_attrs::*;
 
+defs! {
+    fn default_iterator_size<T>(self: T) -> int;
+    fn default_iterator_done<T>(self: T) -> bool;
+}
+
 #[extern_spec(core::iter)]
 #[assoc(
     fn valid_item(self: Self, item: Self::Item) -> bool { true }
-    fn size(self: Self) -> int;
-    fn done(self: Self) -> bool;
+    fn size(self: Self) -> int { default_iterator_size(self) }
+    fn done(self: Self) -> bool { default_iterator_done(self) }
     fn step(self: Self, other: Self) -> bool { true }
 )]
 trait Iterator {
@@ -28,6 +33,11 @@ trait Iterator {
     where
         Self: Sized,
         F: FnMut(Self::Item) -> B;
+
+    // #[spec(fn(Self[@s], n: usize) -> Skip<Self>[s - n, s])]
+    // fn skip(self, n: usize) -> Skip<Self>
+    // where
+    //     Self: Sized;
 
     #[spec(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
     fn for_each<F>(self, f: F)
