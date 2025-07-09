@@ -58,6 +58,7 @@ pub struct Hoister<D> {
     in_strg_refs: bool,
     in_tuples: bool,
     existentials: bool,
+    slices: bool,
 }
 
 pub trait HoisterDelegate {
@@ -76,6 +77,7 @@ impl<D> Hoister<D> {
             in_boxes: false,
             in_downcast: false,
             existentials: true,
+            slices: false,
         }
     }
 
@@ -114,6 +116,11 @@ impl<D> Hoister<D> {
         self
     }
 
+    pub fn hoist_slices(mut self, slices: bool) -> Self {
+        self.slices = slices;
+        self
+    }
+
     pub fn transparent(self) -> Self {
         self.hoist_inside_boxes(true)
             .hoist_inside_downcast(true)
@@ -121,6 +128,7 @@ impl<D> Hoister<D> {
             .hoist_inside_shr_refs(true)
             .hoist_inside_strg_refs(true)
             .hoist_inside_tuples(true)
+            .hoist_slices(true)
     }
 
     pub fn shallow(self) -> Self {
@@ -136,6 +144,20 @@ impl<D> Hoister<D> {
 impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
+    }
+}
+
+/// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an exi-indexed slice?
+/// We need to do a "transitive" check to deal with cases like `&mut &mut [i32]`
+/// which arise from closures like that in `tests/tests/pos/surface/closure03.rs`.
+fn is_indexed_slice(ty: &Ty) -> bool {
+    let Some(bty) = ty.as_bty_skipping_existentials() else {
+        return false;
+    };
+    match bty {
+        BaseTy::Slice(_) => true,
+        BaseTy::Ref(_, ty, _) => is_indexed_slice(ty),
+        _ => false,
     }
 }
 
@@ -182,6 +204,9 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                     GenericArg::Ty(alloc.clone()),
                 ]);
                 BaseTy::Adt(adt_def.clone(), args)
+            }
+            BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {
+                BaseTy::Ref(*re, ty.fold_with(self), *mutability)
             }
             BaseTy::Ref(re, ty, Mutability::Not) if self.in_shr_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)

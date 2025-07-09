@@ -862,8 +862,20 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
-                self.tys(infcx, ty_a, ty_b)?;
-                self.tys(infcx, ty_b, ty_a)
+                if ty_a.is_slice()
+                    && let TyKind::Indexed(_, idx_a) = ty_a.kind()
+                    && let TyKind::Exists(bty_b) = ty_b.kind()
+                {
+                    // For `&mut [T1][e] <: &mut ∃v[T2][v]`, we can hoist out the existential on the right because we know
+                    // the index is immutable. This means we have to prove `&mut [T1][e] <: ∃v. &mut [T2][v]`
+                    // This will in turn require proving `&mut [T1][e1] <: &mut [T2][?v]` for a fresh evar `?v`.
+                    // We know the evar will solve to `e`, so subtyping simplifies to the bellow.
+                    self.tys(infcx, ty_a, ty_b)?;
+                    self.tys(infcx, &bty_b.replace_bound_reft(idx_a), ty_a)
+                } else {
+                    self.tys(infcx, ty_a, ty_b)?;
+                    self.tys(infcx, ty_b, ty_a)
+                }
             }
             (BaseTy::Ref(_, ty_a, Mutability::Not), BaseTy::Ref(_, ty_b, Mutability::Not)) => {
                 self.tys(infcx, ty_a, ty_b)
