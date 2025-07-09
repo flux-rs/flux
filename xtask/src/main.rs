@@ -272,7 +272,7 @@ fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
         }
 
         let artifacts = Command::new(cargo_flux)
-            .args(["flux", "-p", "flux-rs", "-p", "flux-core"])
+            .args(["flux", "-p", "flux-rs", "-p", "flux-core", "-p", "flux-alloc"])
             .env(FLUX_SYSROOT, &config.dst)
             .env_if(tests, FLUX_SYSROOT_TEST, "1")
             .run_with_cargo_metadata()?;
@@ -307,7 +307,7 @@ fn copy_artifact(sh: &Shell, filename: &Utf8Path, dst: &Path) -> anyhow::Result<
 }
 
 fn is_flux_lib(artifact: &Artifact) -> bool {
-    matches!(&artifact.target.name[..], "flux_rs" | "flux_attrs" | "flux_core")
+    matches!(&artifact.target.name[..], "flux_rs" | "flux_attrs" | "flux_core" | "flux_alloc")
 }
 
 impl Install {

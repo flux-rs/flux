@@ -326,6 +326,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "flux-alloc"
+version = "0.1.0"
+dependencies = [
+ "flux-attrs",
+ "flux-core",
+]
+
+[[package]]
 name = "flux-arc-interner"
 version = "0.1.0"
 dependencies = [
