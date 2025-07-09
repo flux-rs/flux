@@ -29,7 +29,7 @@ trait Iterator {
         Self: Sized,
         F: FnMut(Self::Item) -> B;
 
-    #[flux::sig(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
+    #[spec(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> () )]
     fn for_each<F>(self, f: F)
     where
         Self: Sized,
