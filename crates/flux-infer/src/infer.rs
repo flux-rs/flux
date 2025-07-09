@@ -860,7 +860,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     && let TyKind::Indexed(_, idx_a) = ty_a.kind()
                     && let TyKind::Exists(bty_b) = ty_b.kind()
                 {
-                    // &mut [T1][stuff1] <: &mut [T2][stuff2]; we want to skip the stuff2 <: stuff1 because the index is immutable
+                    // For `&mut [T1][e] <: &mut ∃v[T2][v]`, we can hoist out the existential on the right because we know
+                    // the index is immutable. This means we have to prove `&mut [T1][e] <: ∃v. &mut [T2][v]`
+                    // This will in turn require proving `&mut [T1][e1] <: &mut [T2][?v]` for a fresh evar `?v`.
+                    // We know the evar will solve to `e`, so subtyping simplifies to the bellow.
                     self.tys(infcx, ty_a, ty_b)?;
                     self.tys(infcx, &bty_b.replace_bound_reft(idx_a), ty_a)
                 } else {
