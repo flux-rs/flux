@@ -3,13 +3,13 @@ use flux_attrs::*;
 #[extern_spec(core::iter)]
 #[assoc(
     fn valid_item(self: Self, item: Self::Item) -> bool { true }
-    fn size(self: Self) -> int);
-    fn done(self: Self) -> bool);
+    fn size(self: Self) -> int;
+    fn done(self: Self) -> bool;
     fn step(self: Self, other: Self) -> bool { true }
 )]
 trait Iterator {
     #[flux::sig(
-        fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] 
+        fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)]
         ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)}
     )]
     fn next(&mut self) -> Option<Self::Item>;
@@ -21,7 +21,7 @@ trait Iterator {
 
     #[flux::sig(
         fn(Self[@s], f: F) -> Map<Self, F>[s]
-        where 
+        where
             F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> B
     )]
     fn map<B, F>(self, f: F) -> Map<Self, F>
