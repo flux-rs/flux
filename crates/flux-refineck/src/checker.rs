@@ -1155,9 +1155,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if let flux_rustc_bridge::ty::TyKind::FnPtr(poly_sig) = ty.kind() {
             let poly_sig = poly_sig.unpack_closure_sig();
             let poly_sig = self.refine_with_holes(&poly_sig)?;
-            // println!("TRACE: closure template (0) ==> {poly_sig:?}");
             let poly_sig = poly_sig.hoist_input_binders();
-            // println!("TRACE: closure template (1) ==> {poly_sig:?}");
             let poly_sig = poly_sig
                 .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
 
