@@ -187,15 +187,10 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
 
-            // println!(
-            //     "TRACE: raw-fn-sig (gen) {def_id:?} ==> {:#?}",
-            //     genv.tcx().generics_of(def_id)
-            // );
             let poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)?
                 .instantiate_identity();
-            // println!("TRACE: poly-fn-sig {def_id:?} ==> {poly_sig:#?}");
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(ShapeResult(mode.bb_envs))
@@ -481,7 +476,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .normalize_projections(&mut infcx.at(span))
             .with_span(span)?;
 
-        // println!("TRACE: (run) fn-sig {def_id:?} ==> {:#?}", fn_sig);
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
@@ -772,7 +766,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
                 let output = &self.output;
-                // println!("TRACE: check_ret: output ==> {output:?}");
                 let output = output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
                 let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
