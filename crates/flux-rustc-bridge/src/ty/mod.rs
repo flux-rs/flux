@@ -1155,12 +1155,12 @@ impl fmt::Debug for Const {
 
 pub fn region_to_string(region: Region) -> String {
     match region {
-        Region::ReBound(_, region) => {
+        Region::ReBound(idx, region) => {
             match region.kind {
                 BoundRegionKind::Anon => "'<annon>".to_string(),
                 BoundRegionKind::Named(_, sym) => {
                     if sym == kw::UnderscoreLifetime {
-                        format!("{sym}{:?}", region.var)
+                        format!("{sym}{:?}[{idx:?}]", region.var)
                     } else {
                         format!("{sym}")
                     }

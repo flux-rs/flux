@@ -239,7 +239,8 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
                 let loc = path.to_loc().unwrap();
-                let ty_b = self.locs.get(&loc).unwrap().clone();
+                let ty_b = self.locs.get(&loc).unwrap().clone().shift_in_escaping(1);
+                // println!("TRACE: zip-output: ty_a ==> {ty_a:?}, ty_b ==> {ty_b:?}");
                 self.zip_ty(ty_a, &ty_b)
                     .map_err(|_| FnSigErr::Ensures { i, expected: ty_b })?;
             }
