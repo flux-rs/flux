@@ -5746,7 +5746,7 @@ defs! {
        16 * [&gt;&gt;](x, 4) == x
     }
 
-    property MaskBy15[&amp;](x, y) {
+    property MaskBy[&amp;](x, y) {
         [&amp;](x, y) &lt;= y
     }
 }
@@ -5777,6 +5777,12 @@ pub fn test3(byte: u8) {
     assert(byte &lt;= 127);
     assert(tmp1 &lt;= 0xf);
     assert(tmp2 &lt;= 0xf);
+}
+
+static POW10: [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+pub fn test4(n: usize) -&gt; i32 {
+    POW10[n &amp; 7]
 }</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
