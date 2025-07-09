@@ -148,17 +148,17 @@ impl<D: HoisterDelegate> Hoister<D> {
 }
 
 /// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an exi-indexed slice?
+/// We need to do a "transitive" check to deal with cases like `&mut &mut [i32]`
+/// which arise from closures like that in `tests/tests/pos/surface/closure03.rs`.
 fn is_indexed_slice(ty: &Ty) -> bool {
     let Some(bty) = ty.as_bty_skipping_existentials() else {
         return false;
     };
-    let res = match bty {
+    match bty {
         BaseTy::Slice(_) => true,
         BaseTy::Ref(_, ty, _) => is_indexed_slice(ty),
         _ => false,
-    };
-    // println!("TRACE: is_indexed_slice({ty:?}) ==> {res}");
-    res
+    }
 }
 
 impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
@@ -205,11 +205,11 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 ]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
+            BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {
+                BaseTy::Ref(*re, ty.fold_with(self), *mutability)
+            }
             BaseTy::Ref(re, ty, Mutability::Not) if self.in_shr_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
-            }
-            BaseTy::Ref(re, ty, Mutability::Mut) if is_indexed_slice(ty) && self.slices => {
-                BaseTy::Ref(*re, ty.fold_with(self), Mutability::Mut)
             }
             BaseTy::Ref(re, ty, Mutability::Mut) if self.in_mut_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Mut)
