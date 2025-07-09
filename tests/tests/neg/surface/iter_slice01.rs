@@ -9,10 +9,8 @@ use std::{
 
 use flux_rs::extern_spec;
 
+extern crate flux_alloc;
 extern crate flux_core;
-
-#[path = "../../lib/vec.rs"]
-mod vec;
 
 // -------------------------------------------------------------------------------------
 
