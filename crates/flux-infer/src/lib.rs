@@ -1,4 +1,4 @@
-#![feature(let_chains, never_type, rustc_private, if_let_guard)]
+#![feature(never_type, rustc_private, if_let_guard)]
 
 extern crate rustc_abi;
 extern crate rustc_data_structures;

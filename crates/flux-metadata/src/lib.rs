@@ -412,7 +412,7 @@ fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<Pat
 // Tags for encoding Symbol's
 const SYMBOL_STR: u8 = 0;
 const SYMBOL_OFFSET: u8 = 1;
-const SYMBOL_PREINTERNED: u8 = 2;
+const SYMBOL_PREDEFINED: u8 = 2;
 
 mod errors {
     use flux_errors::E0999;

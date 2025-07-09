@@ -1,4 +1,4 @@
-#![feature(rustc_private, box_patterns, let_chains, new_range_api)]
+#![feature(rustc_private, box_patterns, new_range_api)]
 
 extern crate rustc_ast;
 extern crate rustc_errors;
