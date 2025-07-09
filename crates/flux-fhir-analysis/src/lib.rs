@@ -581,9 +581,7 @@ fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<r
         .into_conv_ctxt()
         .conv_fn_sig(def_id, fhir_fn_sig)?;
     let fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
-    // println!("TRACE: ppo fn_sig {def_id:?} (0) ==> {fn_sig:?}");
     let fn_sig = fn_sig.hoist_input_binders();
-    // println!("TRACE: ppo fn_sig {def_id:?} (1) ==> {fn_sig:?}");
 
     if config::dump_rty() {
         let generics = genv.generics_of(def_id)?;
