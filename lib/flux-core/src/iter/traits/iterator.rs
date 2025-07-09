@@ -6,7 +6,10 @@ use flux_attrs::*;
 #[assoc(fn done(self: Self) -> bool)]
 #[assoc(fn step(self: Self, other: Self) -> bool { true })]
 trait Iterator {
-    #[flux::sig(fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)})]
+    #[flux::sig(
+        fn(self: &strg Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)] 
+        ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)}
+    )]
     fn next(&mut self) -> Option<Self::Item>;
 
     #[flux::sig(fn(Self[@s]) -> Enumerate<Self>[0, s])]
