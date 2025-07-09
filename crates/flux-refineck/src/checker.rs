@@ -223,7 +223,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-
             let poly_sig = genv.fn_sig(def_id).with_span(span)?;
             let poly_sig = poly_sig.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig)?;
