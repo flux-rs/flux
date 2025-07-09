@@ -186,7 +186,6 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-
             let poly_sig = genv
                 .fn_sig(local_id)
                 .with_span(span)?
