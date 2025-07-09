@@ -40,15 +40,3 @@ pub fn blah(d: &mut [i32]) {
         d[0] = 10;
     }
 }
-
-// pub fn copy_to_slice(src: &[u8], dest: &mut [u8]) {
-//     let src_len = src.len();
-//     let dest_len = dest.len();
-//     if src_len == dest_len {
-//         for (i, b) in src.iter().enumerate() {
-//             assert(i < src_len);
-//             assert(i < dest_len);
-//             dest[i] = *b;
-//         }
-//     }
-// }
