@@ -8,17 +8,17 @@ use flux_rs::extern_spec;
 
 extern crate flux_alloc;
 
-#[extern_spec]
-#[flux::assoc(fn in_bounds(idx: Self, v: T) -> bool)]
-trait SliceIndex<T>
-where
-    T: ?Sized,
-{
-}
+// #[extern_spec]
+// #[flux::assoc(fn in_bounds(idx: Self, v: T) -> bool)]
+// trait SliceIndex<T>
+// where
+//     T: ?Sized,
+// {
+// }
 
-#[extern_spec]
-#[flux::assoc(fn in_bounds(idx: int, len: int) -> bool {idx < len} )]
-impl<T> SliceIndex<[T]> for usize {}
+// #[extern_spec]
+// #[flux::assoc(fn in_bounds(idx: int, len: int) -> bool {idx < len} )]
+// impl<T> SliceIndex<[T]> for usize {}
 
 #[extern_spec]
 impl<T, I: SliceIndex<[T]>, A: Allocator> Index<I> for Vec<T, A> {
