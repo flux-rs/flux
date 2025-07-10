@@ -5,6 +5,8 @@ use flux_attrs::*;
 struct Skip<I>;
 
 #[extern_spec(core::iter)]
-#[assoc(fn size(r: Skip) -> int { r.size } )]
-#[assoc(fn step(self: Skip, other: Skip) -> bool { other.size == self.size - 1 } )]
+#[assoc(
+    fn size(r: Skip) -> int { r.size }
+    fn step(self: Skip, other: Skip) -> bool { other.size == self.size - 1 }
+)]
 impl<I: Iterator> Iterator for Skip<I> {}
