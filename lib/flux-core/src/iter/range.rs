@@ -56,7 +56,7 @@ impl Step for i32 {
 impl<A: Step> Iterator for ops::Range<A> {
     #[spec(
         fn(self: &mut Range<A>[@old]) -> Option<A[old.start]>[old.start < old.end]
-            ensures self: Range<A>{r: (old.start < old.end => r.start == <A as Step>::step_forward(old.start, 1)) && r.end == old.end }
+        ensures self: Range<A>{r: (old.start < old.end => r.start == <A as Step>::step_forward(old.start, 1)) && r.end == old.end }
     )]
     fn next(&mut self) -> Option<A>;
 }
