@@ -2,7 +2,7 @@
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="attr">#[extern_spec(core::ops)]
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">trait </span>Index&lt;Idx&gt; {
-<a href=#5 id=5 data-nosnippet>5</a>    <span class="attr">#![reft(<span class="kw">fn </span>in_bounds(v: <span class="self">Self</span>, idx: Idx) -&gt; bool { <span class="bool-val">true </span>})]
+<a href=#5 id=5 data-nosnippet>5</a>    <span class="attr">#![assoc(<span class="kw">fn </span>in_bounds(v: <span class="self">Self</span>, idx: Idx) -&gt; bool { <span class="bool-val">true </span>})]
 <a href=#6 id=6 data-nosnippet>6</a>
 <a href=#7 id=7 data-nosnippet>7</a>    #[sig(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;</span><span class="self">Self</span>[@v]</span>, index: Idx { &lt;<span class="self">Self </span><span class="kw">as </span>Index&lt;Idx&gt;&gt;::in_bounds(v, index) }) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Output)]
 <a href=#8 id=8 data-nosnippet>8</a>    <span class="kw">fn </span>index(<span class="kw-2">&amp;</span><span class="self">self</span>, index: Idx) -&gt; <span class="kw-2">&amp;</span><span class="self">Self</span>::Output;

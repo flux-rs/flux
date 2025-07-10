@@ -283,6 +283,12 @@ python3  path/to/flux/tools/logreader.py
 <p>To see the expanded code of an <code>extern_spec</code> macro, you can do</p>
 <pre><code>cargo x expand path/to/file.rs
 </code></pre>
+<h2 id="rebuilding-libraries"><a class="header" href="#rebuilding-libraries">(Re)building Libraries</a></h2>
+<p>When making changes to the libraries, including <code>flux-core</code> which has the
+<code>extern_spec</code>ifications for the standard library, you can force a rebuild
+of the libraries by running:</p>
+<pre><code class="language-sh">cargo x build-sysroot
+</code></pre>
 
                     </main>
 

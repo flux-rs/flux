@@ -6,12 +6,24 @@
 <a href=#6 id=6 data-nosnippet>6</a>
 <a href=#7 id=7 data-nosnippet>7</a><span class="attr">#[extern_spec(core::slice)]
 <a href=#8 id=8 data-nosnippet>8</a></span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Iter&lt;<span class="lifetime">'a</span>, T&gt; {
-<a href=#9 id=9 data-nosnippet>9</a>    <span class="attr">#[sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@it]</span>) -&gt; <span class="kw-2">&amp;</span>[T][it.len])]
+<a href=#9 id=9 data-nosnippet>9</a>    <span class="attr">#[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>[@it]</span>) -&gt; <span class="kw-2">&amp;</span>[T][it.len])]
 <a href=#10 id=10 data-nosnippet>10</a>    <span class="kw">fn </span>as_slice(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T];
 <a href=#11 id=11 data-nosnippet>11</a>}
 <a href=#12 id=12 data-nosnippet>12</a>
 <a href=#13 id=13 data-nosnippet>13</a><span class="attr">#[extern_spec(core::slice)]
-<a href=#14 id=14 data-nosnippet>14</a></span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T] {
-<a href=#15 id=15 data-nosnippet>15</a>    <span class="attr">#[flux::sig(<span class="kw">fn</span>(<span class="kw-2">&amp;</span>[T]</span>[@n]) -&gt; Iter&lt;T&gt;[<span class="number">0</span>, n])]
-<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">fn </span>into_iter(v: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T]) -&gt; Iter&lt;<span class="lifetime">'a</span>, T&gt;;
-<a href=#17 id=17 data-nosnippet>17</a>}</code></pre></div></section></main></body></html>
+<a href=#14 id=14 data-nosnippet>14</a>#[assoc(
+<a href=#15 id=15 data-nosnippet>15</a>    <span class="kw">fn </span>size(x: Iter) -&gt; int { x.len - x.idx }
+<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">fn </span>done(x: Iter) -&gt; bool { x.idx &gt;= x.len }
+<a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">fn </span>step(x: Iter, y: Iter) -&gt; bool { x.idx + <span class="number">1 </span>== y.idx &amp;&amp; x.len == y.len}
+<a href=#18 id=18 data-nosnippet>18</a>)]
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; Iterator <span class="kw">for </span>Iter&lt;<span class="lifetime">'a</span>, T&gt; {
+<a href=#20 id=20 data-nosnippet>20</a>    <span class="attr">#[spec(<span class="kw">fn</span>(<span class="self">self</span>: <span class="kw-2">&amp;mut </span>Iter&lt;T&gt;[@curr_s]</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw">_</span>&gt;[curr_s.idx &lt; curr_s.len]
+<a href=#21 id=21 data-nosnippet>21</a>           ensures <span class="self">self</span>: Iter&lt;T&gt;{next_s: curr_s.idx + <span class="number">1 </span>== next_s.idx &amp;&amp; curr_s.len == next_s.len})]
+<a href=#22 id=22 data-nosnippet>22</a>    <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>T&gt;;
+<a href=#23 id=23 data-nosnippet>23</a>}
+<a href=#24 id=24 data-nosnippet>24</a>
+<a href=#25 id=25 data-nosnippet>25</a><span class="attr">#[extern_spec(core::slice)]
+<a href=#26 id=26 data-nosnippet>26</a></span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, T&gt; IntoIterator <span class="kw">for </span><span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T] {
+<a href=#27 id=27 data-nosnippet>27</a>    <span class="attr">#[spec(<span class="kw">fn</span>(<span class="kw-2">&amp;</span>[T]</span>[@n]) -&gt; Iter&lt;T&gt;[<span class="number">0</span>, n])]
+<a href=#28 id=28 data-nosnippet>28</a>    <span class="kw">fn </span>into_iter(v: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[T]) -&gt; Iter&lt;<span class="lifetime">'a</span>, T&gt;;
+<a href=#29 id=29 data-nosnippet>29</a>}</code></pre></div></section></main></body></html>

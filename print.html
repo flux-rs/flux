@@ -2939,9 +2939,6 @@ extern crate flux_core;
 #[path = "../../lib/vec.rs"]
 mod vec;
 
-#[path = "../../lib/iter.rs"]
-mod iter;
-
 // ---------------------------------------------------------------------------------------
 
 pub fn test_get0(xs: &amp;Vec&lt;i32&gt;) -&gt; &amp;i32 {
@@ -5183,8 +5180,7 @@ fn test01(x: MyInt, y: MyInt) -&gt; bool {
 <pre><code class="language-rust noplayground">#![feature(step_trait)]
 #![allow(unused)]
 
-#[path = "../../lib/iterator.rs"]
-mod iterator;
+extern crate flux_core;
 
 #[flux_rs::sig(fn (bool[true]))]
 fn assert(b: bool) {}
@@ -5416,97 +5412,7 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 #[extern_spec]
 #[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
 impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
-<pre><code class="language-rust noplayground">use flux_rs::extern_spec;
-
-// Specs for std::slice::Iter and Enumerate
-#[extern_spec(std::slice)]
-#[refined_by(idx: int, len: int)]
-struct Iter&lt;'a, T&gt;;
-
-#[extern_spec(std::iter)]
-#[refined_by(idx: int, inner: I)]
-struct Enumerate&lt;I&gt;;
-
-#[extern_spec(std::iter)]
-#[refined_by(inner: I)]
-struct Map&lt;I, F&gt;;
-
-#[extern_spec]
-#[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { true })] // default: don't know!
-trait FromIterator&lt;A&gt; {}
-
-#[extern_spec(std::iter)]
-#[flux::assoc(fn valid_item(self: Self, item: Self::Item) -&gt; bool { true })]
-#[flux::assoc(fn size(self: Self) -&gt; int)]
-#[flux::assoc(fn done(self: Self) -&gt; bool)]
-#[flux::assoc(fn step(self: Self, other: Self) -&gt; bool)]
-trait Iterator {
-    #[flux::sig(fn(self: &amp;strg Self[@curr_s]) -&gt; Option&lt;Self::Item&gt;[!&lt;Self as Iterator&gt;::done(curr_s)] ensures self: Self{next_s: &lt;Self as Iterator&gt;::step(curr_s, next_s)})]
-    fn next(&amp;mut self) -&gt; Option&lt;Self::Item&gt;;
-
-    #[flux::sig(fn(Self[@s]) -&gt; Enumerate&lt;Self&gt;[0, s])]
-    fn enumerate(self) -&gt; Enumerate&lt;Self&gt;
-    where
-        Self: Sized;
-
-    #[flux::sig(fn(Self[@s], f: F) -&gt; Map&lt;Self, F&gt;[s] where F: FnMut(Self::Item{item: &lt;Self as Iterator&gt;::valid_item(s, item)}) -&gt; B)]
-    fn map&lt;B, F&gt;(self, f: F) -&gt; Map&lt;Self, F&gt;
-    where
-        Self: Sized,
-        F: FnMut(Self::Item) -&gt; B;
-
-    #[flux::sig(fn(Self[@s], f: F) where F: FnMut(Self::Item{item: &lt;Self as Iterator&gt;::valid_item(s, item)}) -&gt; () )]
-    fn for_each&lt;F&gt;(self, f: F)
-    where
-        Self: Sized,
-        F: FnMut(Self::Item);
-
-    #[flux::sig(fn (Self[@s]) -&gt; B{v: &lt;B as FromIterator&lt;Self::Item&gt;&gt;::with_size(v, &lt;Self as Iterator&gt;::size(s))})]
-    fn collect&lt;B: FromIterator&lt;Self::Item&gt;&gt;(self) -&gt; B
-    where
-        Self: Sized;
-}
-
-#[extern_spec(std::slice)]
-#[flux::assoc(fn size(x: Iter) -&gt; int { x.len - x.idx })]
-#[flux::assoc(fn done(x: Iter) -&gt; bool { x.idx &gt;= x.len })]
-#[flux::assoc(fn step(x: Iter, y: Iter) -&gt; bool { x.idx + 1 == y.idx &amp;&amp; x.len == y.len})]
-impl&lt;'a, T&gt; Iterator for Iter&lt;'a, T&gt; {
-    #[flux::sig(fn(self: &amp;strg Iter&lt;T&gt;[@curr_s]) -&gt; Option&lt;_&gt;[curr_s.idx &lt; curr_s.len] ensures self: Iter&lt;T&gt;{next_s: curr_s.idx + 1 == next_s.idx &amp;&amp; curr_s.len == next_s.len})]
-    fn next(&amp;mut self) -&gt; Option&lt;&amp;'a T&gt;;
-}
-
-#[extern_spec(std::iter)]
-#[flux::assoc(fn size(x: Enumerate&lt;I&gt;) -&gt; int { &lt;I as Iterator&gt;::size(x.inner) })]
-#[flux::assoc(fn done(x: Enumerate&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::done(x.inner)})]
-#[flux::assoc(fn step(x: Enumerate&lt;I&gt;, y: Enumerate&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::step(x.inner, y.inner)})]
-impl&lt;I: Iterator&gt; Iterator for Enumerate&lt;I&gt; {
-    #[flux::sig(fn(self: &amp;strg Enumerate&lt;I&gt;[@curr_s]) -&gt; Option&lt;(usize[curr_s.idx], _)&gt;[!&lt;I as Iterator&gt;::done(curr_s.inner)]
-    ensures self: Enumerate&lt;I&gt;{next_s: curr_s.idx + 1 == next_s.idx &amp;&amp; &lt;I as Iterator&gt;::step(curr_s.inner, next_s.inner)})]
-    fn next(&amp;mut self) -&gt; Option&lt;(usize, &lt;I as Iterator&gt;::Item)&gt;;
-}
-
-#[extern_spec(std::iter)]
-#[flux::assoc(fn size(x: Map&lt;I&gt;) -&gt; int { &lt;I as Iterator&gt;::size(x.inner) })]
-#[flux::assoc(fn done(x: Map&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::done(x.inner)})]
-#[flux::assoc(fn step(x: Map&lt;I&gt;, y: Map&lt;I&gt;) -&gt; bool { &lt;I as Iterator&gt;::step(x.inner, y.inner)})]
-impl&lt;B, I: Iterator, F: FnMut(I::Item) -&gt; B&gt; Iterator for Map&lt;I, F&gt; {} // orig: where F: FnMut(I::Item) -&gt; B {}
-
-// -------------------------------------------------------------------------------------------------------------------------------------
-
-#[flux_rs::extern_spec(std::iter)]
-trait IntoIterator {
-    #[flux_rs::sig(fn(self: Self) -&gt; Self::IntoIter)]
-    fn into_iter(self) -&gt; Self::IntoIter
-    where
-        Self: Sized;
-}
-
-#[flux_rs::extern_spec(core::ops)]
-impl&lt;I: Iterator&gt; IntoIterator for I {
-    #[flux_rs::sig(fn(self: I[@s]) -&gt; I[s])]
-    fn into_iter(self) -&gt; I;
-}</code></pre>
+<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/iter.rs}}</code></pre>
 <pre><code class="language-rust noplayground">#![allow(unused)]
 #![feature(allocator_api)]
 
@@ -5516,9 +5422,6 @@ extern crate flux_core;
 
 #[path = "../../lib/vec.rs"]
 mod vec;
-
-#[path = "../../lib/iter.rs"]
-mod iter;
 
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
@@ -5904,6 +5807,12 @@ python3  path/to/flux/tools/logreader.py
 <h2 id="debugging-extern-specs"><a class="header" href="#debugging-extern-specs">Debugging Extern Specs</a></h2>
 <p>To see the expanded code of an <code>extern_spec</code> macro, you can do</p>
 <pre><code>cargo x expand path/to/file.rs
+</code></pre>
+<h2 id="rebuilding-libraries"><a class="header" href="#rebuilding-libraries">(Re)building Libraries</a></h2>
+<p>When making changes to the libraries, including <code>flux-core</code> which has the
+<code>extern_spec</code>ifications for the standard library, you can force a rebuild
+of the libraries by running:</p>
+<pre><code class="language-sh">cargo x build-sysroot
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="high-level-architecture"><a class="header" href="#high-level-architecture">High-level Architecture</a></h1>
 <p>Flux is implemented as a compiler <a href="https://rustc-dev-guide.rust-lang.org/rustc-driver.html?highlight=Callbacks%5C#rustc_driver-and-rustc_interface">driver</a>. We hook into the compiler by implementing the <a href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_driver/trait.Callbacks.html"><code>Callbacks</code></a> trait. The implementation is located is in the <code>flux-driver</code> crate, and it is the main entry point to Flux.</p>
