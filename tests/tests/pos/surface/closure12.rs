@@ -4,8 +4,10 @@
 #![allow(unused)]
 
 use flux_rs::attrs::*;
-extern crate flux_alloc;
 extern crate flux_core;
+
+#[path = "../../lib/vec.rs"]
+mod vec;
 
 #[spec(fn (bool[true]))]
 pub fn assert(b: bool) {}

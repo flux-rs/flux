@@ -9,7 +9,7 @@ defs! {
        16 * [>>](x, 4) == x
     }
 
-    property MaskBy15[&](x, y) {
+    property MaskBy[&](x, y) {
         [&](x, y) <= y
     }
 }
@@ -40,4 +40,10 @@ pub fn test3(byte: u8) {
     assert(byte <= 127);
     assert(tmp1 <= 0xf);
     assert(tmp2 <= 0xf);
+}
+
+static POW10: [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+pub fn test4(n: usize) -> i32 {
+    POW10[n & 7]
 }

@@ -17,44 +17,40 @@ defs! {
 ///  - `step_forward` computes the new value after stepping forward from `start` by `count`,
 ///  - `size` computes the number of steps needed to go from `lo` to `hi
 #[extern_spec(core::iter)]
-trait Step {
-    #![reft(
-        fn step_forward(start: Self, count: int) -> Self {
-            default_step_step_forward(start, count)
-        }
-        fn size(lo: Self, hi: Self) -> int {
-            default_step_size(lo, hi)
-        }
-    )]
-    //
-}
+#[assoc(
+    fn step_forward(start: Self, count: int) -> Self {
+        default_step_step_forward(start, count)
+    }
+    fn size(lo: Self, hi: Self) -> int {
+        default_step_size(lo, hi)
+    }
+)]
+trait Step {}
 
 #[extern_spec(core::iter)]
-impl Step for usize {
-    #![reft(
-        fn step_forward(start: int, count: int) -> int { start + count }
-        fn size(lo: int, hi: int) -> int { hi - lo }
-    )]
-    //
-}
+#[assoc(
+    fn step_forward(start: int, count: int) -> int { start + count }
+    fn size(lo: int, hi: int) -> int { hi - lo }
+)]
+impl Step for usize {}
 
 #[extern_spec(core::iter)]
-impl Step for i32 {
-    #![reft(
-        fn step_forward(start: int, count: int) -> int { start + count }
-        fn size(lo: int, hi: int) -> int { hi - lo }
-    )]
-    //
-}
+#[assoc(
+    fn step_forward(start: int, count: int) -> int { start + count }
+    fn size(lo: int, hi: int) -> int { hi - lo }
+)]
+impl Step for i32 {}
 
 #[extern_spec(core::ops)]
-#[assoc(fn valid_item(self: Range<A>, item: A) -> bool { self.start <= item && item < self.end })]
-#[assoc(fn size(self: Range<A>) -> int { <A as Step>::size(self.start, self.end) })]
-#[assoc(fn done(self: Range<A>) -> bool { <A as Step>::size(self.start, self.end) <= 0})]
+#[assoc(
+    fn valid_item(self: Range<A>, item: A) -> bool { self.start <= item && item < self.end }
+    fn size(self: Range<A>) -> int { <A as Step>::size(self.start, self.end) }
+    fn done(self: Range<A>) -> bool { <A as Step>::size(self.start, self.end) <= 0 }
+)]
 impl<A: Step> Iterator for ops::Range<A> {
     #[spec(
         fn(self: &mut Range<A>[@old]) -> Option<A[old.start]>[old.start < old.end]
-            ensures self: Range<A>{r: (old.start < old.end => r.start == <A as Step>::step_forward(old.start, 1)) && r.end == old.end }
+        ensures self: Range<A>{r: (old.start < old.end => r.start == <A as Step>::step_forward(old.start, 1)) && r.end == old.end }
     )]
     fn next(&mut self) -> Option<A>;
 }

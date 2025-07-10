@@ -4,6 +4,9 @@
 extern crate flux_alloc;
 extern crate flux_core;
 
+#[path = "../../lib/vec.rs"]
+mod vec;
+
 #[flux_rs::sig(fn (bool[true]))]
 pub fn assert(b: bool) {}
 
