@@ -46,7 +46,7 @@ trait Iterator {
         Self: Sized,
         F: FnMut(Self::Item);
 
-    #[flux::sig(fn (Self[@s]) -> B{v: <B as FromIterator<Self::Item>>::with_size(v, <Self as Iterator>::size(s))})]
+    #[spec(fn (Self[@s]) -> B{v: <B as FromIterator<Self::Item>>::with_size(v, <Self as Iterator>::size(s))})]
     fn collect<B: FromIterator<Self::Item>>(self) -> B
     where
         Self: Sized;
