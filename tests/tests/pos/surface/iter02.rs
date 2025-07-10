@@ -6,9 +6,6 @@ use std::{iter::Enumerate, slice::Iter};
 extern crate flux_alloc;
 extern crate flux_core;
 
-#[path = "../../lib/vec.rs"]
-mod vec;
-
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
 

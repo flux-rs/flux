@@ -5,9 +5,6 @@ use std::ops::Index;
 extern crate flux_alloc;
 extern crate flux_core;
 
-#[path = "../../lib/vec.rs"]
-mod vec;
-
 // ---------------------------------------------------------------------------------------
 
 pub fn test_get0(xs: &Vec<i32>) -> &i32 {

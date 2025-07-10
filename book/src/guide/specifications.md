@@ -183,7 +183,7 @@ This uses `extern_spec` which is [described below](#extern-specs).
 **Associated Refinements** for indexing
 
 ```rust,noplayground
-{{#include ../../../tests/tests/lib/vec.rs}}
+{{#include ../../../lib/flux-alloc/src/vec/mod.rs}}
 ```
 
 ```rust,noplayground
@@ -883,7 +883,7 @@ To see how `flux` handles `for i in 0..n` style loops:
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/lib/vec.rs}}
+{{#include ../../../lib/flux-alloc/src/vec/mod.rs}}
 ```
 
 ```rust,noplayground
