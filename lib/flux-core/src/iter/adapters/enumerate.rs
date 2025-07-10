@@ -8,7 +8,7 @@ struct Enumerate<I>;
 #[assoc(
     fn size(x: Enumerate<I>) -> int { <I as Iterator>::size(x.inner) }
     fn done(x: Enumerate<I>) -> bool { <I as Iterator>::done(x.inner) }
-    fn step(x: Enumerate<I>, y: Enumerate<I>) -> bool { 
+    fn step(x: Enumerate<I>, y: Enumerate<I>) -> bool {
         x.idx + 1 == y.idx && <I as Iterator>::step(x.inner, y.inner)
     }
 )]
