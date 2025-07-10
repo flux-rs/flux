@@ -14,18 +14,18 @@ defs! {
     fn step(self: Self, other: Self) -> bool { true }
 )]
 trait Iterator {
-    #[flux::sig(
+    #[spec(
         fn(self: &mut Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)]
         ensures self: Self{next_s: <Self as Iterator>::step(curr_s, next_s)}
     )]
     fn next(&mut self) -> Option<Self::Item>;
 
-    #[flux::sig(fn(Self[@s]) -> Enumerate<Self>[0, s])]
+    #[spec(fn(Self[@s]) -> Enumerate<Self>[0, s])]
     fn enumerate(self) -> Enumerate<Self>
     where
         Self: Sized;
 
-    #[flux::sig(
+    #[spec(
         fn(Self[@s], f: F) -> Map<Self, F>[s]
         where
             F: FnMut(Self::Item{item: <Self as Iterator>::valid_item(s, item)}) -> B
