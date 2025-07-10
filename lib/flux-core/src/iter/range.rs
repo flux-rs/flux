@@ -28,13 +28,11 @@ defs! {
 trait Step { }
 
 #[extern_spec(core::iter)]
-impl Step for usize {
-    #![reft(
-        fn step_forward(start: int, count: int) -> int { start + count }
-        fn size(lo: int, hi: int) -> int { hi - lo }
-    )]
-    //
-}
+#[assoc(
+    fn step_forward(start: int, count: int) -> int { start + count }
+    fn size(lo: int, hi: int) -> int { hi - lo }
+)]
+impl Step for usize { }
 
 #[extern_spec(core::iter)]
 #![assoc(
