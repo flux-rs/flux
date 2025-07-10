@@ -25,21 +25,21 @@ defs! {
         default_step_size(lo, hi)
     }
 )]
-trait Step { }
+trait Step {}
 
 #[extern_spec(core::iter)]
 #[assoc(
     fn step_forward(start: int, count: int) -> int { start + count }
     fn size(lo: int, hi: int) -> int { hi - lo }
 )]
-impl Step for usize { }
+impl Step for usize {}
 
 #[extern_spec(core::iter)]
-#![assoc(
+#[assoc(
     fn step_forward(start: int, count: int) -> int { start + count }
     fn size(lo: int, hi: int) -> int { hi - lo }
 )]
-impl Step for i32 { }
+impl Step for i32 {}
 
 #[extern_spec(core::ops)]
 #[assoc(
