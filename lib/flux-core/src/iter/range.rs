@@ -48,9 +48,11 @@ impl Step for i32 {
 }
 
 #[extern_spec(core::ops)]
-#[assoc(fn valid_item(self: Range<A>, item: A) -> bool { self.start <= item && item < self.end })]
-#[assoc(fn size(self: Range<A>) -> int { <A as Step>::size(self.start, self.end) })]
-#[assoc(fn done(self: Range<A>) -> bool { <A as Step>::size(self.start, self.end) <= 0})]
+#[assoc(
+    fn valid_item(self: Range<A>, item: A) -> bool { self.start <= item && item < self.end }
+    fn size(self: Range<A>) -> int { <A as Step>::size(self.start, self.end) }
+    fn done(self: Range<A>) -> bool { <A as Step>::size(self.start, self.end) <= 0 }
+)]
 impl<A: Step> Iterator for ops::Range<A> {
     #[spec(
         fn(self: &mut Range<A>[@old]) -> Option<A[old.start]>[old.start < old.end]
