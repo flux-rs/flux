@@ -1016,7 +1016,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         let name = parse_ident(cx)?;
         let hi = cx.hi();
         let kind = ExprKind::AssocReft(Box::new(qself), path, name);
-        return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
+        Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
     } else if lookahead.peek(Tok::OpenBracket) {
         parse_prim_uif(cx)
     } else if lookahead.peek([Tok::Exists, Tok::Forall]) {

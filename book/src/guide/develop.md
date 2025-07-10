@@ -152,3 +152,13 @@ To see the expanded code of an `extern_spec` macro, you can do
 ```
 cargo x expand path/to/file.rs
 ```
+
+## (Re)building Libraries
+
+When making changes to the libraries, including `flux-core` which has the
+`extern_spec`ifications for the standard library, you can force a rebuild
+of the libraries by running:
+
+```sh
+cargo x build-sysroot
+```

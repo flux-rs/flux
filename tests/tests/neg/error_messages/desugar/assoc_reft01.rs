@@ -1,7 +1,7 @@
 use flux_rs::attrs::*;
 
 pub trait MyTrait {
-    #![reft(fn f(self: Self) -> bool)]
+    #![assoc(fn f(self: Self) -> bool)]
 
     fn method(&self) -> i32;
 }

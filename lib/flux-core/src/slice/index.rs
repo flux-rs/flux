@@ -5,7 +5,7 @@ use flux_attrs::*;
 
 #[extern_spec(core::slice)]
 impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
-    #![reft(
+    #![assoc(
         fn in_bounds(len: int, idx: I) -> bool {
             <I as SliceIndex<[T]>>::in_bounds(idx, len)
         }
@@ -17,17 +17,17 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
 
 #[extern_spec(core::slice)]
 trait SliceIndex<T> {
-    #![reft(fn in_bounds(idx: Self, v: T) -> bool { true })] //
+    #![assoc(fn in_bounds(idx: Self, v: T) -> bool { true })] //
 }
 
 #[extern_spec(core::slice)]
 impl<T> SliceIndex<[T]> for usize {
-    #![reft(fn in_bounds(idx: int, len: int) -> bool { idx < len })] //
+    #![assoc(fn in_bounds(idx: int, len: int) -> bool { idx < len })] //
 }
 
 #[extern_spec(core::slice)]
 impl<T> SliceIndex<[T]> for ops::Range<usize> {
-    #![reft(
+    #![assoc(
         fn in_bounds(r: ops::Range<int>, len: int) -> bool {
             r.start <= r.end && r.end < len
         }
