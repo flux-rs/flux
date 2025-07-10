@@ -4,6 +4,12 @@ use flux_attrs::*;
 #[refined_by(size: int)]
 struct Skip<I>;
 
+// TODO: See discussion here: https://github.com/flux-rs/flux/pull/1170#discussion_r2198219054
+// We should store the number of skipped elements in the refined_by and compute the size
+// based on the inner iterator here, but you can’t quite do that because that requires
+// “stepping” the inner iterator N times (when you construct the Skip). We could possibly generalize
+// the `step` to take an `int` count ...
+
 #[extern_spec(core::iter)]
 #[assoc(
     fn size(r: Skip) -> int { r.size }
