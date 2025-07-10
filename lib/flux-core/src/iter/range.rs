@@ -17,17 +17,15 @@ defs! {
 ///  - `step_forward` computes the new value after stepping forward from `start` by `count`,
 ///  - `size` computes the number of steps needed to go from `lo` to `hi
 #[extern_spec(core::iter)]
-trait Step {
-    #![reft(
-        fn step_forward(start: Self, count: int) -> Self {
-            default_step_step_forward(start, count)
-        }
-        fn size(lo: Self, hi: Self) -> int {
-            default_step_size(lo, hi)
-        }
-    )]
-    //
-}
+#[assoc(
+    fn step_forward(start: Self, count: int) -> Self {
+        default_step_step_forward(start, count)
+    }
+    fn size(lo: Self, hi: Self) -> int {
+        default_step_size(lo, hi)
+    }
+)]
+trait Step { }
 
 #[extern_spec(core::iter)]
 impl Step for usize {
