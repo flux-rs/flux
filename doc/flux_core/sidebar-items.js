@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["iter","ops","option","slice"]};
+window.SIDEBAR_ITEMS = {"mod":["iter","ops"]};

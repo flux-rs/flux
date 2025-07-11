@@ -272,7 +272,7 @@
 <a href=#272 id=272 data-nosnippet>272</a>        }
 <a href=#273 id=273 data-nosnippet>273</a>
 <a href=#274 id=274 data-nosnippet>274</a>        <span class="kw">let </span>artifacts = Command::new(cargo_flux)
-<a href=#275 id=275 data-nosnippet>275</a>            .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>])
+<a href=#275 id=275 data-nosnippet>275</a>            .args([<span class="string">"flux"</span>, <span class="string">"-p"</span>, <span class="string">"flux-rs"</span>, <span class="string">"-p"</span>, <span class="string">"flux-core"</span>, <span class="string">"-p"</span>, <span class="string">"flux-alloc"</span>])
 <a href=#276 id=276 data-nosnippet>276</a>            .env(FLUX_SYSROOT, <span class="kw-2">&amp;</span>config.dst)
 <a href=#277 id=277 data-nosnippet>277</a>            .env_if(tests, FLUX_SYSROOT_TEST, <span class="string">"1"</span>)
 <a href=#278 id=278 data-nosnippet>278</a>            .run_with_cargo_metadata()<span class="question-mark">?</span>;
@@ -307,7 +307,7 @@
 <a href=#307 id=307 data-nosnippet>307</a>}
 <a href=#308 id=308 data-nosnippet>308</a>
 <a href=#309 id=309 data-nosnippet>309</a><span class="kw">fn </span>is_flux_lib(artifact: <span class="kw-2">&amp;</span>Artifact) -&gt; bool {
-<a href=#310 id=310 data-nosnippet>310</a>    <span class="macro">matches!</span>(<span class="kw-2">&amp;</span>artifact.target.name[..], <span class="string">"flux_rs" </span>| <span class="string">"flux_attrs" </span>| <span class="string">"flux_core"</span>)
+<a href=#310 id=310 data-nosnippet>310</a>    <span class="macro">matches!</span>(<span class="kw-2">&amp;</span>artifact.target.name[..], <span class="string">"flux_rs" </span>| <span class="string">"flux_attrs" </span>| <span class="string">"flux_core" </span>| <span class="string">"flux_alloc"</span>)
 <a href=#311 id=311 data-nosnippet>311</a>}
 <a href=#312 id=312 data-nosnippet>312</a>
 <a href=#313 id=313 data-nosnippet>313</a><span class="kw">impl </span>Install {

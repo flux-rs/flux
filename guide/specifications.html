@@ -801,38 +801,16 @@ pub fn pop2&lt;T&gt;(vec: &amp;mut Vec&lt;T&gt;) -&gt; Option&lt;(T, T)&gt; {
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
     ops::{Index, IndexMut},
-    slice::{Iter, SliceIndex},
+    slice::SliceIndex,
 };
 
-use flux_rs::extern_spec;
+use flux_attrs::*;
 
+//---------------------------------------------------------------------------------------
 #[extern_spec]
-#[flux::refined_by(len: int)]
+#[refined_by(len: int)]
+#[invariant(0 &lt;= len)]
 struct Vec&lt;T, A: Allocator = Global&gt;;
-
-#[extern_spec]
-#[flux::assoc(fn in_bounds(idx: Self, v: T) -&gt; bool)]
-trait SliceIndex&lt;T&gt;
-where
-    T: ?Sized,
-{
-}
-
-#[extern_spec]
-#[flux::assoc(fn in_bounds(idx: int, len: int) -&gt; bool {idx &lt; len} )]
-impl&lt;T&gt; SliceIndex&lt;[T]&gt; for usize {}
-
-#[extern_spec]
-impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
-    #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
-    fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
-}
-
-#[extern_spec]
-impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
-    #[flux::sig(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
-    fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
-}
 
 //---------------------------------------------------------------------------------------
 
@@ -844,33 +822,47 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 
 #[extern_spec]
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
-    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
 
-    #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
-    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
     fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
 }
 
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+//---------------------------------------------------------------------------------------
+
 #[extern_spec]
 impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
-    #[flux::sig(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
+    #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
     fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
 }
 
 #[extern_spec]
-#[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
+#[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
 impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 <pre><code class="language-rust noplayground">#![feature(allocator_api)]
 
 use std::ops::Index;
 
+extern crate flux_alloc;
 extern crate flux_core;
-
-#[path = "../../lib/vec.rs"]
-mod vec;
 
 // ---------------------------------------------------------------------------------------
 
@@ -3279,38 +3271,16 @@ fn test01(x: MyInt, y: MyInt) -&gt; bool {
 <pre><code class="language-rust noplayground">use std::{
     alloc::{Allocator, Global},
     ops::{Index, IndexMut},
-    slice::{Iter, SliceIndex},
+    slice::SliceIndex,
 };
 
-use flux_rs::extern_spec;
+use flux_attrs::*;
 
+//---------------------------------------------------------------------------------------
 #[extern_spec]
-#[flux::refined_by(len: int)]
+#[refined_by(len: int)]
+#[invariant(0 &lt;= len)]
 struct Vec&lt;T, A: Allocator = Global&gt;;
-
-#[extern_spec]
-#[flux::assoc(fn in_bounds(idx: Self, v: T) -&gt; bool)]
-trait SliceIndex&lt;T&gt;
-where
-    T: ?Sized,
-{
-}
-
-#[extern_spec]
-#[flux::assoc(fn in_bounds(idx: int, len: int) -&gt; bool {idx &lt; len} )]
-impl&lt;T&gt; SliceIndex&lt;[T]&gt; for usize {}
-
-#[extern_spec]
-impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
-    #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
-    fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
-}
-
-#[extern_spec]
-impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
-    #[flux::sig(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
-    fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
-}
 
 //---------------------------------------------------------------------------------------
 
@@ -3322,24 +3292,40 @@ impl&lt;T&gt; Vec&lt;T&gt; {
 
 #[extern_spec]
 impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
-    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
     fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
 
-    #[flux::sig(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
-    #[flux::sig(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
     fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
 }
 
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+//---------------------------------------------------------------------------------------
+
 #[extern_spec]
 impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
-    #[flux::sig(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
+    #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
     fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
 }
 
 #[extern_spec]
-#[flux::assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
+#[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
 impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 <pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/iter.rs}}</code></pre>
 <pre><code class="language-rust noplayground">#![allow(unused)]
@@ -3347,10 +3333,8 @@ impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 
 use std::{iter::Enumerate, slice::Iter};
 
+extern crate flux_alloc;
 extern crate flux_core;
-
-#[path = "../../lib/vec.rs"]
-mod vec;
 
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
