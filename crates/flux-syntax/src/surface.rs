@@ -129,7 +129,6 @@ pub struct StructDef {
     pub fields: Vec<Option<Ty>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
-    pub node_id: NodeId,
 }
 
 impl StructDef {
@@ -145,7 +144,6 @@ pub struct EnumDef {
     pub refined_by: Option<RefineParams>,
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
-    pub node_id: NodeId,
     pub reflected: bool,
 }
 
