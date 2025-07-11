@@ -162,13 +162,13 @@ impl<'a> ParseCtxt<'a> {
     }
 
     fn unexpected_token(&mut self, expected: Vec<&'static str>) -> ParseError {
-        let (lo, tok, hi) = self.tokens.at(0);
-        let kind = if tok == TokenKind::Eof {
+        let tok = self.tokens.at(0);
+        let kind = if tok.kind == TokenKind::Eof {
             ParseErrorKind::UnexpectedEof
         } else {
             ParseErrorKind::UnexpectedToken { expected }
         };
-        ParseError { kind, span: self.mk_span(lo, hi) }
+        ParseError { kind, span: self.mk_span(tok.lo, tok.hi) }
     }
 
     fn cannot_be_chained(&self, lo: BytePos, hi: BytePos) -> ParseError {

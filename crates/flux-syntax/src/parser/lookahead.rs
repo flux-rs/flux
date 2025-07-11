@@ -1,8 +1,10 @@
 //! Support for "peeking" into the token stream to decide how to parse.
 
-use rustc_span::BytePos;
-
-use crate::{ParseCtxt, ParseError, ParseResult, lexer::TokenKind, surface::BinOp};
+use crate::{
+    ParseCtxt, ParseError, ParseResult,
+    lexer::{Token, TokenKind},
+    surface::BinOp,
+};
 
 /// A trait for testing whether a token matches a rule.
 ///
@@ -151,31 +153,31 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
 
 impl<'cx> ParseCtxt<'cx> {
     /// Returns the token (and span) at the requested position.
-    pub(crate) fn at(&mut self, n: usize) -> (BytePos, TokenKind, BytePos) {
+    pub(crate) fn at(&mut self, n: usize) -> Token {
         self.tokens.at(n)
     }
 
     /// Looks at the next token in the underlying cursor to determine whether it matches the
     /// requested type of token. Does not advance the position of the cursor.
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
-        t.matches(self.at(0).1)
+        t.matches(self.at(0).kind)
     }
 
     /// Looks at the next two tokens
     pub(crate) fn peek2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
-        t1.matches(self.at(0).1) && t2.matches(self.at(1).1)
+        t1.matches(self.at(0).kind) && t2.matches(self.at(1).kind)
     }
 
     /// Looks at the next three tokens
     pub(crate) fn peek3<T1: Peek, T2: Peek, T3: Peek>(&mut self, t1: T1, t2: T2, t3: T3) -> bool {
-        t1.matches(self.at(0).1) && t2.matches(self.at(1).1) && t3.matches(self.at(2).1)
+        t1.matches(self.at(0).kind) && t2.matches(self.at(1).kind) && t3.matches(self.at(2).kind)
     }
 
     /// Looks whether the next token matches a binary operation. In case of a match, returns
     /// the corresponding binary operation and its size in number of tokens. This function
     /// doesn't advance the position of the underlying cursor.
     pub(crate) fn peek_binop(&mut self) -> Option<(BinOp, usize)> {
-        let op = match self.at(0).1 {
+        let op = match self.at(0).kind {
             TokenKind::Iff => (BinOp::Iff, 1),
             TokenKind::FatArrow => (BinOp::Imp, 1),
             TokenKind::OrOr => (BinOp::Or, 1),

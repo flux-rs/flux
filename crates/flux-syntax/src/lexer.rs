@@ -79,7 +79,20 @@ pub enum TokenKind {
     Eof,
 }
 
-/// Convenience module so we can refer to tokens as `tok::*`
+#[derive(Clone, Copy)]
+pub struct Token {
+    pub kind: TokenKind,
+    pub lo: BytePos,
+    pub hi: BytePos,
+}
+
+impl Token {
+    pub fn new(kind: TokenKind, lo: BytePos, hi: BytePos) -> Self {
+        Self { kind, lo, hi }
+    }
+}
+
+/// Convenience module so we can refer to token kinds as `token::*`
 pub mod tok {
     pub use super::TokenKind::*;
 }
@@ -94,7 +107,7 @@ impl TokenKind {
         }
     }
 
-    pub(crate) fn close_delim(delim: Delimiter) -> TokenKind {
+    pub fn close_delim(delim: Delimiter) -> TokenKind {
         match delim {
             Delimiter::Parenthesis => tok::CloseParen,
             Delimiter::Bracket => tok::CloseBracket,
@@ -190,7 +203,7 @@ impl fmt::Display for TokenKind {
 pub struct Cursor<'t> {
     stack: Vec<Frame<'t>>,
     symbs: Symbols,
-    tokens: VecDeque<(BytePos, TokenKind, BytePos)>,
+    tokens: VecDeque<Token>,
     hi: BytePos,
 }
 
@@ -212,7 +225,7 @@ struct Symbols {
 
 struct Frame<'t> {
     cursor: Peekable<TokenStreamIter<'t>>,
-    close: Option<(BytePos, TokenKind, BytePos)>,
+    close: Option<Token>,
 }
 
 impl<'t> Cursor<'t> {
@@ -242,15 +255,19 @@ impl<'t> Cursor<'t> {
     }
 
     #[must_use]
-    pub fn at(&mut self, pos: usize) -> (BytePos, TokenKind, BytePos) {
+    pub fn at(&mut self, pos: usize) -> Token {
         while self.tokens.len() <= pos && self.fetch_tokens() {}
-        if pos < self.tokens.len() { self.tokens[pos] } else { (self.hi, TokenKind::Eof, self.hi) }
+        if pos < self.tokens.len() {
+            self.tokens[pos]
+        } else {
+            Token::new(TokenKind::Eof, self.hi, self.hi)
+        }
     }
 
     pub fn debug(&mut self, size: usize) -> String {
         let mut s = String::new();
         for i in 0..size {
-            s = format!("{s} {}", self.at(i).1);
+            s = format!("{s} {}", self.at(i).kind);
         }
         s
     }
@@ -260,7 +277,7 @@ impl<'t> Cursor<'t> {
             if self.tokens.is_empty() {
                 self.fetch_tokens();
             }
-            self.hi = tok.2;
+            self.hi = tok.hi;
         }
     }
 
@@ -272,7 +289,7 @@ impl<'t> Cursor<'t> {
 
     /// Returns the starting byte position of the next token
     pub fn lo(&self) -> BytePos {
-        if let Some((lo, ..)) = self.tokens.front() { *lo } else { self.hi }
+        if let Some(tok) = self.tokens.front() { tok.lo } else { self.hi }
     }
 
     /// Returns the highest byte position the cursor has yielded. You could also think of this as
@@ -283,7 +300,7 @@ impl<'t> Cursor<'t> {
 
     fn map_token(&mut self, token: &token::Token) {
         let span = token.span;
-        let token = match token.kind {
+        let kind = match token.kind {
             rustc_ast::token::Lt => TokenKind::Lt,
             rustc_ast::token::Le => TokenKind::Le,
             rustc_ast::token::EqEq => TokenKind::EqEq,
@@ -351,23 +368,23 @@ impl<'t> Cursor<'t> {
             rustc_ast::token::Percent => TokenKind::Percent,
             rustc_ast::token::Star => TokenKind::Star,
             rustc_ast::token::Shl => {
-                self.tokens.push_back((
-                    span.lo(),
+                self.tokens.push_back(Token::new(
                     TokenKind::LtFollowedByLt,
+                    span.lo(),
                     span.hi() - BytePos(1),
                 ));
                 self.tokens
-                    .push_back((span.lo() + BytePos(1), TokenKind::Lt, span.hi()));
+                    .push_back(Token::new(TokenKind::Lt, span.lo() + BytePos(1), span.hi()));
                 return;
             }
             rustc_ast::token::Shr => {
-                self.tokens.push_back((
-                    span.lo(),
+                self.tokens.push_back(Token::new(
                     TokenKind::GtFollowedByGt,
+                    span.lo(),
                     span.hi() - BytePos(1),
                 ));
                 self.tokens
-                    .push_back((span.lo() + BytePos(1), TokenKind::Gt, span.hi()));
+                    .push_back(Token::new(TokenKind::Gt, span.lo() + BytePos(1), span.hi()));
                 return;
             }
             rustc_ast::token::Bang => TokenKind::Bang,
@@ -375,7 +392,8 @@ impl<'t> Cursor<'t> {
             rustc_ast::token::DotDot => TokenKind::DotDot,
             _ => TokenKind::Invalid,
         };
-        self.tokens.push_back((span.lo(), token, span.hi()));
+        self.tokens
+            .push_back(Token::new(kind, span.lo(), span.hi()));
     }
 
     fn fetch_tokens(&mut self) -> bool {
@@ -389,9 +407,9 @@ impl<'t> Cursor<'t> {
                             if token.span.hi() == next.span.lo() =>
                         {
                             top.cursor.next();
-                            self.tokens.push_back((
-                                token.span.lo(),
+                            self.tokens.push_back(Token::new(
                                 TokenKind::Iff,
+                                token.span.lo(),
                                 next.span.hi(),
                             ));
                             return true;
@@ -408,13 +426,13 @@ impl<'t> Cursor<'t> {
                 self.fetch_tokens()
             }
             Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
-                let close_token = match delim {
+                let close_kind = match delim {
                     Delimiter::Parenthesis => TokenKind::CloseParen,
                     Delimiter::Brace => TokenKind::CloseBrace,
                     Delimiter::Bracket => TokenKind::CloseBracket,
                     Delimiter::Invisible(origin) => TokenKind::CloseInvisible(*origin),
                 };
-                let close = (span.close.lo(), close_token, span.close.hi());
+                let close = Token::new(close_kind, span.close.lo(), span.close.hi());
 
                 self.stack
                     .push(Frame { cursor: tokens.iter().peekable(), close: Some(close) });

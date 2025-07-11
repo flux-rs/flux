@@ -13,6 +13,7 @@ use crate::{
     ParseCtxt, ParseError, ParseResult, Peek as _,
     lexer::{
         Delimiter::*,
+        Token,
         TokenKind::{Caret, Comma},
         tok,
     },
@@ -1152,7 +1153,7 @@ fn parse_block(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 /// ⟨lit⟩ := "a Rust literal like an integer or a boolean"
 /// ```
 fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
-    if let (lo, tok::Literal(lit), hi) = cx.at(0) {
+    if let Token { kind: tok::Literal(lit), lo, hi } = cx.at(0) {
         cx.advance();
         Ok(Expr {
             kind: ExprKind::Literal(lit),
@@ -1165,7 +1166,7 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 }
 
 fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
-    if let (lo, tok::Ident(name), hi) = cx.at(0) {
+    if let Token { kind: tok::Ident(name), lo, hi } = cx.at(0) {
         cx.advance();
         Ok(Ident { name, span: cx.mk_span(lo, hi) })
     } else {
@@ -1174,7 +1175,7 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
 }
 
 fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
-    if let tok::Literal(lit) = cx.at(0).1
+    if let tok::Literal(lit) = cx.at(0).kind
         && let LitKind::Integer = lit.kind
         && let Ok(value) = lit.symbol.as_str().parse::<T>()
     {
