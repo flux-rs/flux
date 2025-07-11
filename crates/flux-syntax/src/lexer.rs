@@ -85,6 +85,24 @@ pub mod tok {
 }
 
 impl Token {
+    pub fn open_delim(delim: Delimiter) -> Token {
+        match delim {
+            Delimiter::Parenthesis => tok::OpenParen,
+            Delimiter::Bracket => tok::OpenBracket,
+            Delimiter::Brace => tok::OpenBrace,
+            Delimiter::Invisible(origin) => tok::OpenInvisible(origin),
+        }
+    }
+
+    pub(crate) fn close_delim(delim: Delimiter) -> Token {
+        match delim {
+            Delimiter::Parenthesis => tok::CloseParen,
+            Delimiter::Bracket => tok::CloseBracket,
+            Delimiter::Brace => tok::CloseBrace,
+            Delimiter::Invisible(origin) => tok::CloseInvisible(origin),
+        }
+    }
+
     pub fn descr(&self) -> &'static str {
         match self {
             Token::Caret => "|",
