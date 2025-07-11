@@ -79,6 +79,11 @@ pub enum Token {
     Eof,
 }
 
+/// Convenience module so we can refer to tokens as `tok::*`
+pub mod tok {
+    pub use super::Token::*;
+}
+
 impl Token {
     pub fn descr(&self) -> &'static str {
         match self {

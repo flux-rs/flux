@@ -3,7 +3,7 @@
 use super::{LAngle, RAngle, lookahead::Peek};
 use crate::{
     ParseCtxt, ParseResult,
-    lexer::{Delimiter, Token},
+    lexer::{Delimiter, Token, tok},
 };
 
 /// Parses a list of one ore more items separated by the requested token. Parsing continues
@@ -85,19 +85,19 @@ pub(crate) fn punctuated_until<E: Peek, R>(
 
 pub(crate) fn open_delim(delim: Delimiter) -> Token {
     match delim {
-        Delimiter::Parenthesis => Token::OpenParen,
-        Delimiter::Bracket => Token::OpenBracket,
-        Delimiter::Brace => Token::OpenBrace,
-        Delimiter::Invisible(origin) => Token::OpenInvisible(origin),
+        Delimiter::Parenthesis => tok::OpenParen,
+        Delimiter::Bracket => tok::OpenBracket,
+        Delimiter::Brace => tok::OpenBrace,
+        Delimiter::Invisible(origin) => tok::OpenInvisible(origin),
     }
 }
 
 pub(crate) fn close_delim(delim: Delimiter) -> Token {
     match delim {
-        Delimiter::Parenthesis => Token::CloseParen,
-        Delimiter::Bracket => Token::CloseBracket,
-        Delimiter::Brace => Token::CloseBrace,
-        Delimiter::Invisible(origin) => Token::CloseInvisible(origin),
+        Delimiter::Parenthesis => tok::CloseParen,
+        Delimiter::Bracket => tok::CloseBracket,
+        Delimiter::Brace => tok::CloseBrace,
+        Delimiter::Invisible(origin) => tok::CloseInvisible(origin),
     }
 }
 
