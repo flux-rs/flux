@@ -6,7 +6,6 @@ use extern_spec_trait00_aux::MyTrait;
 use flux_rs::extern_spec;
 
 #[extern_spec]
-#[flux::generics(Self as base)]
 #[flux::assoc(fn f(self: Self) -> bool)]
 trait MyTrait {}
 

@@ -1,7 +1,6 @@
 use flux_rs::*;
 
 #[extern_spec(std::cmp)]
-#[generics(Self as base, Rhs as base)]
 #[assoc(fn eq_rel(lhs: Self, rhs: Rhs) -> bool)]
 trait PartialEq<Rhs> {
     #[sig(fn(&Self[@lhs], &Rhs[@rhs]) -> bool[<Self as PartialEq<Rhs>>::eq_rel(lhs, rhs)])]

@@ -1,4 +1,3 @@
-#[flux::generics(Self as base)]
 pub trait MyTrait {
     fn foo2(&self) -> Self;
 }

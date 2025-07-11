@@ -1,4 +1,3 @@
-#[flux::generics(Self as base)]
 #[flux::assoc(fn f(self: Self) -> bool)]
 pub trait MyTrait {
     fn method(&self) -> i32;
