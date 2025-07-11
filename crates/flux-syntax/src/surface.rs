@@ -96,14 +96,7 @@ pub struct Generics {
 #[derive(Debug)]
 pub struct GenericParam {
     pub name: Ident,
-    pub kind: GenericParamKind,
     pub node_id: NodeId,
-}
-
-#[derive(Debug)]
-pub enum GenericParamKind {
-    Type,
-    Base,
 }
 
 #[derive(Debug)]

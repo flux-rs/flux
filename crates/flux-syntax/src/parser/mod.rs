@@ -19,11 +19,11 @@ use crate::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
         FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
-        GenericParamKind, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind,
-        Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind,
-        RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath,
-        SpecFunc, Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef,
-        VariantRet, WhereBoundPredicate,
+        Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind, Mutability, ParamMode,
+        Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
+        RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc, Spread,
+        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        WhereBoundPredicate,
     },
 };
 /// ```text
@@ -311,18 +311,7 @@ fn parse_opt_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
 
 fn parse_generic_param(cx: &mut ParseCtxt) -> ParseResult<GenericParam> {
     let name = parse_ident(cx)?;
-    let mut kind = GenericParamKind::Type;
-    if cx.advance_if(Tok::As) {
-        let mut lookahead = cx.lookahead1();
-        if lookahead.advance_if("type") {
-            kind = GenericParamKind::Type;
-        } else if lookahead.advance_if("base") {
-            kind = GenericParamKind::Base;
-        } else {
-            return Err(lookahead.into_error());
-        }
-    };
-    Ok(GenericParam { name, kind, node_id: cx.next_node_id() })
+    Ok(GenericParam { name, node_id: cx.next_node_id() })
 }
 
 fn invalid_ident_err(ident: &Ident) -> ParseError {
