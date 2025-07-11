@@ -3,14 +3,14 @@
 <a href=#3 id=3 data-nosnippet>3</a></span><span class="kw">use super</span>::{LAngle, RAngle, lookahead::Peek};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use crate</span>::{
 <a href=#5 id=5 data-nosnippet>5</a>    ParseCtxt, ParseResult,
-<a href=#6 id=6 data-nosnippet>6</a>    lexer::{Delimiter, Token},
+<a href=#6 id=6 data-nosnippet>6</a>    lexer::{Delimiter, TokenKind},
 <a href=#7 id=7 data-nosnippet>7</a>};
 <a href=#8 id=8 data-nosnippet>8</a>
 <a href=#9 id=9 data-nosnippet>9</a><span class="doccomment">/// Parses a list of one ore more items separated by the requested token. Parsing continues
 <a href=#10 id=10 data-nosnippet>10</a>/// until no separation token is found.
 <a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>sep1&lt;R&gt;(
 <a href=#12 id=12 data-nosnippet>12</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#13 id=13 data-nosnippet>13</a>    sep: Token,
+<a href=#13 id=13 data-nosnippet>13</a>    sep: TokenKind,
 <a href=#14 id=14 data-nosnippet>14</a>    <span class="kw-2">mut </span>parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
 <a href=#15 id=15 data-nosnippet>15</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
 <a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">let </span><span class="kw-2">mut </span>items = <span class="macro">vec!</span>[parse(cx)<span class="question-mark">?</span>];
@@ -55,7 +55,7 @@
 <a href=#55 id=55 data-nosnippet>55</a>/// Returns the vector of items and a boolean indicating whether trailing punctuation was present.
 <a href=#56 id=56 data-nosnippet>56</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>punctuated_with_trailing&lt;E: Peek, R&gt;(
 <a href=#57 id=57 data-nosnippet>57</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#58 id=58 data-nosnippet>58</a>    sep: Token,
+<a href=#58 id=58 data-nosnippet>58</a>    sep: TokenKind,
 <a href=#59 id=59 data-nosnippet>59</a>    end: E,
 <a href=#60 id=60 data-nosnippet>60</a>    <span class="kw-2">mut </span>parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
 <a href=#61 id=61 data-nosnippet>61</a>) -&gt; ParseResult&lt;(Vec&lt;R&gt;, bool)&gt; {
@@ -76,97 +76,79 @@
 <a href=#76 id=76 data-nosnippet>76</a>/// consume the end token.
 <a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>punctuated_until&lt;E: Peek, R&gt;(
 <a href=#78 id=78 data-nosnippet>78</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#79 id=79 data-nosnippet>79</a>    sep: Token,
+<a href=#79 id=79 data-nosnippet>79</a>    sep: TokenKind,
 <a href=#80 id=80 data-nosnippet>80</a>    end: E,
 <a href=#81 id=81 data-nosnippet>81</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
 <a href=#82 id=82 data-nosnippet>82</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
 <a href=#83 id=83 data-nosnippet>83</a>    <span class="prelude-val">Ok</span>(punctuated_with_trailing(cx, sep, end, parse)<span class="question-mark">?</span>.<span class="number">0</span>)
 <a href=#84 id=84 data-nosnippet>84</a>}
 <a href=#85 id=85 data-nosnippet>85</a>
-<a href=#86 id=86 data-nosnippet>86</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>open_delim(delim: Delimiter) -&gt; Token {
-<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">match </span>delim {
-<a href=#88 id=88 data-nosnippet>88</a>        Delimiter::Parenthesis =&gt; Token::OpenParen,
-<a href=#89 id=89 data-nosnippet>89</a>        Delimiter::Bracket =&gt; Token::OpenBracket,
-<a href=#90 id=90 data-nosnippet>90</a>        Delimiter::Brace =&gt; Token::OpenBrace,
-<a href=#91 id=91 data-nosnippet>91</a>        Delimiter::Invisible(origin) =&gt; Token::OpenInvisible(origin),
-<a href=#92 id=92 data-nosnippet>92</a>    }
-<a href=#93 id=93 data-nosnippet>93</a>}
-<a href=#94 id=94 data-nosnippet>94</a>
-<a href=#95 id=95 data-nosnippet>95</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>close_delim(delim: Delimiter) -&gt; Token {
-<a href=#96 id=96 data-nosnippet>96</a>    <span class="kw">match </span>delim {
-<a href=#97 id=97 data-nosnippet>97</a>        Delimiter::Parenthesis =&gt; Token::CloseParen,
-<a href=#98 id=98 data-nosnippet>98</a>        Delimiter::Bracket =&gt; Token::CloseBracket,
-<a href=#99 id=99 data-nosnippet>99</a>        Delimiter::Brace =&gt; Token::CloseBrace,
-<a href=#100 id=100 data-nosnippet>100</a>        Delimiter::Invisible(origin) =&gt; Token::CloseInvisible(origin),
-<a href=#101 id=101 data-nosnippet>101</a>    }
-<a href=#102 id=102 data-nosnippet>102</a>}
-<a href=#103 id=103 data-nosnippet>103</a>
-<a href=#104 id=104 data-nosnippet>104</a><span class="doccomment">/// Parses an item surrounded by an opening an closing [`Delimiter`]
-<a href=#105 id=105 data-nosnippet>105</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>delimited&lt;R&gt;(
-<a href=#106 id=106 data-nosnippet>106</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#107 id=107 data-nosnippet>107</a>    delim: Delimiter,
-<a href=#108 id=108 data-nosnippet>108</a>    parse: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#109 id=109 data-nosnippet>109</a>) -&gt; ParseResult&lt;R&gt; {
-<a href=#110 id=110 data-nosnippet>110</a>    cx.expect(open_delim(delim))<span class="question-mark">?</span>;
-<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">let </span>r = parse(cx)<span class="question-mark">?</span>;
-<a href=#112 id=112 data-nosnippet>112</a>    cx.expect(close_delim(delim))<span class="question-mark">?</span>;
-<a href=#113 id=113 data-nosnippet>113</a>    <span class="prelude-val">Ok</span>(r)
-<a href=#114 id=114 data-nosnippet>114</a>}
-<a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>opt_angle&lt;R&gt;(
-<a href=#117 id=117 data-nosnippet>117</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#118 id=118 data-nosnippet>118</a>    sep: Token,
-<a href=#119 id=119 data-nosnippet>119</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#120 id=120 data-nosnippet>120</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
-<a href=#121 id=121 data-nosnippet>121</a>    <span class="kw">if </span>!cx.peek(LAngle) {
-<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
-<a href=#123 id=123 data-nosnippet>123</a>    }
-<a href=#124 id=124 data-nosnippet>124</a>    angle(cx, sep, parse)
-<a href=#125 id=125 data-nosnippet>125</a>}
-<a href=#126 id=126 data-nosnippet>126</a>
-<a href=#127 id=127 data-nosnippet>127</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>angle&lt;R&gt;(
-<a href=#128 id=128 data-nosnippet>128</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#129 id=129 data-nosnippet>129</a>    sep: Token,
-<a href=#130 id=130 data-nosnippet>130</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#131 id=131 data-nosnippet>131</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
-<a href=#132 id=132 data-nosnippet>132</a>    cx.expect(LAngle)<span class="question-mark">?</span>;
-<a href=#133 id=133 data-nosnippet>133</a>    <span class="kw">let </span>items = punctuated_until(cx, sep, RAngle, parse)<span class="question-mark">?</span>;
-<a href=#134 id=134 data-nosnippet>134</a>    cx.expect(RAngle)<span class="question-mark">?</span>;
-<a href=#135 id=135 data-nosnippet>135</a>    <span class="prelude-val">Ok</span>(items)
-<a href=#136 id=136 data-nosnippet>136</a>}
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a><span class="kw">fn </span>punctuated_delimited&lt;R&gt;(
-<a href=#139 id=139 data-nosnippet>139</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#140 id=140 data-nosnippet>140</a>    delim: Delimiter,
-<a href=#141 id=141 data-nosnippet>141</a>    sep: Token,
-<a href=#142 id=142 data-nosnippet>142</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#143 id=143 data-nosnippet>143</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
-<a href=#144 id=144 data-nosnippet>144</a>    cx.expect(open_delim(delim))<span class="question-mark">?</span>;
-<a href=#145 id=145 data-nosnippet>145</a>    <span class="kw">let </span>r = punctuated_until(cx, sep, close_delim(delim), parse)<span class="question-mark">?</span>;
-<a href=#146 id=146 data-nosnippet>146</a>    cx.expect(close_delim(delim))<span class="question-mark">?</span>;
-<a href=#147 id=147 data-nosnippet>147</a>    <span class="prelude-val">Ok</span>(r)
-<a href=#148 id=148 data-nosnippet>148</a>}
-<a href=#149 id=149 data-nosnippet>149</a>
-<a href=#150 id=150 data-nosnippet>150</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>brackets&lt;R&gt;(
-<a href=#151 id=151 data-nosnippet>151</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#152 id=152 data-nosnippet>152</a>    sep: Token,
-<a href=#153 id=153 data-nosnippet>153</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#154 id=154 data-nosnippet>154</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
-<a href=#155 id=155 data-nosnippet>155</a>    punctuated_delimited(cx, Delimiter::Bracket, sep, parse)
-<a href=#156 id=156 data-nosnippet>156</a>}
-<a href=#157 id=157 data-nosnippet>157</a>
-<a href=#158 id=158 data-nosnippet>158</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parens&lt;R&gt;(
-<a href=#159 id=159 data-nosnippet>159</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#160 id=160 data-nosnippet>160</a>    sep: Token,
-<a href=#161 id=161 data-nosnippet>161</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#162 id=162 data-nosnippet>162</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
-<a href=#163 id=163 data-nosnippet>163</a>    punctuated_delimited(cx, Delimiter::Parenthesis, sep, parse)
-<a href=#164 id=164 data-nosnippet>164</a>}
-<a href=#165 id=165 data-nosnippet>165</a>
-<a href=#166 id=166 data-nosnippet>166</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>braces&lt;R&gt;(
-<a href=#167 id=167 data-nosnippet>167</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
-<a href=#168 id=168 data-nosnippet>168</a>    sep: Token,
-<a href=#169 id=169 data-nosnippet>169</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
-<a href=#170 id=170 data-nosnippet>170</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
-<a href=#171 id=171 data-nosnippet>171</a>    punctuated_delimited(cx, Delimiter::Brace, sep, parse)
-<a href=#172 id=172 data-nosnippet>172</a>}</code></pre></div></section></main></body></html>
+<a href=#86 id=86 data-nosnippet>86</a><span class="doccomment">/// Parses an item surrounded by an opening an closing [`Delimiter`]
+<a href=#87 id=87 data-nosnippet>87</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>delimited&lt;R&gt;(
+<a href=#88 id=88 data-nosnippet>88</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#89 id=89 data-nosnippet>89</a>    delim: Delimiter,
+<a href=#90 id=90 data-nosnippet>90</a>    parse: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#91 id=91 data-nosnippet>91</a>) -&gt; ParseResult&lt;R&gt; {
+<a href=#92 id=92 data-nosnippet>92</a>    cx.expect(TokenKind::open_delim(delim))<span class="question-mark">?</span>;
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="kw">let </span>r = parse(cx)<span class="question-mark">?</span>;
+<a href=#94 id=94 data-nosnippet>94</a>    cx.expect(TokenKind::close_delim(delim))<span class="question-mark">?</span>;
+<a href=#95 id=95 data-nosnippet>95</a>    <span class="prelude-val">Ok</span>(r)
+<a href=#96 id=96 data-nosnippet>96</a>}
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>opt_angle&lt;R&gt;(
+<a href=#99 id=99 data-nosnippet>99</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#100 id=100 data-nosnippet>100</a>    sep: TokenKind,
+<a href=#101 id=101 data-nosnippet>101</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#102 id=102 data-nosnippet>102</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">if </span>!cx.peek(LAngle) {
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]);
+<a href=#105 id=105 data-nosnippet>105</a>    }
+<a href=#106 id=106 data-nosnippet>106</a>    angle(cx, sep, parse)
+<a href=#107 id=107 data-nosnippet>107</a>}
+<a href=#108 id=108 data-nosnippet>108</a>
+<a href=#109 id=109 data-nosnippet>109</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>angle&lt;R&gt;(
+<a href=#110 id=110 data-nosnippet>110</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#111 id=111 data-nosnippet>111</a>    sep: TokenKind,
+<a href=#112 id=112 data-nosnippet>112</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#113 id=113 data-nosnippet>113</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+<a href=#114 id=114 data-nosnippet>114</a>    cx.expect(LAngle)<span class="question-mark">?</span>;
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="kw">let </span>items = punctuated_until(cx, sep, RAngle, parse)<span class="question-mark">?</span>;
+<a href=#116 id=116 data-nosnippet>116</a>    cx.expect(RAngle)<span class="question-mark">?</span>;
+<a href=#117 id=117 data-nosnippet>117</a>    <span class="prelude-val">Ok</span>(items)
+<a href=#118 id=118 data-nosnippet>118</a>}
+<a href=#119 id=119 data-nosnippet>119</a>
+<a href=#120 id=120 data-nosnippet>120</a><span class="kw">fn </span>punctuated_delimited&lt;R&gt;(
+<a href=#121 id=121 data-nosnippet>121</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#122 id=122 data-nosnippet>122</a>    delim: Delimiter,
+<a href=#123 id=123 data-nosnippet>123</a>    sep: TokenKind,
+<a href=#124 id=124 data-nosnippet>124</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#125 id=125 data-nosnippet>125</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+<a href=#126 id=126 data-nosnippet>126</a>    cx.expect(TokenKind::open_delim(delim))<span class="question-mark">?</span>;
+<a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">let </span>r = punctuated_until(cx, sep, TokenKind::close_delim(delim), parse)<span class="question-mark">?</span>;
+<a href=#128 id=128 data-nosnippet>128</a>    cx.expect(TokenKind::close_delim(delim))<span class="question-mark">?</span>;
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="prelude-val">Ok</span>(r)
+<a href=#130 id=130 data-nosnippet>130</a>}
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>brackets&lt;R&gt;(
+<a href=#133 id=133 data-nosnippet>133</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#134 id=134 data-nosnippet>134</a>    sep: TokenKind,
+<a href=#135 id=135 data-nosnippet>135</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#136 id=136 data-nosnippet>136</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+<a href=#137 id=137 data-nosnippet>137</a>    punctuated_delimited(cx, Delimiter::Bracket, sep, parse)
+<a href=#138 id=138 data-nosnippet>138</a>}
+<a href=#139 id=139 data-nosnippet>139</a>
+<a href=#140 id=140 data-nosnippet>140</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>parens&lt;R&gt;(
+<a href=#141 id=141 data-nosnippet>141</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#142 id=142 data-nosnippet>142</a>    sep: TokenKind,
+<a href=#143 id=143 data-nosnippet>143</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#144 id=144 data-nosnippet>144</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+<a href=#145 id=145 data-nosnippet>145</a>    punctuated_delimited(cx, Delimiter::Parenthesis, sep, parse)
+<a href=#146 id=146 data-nosnippet>146</a>}
+<a href=#147 id=147 data-nosnippet>147</a>
+<a href=#148 id=148 data-nosnippet>148</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>braces&lt;R&gt;(
+<a href=#149 id=149 data-nosnippet>149</a>    cx: <span class="kw-2">&amp;mut </span>ParseCtxt,
+<a href=#150 id=150 data-nosnippet>150</a>    sep: TokenKind,
+<a href=#151 id=151 data-nosnippet>151</a>    parse: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;R&gt;,
+<a href=#152 id=152 data-nosnippet>152</a>) -&gt; ParseResult&lt;Vec&lt;R&gt;&gt; {
+<a href=#153 id=153 data-nosnippet>153</a>    punctuated_delimited(cx, Delimiter::Brace, sep, parse)
+<a href=#154 id=154 data-nosnippet>154</a>}</code></pre></div></section></main></body></html>

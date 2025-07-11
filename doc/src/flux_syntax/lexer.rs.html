@@ -2,13 +2,13 @@
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">pub use </span>rustc_ast::token::{Delimiter, Lit, LitKind};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>rustc_ast::{
-<a href=#5 id=5 data-nosnippet>5</a>    token::{<span class="self">self</span>, InvisibleOrigin, TokenKind},
+<a href=#5 id=5 data-nosnippet>5</a>    token::InvisibleOrigin,
 <a href=#6 id=6 data-nosnippet>6</a>    tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 <a href=#7 id=7 data-nosnippet>7</a>};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>rustc_span::{BytePos, Symbol, symbol::kw};
 <a href=#9 id=9 data-nosnippet>9</a>
 <a href=#10 id=10 data-nosnippet>10</a><span class="attr">#[derive(Copy, Clone, Debug, PartialEq)]
-<a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub enum </span>Token {
+<a href=#11 id=11 data-nosnippet>11</a></span><span class="kw">pub enum </span>TokenKind {
 <a href=#12 id=12 data-nosnippet>12</a>    Caret,
 <a href=#13 id=13 data-nosnippet>13</a>    EqEq,
 <a href=#14 id=14 data-nosnippet>14</a>    Eq,
@@ -79,330 +79,384 @@
 <a href=#79 id=79 data-nosnippet>79</a>    Eof,
 <a href=#80 id=80 data-nosnippet>80</a>}
 <a href=#81 id=81 data-nosnippet>81</a>
-<a href=#82 id=82 data-nosnippet>82</a><span class="kw">impl </span>Token {
-<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">pub fn </span>descr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#85 id=85 data-nosnippet>85</a>            Token::Caret =&gt; <span class="string">"|"</span>,
-<a href=#86 id=86 data-nosnippet>86</a>            Token::EqEq =&gt; <span class="string">"=="</span>,
-<a href=#87 id=87 data-nosnippet>87</a>            Token::Eq =&gt; <span class="string">"="</span>,
-<a href=#88 id=88 data-nosnippet>88</a>            Token::AndAnd =&gt; <span class="string">"&amp;&amp;"</span>,
-<a href=#89 id=89 data-nosnippet>89</a>            Token::OrOr =&gt; <span class="string">"||"</span>,
-<a href=#90 id=90 data-nosnippet>90</a>            Token::Plus =&gt; <span class="string">"+"</span>,
-<a href=#91 id=91 data-nosnippet>91</a>            Token::Minus =&gt; <span class="string">"-"</span>,
-<a href=#92 id=92 data-nosnippet>92</a>            Token::Slash =&gt; <span class="string">"/"</span>,
-<a href=#93 id=93 data-nosnippet>93</a>            Token::Bang =&gt; <span class="string">"!"</span>,
-<a href=#94 id=94 data-nosnippet>94</a>            Token::Star =&gt; <span class="string">"*"</span>,
-<a href=#95 id=95 data-nosnippet>95</a>            Token::Colon =&gt; <span class="string">":"</span>,
-<a href=#96 id=96 data-nosnippet>96</a>            Token::Comma =&gt; <span class="string">","</span>,
-<a href=#97 id=97 data-nosnippet>97</a>            Token::Semi =&gt; <span class="string">";"</span>,
-<a href=#98 id=98 data-nosnippet>98</a>            Token::RArrow =&gt; <span class="string">"-&gt;"</span>,
-<a href=#99 id=99 data-nosnippet>99</a>            Token::Dot =&gt; <span class="string">"."</span>,
-<a href=#100 id=100 data-nosnippet>100</a>            Token::Le =&gt; <span class="string">"&lt;="</span>,
-<a href=#101 id=101 data-nosnippet>101</a>            Token::Ne =&gt; <span class="string">"&gt;="</span>,
-<a href=#102 id=102 data-nosnippet>102</a>            Token::GtFollowedByGt =&gt; <span class="string">"&gt;"</span>,
-<a href=#103 id=103 data-nosnippet>103</a>            Token::Gt =&gt; <span class="string">"&gt;"</span>,
-<a href=#104 id=104 data-nosnippet>104</a>            Token::LtFollowedByLt =&gt; <span class="string">"&lt;"</span>,
-<a href=#105 id=105 data-nosnippet>105</a>            Token::Lt =&gt; <span class="string">"&lt;"</span>,
-<a href=#106 id=106 data-nosnippet>106</a>            Token::Ge =&gt; <span class="string">"&gt;="</span>,
-<a href=#107 id=107 data-nosnippet>107</a>            Token::At =&gt; <span class="string">"@"</span>,
-<a href=#108 id=108 data-nosnippet>108</a>            Token::Pound =&gt; <span class="string">"#"</span>,
-<a href=#109 id=109 data-nosnippet>109</a>            Token::Underscore =&gt; <span class="string">"_"</span>,
-<a href=#110 id=110 data-nosnippet>110</a>            Token::Fn =&gt; <span class="string">"fn"</span>,
-<a href=#111 id=111 data-nosnippet>111</a>            Token::Async =&gt; <span class="string">"async"</span>,
-<a href=#112 id=112 data-nosnippet>112</a>            Token::Iff =&gt; <span class="string">"&lt;=&gt;"</span>,
-<a href=#113 id=113 data-nosnippet>113</a>            Token::FatArrow =&gt; <span class="string">"=&gt;"</span>,
-<a href=#114 id=114 data-nosnippet>114</a>            Token::Let =&gt; <span class="string">"let"</span>,
-<a href=#115 id=115 data-nosnippet>115</a>            Token::Mut =&gt; <span class="string">"mut"</span>,
-<a href=#116 id=116 data-nosnippet>116</a>            Token::Where =&gt; <span class="string">"where"</span>,
-<a href=#117 id=117 data-nosnippet>117</a>            Token::Forall =&gt; <span class="string">"forall"</span>,
-<a href=#118 id=118 data-nosnippet>118</a>            Token::Exists =&gt; <span class="string">"exists"</span>,
-<a href=#119 id=119 data-nosnippet>119</a>            Token::In =&gt; <span class="string">"in"</span>,
-<a href=#120 id=120 data-nosnippet>120</a>            Token::Impl =&gt; <span class="string">"impl"</span>,
-<a href=#121 id=121 data-nosnippet>121</a>            Token::Requires =&gt; <span class="string">"requires"</span>,
-<a href=#122 id=122 data-nosnippet>122</a>            Token::Ensures =&gt; <span class="string">"ensures"</span>,
-<a href=#123 id=123 data-nosnippet>123</a>            Token::Literal(<span class="kw">_</span>) =&gt; <span class="string">"literal"</span>,
-<a href=#124 id=124 data-nosnippet>124</a>            Token::Ident(<span class="kw">_</span>) =&gt; <span class="string">"identifier"</span>,
-<a href=#125 id=125 data-nosnippet>125</a>            Token::OpenParen =&gt; <span class="string">"("</span>,
-<a href=#126 id=126 data-nosnippet>126</a>            Token::OpenBrace =&gt; <span class="string">"{"</span>,
-<a href=#127 id=127 data-nosnippet>127</a>            Token::OpenBracket =&gt; <span class="string">"["</span>,
-<a href=#128 id=128 data-nosnippet>128</a>            Token::CloseParen =&gt; <span class="string">")"</span>,
-<a href=#129 id=129 data-nosnippet>129</a>            Token::CloseBrace =&gt; <span class="string">"}"</span>,
-<a href=#130 id=130 data-nosnippet>130</a>            Token::CloseBracket =&gt; <span class="string">"]"</span>,
-<a href=#131 id=131 data-nosnippet>131</a>            Token::OpenInvisible(<span class="kw">_</span>) =&gt; <span class="string">""</span>,
-<a href=#132 id=132 data-nosnippet>132</a>            Token::CloseInvisible(<span class="kw">_</span>) =&gt; <span class="string">""</span>,
-<a href=#133 id=133 data-nosnippet>133</a>            Token::Invalid =&gt; <span class="string">"&lt;invalid&gt;"</span>,
-<a href=#134 id=134 data-nosnippet>134</a>            Token::Ref =&gt; <span class="string">"ref"</span>,
-<a href=#135 id=135 data-nosnippet>135</a>            Token::And =&gt; <span class="string">"&amp;"</span>,
-<a href=#136 id=136 data-nosnippet>136</a>            Token::Percent =&gt; <span class="string">"%"</span>,
-<a href=#137 id=137 data-nosnippet>137</a>            Token::Strg =&gt; <span class="string">"strg"</span>,
-<a href=#138 id=138 data-nosnippet>138</a>            Token::Type =&gt; <span class="string">"type"</span>,
-<a href=#139 id=139 data-nosnippet>139</a>            Token::If =&gt; <span class="string">"if"</span>,
-<a href=#140 id=140 data-nosnippet>140</a>            Token::Else =&gt; <span class="string">"else"</span>,
-<a href=#141 id=141 data-nosnippet>141</a>            Token::PathSep =&gt; <span class="string">"::"</span>,
-<a href=#142 id=142 data-nosnippet>142</a>            Token::Qualifier =&gt; <span class="string">"qualifier"</span>,
-<a href=#143 id=143 data-nosnippet>143</a>            Token::Property =&gt; <span class="string">"property"</span>,
-<a href=#144 id=144 data-nosnippet>144</a>            Token::Sort =&gt; <span class="string">"sort"</span>,
-<a href=#145 id=145 data-nosnippet>145</a>            Token::Opaque =&gt; <span class="string">"opaque"</span>,
-<a href=#146 id=146 data-nosnippet>146</a>            Token::Local =&gt; <span class="string">"local"</span>,
-<a href=#147 id=147 data-nosnippet>147</a>            Token::BitVec =&gt; <span class="string">"bitvec"</span>,
-<a href=#148 id=148 data-nosnippet>148</a>            Token::As =&gt; <span class="string">"as"</span>,
-<a href=#149 id=149 data-nosnippet>149</a>            Token::Hrn =&gt; <span class="string">"rn"</span>,
-<a href=#150 id=150 data-nosnippet>150</a>            Token::Hdl =&gt; <span class="string">"hdl"</span>,
-<a href=#151 id=151 data-nosnippet>151</a>            Token::DotDot =&gt; <span class="string">".."</span>,
-<a href=#152 id=152 data-nosnippet>152</a>            Token::Eof =&gt; <span class="string">"&lt;eof&gt;"</span>,
-<a href=#153 id=153 data-nosnippet>153</a>        }
-<a href=#154 id=154 data-nosnippet>154</a>    }
-<a href=#155 id=155 data-nosnippet>155</a>}
-<a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>Token {
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#160 id=160 data-nosnippet>160</a>            Token::Literal(lit) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lit}"</span>),
-<a href=#161 id=161 data-nosnippet>161</a>            Token::Ident(sym) =&gt; <span class="macro">write!</span>(f, <span class="string">"{sym}"</span>),
-<a href=#162 id=162 data-nosnippet>162</a>            <span class="kw">_ </span>=&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.descr()),
-<a href=#163 id=163 data-nosnippet>163</a>        }
-<a href=#164 id=164 data-nosnippet>164</a>    }
-<a href=#165 id=165 data-nosnippet>165</a>}
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a><span class="kw">pub struct </span>Cursor&lt;<span class="lifetime">'t</span>&gt; {
-<a href=#168 id=168 data-nosnippet>168</a>    stack: Vec&lt;Frame&lt;<span class="lifetime">'t</span>&gt;&gt;,
-<a href=#169 id=169 data-nosnippet>169</a>    symbs: Symbols,
-<a href=#170 id=170 data-nosnippet>170</a>    tokens: VecDeque&lt;(BytePos, Token, BytePos)&gt;,
-<a href=#171 id=171 data-nosnippet>171</a>    hi: BytePos,
-<a href=#172 id=172 data-nosnippet>172</a>}
-<a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a><span class="kw">struct </span>Symbols {
-<a href=#175 id=175 data-nosnippet>175</a>    requires: Symbol,
-<a href=#176 id=176 data-nosnippet>176</a>    ensures: Symbol,
-<a href=#177 id=177 data-nosnippet>177</a>    strg: Symbol,
-<a href=#178 id=178 data-nosnippet>178</a>    qualifier: Symbol,
-<a href=#179 id=179 data-nosnippet>179</a>    property: Symbol,
-<a href=#180 id=180 data-nosnippet>180</a>    sort: Symbol,
-<a href=#181 id=181 data-nosnippet>181</a>    opaque: Symbol,
-<a href=#182 id=182 data-nosnippet>182</a>    local: Symbol,
-<a href=#183 id=183 data-nosnippet>183</a>    bitvec: Symbol,
-<a href=#184 id=184 data-nosnippet>184</a>    hrn: Symbol,
-<a href=#185 id=185 data-nosnippet>185</a>    hdl: Symbol,
-<a href=#186 id=186 data-nosnippet>186</a>    forall: Symbol,
-<a href=#187 id=187 data-nosnippet>187</a>    exists: Symbol,
-<a href=#188 id=188 data-nosnippet>188</a>}
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a><span class="kw">struct </span>Frame&lt;<span class="lifetime">'t</span>&gt; {
-<a href=#191 id=191 data-nosnippet>191</a>    cursor: Peekable&lt;TokenStreamIter&lt;<span class="lifetime">'t</span>&gt;&gt;,
-<a href=#192 id=192 data-nosnippet>192</a>    close: <span class="prelude-ty">Option</span>&lt;(BytePos, Token, BytePos)&gt;,
-<a href=#193 id=193 data-nosnippet>193</a>}
-<a href=#194 id=194 data-nosnippet>194</a>
-<a href=#195 id=195 data-nosnippet>195</a><span class="kw">impl</span>&lt;<span class="lifetime">'t</span>&gt; Cursor&lt;<span class="lifetime">'t</span>&gt; {
-<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(stream: <span class="kw-2">&amp;</span><span class="lifetime">'t </span>TokenStream, offset: BytePos) -&gt; <span class="self">Self </span>{
-<a href=#197 id=197 data-nosnippet>197</a>        <span class="kw">let </span><span class="kw-2">mut </span>cursor = Cursor {
-<a href=#198 id=198 data-nosnippet>198</a>            stack: <span class="macro">vec!</span>[Frame { cursor: stream.iter().peekable(), close: <span class="prelude-val">None </span>}],
-<a href=#199 id=199 data-nosnippet>199</a>            tokens: VecDeque::new(),
-<a href=#200 id=200 data-nosnippet>200</a>            symbs: Symbols {
-<a href=#201 id=201 data-nosnippet>201</a>                strg: Symbol::intern(<span class="string">"strg"</span>),
-<a href=#202 id=202 data-nosnippet>202</a>                requires: Symbol::intern(<span class="string">"requires"</span>),
-<a href=#203 id=203 data-nosnippet>203</a>                ensures: Symbol::intern(<span class="string">"ensures"</span>),
-<a href=#204 id=204 data-nosnippet>204</a>                qualifier: Symbol::intern(<span class="string">"qualifier"</span>),
-<a href=#205 id=205 data-nosnippet>205</a>                property: Symbol::intern(<span class="string">"property"</span>),
-<a href=#206 id=206 data-nosnippet>206</a>                sort: Symbol::intern(<span class="string">"sort"</span>),
-<a href=#207 id=207 data-nosnippet>207</a>                bitvec: Symbol::intern(<span class="string">"bitvec"</span>),
-<a href=#208 id=208 data-nosnippet>208</a>                opaque: Symbol::intern(<span class="string">"opaque"</span>),
-<a href=#209 id=209 data-nosnippet>209</a>                local: Symbol::intern(<span class="string">"local"</span>),
-<a href=#210 id=210 data-nosnippet>210</a>                hrn: Symbol::intern(<span class="string">"hrn"</span>),
-<a href=#211 id=211 data-nosnippet>211</a>                hdl: Symbol::intern(<span class="string">"hdl"</span>),
-<a href=#212 id=212 data-nosnippet>212</a>                forall: Symbol::intern(<span class="string">"forall"</span>),
-<a href=#213 id=213 data-nosnippet>213</a>                exists: Symbol::intern(<span class="string">"exists"</span>),
-<a href=#214 id=214 data-nosnippet>214</a>            },
-<a href=#215 id=215 data-nosnippet>215</a>            hi: offset,
-<a href=#216 id=216 data-nosnippet>216</a>        };
-<a href=#217 id=217 data-nosnippet>217</a>        cursor.fetch_tokens();
-<a href=#218 id=218 data-nosnippet>218</a>        cursor
-<a href=#219 id=219 data-nosnippet>219</a>    }
-<a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a>    <span class="attr">#[must_use]
-<a href=#222 id=222 data-nosnippet>222</a>    </span><span class="kw">pub fn </span>at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: usize) -&gt; (BytePos, Token, BytePos) {
-<a href=#223 id=223 data-nosnippet>223</a>        <span class="kw">while </span><span class="self">self</span>.tokens.len() &lt;= pos &amp;&amp; <span class="self">self</span>.fetch_tokens() {}
-<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">if </span>pos &lt; <span class="self">self</span>.tokens.len() { <span class="self">self</span>.tokens[pos] } <span class="kw">else </span>{ (<span class="self">self</span>.hi, Token::Eof, <span class="self">self</span>.hi) }
-<a href=#225 id=225 data-nosnippet>225</a>    }
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">pub fn </span>debug(<span class="kw-2">&amp;mut </span><span class="self">self</span>, size: usize) -&gt; String {
-<a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span><span class="kw-2">mut </span>s = String::new();
-<a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..size {
-<a href=#230 id=230 data-nosnippet>230</a>            s = <span class="macro">format!</span>(<span class="string">"{s} {}"</span>, <span class="self">self</span>.at(i).<span class="number">1</span>);
-<a href=#231 id=231 data-nosnippet>231</a>        }
-<a href=#232 id=232 data-nosnippet>232</a>        s
-<a href=#233 id=233 data-nosnippet>233</a>    }
-<a href=#234 id=234 data-nosnippet>234</a>
-<a href=#235 id=235 data-nosnippet>235</a>    <span class="kw">pub fn </span>advance(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(tok) = <span class="self">self</span>.tokens.pop_front() {
-<a href=#237 id=237 data-nosnippet>237</a>            <span class="kw">if </span><span class="self">self</span>.tokens.is_empty() {
-<a href=#238 id=238 data-nosnippet>238</a>                <span class="self">self</span>.fetch_tokens();
-<a href=#239 id=239 data-nosnippet>239</a>            }
-<a href=#240 id=240 data-nosnippet>240</a>            <span class="self">self</span>.hi = tok.<span class="number">2</span>;
-<a href=#241 id=241 data-nosnippet>241</a>        }
-<a href=#242 id=242 data-nosnippet>242</a>    }
-<a href=#243 id=243 data-nosnippet>243</a>
-<a href=#244 id=244 data-nosnippet>244</a>    <span class="kw">pub fn </span>advance_by(<span class="kw-2">&amp;mut </span><span class="self">self</span>, n: usize) {
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">for _ in </span><span class="number">0</span>..n {
-<a href=#246 id=246 data-nosnippet>246</a>            <span class="self">self</span>.advance();
-<a href=#247 id=247 data-nosnippet>247</a>        }
-<a href=#248 id=248 data-nosnippet>248</a>    }
-<a href=#249 id=249 data-nosnippet>249</a>
-<a href=#250 id=250 data-nosnippet>250</a>    <span class="doccomment">/// Returns the starting byte position of the next token
-<a href=#251 id=251 data-nosnippet>251</a>    </span><span class="kw">pub fn </span>lo(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
-<a href=#252 id=252 data-nosnippet>252</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((lo, ..)) = <span class="self">self</span>.tokens.front() { <span class="kw-2">*</span>lo } <span class="kw">else </span>{ <span class="self">self</span>.hi }
-<a href=#253 id=253 data-nosnippet>253</a>    }
-<a href=#254 id=254 data-nosnippet>254</a>
-<a href=#255 id=255 data-nosnippet>255</a>    <span class="doccomment">/// Returns the highest byte position the cursor has yielded. You could also think of this as
-<a href=#256 id=256 data-nosnippet>256</a>    /// the ending position of the last yielded token.
-<a href=#257 id=257 data-nosnippet>257</a>    </span><span class="kw">pub fn </span>hi(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
-<a href=#258 id=258 data-nosnippet>258</a>        <span class="self">self</span>.hi
-<a href=#259 id=259 data-nosnippet>259</a>    }
-<a href=#260 id=260 data-nosnippet>260</a>
-<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">fn </span>map_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, token: <span class="kw-2">&amp;</span>token::Token) {
-<a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>span = token.span;
-<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span>token = <span class="kw">match </span>token.kind {
-<a href=#264 id=264 data-nosnippet>264</a>            TokenKind::Lt =&gt; Token::Lt,
-<a href=#265 id=265 data-nosnippet>265</a>            TokenKind::Le =&gt; Token::Le,
-<a href=#266 id=266 data-nosnippet>266</a>            TokenKind::EqEq =&gt; Token::EqEq,
-<a href=#267 id=267 data-nosnippet>267</a>            TokenKind::Eq =&gt; Token::Eq,
-<a href=#268 id=268 data-nosnippet>268</a>            TokenKind::Ne =&gt; Token::Ne,
-<a href=#269 id=269 data-nosnippet>269</a>            TokenKind::AndAnd =&gt; Token::AndAnd,
-<a href=#270 id=270 data-nosnippet>270</a>            TokenKind::OrOr =&gt; Token::OrOr,
-<a href=#271 id=271 data-nosnippet>271</a>            TokenKind::FatArrow =&gt; Token::FatArrow,
-<a href=#272 id=272 data-nosnippet>272</a>            TokenKind::Gt =&gt; Token::Gt,
-<a href=#273 id=273 data-nosnippet>273</a>            TokenKind::Ge =&gt; Token::Ge,
-<a href=#274 id=274 data-nosnippet>274</a>            TokenKind::At =&gt; Token::At,
-<a href=#275 id=275 data-nosnippet>275</a>            TokenKind::Pound =&gt; Token::Pound,
-<a href=#276 id=276 data-nosnippet>276</a>            TokenKind::Comma =&gt; Token::Comma,
-<a href=#277 id=277 data-nosnippet>277</a>            TokenKind::Colon =&gt; Token::Colon,
-<a href=#278 id=278 data-nosnippet>278</a>            TokenKind::Semi =&gt; Token::Semi,
-<a href=#279 id=279 data-nosnippet>279</a>            TokenKind::RArrow =&gt; Token::RArrow,
-<a href=#280 id=280 data-nosnippet>280</a>            TokenKind::Dot =&gt; Token::Dot,
-<a href=#281 id=281 data-nosnippet>281</a>            TokenKind::OpenParen =&gt; Token::OpenParen,
-<a href=#282 id=282 data-nosnippet>282</a>            TokenKind::OpenBrace =&gt; Token::OpenBrace,
-<a href=#283 id=283 data-nosnippet>283</a>            TokenKind::OpenBracket =&gt; Token::OpenBracket,
-<a href=#284 id=284 data-nosnippet>284</a>            TokenKind::CloseParen =&gt; Token::CloseParen,
-<a href=#285 id=285 data-nosnippet>285</a>            TokenKind::CloseBrace =&gt; Token::CloseBrace,
-<a href=#286 id=286 data-nosnippet>286</a>            TokenKind::CloseBracket =&gt; Token::CloseBracket,
-<a href=#287 id=287 data-nosnippet>287</a>            TokenKind::OpenInvisible(origin) =&gt; Token::OpenInvisible(origin),
-<a href=#288 id=288 data-nosnippet>288</a>            TokenKind::CloseInvisible(origin) =&gt; Token::CloseInvisible(origin),
-<a href=#289 id=289 data-nosnippet>289</a>            TokenKind::Literal(lit) =&gt; Token::Literal(lit),
-<a href=#290 id=290 data-nosnippet>290</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::True || symb == kw::False =&gt; {
-<a href=#291 id=291 data-nosnippet>291</a>                Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: <span class="prelude-val">None </span>})
-<a href=#292 id=292 data-nosnippet>292</a>            }
-<a href=#293 id=293 data-nosnippet>293</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.strg =&gt; Token::Strg,
-<a href=#294 id=294 data-nosnippet>294</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.requires =&gt; Token::Requires,
-<a href=#295 id=295 data-nosnippet>295</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.ensures =&gt; Token::Ensures,
-<a href=#296 id=296 data-nosnippet>296</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.qualifier =&gt; Token::Qualifier,
-<a href=#297 id=297 data-nosnippet>297</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.property =&gt; Token::Property,
-<a href=#298 id=298 data-nosnippet>298</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.sort =&gt; Token::Sort,
-<a href=#299 id=299 data-nosnippet>299</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.opaque =&gt; Token::Opaque,
-<a href=#300 id=300 data-nosnippet>300</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.local =&gt; Token::Local,
-<a href=#301 id=301 data-nosnippet>301</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.bitvec =&gt; Token::BitVec,
-<a href=#302 id=302 data-nosnippet>302</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.hrn =&gt; Token::Hrn,
-<a href=#303 id=303 data-nosnippet>303</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.hdl =&gt; Token::Hdl,
-<a href=#304 id=304 data-nosnippet>304</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.forall =&gt; Token::Forall,
-<a href=#305 id=305 data-nosnippet>305</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.exists =&gt; Token::Exists,
-<a href=#306 id=306 data-nosnippet>306</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Let =&gt; Token::Let,
-<a href=#307 id=307 data-nosnippet>307</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::In =&gt; Token::In,
-<a href=#308 id=308 data-nosnippet>308</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Ref =&gt; Token::Ref,
-<a href=#309 id=309 data-nosnippet>309</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Fn =&gt; Token::Fn,
-<a href=#310 id=310 data-nosnippet>310</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Mut =&gt; Token::Mut,
-<a href=#311 id=311 data-nosnippet>311</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Where =&gt; Token::Where,
-<a href=#312 id=312 data-nosnippet>312</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Impl =&gt; Token::Impl,
-<a href=#313 id=313 data-nosnippet>313</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Type =&gt; Token::Type,
-<a href=#314 id=314 data-nosnippet>314</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::If =&gt; Token::If,
-<a href=#315 id=315 data-nosnippet>315</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Else =&gt; Token::Else,
-<a href=#316 id=316 data-nosnippet>316</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Async =&gt; Token::Async,
-<a href=#317 id=317 data-nosnippet>317</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::As =&gt; Token::As,
-<a href=#318 id=318 data-nosnippet>318</a>            TokenKind::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Underscore =&gt; Token::Underscore,
-<a href=#319 id=319 data-nosnippet>319</a>            TokenKind::Ident(symb, <span class="kw">_</span>) =&gt; Token::Ident(symb),
-<a href=#320 id=320 data-nosnippet>320</a>            TokenKind::NtIdent(ident, <span class="kw">_</span>) =&gt; Token::Ident(ident.name),
-<a href=#321 id=321 data-nosnippet>321</a>            TokenKind::Or =&gt; Token::Caret,
-<a href=#322 id=322 data-nosnippet>322</a>            TokenKind::Plus =&gt; Token::Plus,
-<a href=#323 id=323 data-nosnippet>323</a>            TokenKind::Slash =&gt; Token::Slash,
-<a href=#324 id=324 data-nosnippet>324</a>            TokenKind::Minus =&gt; Token::Minus,
-<a href=#325 id=325 data-nosnippet>325</a>            TokenKind::And =&gt; Token::And,
-<a href=#326 id=326 data-nosnippet>326</a>            TokenKind::Percent =&gt; Token::Percent,
-<a href=#327 id=327 data-nosnippet>327</a>            TokenKind::Star =&gt; Token::Star,
-<a href=#328 id=328 data-nosnippet>328</a>            TokenKind::Shl =&gt; {
-<a href=#329 id=329 data-nosnippet>329</a>                <span class="self">self</span>.tokens
-<a href=#330 id=330 data-nosnippet>330</a>                    .push_back((span.lo(), Token::LtFollowedByLt, span.hi() - BytePos(<span class="number">1</span>)));
-<a href=#331 id=331 data-nosnippet>331</a>                <span class="self">self</span>.tokens
-<a href=#332 id=332 data-nosnippet>332</a>                    .push_back((span.lo() + BytePos(<span class="number">1</span>), Token::Lt, span.hi()));
-<a href=#333 id=333 data-nosnippet>333</a>                <span class="kw">return</span>;
-<a href=#334 id=334 data-nosnippet>334</a>            }
-<a href=#335 id=335 data-nosnippet>335</a>            TokenKind::Shr =&gt; {
-<a href=#336 id=336 data-nosnippet>336</a>                <span class="self">self</span>.tokens
-<a href=#337 id=337 data-nosnippet>337</a>                    .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(<span class="number">1</span>)));
-<a href=#338 id=338 data-nosnippet>338</a>                <span class="self">self</span>.tokens
-<a href=#339 id=339 data-nosnippet>339</a>                    .push_back((span.lo() + BytePos(<span class="number">1</span>), Token::Gt, span.hi()));
-<a href=#340 id=340 data-nosnippet>340</a>                <span class="kw">return</span>;
-<a href=#341 id=341 data-nosnippet>341</a>            }
-<a href=#342 id=342 data-nosnippet>342</a>            TokenKind::Bang =&gt; Token::Bang,
-<a href=#343 id=343 data-nosnippet>343</a>            TokenKind::PathSep =&gt; Token::PathSep,
-<a href=#344 id=344 data-nosnippet>344</a>            TokenKind::DotDot =&gt; Token::DotDot,
-<a href=#345 id=345 data-nosnippet>345</a>            <span class="kw">_ </span>=&gt; Token::Invalid,
-<a href=#346 id=346 data-nosnippet>346</a>        };
-<a href=#347 id=347 data-nosnippet>347</a>        <span class="self">self</span>.tokens.push_back((span.lo(), token, span.hi()));
-<a href=#348 id=348 data-nosnippet>348</a>    }
-<a href=#349 id=349 data-nosnippet>349</a>
-<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">fn </span>fetch_tokens(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
-<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(top) = <span class="self">self</span>.stack.last_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-<a href=#352 id=352 data-nosnippet>352</a>
-<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">match </span>top.cursor.next() {
-<a href=#354 id=354 data-nosnippet>354</a>            <span class="prelude-val">Some</span>(TokenTree::Token(token, <span class="kw">_</span>)) =&gt; {
-<a href=#355 id=355 data-nosnippet>355</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(TokenTree::Token(next, <span class="kw">_</span>)) = top.cursor.peek() {
-<a href=#356 id=356 data-nosnippet>356</a>                    <span class="kw">match </span>(<span class="kw-2">&amp;</span>token.kind, <span class="kw-2">&amp;</span>next.kind) {
-<a href=#357 id=357 data-nosnippet>357</a>                        (TokenKind::Le, TokenKind::Gt) <span class="kw">if </span>token.span.hi() == next.span.lo() =&gt; {
-<a href=#358 id=358 data-nosnippet>358</a>                            top.cursor.next();
-<a href=#359 id=359 data-nosnippet>359</a>                            <span class="self">self</span>.tokens
-<a href=#360 id=360 data-nosnippet>360</a>                                .push_back((token.span.lo(), Token::Iff, next.span.hi()));
-<a href=#361 id=361 data-nosnippet>361</a>                            <span class="kw">return </span><span class="bool-val">true</span>;
-<a href=#362 id=362 data-nosnippet>362</a>                        }
-<a href=#363 id=363 data-nosnippet>363</a>                        <span class="kw">_ </span>=&gt; {}
-<a href=#364 id=364 data-nosnippet>364</a>                    }
-<a href=#365 id=365 data-nosnippet>365</a>                }
-<a href=#366 id=366 data-nosnippet>366</a>                <span class="self">self</span>.map_token(token);
-<a href=#367 id=367 data-nosnippet>367</a>                <span class="bool-val">true
-<a href=#368 id=368 data-nosnippet>368</a>            </span>}
-<a href=#369 id=369 data-nosnippet>369</a>            <span class="prelude-val">Some</span>(TokenTree::Delimited(<span class="kw">_</span>, _spacing, Delimiter::Invisible(..), tokens)) =&gt; {
-<a href=#370 id=370 data-nosnippet>370</a>                <span class="self">self</span>.stack
-<a href=#371 id=371 data-nosnippet>371</a>                    .push(Frame { cursor: tokens.iter().peekable(), close: <span class="prelude-val">None </span>});
-<a href=#372 id=372 data-nosnippet>372</a>                <span class="self">self</span>.fetch_tokens()
-<a href=#373 id=373 data-nosnippet>373</a>            }
-<a href=#374 id=374 data-nosnippet>374</a>            <span class="prelude-val">Some</span>(TokenTree::Delimited(span, _spacing, delim, tokens)) =&gt; {
-<a href=#375 id=375 data-nosnippet>375</a>                <span class="kw">let </span>close_token = <span class="kw">match </span>delim {
-<a href=#376 id=376 data-nosnippet>376</a>                    Delimiter::Parenthesis =&gt; Token::CloseParen,
-<a href=#377 id=377 data-nosnippet>377</a>                    Delimiter::Brace =&gt; Token::CloseBrace,
-<a href=#378 id=378 data-nosnippet>378</a>                    Delimiter::Bracket =&gt; Token::CloseBracket,
-<a href=#379 id=379 data-nosnippet>379</a>                    Delimiter::Invisible(origin) =&gt; Token::CloseInvisible(<span class="kw-2">*</span>origin),
-<a href=#380 id=380 data-nosnippet>380</a>                };
-<a href=#381 id=381 data-nosnippet>381</a>                <span class="kw">let </span>close = (span.close.lo(), close_token, span.close.hi());
-<a href=#382 id=382 data-nosnippet>382</a>
-<a href=#383 id=383 data-nosnippet>383</a>                <span class="self">self</span>.stack
-<a href=#384 id=384 data-nosnippet>384</a>                    .push(Frame { cursor: tokens.iter().peekable(), close: <span class="prelude-val">Some</span>(close) });
-<a href=#385 id=385 data-nosnippet>385</a>
-<a href=#386 id=386 data-nosnippet>386</a>                <span class="kw">let </span>kind = <span class="kw">match </span>delim {
-<a href=#387 id=387 data-nosnippet>387</a>                    Delimiter::Parenthesis =&gt; TokenKind::OpenParen,
-<a href=#388 id=388 data-nosnippet>388</a>                    Delimiter::Brace =&gt; TokenKind::OpenBrace,
-<a href=#389 id=389 data-nosnippet>389</a>                    Delimiter::Bracket =&gt; TokenKind::OpenBracket,
-<a href=#390 id=390 data-nosnippet>390</a>                    Delimiter::Invisible(origin) =&gt; TokenKind::OpenInvisible(<span class="kw-2">*</span>origin),
-<a href=#391 id=391 data-nosnippet>391</a>                };
-<a href=#392 id=392 data-nosnippet>392</a>
-<a href=#393 id=393 data-nosnippet>393</a>                <span class="kw">let </span>token = token::Token { kind, span: span.open };
-<a href=#394 id=394 data-nosnippet>394</a>                <span class="self">self</span>.map_token(<span class="kw-2">&amp;</span>token);
-<a href=#395 id=395 data-nosnippet>395</a>                <span class="bool-val">true
-<a href=#396 id=396 data-nosnippet>396</a>            </span>}
-<a href=#397 id=397 data-nosnippet>397</a>            <span class="prelude-val">None </span>=&gt; {
-<a href=#398 id=398 data-nosnippet>398</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(frame) = <span class="self">self</span>.stack.pop() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
-<a href=#399 id=399 data-nosnippet>399</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(token) = frame.close {
-<a href=#400 id=400 data-nosnippet>400</a>                    <span class="self">self</span>.tokens.push_back(token);
-<a href=#401 id=401 data-nosnippet>401</a>                    <span class="bool-val">true
-<a href=#402 id=402 data-nosnippet>402</a>                </span>} <span class="kw">else </span>{
-<a href=#403 id=403 data-nosnippet>403</a>                    <span class="self">self</span>.fetch_tokens()
-<a href=#404 id=404 data-nosnippet>404</a>                }
-<a href=#405 id=405 data-nosnippet>405</a>            }
-<a href=#406 id=406 data-nosnippet>406</a>        }
-<a href=#407 id=407 data-nosnippet>407</a>    }
-<a href=#408 id=408 data-nosnippet>408</a>}</code></pre></div></section></main></body></html>
+<a href=#82 id=82 data-nosnippet>82</a><span class="attr">#[derive(Clone, Copy)]
+<a href=#83 id=83 data-nosnippet>83</a></span><span class="kw">pub struct </span>Token {
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="kw">pub </span>kind: TokenKind,
+<a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">pub </span>lo: BytePos,
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">pub </span>hi: BytePos,
+<a href=#87 id=87 data-nosnippet>87</a>}
+<a href=#88 id=88 data-nosnippet>88</a>
+<a href=#89 id=89 data-nosnippet>89</a><span class="kw">impl </span>Token {
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">pub fn </span>new(kind: TokenKind, lo: BytePos, hi: BytePos) -&gt; <span class="self">Self </span>{
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="self">Self </span>{ kind, lo, hi }
+<a href=#92 id=92 data-nosnippet>92</a>    }
+<a href=#93 id=93 data-nosnippet>93</a>}
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a><span class="doccomment">/// Convenience module so we can refer to token kinds as `token::*`
+<a href=#96 id=96 data-nosnippet>96</a></span><span class="kw">pub mod </span>token {
+<a href=#97 id=97 data-nosnippet>97</a>    <span class="kw">pub use </span><span class="kw">super</span>::TokenKind::<span class="kw-2">*</span>;
+<a href=#98 id=98 data-nosnippet>98</a>}
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a><span class="kw">impl </span>TokenKind {
+<a href=#101 id=101 data-nosnippet>101</a>    <span class="kw">pub fn </span>open_delim(delim: Delimiter) -&gt; TokenKind {
+<a href=#102 id=102 data-nosnippet>102</a>        <span class="kw">match </span>delim {
+<a href=#103 id=103 data-nosnippet>103</a>            Delimiter::Parenthesis =&gt; token::OpenParen,
+<a href=#104 id=104 data-nosnippet>104</a>            Delimiter::Bracket =&gt; token::OpenBracket,
+<a href=#105 id=105 data-nosnippet>105</a>            Delimiter::Brace =&gt; token::OpenBrace,
+<a href=#106 id=106 data-nosnippet>106</a>            Delimiter::Invisible(origin) =&gt; token::OpenInvisible(origin),
+<a href=#107 id=107 data-nosnippet>107</a>        }
+<a href=#108 id=108 data-nosnippet>108</a>    }
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">pub fn </span>close_delim(delim: Delimiter) -&gt; TokenKind {
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">match </span>delim {
+<a href=#112 id=112 data-nosnippet>112</a>            Delimiter::Parenthesis =&gt; token::CloseParen,
+<a href=#113 id=113 data-nosnippet>113</a>            Delimiter::Bracket =&gt; token::CloseBracket,
+<a href=#114 id=114 data-nosnippet>114</a>            Delimiter::Brace =&gt; token::CloseBrace,
+<a href=#115 id=115 data-nosnippet>115</a>            Delimiter::Invisible(origin) =&gt; token::CloseInvisible(origin),
+<a href=#116 id=116 data-nosnippet>116</a>        }
+<a href=#117 id=117 data-nosnippet>117</a>    }
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a>    <span class="kw">pub fn </span>descr(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+<a href=#120 id=120 data-nosnippet>120</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#121 id=121 data-nosnippet>121</a>            TokenKind::Caret =&gt; <span class="string">"|"</span>,
+<a href=#122 id=122 data-nosnippet>122</a>            TokenKind::EqEq =&gt; <span class="string">"=="</span>,
+<a href=#123 id=123 data-nosnippet>123</a>            TokenKind::Eq =&gt; <span class="string">"="</span>,
+<a href=#124 id=124 data-nosnippet>124</a>            TokenKind::AndAnd =&gt; <span class="string">"&amp;&amp;"</span>,
+<a href=#125 id=125 data-nosnippet>125</a>            TokenKind::OrOr =&gt; <span class="string">"||"</span>,
+<a href=#126 id=126 data-nosnippet>126</a>            TokenKind::Plus =&gt; <span class="string">"+"</span>,
+<a href=#127 id=127 data-nosnippet>127</a>            TokenKind::Minus =&gt; <span class="string">"-"</span>,
+<a href=#128 id=128 data-nosnippet>128</a>            TokenKind::Slash =&gt; <span class="string">"/"</span>,
+<a href=#129 id=129 data-nosnippet>129</a>            TokenKind::Bang =&gt; <span class="string">"!"</span>,
+<a href=#130 id=130 data-nosnippet>130</a>            TokenKind::Star =&gt; <span class="string">"*"</span>,
+<a href=#131 id=131 data-nosnippet>131</a>            TokenKind::Colon =&gt; <span class="string">":"</span>,
+<a href=#132 id=132 data-nosnippet>132</a>            TokenKind::Comma =&gt; <span class="string">","</span>,
+<a href=#133 id=133 data-nosnippet>133</a>            TokenKind::Semi =&gt; <span class="string">";"</span>,
+<a href=#134 id=134 data-nosnippet>134</a>            TokenKind::RArrow =&gt; <span class="string">"-&gt;"</span>,
+<a href=#135 id=135 data-nosnippet>135</a>            TokenKind::Dot =&gt; <span class="string">"."</span>,
+<a href=#136 id=136 data-nosnippet>136</a>            TokenKind::Le =&gt; <span class="string">"&lt;="</span>,
+<a href=#137 id=137 data-nosnippet>137</a>            TokenKind::Ne =&gt; <span class="string">"&gt;="</span>,
+<a href=#138 id=138 data-nosnippet>138</a>            TokenKind::GtFollowedByGt =&gt; <span class="string">"&gt;"</span>,
+<a href=#139 id=139 data-nosnippet>139</a>            TokenKind::Gt =&gt; <span class="string">"&gt;"</span>,
+<a href=#140 id=140 data-nosnippet>140</a>            TokenKind::LtFollowedByLt =&gt; <span class="string">"&lt;"</span>,
+<a href=#141 id=141 data-nosnippet>141</a>            TokenKind::Lt =&gt; <span class="string">"&lt;"</span>,
+<a href=#142 id=142 data-nosnippet>142</a>            TokenKind::Ge =&gt; <span class="string">"&gt;="</span>,
+<a href=#143 id=143 data-nosnippet>143</a>            TokenKind::At =&gt; <span class="string">"@"</span>,
+<a href=#144 id=144 data-nosnippet>144</a>            TokenKind::Pound =&gt; <span class="string">"#"</span>,
+<a href=#145 id=145 data-nosnippet>145</a>            TokenKind::Underscore =&gt; <span class="string">"_"</span>,
+<a href=#146 id=146 data-nosnippet>146</a>            TokenKind::Fn =&gt; <span class="string">"fn"</span>,
+<a href=#147 id=147 data-nosnippet>147</a>            TokenKind::Async =&gt; <span class="string">"async"</span>,
+<a href=#148 id=148 data-nosnippet>148</a>            TokenKind::Iff =&gt; <span class="string">"&lt;=&gt;"</span>,
+<a href=#149 id=149 data-nosnippet>149</a>            TokenKind::FatArrow =&gt; <span class="string">"=&gt;"</span>,
+<a href=#150 id=150 data-nosnippet>150</a>            TokenKind::Let =&gt; <span class="string">"let"</span>,
+<a href=#151 id=151 data-nosnippet>151</a>            TokenKind::Mut =&gt; <span class="string">"mut"</span>,
+<a href=#152 id=152 data-nosnippet>152</a>            TokenKind::Where =&gt; <span class="string">"where"</span>,
+<a href=#153 id=153 data-nosnippet>153</a>            TokenKind::Forall =&gt; <span class="string">"forall"</span>,
+<a href=#154 id=154 data-nosnippet>154</a>            TokenKind::Exists =&gt; <span class="string">"exists"</span>,
+<a href=#155 id=155 data-nosnippet>155</a>            TokenKind::In =&gt; <span class="string">"in"</span>,
+<a href=#156 id=156 data-nosnippet>156</a>            TokenKind::Impl =&gt; <span class="string">"impl"</span>,
+<a href=#157 id=157 data-nosnippet>157</a>            TokenKind::Requires =&gt; <span class="string">"requires"</span>,
+<a href=#158 id=158 data-nosnippet>158</a>            TokenKind::Ensures =&gt; <span class="string">"ensures"</span>,
+<a href=#159 id=159 data-nosnippet>159</a>            TokenKind::Literal(<span class="kw">_</span>) =&gt; <span class="string">"literal"</span>,
+<a href=#160 id=160 data-nosnippet>160</a>            TokenKind::Ident(<span class="kw">_</span>) =&gt; <span class="string">"identifier"</span>,
+<a href=#161 id=161 data-nosnippet>161</a>            TokenKind::OpenParen =&gt; <span class="string">"("</span>,
+<a href=#162 id=162 data-nosnippet>162</a>            TokenKind::OpenBrace =&gt; <span class="string">"{"</span>,
+<a href=#163 id=163 data-nosnippet>163</a>            TokenKind::OpenBracket =&gt; <span class="string">"["</span>,
+<a href=#164 id=164 data-nosnippet>164</a>            TokenKind::CloseParen =&gt; <span class="string">")"</span>,
+<a href=#165 id=165 data-nosnippet>165</a>            TokenKind::CloseBrace =&gt; <span class="string">"}"</span>,
+<a href=#166 id=166 data-nosnippet>166</a>            TokenKind::CloseBracket =&gt; <span class="string">"]"</span>,
+<a href=#167 id=167 data-nosnippet>167</a>            TokenKind::OpenInvisible(<span class="kw">_</span>) =&gt; <span class="string">""</span>,
+<a href=#168 id=168 data-nosnippet>168</a>            TokenKind::CloseInvisible(<span class="kw">_</span>) =&gt; <span class="string">""</span>,
+<a href=#169 id=169 data-nosnippet>169</a>            TokenKind::Invalid =&gt; <span class="string">"&lt;invalid&gt;"</span>,
+<a href=#170 id=170 data-nosnippet>170</a>            TokenKind::Ref =&gt; <span class="string">"ref"</span>,
+<a href=#171 id=171 data-nosnippet>171</a>            TokenKind::And =&gt; <span class="string">"&amp;"</span>,
+<a href=#172 id=172 data-nosnippet>172</a>            TokenKind::Percent =&gt; <span class="string">"%"</span>,
+<a href=#173 id=173 data-nosnippet>173</a>            TokenKind::Strg =&gt; <span class="string">"strg"</span>,
+<a href=#174 id=174 data-nosnippet>174</a>            TokenKind::Type =&gt; <span class="string">"type"</span>,
+<a href=#175 id=175 data-nosnippet>175</a>            TokenKind::If =&gt; <span class="string">"if"</span>,
+<a href=#176 id=176 data-nosnippet>176</a>            TokenKind::Else =&gt; <span class="string">"else"</span>,
+<a href=#177 id=177 data-nosnippet>177</a>            TokenKind::PathSep =&gt; <span class="string">"::"</span>,
+<a href=#178 id=178 data-nosnippet>178</a>            TokenKind::Qualifier =&gt; <span class="string">"qualifier"</span>,
+<a href=#179 id=179 data-nosnippet>179</a>            TokenKind::Property =&gt; <span class="string">"property"</span>,
+<a href=#180 id=180 data-nosnippet>180</a>            TokenKind::Sort =&gt; <span class="string">"sort"</span>,
+<a href=#181 id=181 data-nosnippet>181</a>            TokenKind::Opaque =&gt; <span class="string">"opaque"</span>,
+<a href=#182 id=182 data-nosnippet>182</a>            TokenKind::Local =&gt; <span class="string">"local"</span>,
+<a href=#183 id=183 data-nosnippet>183</a>            TokenKind::BitVec =&gt; <span class="string">"bitvec"</span>,
+<a href=#184 id=184 data-nosnippet>184</a>            TokenKind::As =&gt; <span class="string">"as"</span>,
+<a href=#185 id=185 data-nosnippet>185</a>            TokenKind::Hrn =&gt; <span class="string">"rn"</span>,
+<a href=#186 id=186 data-nosnippet>186</a>            TokenKind::Hdl =&gt; <span class="string">"hdl"</span>,
+<a href=#187 id=187 data-nosnippet>187</a>            TokenKind::DotDot =&gt; <span class="string">".."</span>,
+<a href=#188 id=188 data-nosnippet>188</a>            TokenKind::Eof =&gt; <span class="string">"&lt;eof&gt;"</span>,
+<a href=#189 id=189 data-nosnippet>189</a>        }
+<a href=#190 id=190 data-nosnippet>190</a>    }
+<a href=#191 id=191 data-nosnippet>191</a>}
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>TokenKind {
+<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#196 id=196 data-nosnippet>196</a>            TokenKind::Literal(lit) =&gt; <span class="macro">write!</span>(f, <span class="string">"{lit}"</span>),
+<a href=#197 id=197 data-nosnippet>197</a>            TokenKind::Ident(sym) =&gt; <span class="macro">write!</span>(f, <span class="string">"{sym}"</span>),
+<a href=#198 id=198 data-nosnippet>198</a>            <span class="kw">_ </span>=&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.descr()),
+<a href=#199 id=199 data-nosnippet>199</a>        }
+<a href=#200 id=200 data-nosnippet>200</a>    }
+<a href=#201 id=201 data-nosnippet>201</a>}
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a><span class="kw">pub struct </span>Cursor&lt;<span class="lifetime">'t</span>&gt; {
+<a href=#204 id=204 data-nosnippet>204</a>    stack: Vec&lt;Frame&lt;<span class="lifetime">'t</span>&gt;&gt;,
+<a href=#205 id=205 data-nosnippet>205</a>    symbs: Symbols,
+<a href=#206 id=206 data-nosnippet>206</a>    tokens: VecDeque&lt;Token&gt;,
+<a href=#207 id=207 data-nosnippet>207</a>    hi: BytePos,
+<a href=#208 id=208 data-nosnippet>208</a>}
+<a href=#209 id=209 data-nosnippet>209</a>
+<a href=#210 id=210 data-nosnippet>210</a><span class="kw">struct </span>Symbols {
+<a href=#211 id=211 data-nosnippet>211</a>    requires: Symbol,
+<a href=#212 id=212 data-nosnippet>212</a>    ensures: Symbol,
+<a href=#213 id=213 data-nosnippet>213</a>    strg: Symbol,
+<a href=#214 id=214 data-nosnippet>214</a>    qualifier: Symbol,
+<a href=#215 id=215 data-nosnippet>215</a>    property: Symbol,
+<a href=#216 id=216 data-nosnippet>216</a>    sort: Symbol,
+<a href=#217 id=217 data-nosnippet>217</a>    opaque: Symbol,
+<a href=#218 id=218 data-nosnippet>218</a>    local: Symbol,
+<a href=#219 id=219 data-nosnippet>219</a>    bitvec: Symbol,
+<a href=#220 id=220 data-nosnippet>220</a>    hrn: Symbol,
+<a href=#221 id=221 data-nosnippet>221</a>    hdl: Symbol,
+<a href=#222 id=222 data-nosnippet>222</a>    forall: Symbol,
+<a href=#223 id=223 data-nosnippet>223</a>    exists: Symbol,
+<a href=#224 id=224 data-nosnippet>224</a>}
+<a href=#225 id=225 data-nosnippet>225</a>
+<a href=#226 id=226 data-nosnippet>226</a><span class="kw">struct </span>Frame&lt;<span class="lifetime">'t</span>&gt; {
+<a href=#227 id=227 data-nosnippet>227</a>    cursor: Peekable&lt;TokenStreamIter&lt;<span class="lifetime">'t</span>&gt;&gt;,
+<a href=#228 id=228 data-nosnippet>228</a>    close: <span class="prelude-ty">Option</span>&lt;Token&gt;,
+<a href=#229 id=229 data-nosnippet>229</a>}
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a><span class="kw">impl</span>&lt;<span class="lifetime">'t</span>&gt; Cursor&lt;<span class="lifetime">'t</span>&gt; {
+<a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(stream: <span class="kw-2">&amp;</span><span class="lifetime">'t </span>TokenStream, offset: BytePos) -&gt; <span class="self">Self </span>{
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span><span class="kw-2">mut </span>cursor = Cursor {
+<a href=#234 id=234 data-nosnippet>234</a>            stack: <span class="macro">vec!</span>[Frame { cursor: stream.iter().peekable(), close: <span class="prelude-val">None </span>}],
+<a href=#235 id=235 data-nosnippet>235</a>            tokens: VecDeque::new(),
+<a href=#236 id=236 data-nosnippet>236</a>            symbs: Symbols {
+<a href=#237 id=237 data-nosnippet>237</a>                strg: Symbol::intern(<span class="string">"strg"</span>),
+<a href=#238 id=238 data-nosnippet>238</a>                requires: Symbol::intern(<span class="string">"requires"</span>),
+<a href=#239 id=239 data-nosnippet>239</a>                ensures: Symbol::intern(<span class="string">"ensures"</span>),
+<a href=#240 id=240 data-nosnippet>240</a>                qualifier: Symbol::intern(<span class="string">"qualifier"</span>),
+<a href=#241 id=241 data-nosnippet>241</a>                property: Symbol::intern(<span class="string">"property"</span>),
+<a href=#242 id=242 data-nosnippet>242</a>                sort: Symbol::intern(<span class="string">"sort"</span>),
+<a href=#243 id=243 data-nosnippet>243</a>                bitvec: Symbol::intern(<span class="string">"bitvec"</span>),
+<a href=#244 id=244 data-nosnippet>244</a>                opaque: Symbol::intern(<span class="string">"opaque"</span>),
+<a href=#245 id=245 data-nosnippet>245</a>                local: Symbol::intern(<span class="string">"local"</span>),
+<a href=#246 id=246 data-nosnippet>246</a>                hrn: Symbol::intern(<span class="string">"hrn"</span>),
+<a href=#247 id=247 data-nosnippet>247</a>                hdl: Symbol::intern(<span class="string">"hdl"</span>),
+<a href=#248 id=248 data-nosnippet>248</a>                forall: Symbol::intern(<span class="string">"forall"</span>),
+<a href=#249 id=249 data-nosnippet>249</a>                exists: Symbol::intern(<span class="string">"exists"</span>),
+<a href=#250 id=250 data-nosnippet>250</a>            },
+<a href=#251 id=251 data-nosnippet>251</a>            hi: offset,
+<a href=#252 id=252 data-nosnippet>252</a>        };
+<a href=#253 id=253 data-nosnippet>253</a>        cursor.fetch_tokens();
+<a href=#254 id=254 data-nosnippet>254</a>        cursor
+<a href=#255 id=255 data-nosnippet>255</a>    }
+<a href=#256 id=256 data-nosnippet>256</a>
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="attr">#[must_use]
+<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">pub fn </span>at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pos: usize) -&gt; Token {
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">while </span><span class="self">self</span>.tokens.len() &lt;= pos &amp;&amp; <span class="self">self</span>.fetch_tokens() {}
+<a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">if </span>pos &lt; <span class="self">self</span>.tokens.len() {
+<a href=#261 id=261 data-nosnippet>261</a>            <span class="self">self</span>.tokens[pos]
+<a href=#262 id=262 data-nosnippet>262</a>        } <span class="kw">else </span>{
+<a href=#263 id=263 data-nosnippet>263</a>            Token::new(TokenKind::Eof, <span class="self">self</span>.hi, <span class="self">self</span>.hi)
+<a href=#264 id=264 data-nosnippet>264</a>        }
+<a href=#265 id=265 data-nosnippet>265</a>    }
+<a href=#266 id=266 data-nosnippet>266</a>
+<a href=#267 id=267 data-nosnippet>267</a>    <span class="kw">pub fn </span>debug(<span class="kw-2">&amp;mut </span><span class="self">self</span>, size: usize) -&gt; String {
+<a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">let </span><span class="kw-2">mut </span>s = String::new();
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..size {
+<a href=#270 id=270 data-nosnippet>270</a>            s = <span class="macro">format!</span>(<span class="string">"{s} {}"</span>, <span class="self">self</span>.at(i).kind);
+<a href=#271 id=271 data-nosnippet>271</a>        }
+<a href=#272 id=272 data-nosnippet>272</a>        s
+<a href=#273 id=273 data-nosnippet>273</a>    }
+<a href=#274 id=274 data-nosnippet>274</a>
+<a href=#275 id=275 data-nosnippet>275</a>    <span class="kw">pub fn </span>advance(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(tok) = <span class="self">self</span>.tokens.pop_front() {
+<a href=#277 id=277 data-nosnippet>277</a>            <span class="kw">if </span><span class="self">self</span>.tokens.is_empty() {
+<a href=#278 id=278 data-nosnippet>278</a>                <span class="self">self</span>.fetch_tokens();
+<a href=#279 id=279 data-nosnippet>279</a>            }
+<a href=#280 id=280 data-nosnippet>280</a>            <span class="self">self</span>.hi = tok.hi;
+<a href=#281 id=281 data-nosnippet>281</a>        }
+<a href=#282 id=282 data-nosnippet>282</a>    }
+<a href=#283 id=283 data-nosnippet>283</a>
+<a href=#284 id=284 data-nosnippet>284</a>    <span class="kw">pub fn </span>advance_by(<span class="kw-2">&amp;mut </span><span class="self">self</span>, n: usize) {
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">for _ in </span><span class="number">0</span>..n {
+<a href=#286 id=286 data-nosnippet>286</a>            <span class="self">self</span>.advance();
+<a href=#287 id=287 data-nosnippet>287</a>        }
+<a href=#288 id=288 data-nosnippet>288</a>    }
+<a href=#289 id=289 data-nosnippet>289</a>
+<a href=#290 id=290 data-nosnippet>290</a>    <span class="doccomment">/// Returns the starting byte position of the next token
+<a href=#291 id=291 data-nosnippet>291</a>    </span><span class="kw">pub fn </span>lo(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(tok) = <span class="self">self</span>.tokens.front() { tok.lo } <span class="kw">else </span>{ <span class="self">self</span>.hi }
+<a href=#293 id=293 data-nosnippet>293</a>    }
+<a href=#294 id=294 data-nosnippet>294</a>
+<a href=#295 id=295 data-nosnippet>295</a>    <span class="doccomment">/// Returns the highest byte position the cursor has yielded. You could also think of this as
+<a href=#296 id=296 data-nosnippet>296</a>    /// the ending position of the last yielded token.
+<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">pub fn </span>hi(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BytePos {
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="self">self</span>.hi
+<a href=#299 id=299 data-nosnippet>299</a>    }
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>    <span class="kw">fn </span>map_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, token: <span class="kw-2">&amp;</span>rustc_ast::token::Token) {
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>span = token.span;
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw">let </span>kind = <span class="kw">match </span>token.kind {
+<a href=#304 id=304 data-nosnippet>304</a>            rustc_ast::token::Lt =&gt; TokenKind::Lt,
+<a href=#305 id=305 data-nosnippet>305</a>            rustc_ast::token::Le =&gt; TokenKind::Le,
+<a href=#306 id=306 data-nosnippet>306</a>            rustc_ast::token::EqEq =&gt; TokenKind::EqEq,
+<a href=#307 id=307 data-nosnippet>307</a>            rustc_ast::token::Eq =&gt; TokenKind::Eq,
+<a href=#308 id=308 data-nosnippet>308</a>            rustc_ast::token::Ne =&gt; TokenKind::Ne,
+<a href=#309 id=309 data-nosnippet>309</a>            rustc_ast::token::AndAnd =&gt; TokenKind::AndAnd,
+<a href=#310 id=310 data-nosnippet>310</a>            rustc_ast::token::OrOr =&gt; TokenKind::OrOr,
+<a href=#311 id=311 data-nosnippet>311</a>            rustc_ast::token::FatArrow =&gt; TokenKind::FatArrow,
+<a href=#312 id=312 data-nosnippet>312</a>            rustc_ast::token::Gt =&gt; TokenKind::Gt,
+<a href=#313 id=313 data-nosnippet>313</a>            rustc_ast::token::Ge =&gt; TokenKind::Ge,
+<a href=#314 id=314 data-nosnippet>314</a>            rustc_ast::token::At =&gt; TokenKind::At,
+<a href=#315 id=315 data-nosnippet>315</a>            rustc_ast::token::Pound =&gt; TokenKind::Pound,
+<a href=#316 id=316 data-nosnippet>316</a>            rustc_ast::token::Comma =&gt; TokenKind::Comma,
+<a href=#317 id=317 data-nosnippet>317</a>            rustc_ast::token::Colon =&gt; TokenKind::Colon,
+<a href=#318 id=318 data-nosnippet>318</a>            rustc_ast::token::Semi =&gt; TokenKind::Semi,
+<a href=#319 id=319 data-nosnippet>319</a>            rustc_ast::token::RArrow =&gt; TokenKind::RArrow,
+<a href=#320 id=320 data-nosnippet>320</a>            rustc_ast::token::Dot =&gt; TokenKind::Dot,
+<a href=#321 id=321 data-nosnippet>321</a>            rustc_ast::token::OpenParen =&gt; TokenKind::OpenParen,
+<a href=#322 id=322 data-nosnippet>322</a>            rustc_ast::token::OpenBrace =&gt; TokenKind::OpenBrace,
+<a href=#323 id=323 data-nosnippet>323</a>            rustc_ast::token::OpenBracket =&gt; TokenKind::OpenBracket,
+<a href=#324 id=324 data-nosnippet>324</a>            rustc_ast::token::CloseParen =&gt; TokenKind::CloseParen,
+<a href=#325 id=325 data-nosnippet>325</a>            rustc_ast::token::CloseBrace =&gt; TokenKind::CloseBrace,
+<a href=#326 id=326 data-nosnippet>326</a>            rustc_ast::token::CloseBracket =&gt; TokenKind::CloseBracket,
+<a href=#327 id=327 data-nosnippet>327</a>            rustc_ast::token::OpenInvisible(origin) =&gt; TokenKind::OpenInvisible(origin),
+<a href=#328 id=328 data-nosnippet>328</a>            rustc_ast::token::CloseInvisible(origin) =&gt; TokenKind::CloseInvisible(origin),
+<a href=#329 id=329 data-nosnippet>329</a>            rustc_ast::token::Literal(lit) =&gt; TokenKind::Literal(lit),
+<a href=#330 id=330 data-nosnippet>330</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::True || symb == kw::False =&gt; {
+<a href=#331 id=331 data-nosnippet>331</a>                TokenKind::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: <span class="prelude-val">None </span>})
+<a href=#332 id=332 data-nosnippet>332</a>            }
+<a href=#333 id=333 data-nosnippet>333</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.strg =&gt; TokenKind::Strg,
+<a href=#334 id=334 data-nosnippet>334</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.requires =&gt; TokenKind::Requires,
+<a href=#335 id=335 data-nosnippet>335</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.ensures =&gt; TokenKind::Ensures,
+<a href=#336 id=336 data-nosnippet>336</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.qualifier =&gt; {
+<a href=#337 id=337 data-nosnippet>337</a>                TokenKind::Qualifier
+<a href=#338 id=338 data-nosnippet>338</a>            }
+<a href=#339 id=339 data-nosnippet>339</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.property =&gt; TokenKind::Property,
+<a href=#340 id=340 data-nosnippet>340</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.sort =&gt; TokenKind::Sort,
+<a href=#341 id=341 data-nosnippet>341</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.opaque =&gt; TokenKind::Opaque,
+<a href=#342 id=342 data-nosnippet>342</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.local =&gt; TokenKind::Local,
+<a href=#343 id=343 data-nosnippet>343</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.bitvec =&gt; TokenKind::BitVec,
+<a href=#344 id=344 data-nosnippet>344</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.hrn =&gt; TokenKind::Hrn,
+<a href=#345 id=345 data-nosnippet>345</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.hdl =&gt; TokenKind::Hdl,
+<a href=#346 id=346 data-nosnippet>346</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.forall =&gt; TokenKind::Forall,
+<a href=#347 id=347 data-nosnippet>347</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == <span class="self">self</span>.symbs.exists =&gt; TokenKind::Exists,
+<a href=#348 id=348 data-nosnippet>348</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Let =&gt; TokenKind::Let,
+<a href=#349 id=349 data-nosnippet>349</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::In =&gt; TokenKind::In,
+<a href=#350 id=350 data-nosnippet>350</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Ref =&gt; TokenKind::Ref,
+<a href=#351 id=351 data-nosnippet>351</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Fn =&gt; TokenKind::Fn,
+<a href=#352 id=352 data-nosnippet>352</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Mut =&gt; TokenKind::Mut,
+<a href=#353 id=353 data-nosnippet>353</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Where =&gt; TokenKind::Where,
+<a href=#354 id=354 data-nosnippet>354</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Impl =&gt; TokenKind::Impl,
+<a href=#355 id=355 data-nosnippet>355</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Type =&gt; TokenKind::Type,
+<a href=#356 id=356 data-nosnippet>356</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::If =&gt; TokenKind::If,
+<a href=#357 id=357 data-nosnippet>357</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Else =&gt; TokenKind::Else,
+<a href=#358 id=358 data-nosnippet>358</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Async =&gt; TokenKind::Async,
+<a href=#359 id=359 data-nosnippet>359</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::As =&gt; TokenKind::As,
+<a href=#360 id=360 data-nosnippet>360</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) <span class="kw">if </span>symb == kw::Underscore =&gt; TokenKind::Underscore,
+<a href=#361 id=361 data-nosnippet>361</a>            rustc_ast::token::Ident(symb, <span class="kw">_</span>) =&gt; TokenKind::Ident(symb),
+<a href=#362 id=362 data-nosnippet>362</a>            rustc_ast::token::NtIdent(ident, <span class="kw">_</span>) =&gt; TokenKind::Ident(ident.name),
+<a href=#363 id=363 data-nosnippet>363</a>            rustc_ast::token::Or =&gt; TokenKind::Caret,
+<a href=#364 id=364 data-nosnippet>364</a>            rustc_ast::token::Plus =&gt; TokenKind::Plus,
+<a href=#365 id=365 data-nosnippet>365</a>            rustc_ast::token::Slash =&gt; TokenKind::Slash,
+<a href=#366 id=366 data-nosnippet>366</a>            rustc_ast::token::Minus =&gt; TokenKind::Minus,
+<a href=#367 id=367 data-nosnippet>367</a>            rustc_ast::token::And =&gt; TokenKind::And,
+<a href=#368 id=368 data-nosnippet>368</a>            rustc_ast::token::Percent =&gt; TokenKind::Percent,
+<a href=#369 id=369 data-nosnippet>369</a>            rustc_ast::token::Star =&gt; TokenKind::Star,
+<a href=#370 id=370 data-nosnippet>370</a>            rustc_ast::token::Shl =&gt; {
+<a href=#371 id=371 data-nosnippet>371</a>                <span class="self">self</span>.tokens.push_back(Token::new(
+<a href=#372 id=372 data-nosnippet>372</a>                    TokenKind::LtFollowedByLt,
+<a href=#373 id=373 data-nosnippet>373</a>                    span.lo(),
+<a href=#374 id=374 data-nosnippet>374</a>                    span.hi() - BytePos(<span class="number">1</span>),
+<a href=#375 id=375 data-nosnippet>375</a>                ));
+<a href=#376 id=376 data-nosnippet>376</a>                <span class="self">self</span>.tokens
+<a href=#377 id=377 data-nosnippet>377</a>                    .push_back(Token::new(TokenKind::Lt, span.lo() + BytePos(<span class="number">1</span>), span.hi()));
+<a href=#378 id=378 data-nosnippet>378</a>                <span class="kw">return</span>;
+<a href=#379 id=379 data-nosnippet>379</a>            }
+<a href=#380 id=380 data-nosnippet>380</a>            rustc_ast::token::Shr =&gt; {
+<a href=#381 id=381 data-nosnippet>381</a>                <span class="self">self</span>.tokens.push_back(Token::new(
+<a href=#382 id=382 data-nosnippet>382</a>                    TokenKind::GtFollowedByGt,
+<a href=#383 id=383 data-nosnippet>383</a>                    span.lo(),
+<a href=#384 id=384 data-nosnippet>384</a>                    span.hi() - BytePos(<span class="number">1</span>),
+<a href=#385 id=385 data-nosnippet>385</a>                ));
+<a href=#386 id=386 data-nosnippet>386</a>                <span class="self">self</span>.tokens
+<a href=#387 id=387 data-nosnippet>387</a>                    .push_back(Token::new(TokenKind::Gt, span.lo() + BytePos(<span class="number">1</span>), span.hi()));
+<a href=#388 id=388 data-nosnippet>388</a>                <span class="kw">return</span>;
+<a href=#389 id=389 data-nosnippet>389</a>            }
+<a href=#390 id=390 data-nosnippet>390</a>            rustc_ast::token::Bang =&gt; TokenKind::Bang,
+<a href=#391 id=391 data-nosnippet>391</a>            rustc_ast::token::PathSep =&gt; TokenKind::PathSep,
+<a href=#392 id=392 data-nosnippet>392</a>            rustc_ast::token::DotDot =&gt; TokenKind::DotDot,
+<a href=#393 id=393 data-nosnippet>393</a>            <span class="kw">_ </span>=&gt; TokenKind::Invalid,
+<a href=#394 id=394 data-nosnippet>394</a>        };
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="self">self</span>.tokens
+<a href=#396 id=396 data-nosnippet>396</a>            .push_back(Token::new(kind, span.lo(), span.hi()));
+<a href=#397 id=397 data-nosnippet>397</a>    }
+<a href=#398 id=398 data-nosnippet>398</a>
+<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">fn </span>fetch_tokens(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+<a href=#400 id=400 data-nosnippet>400</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(top) = <span class="self">self</span>.stack.last_mut() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+<a href=#401 id=401 data-nosnippet>401</a>
+<a href=#402 id=402 data-nosnippet>402</a>        <span class="kw">match </span>top.cursor.next() {
+<a href=#403 id=403 data-nosnippet>403</a>            <span class="prelude-val">Some</span>(TokenTree::Token(token, <span class="kw">_</span>)) =&gt; {
+<a href=#404 id=404 data-nosnippet>404</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(TokenTree::Token(next, <span class="kw">_</span>)) = top.cursor.peek() {
+<a href=#405 id=405 data-nosnippet>405</a>                    <span class="kw">match </span>(<span class="kw-2">&amp;</span>token.kind, <span class="kw-2">&amp;</span>next.kind) {
+<a href=#406 id=406 data-nosnippet>406</a>                        (rustc_ast::token::Le, rustc_ast::token::Gt)
+<a href=#407 id=407 data-nosnippet>407</a>                            <span class="kw">if </span>token.span.hi() == next.span.lo() =&gt;
+<a href=#408 id=408 data-nosnippet>408</a>                        {
+<a href=#409 id=409 data-nosnippet>409</a>                            top.cursor.next();
+<a href=#410 id=410 data-nosnippet>410</a>                            <span class="self">self</span>.tokens.push_back(Token::new(
+<a href=#411 id=411 data-nosnippet>411</a>                                TokenKind::Iff,
+<a href=#412 id=412 data-nosnippet>412</a>                                token.span.lo(),
+<a href=#413 id=413 data-nosnippet>413</a>                                next.span.hi(),
+<a href=#414 id=414 data-nosnippet>414</a>                            ));
+<a href=#415 id=415 data-nosnippet>415</a>                            <span class="kw">return </span><span class="bool-val">true</span>;
+<a href=#416 id=416 data-nosnippet>416</a>                        }
+<a href=#417 id=417 data-nosnippet>417</a>                        <span class="kw">_ </span>=&gt; {}
+<a href=#418 id=418 data-nosnippet>418</a>                    }
+<a href=#419 id=419 data-nosnippet>419</a>                }
+<a href=#420 id=420 data-nosnippet>420</a>                <span class="self">self</span>.map_token(token);
+<a href=#421 id=421 data-nosnippet>421</a>                <span class="bool-val">true
+<a href=#422 id=422 data-nosnippet>422</a>            </span>}
+<a href=#423 id=423 data-nosnippet>423</a>            <span class="prelude-val">Some</span>(TokenTree::Delimited(<span class="kw">_</span>, _spacing, Delimiter::Invisible(..), tokens)) =&gt; {
+<a href=#424 id=424 data-nosnippet>424</a>                <span class="self">self</span>.stack
+<a href=#425 id=425 data-nosnippet>425</a>                    .push(Frame { cursor: tokens.iter().peekable(), close: <span class="prelude-val">None </span>});
+<a href=#426 id=426 data-nosnippet>426</a>                <span class="self">self</span>.fetch_tokens()
+<a href=#427 id=427 data-nosnippet>427</a>            }
+<a href=#428 id=428 data-nosnippet>428</a>            <span class="prelude-val">Some</span>(TokenTree::Delimited(span, _spacing, delim, tokens)) =&gt; {
+<a href=#429 id=429 data-nosnippet>429</a>                <span class="kw">let </span>close_kind = <span class="kw">match </span>delim {
+<a href=#430 id=430 data-nosnippet>430</a>                    Delimiter::Parenthesis =&gt; TokenKind::CloseParen,
+<a href=#431 id=431 data-nosnippet>431</a>                    Delimiter::Brace =&gt; TokenKind::CloseBrace,
+<a href=#432 id=432 data-nosnippet>432</a>                    Delimiter::Bracket =&gt; TokenKind::CloseBracket,
+<a href=#433 id=433 data-nosnippet>433</a>                    Delimiter::Invisible(origin) =&gt; TokenKind::CloseInvisible(<span class="kw-2">*</span>origin),
+<a href=#434 id=434 data-nosnippet>434</a>                };
+<a href=#435 id=435 data-nosnippet>435</a>                <span class="kw">let </span>close = Token::new(close_kind, span.close.lo(), span.close.hi());
+<a href=#436 id=436 data-nosnippet>436</a>
+<a href=#437 id=437 data-nosnippet>437</a>                <span class="self">self</span>.stack
+<a href=#438 id=438 data-nosnippet>438</a>                    .push(Frame { cursor: tokens.iter().peekable(), close: <span class="prelude-val">Some</span>(close) });
+<a href=#439 id=439 data-nosnippet>439</a>
+<a href=#440 id=440 data-nosnippet>440</a>                <span class="kw">let </span>kind = <span class="kw">match </span>delim {
+<a href=#441 id=441 data-nosnippet>441</a>                    Delimiter::Parenthesis =&gt; rustc_ast::token::OpenParen,
+<a href=#442 id=442 data-nosnippet>442</a>                    Delimiter::Brace =&gt; rustc_ast::token::OpenBrace,
+<a href=#443 id=443 data-nosnippet>443</a>                    Delimiter::Bracket =&gt; rustc_ast::token::OpenBracket,
+<a href=#444 id=444 data-nosnippet>444</a>                    Delimiter::Invisible(origin) =&gt; rustc_ast::token::OpenInvisible(<span class="kw-2">*</span>origin),
+<a href=#445 id=445 data-nosnippet>445</a>                };
+<a href=#446 id=446 data-nosnippet>446</a>
+<a href=#447 id=447 data-nosnippet>447</a>                <span class="kw">let </span>token = rustc_ast::token::Token { kind, span: span.open };
+<a href=#448 id=448 data-nosnippet>448</a>                <span class="self">self</span>.map_token(<span class="kw-2">&amp;</span>token);
+<a href=#449 id=449 data-nosnippet>449</a>                <span class="bool-val">true
+<a href=#450 id=450 data-nosnippet>450</a>            </span>}
+<a href=#451 id=451 data-nosnippet>451</a>            <span class="prelude-val">None </span>=&gt; {
+<a href=#452 id=452 data-nosnippet>452</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(frame) = <span class="self">self</span>.stack.pop() <span class="kw">else </span>{ <span class="kw">return </span><span class="bool-val">false </span>};
+<a href=#453 id=453 data-nosnippet>453</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(token) = frame.close {
+<a href=#454 id=454 data-nosnippet>454</a>                    <span class="self">self</span>.tokens.push_back(token);
+<a href=#455 id=455 data-nosnippet>455</a>                    <span class="bool-val">true
+<a href=#456 id=456 data-nosnippet>456</a>                </span>} <span class="kw">else </span>{
+<a href=#457 id=457 data-nosnippet>457</a>                    <span class="self">self</span>.fetch_tokens()
+<a href=#458 id=458 data-nosnippet>458</a>                }
+<a href=#459 id=459 data-nosnippet>459</a>            }
+<a href=#460 id=460 data-nosnippet>460</a>        }
+<a href=#461 id=461 data-nosnippet>461</a>    }
+<a href=#462 id=462 data-nosnippet>462</a>}</code></pre></div></section></main></body></html>

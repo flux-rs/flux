@@ -8,7 +8,7 @@
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">mod </span>parser;
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">pub mod </span>surface;
 <a href=#10 id=10 data-nosnippet>10</a>
-<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>lexer::{Cursor, Token};
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>lexer::{Cursor, TokenKind};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>parser::lookahead::Peek;
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>rustc_ast::tokenstream::TokenStream;
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
@@ -162,13 +162,13 @@
 <a href=#162 id=162 data-nosnippet>162</a>    }
 <a href=#163 id=163 data-nosnippet>163</a>
 <a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">fn </span>unexpected_token(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expected: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;) -&gt; ParseError {
-<a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>(lo, tok, hi) = <span class="self">self</span>.tokens.at(<span class="number">0</span>);
-<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">let </span>kind = <span class="kw">if </span>tok == Token::Eof {
+<a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>tok = <span class="self">self</span>.tokens.at(<span class="number">0</span>);
+<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">let </span>kind = <span class="kw">if </span>tok.kind == TokenKind::Eof {
 <a href=#167 id=167 data-nosnippet>167</a>            ParseErrorKind::UnexpectedEof
 <a href=#168 id=168 data-nosnippet>168</a>        } <span class="kw">else </span>{
 <a href=#169 id=169 data-nosnippet>169</a>            ParseErrorKind::UnexpectedToken { expected }
 <a href=#170 id=170 data-nosnippet>170</a>        };
-<a href=#171 id=171 data-nosnippet>171</a>        ParseError { kind, span: <span class="self">self</span>.mk_span(lo, hi) }
+<a href=#171 id=171 data-nosnippet>171</a>        ParseError { kind, span: <span class="self">self</span>.mk_span(tok.lo, tok.hi) }
 <a href=#172 id=172 data-nosnippet>172</a>    }
 <a href=#173 id=173 data-nosnippet>173</a>
 <a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">fn </span>cannot_be_chained(<span class="kw-2">&amp;</span><span class="self">self</span>, lo: BytePos, hi: BytePos) -&gt; ParseError {
