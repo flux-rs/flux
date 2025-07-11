@@ -8,7 +8,7 @@ use crate::{
 
 /// A trait for testing whether a token matches a rule.
 ///
-/// This trait is primarily implemented for [`Token`] to test for exact equality.
+/// This trait is primarily implemented for [`TokenKind`] to test for exact equality.
 pub(crate) trait Peek: Copy {
     /// Returns true if a token matches this rule
     fn matches(self, tok: TokenKind) -> bool;

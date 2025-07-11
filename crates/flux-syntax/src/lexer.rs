@@ -93,26 +93,26 @@ impl Token {
 }
 
 /// Convenience module so we can refer to token kinds as `token::*`
-pub mod tok {
+pub mod token {
     pub use super::TokenKind::*;
 }
 
 impl TokenKind {
     pub fn open_delim(delim: Delimiter) -> TokenKind {
         match delim {
-            Delimiter::Parenthesis => tok::OpenParen,
-            Delimiter::Bracket => tok::OpenBracket,
-            Delimiter::Brace => tok::OpenBrace,
-            Delimiter::Invisible(origin) => tok::OpenInvisible(origin),
+            Delimiter::Parenthesis => token::OpenParen,
+            Delimiter::Bracket => token::OpenBracket,
+            Delimiter::Brace => token::OpenBrace,
+            Delimiter::Invisible(origin) => token::OpenInvisible(origin),
         }
     }
 
     pub fn close_delim(delim: Delimiter) -> TokenKind {
         match delim {
-            Delimiter::Parenthesis => tok::CloseParen,
-            Delimiter::Bracket => tok::CloseBracket,
-            Delimiter::Brace => tok::CloseBrace,
-            Delimiter::Invisible(origin) => tok::CloseInvisible(origin),
+            Delimiter::Parenthesis => token::CloseParen,
+            Delimiter::Bracket => token::CloseBracket,
+            Delimiter::Brace => token::CloseBrace,
+            Delimiter::Invisible(origin) => token::CloseInvisible(origin),
         }
     }
 
@@ -298,7 +298,7 @@ impl<'t> Cursor<'t> {
         self.hi
     }
 
-    fn map_token(&mut self, token: &token::Token) {
+    fn map_token(&mut self, token: &rustc_ast::token::Token) {
         let span = token.span;
         let kind = match token.kind {
             rustc_ast::token::Lt => TokenKind::Lt,
@@ -444,7 +444,7 @@ impl<'t> Cursor<'t> {
                     Delimiter::Invisible(origin) => rustc_ast::token::OpenInvisible(*origin),
                 };
 
-                let token = token::Token { kind, span: span.open };
+                let token = rustc_ast::token::Token { kind, span: span.open };
                 self.map_token(&token);
                 true
             }
