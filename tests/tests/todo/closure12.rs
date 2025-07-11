@@ -5,9 +5,6 @@
 
 use flux_rs::attrs::*;
 
-#[path = "../lib/vec.rs"]
-mod vec;
-
 #[path = "../lib/iterator.rs"]
 mod iterator;
 

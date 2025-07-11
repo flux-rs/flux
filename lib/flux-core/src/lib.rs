@@ -3,5 +3,9 @@
 
 mod iter;
 mod ops;
+
+#[cfg(flux)]
 mod option;
+
+#[cfg(flux)]
 mod slice;

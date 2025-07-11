@@ -1,11 +1,8 @@
 #![feature(step_trait, allocator_api)]
 #![allow(unused)]
 
-#[path = "../../lib/iterator.rs"]
-mod iterator;
-
-#[path = "../../lib/vec.rs"]
-mod vec;
+extern crate flux_alloc;
+extern crate flux_core;
 
 #[flux_rs::sig(fn (bool[true]))]
 pub fn assert(b: bool) {}

@@ -3,12 +3,8 @@
 #![feature(allocator_api)]
 
 use std::ops::Index;
-
-#[path = "../../lib/vec.rs"]
-mod vec;
-
-#[path = "../../lib/iterator.rs"]
-mod iterator;
+extern crate flux_alloc;
+extern crate flux_core;
 
 // #[flux_rs::sig(fn (bool[true]))]
 // fn assert(b: bool) {}
