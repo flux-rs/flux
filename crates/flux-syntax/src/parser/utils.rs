@@ -3,14 +3,14 @@
 use super::{LAngle, RAngle, lookahead::Peek};
 use crate::{
     ParseCtxt, ParseResult,
-    lexer::{Delimiter, Token},
+    lexer::{Delimiter, TokenKind},
 };
 
 /// Parses a list of one ore more items separated by the requested token. Parsing continues
 /// until no separation token is found.
 pub(crate) fn sep1<R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     let mut items = vec![parse(cx)?];
@@ -55,7 +55,7 @@ pub(crate) fn until<P: Peek, R>(
 /// Returns the vector of items and a boolean indicating whether trailing punctuation was present.
 pub(crate) fn punctuated_with_trailing<E: Peek, R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     end: E,
     mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<(Vec<R>, bool)> {
@@ -76,29 +76,11 @@ pub(crate) fn punctuated_with_trailing<E: Peek, R>(
 /// consume the end token.
 pub(crate) fn punctuated_until<E: Peek, R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     end: E,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     Ok(punctuated_with_trailing(cx, sep, end, parse)?.0)
-}
-
-pub(crate) fn open_delim(delim: Delimiter) -> Token {
-    match delim {
-        Delimiter::Parenthesis => Token::OpenParen,
-        Delimiter::Bracket => Token::OpenBracket,
-        Delimiter::Brace => Token::OpenBrace,
-        Delimiter::Invisible(origin) => Token::OpenInvisible(origin),
-    }
-}
-
-pub(crate) fn close_delim(delim: Delimiter) -> Token {
-    match delim {
-        Delimiter::Parenthesis => Token::CloseParen,
-        Delimiter::Bracket => Token::CloseBracket,
-        Delimiter::Brace => Token::CloseBrace,
-        Delimiter::Invisible(origin) => Token::CloseInvisible(origin),
-    }
 }
 
 /// Parses an item surrounded by an opening an closing [`Delimiter`]
@@ -107,15 +89,15 @@ pub(crate) fn delimited<R>(
     delim: Delimiter,
     parse: impl FnOnce(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<R> {
-    cx.expect(open_delim(delim))?;
+    cx.expect(TokenKind::open_delim(delim))?;
     let r = parse(cx)?;
-    cx.expect(close_delim(delim))?;
+    cx.expect(TokenKind::close_delim(delim))?;
     Ok(r)
 }
 
 pub(crate) fn opt_angle<R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     if !cx.peek(LAngle) {
@@ -126,7 +108,7 @@ pub(crate) fn opt_angle<R>(
 
 pub(crate) fn angle<R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     cx.expect(LAngle)?;
@@ -138,18 +120,18 @@ pub(crate) fn angle<R>(
 fn punctuated_delimited<R>(
     cx: &mut ParseCtxt,
     delim: Delimiter,
-    sep: Token,
+    sep: TokenKind,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
-    cx.expect(open_delim(delim))?;
-    let r = punctuated_until(cx, sep, close_delim(delim), parse)?;
-    cx.expect(close_delim(delim))?;
+    cx.expect(TokenKind::open_delim(delim))?;
+    let r = punctuated_until(cx, sep, TokenKind::close_delim(delim), parse)?;
+    cx.expect(TokenKind::close_delim(delim))?;
     Ok(r)
 }
 
 pub(crate) fn brackets<R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     punctuated_delimited(cx, Delimiter::Bracket, sep, parse)
@@ -157,7 +139,7 @@ pub(crate) fn brackets<R>(
 
 pub(crate) fn parens<R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     punctuated_delimited(cx, Delimiter::Parenthesis, sep, parse)
@@ -165,7 +147,7 @@ pub(crate) fn parens<R>(
 
 pub(crate) fn braces<R>(
     cx: &mut ParseCtxt,
-    sep: Token,
+    sep: TokenKind,
     parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     punctuated_delimited(cx, Delimiter::Brace, sep, parse)
