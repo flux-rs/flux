@@ -73,13 +73,6 @@ pub(crate) fn parse_reveal_names(cx: &mut ParseCtxt) -> ParseResult<RevealNames>
     Ok(RevealNames { names })
 }
 
-pub(crate) fn parse_generics(cx: &mut ParseCtxt) -> ParseResult<Generics> {
-    let lo = cx.lo();
-    let params = punctuated_until(cx, Comma, Tok::Eof, parse_generic_param)?;
-    let hi = cx.hi();
-    Ok(Generics { params, predicates: None, span: cx.mk_span(lo, hi) })
-}
-
 pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
     until(cx, Tok::Eof, parse_flux_item)
 }

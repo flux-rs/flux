@@ -455,9 +455,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("refined_by", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)?
             }
-            ("generics", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_generics, FluxAttrKind::Generics)?
-            }
             ("field", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)?
             }
