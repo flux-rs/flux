@@ -13,7 +13,7 @@ use crate::{
     ParseCtxt, ParseError, ParseResult, Peek as _,
     lexer::{
         Delimiter::*,
-        Token::{Caret, Comma},
+        TokenKind::{Caret, Comma},
         tok,
     },
     surface::{

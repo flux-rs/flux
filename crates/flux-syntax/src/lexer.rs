@@ -2,13 +2,13 @@ use std::{collections::VecDeque, fmt, iter::Peekable};
 
 pub use rustc_ast::token::{Delimiter, Lit, LitKind};
 use rustc_ast::{
-    token::{self, InvisibleOrigin, TokenKind},
+    token::InvisibleOrigin,
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 };
 use rustc_span::{BytePos, Symbol, symbol::kw};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Token {
+pub enum TokenKind {
     Caret,
     EqEq,
     Eq,
@@ -81,11 +81,11 @@ pub enum Token {
 
 /// Convenience module so we can refer to tokens as `tok::*`
 pub mod tok {
-    pub use super::Token::*;
+    pub use super::TokenKind::*;
 }
 
-impl Token {
-    pub fn open_delim(delim: Delimiter) -> Token {
+impl TokenKind {
+    pub fn open_delim(delim: Delimiter) -> TokenKind {
         match delim {
             Delimiter::Parenthesis => tok::OpenParen,
             Delimiter::Bracket => tok::OpenBracket,
@@ -94,7 +94,7 @@ impl Token {
         }
     }
 
-    pub(crate) fn close_delim(delim: Delimiter) -> Token {
+    pub(crate) fn close_delim(delim: Delimiter) -> TokenKind {
         match delim {
             Delimiter::Parenthesis => tok::CloseParen,
             Delimiter::Bracket => tok::CloseBracket,
@@ -105,83 +105,83 @@ impl Token {
 
     pub fn descr(&self) -> &'static str {
         match self {
-            Token::Caret => "|",
-            Token::EqEq => "==",
-            Token::Eq => "=",
-            Token::AndAnd => "&&",
-            Token::OrOr => "||",
-            Token::Plus => "+",
-            Token::Minus => "-",
-            Token::Slash => "/",
-            Token::Bang => "!",
-            Token::Star => "*",
-            Token::Colon => ":",
-            Token::Comma => ",",
-            Token::Semi => ";",
-            Token::RArrow => "->",
-            Token::Dot => ".",
-            Token::Le => "<=",
-            Token::Ne => ">=",
-            Token::GtFollowedByGt => ">",
-            Token::Gt => ">",
-            Token::LtFollowedByLt => "<",
-            Token::Lt => "<",
-            Token::Ge => ">=",
-            Token::At => "@",
-            Token::Pound => "#",
-            Token::Underscore => "_",
-            Token::Fn => "fn",
-            Token::Async => "async",
-            Token::Iff => "<=>",
-            Token::FatArrow => "=>",
-            Token::Let => "let",
-            Token::Mut => "mut",
-            Token::Where => "where",
-            Token::Forall => "forall",
-            Token::Exists => "exists",
-            Token::In => "in",
-            Token::Impl => "impl",
-            Token::Requires => "requires",
-            Token::Ensures => "ensures",
-            Token::Literal(_) => "literal",
-            Token::Ident(_) => "identifier",
-            Token::OpenParen => "(",
-            Token::OpenBrace => "{",
-            Token::OpenBracket => "[",
-            Token::CloseParen => ")",
-            Token::CloseBrace => "}",
-            Token::CloseBracket => "]",
-            Token::OpenInvisible(_) => "",
-            Token::CloseInvisible(_) => "",
-            Token::Invalid => "<invalid>",
-            Token::Ref => "ref",
-            Token::And => "&",
-            Token::Percent => "%",
-            Token::Strg => "strg",
-            Token::Type => "type",
-            Token::If => "if",
-            Token::Else => "else",
-            Token::PathSep => "::",
-            Token::Qualifier => "qualifier",
-            Token::Property => "property",
-            Token::Sort => "sort",
-            Token::Opaque => "opaque",
-            Token::Local => "local",
-            Token::BitVec => "bitvec",
-            Token::As => "as",
-            Token::Hrn => "rn",
-            Token::Hdl => "hdl",
-            Token::DotDot => "..",
-            Token::Eof => "<eof>",
+            TokenKind::Caret => "|",
+            TokenKind::EqEq => "==",
+            TokenKind::Eq => "=",
+            TokenKind::AndAnd => "&&",
+            TokenKind::OrOr => "||",
+            TokenKind::Plus => "+",
+            TokenKind::Minus => "-",
+            TokenKind::Slash => "/",
+            TokenKind::Bang => "!",
+            TokenKind::Star => "*",
+            TokenKind::Colon => ":",
+            TokenKind::Comma => ",",
+            TokenKind::Semi => ";",
+            TokenKind::RArrow => "->",
+            TokenKind::Dot => ".",
+            TokenKind::Le => "<=",
+            TokenKind::Ne => ">=",
+            TokenKind::GtFollowedByGt => ">",
+            TokenKind::Gt => ">",
+            TokenKind::LtFollowedByLt => "<",
+            TokenKind::Lt => "<",
+            TokenKind::Ge => ">=",
+            TokenKind::At => "@",
+            TokenKind::Pound => "#",
+            TokenKind::Underscore => "_",
+            TokenKind::Fn => "fn",
+            TokenKind::Async => "async",
+            TokenKind::Iff => "<=>",
+            TokenKind::FatArrow => "=>",
+            TokenKind::Let => "let",
+            TokenKind::Mut => "mut",
+            TokenKind::Where => "where",
+            TokenKind::Forall => "forall",
+            TokenKind::Exists => "exists",
+            TokenKind::In => "in",
+            TokenKind::Impl => "impl",
+            TokenKind::Requires => "requires",
+            TokenKind::Ensures => "ensures",
+            TokenKind::Literal(_) => "literal",
+            TokenKind::Ident(_) => "identifier",
+            TokenKind::OpenParen => "(",
+            TokenKind::OpenBrace => "{",
+            TokenKind::OpenBracket => "[",
+            TokenKind::CloseParen => ")",
+            TokenKind::CloseBrace => "}",
+            TokenKind::CloseBracket => "]",
+            TokenKind::OpenInvisible(_) => "",
+            TokenKind::CloseInvisible(_) => "",
+            TokenKind::Invalid => "<invalid>",
+            TokenKind::Ref => "ref",
+            TokenKind::And => "&",
+            TokenKind::Percent => "%",
+            TokenKind::Strg => "strg",
+            TokenKind::Type => "type",
+            TokenKind::If => "if",
+            TokenKind::Else => "else",
+            TokenKind::PathSep => "::",
+            TokenKind::Qualifier => "qualifier",
+            TokenKind::Property => "property",
+            TokenKind::Sort => "sort",
+            TokenKind::Opaque => "opaque",
+            TokenKind::Local => "local",
+            TokenKind::BitVec => "bitvec",
+            TokenKind::As => "as",
+            TokenKind::Hrn => "rn",
+            TokenKind::Hdl => "hdl",
+            TokenKind::DotDot => "..",
+            TokenKind::Eof => "<eof>",
         }
     }
 }
 
-impl fmt::Display for Token {
+impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Token::Literal(lit) => write!(f, "{lit}"),
-            Token::Ident(sym) => write!(f, "{sym}"),
+            TokenKind::Literal(lit) => write!(f, "{lit}"),
+            TokenKind::Ident(sym) => write!(f, "{sym}"),
             _ => write!(f, "{}", self.descr()),
         }
     }
@@ -190,7 +190,7 @@ impl fmt::Display for Token {
 pub struct Cursor<'t> {
     stack: Vec<Frame<'t>>,
     symbs: Symbols,
-    tokens: VecDeque<(BytePos, Token, BytePos)>,
+    tokens: VecDeque<(BytePos, TokenKind, BytePos)>,
     hi: BytePos,
 }
 
@@ -212,7 +212,7 @@ struct Symbols {
 
 struct Frame<'t> {
     cursor: Peekable<TokenStreamIter<'t>>,
-    close: Option<(BytePos, Token, BytePos)>,
+    close: Option<(BytePos, TokenKind, BytePos)>,
 }
 
 impl<'t> Cursor<'t> {
@@ -242,9 +242,9 @@ impl<'t> Cursor<'t> {
     }
 
     #[must_use]
-    pub fn at(&mut self, pos: usize) -> (BytePos, Token, BytePos) {
+    pub fn at(&mut self, pos: usize) -> (BytePos, TokenKind, BytePos) {
         while self.tokens.len() <= pos && self.fetch_tokens() {}
-        if pos < self.tokens.len() { self.tokens[pos] } else { (self.hi, Token::Eof, self.hi) }
+        if pos < self.tokens.len() { self.tokens[pos] } else { (self.hi, TokenKind::Eof, self.hi) }
     }
 
     pub fn debug(&mut self, size: usize) -> String {
@@ -284,88 +284,96 @@ impl<'t> Cursor<'t> {
     fn map_token(&mut self, token: &token::Token) {
         let span = token.span;
         let token = match token.kind {
-            TokenKind::Lt => Token::Lt,
-            TokenKind::Le => Token::Le,
-            TokenKind::EqEq => Token::EqEq,
-            TokenKind::Eq => Token::Eq,
-            TokenKind::Ne => Token::Ne,
-            TokenKind::AndAnd => Token::AndAnd,
-            TokenKind::OrOr => Token::OrOr,
-            TokenKind::FatArrow => Token::FatArrow,
-            TokenKind::Gt => Token::Gt,
-            TokenKind::Ge => Token::Ge,
-            TokenKind::At => Token::At,
-            TokenKind::Pound => Token::Pound,
-            TokenKind::Comma => Token::Comma,
-            TokenKind::Colon => Token::Colon,
-            TokenKind::Semi => Token::Semi,
-            TokenKind::RArrow => Token::RArrow,
-            TokenKind::Dot => Token::Dot,
-            TokenKind::OpenParen => Token::OpenParen,
-            TokenKind::OpenBrace => Token::OpenBrace,
-            TokenKind::OpenBracket => Token::OpenBracket,
-            TokenKind::CloseParen => Token::CloseParen,
-            TokenKind::CloseBrace => Token::CloseBrace,
-            TokenKind::CloseBracket => Token::CloseBracket,
-            TokenKind::OpenInvisible(origin) => Token::OpenInvisible(origin),
-            TokenKind::CloseInvisible(origin) => Token::CloseInvisible(origin),
-            TokenKind::Literal(lit) => Token::Literal(lit),
-            TokenKind::Ident(symb, _) if symb == kw::True || symb == kw::False => {
-                Token::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
+            rustc_ast::token::Lt => TokenKind::Lt,
+            rustc_ast::token::Le => TokenKind::Le,
+            rustc_ast::token::EqEq => TokenKind::EqEq,
+            rustc_ast::token::Eq => TokenKind::Eq,
+            rustc_ast::token::Ne => TokenKind::Ne,
+            rustc_ast::token::AndAnd => TokenKind::AndAnd,
+            rustc_ast::token::OrOr => TokenKind::OrOr,
+            rustc_ast::token::FatArrow => TokenKind::FatArrow,
+            rustc_ast::token::Gt => TokenKind::Gt,
+            rustc_ast::token::Ge => TokenKind::Ge,
+            rustc_ast::token::At => TokenKind::At,
+            rustc_ast::token::Pound => TokenKind::Pound,
+            rustc_ast::token::Comma => TokenKind::Comma,
+            rustc_ast::token::Colon => TokenKind::Colon,
+            rustc_ast::token::Semi => TokenKind::Semi,
+            rustc_ast::token::RArrow => TokenKind::RArrow,
+            rustc_ast::token::Dot => TokenKind::Dot,
+            rustc_ast::token::OpenParen => TokenKind::OpenParen,
+            rustc_ast::token::OpenBrace => TokenKind::OpenBrace,
+            rustc_ast::token::OpenBracket => TokenKind::OpenBracket,
+            rustc_ast::token::CloseParen => TokenKind::CloseParen,
+            rustc_ast::token::CloseBrace => TokenKind::CloseBrace,
+            rustc_ast::token::CloseBracket => TokenKind::CloseBracket,
+            rustc_ast::token::OpenInvisible(origin) => TokenKind::OpenInvisible(origin),
+            rustc_ast::token::CloseInvisible(origin) => TokenKind::CloseInvisible(origin),
+            rustc_ast::token::Literal(lit) => TokenKind::Literal(lit),
+            rustc_ast::token::Ident(symb, _) if symb == kw::True || symb == kw::False => {
+                TokenKind::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }
-            TokenKind::Ident(symb, _) if symb == self.symbs.strg => Token::Strg,
-            TokenKind::Ident(symb, _) if symb == self.symbs.requires => Token::Requires,
-            TokenKind::Ident(symb, _) if symb == self.symbs.ensures => Token::Ensures,
-            TokenKind::Ident(symb, _) if symb == self.symbs.qualifier => Token::Qualifier,
-            TokenKind::Ident(symb, _) if symb == self.symbs.property => Token::Property,
-            TokenKind::Ident(symb, _) if symb == self.symbs.sort => Token::Sort,
-            TokenKind::Ident(symb, _) if symb == self.symbs.opaque => Token::Opaque,
-            TokenKind::Ident(symb, _) if symb == self.symbs.local => Token::Local,
-            TokenKind::Ident(symb, _) if symb == self.symbs.bitvec => Token::BitVec,
-            TokenKind::Ident(symb, _) if symb == self.symbs.hrn => Token::Hrn,
-            TokenKind::Ident(symb, _) if symb == self.symbs.hdl => Token::Hdl,
-            TokenKind::Ident(symb, _) if symb == self.symbs.forall => Token::Forall,
-            TokenKind::Ident(symb, _) if symb == self.symbs.exists => Token::Exists,
-            TokenKind::Ident(symb, _) if symb == kw::Let => Token::Let,
-            TokenKind::Ident(symb, _) if symb == kw::In => Token::In,
-            TokenKind::Ident(symb, _) if symb == kw::Ref => Token::Ref,
-            TokenKind::Ident(symb, _) if symb == kw::Fn => Token::Fn,
-            TokenKind::Ident(symb, _) if symb == kw::Mut => Token::Mut,
-            TokenKind::Ident(symb, _) if symb == kw::Where => Token::Where,
-            TokenKind::Ident(symb, _) if symb == kw::Impl => Token::Impl,
-            TokenKind::Ident(symb, _) if symb == kw::Type => Token::Type,
-            TokenKind::Ident(symb, _) if symb == kw::If => Token::If,
-            TokenKind::Ident(symb, _) if symb == kw::Else => Token::Else,
-            TokenKind::Ident(symb, _) if symb == kw::Async => Token::Async,
-            TokenKind::Ident(symb, _) if symb == kw::As => Token::As,
-            TokenKind::Ident(symb, _) if symb == kw::Underscore => Token::Underscore,
-            TokenKind::Ident(symb, _) => Token::Ident(symb),
-            TokenKind::NtIdent(ident, _) => Token::Ident(ident.name),
-            TokenKind::Or => Token::Caret,
-            TokenKind::Plus => Token::Plus,
-            TokenKind::Slash => Token::Slash,
-            TokenKind::Minus => Token::Minus,
-            TokenKind::And => Token::And,
-            TokenKind::Percent => Token::Percent,
-            TokenKind::Star => Token::Star,
-            TokenKind::Shl => {
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.strg => TokenKind::Strg,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.requires => TokenKind::Requires,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.ensures => TokenKind::Ensures,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.qualifier => {
+                TokenKind::Qualifier
+            }
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.property => TokenKind::Property,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.sort => TokenKind::Sort,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.opaque => TokenKind::Opaque,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.local => TokenKind::Local,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.bitvec => TokenKind::BitVec,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.hrn => TokenKind::Hrn,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.hdl => TokenKind::Hdl,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.forall => TokenKind::Forall,
+            rustc_ast::token::Ident(symb, _) if symb == self.symbs.exists => TokenKind::Exists,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Let => TokenKind::Let,
+            rustc_ast::token::Ident(symb, _) if symb == kw::In => TokenKind::In,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Ref => TokenKind::Ref,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Fn => TokenKind::Fn,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Mut => TokenKind::Mut,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Where => TokenKind::Where,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Impl => TokenKind::Impl,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Type => TokenKind::Type,
+            rustc_ast::token::Ident(symb, _) if symb == kw::If => TokenKind::If,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Else => TokenKind::Else,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Async => TokenKind::Async,
+            rustc_ast::token::Ident(symb, _) if symb == kw::As => TokenKind::As,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Underscore => TokenKind::Underscore,
+            rustc_ast::token::Ident(symb, _) => TokenKind::Ident(symb),
+            rustc_ast::token::NtIdent(ident, _) => TokenKind::Ident(ident.name),
+            rustc_ast::token::Or => TokenKind::Caret,
+            rustc_ast::token::Plus => TokenKind::Plus,
+            rustc_ast::token::Slash => TokenKind::Slash,
+            rustc_ast::token::Minus => TokenKind::Minus,
+            rustc_ast::token::And => TokenKind::And,
+            rustc_ast::token::Percent => TokenKind::Percent,
+            rustc_ast::token::Star => TokenKind::Star,
+            rustc_ast::token::Shl => {
+                self.tokens.push_back((
+                    span.lo(),
+                    TokenKind::LtFollowedByLt,
+                    span.hi() - BytePos(1),
+                ));
                 self.tokens
-                    .push_back((span.lo(), Token::LtFollowedByLt, span.hi() - BytePos(1)));
-                self.tokens
-                    .push_back((span.lo() + BytePos(1), Token::Lt, span.hi()));
+                    .push_back((span.lo() + BytePos(1), TokenKind::Lt, span.hi()));
                 return;
             }
-            TokenKind::Shr => {
+            rustc_ast::token::Shr => {
+                self.tokens.push_back((
+                    span.lo(),
+                    TokenKind::GtFollowedByGt,
+                    span.hi() - BytePos(1),
+                ));
                 self.tokens
-                    .push_back((span.lo(), Token::GtFollowedByGt, span.hi() - BytePos(1)));
-                self.tokens
-                    .push_back((span.lo() + BytePos(1), Token::Gt, span.hi()));
+                    .push_back((span.lo() + BytePos(1), TokenKind::Gt, span.hi()));
                 return;
             }
-            TokenKind::Bang => Token::Bang,
-            TokenKind::PathSep => Token::PathSep,
-            TokenKind::DotDot => Token::DotDot,
-            _ => Token::Invalid,
+            rustc_ast::token::Bang => TokenKind::Bang,
+            rustc_ast::token::PathSep => TokenKind::PathSep,
+            rustc_ast::token::DotDot => TokenKind::DotDot,
+            _ => TokenKind::Invalid,
         };
         self.tokens.push_back((span.lo(), token, span.hi()));
     }
@@ -377,10 +385,15 @@ impl<'t> Cursor<'t> {
             Some(TokenTree::Token(token, _)) => {
                 if let Some(TokenTree::Token(next, _)) = top.cursor.peek() {
                     match (&token.kind, &next.kind) {
-                        (TokenKind::Le, TokenKind::Gt) if token.span.hi() == next.span.lo() => {
+                        (rustc_ast::token::Le, rustc_ast::token::Gt)
+                            if token.span.hi() == next.span.lo() =>
+                        {
                             top.cursor.next();
-                            self.tokens
-                                .push_back((token.span.lo(), Token::Iff, next.span.hi()));
+                            self.tokens.push_back((
+                                token.span.lo(),
+                                TokenKind::Iff,
+                                next.span.hi(),
+                            ));
                             return true;
                         }
                         _ => {}
@@ -396,10 +409,10 @@ impl<'t> Cursor<'t> {
             }
             Some(TokenTree::Delimited(span, _spacing, delim, tokens)) => {
                 let close_token = match delim {
-                    Delimiter::Parenthesis => Token::CloseParen,
-                    Delimiter::Brace => Token::CloseBrace,
-                    Delimiter::Bracket => Token::CloseBracket,
-                    Delimiter::Invisible(origin) => Token::CloseInvisible(*origin),
+                    Delimiter::Parenthesis => TokenKind::CloseParen,
+                    Delimiter::Brace => TokenKind::CloseBrace,
+                    Delimiter::Bracket => TokenKind::CloseBracket,
+                    Delimiter::Invisible(origin) => TokenKind::CloseInvisible(*origin),
                 };
                 let close = (span.close.lo(), close_token, span.close.hi());
 
@@ -407,10 +420,10 @@ impl<'t> Cursor<'t> {
                     .push(Frame { cursor: tokens.iter().peekable(), close: Some(close) });
 
                 let kind = match delim {
-                    Delimiter::Parenthesis => TokenKind::OpenParen,
-                    Delimiter::Brace => TokenKind::OpenBrace,
-                    Delimiter::Bracket => TokenKind::OpenBracket,
-                    Delimiter::Invisible(origin) => TokenKind::OpenInvisible(*origin),
+                    Delimiter::Parenthesis => rustc_ast::token::OpenParen,
+                    Delimiter::Brace => rustc_ast::token::OpenBrace,
+                    Delimiter::Bracket => rustc_ast::token::OpenBracket,
+                    Delimiter::Invisible(origin) => rustc_ast::token::OpenInvisible(*origin),
                 };
 
                 let token = token::Token { kind, span: span.open };

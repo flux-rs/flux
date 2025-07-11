@@ -2,22 +2,22 @@
 
 use rustc_span::BytePos;
 
-use crate::{ParseCtxt, ParseError, ParseResult, lexer::Token, surface::BinOp};
+use crate::{ParseCtxt, ParseError, ParseResult, lexer::TokenKind, surface::BinOp};
 
 /// A trait for testing whether a token matches a rule.
 ///
 /// This trait is primarily implemented for [`Token`] to test for exact equality.
 pub(crate) trait Peek: Copy {
     /// Returns true if a token matches this rule
-    fn matches(self, tok: Token) -> bool;
+    fn matches(self, tok: TokenKind) -> bool;
 
     /// A string representation of the list of tokens matched by this rule. This
     /// is used to construct an error when using [`Lookahead1`].
     fn display(self) -> impl Iterator<Item = &'static str>;
 }
 
-impl Peek for Token {
-    fn matches(self, tok: Token) -> bool {
+impl Peek for TokenKind {
+    fn matches(self, tok: TokenKind) -> bool {
         self == tok
     }
 
@@ -30,8 +30,8 @@ impl Peek for Token {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyIdent;
 impl Peek for AnyIdent {
-    fn matches(self, tok: Token) -> bool {
-        matches!(tok, Token::Ident(_))
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::Ident(_))
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -43,8 +43,8 @@ impl Peek for AnyIdent {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyLit;
 impl Peek for AnyLit {
-    fn matches(self, tok: Token) -> bool {
-        matches!(tok, Token::Literal(_))
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::Literal(_))
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -59,8 +59,8 @@ impl Peek for AnyLit {
 #[derive(Clone, Copy)]
 pub(crate) struct LAngle;
 impl Peek for LAngle {
-    fn matches(self, tok: Token) -> bool {
-        matches!(tok, Token::LtFollowedByLt | Token::Lt)
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::LtFollowedByLt | TokenKind::Lt)
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -77,8 +77,8 @@ impl Peek for LAngle {
 #[derive(Clone, Copy)]
 pub(crate) struct RAngle;
 impl Peek for RAngle {
-    fn matches(self, tok: Token) -> bool {
-        matches!(tok, Token::GtFollowedByGt | Token::Gt)
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -88,8 +88,8 @@ impl Peek for RAngle {
 
 /// Use a string to match an identifier equal to it
 impl Peek for &'static str {
-    fn matches(self, tok: Token) -> bool {
-        matches!(tok, Token::Ident(sym) if sym.as_str() == self)
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::Ident(sym) if sym.as_str() == self)
     }
 
     fn display(self) -> impl Iterator<Item = &'static str> {
@@ -99,7 +99,7 @@ impl Peek for &'static str {
 
 /// Use an array to match any token in a set
 impl<T: Peek, const N: usize> Peek for [T; N] {
-    fn matches(self, tok: Token) -> bool {
+    fn matches(self, tok: TokenKind) -> bool {
         self.into_iter().any(|t| t.matches(tok))
     }
 
@@ -151,7 +151,7 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
 
 impl<'cx> ParseCtxt<'cx> {
     /// Returns the token (and span) at the requested position.
-    pub(crate) fn at(&mut self, n: usize) -> (BytePos, Token, BytePos) {
+    pub(crate) fn at(&mut self, n: usize) -> (BytePos, TokenKind, BytePos) {
         self.tokens.at(n)
     }
 
@@ -176,25 +176,25 @@ impl<'cx> ParseCtxt<'cx> {
     /// doesn't advance the position of the underlying cursor.
     pub(crate) fn peek_binop(&mut self) -> Option<(BinOp, usize)> {
         let op = match self.at(0).1 {
-            Token::Iff => (BinOp::Iff, 1),
-            Token::FatArrow => (BinOp::Imp, 1),
-            Token::OrOr => (BinOp::Or, 1),
-            Token::AndAnd => (BinOp::And, 1),
-            Token::EqEq => (BinOp::Eq, 1),
-            Token::Ne => (BinOp::Ne, 1),
-            Token::Lt => (BinOp::Lt, 1),
-            Token::Gt => (BinOp::Gt, 1),
-            Token::Le => (BinOp::Le, 1),
-            Token::Ge => (BinOp::Ge, 1),
-            Token::Caret => (BinOp::BitOr, 1),
-            Token::And => (BinOp::BitAnd, 1),
-            Token::LtFollowedByLt => (BinOp::BitShl, 2),
-            Token::GtFollowedByGt => (BinOp::BitShr, 2),
-            Token::Plus => (BinOp::Add, 1),
-            Token::Minus => (BinOp::Sub, 1),
-            Token::Star => (BinOp::Mul, 1),
-            Token::Slash => (BinOp::Div, 1),
-            Token::Percent => (BinOp::Mod, 1),
+            TokenKind::Iff => (BinOp::Iff, 1),
+            TokenKind::FatArrow => (BinOp::Imp, 1),
+            TokenKind::OrOr => (BinOp::Or, 1),
+            TokenKind::AndAnd => (BinOp::And, 1),
+            TokenKind::EqEq => (BinOp::Eq, 1),
+            TokenKind::Ne => (BinOp::Ne, 1),
+            TokenKind::Lt => (BinOp::Lt, 1),
+            TokenKind::Gt => (BinOp::Gt, 1),
+            TokenKind::Le => (BinOp::Le, 1),
+            TokenKind::Ge => (BinOp::Ge, 1),
+            TokenKind::Caret => (BinOp::BitOr, 1),
+            TokenKind::And => (BinOp::BitAnd, 1),
+            TokenKind::LtFollowedByLt => (BinOp::BitShl, 2),
+            TokenKind::GtFollowedByGt => (BinOp::BitShr, 2),
+            TokenKind::Plus => (BinOp::Add, 1),
+            TokenKind::Minus => (BinOp::Sub, 1),
+            TokenKind::Star => (BinOp::Mul, 1),
+            TokenKind::Slash => (BinOp::Div, 1),
+            TokenKind::Percent => (BinOp::Mod, 1),
             _ => return None,
         };
         Some(op)

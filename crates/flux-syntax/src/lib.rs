@@ -8,7 +8,7 @@ pub mod lexer;
 mod parser;
 pub mod surface;
 
-use lexer::{Cursor, Token};
+use lexer::{Cursor, TokenKind};
 use parser::lookahead::Peek;
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
@@ -163,7 +163,7 @@ impl<'a> ParseCtxt<'a> {
 
     fn unexpected_token(&mut self, expected: Vec<&'static str>) -> ParseError {
         let (lo, tok, hi) = self.tokens.at(0);
-        let kind = if tok == Token::Eof {
+        let kind = if tok == TokenKind::Eof {
             ParseErrorKind::UnexpectedEof
         } else {
             ParseErrorKind::UnexpectedToken { expected }
