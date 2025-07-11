@@ -235,14 +235,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .specs
             .structs
             .entry(owner_id)
-            .or_insert(surface::StructDef {
-                generics,
-                refined_by,
-                fields,
-                opaque,
-                invariants,
-                node_id: self.parse_sess.next_node_id(),
-            }))
+            .or_insert(surface::StructDef { generics, refined_by, fields, opaque, invariants }))
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
@@ -302,14 +295,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .specs
             .enums
             .entry(owner_id)
-            .or_insert(surface::EnumDef {
-                generics,
-                refined_by,
-                variants,
-                invariants,
-                reflected,
-                node_id: self.parse_sess.next_node_id(),
-            }))
+            .or_insert(surface::EnumDef { generics, refined_by, variants, invariants, reflected }))
     }
 
     fn collect_variant(
@@ -454,9 +440,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }
             ("refined_by", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_refined_by, FluxAttrKind::RefinedBy)?
-            }
-            ("generics", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_generics, FluxAttrKind::Generics)?
             }
             ("field", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_type, FluxAttrKind::Field)?

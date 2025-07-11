@@ -32,14 +32,6 @@ impl ParseSess {
         parser::parse_refined_by(&mut self.cx(tokens, span))
     }
 
-    pub fn parse_generics(
-        &mut self,
-        tokens: &TokenStream,
-        span: Span,
-    ) -> ParseResult<surface::Generics> {
-        parser::parse_generics(&mut self.cx(tokens, span))
-    }
-
     pub fn parse_type_alias(
         &mut self,
         tokens: &TokenStream,

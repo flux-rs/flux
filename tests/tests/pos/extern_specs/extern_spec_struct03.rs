@@ -12,7 +12,6 @@ struct Range<Idx> {
 }
 
 #[extern_spec(std::ops)]
-#[generics(Idx as base)]
 impl<Idx: PartialOrd<Idx>> Range<Idx> {
     // This specification is actually unsound for `Idx`s where the `PartialOrd` implementation doesn't
     // match the logical `<`.
