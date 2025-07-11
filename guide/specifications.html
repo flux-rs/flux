@@ -2205,8 +2205,7 @@ impl Mono for Snake {
         *pig += 1;
     }
 }</code></pre>
-<pre><code class="language-rust noplayground">#[flux::generics(Self as base)]
-pub trait MyTrait {
+<pre><code class="language-rust noplayground">pub trait MyTrait {
     #[flux::sig(fn[hrn p: Self -&gt; bool](&amp;Self{v: p(v)}) -&gt; Self{v: p(v)})]
     fn foo1(&amp;self) -&gt; Self;
 
@@ -2964,7 +2963,6 @@ struct Range&lt;Idx&gt; {
 }
 
 #[extern_spec(std::ops)]
-#[generics(Idx as base)]
 impl&lt;Idx: PartialOrd&lt;Idx&gt;&gt; Range&lt;Idx&gt; {
     // This specification is actually unsound for `Idx`s where the `PartialOrd` implementation doesn't
     // match the logical `&lt;`.
@@ -3081,7 +3079,6 @@ pub fn test_ok() -&gt; i32 {
 <pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[extern_spec(std::cmp)]
-#[generics(Self as base, Rhs as base)]
 #[assoc(fn eq_rel(lhs: Self, rhs: Rhs) -&gt; bool)]
 trait PartialEq&lt;Rhs&gt; {
     #[sig(fn(&amp;Self[@lhs], &amp;Rhs[@rhs]) -&gt; bool[&lt;Self as PartialEq&lt;Rhs&gt;&gt;::eq_rel(lhs, rhs)])]
@@ -3253,7 +3250,6 @@ pub fn test2() -&gt; i32 {
 <pre><code class="language-rust noplayground">use flux_rs::*;
 
 #[extern_spec(std::cmp)]
-#[generics(Self as base, Rhs as base)]
 #[assoc(fn eq_rel(lhs: Self, rhs: Rhs) -&gt; bool)]
 trait PartialEq&lt;Rhs&gt; {
     #[sig(fn(&amp;Self[@lhs], &amp;Rhs[@rhs]) -&gt; bool[&lt;Self as PartialEq&lt;Rhs&gt;&gt;::eq_rel(lhs, rhs)])]
