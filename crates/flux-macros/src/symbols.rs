@@ -34,7 +34,7 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     let mut prefill_stream = quote! {};
 
     let mut entries = Entries::with_capacity(input.keywords.len());
-    for keyword in input.keywords.iter() {
+    for keyword in &input.keywords {
         let name = &keyword.name;
         let value = &keyword.value;
         let value_string = value.value();

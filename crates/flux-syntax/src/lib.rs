@@ -11,7 +11,7 @@ pub mod symbols;
 
 use lexer::{Cursor, TokenKind};
 use rustc_ast::tokenstream::TokenStream;
-use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
+use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
 use surface::NodeId;
 
 use crate::parser::lookahead::Expected;
@@ -131,19 +131,21 @@ impl ParseSess {
 }
 
 struct ParseCtxt<'a> {
+    sess: &'a mut ParseSess,
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
+    edition: Edition,
     tokens: Cursor<'a>,
-    sess: &'a mut ParseSess,
 }
 
 impl<'a> ParseCtxt<'a> {
     fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
         Self {
             sess,
-            tokens: Cursor::new(tokens, span.lo()),
             ctx: span.ctxt(),
             parent: span.parent(),
+            edition: span.edition(),
+            tokens: Cursor::new(tokens, span.lo()),
         }
     }
 
@@ -161,6 +163,10 @@ impl<'a> ParseCtxt<'a> {
 
     fn hi(&self) -> BytePos {
         self.tokens.hi()
+    }
+
+    fn is_reserved(&self, sym: Symbol) -> bool {
+        symbols::is_reserved(sym, self.edition)
     }
 
     fn unexpected_token(&mut self, expected: Vec<Expected>) -> ParseError {

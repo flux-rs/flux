@@ -2,14 +2,16 @@
 
 use std::fmt;
 
-use rustc_span::Symbol;
+use rustc_span::{Symbol, edition::Edition};
 
 use crate::{
     ParseCtxt, ParseError, ParseResult,
     lexer::{Token, TokenKind},
     surface::BinOp,
+    symbols,
 };
 
+/// See [`PeekExpected`]
 #[derive(Debug)]
 pub enum Expected {
     Str(&'static str),
@@ -19,21 +21,19 @@ pub enum Expected {
 impl fmt::Display for Expected {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expected::Str(descr) => write!(f, "{}", descr),
-            Expected::Sym(sym) => write!(f, "`{}`", sym),
+            Expected::Str(descr) => write!(f, "{descr}"),
+            Expected::Sym(sym) => write!(f, "{sym}"),
         }
     }
 }
 
 /// A trait for testing whether a token matches a rule.
-///
-/// This trait is primarily implemented for [`TokenKind`] to test for exact equality.
 pub(crate) trait Peek: Copy {
     /// Returns true if a token matches this rule
     fn matches(self, tok: TokenKind) -> bool;
 }
 
-/// A subtrait of [`Peek`] for rules that have an "expected description".
+/// A subtrait of [`Peek`] for rules that have an *expected description*.
 ///
 /// This is used to automatically build error messages of the form:
 /// ```text
@@ -44,6 +44,7 @@ pub(crate) trait PeekExpected: Peek {
     fn expected(self) -> Expected;
 }
 
+/// Use a [`TokenKind`] to match by exact equality
 impl Peek for TokenKind {
     fn matches(self, tok: TokenKind) -> bool {
         self == tok
@@ -55,15 +56,18 @@ impl PeekExpected for TokenKind {
     }
 }
 
-/// A struct that can be used to match any identifier
+/// A struct that can be used to match a non-reserved identifier
 #[derive(Clone, Copy)]
-pub(crate) struct AnyIdent;
-impl Peek for AnyIdent {
+pub(crate) struct NonReserved;
+impl Peek for NonReserved {
     fn matches(self, tok: TokenKind) -> bool {
-        matches!(tok, TokenKind::Ident(_))
+        match tok {
+            TokenKind::Ident(sym) => !symbols::is_reserved(sym, Edition::EditionFuture),
+            _ => false,
+        }
     }
 }
-impl PeekExpected for AnyIdent {
+impl PeekExpected for NonReserved {
     fn expected(self) -> Expected {
         Expected::Str("identifier")
     }
@@ -80,6 +84,25 @@ impl Peek for AnyLit {
 impl PeekExpected for AnyLit {
     fn expected(self) -> Expected {
         Expected::Str("literal")
+    }
+}
+
+/// There are some lexing ambiguities with `>>`, which can represet both a right shift or two
+/// closing angle brackets (e.g., `Vec<Option<i32>>`). We solve the ambiguity by giving `>` a
+/// special token if it's immediately followed by another `>`,  i.e., `>>` is tokenized as
+/// [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
+///
+/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
+#[derive(Clone, Copy)]
+pub(crate) struct RAngle;
+impl Peek for RAngle {
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
+    }
+}
+impl PeekExpected for RAngle {
+    fn expected(self) -> Expected {
+        Expected::Str(">")
     }
 }
 
@@ -100,26 +123,8 @@ impl PeekExpected for LAngle {
     }
 }
 
-/// There are some lexing ambiguities with `>>` which can represet both a right shift or two
-/// closing angle brackets in nested generics (e.g., `Vec<Option<i32>>`). We solve the ambiguity
-/// by giving `>` a special token if it's immediately followed by another `>`,  i.e., `>>` is
-/// tokenized as [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
-///
-/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
-#[derive(Clone, Copy)]
-pub(crate) struct RAngle;
-impl Peek for RAngle {
-    fn matches(self, tok: TokenKind) -> bool {
-        matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
-    }
-}
-impl PeekExpected for RAngle {
-    fn expected(self) -> Expected {
-        Expected::Str(">")
-    }
-}
-
-/// Use a string to match an identifier equal to it
+/// Use a string to match an [`TokenKind::Ident`] equal to it. Prefer matching against a predefined
+/// [`Symbol`] because it will be faster.
 impl Peek for &'static str {
     fn matches(self, tok: TokenKind) -> bool {
         matches!(tok, TokenKind::Ident(sym) if sym.as_str() == self)
@@ -131,6 +136,7 @@ impl PeekExpected for &'static str {
     }
 }
 
+/// Use a [`Symbol`] to match an [`TokenKind::Ident`] equal to it.
 impl Peek for Symbol {
     fn matches(self, tok: TokenKind) -> bool {
         matches!(tok, TokenKind::Ident(sym) if sym == self)
@@ -148,6 +154,13 @@ pub(crate) struct AnyOf<T, const N: usize>(pub [T; N]);
 impl<T: Peek, const N: usize> Peek for AnyOf<T, N> {
     fn matches(self, tok: TokenKind) -> bool {
         self.0.into_iter().any(|t| t.matches(tok))
+    }
+}
+
+/// An arbitrary peek rule defined by a predicate on [`TokenKind`]
+impl<F: FnOnce(TokenKind) -> bool + Copy> Peek for F {
+    fn matches(self, tok: TokenKind) -> bool {
+        (self)(tok)
     }
 }
 
