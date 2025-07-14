@@ -5,8 +5,7 @@ use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_infer::projections::NormalizeExt;
 use flux_middle::{
-    THEORY_FUNCS,
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, SpecFuncKind, visit::Visitor as _},
+    fhir::{self, ExprRes, FhirId, FluxOwnerId, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -397,18 +396,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
-            ExprRes::GlobalFunc(SpecFuncKind::Def(name) | SpecFuncKind::Uif(name)) => {
-                Ok(rty::Sort::Func(self.genv.func_sort(name)))
-            }
-            ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
-                Ok(rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()))
-            }
-            ExprRes::GlobalFunc(SpecFuncKind::ToInt) => {
-                Ok(rty::Sort::Func(rty::PolyFuncSort::new(
-                    List::empty(),
-                    rty::FuncSort::new(vec![rty::Sort::Char], rty::Sort::Int),
-                )))
-            }
+            ExprRes::GlobalFunc(spec_func) => Ok(self.genv.sort_of_spec_func(&spec_func)),
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
             }
