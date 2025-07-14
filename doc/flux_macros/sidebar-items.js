@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"derive":["DebugAsJson","Diagnostic","Subdiagnostic","TypeFoldable","TypeVisitable"],"fn":["debug_as_json"],"macro":["fluent_messages","primop_rules"],"mod":["diagnostics","fold","primops"]};
+window.SIDEBAR_ITEMS = {"derive":["DebugAsJson","Diagnostic","Subdiagnostic","TypeFoldable","TypeVisitable"],"fn":["debug_as_json"],"macro":["fluent_messages","primop_rules","symbols"],"mod":["diagnostics","fold","primops","symbols"]};
