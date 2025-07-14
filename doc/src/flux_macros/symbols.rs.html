@@ -54,11 +54,11 @@
 <a href=#54 id=54 data-nosnippet>54</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>symbols_stream = <span class="macro">quote!</span> {};
 <a href=#55 id=55 data-nosnippet>55</a>    <span class="kw">let </span><span class="kw-2">mut </span>prev_key: <span class="prelude-ty">Option</span>&lt;(Span, String)&gt; = <span class="prelude-val">None</span>;
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">let </span><span class="kw-2">mut </span>check_order = |span: Span, s: <span class="kw-2">&amp;</span>str, errors: <span class="kw-2">&amp;mut </span>Errors| {
-<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((prev_span, <span class="kw-2">ref </span>prev_str)) = prev_key {
-<a href=#58 id=58 data-nosnippet>58</a>            <span class="kw">if </span>s &lt; prev_str {
-<a href=#59 id=59 data-nosnippet>59</a>                errors.error(span, <span class="macro">format!</span>(<span class="string">"Symbol `{s}` must precede `{prev_str}`"</span>));
-<a href=#60 id=60 data-nosnippet>60</a>                errors.error(prev_span, <span class="macro">format!</span>(<span class="string">"location of previous symbol `{prev_str}`"</span>));
-<a href=#61 id=61 data-nosnippet>61</a>            }
+<a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((prev_span, <span class="kw-2">ref </span>prev_str)) = prev_key
+<a href=#58 id=58 data-nosnippet>58</a>            &amp;&amp; s &lt; prev_str
+<a href=#59 id=59 data-nosnippet>59</a>        {
+<a href=#60 id=60 data-nosnippet>60</a>            errors.error(span, <span class="macro">format!</span>(<span class="string">"Symbol `{s}` must precede `{prev_str}`"</span>));
+<a href=#61 id=61 data-nosnippet>61</a>            errors.error(prev_span, <span class="macro">format!</span>(<span class="string">"location of previous symbol `{prev_str}`"</span>));
 <a href=#62 id=62 data-nosnippet>62</a>        }
 <a href=#63 id=63 data-nosnippet>63</a>        prev_key = <span class="prelude-val">Some</span>((span, s.to_string()));
 <a href=#64 id=64 data-nosnippet>64</a>    };
@@ -154,83 +154,81 @@
 <a href=#154 id=154 data-nosnippet>154</a><span class="kw">impl </span>Parse <span class="kw">for </span>Value {
 <a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">fn </span>parse(input: ParseStream&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
 <a href=#156 id=156 data-nosnippet>156</a>        <span class="kw">let </span>expr: Expr = input.parse()<span class="question-mark">?</span>;
-<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">match </span><span class="kw-2">&amp;</span>expr {
-<a href=#158 id=158 data-nosnippet>158</a>            Expr::Lit(expr) =&gt; {
-<a href=#159 id=159 data-nosnippet>159</a>                <span class="kw">if let </span>Lit::Str(lit) = <span class="kw-2">&amp;</span>expr.lit {
-<a href=#160 id=160 data-nosnippet>160</a>                    <span class="kw">return </span><span class="prelude-val">Ok</span>(Value::String(lit.clone()));
-<a href=#161 id=161 data-nosnippet>161</a>                }
-<a href=#162 id=162 data-nosnippet>162</a>            }
-<a href=#163 id=163 data-nosnippet>163</a>            <span class="kw">_ </span>=&gt; {}
-<a href=#164 id=164 data-nosnippet>164</a>        }
-<a href=#165 id=165 data-nosnippet>165</a>        <span class="prelude-val">Ok</span>(Value::Unsupported(expr))
-<a href=#166 id=166 data-nosnippet>166</a>    }
-<a href=#167 id=167 data-nosnippet>167</a>}
-<a href=#168 id=168 data-nosnippet>168</a>
-<a href=#169 id=169 data-nosnippet>169</a><span class="kw">struct </span>Input {
-<a href=#170 id=170 data-nosnippet>170</a>    keywords: Punctuated&lt;Keyword, <span class="macro">Token!</span>[,]&gt;,
-<a href=#171 id=171 data-nosnippet>171</a>    symbols: Punctuated&lt;Symbol, <span class="macro">Token!</span>[,]&gt;,
-<a href=#172 id=172 data-nosnippet>172</a>}
-<a href=#173 id=173 data-nosnippet>173</a>
-<a href=#174 id=174 data-nosnippet>174</a><span class="kw">impl </span>Parse <span class="kw">for </span>Input {
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">fn </span>parse(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-<a href=#176 id=176 data-nosnippet>176</a>        input.parse::&lt;kw::Keywords&gt;()<span class="question-mark">?</span>;
-<a href=#177 id=177 data-nosnippet>177</a>        <span class="kw">let </span>content;
-<a href=#178 id=178 data-nosnippet>178</a>        <span class="macro">braced!</span>(content <span class="kw">in </span>input);
-<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>keywords = Punctuated::parse_terminated(<span class="kw-2">&amp;</span>content)<span class="question-mark">?</span>;
-<a href=#180 id=180 data-nosnippet>180</a>
-<a href=#181 id=181 data-nosnippet>181</a>        input.parse::&lt;kw::Symbols&gt;()<span class="question-mark">?</span>;
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>content;
-<a href=#183 id=183 data-nosnippet>183</a>        <span class="macro">braced!</span>(content <span class="kw">in </span>input);
-<a href=#184 id=184 data-nosnippet>184</a>        <span class="kw">let </span>symbols = Punctuated::parse_terminated(<span class="kw-2">&amp;</span>content)<span class="question-mark">?</span>;
-<a href=#185 id=185 data-nosnippet>185</a>
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="prelude-val">Ok</span>(Input { keywords, symbols })
-<a href=#187 id=187 data-nosnippet>187</a>    }
-<a href=#188 id=188 data-nosnippet>188</a>}
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a><span class="kw">mod </span>kw {
-<a href=#191 id=191 data-nosnippet>191</a>    <span class="macro">syn::custom_keyword!</span>(Keywords);
-<a href=#192 id=192 data-nosnippet>192</a>    <span class="macro">syn::custom_keyword!</span>(Symbols);
-<a href=#193 id=193 data-nosnippet>193</a>}
-<a href=#194 id=194 data-nosnippet>194</a>
-<a href=#195 id=195 data-nosnippet>195</a><span class="attr">#[derive(Default)]
-<a href=#196 id=196 data-nosnippet>196</a></span><span class="kw">struct </span>Errors {
-<a href=#197 id=197 data-nosnippet>197</a>    list: Vec&lt;syn::Error&gt;,
-<a href=#198 id=198 data-nosnippet>198</a>}
-<a href=#199 id=199 data-nosnippet>199</a>
-<a href=#200 id=200 data-nosnippet>200</a><span class="kw">impl </span>Errors {
-<a href=#201 id=201 data-nosnippet>201</a>    <span class="kw">fn </span>error(<span class="kw-2">&amp;mut </span><span class="self">self</span>, span: Span, message: String) {
-<a href=#202 id=202 data-nosnippet>202</a>        <span class="self">self</span>.list.push(syn::Error::new(span, message));
-<a href=#203 id=203 data-nosnippet>203</a>    }
-<a href=#204 id=204 data-nosnippet>204</a>}
-<a href=#205 id=205 data-nosnippet>205</a>
-<a href=#206 id=206 data-nosnippet>206</a><span class="kw">struct </span>Entries {
-<a href=#207 id=207 data-nosnippet>207</a>    map: HashMap&lt;String, Predefined&gt;,
-<a href=#208 id=208 data-nosnippet>208</a>}
-<a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a><span class="kw">impl </span>Entries {
-<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">fn </span>with_capacity(capacity: usize) -&gt; <span class="self">Self </span>{
-<a href=#212 id=212 data-nosnippet>212</a>        Entries { map: HashMap::with_capacity(capacity) }
-<a href=#213 id=213 data-nosnippet>213</a>    }
-<a href=#214 id=214 data-nosnippet>214</a>
-<a href=#215 id=215 data-nosnippet>215</a>    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, span: Span, s: <span class="kw-2">&amp;</span>str, errors: <span class="kw-2">&amp;mut </span>Errors) -&gt; u32 {
-<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(prev) = <span class="self">self</span>.map.get(s) {
-<a href=#217 id=217 data-nosnippet>217</a>            errors.error(span, <span class="macro">format!</span>(<span class="string">"Symbol `{s}` is duplicated"</span>));
-<a href=#218 id=218 data-nosnippet>218</a>            errors.error(prev.span_of_name, <span class="string">"location of previous definition"</span>.to_string());
-<a href=#219 id=219 data-nosnippet>219</a>            prev.idx
-<a href=#220 id=220 data-nosnippet>220</a>        } <span class="kw">else </span>{
-<a href=#221 id=221 data-nosnippet>221</a>            <span class="kw">let </span>idx = <span class="self">self</span>.len();
-<a href=#222 id=222 data-nosnippet>222</a>            <span class="self">self</span>.map
-<a href=#223 id=223 data-nosnippet>223</a>                .insert(s.to_string(), Predefined { idx, span_of_name: span });
-<a href=#224 id=224 data-nosnippet>224</a>            idx
-<a href=#225 id=225 data-nosnippet>225</a>        }
-<a href=#226 id=226 data-nosnippet>226</a>    }
-<a href=#227 id=227 data-nosnippet>227</a>
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
-<a href=#229 id=229 data-nosnippet>229</a>        u32::try_from(<span class="self">self</span>.map.len()).expect(<span class="string">"way too many symbols"</span>)
-<a href=#230 id=230 data-nosnippet>230</a>    }
-<a href=#231 id=231 data-nosnippet>231</a>}
-<a href=#232 id=232 data-nosnippet>232</a>
-<a href=#233 id=233 data-nosnippet>233</a><span class="kw">struct </span>Predefined {
-<a href=#234 id=234 data-nosnippet>234</a>    idx: u32,
-<a href=#235 id=235 data-nosnippet>235</a>    span_of_name: Span,
-<a href=#236 id=236 data-nosnippet>236</a>}</code></pre></div></section></main></body></html>
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">if let </span>Expr::Lit(expr) = <span class="kw-2">&amp;</span>expr
+<a href=#158 id=158 data-nosnippet>158</a>            &amp;&amp; <span class="kw">let </span>Lit::Str(lit) = <span class="kw-2">&amp;</span>expr.lit
+<a href=#159 id=159 data-nosnippet>159</a>        {
+<a href=#160 id=160 data-nosnippet>160</a>            <span class="prelude-val">Ok</span>(Value::String(lit.clone()))
+<a href=#161 id=161 data-nosnippet>161</a>        } <span class="kw">else </span>{
+<a href=#162 id=162 data-nosnippet>162</a>            <span class="prelude-val">Ok</span>(Value::Unsupported(expr))
+<a href=#163 id=163 data-nosnippet>163</a>        }
+<a href=#164 id=164 data-nosnippet>164</a>    }
+<a href=#165 id=165 data-nosnippet>165</a>}
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a><span class="kw">struct </span>Input {
+<a href=#168 id=168 data-nosnippet>168</a>    keywords: Punctuated&lt;Keyword, <span class="macro">Token!</span>[,]&gt;,
+<a href=#169 id=169 data-nosnippet>169</a>    symbols: Punctuated&lt;Symbol, <span class="macro">Token!</span>[,]&gt;,
+<a href=#170 id=170 data-nosnippet>170</a>}
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a><span class="kw">impl </span>Parse <span class="kw">for </span>Input {
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">fn </span>parse(input: ParseStream) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+<a href=#174 id=174 data-nosnippet>174</a>        input.parse::&lt;kw::Keywords&gt;()<span class="question-mark">?</span>;
+<a href=#175 id=175 data-nosnippet>175</a>        <span class="kw">let </span>content;
+<a href=#176 id=176 data-nosnippet>176</a>        <span class="macro">braced!</span>(content <span class="kw">in </span>input);
+<a href=#177 id=177 data-nosnippet>177</a>        <span class="kw">let </span>keywords = Punctuated::parse_terminated(<span class="kw-2">&amp;</span>content)<span class="question-mark">?</span>;
+<a href=#178 id=178 data-nosnippet>178</a>
+<a href=#179 id=179 data-nosnippet>179</a>        input.parse::&lt;kw::Symbols&gt;()<span class="question-mark">?</span>;
+<a href=#180 id=180 data-nosnippet>180</a>        <span class="kw">let </span>content;
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="macro">braced!</span>(content <span class="kw">in </span>input);
+<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>symbols = Punctuated::parse_terminated(<span class="kw-2">&amp;</span>content)<span class="question-mark">?</span>;
+<a href=#183 id=183 data-nosnippet>183</a>
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="prelude-val">Ok</span>(Input { keywords, symbols })
+<a href=#185 id=185 data-nosnippet>185</a>    }
+<a href=#186 id=186 data-nosnippet>186</a>}
+<a href=#187 id=187 data-nosnippet>187</a>
+<a href=#188 id=188 data-nosnippet>188</a><span class="kw">mod </span>kw {
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="macro">syn::custom_keyword!</span>(Keywords);
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="macro">syn::custom_keyword!</span>(Symbols);
+<a href=#191 id=191 data-nosnippet>191</a>}
+<a href=#192 id=192 data-nosnippet>192</a>
+<a href=#193 id=193 data-nosnippet>193</a><span class="attr">#[derive(Default)]
+<a href=#194 id=194 data-nosnippet>194</a></span><span class="kw">struct </span>Errors {
+<a href=#195 id=195 data-nosnippet>195</a>    list: Vec&lt;syn::Error&gt;,
+<a href=#196 id=196 data-nosnippet>196</a>}
+<a href=#197 id=197 data-nosnippet>197</a>
+<a href=#198 id=198 data-nosnippet>198</a><span class="kw">impl </span>Errors {
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">fn </span>error(<span class="kw-2">&amp;mut </span><span class="self">self</span>, span: Span, message: String) {
+<a href=#200 id=200 data-nosnippet>200</a>        <span class="self">self</span>.list.push(syn::Error::new(span, message));
+<a href=#201 id=201 data-nosnippet>201</a>    }
+<a href=#202 id=202 data-nosnippet>202</a>}
+<a href=#203 id=203 data-nosnippet>203</a>
+<a href=#204 id=204 data-nosnippet>204</a><span class="kw">struct </span>Entries {
+<a href=#205 id=205 data-nosnippet>205</a>    map: HashMap&lt;String, Predefined&gt;,
+<a href=#206 id=206 data-nosnippet>206</a>}
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a><span class="kw">impl </span>Entries {
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">fn </span>with_capacity(capacity: usize) -&gt; <span class="self">Self </span>{
+<a href=#210 id=210 data-nosnippet>210</a>        Entries { map: HashMap::with_capacity(capacity) }
+<a href=#211 id=211 data-nosnippet>211</a>    }
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, span: Span, s: <span class="kw-2">&amp;</span>str, errors: <span class="kw-2">&amp;mut </span>Errors) -&gt; u32 {
+<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(prev) = <span class="self">self</span>.map.get(s) {
+<a href=#215 id=215 data-nosnippet>215</a>            errors.error(span, <span class="macro">format!</span>(<span class="string">"Symbol `{s}` is duplicated"</span>));
+<a href=#216 id=216 data-nosnippet>216</a>            errors.error(prev.span_of_name, <span class="string">"location of previous definition"</span>.to_string());
+<a href=#217 id=217 data-nosnippet>217</a>            prev.idx
+<a href=#218 id=218 data-nosnippet>218</a>        } <span class="kw">else </span>{
+<a href=#219 id=219 data-nosnippet>219</a>            <span class="kw">let </span>idx = <span class="self">self</span>.len();
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="self">self</span>.map
+<a href=#221 id=221 data-nosnippet>221</a>                .insert(s.to_string(), Predefined { idx, span_of_name: span });
+<a href=#222 id=222 data-nosnippet>222</a>            idx
+<a href=#223 id=223 data-nosnippet>223</a>        }
+<a href=#224 id=224 data-nosnippet>224</a>    }
+<a href=#225 id=225 data-nosnippet>225</a>
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">fn </span>len(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+<a href=#227 id=227 data-nosnippet>227</a>        u32::try_from(<span class="self">self</span>.map.len()).expect(<span class="string">"way too many symbols"</span>)
+<a href=#228 id=228 data-nosnippet>228</a>    }
+<a href=#229 id=229 data-nosnippet>229</a>}
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a><span class="kw">struct </span>Predefined {
+<a href=#232 id=232 data-nosnippet>232</a>    idx: u32,
+<a href=#233 id=233 data-nosnippet>233</a>    span_of_name: Span,
+<a href=#234 id=234 data-nosnippet>234</a>}</code></pre></div></section></main></body></html>

@@ -4,7 +4,7 @@
         &amp;mut self,
         infcx: &amp;mut <a class="struct" href="struct.InferCtxtAt.html" title="struct flux_infer::infer::InferCtxtAt">InferCtxtAt</a>&lt;'_, '_, '_, '_&gt;,
         reason: <a class="enum" href="enum.ConstrReason.html" title="enum flux_infer::infer::ConstrReason">ConstrReason</a>,
-        re: Region,
+        re: <a class="enum" href="../../flux_rustc_bridge/ty/enum.Region.html" title="enum flux_rustc_bridge::ty::Region">Region</a>,
         path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
         bound: <a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
     ) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>&gt;;
@@ -19,7 +19,7 @@
     &amp;mut self,
     infcx: &amp;mut <a class="struct" href="struct.InferCtxtAt.html" title="struct flux_infer::infer::InferCtxtAt">InferCtxtAt</a>&lt;'_, '_, '_, '_&gt;,
     reason: <a class="enum" href="enum.ConstrReason.html" title="enum flux_infer::infer::ConstrReason">ConstrReason</a>,
-    re: Region,
+    re: <a class="enum" href="../../flux_rustc_bridge/ty/enum.Region.html" title="enum flux_rustc_bridge::ty::Region">Region</a>,
     path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
     bound: <a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
 ) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>&gt;</h4></section><section id="tymethod.unfold_strg_ref" class="method"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#668">Source</a><h4 class="code-header">fn <a href="#tymethod.unfold_strg_ref" class="fn">unfold_strg_ref</a>(
