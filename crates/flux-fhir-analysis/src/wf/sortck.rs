@@ -37,6 +37,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
     sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
+    sorts_of_fn_app: FxHashMap<FhirId, (List<rty::SortArg>, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
@@ -68,6 +69,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
+            sorts_of_fn_app: Default::default(),
         }
     }
 
@@ -291,7 +293,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee.fhir_id) else {
                     return Err(self.emit_err(errors::ExpectedFun::new(callee.span, &sort)));
                 };
-                let fsort = self.instantiate_func_sort(poly_fsort);
+                let fhir_id = expr.fhir_id;
+                let span = expr.span;
+                let fsort = self.instantiate_func_sort(poly_fsort, fhir_id, span);
                 self.synth_app(fsort, args, expr.span)
             }
             fhir::ExprKind::BoundedQuant(.., body) => {
@@ -399,7 +403,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::GlobalFunc(SpecFuncKind::Thy(itf)) => {
                 Ok(rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()))
             }
-            ExprRes::GlobalFunc(SpecFuncKind::CharToInt) => {
+            ExprRes::GlobalFunc(SpecFuncKind::ToInt) => {
                 Ok(rty::Sort::Func(rty::PolyFuncSort::new(
                     List::empty(),
                     rty::FuncSort::new(vec![rty::Sort::Char], rty::Sort::Int),
@@ -506,7 +510,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(fsort.output().clone())
     }
 
-    fn instantiate_func_sort(&mut self, fsort: rty::PolyFuncSort) -> rty::FuncSort {
+    fn instantiate_func_sort(
+        &mut self,
+        fsort: rty::PolyFuncSort,
+        fhir_id: FhirId,
+        span: Span,
+    ) -> rty::FuncSort {
         let args = fsort
             .params()
             .map(|kind| {
@@ -516,6 +525,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 }
             })
             .collect_vec();
+        self.sorts_of_fn_app
+            .insert(fhir_id, (List::from_vec(args.clone()), span));
         fsort.instantiate(&args)
     }
 
@@ -796,6 +807,25 @@ impl<'genv> InferCtxt<'genv, '_> {
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
             self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
+        }
+
+        // Make sure that function applications are fully resolved
+        for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sorts_of_fn_app) {
+            let mut res = vec![];
+            for sort_arg in &sort_args {
+                let sort_arg = if let rty::SortArg::Sort(sort) = sort_arg {
+                    let sort = self
+                        .fully_resolve(&sort)
+                        .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
+                    rty::SortArg::Sort(sort)
+                } else {
+                    sort_arg.clone()
+                };
+                res.push(sort_arg);
+            }
+            self.wfckresults
+                .fn_app_sorts_mut()
+                .insert(fhir_id, res.into());
         }
 
         // Make sure all parameters are fully resolved

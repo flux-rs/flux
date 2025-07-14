@@ -11,7 +11,7 @@ use crate::{
     def_id::{FluxDefId, FluxId, FluxLocalDefId},
     global_env::GlobalEnv,
     rty::{
-        Binder, Expr, ExprKind,
+        Binder, Expr, ExprKind, SortArg,
         expr::SpecFuncKind,
         fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
@@ -134,7 +134,7 @@ pub fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
     impl TypeVisitor for DepsVisitor {
         #[allow(clippy::disallowed_methods, reason = "refinement functions cannot be extern specs")]
         fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<!> {
-            if let ExprKind::App(func, _) = expr.kind()
+            if let ExprKind::App(func, ..) = expr.kind()
                 && let ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
                 && let Some(did) = did.as_local()
             {
@@ -187,7 +187,13 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         }
     }
 
-    fn app(&mut self, func: &Expr, args: &[Expr], espan: Option<ESpan>) -> Expr {
+    fn app(
+        &mut self,
+        func: &Expr,
+        sort_args: &[SortArg],
+        args: &[Expr],
+        espan: Option<ESpan>,
+    ) -> Expr {
         match func.kind() {
             ExprKind::GlobalFunc(SpecFuncKind::Def(did)) if self.inline(did) => {
                 let res = self.func_defn(*did).replace_bound_refts(args);
@@ -197,7 +203,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
                 let res = lam.apply(args);
                 Self::at_base(res, espan)
             }
-            _ => Expr::app(func.clone(), args.into()).at_opt(espan),
+            _ => Expr::app(func.clone(), sort_args.into(), args.into()).at_opt(espan),
         }
     }
 }
@@ -207,7 +213,7 @@ impl TypeFolder for Normalizer<'_, '_, '_> {
         let expr = expr.super_fold_with(self);
         let span = expr.span();
         match expr.kind() {
-            ExprKind::App(func, args) => self.app(func, args, span),
+            ExprKind::App(func, sorts, args) => self.app(func, sorts, args, span),
             ExprKind::FieldProj(e, proj) => e.proj_and_reduce(*proj),
             _ => expr,
         }

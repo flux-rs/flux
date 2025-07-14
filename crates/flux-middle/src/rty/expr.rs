@@ -33,7 +33,7 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        BoundVariableKind,
+        BoundVariableKind, SortArg,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
@@ -309,19 +309,19 @@ impl Expr {
     }
 
     pub fn prim_val(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::app(InternalFuncKind::Val(op), List::from_arr([e1.into(), e2.into()]))
+        Expr::app(InternalFuncKind::Val(op), List::empty(), List::from_arr([e1.into(), e2.into()]))
     }
 
     pub fn prim_rel(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
-        Expr::app(InternalFuncKind::Rel(op), List::from_arr([e1.into(), e2.into()]))
+        Expr::app(InternalFuncKind::Rel(op), List::empty(), List::from_arr([e1.into(), e2.into()]))
     }
 
     pub fn unit_struct(def_id: DefId) -> Expr {
         Expr::ctor_struct(def_id, List::empty())
     }
 
-    pub fn app(func: impl Into<Expr>, args: List<Expr>) -> Expr {
-        ExprKind::App(func.into(), args).intern()
+    pub fn app(func: impl Into<Expr>, sort_args: List<SortArg>, args: List<Expr>) -> Expr {
+        ExprKind::App(func.into(), sort_args, args).intern()
     }
 
     pub fn global_func(kind: SpecFuncKind) -> Expr {
@@ -554,7 +554,7 @@ impl Expr {
         let args = (0..inputs.len())
             .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
             .collect();
-        let body = Expr::app(self, args);
+        let body = Expr::app(self, List::empty(), args);
         Lambda::bind_with_vars(body, inputs.clone(), output)
     }
 
@@ -706,8 +706,8 @@ pub enum InternalFuncKind {
     /// UIF representing the relationship of a primop
     Rel(BinOp),
     // CHARS
-    CharToInt,
-    IntToChar,
+    ToInt,
+    ToChar,
 }
 
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
@@ -744,7 +744,7 @@ pub enum ExprKind {
     /// to make sure that expressions that can't be encoded are eliminated before we generate the
     /// fixpoint constraint. Most notably, lambda abstractions have to be fully applied before
     /// encoding into fixpoint (except when they appear as an index at the top-level).
-    App(Expr, List<Expr>),
+    App(Expr, List<SortArg>, List<Expr>),
     /// Lambda abstractions. They are purely syntactic and we don't encode them in the logic. As such,
     /// they have some syntactic restrictions that we must carefully maintain:
     ///
@@ -1304,8 +1304,8 @@ pub(crate) mod pretty {
             match self {
                 InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
                 InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
-                InternalFuncKind::CharToInt => w!(cx, f, "char_to_int"),
-                InternalFuncKind::IntToChar => w!(cx, f, "int_to_char"),
+                InternalFuncKind::ToInt => w!(cx, f, "to_int"),
+                InternalFuncKind::ToChar => w!(cx, f, "to_char"),
             }
         }
     }
@@ -1399,7 +1399,7 @@ pub(crate) mod pretty {
                         w!(cx, f, "({:?}).{:?}", e, field)
                     }
                 }
-                ExprKind::App(func, args) => {
+                ExprKind::App(func, _, args) => {
                     w!(cx, f, "{:?}({})",
                         parens!(func, !func.is_atom()),
                         ^args
@@ -1754,7 +1754,7 @@ pub(crate) mod pretty {
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }
-                ExprKind::App(func, args) => {
+                ExprKind::App(func, _, args) => {
                     let func_d = func.fmt_nested(cx)?;
                     let mut texts = vec![];
                     let mut kidss = vec![func_d.children];

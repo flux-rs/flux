@@ -1047,6 +1047,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn internal_func_to_fixpoint(
         &mut self,
         internal_func: &InternalFuncKind,
+        sort_args: &[rty::SortArg],
         args: &[rty::Expr],
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
@@ -1064,7 +1065,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 };
                 self.expr_to_fixpoint(&expr, scx)
             }
-            InternalFuncKind::CharToInt | InternalFuncKind::IntToChar => {
+            InternalFuncKind::ToInt | InternalFuncKind::ToChar => {
                 // We can erase the "call" because fixpoint uses `int` to represent `char`
                 // so the conversions are unnecessary.
                 self.expr_to_fixpoint(&args[0], scx)
@@ -1094,9 +1095,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.define_const_for_rust_const(*did, scx);
                 fixpoint::Expr::Var(var)
             }
-            rty::ExprKind::App(func, args) => {
+            rty::ExprKind::App(func, sort_args, args) => {
                 if let rty::ExprKind::InternalFunc(func) = func.kind() {
-                    self.internal_func_to_fixpoint(func, args, scx)?
+                    self.internal_func_to_fixpoint(func, sort_args, args, scx)?
                 } else {
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let args = self.exprs_to_fixpoint(args, scx)?;

@@ -578,4 +578,8 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
     fn node_sort(&self, _: FhirId) -> rty::Sort {
         rty::Sort::Err
     }
+
+    fn node_sort_args(&self, _: FhirId) -> rty::List<rty::SortArg> {
+        rty::List::empty()
+    }
 }

@@ -2736,6 +2736,7 @@ impl_slice_internable!(
     Ensures,
     InferMode,
     Sort,
+    SortArg,
     GenericParamDef,
     TraitRef,
     Binder<ExistentialPredicate>,
@@ -2791,6 +2792,7 @@ pub use crate::_Ref as Ref;
 pub struct WfckResults {
     pub owner: FluxOwnerId,
     bin_op_sorts: ItemLocalMap<Sort>,
+    fn_app_sorts: ItemLocalMap<List<SortArg>>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     field_projs: ItemLocalMap<FieldProj>,
     node_sorts: ItemLocalMap<Sort>,
@@ -2825,11 +2827,20 @@ impl WfckResults {
             field_projs: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
             record_ctors: ItemLocalMap::default(),
+            fn_app_sorts: ItemLocalMap::default(),
         }
     }
 
     pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.bin_op_sorts }
+    }
+
+    pub fn fn_app_sorts_mut(&mut self) -> LocalTableInContextMut<'_, List<SortArg>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.fn_app_sorts }
+    }
+
+    pub fn fn_app_sorts(&self) -> LocalTableInContext<'_, List<SortArg>> {
+        LocalTableInContext { owner: self.owner, data: &self.fn_app_sorts }
     }
 
     pub fn bin_op_sorts(&self) -> LocalTableInContext<'_, Sort> {

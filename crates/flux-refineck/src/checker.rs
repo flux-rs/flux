@@ -2004,16 +2004,20 @@ fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
 }
 
 fn uint_char_cast(idx: &Expr) -> Ty {
+    let sort_arg = rty::SortArg::Sort(rty::Sort::Int);
     let idx = Expr::app(
-        rty::Expr::internal_func(InternalFuncKind::IntToChar),
+        rty::Expr::internal_func(InternalFuncKind::ToChar),
+        rty::List::singleton(sort_arg),
         rty::List::singleton(idx.clone()),
     );
     Ty::indexed(BaseTy::Char, idx)
 }
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
+    let sort_arg = rty::SortArg::Sort(rty::Sort::Char);
     let idx = Expr::app(
-        Expr::internal_func(InternalFuncKind::IntToChar),
+        Expr::internal_func(InternalFuncKind::ToInt),
+        rty::List::singleton(sort_arg),
         rty::List::singleton(idx.clone()),
     );
     Ty::indexed(BaseTy::Uint(uint_ty), idx)

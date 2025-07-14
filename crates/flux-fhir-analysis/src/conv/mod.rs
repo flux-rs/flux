@@ -122,6 +122,8 @@ pub trait WfckResultsProvider: Sized {
     fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort;
 
     fn node_sort(&self, fhir_id: FhirId) -> rty::Sort;
+
+    fn node_sort_args(&self, fhir_id: FhirId) -> List<rty::SortArg>;
 }
 
 impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for AfterSortck<'_, 'genv, 'tcx> {
@@ -206,6 +208,13 @@ impl WfckResultsProvider for WfckResults {
         self.node_sorts()
             .get(fhir_id)
             .unwrap_or_else(|| bug!("node without elaborated sort for `{fhir_id:?}`"))
+            .clone()
+    }
+
+    fn node_sort_args(&self, fhir_id: FhirId) -> List<rty::SortArg> {
+        self.fn_app_sorts()
+            .get(fhir_id)
+            .unwrap_or_else(|| bug!("fn-app node without elaborated sort_args for `{fhir_id:?}`"))
             .clone()
     }
 }
@@ -2134,7 +2143,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .at(espan)
             }
             fhir::ExprKind::App(func, args) => {
-                rty::Expr::app(self.conv_func(env, &func), self.conv_exprs(env, args)?).at(espan)
+                let sort_args = self.results().node_sort_args(fhir_id);
+                rty::Expr::app(self.conv_func(env, &func), sort_args, self.conv_exprs(env, args)?)
+                    .at(espan)
             }
             fhir::ExprKind::Alias(alias, args) => {
                 let args = args
@@ -2288,7 +2299,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::SpecFuncKind::Thy(thy_func) => Ok(rty::SpecFuncKind::Thy(*thy_func)),
             fhir::SpecFuncKind::Uif(flux_id) => Ok(rty::SpecFuncKind::Uif(*flux_id)),
             fhir::SpecFuncKind::Def(flux_id) => Ok(rty::SpecFuncKind::Def(*flux_id)),
-            fhir::SpecFuncKind::CharToInt => Err(rty::InternalFuncKind::CharToInt),
+            fhir::SpecFuncKind::ToInt => Err(rty::InternalFuncKind::ToInt),
         }
     }
 
