@@ -9,7 +9,6 @@ mod parser;
 pub mod surface;
 
 use lexer::{Cursor, TokenKind};
-use parser::lookahead::Peek;
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;

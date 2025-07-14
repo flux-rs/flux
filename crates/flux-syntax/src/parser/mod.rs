@@ -10,13 +10,14 @@ use utils::{
 };
 
 use crate::{
-    ParseCtxt, ParseError, ParseResult, Peek as _,
+    ParseCtxt, ParseError, ParseResult,
     lexer::{
         Delimiter::*,
         Token,
         TokenKind::{Caret, Comma},
         token,
     },
+    parser::lookahead::PeekDescr as _,
     surface::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
@@ -1163,7 +1164,7 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
             span: cx.mk_span(lo, hi),
         })
     } else {
-        Err(cx.unexpected_token(AnyLit.display().collect()))
+        Err(cx.unexpected_token(vec![AnyLit.descr()]))
     }
 }
 
@@ -1172,7 +1173,7 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
         cx.advance();
         Ok(Ident { name, span: cx.mk_span(lo, hi) })
     } else {
-        Err(cx.unexpected_token(AnyIdent.display().collect()))
+        Err(cx.unexpected_token(vec![AnyIdent.descr()]))
     }
 }
 
