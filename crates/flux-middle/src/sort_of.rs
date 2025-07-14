@@ -43,20 +43,18 @@ impl GlobalEnv<'_, '_> {
         if ty.is_integral() { Ok(Some(rty::Sort::Int)) } else { self.sort_of_rust_ty(def_id, ty) }
     }
 
-    pub fn sort_of_spec_func(self, spec_func: &SpecFuncKind) -> rty::Sort {
+    pub fn sort_of_spec_func(self, spec_func: &SpecFuncKind) -> rty::PolyFuncSort {
         match spec_func {
-            SpecFuncKind::Def(name) | SpecFuncKind::Uif(name) => {
-                rty::Sort::Func(self.func_sort(name))
-            }
-            SpecFuncKind::Thy(itf) => rty::Sort::Func(THEORY_FUNCS.get(&itf).unwrap().sort.clone()),
+            SpecFuncKind::Def(name) | SpecFuncKind::Uif(name) => self.func_sort(name),
+            SpecFuncKind::Thy(itf) => THEORY_FUNCS.get(itf).unwrap().sort.clone(),
             SpecFuncKind::ToInt => {
-                rty::Sort::Func(rty::PolyFuncSort::new(
+                rty::PolyFuncSort::new(
                     List::singleton(SortParamKind::Sort),
                     rty::FuncSort::new(
-                        vec![rty::Sort::Var(rty::ParamSort::from(0 as usize))],
+                        vec![rty::Sort::Var(rty::ParamSort::from(0_usize))],
                         rty::Sort::Int,
                     ),
-                ))
+                )
             }
         }
     }

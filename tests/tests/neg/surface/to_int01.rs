@@ -9,3 +9,10 @@ pub fn test_bool_to_int(_x: bool) -> u32 {
 pub fn test_bool_to_int_with_if(x: bool) -> u32 {
     if x { 1 } else { 1 } //~ERROR refinement type
 }
+
+struct S {}
+
+#[flux::sig(fn(x:S) -> i32[to_int(x)])]
+fn foo(x: S) -> i32 {
+    0 //~ ERROR refinement type
+}

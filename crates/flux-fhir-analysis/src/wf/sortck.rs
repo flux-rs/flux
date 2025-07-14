@@ -396,7 +396,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
-            ExprRes::GlobalFunc(spec_func) => Ok(self.genv.sort_of_spec_func(&spec_func)),
+            ExprRes::GlobalFunc(spec_func) => {
+                Ok(rty::Sort::Func(self.genv.sort_of_spec_func(&spec_func)))
+            }
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
             }
@@ -803,7 +805,7 @@ impl<'genv> InferCtxt<'genv, '_> {
             for sort_arg in &sort_args {
                 let sort_arg = if let rty::SortArg::Sort(sort) = sort_arg {
                     let sort = self
-                        .fully_resolve(&sort)
+                        .fully_resolve(sort)
                         .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
                     rty::SortArg::Sort(sort)
                 } else {

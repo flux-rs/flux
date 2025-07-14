@@ -377,6 +377,7 @@ enum ConstKey<'tcx> {
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
+    ToInt(List<rty::SortArg>),
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
@@ -1078,8 +1079,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         );
                         self.expr_to_fixpoint(&expr, scx)
                     }
+                    // Treat all other to_int conversions as uninterpreted
                     _ => {
-                        span_bug!(self.def_span, "unexpected source sort in to_int")
+                        let func =
+                            fixpoint::Expr::Var(self.define_const_for_to_int(sort_args, scx));
+                        let args = self.exprs_to_fixpoint(args, scx)?;
+                        Ok(fixpoint::Expr::App(Box::new(func), args))
                     }
                 }
             }
@@ -1476,6 +1481,30 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             _ => span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"),
         }
+    }
+
+    fn define_const_for_to_int(
+        &mut self,
+        sort_args: &[rty::SortArg],
+        scx: &mut SortEncodingCtxt,
+    ) -> fixpoint::Var {
+        let key = ConstKey::ToInt(sort_args.into());
+        self.const_map
+            .entry(key)
+            .or_insert_with(|| {
+                let fsort = self
+                    .genv
+                    .sort_of_spec_func(&flux_middle::fhir::SpecFuncKind::ToInt)
+                    .instantiate(sort_args);
+                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+                let sort = scx.func_sort_to_fixpoint(&fsort);
+                fixpoint::ConstDecl {
+                    name: fixpoint::Var::Global(self.global_var_gen.fresh(), None),
+                    sort,
+                    comment: Some(format!("to_int uif: <{sort_args:?}>")),
+                }
+            })
+            .name
     }
 
     fn define_const_for_prim_op(

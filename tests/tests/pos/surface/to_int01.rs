@@ -19,3 +19,10 @@ pub fn test_bool_to_int(x: bool) -> u32 {
 pub fn test_bool_to_int_with_if(x: bool) -> u32 {
     if x { 1 } else { 0 }
 }
+
+pub struct S {}
+
+#[spec(fn(x:S, n:usize[to_int(x)]) -> usize[to_int(x)])]
+pub fn foo(_x: S, n: usize) -> usize {
+    n
+}
