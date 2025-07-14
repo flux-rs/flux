@@ -5,7 +5,9 @@ use rustc_ast::{
     token::InvisibleOrigin,
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 };
-use rustc_span::{BytePos, Symbol, symbol::kw};
+use rustc_span::{BytePos, Symbol};
+
+use crate::symbols::kw;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TokenKind {
@@ -202,25 +204,8 @@ impl fmt::Display for TokenKind {
 
 pub struct Cursor<'t> {
     stack: Vec<Frame<'t>>,
-    symbs: Symbols,
     tokens: VecDeque<Token>,
     hi: BytePos,
-}
-
-struct Symbols {
-    requires: Symbol,
-    ensures: Symbol,
-    strg: Symbol,
-    qualifier: Symbol,
-    property: Symbol,
-    sort: Symbol,
-    opaque: Symbol,
-    local: Symbol,
-    bitvec: Symbol,
-    hrn: Symbol,
-    hdl: Symbol,
-    forall: Symbol,
-    exists: Symbol,
 }
 
 struct Frame<'t> {
@@ -233,21 +218,6 @@ impl<'t> Cursor<'t> {
         let mut cursor = Cursor {
             stack: vec![Frame { cursor: stream.iter().peekable(), close: None }],
             tokens: VecDeque::new(),
-            symbs: Symbols {
-                strg: Symbol::intern("strg"),
-                requires: Symbol::intern("requires"),
-                ensures: Symbol::intern("ensures"),
-                qualifier: Symbol::intern("qualifier"),
-                property: Symbol::intern("property"),
-                sort: Symbol::intern("sort"),
-                bitvec: Symbol::intern("bitvec"),
-                opaque: Symbol::intern("opaque"),
-                local: Symbol::intern("local"),
-                hrn: Symbol::intern("hrn"),
-                hdl: Symbol::intern("hdl"),
-                forall: Symbol::intern("forall"),
-                exists: Symbol::intern("exists"),
-            },
             hi: offset,
         };
         cursor.fetch_tokens();
@@ -330,21 +300,19 @@ impl<'t> Cursor<'t> {
             rustc_ast::token::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 TokenKind::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.strg => TokenKind::Strg,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.requires => TokenKind::Requires,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.ensures => TokenKind::Ensures,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.qualifier => {
-                TokenKind::Qualifier
-            }
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.property => TokenKind::Property,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.sort => TokenKind::Sort,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.opaque => TokenKind::Opaque,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.local => TokenKind::Local,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.bitvec => TokenKind::BitVec,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.hrn => TokenKind::Hrn,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.hdl => TokenKind::Hdl,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.forall => TokenKind::Forall,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.exists => TokenKind::Exists,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Strg => TokenKind::Strg,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Requires => TokenKind::Requires,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Ensures => TokenKind::Ensures,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Qualifier => TokenKind::Qualifier,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Property => TokenKind::Property,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Sort => TokenKind::Sort,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Opaque => TokenKind::Opaque,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Local => TokenKind::Local,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Bitvec => TokenKind::BitVec,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Hrn => TokenKind::Hrn,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Hdl => TokenKind::Hdl,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Forall => TokenKind::Forall,
+            rustc_ast::token::Ident(symb, _) if symb == kw::Exists => TokenKind::Exists,
             rustc_ast::token::Ident(symb, _) if symb == kw::Let => TokenKind::Let,
             rustc_ast::token::Ident(symb, _) if symb == kw::In => TokenKind::In,
             rustc_ast::token::Ident(symb, _) if symb == kw::Ref => TokenKind::Ref,
