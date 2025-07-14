@@ -54,11 +54,11 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     let mut symbols_stream = quote! {};
     let mut prev_key: Option<(Span, String)> = None;
     let mut check_order = |span: Span, s: &str, errors: &mut Errors| {
-        if let Some((prev_span, ref prev_str)) = prev_key {
-            if s < prev_str {
-                errors.error(span, format!("Symbol `{s}` must precede `{prev_str}`"));
-                errors.error(prev_span, format!("location of previous symbol `{prev_str}`"));
-            }
+        if let Some((prev_span, ref prev_str)) = prev_key
+            && s < prev_str
+        {
+            errors.error(span, format!("Symbol `{s}` must precede `{prev_str}`"));
+            errors.error(prev_span, format!("location of previous symbol `{prev_str}`"));
         }
         prev_key = Some((span, s.to_string()));
     };
@@ -154,15 +154,13 @@ impl Parse for Symbol {
 impl Parse for Value {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
         let expr: Expr = input.parse()?;
-        match &expr {
-            Expr::Lit(expr) => {
-                if let Lit::Str(lit) = &expr.lit {
-                    return Ok(Value::String(lit.clone()));
-                }
-            }
-            _ => {}
+        if let Expr::Lit(expr) = &expr
+            && let Lit::Str(lit) = &expr.lit
+        {
+            Ok(Value::String(lit.clone()))
+        } else {
+            Ok(Value::Unsupported(expr))
         }
-        Ok(Value::Unsupported(expr))
     }
 }
 
