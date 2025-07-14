@@ -18,8 +18,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, InternalFuncKind,
-        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
+        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -2004,22 +2004,12 @@ fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
 }
 
 fn uint_char_cast(idx: &Expr) -> Ty {
-    let sort_arg = rty::SortArg::Sort(rty::Sort::Int);
-    let idx = Expr::app(
-        rty::Expr::internal_func(InternalFuncKind::ToChar),
-        rty::List::singleton(sort_arg),
-        rty::List::singleton(idx.clone()),
-    );
+    let idx = Expr::cast(rty::Sort::Int, rty::Sort::Char, idx.clone());
     Ty::indexed(BaseTy::Char, idx)
 }
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
-    let sort_arg = rty::SortArg::Sort(rty::Sort::Char);
-    let idx = Expr::app(
-        Expr::internal_func(InternalFuncKind::ToInt),
-        rty::List::singleton(sort_arg),
-        rty::List::singleton(idx.clone()),
-    );
+    let idx = Expr::cast(rty::Sort::Char, rty::Sort::Int, idx.clone());
     Ty::indexed(BaseTy::Uint(uint_ty), idx)
 }
 

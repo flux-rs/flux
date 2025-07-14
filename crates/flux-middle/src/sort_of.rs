@@ -47,12 +47,12 @@ impl GlobalEnv<'_, '_> {
         match spec_func {
             SpecFuncKind::Def(name) | SpecFuncKind::Uif(name) => self.func_sort(name),
             SpecFuncKind::Thy(itf) => THEORY_FUNCS.get(itf).unwrap().sort.clone(),
-            SpecFuncKind::ToInt => {
+            SpecFuncKind::Cast => {
                 rty::PolyFuncSort::new(
-                    List::singleton(SortParamKind::Sort),
+                    List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
                     rty::FuncSort::new(
                         vec![rty::Sort::Var(rty::ParamSort::from(0_usize))],
-                        rty::Sort::Int,
+                        rty::Sort::Var(rty::ParamSort::from(1_usize)),
                     ),
                 )
             }

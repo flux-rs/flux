@@ -1193,7 +1193,7 @@ pub enum SpecFuncKind {
     /// User-defined functions with a body definition
     Def(FluxDefId),
     /// Char-Int Conversions
-    ToInt,
+    Cast,
 }
 
 impl SpecFuncKind {

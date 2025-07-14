@@ -2299,7 +2299,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::SpecFuncKind::Thy(thy_func) => Ok(rty::SpecFuncKind::Thy(*thy_func)),
             fhir::SpecFuncKind::Uif(flux_id) => Ok(rty::SpecFuncKind::Uif(*flux_id)),
             fhir::SpecFuncKind::Def(flux_id) => Ok(rty::SpecFuncKind::Def(*flux_id)),
-            fhir::SpecFuncKind::ToInt => Err(rty::InternalFuncKind::ToInt),
+            fhir::SpecFuncKind::Cast => Err(rty::InternalFuncKind::Cast),
         }
     }
 

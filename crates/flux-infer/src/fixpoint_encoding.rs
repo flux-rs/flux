@@ -976,6 +976,12 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     def_span: Span,
 }
 
+fn is_id_cast(from: &rty::Sort, to: &rty::Sort) -> bool {
+    from == to
+        || (matches!(from, rty::Sort::Char | rty::Sort::Int)
+            && matches!(to, rty::Sort::Char | rty::Sort::Int))
+}
+
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>, def_span: Span) -> Self {
         Self {
@@ -1066,12 +1072,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 };
                 self.expr_to_fixpoint(&expr, scx)
             }
-            InternalFuncKind::ToInt => {
+            InternalFuncKind::Cast => {
                 match sort_args {
-                    // Erase as fixpoint uses `int` to represent `char`
-                    [rty::SortArg::Sort(rty::Sort::Char)]
-                    | [rty::SortArg::Sort(rty::Sort::Int)] => self.expr_to_fixpoint(&args[0], scx),
-                    [rty::SortArg::Sort(rty::Sort::Bool)] => {
+                    [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] if is_id_cast(from, to) => {
+                        self.expr_to_fixpoint(&args[0], scx)
+                    }
+                    [rty::SortArg::Sort(rty::Sort::Bool), rty::SortArg::Sort(rty::Sort::Int)] => {
                         let expr = rty::Expr::ite(
                             args[0].clone(),
                             rty::Expr::constant(rty::Constant::from(1)),
@@ -1087,11 +1093,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         Ok(fixpoint::Expr::App(Box::new(func), args))
                     }
                 }
-            }
-            InternalFuncKind::ToChar => {
-                // Erase as fixpoint uses `int` to represent `char`
-                // so the conversions are unnecessary.
-                self.expr_to_fixpoint(&args[0], scx)
             }
         }
     }
@@ -1494,7 +1495,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let fsort = self
                     .genv
-                    .sort_of_spec_func(&flux_middle::fhir::SpecFuncKind::ToInt)
+                    .sort_of_spec_func(&flux_middle::fhir::SpecFuncKind::Cast)
                     .instantiate(sort_args);
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);

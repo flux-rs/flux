@@ -320,6 +320,14 @@ impl Expr {
         Expr::ctor_struct(def_id, List::empty())
     }
 
+    pub fn cast(from: Sort, to: Sort, idx: Expr) -> Expr {
+        Expr::app(
+            InternalFuncKind::Cast,
+            List::from_arr([SortArg::Sort(from), SortArg::Sort(to)]),
+            List::from_arr([idx]),
+        )
+    }
+
     pub fn app(func: impl Into<Expr>, sort_args: List<SortArg>, args: List<Expr>) -> Expr {
         ExprKind::App(func.into(), sort_args, args).intern()
     }
@@ -705,9 +713,8 @@ pub enum InternalFuncKind {
     Val(BinOp),
     /// UIF representing the relationship of a primop
     Rel(BinOp),
-    // CHARS
-    ToInt,
-    ToChar,
+    // Conversions betweeen Sorts
+    Cast,
 }
 
 #[derive(Debug, Clone, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
@@ -1304,8 +1311,7 @@ pub(crate) mod pretty {
             match self {
                 InternalFuncKind::Val(op) => w!(cx, f, "[{:?}]", op),
                 InternalFuncKind::Rel(op) => w!(cx, f, "[{:?}]?", op),
-                InternalFuncKind::ToInt => w!(cx, f, "to_int"),
-                InternalFuncKind::ToChar => w!(cx, f, "to_char"),
+                InternalFuncKind::Cast => w!(cx, f, "cast"),
             }
         }
     }
