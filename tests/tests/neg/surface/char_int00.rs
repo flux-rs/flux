@@ -1,11 +1,11 @@
 #![flux::defs {
     fn is_ascii_digit(c:char) -> bool {
-        let i = char_to_int(c);
+        let i = to_int(c);
         48 <= i && i <= 57
     }
 
     fn is_ascii(c:char) -> bool {
-            let i = char_to_int(c);
+            let i = to_int(c);
             0 <= i && i <= 127
     }
 }]
