@@ -7,6 +7,7 @@ extern crate rustc_span;
 pub mod lexer;
 mod parser;
 pub mod surface;
+pub mod symbols;
 
 use lexer::{Cursor, TokenKind};
 use rustc_ast::tokenstream::TokenStream;
