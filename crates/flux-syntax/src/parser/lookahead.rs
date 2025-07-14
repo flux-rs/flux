@@ -30,7 +30,9 @@ impl fmt::Display for Expected {
 /// A trait for testing whether a token matches a rule.
 pub(crate) trait Peek: Copy {
     /// Returns true if a token matches this rule
-    fn matches(self, tok: TokenKind) -> bool;
+    ///
+    /// The rule is edition dependent because keywords can vary.
+    fn matches(self, tok: TokenKind, edition: Edition) -> bool;
 }
 
 /// A subtrait of [`Peek`] for rules that have an *expected description*.
@@ -46,7 +48,7 @@ pub(crate) trait PeekExpected: Peek {
 
 /// Use a [`TokenKind`] to match by exact equality
 impl Peek for TokenKind {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         self == tok
     }
 }
@@ -60,9 +62,9 @@ impl PeekExpected for TokenKind {
 #[derive(Clone, Copy)]
 pub(crate) struct NonReserved;
 impl Peek for NonReserved {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, edition: Edition) -> bool {
         match tok {
-            TokenKind::Ident(sym) => !symbols::is_reserved(sym, Edition::EditionFuture),
+            TokenKind::Ident(sym) => !symbols::is_reserved(sym, edition),
             _ => false,
         }
     }
@@ -77,7 +79,7 @@ impl PeekExpected for NonReserved {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyLit;
 impl Peek for AnyLit {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         matches!(tok, TokenKind::Literal(_))
     }
 }
@@ -87,7 +89,7 @@ impl PeekExpected for AnyLit {
     }
 }
 
-/// There are some lexing ambiguities with `>>`, which can represet both a right shift or two
+/// There are some lexing ambiguities with `>>` because it can represet both a right shift or two
 /// closing angle brackets (e.g., `Vec<Option<i32>>`). We solve the ambiguity by giving `>` a
 /// special token if it's immediately followed by another `>`,  i.e., `>>` is tokenized as
 /// [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
@@ -96,7 +98,7 @@ impl PeekExpected for AnyLit {
 #[derive(Clone, Copy)]
 pub(crate) struct RAngle;
 impl Peek for RAngle {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
     }
 }
@@ -113,7 +115,7 @@ impl PeekExpected for RAngle {
 #[derive(Clone, Copy)]
 pub(crate) struct LAngle;
 impl Peek for LAngle {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         matches!(tok, TokenKind::LtFollowedByLt | TokenKind::Lt)
     }
 }
@@ -123,22 +125,9 @@ impl PeekExpected for LAngle {
     }
 }
 
-/// Use a string to match an [`TokenKind::Ident`] equal to it. Prefer matching against a predefined
-/// [`Symbol`] because it will be faster.
-impl Peek for &'static str {
-    fn matches(self, tok: TokenKind) -> bool {
-        matches!(tok, TokenKind::Ident(sym) if sym.as_str() == self)
-    }
-}
-impl PeekExpected for &'static str {
-    fn expected(self) -> Expected {
-        Expected::Str(self)
-    }
-}
-
-/// Use a [`Symbol`] to match an [`TokenKind::Ident`] equal to it.
+/// Use a [`Symbol`] to match a [`TokenKind::Ident`] equal to it.
 impl Peek for Symbol {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         matches!(tok, TokenKind::Ident(sym) if sym == self)
     }
 }
@@ -152,14 +141,14 @@ impl PeekExpected for Symbol {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyOf<T, const N: usize>(pub [T; N]);
 impl<T: Peek, const N: usize> Peek for AnyOf<T, N> {
-    fn matches(self, tok: TokenKind) -> bool {
-        self.0.into_iter().any(|t| t.matches(tok))
+    fn matches(self, tok: TokenKind, edition: Edition) -> bool {
+        self.0.into_iter().any(|t| t.matches(tok, edition))
     }
 }
 
 /// An arbitrary peek rule defined by a predicate on [`TokenKind`]
 impl<F: FnOnce(TokenKind) -> bool + Copy> Peek for F {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         (self)(tok)
     }
 }
@@ -206,7 +195,7 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
 }
 
 impl<'cx> ParseCtxt<'cx> {
-    /// Returns the token (and span) at the requested position.
+    /// Returns the token at the requested position.
     pub(crate) fn at(&mut self, n: usize) -> Token {
         self.tokens.at(n)
     }
@@ -214,17 +203,22 @@ impl<'cx> ParseCtxt<'cx> {
     /// Looks at the next token in the underlying cursor to determine whether it matches the
     /// requested type of token. Does not advance the position of the cursor.
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
-        t.matches(self.at(0).kind)
+        self.peek_at(0, t)
     }
 
     /// Looks at the next two tokens
     pub(crate) fn peek2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
-        t1.matches(self.at(0).kind) && t2.matches(self.at(1).kind)
+        self.peek_at(0, t1) && self.peek_at(1, t2)
     }
 
     /// Looks at the next three tokens
     pub(crate) fn peek3<T1: Peek, T2: Peek, T3: Peek>(&mut self, t1: T1, t2: T2, t3: T3) -> bool {
-        t1.matches(self.at(0).kind) && t2.matches(self.at(1).kind) && t3.matches(self.at(2).kind)
+        self.peek_at(0, t1) && self.peek_at(1, t2) && self.peek_at(2, t3)
+    }
+
+    fn peek_at<T: Peek>(&mut self, n: usize, t: T) -> bool {
+        let tok = self.at(n);
+        t.matches(tok.kind, self.edition)
     }
 
     /// Looks whether the next token matches a binary operation. In case of a match, returns
@@ -267,7 +261,7 @@ impl<'cx> ParseCtxt<'cx> {
     }
 
     /// Looks at the next token and advances the cursor if it matches the requested
-    /// rule. Returns `true` if there was a match.
+    /// rule. Returns `true` if there was a match (i.e., the cursor was advanced).
     pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
         if self.peek(t) {
             self.advance();

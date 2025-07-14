@@ -4,20 +4,28 @@ use rustc_span::{Symbol, edition::Edition};
 symbols! {
     Keywords {
         Bitvec: "bitvec",
-        Ensures: "ensures",
         Exists: "exists",
         Forall: "forall",
         Hrn: "hrn",
         Hdl: "hdl",
         Requires: "requires",
+        Ensures: "ensures",
         Property: "property",
         Qualifier: "qualifier",
         Sort: "sort",
         Strg: "strg",
     }
+
+    Symbols {
+        Map,
+        Set,
+        hide,
+        int,
+        real,
+    }
 }
 
-/// Module exporting all predefined Rust keywords plus extra Flux keywords.
+/// All Rust keywords plus extra Flux keywords.
 pub mod kw {
     #![allow(non_upper_case_globals)]
 
@@ -34,6 +42,8 @@ pub mod kw {
 
 pub mod sym {
     pub use rustc_span::sym::*;
+
+    pub use super::sym_generated::*;
 }
 
 pub fn is_reserved(sym: Symbol, edition: Edition) -> bool {

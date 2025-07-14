@@ -131,12 +131,12 @@ impl TokenKind {
             TokenKind::CloseBracket => "]",
             TokenKind::OpenInvisible(_) => "",
             TokenKind::CloseInvisible(_) => "",
-            TokenKind::Invalid => "<invalid>",
             TokenKind::And => "&",
             TokenKind::Percent => "%",
             TokenKind::PathSep => "::",
             TokenKind::DotDot => "..",
             TokenKind::Eof => "<eof>",
+            TokenKind::Invalid => "<invalid>",
         }
     }
 

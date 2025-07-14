@@ -1,9 +1,11 @@
+//! This is based on the implementation of the `symbols` macro in rustc.
+
 use std::collections::HashMap;
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    Ident, LitStr, Result, Token, braced,
+    Expr, Ident, Lit, LitStr, Result, Token, braced,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
 };
@@ -30,10 +32,11 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
         }
     };
 
-    let mut keyword_stream = quote! {};
     let mut prefill_stream = quote! {};
-
     let mut entries = Entries::with_capacity(input.keywords.len());
+
+    // Generate the listed keywords.
+    let mut keyword_stream = quote! {};
     for keyword in &input.keywords {
         let name = &keyword.name;
         let value = &keyword.value;
@@ -43,6 +46,45 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
             #value,
         });
         keyword_stream.extend(quote! {
+            pub const #name: Symbol = Symbol::new(rustc_span::symbol::PREDEFINED_SYMBOLS_COUNT + #idx);
+        });
+    }
+
+    // Generate the listed symbols.
+    let mut symbols_stream = quote! {};
+    let mut prev_key: Option<(Span, String)> = None;
+    let mut check_order = |span: Span, s: &str, errors: &mut Errors| {
+        if let Some((prev_span, ref prev_str)) = prev_key {
+            if s < prev_str {
+                errors.error(span, format!("Symbol `{s}` must precede `{prev_str}`"));
+                errors.error(prev_span, format!("location of previous symbol `{prev_str}`"));
+            }
+        }
+        prev_key = Some((span, s.to_string()));
+    };
+    for symbol in &input.symbols {
+        let name = &symbol.name;
+        check_order(symbol.name.span(), &name.to_string(), &mut errors);
+        let value = match &symbol.value {
+            Value::SameAsName => name.to_string(),
+            Value::String(lit) => lit.value(),
+            Value::Unsupported(expr) => {
+                errors.list.push(syn::Error::new_spanned(
+                    expr,
+                    concat!(
+                        "unsupported expression for symbol value; implement support for this in ",
+                        file!(),
+                    ),
+                ));
+                continue;
+            }
+        };
+        let idx = entries.insert(symbol.name.span(), &value, &mut errors);
+
+        prefill_stream.extend(quote! {
+            #value,
+        });
+        symbols_stream.extend(quote! {
             pub const #name: Symbol = Symbol::new(rustc_span::symbol::PREDEFINED_SYMBOLS_COUNT + #idx);
         });
     }
@@ -60,6 +102,13 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
             #keyword_stream
         }
 
+        #[doc(hidden)]
+        #[allow(non_upper_case_globals)]
+        pub mod sym_generated {
+            use rustc_span::Symbol;
+            #symbols_stream
+        }
+
         pub const PREDEFINED_FLUX_SYMBOLS: [&'static str; #predefined_flux_symbols_count_usize] =
             [#prefill_stream];
     };
@@ -69,21 +118,6 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
 struct Keyword {
     name: Ident,
     value: LitStr,
-}
-
-struct Input {
-    keywords: Punctuated<Keyword, Token![,]>,
-}
-
-impl Parse for Input {
-    fn parse(input: ParseStream) -> Result<Self> {
-        input.parse::<kw::Keywords>()?;
-        let content;
-        braced!(content in input);
-        let keywords = Punctuated::parse_terminated(&content)?;
-
-        Ok(Input { keywords })
-    }
 }
 
 impl Parse for Keyword {
@@ -96,8 +130,66 @@ impl Parse for Keyword {
     }
 }
 
+struct Symbol {
+    name: Ident,
+    value: Value,
+}
+
+enum Value {
+    SameAsName,
+    String(LitStr),
+    Unsupported(Expr),
+}
+
+impl Parse for Symbol {
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
+        let name = input.parse()?;
+        let colon_token: Option<Token![:]> = input.parse()?;
+        let value = if colon_token.is_some() { input.parse()? } else { Value::SameAsName };
+
+        Ok(Symbol { name, value })
+    }
+}
+
+impl Parse for Value {
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
+        let expr: Expr = input.parse()?;
+        match &expr {
+            Expr::Lit(expr) => {
+                if let Lit::Str(lit) = &expr.lit {
+                    return Ok(Value::String(lit.clone()));
+                }
+            }
+            _ => {}
+        }
+        Ok(Value::Unsupported(expr))
+    }
+}
+
+struct Input {
+    keywords: Punctuated<Keyword, Token![,]>,
+    symbols: Punctuated<Symbol, Token![,]>,
+}
+
+impl Parse for Input {
+    fn parse(input: ParseStream) -> Result<Self> {
+        input.parse::<kw::Keywords>()?;
+        let content;
+        braced!(content in input);
+        let keywords = Punctuated::parse_terminated(&content)?;
+
+        input.parse::<kw::Symbols>()?;
+        let content;
+        braced!(content in input);
+        let symbols = Punctuated::parse_terminated(&content)?;
+
+        Ok(Input { keywords, symbols })
+    }
+}
+
 mod kw {
     syn::custom_keyword!(Keywords);
+    syn::custom_keyword!(Symbols);
 }
 
 #[derive(Default)]

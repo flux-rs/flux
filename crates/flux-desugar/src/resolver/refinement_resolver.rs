@@ -8,6 +8,7 @@ use flux_middle::{
 };
 use flux_syntax::{
     surface::{self, Ident, NodeId, visit::Visitor as _},
+    symbols::sym,
     walk_list,
 };
 use rustc_data_structures::{
@@ -20,7 +21,7 @@ use rustc_hir::def::{
     Namespace::{TypeNS, ValueNS},
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{ErrorGuaranteed, Symbol, sym};
+use rustc_span::{ErrorGuaranteed, Symbol};
 
 use super::{CrateResolver, Segment};
 
@@ -698,17 +699,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
         let [segment] = &path.segments[..] else { return None };
-        if segment.name == SORTS.int {
+        if segment.name == sym::int {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
         } else if segment.name == sym::bool {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Bool))
         } else if segment.name == sym::char {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Char))
-        } else if segment.name == SORTS.real {
+        } else if segment.name == sym::real {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Real))
-        } else if segment.name == SORTS.set {
+        } else if segment.name == sym::Set {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Set))
-        } else if segment.name == SORTS.map {
+        } else if segment.name == sym::Map {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Map))
         } else {
             None
@@ -876,22 +877,6 @@ macro_rules! define_resolve_num_const {
 }
 
 define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
-
-pub(crate) struct Sorts {
-    pub int: Symbol,
-    pub real: Symbol,
-    pub set: Symbol,
-    pub map: Symbol,
-}
-
-pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
-    Sorts {
-        int: Symbol::intern("int"),
-        real: Symbol::intern("real"),
-        set: Symbol::intern("Set"),
-        map: Symbol::intern("Map"),
-    }
-});
 
 struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
     scopes: Vec<ScopeKind>,

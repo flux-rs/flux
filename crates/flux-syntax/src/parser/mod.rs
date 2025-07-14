@@ -38,17 +38,17 @@ use crate::{
 /// ```
 pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> ParseResult<bool> {
     let mut lookahead = cx.lookahead1();
-    if lookahead.advance_if("yes") {
+    if lookahead.advance_if(sym::yes) {
         if cx.advance_if(token::Comma) {
             parse_reason(cx)?;
         }
         Ok(true)
-    } else if lookahead.advance_if("no") {
+    } else if lookahead.advance_if(sym::no) {
         if cx.advance_if(token::Comma) {
             parse_reason(cx)?;
         }
         Ok(false)
-    } else if lookahead.peek("reason") {
+    } else if lookahead.peek(sym::reason) {
         parse_reason(cx)?;
         Ok(true)
     } else {
@@ -60,7 +60,7 @@ pub(crate) fn parse_yes_or_no_with_reason(cx: &mut ParseCtxt) -> ParseResult<boo
 /// ⟨reason⟩ := reason = ⟨literal⟩
 /// ```
 fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
-    cx.expect("reason")?;
+    cx.expect(sym::reason)?;
     cx.expect(token::Eq)?;
     cx.expect(AnyLit)
 }
@@ -102,7 +102,7 @@ fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {
         return Ok(false);
     }
     cx.expect(token::OpenBracket)?;
-    cx.expect("hide")?;
+    cx.expect(sym::hide)?;
     cx.expect(token::CloseBracket)?;
     Ok(true)
 }
@@ -183,7 +183,7 @@ pub(crate) fn parse_trait_assoc_refts(cx: &mut ParseCtxt) -> ParseResult<Vec<Tra
 /// ```
 fn parse_trait_assoc_reft(cx: &mut ParseCtxt) -> ParseResult<TraitAssocReft> {
     let lo = cx.lo();
-    let final_ = cx.advance_if("final");
+    let final_ = cx.advance_if(kw::Final);
     cx.expect(kw::Fn)?;
     let name = parse_ident(cx)?;
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
@@ -365,7 +365,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let ident = if cx.peek(NonReserved) { Some(parse_ident(cx)?) } else { None };
     let mut generics = parse_opt_generics(cx)?;
     let params = if cx.peek(token::OpenBracket) {
-        brackets(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Opt))?
+        brackets(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Maybe))?
     } else {
         vec![]
     };
@@ -411,7 +411,7 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
 fn parse_requires_clause(cx: &mut ParseCtxt) -> ParseResult<Requires> {
     let mut params = vec![];
     if cx.advance_if(kw::Forall) {
-        params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Opt))?;
+        params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Maybe))?;
         cx.expect(token::Dot)?;
     }
     let pred = parse_expr(cx, true)?;
@@ -634,7 +634,7 @@ fn parse_qpath(cx: &mut ParseCtxt) -> ParseResult<BaseTy> {
 /// { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
 /// ```
 fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
-    let params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Opt))?;
+    let params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Maybe))?;
     cx.expect(token::Dot)?;
     let ty = parse_type(cx)?;
     let pred = if cx.advance_if(token::Caret) { Some(parse_block_expr(cx)?) } else { None };
@@ -818,7 +818,7 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
     } else if cx.advance_if(Caret) {
         let params =
-            punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, RequireSort::Opt))?;
+            punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, RequireSort::Maybe))?;
         cx.expect(Caret)?;
         let body = parse_expr(cx, true)?;
         let hi = cx.hi();
@@ -830,19 +830,20 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
     Ok(arg)
 }
 
+/// Whether a sort is required in a refinement parameter declaration.
 enum RequireSort {
-    /// definitely require a sort
+    /// Definitely require a sort
     Yes,
-    /// don't require it, can use `Infer`
-    Opt,
-    /// definitely do not want a sort!
+    /// Optional sort. Use [`Sort::Infer`] if not present
+    Maybe,
+    /// Definitely do not not require a sort. Always use [`Sort::Infer`]
     No,
 }
 
 fn parse_sort_if_required(cx: &mut ParseCtxt, require_sort: RequireSort) -> ParseResult<Sort> {
     match require_sort {
         RequireSort::No => Ok(Sort::Infer),
-        RequireSort::Opt => {
+        RequireSort::Maybe => {
             if cx.advance_if(token::Colon) {
                 parse_sort(cx)
             } else {
@@ -857,7 +858,7 @@ fn parse_sort_if_required(cx: &mut ParseCtxt, require_sort: RequireSort) -> Pars
 }
 
 /// ```text
-/// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if require_sort is Opt
+/// ⟨refine_param⟩ := ⟨mode⟩? ⟨ident⟩ ⟨ : ⟨sort⟩ ⟩?    if require_sort is Maybe
 ///                 | ⟨mode⟩? ⟨ident⟩ : ⟨sort⟩         if require_sort is Yes
 ///                 | ⟨mode⟩? ⟨ident⟩                  if require_sort is No
 /// ```
@@ -1049,7 +1050,7 @@ fn parse_bounded_quantifier(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     } else {
         return Err(lookahead.into_error());
     };
-    let param = parse_refine_param(cx, RequireSort::Opt)?;
+    let param = parse_refine_param(cx, RequireSort::Maybe)?;
     cx.expect(kw::In)?;
     let start = parse_int(cx)?;
     cx.expect(token::DotDot)?;
@@ -1154,7 +1155,7 @@ fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 /// `⟨let_decl⟩ := let ⟨refine_param⟩ = ⟨expr⟩ ;`
 fn parse_let_decl(cx: &mut ParseCtxt) -> ParseResult<LetDecl> {
     cx.expect(kw::Let)?;
-    let param = parse_refine_param(cx, RequireSort::Opt)?;
+    let param = parse_refine_param(cx, RequireSort::Maybe)?;
     cx.expect(token::Eq)?;
     let init = parse_expr(cx, true)?;
     cx.expect(token::Semi)?;
