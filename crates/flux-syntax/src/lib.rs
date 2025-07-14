@@ -14,6 +14,8 @@ use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, SyntaxContext, def_id::LocalDefId};
 use surface::NodeId;
 
+use crate::parser::lookahead::Expected;
+
 #[derive(Default)]
 pub struct ParseSess {
     next_node_id: usize,
@@ -161,7 +163,7 @@ impl<'a> ParseCtxt<'a> {
         self.tokens.hi()
     }
 
-    fn unexpected_token(&mut self, expected: Vec<&'static str>) -> ParseError {
+    fn unexpected_token(&mut self, expected: Vec<Expected>) -> ParseError {
         let tok = self.tokens.at(0);
         let kind = if tok.kind == TokenKind::Eof {
             ParseErrorKind::UnexpectedEof
@@ -185,7 +187,7 @@ pub struct ParseError {
 
 #[derive(Debug)]
 pub enum ParseErrorKind {
-    UnexpectedToken { expected: Vec<&'static str> },
+    UnexpectedToken { expected: Vec<Expected> },
     UnexpectedEof,
     CannotBeChained,
     InvalidBinding,

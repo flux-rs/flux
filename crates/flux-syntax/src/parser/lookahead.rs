@@ -1,10 +1,29 @@
 //! Support for "peeking" into the token stream to decide how to parse.
 
+use std::fmt;
+
+use rustc_span::Symbol;
+
 use crate::{
     ParseCtxt, ParseError, ParseResult,
     lexer::{Token, TokenKind},
     surface::BinOp,
 };
+
+#[derive(Debug)]
+pub enum Expected {
+    Str(&'static str),
+    Sym(Symbol),
+}
+
+impl fmt::Display for Expected {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expected::Str(descr) => write!(f, "{}", descr),
+            Expected::Sym(sym) => write!(f, "`{}`", sym),
+        }
+    }
+}
 
 /// A trait for testing whether a token matches a rule.
 ///
@@ -14,17 +33,15 @@ pub(crate) trait Peek: Copy {
     fn matches(self, tok: TokenKind) -> bool;
 }
 
-/// A subtrait of [`Peek`] for rules that can be "described".
+/// A subtrait of [`Peek`] for rules that have an "expected description".
 ///
 /// This is used to automatically build error messages of the form:
 /// ```text
 /// expected one of `expected1`, `expected2`, ...
 /// ```
 /// where each `expected` is the description of a peek rule.
-pub(crate) trait PeekDescr: Peek {
-    /// A string representation of the list of tokens matched by this rule. This
-    /// is used to construct an error when using [`Lookahead1`].
-    fn descr(self) -> &'static str;
+pub(crate) trait PeekExpected: Peek {
+    fn expected(self) -> Expected;
 }
 
 impl Peek for TokenKind {
@@ -32,9 +49,9 @@ impl Peek for TokenKind {
         self == tok
     }
 }
-impl PeekDescr for TokenKind {
-    fn descr(self) -> &'static str {
-        TokenKind::descr(&self)
+impl PeekExpected for TokenKind {
+    fn expected(self) -> Expected {
+        Expected::Str(TokenKind::descr(&self))
     }
 }
 
@@ -46,9 +63,9 @@ impl Peek for AnyIdent {
         matches!(tok, TokenKind::Ident(_))
     }
 }
-impl PeekDescr for AnyIdent {
-    fn descr(self) -> &'static str {
-        "identifier"
+impl PeekExpected for AnyIdent {
+    fn expected(self) -> Expected {
+        Expected::Str("identifier")
     }
 }
 
@@ -60,9 +77,9 @@ impl Peek for AnyLit {
         matches!(tok, TokenKind::Literal(_))
     }
 }
-impl PeekDescr for AnyLit {
-    fn descr(self) -> &'static str {
-        "literal"
+impl PeekExpected for AnyLit {
+    fn expected(self) -> Expected {
+        Expected::Str("literal")
     }
 }
 
@@ -77,9 +94,9 @@ impl Peek for LAngle {
         matches!(tok, TokenKind::LtFollowedByLt | TokenKind::Lt)
     }
 }
-impl PeekDescr for LAngle {
-    fn descr(self) -> &'static str {
-        "<"
+impl PeekExpected for LAngle {
+    fn expected(self) -> Expected {
+        Expected::Str("<")
     }
 }
 
@@ -96,9 +113,9 @@ impl Peek for RAngle {
         matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
     }
 }
-impl PeekDescr for RAngle {
-    fn descr(self) -> &'static str {
-        ">"
+impl PeekExpected for RAngle {
+    fn expected(self) -> Expected {
+        Expected::Str(">")
     }
 }
 
@@ -108,9 +125,20 @@ impl Peek for &'static str {
         matches!(tok, TokenKind::Ident(sym) if sym.as_str() == self)
     }
 }
-impl PeekDescr for &'static str {
-    fn descr(self) -> &'static str {
-        self
+impl PeekExpected for &'static str {
+    fn expected(self) -> Expected {
+        Expected::Str(self)
+    }
+}
+
+impl Peek for Symbol {
+    fn matches(self, tok: TokenKind) -> bool {
+        matches!(tok, TokenKind::Ident(sym) if sym == self)
+    }
+}
+impl PeekExpected for Symbol {
+    fn expected(self) -> Expected {
+        Expected::Sym(self)
     }
 }
 
@@ -132,7 +160,7 @@ impl<T: Peek, const N: usize> Peek for AnyOf<T, N> {
 /// Use [`ParseCtxt::lookahead1`] to construct this object.
 pub(crate) struct Lookahead1<'a, 'cx> {
     /// List of "expected" tokens that have been peeked by this struct
-    expected: Vec<&'static str>,
+    expected: Vec<Expected>,
     cx: &'a mut ParseCtxt<'cx>,
 }
 
@@ -144,16 +172,16 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
     /// Like [`ParseCtxt::lookahead1`] but it records the expected token to construct an error in
     /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
-    pub(crate) fn peek<T: PeekDescr>(&mut self, t: T) -> bool {
-        self.expected.push(t.descr());
+    pub(crate) fn peek<T: PeekExpected>(&mut self, t: T) -> bool {
+        self.expected.push(t.expected());
         self.cx.peek(t)
     }
 
     /// Like [`ParseCtxt::advance_if`] but it records the expected token to construct an error in
     /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
-    pub(crate) fn advance_if<T: PeekDescr>(&mut self, t: T) -> bool {
-        self.expected.push(t.descr());
+    pub(crate) fn advance_if<T: PeekExpected>(&mut self, t: T) -> bool {
+        self.expected.push(t.expected());
         self.cx.advance_if(t)
     }
 
@@ -248,8 +276,8 @@ impl<'cx> ParseCtxt<'cx> {
 
     /// If the next token matches the requested type of token advances the cursor, otherwise
     /// returns an `unexpected token` error.
-    pub(crate) fn expect<T: PeekDescr>(&mut self, t: T) -> ParseResult {
-        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(vec![t.descr()])) }
+    pub(crate) fn expect<T: PeekExpected>(&mut self, t: T) -> ParseResult {
+        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(vec![t.expected()])) }
     }
 
     /// See documentation for [`Lookahead1`]

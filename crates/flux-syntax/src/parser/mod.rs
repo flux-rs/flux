@@ -17,7 +17,7 @@ use crate::{
         TokenKind::{Caret, Comma},
         token,
     },
-    parser::lookahead::{AnyOf, PeekDescr as _},
+    parser::lookahead::{AnyOf, Expected, PeekExpected as _},
     surface::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
@@ -145,7 +145,7 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
 fn parse_binop(cx: &mut ParseCtxt) -> ParseResult<BinOp> {
     let (op, ntokens) = cx
         .peek_binop()
-        .ok_or_else(|| cx.unexpected_token(vec!["binary operator"]))?;
+        .ok_or_else(|| cx.unexpected_token(vec![Expected::Str("binary operator")]))?;
     cx.advance_by(ntokens);
     Ok(op)
 }
@@ -1172,7 +1172,7 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
             span: cx.mk_span(lo, hi),
         })
     } else {
-        Err(cx.unexpected_token(vec![AnyLit.descr()]))
+        Err(cx.unexpected_token(vec![AnyLit.expected()]))
     }
 }
 
@@ -1181,7 +1181,7 @@ fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
         cx.advance();
         Ok(Ident { name, span: cx.mk_span(lo, hi) })
     } else {
-        Err(cx.unexpected_token(vec![AnyIdent.descr()]))
+        Err(cx.unexpected_token(vec![AnyIdent.expected()]))
     }
 }
 
@@ -1194,7 +1194,7 @@ fn parse_int<T: FromStr>(cx: &mut ParseCtxt) -> ParseResult<T> {
         return Ok(value);
     }
 
-    Err(cx.unexpected_token(vec![std::any::type_name::<T>()]))
+    Err(cx.unexpected_token(vec![Expected::Str(std::any::type_name::<T>())]))
 }
 
 /// ```text
