@@ -36,7 +36,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
     sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
-    sorts_of_fn_app: FxHashMap<FhirId, (List<rty::SortArg>, Span)>,
+    sort_args_of_app: FxHashMap<FhirId, (List<rty::SortArg>, Span)>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
@@ -68,7 +68,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
-            sorts_of_fn_app: Default::default(),
+            sort_args_of_app: Default::default(),
         }
     }
 
@@ -515,7 +515,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 }
             })
             .collect_vec();
-        self.sorts_of_fn_app
+        self.sort_args_of_app
             .insert(fhir_id, (List::from_vec(args.clone()), span));
         fsort.instantiate(&args)
     }
@@ -800,7 +800,7 @@ impl<'genv> InferCtxt<'genv, '_> {
         }
 
         // Make sure that function applications are fully resolved
-        for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sorts_of_fn_app) {
+        for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sort_args_of_app) {
             let mut res = vec![];
             for sort_arg in &sort_args {
                 let sort_arg = if let rty::SortArg::Sort(sort) = sort_arg {
