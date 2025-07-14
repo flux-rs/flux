@@ -1065,8 +1065,26 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 };
                 self.expr_to_fixpoint(&expr, scx)
             }
-            InternalFuncKind::ToInt | InternalFuncKind::ToChar => {
-                // We can erase the "call" because fixpoint uses `int` to represent `char`
+            InternalFuncKind::ToInt => {
+                match sort_args {
+                    // Erase as fixpoint uses `int` to represent `char`
+                    [rty::SortArg::Sort(rty::Sort::Char)]
+                    | [rty::SortArg::Sort(rty::Sort::Int)] => self.expr_to_fixpoint(&args[0], scx),
+                    [rty::SortArg::Sort(rty::Sort::Bool)] => {
+                        let expr = rty::Expr::ite(
+                            args[0].clone(),
+                            rty::Expr::constant(rty::Constant::from(1)),
+                            rty::Expr::constant(rty::Constant::from(0)),
+                        );
+                        self.expr_to_fixpoint(&expr, scx)
+                    }
+                    _ => {
+                        span_bug!(self.def_span, "unexpected source sort in to_int")
+                    }
+                }
+            }
+            InternalFuncKind::ToChar => {
+                // Erase as fixpoint uses `int` to represent `char`
                 // so the conversions are unnecessary.
                 self.expr_to_fixpoint(&args[0], scx)
             }
