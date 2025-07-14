@@ -106,6 +106,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
 
     fn encode_symbol(&mut self, symbol: Symbol) {
         // if symbol preinterned, emit tag and symbol index
+        // TODO: we could also encode flux predefined symbols like this
         if symbol.is_predefined() {
             self.opaque.emit_u8(SYMBOL_PREINTERNED);
             self.opaque.emit_u32(symbol.as_u32());

@@ -1,43 +1,77 @@
 //! Support for "peeking" into the token stream to decide how to parse.
 
+use std::fmt;
+
+use rustc_span::{Symbol, edition::Edition};
+
 use crate::{
     ParseCtxt, ParseError, ParseResult,
     lexer::{Token, TokenKind},
     surface::BinOp,
+    symbols,
 };
 
+/// See [`PeekExpected`]
+#[derive(Debug)]
+pub enum Expected {
+    Str(&'static str),
+    Sym(Symbol),
+}
+
+impl fmt::Display for Expected {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expected::Str(descr) => write!(f, "{descr}"),
+            Expected::Sym(sym) => write!(f, "{sym}"),
+        }
+    }
+}
+
 /// A trait for testing whether a token matches a rule.
-///
-/// This trait is primarily implemented for [`TokenKind`] to test for exact equality.
 pub(crate) trait Peek: Copy {
     /// Returns true if a token matches this rule
-    fn matches(self, tok: TokenKind) -> bool;
-
-    /// A string representation of the list of tokens matched by this rule. This
-    /// is used to construct an error when using [`Lookahead1`].
-    fn display(self) -> impl Iterator<Item = &'static str>;
+    ///
+    /// The rule is edition dependent because keywords can vary.
+    fn matches(self, tok: TokenKind, edition: Edition) -> bool;
 }
 
+/// A subtrait of [`Peek`] for rules that have an *expected description*.
+///
+/// This is used to automatically build error messages of the form:
+/// ```text
+/// expected one of `expected1`, `expected2`, ...
+/// ```
+/// where each `expected` is the description of a peek rule.
+pub(crate) trait PeekExpected: Peek {
+    fn expected(self) -> Expected;
+}
+
+/// Use a [`TokenKind`] to match by exact equality
 impl Peek for TokenKind {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         self == tok
     }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        [self.descr()].into_iter()
+}
+impl PeekExpected for TokenKind {
+    fn expected(self) -> Expected {
+        Expected::Str(TokenKind::descr(&self))
     }
 }
 
-/// A struct that can be used to match any identifier
+/// A struct that can be used to match a non-reserved identifier
 #[derive(Clone, Copy)]
-pub(crate) struct AnyIdent;
-impl Peek for AnyIdent {
-    fn matches(self, tok: TokenKind) -> bool {
-        matches!(tok, TokenKind::Ident(_))
+pub(crate) struct NonReserved;
+impl Peek for NonReserved {
+    fn matches(self, tok: TokenKind, edition: Edition) -> bool {
+        match tok {
+            TokenKind::Ident(sym) => !symbols::is_reserved(sym, edition),
+            _ => false,
+        }
     }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        ["identifier"].into_iter()
+}
+impl PeekExpected for NonReserved {
+    fn expected(self) -> Expected {
+        Expected::Str("identifier")
     }
 }
 
@@ -45,12 +79,32 @@ impl Peek for AnyIdent {
 #[derive(Clone, Copy)]
 pub(crate) struct AnyLit;
 impl Peek for AnyLit {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         matches!(tok, TokenKind::Literal(_))
     }
+}
+impl PeekExpected for AnyLit {
+    fn expected(self) -> Expected {
+        Expected::Str("literal")
+    }
+}
 
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        ["literal"].into_iter()
+/// There are some lexing ambiguities with `>>` because it can represet both a right shift or two
+/// closing angle brackets (e.g., `Vec<Option<i32>>`). We solve the ambiguity by giving `>` a
+/// special token if it's immediately followed by another `>`,  i.e., `>>` is tokenized as
+/// [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
+///
+/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
+#[derive(Clone, Copy)]
+pub(crate) struct RAngle;
+impl Peek for RAngle {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
+        matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
+    }
+}
+impl PeekExpected for RAngle {
+    fn expected(self) -> Expected {
+        Expected::Str(">")
     }
 }
 
@@ -61,52 +115,41 @@ impl Peek for AnyLit {
 #[derive(Clone, Copy)]
 pub(crate) struct LAngle;
 impl Peek for LAngle {
-    fn matches(self, tok: TokenKind) -> bool {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
         matches!(tok, TokenKind::LtFollowedByLt | TokenKind::Lt)
     }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        ["<"].into_iter()
+}
+impl PeekExpected for LAngle {
+    fn expected(self) -> Expected {
+        Expected::Str("<")
     }
 }
 
-/// There are some lexing ambiguities with `>>` which can represet both a right shift or two
-/// closing angle brackets in nested generics (e.g., `Vec<Option<i32>>`). We solve the ambiguity
-/// by giving `>` a special token if it's immediately followed by another `>`,  i.e., `>>` is
-/// tokenized as [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
-///
-/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
+/// Use a [`Symbol`] to match a [`TokenKind::Ident`] equal to it.
+impl Peek for Symbol {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
+        matches!(tok, TokenKind::Ident(sym) if sym == self)
+    }
+}
+impl PeekExpected for Symbol {
+    fn expected(self) -> Expected {
+        Expected::Sym(self)
+    }
+}
+
+/// A rule that matches if any of the rules in a list matches
 #[derive(Clone, Copy)]
-pub(crate) struct RAngle;
-impl Peek for RAngle {
-    fn matches(self, tok: TokenKind) -> bool {
-        matches!(tok, TokenKind::GtFollowedByGt | TokenKind::Gt)
-    }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        [">"].into_iter()
+pub(crate) struct AnyOf<T, const N: usize>(pub [T; N]);
+impl<T: Peek, const N: usize> Peek for AnyOf<T, N> {
+    fn matches(self, tok: TokenKind, edition: Edition) -> bool {
+        self.0.into_iter().any(|t| t.matches(tok, edition))
     }
 }
 
-/// Use a string to match an identifier equal to it
-impl Peek for &'static str {
-    fn matches(self, tok: TokenKind) -> bool {
-        matches!(tok, TokenKind::Ident(sym) if sym.as_str() == self)
-    }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        [self].into_iter()
-    }
-}
-
-/// Use an array to match any token in a set
-impl<T: Peek, const N: usize> Peek for [T; N] {
-    fn matches(self, tok: TokenKind) -> bool {
-        self.into_iter().any(|t| t.matches(tok))
-    }
-
-    fn display(self) -> impl Iterator<Item = &'static str> {
-        self.into_iter().flat_map(Peek::display)
+/// An arbitrary peek rule defined by a predicate on [`TokenKind`]
+impl<F: FnOnce(TokenKind) -> bool + Copy> Peek for F {
+    fn matches(self, tok: TokenKind, _: Edition) -> bool {
+        (self)(tok)
     }
 }
 
@@ -119,7 +162,7 @@ impl<T: Peek, const N: usize> Peek for [T; N] {
 /// Use [`ParseCtxt::lookahead1`] to construct this object.
 pub(crate) struct Lookahead1<'a, 'cx> {
     /// List of "expected" tokens that have been peeked by this struct
-    expected: Vec<&'static str>,
+    expected: Vec<Expected>,
     cx: &'a mut ParseCtxt<'cx>,
 }
 
@@ -131,16 +174,16 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
     /// Like [`ParseCtxt::lookahead1`] but it records the expected token to construct an error in
     /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
-    pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
-        self.expected.extend(t.display());
+    pub(crate) fn peek<T: PeekExpected>(&mut self, t: T) -> bool {
+        self.expected.push(t.expected());
         self.cx.peek(t)
     }
 
     /// Like [`ParseCtxt::advance_if`] but it records the expected token to construct an error in
     /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
-    pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
-        self.expected.extend(t.display());
+    pub(crate) fn advance_if<T: PeekExpected>(&mut self, t: T) -> bool {
+        self.expected.push(t.expected());
         self.cx.advance_if(t)
     }
 
@@ -152,7 +195,7 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
 }
 
 impl<'cx> ParseCtxt<'cx> {
-    /// Returns the token (and span) at the requested position.
+    /// Returns the token at the requested position.
     pub(crate) fn at(&mut self, n: usize) -> Token {
         self.tokens.at(n)
     }
@@ -160,17 +203,22 @@ impl<'cx> ParseCtxt<'cx> {
     /// Looks at the next token in the underlying cursor to determine whether it matches the
     /// requested type of token. Does not advance the position of the cursor.
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
-        t.matches(self.at(0).kind)
+        self.peek_at(0, t)
     }
 
     /// Looks at the next two tokens
     pub(crate) fn peek2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
-        t1.matches(self.at(0).kind) && t2.matches(self.at(1).kind)
+        self.peek_at(0, t1) && self.peek_at(1, t2)
     }
 
     /// Looks at the next three tokens
     pub(crate) fn peek3<T1: Peek, T2: Peek, T3: Peek>(&mut self, t1: T1, t2: T2, t3: T3) -> bool {
-        t1.matches(self.at(0).kind) && t2.matches(self.at(1).kind) && t3.matches(self.at(2).kind)
+        self.peek_at(0, t1) && self.peek_at(1, t2) && self.peek_at(2, t3)
+    }
+
+    fn peek_at<T: Peek>(&mut self, n: usize, t: T) -> bool {
+        let tok = self.at(n);
+        t.matches(tok.kind, self.edition)
     }
 
     /// Looks whether the next token matches a binary operation. In case of a match, returns
@@ -213,7 +261,7 @@ impl<'cx> ParseCtxt<'cx> {
     }
 
     /// Looks at the next token and advances the cursor if it matches the requested
-    /// rule. Returns `true` if there was a match.
+    /// rule. Returns `true` if there was a match (i.e., the cursor was advanced).
     pub(crate) fn advance_if<T: Peek>(&mut self, t: T) -> bool {
         if self.peek(t) {
             self.advance();
@@ -235,8 +283,8 @@ impl<'cx> ParseCtxt<'cx> {
 
     /// If the next token matches the requested type of token advances the cursor, otherwise
     /// returns an `unexpected token` error.
-    pub(crate) fn expect<T: Peek>(&mut self, t: T) -> ParseResult {
-        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(t.display().collect())) }
+    pub(crate) fn expect<T: PeekExpected>(&mut self, t: T) -> ParseResult {
+        if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(vec![t.expected()])) }
     }
 
     /// See documentation for [`Lookahead1`]

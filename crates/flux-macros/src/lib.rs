@@ -3,6 +3,7 @@
 mod diagnostics;
 mod fold;
 mod primops;
+mod symbols;
 
 use quote::quote;
 use synstructure::decl_derive;
@@ -78,4 +79,9 @@ fn debug_as_json(s: synstructure::Structure<'_>) -> proc_macro2::TokenStream {
             }
         }
     })
+}
+
+#[proc_macro]
+pub fn symbols(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    symbols::symbols(input.into()).into()
 }

@@ -20,6 +20,7 @@ use flux_middle::{
 };
 use flux_syntax::{
     surface::{self, ConstructorArg, NodeId, visit::Visitor as _},
+    symbols::{kw, sym},
     walk_list,
 };
 use hir::{ItemKind, def::DefKind};
@@ -31,13 +32,11 @@ use rustc_hir::{self as hir, OwnerId};
 use rustc_span::{
     DUMMY_SP, Span,
     def_id::{DefId, LocalDefId},
-    sym,
-    symbol::kw,
 };
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-use crate::{errors, resolver::refinement_resolver::SORTS};
+use crate::errors;
 
 pub(crate) fn desugar_qualifier<'genv>(
     genv: GlobalEnv<'genv, '_>,
@@ -1594,10 +1593,10 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Ok(n) => n,
                     Err(err) => return fhir::ExprKind::Err(err),
                 };
-                let suffix = lit.suffix.unwrap_or(SORTS.int);
-                if suffix == SORTS.int {
+                let suffix = lit.suffix.unwrap_or(sym::int);
+                if suffix == sym::int {
                     fhir::Lit::Int(n)
-                } else if suffix == SORTS.real {
+                } else if suffix == sym::real {
                     fhir::Lit::Real(n)
                 } else {
                     return fhir::ExprKind::Err(
