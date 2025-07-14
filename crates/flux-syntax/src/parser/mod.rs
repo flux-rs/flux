@@ -17,7 +17,7 @@ use crate::{
         TokenKind::{Caret, Comma},
         token,
     },
-    parser::lookahead::PeekDescr as _,
+    parser::lookahead::{AnyOf, PeekDescr as _},
     surface::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
@@ -396,7 +396,12 @@ fn parse_opt_requires(cx: &mut ParseCtxt) -> ParseResult<Vec<Requires>> {
     if !cx.advance_if(token::Requires) {
         return Ok(vec![]);
     }
-    punctuated_until(cx, Comma, [token::Ensures, token::Where, token::Eof], parse_requires_clause)
+    punctuated_until(
+        cx,
+        Comma,
+        AnyOf([token::Ensures, token::Where, token::Eof]),
+        parse_requires_clause,
+    )
 }
 
 /// ```text
@@ -419,7 +424,7 @@ fn parse_opt_ensures(cx: &mut ParseCtxt) -> ParseResult<Vec<Ensures>> {
     if !cx.advance_if(token::Ensures) {
         return Ok(vec![]);
     }
-    punctuated_until(cx, Comma, [token::Where, token::Eof], parse_ensures_clause)
+    punctuated_until(cx, Comma, AnyOf([token::Where, token::Eof]), parse_ensures_clause)
 }
 
 /// ```text
@@ -551,7 +556,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
         }
     } else if lookahead.peek(token::OpenBrace) {
         delimited(cx, Brace, |cx| {
-            if cx.peek2(AnyIdent, [token::Comma, token::Dot, token::Colon]) {
+            if cx.peek2(AnyIdent, AnyOf([token::Comma, token::Dot, token::Colon])) {
                 // { ⟨refine_param⟩ ⟨,⟨refine_param⟩⟩* . ⟨ty⟩ | ⟨block_expr⟩ }
                 parse_general_exists(cx)
             } else {
@@ -721,8 +726,11 @@ fn parse_fn_bound_path(cx: &mut ParseCtxt) -> ParseResult<Path> {
 }
 
 fn parse_generic_bounds(cx: &mut ParseCtxt) -> ParseResult<GenericBounds> {
-    let is_fn = cx.peek(["FnOnce", "FnMut", "Fn"]);
-    let path = if is_fn { parse_fn_bound_path(cx)? } else { parse_path(cx)? };
+    let path = if cx.peek(AnyOf(["FnOnce", "FnMut", "Fn"])) {
+        parse_fn_bound_path(cx)?
+    } else {
+        parse_path(cx)?
+    };
     Ok(vec![TraitRef { path, node_id: cx.next_node_id() }])
 }
 

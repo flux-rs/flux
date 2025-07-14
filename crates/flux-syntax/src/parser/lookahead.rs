@@ -114,10 +114,12 @@ impl PeekDescr for &'static str {
     }
 }
 
-/// Use an array to match any token in a set
-impl<T: Peek, const N: usize> Peek for [T; N] {
+/// A rule that matches if any of the rules in a list matches
+#[derive(Clone, Copy)]
+pub(crate) struct AnyOf<T, const N: usize>(pub [T; N]);
+impl<T: Peek, const N: usize> Peek for AnyOf<T, N> {
     fn matches(self, tok: TokenKind) -> bool {
-        self.into_iter().any(|t| t.matches(tok))
+        self.0.into_iter().any(|t| t.matches(tok))
     }
 }
 
