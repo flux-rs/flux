@@ -28,6 +28,7 @@ use crate::{
         WhereBoundPredicate,
     },
 };
+
 /// ```text
 ///   yes ⟨ , reason = ⟨literal⟩ ⟩?
 /// | no ⟨ , reason = ⟨literal⟩ ⟩?
@@ -81,9 +82,9 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
 
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
-    if lookahead.peek([token::Pound, token::Fn]) {
+    if lookahead.peek(token::Pound) || lookahead.peek(token::Fn) {
         parse_reft_func(cx).map(Item::FuncDef)
-    } else if lookahead.peek([token::Local, token::Qualifier]) {
+    } else if lookahead.peek(token::Local) || lookahead.peek(token::Qualifier) {
         parse_qualifier(cx).map(Item::Qualifier)
     } else if lookahead.peek(token::Opaque) {
         parse_sort_decl(cx).map(Item::SortDecl)
@@ -231,7 +232,7 @@ pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> ParseResult<VariantDef> {
     let lo = cx.lo();
     let mut fields = vec![];
     let mut ret = None;
-    if cx.peek([token::OpenParen, token::OpenBrace]) {
+    if cx.peek(token::OpenParen) || cx.peek(token::OpenBrace) {
         fields = parse_fields(cx)?;
         if cx.advance_if(token::RArrow) {
             ret = Some(parse_variant_ret(cx)?);
@@ -1003,7 +1004,7 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
     } else if lookahead.peek(token::OpenBracket) {
         parse_prim_uif(cx)
-    } else if lookahead.peek([token::Exists, token::Forall]) {
+    } else if lookahead.peek(token::Exists) || lookahead.peek(token::Forall) {
         parse_bounded_quantifier(cx)
     } else {
         Err(lookahead.into_error())
