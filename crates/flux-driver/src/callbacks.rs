@@ -35,6 +35,10 @@ impl Callbacks for FluxCallbacks {
         config.override_queries = Some(|_, local| {
             local.mir_borrowck = mir_borrowck;
         });
+        // this should always be empty otherwise something changed in rustc and all our assumptions
+        // about symbol interning are wrong.
+        assert!(config.extra_symbols.is_empty());
+        config.extra_symbols = flux_syntax::symbols::PREDEFINED_FLUX_SYMBOLS.to_vec();
     }
 
     fn after_analysis(&mut self, compiler: &Compiler, tcx: TyCtxt<'_>) -> Compilation {

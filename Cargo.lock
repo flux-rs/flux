@@ -568,6 +568,9 @@ dependencies = [
 [[package]]
 name = "flux-syntax"
 version = "0.1.0"
+dependencies = [
+ "flux-macros",
+]
 
 [[package]]
 name = "form_urlencoded"

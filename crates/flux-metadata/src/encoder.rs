@@ -11,12 +11,13 @@ use rustc_middle::{
 use rustc_serialize::{Encodable, Encoder, opaque};
 use rustc_session::config::CrateType;
 use rustc_span::{
-    ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol, SyntaxContext,
+    ByteSymbol, ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol,
+    SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
 };
 
-use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREINTERNED, SYMBOL_STR};
+use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR};
 
 struct EncodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -25,7 +26,37 @@ struct EncodeContext<'a, 'tcx> {
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
     is_proc_macro: bool,
     hygiene_ctxt: &'a HygieneEncodeContext,
-    symbol_table: FxHashMap<Symbol, usize>, // interpret_allocs: FxIndexSet<interpret::AllocId>,
+    symbol_index_table: FxHashMap<u32, usize>,
+}
+
+impl EncodeContext<'_, '_> {
+    fn encode_symbol_or_byte_symbol(
+        &mut self,
+        index: u32,
+        emit_str_or_byte_str: impl Fn(&mut Self),
+    ) {
+        // if symbol/byte symbol is predefined, emit tag and symbol index
+        // TODO: we could also encode flux predefined symbols like this
+        if Symbol::is_predefined(index) {
+            self.opaque.emit_u8(SYMBOL_PREDEFINED);
+            self.opaque.emit_u32(index);
+        } else {
+            // otherwise write it as string or as offset to it
+            match self.symbol_index_table.entry(index) {
+                Entry::Vacant(o) => {
+                    self.opaque.emit_u8(SYMBOL_STR);
+                    let pos = self.opaque.position();
+                    o.insert(pos);
+                    emit_str_or_byte_str(self);
+                }
+                Entry::Occupied(o) => {
+                    let x = *o.get();
+                    self.emit_u8(SYMBOL_OFFSET);
+                    self.emit_usize(x);
+                }
+            }
+        }
+    }
 }
 
 pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
@@ -48,7 +79,7 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
         predicate_shorthands: Default::default(),
         is_proc_macro: genv.tcx().crate_types().contains(&CrateType::ProcMacro),
         hygiene_ctxt: &hygiene_ctxt,
-        symbol_table: Default::default(),
+        symbol_index_table: Default::default(),
     };
 
     crate_root.encode(&mut ecx);
@@ -104,27 +135,14 @@ impl SpanEncoder for EncodeContext<'_, '_> {
         }
     }
 
-    fn encode_symbol(&mut self, symbol: Symbol) {
-        // if symbol preinterned, emit tag and symbol index
-        if symbol.is_predefined() {
-            self.opaque.emit_u8(SYMBOL_PREINTERNED);
-            self.opaque.emit_u32(symbol.as_u32());
-        } else {
-            // otherwise write it as string or as offset to it
-            match self.symbol_table.entry(symbol) {
-                Entry::Vacant(o) => {
-                    self.opaque.emit_u8(SYMBOL_STR);
-                    let pos = self.opaque.position();
-                    o.insert(pos);
-                    self.emit_str(symbol.as_str());
-                }
-                Entry::Occupied(o) => {
-                    let x = *o.get();
-                    self.emit_u8(SYMBOL_OFFSET);
-                    self.emit_usize(x);
-                }
-            }
-        }
+    fn encode_symbol(&mut self, sym: Symbol) {
+        self.encode_symbol_or_byte_symbol(sym.as_u32(), |this| this.emit_str(sym.as_str()));
+    }
+
+    fn encode_byte_symbol(&mut self, byte_sym: ByteSymbol) {
+        self.encode_symbol_or_byte_symbol(byte_sym.as_u32(), |this| {
+            this.emit_byte_str(byte_sym.as_byte_str())
+        });
     }
 }
 

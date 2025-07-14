@@ -5,7 +5,9 @@ use rustc_ast::{
     token::InvisibleOrigin,
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
 };
-use rustc_span::{BytePos, Symbol, symbol::kw};
+use rustc_span::{BytePos, Symbol};
+
+use crate::symbols::kw;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TokenKind {
@@ -33,21 +35,10 @@ pub enum TokenKind {
     Ge,
     At,
     Pound,
-    Underscore,
-    Fn,
-    Async,
     Iff,
     FatArrow,
-    Let,
-    Mut,
-    Where,
-    Forall,
-    Exists,
-    In,
-    Impl,
-    Requires,
-    Ensures,
     Literal(Lit),
+    /// This is used to represent both keywords and (non-reserved) identifiers
     Ident(Symbol),
     OpenParen,
     CloseParen,
@@ -58,23 +49,9 @@ pub enum TokenKind {
     OpenInvisible(InvisibleOrigin),
     CloseInvisible(InvisibleOrigin),
     Invalid,
-    Ref,
     And,
     Percent,
-    Strg,
-    Type,
-    If,
-    Else,
     PathSep,
-    Qualifier,
-    Property,
-    Sort,
-    Opaque,
-    Local,
-    BitVec,
-    As,
-    Hrn,
-    Hdl,
     DotDot,
     Eof,
 }
@@ -142,20 +119,8 @@ impl TokenKind {
             TokenKind::Ge => ">=",
             TokenKind::At => "@",
             TokenKind::Pound => "#",
-            TokenKind::Underscore => "_",
-            TokenKind::Fn => "fn",
-            TokenKind::Async => "async",
             TokenKind::Iff => "<=>",
             TokenKind::FatArrow => "=>",
-            TokenKind::Let => "let",
-            TokenKind::Mut => "mut",
-            TokenKind::Where => "where",
-            TokenKind::Forall => "forall",
-            TokenKind::Exists => "exists",
-            TokenKind::In => "in",
-            TokenKind::Impl => "impl",
-            TokenKind::Requires => "requires",
-            TokenKind::Ensures => "ensures",
             TokenKind::Literal(_) => "literal",
             TokenKind::Ident(_) => "identifier",
             TokenKind::OpenParen => "(",
@@ -166,27 +131,21 @@ impl TokenKind {
             TokenKind::CloseBracket => "]",
             TokenKind::OpenInvisible(_) => "",
             TokenKind::CloseInvisible(_) => "",
-            TokenKind::Invalid => "<invalid>",
-            TokenKind::Ref => "ref",
             TokenKind::And => "&",
             TokenKind::Percent => "%",
-            TokenKind::Strg => "strg",
-            TokenKind::Type => "type",
-            TokenKind::If => "if",
-            TokenKind::Else => "else",
             TokenKind::PathSep => "::",
-            TokenKind::Qualifier => "qualifier",
-            TokenKind::Property => "property",
-            TokenKind::Sort => "sort",
-            TokenKind::Opaque => "opaque",
-            TokenKind::Local => "local",
-            TokenKind::BitVec => "bitvec",
-            TokenKind::As => "as",
-            TokenKind::Hrn => "rn",
-            TokenKind::Hdl => "hdl",
             TokenKind::DotDot => "..",
             TokenKind::Eof => "<eof>",
+            TokenKind::Invalid => "<invalid>",
         }
+    }
+
+    pub fn is_keyword(self, kw: Symbol) -> bool {
+        matches!(self, TokenKind::Ident(sym) if sym == kw)
+    }
+
+    pub fn is_eof(self) -> bool {
+        matches!(self, TokenKind::Eof)
     }
 }
 
@@ -202,25 +161,8 @@ impl fmt::Display for TokenKind {
 
 pub struct Cursor<'t> {
     stack: Vec<Frame<'t>>,
-    symbs: Symbols,
     tokens: VecDeque<Token>,
     hi: BytePos,
-}
-
-struct Symbols {
-    requires: Symbol,
-    ensures: Symbol,
-    strg: Symbol,
-    qualifier: Symbol,
-    property: Symbol,
-    sort: Symbol,
-    opaque: Symbol,
-    local: Symbol,
-    bitvec: Symbol,
-    hrn: Symbol,
-    hdl: Symbol,
-    forall: Symbol,
-    exists: Symbol,
 }
 
 struct Frame<'t> {
@@ -233,21 +175,6 @@ impl<'t> Cursor<'t> {
         let mut cursor = Cursor {
             stack: vec![Frame { cursor: stream.iter().peekable(), close: None }],
             tokens: VecDeque::new(),
-            symbs: Symbols {
-                strg: Symbol::intern("strg"),
-                requires: Symbol::intern("requires"),
-                ensures: Symbol::intern("ensures"),
-                qualifier: Symbol::intern("qualifier"),
-                property: Symbol::intern("property"),
-                sort: Symbol::intern("sort"),
-                bitvec: Symbol::intern("bitvec"),
-                opaque: Symbol::intern("opaque"),
-                local: Symbol::intern("local"),
-                hrn: Symbol::intern("hrn"),
-                hdl: Symbol::intern("hdl"),
-                forall: Symbol::intern("forall"),
-                exists: Symbol::intern("exists"),
-            },
             hi: offset,
         };
         cursor.fetch_tokens();
@@ -330,34 +257,6 @@ impl<'t> Cursor<'t> {
             rustc_ast::token::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 TokenKind::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.strg => TokenKind::Strg,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.requires => TokenKind::Requires,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.ensures => TokenKind::Ensures,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.qualifier => {
-                TokenKind::Qualifier
-            }
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.property => TokenKind::Property,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.sort => TokenKind::Sort,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.opaque => TokenKind::Opaque,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.local => TokenKind::Local,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.bitvec => TokenKind::BitVec,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.hrn => TokenKind::Hrn,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.hdl => TokenKind::Hdl,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.forall => TokenKind::Forall,
-            rustc_ast::token::Ident(symb, _) if symb == self.symbs.exists => TokenKind::Exists,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Let => TokenKind::Let,
-            rustc_ast::token::Ident(symb, _) if symb == kw::In => TokenKind::In,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Ref => TokenKind::Ref,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Fn => TokenKind::Fn,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Mut => TokenKind::Mut,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Where => TokenKind::Where,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Impl => TokenKind::Impl,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Type => TokenKind::Type,
-            rustc_ast::token::Ident(symb, _) if symb == kw::If => TokenKind::If,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Else => TokenKind::Else,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Async => TokenKind::Async,
-            rustc_ast::token::Ident(symb, _) if symb == kw::As => TokenKind::As,
-            rustc_ast::token::Ident(symb, _) if symb == kw::Underscore => TokenKind::Underscore,
             rustc_ast::token::Ident(symb, _) => TokenKind::Ident(symb),
             rustc_ast::token::NtIdent(ident, _) => TokenKind::Ident(ident.name),
             rustc_ast::token::Or => TokenKind::Caret,

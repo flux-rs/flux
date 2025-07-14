@@ -9,6 +9,7 @@ doctest = false
 test = false
 
 [dependencies]
+flux-macros.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true
