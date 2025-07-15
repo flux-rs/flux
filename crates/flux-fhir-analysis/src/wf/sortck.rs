@@ -820,11 +820,10 @@ impl<'genv> InferCtxt<'genv, '_> {
             self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
         }
 
-        let allow_uninterpreted_cast = if let Some(def_id) = self.owner.def_id() {
-            self.genv.infer_opts(def_id).allow_uninterpreted_cast
-        } else {
-            false
-        };
+        let allow_uninterpreted_cast = self
+            .owner
+            .def_id()
+            .map_or(false, |def_id| self.genv.infer_opts(def_id).allow_uninterpreted_cast);
 
         // Make sure that function applications are fully resolved
         for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sort_args_of_app) {
