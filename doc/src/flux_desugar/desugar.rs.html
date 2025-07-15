@@ -1593,15 +1593,15 @@
 <a href=#1593 id=1593 data-nosnippet>1593</a>                    <span class="prelude-val">Ok</span>(n) =&gt; n,
 <a href=#1594 id=1594 data-nosnippet>1594</a>                    <span class="prelude-val">Err</span>(err) =&gt; <span class="kw">return </span>fhir::ExprKind::Err(err),
 <a href=#1595 id=1595 data-nosnippet>1595</a>                };
-<a href=#1596 id=1596 data-nosnippet>1596</a>                <span class="kw">let </span>suffix = lit.suffix.unwrap_or(sym::int);
-<a href=#1597 id=1597 data-nosnippet>1597</a>                <span class="kw">if </span>suffix == sym::int {
-<a href=#1598 id=1598 data-nosnippet>1598</a>                    fhir::Lit::Int(n)
-<a href=#1599 id=1599 data-nosnippet>1599</a>                } <span class="kw">else if </span>suffix == sym::real {
-<a href=#1600 id=1600 data-nosnippet>1600</a>                    fhir::Lit::Real(n)
-<a href=#1601 id=1601 data-nosnippet>1601</a>                } <span class="kw">else </span>{
-<a href=#1602 id=1602 data-nosnippet>1602</a>                    <span class="kw">return </span>fhir::ExprKind::Err(
-<a href=#1603 id=1603 data-nosnippet>1603</a>                        <span class="self">self</span>.emit(errors::InvalidNumericSuffix::new(span, suffix)),
-<a href=#1604 id=1604 data-nosnippet>1604</a>                    );
+<a href=#1596 id=1596 data-nosnippet>1596</a>                <span class="kw">match </span>lit.suffix {
+<a href=#1597 id=1597 data-nosnippet>1597</a>                    <span class="prelude-val">Some</span>(sym::int) =&gt; fhir::Lit::Int(n, <span class="prelude-val">Some</span>(fhir::NumLitKind::Int)),
+<a href=#1598 id=1598 data-nosnippet>1598</a>                    <span class="prelude-val">Some</span>(sym::real) =&gt; fhir::Lit::Int(n, <span class="prelude-val">Some</span>(fhir::NumLitKind::Real)),
+<a href=#1599 id=1599 data-nosnippet>1599</a>                    <span class="prelude-val">None </span>=&gt; fhir::Lit::Int(n, <span class="prelude-val">None</span>),
+<a href=#1600 id=1600 data-nosnippet>1600</a>                    <span class="prelude-val">Some</span>(suffix) =&gt; {
+<a href=#1601 id=1601 data-nosnippet>1601</a>                        <span class="kw">return </span>fhir::ExprKind::Err(
+<a href=#1602 id=1602 data-nosnippet>1602</a>                            <span class="self">self</span>.emit(errors::InvalidNumericSuffix::new(span, suffix)),
+<a href=#1603 id=1603 data-nosnippet>1603</a>                        );
+<a href=#1604 id=1604 data-nosnippet>1604</a>                    }
 <a href=#1605 id=1605 data-nosnippet>1605</a>                }
 <a href=#1606 id=1606 data-nosnippet>1606</a>            }
 <a href=#1607 id=1607 data-nosnippet>1607</a>            surface::LitKind::Bool =&gt; fhir::Lit::Bool(lit.symbol == kw::True),

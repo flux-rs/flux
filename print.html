@@ -5681,18 +5681,14 @@ pub fn test4(n: usize) -&gt; i32 {
 using the <code>cast</code> internal function.</p>
 <pre><code class="language-rust noplayground">#![flux::defs {
 
-    fn cast_to_int(c:char) -&gt; int {
-        cast(c)
-    }
-
     fn is_ascii_digit(c:char) -&gt; bool {
-        let i = cast_to_int(c);
-        48 &lt;= i &amp;&amp; i &lt;= 57
+        let i = cast(c);
+        48int &lt;= i &amp;&amp; i &lt;= 57
     }
 
     fn is_ascii(c:char) -&gt; bool {
-        let i = cast_to_int(c);
-        0 &lt;= i &amp;&amp; i &lt;= 127
+        let i = cast(c);
+        0int &lt;= i &amp;&amp; i &lt;= 127
     }
 }]
 
