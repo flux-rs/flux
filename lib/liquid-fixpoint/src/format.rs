@@ -336,7 +336,7 @@ impl<T: Types> fmt::Display for Constant<T> {
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
             Constant::BitVec(i, sz) => {
-                if sz % 4 == 0 {
+                if sz.is_multiple_of(4) {
                     write!(f, "(lit \"#x{i:00$x}\" (BitVec Size{sz}))", (sz / 4) as usize)
                 } else {
                     write!(f, "(lit \"#b{i:00$x}\" (BitVec Size{sz}))", *sz as usize)
