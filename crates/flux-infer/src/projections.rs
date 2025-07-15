@@ -17,7 +17,7 @@ use flux_middle::{
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use itertools::izip;
 use rustc_hir::def_id::DefId;
-use rustc_infer::traits::Obligation;
+use rustc_infer::traits::{ImplSourceUserDefinedData, Obligation, PredicateObligation};
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
@@ -81,67 +81,6 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         let selcx = SelectionContext::new(infcx.region_infcx);
         let scope = infcx.cursor().marker().scope().unwrap();
         Ok(Normalizer { infcx, selcx, param_env, scope })
-    }
-
-    fn get_impl_id_of_alias_reft(&mut self, alias_reft: &AliasReft) -> QueryResult<Option<DefId>> {
-        let tcx = self.tcx();
-        let def_id = self.def_id();
-        let selcx = &mut self.selcx;
-        let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
-        let trait_ref = tcx.erase_regions(trait_ref);
-        let trait_pred =
-            Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
-        match selcx.select(&trait_pred) {
-            Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data.impl_def_id)),
-            Ok(_) => Ok(None),
-            Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
-        }
-    }
-
-    fn alias_reft_is_final(&mut self, alias_reft: &AliasReft) -> QueryResult<bool> {
-        let reft_id = alias_reft.assoc_id;
-        let assoc_refinements = self.genv().assoc_refinements_of(reft_id.parent())?;
-        Ok(assoc_refinements.get(reft_id).final_)
-    }
-
-    fn normalize_alias_reft(
-        &mut self,
-        alias_reft: &AliasReft,
-        refine_args: &RefineArgs,
-    ) -> QueryResult<Expr> {
-        if self.alias_reft_is_final(alias_reft)? {
-            self.genv()
-                .default_assoc_refinement_body(alias_reft.assoc_id)?
-                .unwrap_or_else(|| {
-                    bug!("final associated refinement without body - should be caught in desugar")
-                })
-                .instantiate(self.genv().tcx(), &alias_reft.args, &[])
-                .apply(refine_args)
-                .try_fold_with(self)
-        } else if let Some(impl_def_id) = self.get_impl_id_of_alias_reft(alias_reft)? {
-            let impl_trait_ref = self
-                .genv()
-                .impl_trait_ref(impl_def_id)?
-                .unwrap()
-                .skip_binder();
-            let generics = self.tcx().generics_of(impl_def_id);
-            let mut subst = TVarSubst::new(generics);
-            let alias_reft_args = alias_reft.args.try_fold_with(self)?;
-            // TODO(RJ): The code below duplicates the logic in `confirm_candidates` ...
-            for (a, b) in iter::zip(&impl_trait_ref.args, &alias_reft_args) {
-                subst.generic_args(a, b);
-            }
-            self.resolve_projection_predicates(&mut subst, impl_def_id)?;
-
-            let args = subst.finish(self.tcx(), generics)?;
-            self.genv()
-                .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
-                .instantiate(self.genv().tcx(), &args, &[])
-                .apply(refine_args)
-                .try_fold_with(self)
-        } else {
-            Ok(Expr::alias(alias_reft.clone(), refine_args.clone()))
-        }
     }
 
     fn normalize_projection_ty(
@@ -531,7 +470,14 @@ impl FallibleTypeFolder for Normalizer<'_, '_, '_, '_> {
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
         if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
-            self.normalize_alias_reft(alias_pred, refine_args)
+            let (changed, e) = normalize_alias_reft(
+                self.genv(),
+                self.def_id(),
+                self.selcx.infcx,
+                alias_pred,
+                refine_args,
+            )?;
+            if changed { e.try_fold_with(self) } else { Ok(e) }
         } else {
             expr.try_super_fold_with(self)
         }
@@ -799,4 +745,73 @@ fn normalize_projection_ty_with_rustc<'tcx>(
             .refine_ty_or_base(&rustc_ty)?
             .expect_base(),
     ))
+}
+
+pub fn structurally_normalize_expr(
+    genv: GlobalEnv,
+    def_id: DefId,
+    infcx: &rustc_infer::infer::InferCtxt,
+    expr: &Expr,
+) -> QueryResult<Expr> {
+    if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
+        let (_, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args)?;
+        Ok(e)
+    } else {
+        Ok(expr.clone())
+    }
+}
+
+fn normalize_alias_reft(
+    genv: GlobalEnv,
+    def_id: DefId,
+    infcx: &rustc_infer::infer::InferCtxt,
+    alias_reft: &AliasReft,
+    refine_args: &RefineArgs,
+) -> QueryResult<(bool, Expr)> {
+    let is_final = genv.assoc_refinement(alias_reft.assoc_id)?.final_;
+    if is_final {
+        let e = genv
+            .default_assoc_refinement_body(alias_reft.assoc_id)?
+            .unwrap_or_else(|| {
+                bug!("final associated refinement without body - should be caught in desugar")
+            })
+            .instantiate(genv.tcx(), &alias_reft.args, &[])
+            .apply(refine_args);
+        Ok((true, e))
+    } else if let Some(impl_data) = get_impl_data_for_alias_reft(infcx, def_id, alias_reft)? {
+        let tcx = infcx.tcx;
+        let impl_def_id = impl_data.impl_def_id;
+        let args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
+            impl_def_id,
+            &impl_data
+                .args
+                .lower(tcx)
+                .map_err(|reason| query_bug!("{reason:?}"))?,
+        )?;
+        let e = genv
+            .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
+            .instantiate(tcx, &args, &[])
+            .apply(refine_args);
+        Ok((true, e))
+    } else {
+        Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone())))
+    }
+}
+
+fn get_impl_data_for_alias_reft<'tcx>(
+    infcx: &rustc_infer::infer::InferCtxt<'tcx>,
+    def_id: DefId,
+    alias_reft: &AliasReft,
+) -> QueryResult<Option<ImplSourceUserDefinedData<'tcx, PredicateObligation<'tcx>>>> {
+    let tcx = infcx.tcx;
+    let mut selcx = SelectionContext::new(infcx);
+    let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
+    let trait_ref = tcx.erase_regions(trait_ref);
+    let trait_pred =
+        Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
+    match selcx.select(&trait_pred) {
+        Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data)),
+        Ok(_) => Ok(None),
+        Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+    }
 }
