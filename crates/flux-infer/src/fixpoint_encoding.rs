@@ -30,9 +30,13 @@ use rustc_data_structures::{
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
+use rustc_infer::infer::TyCtxtInferExt as _;
+use rustc_middle::ty::TypingMode;
 use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::projections::structurally_normalize_expr;
 
 pub mod fixpoint {
     use std::fmt;
@@ -389,9 +393,6 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    /// Id of the item being checked. This is a [`MaybeExternId`] because we can be checking invariants for
-    /// an extern spec on an enum.
-    def_id: MaybeExternId,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -401,17 +402,15 @@ where
     Tag: std::hash::Hash + Eq + Copy,
 {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
-        let def_span = genv.tcx().def_span(def_id);
         Self {
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, def_span),
+            ecx: ExprEncodingCtxt::new(genv, def_id),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
-            def_id,
         }
     }
 
@@ -428,8 +427,8 @@ where
             self.ecx.errors.into_result()?;
             return Ok(vec![]);
         }
-        let def_span = self.def_span();
-        let def_id = self.def_id;
+        let def_span = self.ecx.def_span();
+        let def_id = self.ecx.def_id;
 
         let kvars = self.kcx.into_fixpoint();
 
@@ -472,10 +471,10 @@ where
             data_decls: self.scx.into_data_decls(self.genv)?,
         };
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();
+            dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        match Self::run_task_with_cache(self.genv, task, self.def_id.resolved_id(), kind, cache) {
+        match Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache) {
             FixpointResult::Safe(_) => Ok(vec![]),
             FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
@@ -687,10 +686,6 @@ where
             .collect_vec();
 
         Ok(fixpoint::Pred::And(kvars))
-    }
-
-    fn def_span(&self) -> Span {
-        self.genv.tcx().def_span(self.def_id)
     }
 }
 
@@ -973,11 +968,14 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     const_map: ConstMap<'tcx>,
     fun_def_map: FunDefMap,
     errors: Errors<'genv>,
-    def_span: Span,
+    /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
+    /// invariants for an extern spec on an enum.
+    def_id: MaybeExternId,
+    infcx: rustc_infer::infer::InferCtxt<'tcx>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, def_span: Span) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
@@ -985,8 +983,17 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             const_map: Default::default(),
             fun_def_map: Default::default(),
             errors: Errors::new(genv.sess()),
-            def_span,
+            def_id,
+            infcx: genv
+                .tcx()
+                .infer_ctxt()
+                .with_next_trait_solver(true)
+                .build(TypingMode::non_body_analysis()),
         }
+    }
+
+    fn def_span(&self) -> Span {
+        self.genv.tcx().def_span(self.def_id)
     }
 
     fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
@@ -995,7 +1002,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.local_var_env
                     .get_fvar(*name)
                     .unwrap_or_else(|| {
-                        span_bug!(self.def_span, "no entry found for name: `{name:?}`")
+                        span_bug!(self.def_span(), "no entry found for name: `{name:?}`")
                     })
                     .into()
             }
@@ -1003,14 +1010,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.local_var_env
                     .get_late_bvar(*debruijn, breft.var)
                     .unwrap_or_else(|| {
-                        span_bug!(self.def_span, "no entry found for late bound var: `{breft:?}`")
+                        span_bug!(self.def_span(), "no entry found for late bound var: `{breft:?}`")
                     })
                     .into()
             }
             rty::Var::ConstGeneric(param) => fixpoint::Var::ConstGeneric(*param),
             rty::Var::EarlyParam(param) => fixpoint::Var::Param(*param),
             rty::Var::EVar(_) => {
-                span_bug!(self.def_span, "unexpected evar: `{var:?}`")
+                span_bug!(self.def_span(), "unexpected evar: `{var:?}`")
             }
         }
     }
@@ -1090,11 +1097,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
+    fn structurally_normalize_expr(&self, expr: &rty::Expr) -> QueryResult<rty::Expr> {
+        structurally_normalize_expr(self.genv, self.def_id.resolved_id(), &self.infcx, expr)
+    }
+
     fn expr_to_fixpoint(
         &mut self,
         expr: &rty::Expr,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
+        let expr = self.structurally_normalize_expr(expr)?;
         let e = match expr.kind() {
             rty::ExprKind::Var(var) => fixpoint::Expr::Var(self.var_to_fixpoint(var)),
             rty::ExprKind::Constant(c) => const_to_fixpoint(*c),
@@ -1168,7 +1180,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
             | rty::ExprKind::InternalFunc(_) => {
-                span_bug!(self.def_span, "unexpected expr: `{expr:?}`")
+                span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
             rty::ExprKind::BoundedQuant(kind, rng, body) => {
                 let exprs = (rng.start..rng.end).map(|i| {
@@ -1233,7 +1245,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             fixpoint::BinRel::Ge => fixpoint::ThyFunc::BvUge,
             fixpoint::BinRel::Lt => fixpoint::ThyFunc::BvUlt,
             fixpoint::BinRel::Le => fixpoint::ThyFunc::BvUle,
-            _ => span_bug!(self.def_span, "not a bitvector relation!"),
+            _ => span_bug!(self.def_span(), "not a bitvector relation!"),
         };
         fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
     }
@@ -1249,7 +1261,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::BitOr => fixpoint::ThyFunc::BvOr,
             rty::BinOp::BitShl => fixpoint::ThyFunc::BvShl,
             rty::BinOp::BitShr => fixpoint::ThyFunc::BvLshr,
-            _ => span_bug!(self.def_span, "not a bitvector operation!"),
+            _ => span_bug!(self.def_span(), "not a bitvector operation!"),
         };
         fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
     }
@@ -1505,7 +1517,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
         let key = ConstKey::PrimOp(op.clone());
-        let span = self.def_span;
+        let span = self.def_span();
         self.const_map
             .entry(key)
             .or_insert_with(|| {

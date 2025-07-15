@@ -149,7 +149,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         Ok(rty::Binder::bind_with_vars(value, List::empty()))
     }
 
-    fn refine_generic_args(
+    pub fn refine_generic_args(
         &self,
         def_id: DefId,
         args: &ty::GenericArgs,

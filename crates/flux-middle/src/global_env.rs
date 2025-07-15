@@ -285,6 +285,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .assoc_refinements_of(self, def_id.into_query_param())
     }
 
+    pub fn assoc_refinement(self, assoc_id: FluxDefId) -> QueryResult<rty::AssocReft> {
+        Ok(self.assoc_refinements_of(assoc_id.parent())?.get(assoc_id))
+    }
+
     /// Given the id of an associated refinement in a trait definition returns the body for the
     /// corresponding associated refinement in the implementation with id `impl_id`.
     ///
