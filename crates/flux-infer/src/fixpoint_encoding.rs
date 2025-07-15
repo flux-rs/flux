@@ -1075,7 +1075,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             InternalFuncKind::Cast => {
                 let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &sort_args else {
-                    span_bug!(self.def_span, "unexpected cast")
+                    span_bug!(self.def_span(), "unexpected cast")
                 };
                 match from.cast_kind(to) {
                     rty::CastKind::Identity => self.expr_to_fixpoint(&args[0], scx),
