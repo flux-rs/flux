@@ -1,17 +1,12 @@
 #![flux::defs {
-    // wrapper to monomorphize cast
-    fn cast_to_int(x:char) -> int {
-        cast(x)
-    }
-
     fn is_ascii_digit(c:char) -> bool {
-        let i = cast_to_int(c);
-        48 <= i && i <= 57
+        let i = cast(c);
+        48int <= i && i <= 57
     }
 
     fn is_ascii(c:char) -> bool {
-        let i = cast_to_int(c);
-        0 <= i && i <= 127
+        let i = cast(c);
+        0int <= i && i <= 127
     }
 }]
 

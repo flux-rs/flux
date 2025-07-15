@@ -1593,15 +1593,15 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     Ok(n) => n,
                     Err(err) => return fhir::ExprKind::Err(err),
                 };
-                let suffix = lit.suffix.unwrap_or(sym::int);
-                if suffix == sym::int {
-                    fhir::Lit::Int(n)
-                } else if suffix == sym::real {
-                    fhir::Lit::Real(n)
-                } else {
-                    return fhir::ExprKind::Err(
-                        self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
-                    );
+                match lit.suffix {
+                    Some(sym::int) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Int)),
+                    Some(sym::real) => fhir::Lit::Int(n, Some(fhir::NumLitKind::Real)),
+                    None => fhir::Lit::Int(n, None),
+                    Some(suffix) => {
+                        return fhir::ExprKind::Err(
+                            self.emit(errors::InvalidNumericSuffix::new(span, suffix)),
+                        );
+                    }
                 }
             }
             surface::LitKind::Bool => fhir::Lit::Bool(lit.symbol == kw::True),

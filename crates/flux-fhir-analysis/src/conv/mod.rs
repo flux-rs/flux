@@ -2061,21 +2061,26 @@ fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
 impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_lit(&self, lit: fhir::Lit, fhir_id: FhirId, span: Span) -> QueryResult<rty::Constant> {
         match lit {
-            fhir::Lit::Int(n) => {
-                let sort = self.results().node_sort(fhir_id);
-                if let rty::Sort::BitVec(bvsize) = sort {
-                    if let rty::BvSize::Fixed(size) = bvsize
-                        && (n == 0 || n.ilog2() < size)
-                    {
-                        Ok(rty::Constant::BitVec(n, size))
-                    } else {
-                        Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
+            fhir::Lit::Int(n, kind) => {
+                match kind {
+                    Some(fhir::NumLitKind::Int) => Ok(rty::Constant::from(n)),
+                    Some(fhir::NumLitKind::Real) => Ok(rty::Constant::Real(rty::Real(n))),
+                    None => {
+                        let sort = self.results().node_sort(fhir_id);
+                        if let rty::Sort::BitVec(bvsize) = sort {
+                            if let rty::BvSize::Fixed(size) = bvsize
+                                && (n == 0 || n.ilog2() < size)
+                            {
+                                Ok(rty::Constant::BitVec(n, size))
+                            } else {
+                                Err(self.emit(errors::InvalidBitVectorConstant::new(span, sort)))?
+                            }
+                        } else {
+                            Ok(rty::Constant::from(n))
+                        }
                     }
-                } else {
-                    Ok(rty::Constant::from(n))
                 }
             }
-            fhir::Lit::Real(r) => Ok(rty::Constant::Real(rty::Real(r))),
             fhir::Lit::Bool(b) => Ok(rty::Constant::from(b)),
             fhir::Lit::Str(s) => Ok(rty::Constant::from(s)),
             fhir::Lit::Char(c) => Ok(rty::Constant::from(c)),

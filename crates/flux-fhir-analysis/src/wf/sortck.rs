@@ -247,14 +247,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_lit(&mut self, lit: fhir::Lit, expr: &fhir::Expr) -> rty::Sort {
         match lit {
-            fhir::Lit::Int(_) => {
+            fhir::Lit::Int(_, Some(fhir::NumLitKind::Int)) => rty::Sort::Int,
+            fhir::Lit::Int(_, Some(fhir::NumLitKind::Real)) => rty::Sort::Real,
+            fhir::Lit::Int(_, None) => {
                 let sort = self.next_num_var();
                 self.sort_of_literal
                     .insert(expr.fhir_id, (sort.clone(), expr.span));
                 sort
             }
             fhir::Lit::Bool(_) => rty::Sort::Bool,
-            fhir::Lit::Real(_) => rty::Sort::Real,
             fhir::Lit::Str(_) => rty::Sort::Str,
             fhir::Lit::Char(_) => rty::Sort::Char,
         }
@@ -820,10 +821,13 @@ impl<'genv> InferCtxt<'genv, '_> {
             self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
         }
 
+        let allow_uninterpreted_cast = flux_config::allow_uninterpreted_cast();
         let allow_uninterpreted_cast = self
             .owner
             .def_id()
-            .map_or(false, |def_id| self.genv.infer_opts(def_id).allow_uninterpreted_cast);
+            .map_or(allow_uninterpreted_cast, |def_id| {
+                self.genv.infer_opts(def_id).allow_uninterpreted_cast
+            });
 
         // Make sure that function applications are fully resolved
         for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sort_args_of_app) {

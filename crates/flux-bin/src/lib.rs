@@ -16,6 +16,8 @@ pub struct FluxMetadata {
     pub scrape_quals: Option<bool>,
     /// Enable overflow checking
     pub check_overflow: Option<bool>,
+    /// Enable uninterpreted casts
+    pub allow_uninterpreted_cast: Option<bool>,
     /// Enable flux-defs to be defined as SMT functions
     pub smt_define_fun: Option<bool>,
     /// Set trusted to trusted
@@ -50,6 +52,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.default_ignore {
             flags.push(format!("-Fignore={v}"));
+        }
+        if let Some(v) = self.allow_uninterpreted_cast {
+            flags.push(format!("-Fallow-uninterpreted-cast={v}"));
         }
         if let Some(patterns) = self.include {
             for pat in patterns {
