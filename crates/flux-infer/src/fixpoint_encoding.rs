@@ -377,7 +377,7 @@ enum ConstKey<'tcx> {
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
-    ToInt(List<rty::SortArg>),
+    Cast(rty::Sort, rty::Sort),
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
@@ -976,12 +976,6 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     def_span: Span,
 }
 
-fn is_id_cast(from: &rty::Sort, to: &rty::Sort) -> bool {
-    from == to
-        || (matches!(from, rty::Sort::Char | rty::Sort::Int)
-            && matches!(to, rty::Sort::Char | rty::Sort::Int))
-}
-
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>, def_span: Span) -> Self {
         Self {
@@ -1073,22 +1067,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.expr_to_fixpoint(&expr, scx)
             }
             InternalFuncKind::Cast => {
-                match sort_args {
-                    [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] if is_id_cast(from, to) => {
-                        self.expr_to_fixpoint(&args[0], scx)
+                let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &sort_args else {
+                    span_bug!(self.def_span, "unexpected cast")
+                };
+                match from.cast_kind(to) {
+                    rty::CastKind::Identity => self.expr_to_fixpoint(&args[0], scx),
+                    rty::CastKind::BoolToInt => {
+                        Ok(fixpoint::Expr::IfThenElse(Box::new([
+                            self.expr_to_fixpoint(&args[0], scx)?,
+                            fixpoint::Expr::int(1),
+                            fixpoint::Expr::int(0),
+                        ])))
                     }
-                    [rty::SortArg::Sort(rty::Sort::Bool), rty::SortArg::Sort(rty::Sort::Int)] => {
-                        let expr = rty::Expr::ite(
-                            args[0].clone(),
-                            rty::Expr::constant(rty::Constant::from(1)),
-                            rty::Expr::constant(rty::Constant::from(0)),
-                        );
-                        self.expr_to_fixpoint(&expr, scx)
-                    }
-                    // Treat all other to_int conversions as uninterpreted
-                    _ => {
-                        let func =
-                            fixpoint::Expr::Var(self.define_const_for_to_int(sort_args, scx));
+                    rty::CastKind::IntoUnit => self.expr_to_fixpoint(&rty::Expr::unit(), scx),
+                    rty::CastKind::Uninterpreted => {
+                        let func = fixpoint::Expr::Var(self.define_const_for_cast(from, to, scx));
                         let args = self.exprs_to_fixpoint(args, scx)?;
                         Ok(fixpoint::Expr::App(Box::new(func), args))
                     }
@@ -1484,25 +1477,23 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn define_const_for_to_int(
+    fn define_const_for_cast(
         &mut self,
-        sort_args: &[rty::SortArg],
+        from: &rty::Sort,
+        to: &rty::Sort,
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
-        let key = ConstKey::ToInt(sort_args.into());
+        let key = ConstKey::Cast(from.clone(), to.clone());
         self.const_map
             .entry(key)
             .or_insert_with(|| {
-                let fsort = self
-                    .genv
-                    .sort_of_spec_func(&flux_middle::fhir::SpecFuncKind::Cast)
-                    .instantiate(sort_args);
+                let fsort = rty::FuncSort::new(vec![from.clone()], to.clone());
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(self.global_var_gen.fresh(), None),
                     sort,
-                    comment: Some(format!("to_int uif: <{sort_args:?}>")),
+                    comment: Some(format!("cast uif: ({from:?}) -> {to:?}")),
                 }
             })
             .name

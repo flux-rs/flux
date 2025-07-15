@@ -275,3 +275,20 @@ impl CannotInferSort {
         Self { span }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_invalid_cast, code = E0999)]
+#[note]
+pub(super) struct InvalidCast {
+    #[primary_span]
+    #[label]
+    span: Span,
+    from: String,
+    to: String,
+}
+
+impl InvalidCast {
+    pub(super) fn new(span: Span, from: &rty::Sort, to: &rty::Sort) -> Self {
+        Self { span, from: format!("{from:?}"), to: format!("{to:?}") }
+    }
+}

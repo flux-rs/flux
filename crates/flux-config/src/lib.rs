@@ -69,6 +69,10 @@ fn check_overflow() -> bool {
     FLAGS.check_overflow
 }
 
+fn allow_uninterpreted_cast() -> bool {
+    FLAGS.allow_uninterpreted_cast
+}
+
 fn scrape_quals() -> bool {
     FLAGS.scrape_quals
 }
@@ -156,6 +160,8 @@ pub struct InferOpts {
     /// Whether qualifiers should be scraped from the constraint.
     pub scrape_quals: bool,
     pub solver: SmtSolver,
+    /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
+    pub allow_uninterpreted_cast: bool,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -164,6 +170,9 @@ impl From<PartialInferOpts> for InferOpts {
             check_overflow: opts.check_overflow.unwrap_or_else(check_overflow),
             scrape_quals: opts.scrape_quals.unwrap_or_else(scrape_quals),
             solver: opts.solver.unwrap_or_else(solver),
+            allow_uninterpreted_cast: opts
+                .allow_uninterpreted_cast
+                .unwrap_or_else(allow_uninterpreted_cast),
         }
     }
 }
@@ -173,11 +182,15 @@ pub struct PartialInferOpts {
     pub check_overflow: Option<bool>,
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
+    pub allow_uninterpreted_cast: Option<bool>,
 }
 
 impl PartialInferOpts {
     pub fn merge(&mut self, other: &Self) {
         self.check_overflow = self.check_overflow.or(other.check_overflow);
+        self.allow_uninterpreted_cast = self
+            .allow_uninterpreted_cast
+            .or(other.allow_uninterpreted_cast);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
     }

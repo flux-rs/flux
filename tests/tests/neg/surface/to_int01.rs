@@ -12,6 +12,7 @@ pub fn test_bool_to_int_with_if(x: bool) -> u32 {
 
 struct S {}
 
+#[flux::opts(allow_uninterpreted_cast = true)]
 #[flux::sig(fn(x:S) -> i32[cast(x)])]
 fn foo(x: S) -> i32 {
     0 //~ ERROR refinement type

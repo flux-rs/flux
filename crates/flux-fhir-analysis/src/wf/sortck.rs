@@ -5,6 +5,7 @@ use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_infer::projections::NormalizeExt;
 use flux_middle::{
+    THEORY_FUNCS,
     fhir::{self, ExprRes, FhirId, FluxOwnerId, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -16,7 +17,7 @@ use flux_middle::{
 use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, def_id::DefId, symbol::Ident};
 
@@ -37,6 +38,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
     sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
     sort_args_of_app: FxHashMap<FhirId, (List<rty::SortArg>, Span)>,
+    casts: FxHashSet<FhirId>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
 }
@@ -69,6 +71,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
             sort_args_of_app: Default::default(),
+            casts: Default::default(),
         }
     }
 
@@ -295,6 +298,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let fhir_id = expr.fhir_id;
                 let span = expr.span;
                 let fsort = self.instantiate_func_sort(poly_fsort, fhir_id, span);
+                if matches!(callee.res, ExprRes::GlobalFunc(fhir::SpecFuncKind::Cast)) {
+                    self.casts.insert(fhir_id);
+                }
                 self.synth_app(fsort, args, expr.span)
             }
             fhir::ExprKind::BoundedQuant(.., body) => {
@@ -397,7 +403,22 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
             ExprRes::GlobalFunc(spec_func) => {
-                Ok(rty::Sort::Func(self.genv.sort_of_spec_func(&spec_func)))
+                let fsort = match spec_func {
+                    fhir::SpecFuncKind::Def(name) | fhir::SpecFuncKind::Uif(name) => {
+                        self.genv.func_sort(name)
+                    }
+                    fhir::SpecFuncKind::Thy(itf) => THEORY_FUNCS.get(&itf).unwrap().sort.clone(),
+                    fhir::SpecFuncKind::Cast => {
+                        rty::PolyFuncSort::new(
+                            List::from_arr([rty::SortParamKind::Sort, rty::SortParamKind::Sort]),
+                            rty::FuncSort::new(
+                                vec![rty::Sort::Var(rty::ParamSort::from(0_usize))],
+                                rty::Sort::Var(rty::ParamSort::from(1_usize)),
+                            ),
+                        )
+                    }
+                };
+                Ok(rty::Sort::Func(fsort))
             }
             ExprRes::Ctor(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
@@ -799,6 +820,12 @@ impl<'genv> InferCtxt<'genv, '_> {
             self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
         }
 
+        let allow_uninterpreted_cast = if let Some(def_id) = self.owner.def_id() {
+            self.genv.infer_opts(def_id).allow_uninterpreted_cast
+        } else {
+            false
+        };
+
         // Make sure that function applications are fully resolved
         for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sort_args_of_app) {
             let mut res = vec![];
@@ -812,6 +839,16 @@ impl<'genv> InferCtxt<'genv, '_> {
                     sort_arg.clone()
                 };
                 res.push(sort_arg);
+            }
+            if self.casts.contains(&fhir_id) {
+                let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &res[..] else {
+                    span_bug!(span, "invalid sort args!")
+                };
+                if !allow_uninterpreted_cast
+                    && matches!(from.cast_kind(to), rty::CastKind::Uninterpreted)
+                {
+                    return Err(self.emit_err(errors::InvalidCast::new(span, from, to)));
+                }
             }
             self.wfckresults
                 .fn_app_sorts_mut()

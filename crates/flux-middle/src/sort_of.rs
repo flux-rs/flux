@@ -4,13 +4,11 @@ use rustc_hir::def::DefKind;
 use rustc_span::def_id::DefId;
 
 use crate::{
-    THEORY_FUNCS,
-    fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, SortParamKind,
+        self,
         fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable as _},
     },
 };
@@ -41,22 +39,6 @@ impl GlobalEnv<'_, '_> {
     pub fn sort_of_def_id(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
         let ty = self.tcx().type_of(def_id).no_bound_vars().unwrap();
         if ty.is_integral() { Ok(Some(rty::Sort::Int)) } else { self.sort_of_rust_ty(def_id, ty) }
-    }
-
-    pub fn sort_of_spec_func(self, spec_func: &SpecFuncKind) -> rty::PolyFuncSort {
-        match spec_func {
-            SpecFuncKind::Def(name) | SpecFuncKind::Uif(name) => self.func_sort(name),
-            SpecFuncKind::Thy(itf) => THEORY_FUNCS.get(itf).unwrap().sort.clone(),
-            SpecFuncKind::Cast => {
-                rty::PolyFuncSort::new(
-                    List::from_arr([SortParamKind::Sort, SortParamKind::Sort]),
-                    rty::FuncSort::new(
-                        vec![rty::Sort::Var(rty::ParamSort::from(0_usize))],
-                        rty::Sort::Var(rty::ParamSort::from(1_usize)),
-                    ),
-                )
-            }
-        }
     }
 
     pub fn sort_of_rust_ty(

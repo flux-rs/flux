@@ -949,6 +949,17 @@ pub enum Sort {
     Err,
 }
 
+pub enum CastKind {
+    /// Identity cast, which is erasable (e.g. int -> int, char -> int)
+    Identity,
+    /// From bool to int
+    BoolToInt,
+    /// Casts to unit index, (e.g. int -> float)
+    IntoUnit,
+    /// Uninterpreted casts, only allowed with explicit flag
+    Uninterpreted,
+}
+
 impl Sort {
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
@@ -1001,6 +1012,20 @@ impl Sort {
 
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
+    }
+
+    pub fn cast_kind(self: &Sort, to: &Sort) -> CastKind {
+        if self == to
+            || (matches!(self, Sort::Char | Sort::Int) && matches!(to, Sort::Char | Sort::Int))
+        {
+            CastKind::Identity
+        } else if matches!(self, Sort::Bool) && matches!(to, Sort::Int) {
+            CastKind::BoolToInt
+        } else if to.is_unit() {
+            CastKind::IntoUnit
+        } else {
+            CastKind::Uninterpreted
+        }
     }
 
     pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {

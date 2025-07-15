@@ -25,8 +25,16 @@ pub fn test_usize_to_float(x: u8) -> f32 {
     x as f32
 }
 
+#[trusted]
+#[flux::opts(allow_uninterpreted_cast = true)]
+#[spec(fn (x:usize) -> bool[cast(x)])]
+pub fn test_usize_to_bool(x: usize) -> bool {
+    x != 0
+}
+
 pub struct S {}
 
+#[flux::opts(allow_uninterpreted_cast = true)]
 #[spec(fn(x:S, n:usize[cast(x)]) -> usize[cast(x)])]
 pub fn foo(_x: S, n: usize) -> usize {
     n
