@@ -2063,7 +2063,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         match lit {
             fhir::Lit::Int(n, kind) => {
                 match kind {
-                    Some(fhir::NumLitKind::Int) => Ok(rty::Constant::Int(n.into())),
+                    Some(fhir::NumLitKind::Int) => Ok(rty::Constant::from(n)),
                     Some(fhir::NumLitKind::Real) => Ok(rty::Constant::Real(rty::Real(n))),
                     None => {
                         let sort = self.results().node_sort(fhir_id);
