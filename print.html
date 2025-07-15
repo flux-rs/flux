@@ -5676,6 +5676,48 @@ static POW10: [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 pub fn test4(n: usize) -&gt; i32 {
     POW10[n &amp; 7]
 }</code></pre>
+<h2 id="casting-sorts"><a class="header" href="#casting-sorts">Casting Sorts</a></h2>
+<p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
+using the <code>cast</code> internal function.</p>
+<pre><code class="language-rust noplayground">#![flux::defs {
+
+    fn cast_to_int(c:char) -&gt; int {
+        cast(c)
+    }
+
+    fn is_ascii_digit(c:char) -&gt; bool {
+        let i = cast_to_int(c);
+        48 &lt;= i &amp;&amp; i &lt;= 57
+    }
+
+    fn is_ascii(c:char) -&gt; bool {
+        let i = cast_to_int(c);
+        0 &lt;= i &amp;&amp; i &lt;= 127
+    }
+}]
+
+use flux_rs::{assert, attrs::*};
+
+// extern specs for is_ascii and is_ascii_digit
+#[extern_spec]
+impl char {
+    #[spec(fn (&amp;Self[@c]) -&gt; bool[is_ascii(c)])]
+    fn is_ascii(&amp;self) -&gt; bool;
+
+    #[spec(fn (&amp;Self[@c]) -&gt; bool[is_ascii_digit(c)])]
+    fn is_ascii_digit(&amp;self) -&gt; bool;
+}
+
+pub fn test_ok(x: char) {
+    if x.is_ascii_digit() {
+        assert(x.is_ascii())
+    }
+}
+
+#[spec(fn (char{v: '0' &lt;= v &amp;&amp; v &lt;= '9'}))]
+pub fn test_digit(x: char) {
+    assert(x.is_ascii_digit())
+}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>

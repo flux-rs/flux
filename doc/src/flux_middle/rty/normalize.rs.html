@@ -11,7 +11,7 @@
 <a href=#11 id=11 data-nosnippet>11</a>    def_id::{FluxDefId, FluxId, FluxLocalDefId},
 <a href=#12 id=12 data-nosnippet>12</a>    global_env::GlobalEnv,
 <a href=#13 id=13 data-nosnippet>13</a>    rty::{
-<a href=#14 id=14 data-nosnippet>14</a>        Binder, Expr, ExprKind,
+<a href=#14 id=14 data-nosnippet>14</a>        Binder, Expr, ExprKind, SortArg,
 <a href=#15 id=15 data-nosnippet>15</a>        expr::SpecFuncKind,
 <a href=#16 id=16 data-nosnippet>16</a>        fold::{TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable, TypeVisitor},
 <a href=#17 id=17 data-nosnippet>17</a>    },
@@ -134,7 +134,7 @@
 <a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">impl </span>TypeVisitor <span class="kw">for </span>DepsVisitor {
 <a href=#135 id=135 data-nosnippet>135</a>        <span class="attr">#[allow(clippy::disallowed_methods, reason = <span class="string">"refinement functions cannot be extern specs"</span>)]
 <a href=#136 id=136 data-nosnippet>136</a>        </span><span class="kw">fn </span>visit_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; ControlFlow&lt;!&gt; {
-<a href=#137 id=137 data-nosnippet>137</a>            <span class="kw">if let </span>ExprKind::App(func, <span class="kw">_</span>) = expr.kind()
+<a href=#137 id=137 data-nosnippet>137</a>            <span class="kw">if let </span>ExprKind::App(func, ..) = expr.kind()
 <a href=#138 id=138 data-nosnippet>138</a>                &amp;&amp; <span class="kw">let </span>ExprKind::GlobalFunc(SpecFuncKind::Def(did)) = func.kind()
 <a href=#139 id=139 data-nosnippet>139</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(did) = did.as_local()
 <a href=#140 id=140 data-nosnippet>140</a>            {
@@ -187,45 +187,51 @@
 <a href=#187 id=187 data-nosnippet>187</a>        }
 <a href=#188 id=188 data-nosnippet>188</a>    }
 <a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">fn </span>app(<span class="kw-2">&amp;mut </span><span class="self">self</span>, func: <span class="kw-2">&amp;</span>Expr, args: <span class="kw-2">&amp;</span>[Expr], espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;) -&gt; Expr {
-<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">match </span>func.kind() {
-<a href=#192 id=192 data-nosnippet>192</a>            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) <span class="kw">if </span><span class="self">self</span>.inline(did) =&gt; {
-<a href=#193 id=193 data-nosnippet>193</a>                <span class="kw">let </span>res = <span class="self">self</span>.func_defn(<span class="kw-2">*</span>did).replace_bound_refts(args);
-<a href=#194 id=194 data-nosnippet>194</a>                <span class="self">Self</span>::at_base(res, espan)
-<a href=#195 id=195 data-nosnippet>195</a>            }
-<a href=#196 id=196 data-nosnippet>196</a>            ExprKind::Abs(lam) =&gt; {
-<a href=#197 id=197 data-nosnippet>197</a>                <span class="kw">let </span>res = lam.apply(args);
-<a href=#198 id=198 data-nosnippet>198</a>                <span class="self">Self</span>::at_base(res, espan)
-<a href=#199 id=199 data-nosnippet>199</a>            }
-<a href=#200 id=200 data-nosnippet>200</a>            <span class="kw">_ </span>=&gt; Expr::app(func.clone(), args.into()).at_opt(espan),
-<a href=#201 id=201 data-nosnippet>201</a>        }
-<a href=#202 id=202 data-nosnippet>202</a>    }
-<a href=#203 id=203 data-nosnippet>203</a>}
-<a href=#204 id=204 data-nosnippet>204</a>
-<a href=#205 id=205 data-nosnippet>205</a><span class="kw">impl </span>TypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">let </span>expr = expr.super_fold_with(<span class="self">self</span>);
-<a href=#208 id=208 data-nosnippet>208</a>        <span class="kw">let </span>span = expr.span();
-<a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">match </span>expr.kind() {
-<a href=#210 id=210 data-nosnippet>210</a>            ExprKind::App(func, args) =&gt; <span class="self">self</span>.app(func, args, span),
-<a href=#211 id=211 data-nosnippet>211</a>            ExprKind::FieldProj(e, proj) =&gt; e.proj_and_reduce(<span class="kw-2">*</span>proj),
-<a href=#212 id=212 data-nosnippet>212</a>            <span class="kw">_ </span>=&gt; expr,
-<a href=#213 id=213 data-nosnippet>213</a>        }
-<a href=#214 id=214 data-nosnippet>214</a>    }
-<a href=#215 id=215 data-nosnippet>215</a>}
-<a href=#216 id=216 data-nosnippet>216</a>
-<a href=#217 id=217 data-nosnippet>217</a><span class="kw">struct </span>BaseSpanner {
-<a href=#218 id=218 data-nosnippet>218</a>    espan: ESpan,
-<a href=#219 id=219 data-nosnippet>219</a>}
-<a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a><span class="kw">impl </span>BaseSpanner {
-<a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">fn </span>new(espan: ESpan) -&gt; <span class="self">Self </span>{
-<a href=#223 id=223 data-nosnippet>223</a>        <span class="self">Self </span>{ espan }
-<a href=#224 id=224 data-nosnippet>224</a>    }
+<a href=#190 id=190 data-nosnippet>190</a>    <span class="kw">fn </span>app(
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#192 id=192 data-nosnippet>192</a>        func: <span class="kw-2">&amp;</span>Expr,
+<a href=#193 id=193 data-nosnippet>193</a>        sort_args: <span class="kw-2">&amp;</span>[SortArg],
+<a href=#194 id=194 data-nosnippet>194</a>        args: <span class="kw-2">&amp;</span>[Expr],
+<a href=#195 id=195 data-nosnippet>195</a>        espan: <span class="prelude-ty">Option</span>&lt;ESpan&gt;,
+<a href=#196 id=196 data-nosnippet>196</a>    ) -&gt; Expr {
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="kw">match </span>func.kind() {
+<a href=#198 id=198 data-nosnippet>198</a>            ExprKind::GlobalFunc(SpecFuncKind::Def(did)) <span class="kw">if </span><span class="self">self</span>.inline(did) =&gt; {
+<a href=#199 id=199 data-nosnippet>199</a>                <span class="kw">let </span>res = <span class="self">self</span>.func_defn(<span class="kw-2">*</span>did).replace_bound_refts(args);
+<a href=#200 id=200 data-nosnippet>200</a>                <span class="self">Self</span>::at_base(res, espan)
+<a href=#201 id=201 data-nosnippet>201</a>            }
+<a href=#202 id=202 data-nosnippet>202</a>            ExprKind::Abs(lam) =&gt; {
+<a href=#203 id=203 data-nosnippet>203</a>                <span class="kw">let </span>res = lam.apply(args);
+<a href=#204 id=204 data-nosnippet>204</a>                <span class="self">Self</span>::at_base(res, espan)
+<a href=#205 id=205 data-nosnippet>205</a>            }
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="kw">_ </span>=&gt; Expr::app(func.clone(), sort_args.into(), args.into()).at_opt(espan),
+<a href=#207 id=207 data-nosnippet>207</a>        }
+<a href=#208 id=208 data-nosnippet>208</a>    }
+<a href=#209 id=209 data-nosnippet>209</a>}
+<a href=#210 id=210 data-nosnippet>210</a>
+<a href=#211 id=211 data-nosnippet>211</a><span class="kw">impl </span>TypeFolder <span class="kw">for </span>Normalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">let </span>expr = expr.super_fold_with(<span class="self">self</span>);
+<a href=#214 id=214 data-nosnippet>214</a>        <span class="kw">let </span>span = expr.span();
+<a href=#215 id=215 data-nosnippet>215</a>        <span class="kw">match </span>expr.kind() {
+<a href=#216 id=216 data-nosnippet>216</a>            ExprKind::App(func, sorts, args) =&gt; <span class="self">self</span>.app(func, sorts, args, span),
+<a href=#217 id=217 data-nosnippet>217</a>            ExprKind::FieldProj(e, proj) =&gt; e.proj_and_reduce(<span class="kw-2">*</span>proj),
+<a href=#218 id=218 data-nosnippet>218</a>            <span class="kw">_ </span>=&gt; expr,
+<a href=#219 id=219 data-nosnippet>219</a>        }
+<a href=#220 id=220 data-nosnippet>220</a>    }
+<a href=#221 id=221 data-nosnippet>221</a>}
+<a href=#222 id=222 data-nosnippet>222</a>
+<a href=#223 id=223 data-nosnippet>223</a><span class="kw">struct </span>BaseSpanner {
+<a href=#224 id=224 data-nosnippet>224</a>    espan: ESpan,
 <a href=#225 id=225 data-nosnippet>225</a>}
 <a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="kw">impl </span>TypeFolder <span class="kw">for </span>BaseSpanner {
-<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
-<a href=#229 id=229 data-nosnippet>229</a>        expr.super_fold_with(<span class="self">self</span>).at_base(<span class="self">self</span>.espan)
+<a href=#227 id=227 data-nosnippet>227</a><span class="kw">impl </span>BaseSpanner {
+<a href=#228 id=228 data-nosnippet>228</a>    <span class="kw">fn </span>new(espan: ESpan) -&gt; <span class="self">Self </span>{
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="self">Self </span>{ espan }
 <a href=#230 id=230 data-nosnippet>230</a>    }
-<a href=#231 id=231 data-nosnippet>231</a>}</code></pre></div></section></main></body></html>
+<a href=#231 id=231 data-nosnippet>231</a>}
+<a href=#232 id=232 data-nosnippet>232</a>
+<a href=#233 id=233 data-nosnippet>233</a><span class="kw">impl </span>TypeFolder <span class="kw">for </span>BaseSpanner {
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="kw">fn </span>fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; Expr {
+<a href=#235 id=235 data-nosnippet>235</a>        expr.super_fold_with(<span class="self">self</span>).at_base(<span class="self">self</span>.espan)
+<a href=#236 id=236 data-nosnippet>236</a>    }
+<a href=#237 id=237 data-nosnippet>237</a>}</code></pre></div></section></main></body></html>

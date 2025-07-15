@@ -141,7 +141,7 @@
 <a href=#141 id=141 data-nosnippet>141</a>
 <a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">fn </span>encode_byte_symbol(<span class="kw-2">&amp;mut </span><span class="self">self</span>, byte_sym: ByteSymbol) {
 <a href=#143 id=143 data-nosnippet>143</a>        <span class="self">self</span>.encode_symbol_or_byte_symbol(byte_sym.as_u32(), |this| {
-<a href=#144 id=144 data-nosnippet>144</a>            this.emit_byte_str(byte_sym.as_byte_str())
+<a href=#144 id=144 data-nosnippet>144</a>            this.emit_byte_str(byte_sym.as_byte_str());
 <a href=#145 id=145 data-nosnippet>145</a>        });
 <a href=#146 id=146 data-nosnippet>146</a>    }
 <a href=#147 id=147 data-nosnippet>147</a>}

@@ -274,4 +274,21 @@
 <a href=#274 id=274 data-nosnippet>274</a>    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
 <a href=#275 id=275 data-nosnippet>275</a>        <span class="self">Self </span>{ span }
 <a href=#276 id=276 data-nosnippet>276</a>    }
-<a href=#277 id=277 data-nosnippet>277</a>}</code></pre></div></section></main></body></html>
+<a href=#277 id=277 data-nosnippet>277</a>}
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a><span class="attr">#[derive(Diagnostic)]
+<a href=#280 id=280 data-nosnippet>280</a>#[diag(fhir_analysis_invalid_cast, code = E0999)]
+<a href=#281 id=281 data-nosnippet>281</a>#[note]
+<a href=#282 id=282 data-nosnippet>282</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidCast {
+<a href=#283 id=283 data-nosnippet>283</a>    <span class="attr">#[primary_span]
+<a href=#284 id=284 data-nosnippet>284</a>    #[label]
+<a href=#285 id=285 data-nosnippet>285</a>    </span>span: Span,
+<a href=#286 id=286 data-nosnippet>286</a>    from: String,
+<a href=#287 id=287 data-nosnippet>287</a>    to: String,
+<a href=#288 id=288 data-nosnippet>288</a>}
+<a href=#289 id=289 data-nosnippet>289</a>
+<a href=#290 id=290 data-nosnippet>290</a><span class="kw">impl </span>InvalidCast {
+<a href=#291 id=291 data-nosnippet>291</a>    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, from: <span class="kw-2">&amp;</span>rty::Sort, to: <span class="kw-2">&amp;</span>rty::Sort) -&gt; <span class="self">Self </span>{
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="self">Self </span>{ span, from: <span class="macro">format!</span>(<span class="string">"{from:?}"</span>), to: <span class="macro">format!</span>(<span class="string">"{to:?}"</span>) }
+<a href=#293 id=293 data-nosnippet>293</a>    }
+<a href=#294 id=294 data-nosnippet>294</a>}</code></pre></div></section></main></body></html>

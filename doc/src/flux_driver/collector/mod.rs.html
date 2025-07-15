@@ -532,8 +532,8 @@
 <a href=#532 id=532 data-nosnippet>532</a>    }
 <a href=#533 id=533 data-nosnippet>533</a>
 <a href=#534 id=534 data-nosnippet>534</a>    <span class="kw">fn </span>collect_infer_opts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, attrs: <span class="kw-2">&amp;mut </span>FluxAttrs, def_id: LocalDefId) {
-<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(check_overflow) = attrs.infer_opts() {
-<a href=#536 id=536 data-nosnippet>536</a>            <span class="self">self</span>.specs.infer_opts.insert(def_id, check_overflow);
+<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(infer_opts) = attrs.infer_opts() {
+<a href=#536 id=536 data-nosnippet>536</a>            <span class="self">self</span>.specs.infer_opts.insert(def_id, infer_opts);
 <a href=#537 id=537 data-nosnippet>537</a>        }
 <a href=#538 id=538 data-nosnippet>538</a>    }
 <a href=#539 id=539 data-nosnippet>539</a>}
@@ -827,176 +827,177 @@
 <a href=#827 id=827 data-nosnippet>827</a>
 <a href=#828 id=828 data-nosnippet>828</a>    <span class="kw">fn </span>try_into_infer_opts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; AttrMapErr&lt;PartialInferOpts&gt; {
 <a href=#829 id=829 data-nosnippet>829</a>        <span class="kw">let </span><span class="kw-2">mut </span>infer_opts = PartialInferOpts::default();
-<a href=#830 id=830 data-nosnippet>830</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, check_overflow, bool, infer_opts);
-<a href=#831 id=831 data-nosnippet>831</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, scrape_quals, bool, infer_opts);
-<a href=#832 id=832 data-nosnippet>832</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, solver, SmtSolver, infer_opts);
-<a href=#833 id=833 data-nosnippet>833</a>
-<a href=#834 id=834 data-nosnippet>834</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((name, setting)) = <span class="self">self</span>.map.iter().next() {
-<a href=#835 id=835 data-nosnippet>835</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
-<a href=#836 id=836 data-nosnippet>836</a>                span: setting.span,
-<a href=#837 id=837 data-nosnippet>837</a>                message: <span class="macro">format!</span>(<span class="string">"invalid crate cfg keyword `{name}`"</span>),
-<a href=#838 id=838 data-nosnippet>838</a>            });
-<a href=#839 id=839 data-nosnippet>839</a>        }
-<a href=#840 id=840 data-nosnippet>840</a>
-<a href=#841 id=841 data-nosnippet>841</a>        <span class="prelude-val">Ok</span>(infer_opts)
-<a href=#842 id=842 data-nosnippet>842</a>    }
-<a href=#843 id=843 data-nosnippet>843</a>}
-<a href=#844 id=844 data-nosnippet>844</a>
-<a href=#845 id=845 data-nosnippet>845</a><span class="kw">fn </span>attr_item_span(attr_item: <span class="kw-2">&amp;</span>hir::AttrItem) -&gt; Span {
-<a href=#846 id=846 data-nosnippet>846</a>    attr_args_span(<span class="kw-2">&amp;</span>attr_item.args)
-<a href=#847 id=847 data-nosnippet>847</a>        .map_or(attr_item.path.span, |args_span| attr_item.path.span.to(args_span))
-<a href=#848 id=848 data-nosnippet>848</a>}
-<a href=#849 id=849 data-nosnippet>849</a>
-<a href=#850 id=850 data-nosnippet>850</a><span class="kw">fn </span>attr_args_span(attr_args: <span class="kw-2">&amp;</span>hir::AttrArgs) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
-<a href=#851 id=851 data-nosnippet>851</a>    <span class="kw">match </span>attr_args {
-<a href=#852 id=852 data-nosnippet>852</a>        hir::AttrArgs::Empty =&gt; <span class="prelude-val">None</span>,
-<a href=#853 id=853 data-nosnippet>853</a>        hir::AttrArgs::Delimited(args) =&gt; <span class="prelude-val">Some</span>(args.dspan.entire()),
-<a href=#854 id=854 data-nosnippet>854</a>        hir::AttrArgs::Eq { eq_span, expr } =&gt; <span class="prelude-val">Some</span>(eq_span.to(expr.span)),
-<a href=#855 id=855 data-nosnippet>855</a>    }
-<a href=#856 id=856 data-nosnippet>856</a>}
-<a href=#857 id=857 data-nosnippet>857</a>
-<a href=#858 id=858 data-nosnippet>858</a><span class="kw">mod </span>errors {
-<a href=#859 id=859 data-nosnippet>859</a>    <span class="kw">use </span>flux_errors::E0999;
-<a href=#860 id=860 data-nosnippet>860</a>    <span class="kw">use </span>flux_macros::Diagnostic;
-<a href=#861 id=861 data-nosnippet>861</a>    <span class="kw">use </span>itertools::Itertools;
-<a href=#862 id=862 data-nosnippet>862</a>    <span class="kw">use </span>rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
-<a href=#863 id=863 data-nosnippet>863</a>    <span class="kw">use </span>rustc_hir::def_id::DefId;
-<a href=#864 id=864 data-nosnippet>864</a>    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
-<a href=#865 id=865 data-nosnippet>865</a>    <span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span, symbol::Ident};
-<a href=#866 id=866 data-nosnippet>866</a>
-<a href=#867 id=867 data-nosnippet>867</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#868 id=868 data-nosnippet>868</a>    #[diag(driver_duplicated_attr, code = E0999)]
-<a href=#869 id=869 data-nosnippet>869</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicatedAttr {
-<a href=#870 id=870 data-nosnippet>870</a>        <span class="attr">#[primary_span]
-<a href=#871 id=871 data-nosnippet>871</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#872 id=872 data-nosnippet>872</a>        <span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#873 id=873 data-nosnippet>873</a>    }
-<a href=#874 id=874 data-nosnippet>874</a>
-<a href=#875 id=875 data-nosnippet>875</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#876 id=876 data-nosnippet>876</a>    #[diag(driver_invalid_attr, code = E0999)]
-<a href=#877 id=877 data-nosnippet>877</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidAttr {
-<a href=#878 id=878 data-nosnippet>878</a>        <span class="attr">#[primary_span]
-<a href=#879 id=879 data-nosnippet>879</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#880 id=880 data-nosnippet>880</a>    }
-<a href=#881 id=881 data-nosnippet>881</a>
-<a href=#882 id=882 data-nosnippet>882</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#883 id=883 data-nosnippet>883</a>    #[diag(driver_invalid_attr_map, code = E0999)]
-<a href=#884 id=884 data-nosnippet>884</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AttrMapErr {
-<a href=#885 id=885 data-nosnippet>885</a>        <span class="attr">#[primary_span]
-<a href=#886 id=886 data-nosnippet>886</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#887 id=887 data-nosnippet>887</a>        <span class="kw">pub </span>message: String,
-<a href=#888 id=888 data-nosnippet>888</a>    }
-<a href=#889 id=889 data-nosnippet>889</a>
-<a href=#890 id=890 data-nosnippet>890</a>    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>SyntaxErr(flux_syntax::ParseError);
-<a href=#891 id=891 data-nosnippet>891</a>
-<a href=#892 id=892 data-nosnippet>892</a>    <span class="kw">impl </span>From&lt;flux_syntax::ParseError&gt; <span class="kw">for </span>SyntaxErr {
-<a href=#893 id=893 data-nosnippet>893</a>        <span class="kw">fn </span>from(err: flux_syntax::ParseError) -&gt; <span class="self">Self </span>{
-<a href=#894 id=894 data-nosnippet>894</a>            SyntaxErr(err)
-<a href=#895 id=895 data-nosnippet>895</a>        }
-<a href=#896 id=896 data-nosnippet>896</a>    }
-<a href=#897 id=897 data-nosnippet>897</a>
-<a href=#898 id=898 data-nosnippet>898</a>    <span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>&gt; Diagnostic&lt;<span class="lifetime">'sess</span>&gt; <span class="kw">for </span>SyntaxErr {
-<a href=#899 id=899 data-nosnippet>899</a>        <span class="kw">fn </span>into_diag(
-<a href=#900 id=900 data-nosnippet>900</a>            <span class="self">self</span>,
-<a href=#901 id=901 data-nosnippet>901</a>            dcx: DiagCtxtHandle&lt;<span class="lifetime">'sess</span>&gt;,
-<a href=#902 id=902 data-nosnippet>902</a>            level: Level,
-<a href=#903 id=903 data-nosnippet>903</a>        ) -&gt; Diag&lt;<span class="lifetime">'sess</span>, ErrorGuaranteed&gt; {
-<a href=#904 id=904 data-nosnippet>904</a>            <span class="kw">use </span>flux_syntax::ParseErrorKind;
-<a href=#905 id=905 data-nosnippet>905</a>            <span class="kw">let </span><span class="kw-2">mut </span>diag = Diag::new(dcx, level, <span class="kw">crate</span>::fluent_generated::driver_syntax_err);
-<a href=#906 id=906 data-nosnippet>906</a>            diag.code(E0999).span(<span class="self">self</span>.<span class="number">0</span>.span).span_label(
-<a href=#907 id=907 data-nosnippet>907</a>                <span class="self">self</span>.<span class="number">0</span>.span,
-<a href=#908 id=908 data-nosnippet>908</a>                <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.kind {
-<a href=#909 id=909 data-nosnippet>909</a>                    ParseErrorKind::UnexpectedEof =&gt; <span class="string">"unexpected end of input"</span>.to_string(),
-<a href=#910 id=910 data-nosnippet>910</a>                    ParseErrorKind::UnexpectedToken { expected } =&gt; {
-<a href=#911 id=911 data-nosnippet>911</a>                        <span class="kw">match </span><span class="kw-2">&amp;</span>expected[..] {
-<a href=#912 id=912 data-nosnippet>912</a>                            [] =&gt; <span class="string">"unexpected token"</span>.to_string(),
-<a href=#913 id=913 data-nosnippet>913</a>                            [a] =&gt; <span class="macro">format!</span>(<span class="string">"unexpected token, expected `{a}`"</span>),
-<a href=#914 id=914 data-nosnippet>914</a>                            [a, b] =&gt; <span class="macro">format!</span>(<span class="string">"unexpected token, expected `{a}` or `{b}`"</span>),
-<a href=#915 id=915 data-nosnippet>915</a>                            [prefix @ .., last] =&gt; {
-<a href=#916 id=916 data-nosnippet>916</a>                                <span class="macro">format!</span>(
-<a href=#917 id=917 data-nosnippet>917</a>                                    <span class="string">"unexpected token, expected one of {}, or `{last}`"</span>,
-<a href=#918 id=918 data-nosnippet>918</a>                                    prefix
-<a href=#919 id=919 data-nosnippet>919</a>                                        .iter()
-<a href=#920 id=920 data-nosnippet>920</a>                                        .format_with(<span class="string">", "</span>, |it, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"`{it}`"</span>)))
-<a href=#921 id=921 data-nosnippet>921</a>                                )
-<a href=#922 id=922 data-nosnippet>922</a>                            }
-<a href=#923 id=923 data-nosnippet>923</a>                        }
-<a href=#924 id=924 data-nosnippet>924</a>                    }
-<a href=#925 id=925 data-nosnippet>925</a>                    ParseErrorKind::CannotBeChained =&gt; <span class="string">"operator cannot be chained"</span>.to_string(),
-<a href=#926 id=926 data-nosnippet>926</a>                    ParseErrorKind::InvalidBinding =&gt; {
-<a href=#927 id=927 data-nosnippet>927</a>                        <span class="string">"identifier must be a mutable reference"</span>.to_string()
-<a href=#928 id=928 data-nosnippet>928</a>                    }
-<a href=#929 id=929 data-nosnippet>929</a>                    ParseErrorKind::InvalidSort =&gt; {
-<a href=#930 id=930 data-nosnippet>930</a>                        <span class="string">"property parameter sort is inherited from the primitive operator"
-<a href=#931 id=931 data-nosnippet>931</a>                            </span>.to_string()
-<a href=#932 id=932 data-nosnippet>932</a>                    }
-<a href=#933 id=933 data-nosnippet>933</a>                },
-<a href=#934 id=934 data-nosnippet>934</a>            );
-<a href=#935 id=935 data-nosnippet>935</a>            diag
-<a href=#936 id=936 data-nosnippet>936</a>        }
-<a href=#937 id=937 data-nosnippet>937</a>    }
-<a href=#938 id=938 data-nosnippet>938</a>
-<a href=#939 id=939 data-nosnippet>939</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#940 id=940 data-nosnippet>940</a>    #[diag(driver_attr_on_opaque, code = E0999)]
-<a href=#941 id=941 data-nosnippet>941</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AttrOnOpaque {
-<a href=#942 id=942 data-nosnippet>942</a>        <span class="attr">#[primary_span]
-<a href=#943 id=943 data-nosnippet>943</a>        </span>span: Span,
-<a href=#944 id=944 data-nosnippet>944</a>        <span class="attr">#[label]
-<a href=#945 id=945 data-nosnippet>945</a>        </span>field_span: Span,
-<a href=#946 id=946 data-nosnippet>946</a>    }
-<a href=#947 id=947 data-nosnippet>947</a>
-<a href=#948 id=948 data-nosnippet>948</a>    <span class="kw">impl </span>AttrOnOpaque {
-<a href=#949 id=949 data-nosnippet>949</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, field: <span class="kw-2">&amp;</span>rustc_hir::FieldDef) -&gt; <span class="self">Self </span>{
-<a href=#950 id=950 data-nosnippet>950</a>            <span class="kw">let </span>field_span = field.ident.span;
-<a href=#951 id=951 data-nosnippet>951</a>            <span class="self">Self </span>{ span, field_span }
-<a href=#952 id=952 data-nosnippet>952</a>        }
-<a href=#953 id=953 data-nosnippet>953</a>    }
-<a href=#954 id=954 data-nosnippet>954</a>
-<a href=#955 id=955 data-nosnippet>955</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#956 id=956 data-nosnippet>956</a>    #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
-<a href=#957 id=957 data-nosnippet>957</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ReflectedEnumWithRefinedBy {
-<a href=#958 id=958 data-nosnippet>958</a>        <span class="attr">#[primary_span]
-<a href=#959 id=959 data-nosnippet>959</a>        #[label]
-<a href=#960 id=960 data-nosnippet>960</a>        </span>span: Span,
-<a href=#961 id=961 data-nosnippet>961</a>    }
-<a href=#962 id=962 data-nosnippet>962</a>    <span class="kw">impl </span>ReflectedEnumWithRefinedBy {
-<a href=#963 id=963 data-nosnippet>963</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-<a href=#964 id=964 data-nosnippet>964</a>            <span class="self">Self </span>{ span }
-<a href=#965 id=965 data-nosnippet>965</a>        }
-<a href=#966 id=966 data-nosnippet>966</a>    }
-<a href=#967 id=967 data-nosnippet>967</a>
-<a href=#968 id=968 data-nosnippet>968</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#969 id=969 data-nosnippet>969</a>    #[diag(driver_missing_variant, code = E0999)]
-<a href=#970 id=970 data-nosnippet>970</a>    #[note]
-<a href=#971 id=971 data-nosnippet>971</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MissingVariant {
-<a href=#972 id=972 data-nosnippet>972</a>        <span class="attr">#[primary_span]
-<a href=#973 id=973 data-nosnippet>973</a>        #[label]
-<a href=#974 id=974 data-nosnippet>974</a>        </span>span: Span,
-<a href=#975 id=975 data-nosnippet>975</a>    }
-<a href=#976 id=976 data-nosnippet>976</a>
-<a href=#977 id=977 data-nosnippet>977</a>    <span class="kw">impl </span>MissingVariant {
-<a href=#978 id=978 data-nosnippet>978</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-<a href=#979 id=979 data-nosnippet>979</a>            <span class="self">Self </span>{ span }
-<a href=#980 id=980 data-nosnippet>980</a>        }
-<a href=#981 id=981 data-nosnippet>981</a>    }
-<a href=#982 id=982 data-nosnippet>982</a>
-<a href=#983 id=983 data-nosnippet>983</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#984 id=984 data-nosnippet>984</a>    #[diag(driver_mismatched_spec_name, code = E0999)]
-<a href=#985 id=985 data-nosnippet>985</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MismatchedSpecName {
-<a href=#986 id=986 data-nosnippet>986</a>        <span class="attr">#[primary_span]
-<a href=#987 id=987 data-nosnippet>987</a>        #[label]
-<a href=#988 id=988 data-nosnippet>988</a>        </span>span: Span,
-<a href=#989 id=989 data-nosnippet>989</a>        <span class="attr">#[label(driver_item_def_ident)]
-<a href=#990 id=990 data-nosnippet>990</a>        </span>item_ident_span: Span,
-<a href=#991 id=991 data-nosnippet>991</a>        item_ident: Ident,
-<a href=#992 id=992 data-nosnippet>992</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#993 id=993 data-nosnippet>993</a>    }
-<a href=#994 id=994 data-nosnippet>994</a>
-<a href=#995 id=995 data-nosnippet>995</a>    <span class="kw">impl </span>MismatchedSpecName {
-<a href=#996 id=996 data-nosnippet>996</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(tcx: TyCtxt, ident: Ident, def_id: DefId) -&gt; <span class="self">Self </span>{
-<a href=#997 id=997 data-nosnippet>997</a>            <span class="kw">let </span>def_descr = tcx.def_descr(def_id);
-<a href=#998 id=998 data-nosnippet>998</a>            <span class="kw">let </span>item_ident = tcx.opt_item_ident(def_id).unwrap();
-<a href=#999 id=999 data-nosnippet>999</a>            <span class="self">Self </span>{ span: ident.span, item_ident_span: item_ident.span, item_ident, def_descr }
-<a href=#1000 id=1000 data-nosnippet>1000</a>        }
-<a href=#1001 id=1001 data-nosnippet>1001</a>    }
-<a href=#1002 id=1002 data-nosnippet>1002</a>}</code></pre></div></section></main></body></html>
+<a href=#830 id=830 data-nosnippet>830</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, allow_uninterpreted_cast, bool, infer_opts);
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, check_overflow, bool, infer_opts);
+<a href=#832 id=832 data-nosnippet>832</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, scrape_quals, bool, infer_opts);
+<a href=#833 id=833 data-nosnippet>833</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, solver, SmtSolver, infer_opts);
+<a href=#834 id=834 data-nosnippet>834</a>
+<a href=#835 id=835 data-nosnippet>835</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((name, setting)) = <span class="self">self</span>.map.iter().next() {
+<a href=#836 id=836 data-nosnippet>836</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(errors::AttrMapErr {
+<a href=#837 id=837 data-nosnippet>837</a>                span: setting.span,
+<a href=#838 id=838 data-nosnippet>838</a>                message: <span class="macro">format!</span>(<span class="string">"invalid crate cfg keyword `{name}`"</span>),
+<a href=#839 id=839 data-nosnippet>839</a>            });
+<a href=#840 id=840 data-nosnippet>840</a>        }
+<a href=#841 id=841 data-nosnippet>841</a>
+<a href=#842 id=842 data-nosnippet>842</a>        <span class="prelude-val">Ok</span>(infer_opts)
+<a href=#843 id=843 data-nosnippet>843</a>    }
+<a href=#844 id=844 data-nosnippet>844</a>}
+<a href=#845 id=845 data-nosnippet>845</a>
+<a href=#846 id=846 data-nosnippet>846</a><span class="kw">fn </span>attr_item_span(attr_item: <span class="kw-2">&amp;</span>hir::AttrItem) -&gt; Span {
+<a href=#847 id=847 data-nosnippet>847</a>    attr_args_span(<span class="kw-2">&amp;</span>attr_item.args)
+<a href=#848 id=848 data-nosnippet>848</a>        .map_or(attr_item.path.span, |args_span| attr_item.path.span.to(args_span))
+<a href=#849 id=849 data-nosnippet>849</a>}
+<a href=#850 id=850 data-nosnippet>850</a>
+<a href=#851 id=851 data-nosnippet>851</a><span class="kw">fn </span>attr_args_span(attr_args: <span class="kw-2">&amp;</span>hir::AttrArgs) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
+<a href=#852 id=852 data-nosnippet>852</a>    <span class="kw">match </span>attr_args {
+<a href=#853 id=853 data-nosnippet>853</a>        hir::AttrArgs::Empty =&gt; <span class="prelude-val">None</span>,
+<a href=#854 id=854 data-nosnippet>854</a>        hir::AttrArgs::Delimited(args) =&gt; <span class="prelude-val">Some</span>(args.dspan.entire()),
+<a href=#855 id=855 data-nosnippet>855</a>        hir::AttrArgs::Eq { eq_span, expr } =&gt; <span class="prelude-val">Some</span>(eq_span.to(expr.span)),
+<a href=#856 id=856 data-nosnippet>856</a>    }
+<a href=#857 id=857 data-nosnippet>857</a>}
+<a href=#858 id=858 data-nosnippet>858</a>
+<a href=#859 id=859 data-nosnippet>859</a><span class="kw">mod </span>errors {
+<a href=#860 id=860 data-nosnippet>860</a>    <span class="kw">use </span>flux_errors::E0999;
+<a href=#861 id=861 data-nosnippet>861</a>    <span class="kw">use </span>flux_macros::Diagnostic;
+<a href=#862 id=862 data-nosnippet>862</a>    <span class="kw">use </span>itertools::Itertools;
+<a href=#863 id=863 data-nosnippet>863</a>    <span class="kw">use </span>rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
+<a href=#864 id=864 data-nosnippet>864</a>    <span class="kw">use </span>rustc_hir::def_id::DefId;
+<a href=#865 id=865 data-nosnippet>865</a>    <span class="kw">use </span>rustc_middle::ty::TyCtxt;
+<a href=#866 id=866 data-nosnippet>866</a>    <span class="kw">use </span>rustc_span::{ErrorGuaranteed, Span, symbol::Ident};
+<a href=#867 id=867 data-nosnippet>867</a>
+<a href=#868 id=868 data-nosnippet>868</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#869 id=869 data-nosnippet>869</a>    #[diag(driver_duplicated_attr, code = E0999)]
+<a href=#870 id=870 data-nosnippet>870</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>DuplicatedAttr {
+<a href=#871 id=871 data-nosnippet>871</a>        <span class="attr">#[primary_span]
+<a href=#872 id=872 data-nosnippet>872</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#873 id=873 data-nosnippet>873</a>        <span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#874 id=874 data-nosnippet>874</a>    }
+<a href=#875 id=875 data-nosnippet>875</a>
+<a href=#876 id=876 data-nosnippet>876</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#877 id=877 data-nosnippet>877</a>    #[diag(driver_invalid_attr, code = E0999)]
+<a href=#878 id=878 data-nosnippet>878</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>InvalidAttr {
+<a href=#879 id=879 data-nosnippet>879</a>        <span class="attr">#[primary_span]
+<a href=#880 id=880 data-nosnippet>880</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#881 id=881 data-nosnippet>881</a>    }
+<a href=#882 id=882 data-nosnippet>882</a>
+<a href=#883 id=883 data-nosnippet>883</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#884 id=884 data-nosnippet>884</a>    #[diag(driver_invalid_attr_map, code = E0999)]
+<a href=#885 id=885 data-nosnippet>885</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AttrMapErr {
+<a href=#886 id=886 data-nosnippet>886</a>        <span class="attr">#[primary_span]
+<a href=#887 id=887 data-nosnippet>887</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#888 id=888 data-nosnippet>888</a>        <span class="kw">pub </span>message: String,
+<a href=#889 id=889 data-nosnippet>889</a>    }
+<a href=#890 id=890 data-nosnippet>890</a>
+<a href=#891 id=891 data-nosnippet>891</a>    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>SyntaxErr(flux_syntax::ParseError);
+<a href=#892 id=892 data-nosnippet>892</a>
+<a href=#893 id=893 data-nosnippet>893</a>    <span class="kw">impl </span>From&lt;flux_syntax::ParseError&gt; <span class="kw">for </span>SyntaxErr {
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">fn </span>from(err: flux_syntax::ParseError) -&gt; <span class="self">Self </span>{
+<a href=#895 id=895 data-nosnippet>895</a>            SyntaxErr(err)
+<a href=#896 id=896 data-nosnippet>896</a>        }
+<a href=#897 id=897 data-nosnippet>897</a>    }
+<a href=#898 id=898 data-nosnippet>898</a>
+<a href=#899 id=899 data-nosnippet>899</a>    <span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>&gt; Diagnostic&lt;<span class="lifetime">'sess</span>&gt; <span class="kw">for </span>SyntaxErr {
+<a href=#900 id=900 data-nosnippet>900</a>        <span class="kw">fn </span>into_diag(
+<a href=#901 id=901 data-nosnippet>901</a>            <span class="self">self</span>,
+<a href=#902 id=902 data-nosnippet>902</a>            dcx: DiagCtxtHandle&lt;<span class="lifetime">'sess</span>&gt;,
+<a href=#903 id=903 data-nosnippet>903</a>            level: Level,
+<a href=#904 id=904 data-nosnippet>904</a>        ) -&gt; Diag&lt;<span class="lifetime">'sess</span>, ErrorGuaranteed&gt; {
+<a href=#905 id=905 data-nosnippet>905</a>            <span class="kw">use </span>flux_syntax::ParseErrorKind;
+<a href=#906 id=906 data-nosnippet>906</a>            <span class="kw">let </span><span class="kw-2">mut </span>diag = Diag::new(dcx, level, <span class="kw">crate</span>::fluent_generated::driver_syntax_err);
+<a href=#907 id=907 data-nosnippet>907</a>            diag.code(E0999).span(<span class="self">self</span>.<span class="number">0</span>.span).span_label(
+<a href=#908 id=908 data-nosnippet>908</a>                <span class="self">self</span>.<span class="number">0</span>.span,
+<a href=#909 id=909 data-nosnippet>909</a>                <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.kind {
+<a href=#910 id=910 data-nosnippet>910</a>                    ParseErrorKind::UnexpectedEof =&gt; <span class="string">"unexpected end of input"</span>.to_string(),
+<a href=#911 id=911 data-nosnippet>911</a>                    ParseErrorKind::UnexpectedToken { expected } =&gt; {
+<a href=#912 id=912 data-nosnippet>912</a>                        <span class="kw">match </span><span class="kw-2">&amp;</span>expected[..] {
+<a href=#913 id=913 data-nosnippet>913</a>                            [] =&gt; <span class="string">"unexpected token"</span>.to_string(),
+<a href=#914 id=914 data-nosnippet>914</a>                            [a] =&gt; <span class="macro">format!</span>(<span class="string">"unexpected token, expected `{a}`"</span>),
+<a href=#915 id=915 data-nosnippet>915</a>                            [a, b] =&gt; <span class="macro">format!</span>(<span class="string">"unexpected token, expected `{a}` or `{b}`"</span>),
+<a href=#916 id=916 data-nosnippet>916</a>                            [prefix @ .., last] =&gt; {
+<a href=#917 id=917 data-nosnippet>917</a>                                <span class="macro">format!</span>(
+<a href=#918 id=918 data-nosnippet>918</a>                                    <span class="string">"unexpected token, expected one of {}, or `{last}`"</span>,
+<a href=#919 id=919 data-nosnippet>919</a>                                    prefix
+<a href=#920 id=920 data-nosnippet>920</a>                                        .iter()
+<a href=#921 id=921 data-nosnippet>921</a>                                        .format_with(<span class="string">", "</span>, |it, f| f(<span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"`{it}`"</span>)))
+<a href=#922 id=922 data-nosnippet>922</a>                                )
+<a href=#923 id=923 data-nosnippet>923</a>                            }
+<a href=#924 id=924 data-nosnippet>924</a>                        }
+<a href=#925 id=925 data-nosnippet>925</a>                    }
+<a href=#926 id=926 data-nosnippet>926</a>                    ParseErrorKind::CannotBeChained =&gt; <span class="string">"operator cannot be chained"</span>.to_string(),
+<a href=#927 id=927 data-nosnippet>927</a>                    ParseErrorKind::InvalidBinding =&gt; {
+<a href=#928 id=928 data-nosnippet>928</a>                        <span class="string">"identifier must be a mutable reference"</span>.to_string()
+<a href=#929 id=929 data-nosnippet>929</a>                    }
+<a href=#930 id=930 data-nosnippet>930</a>                    ParseErrorKind::InvalidSort =&gt; {
+<a href=#931 id=931 data-nosnippet>931</a>                        <span class="string">"property parameter sort is inherited from the primitive operator"
+<a href=#932 id=932 data-nosnippet>932</a>                            </span>.to_string()
+<a href=#933 id=933 data-nosnippet>933</a>                    }
+<a href=#934 id=934 data-nosnippet>934</a>                },
+<a href=#935 id=935 data-nosnippet>935</a>            );
+<a href=#936 id=936 data-nosnippet>936</a>            diag
+<a href=#937 id=937 data-nosnippet>937</a>        }
+<a href=#938 id=938 data-nosnippet>938</a>    }
+<a href=#939 id=939 data-nosnippet>939</a>
+<a href=#940 id=940 data-nosnippet>940</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#941 id=941 data-nosnippet>941</a>    #[diag(driver_attr_on_opaque, code = E0999)]
+<a href=#942 id=942 data-nosnippet>942</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>AttrOnOpaque {
+<a href=#943 id=943 data-nosnippet>943</a>        <span class="attr">#[primary_span]
+<a href=#944 id=944 data-nosnippet>944</a>        </span>span: Span,
+<a href=#945 id=945 data-nosnippet>945</a>        <span class="attr">#[label]
+<a href=#946 id=946 data-nosnippet>946</a>        </span>field_span: Span,
+<a href=#947 id=947 data-nosnippet>947</a>    }
+<a href=#948 id=948 data-nosnippet>948</a>
+<a href=#949 id=949 data-nosnippet>949</a>    <span class="kw">impl </span>AttrOnOpaque {
+<a href=#950 id=950 data-nosnippet>950</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, field: <span class="kw-2">&amp;</span>rustc_hir::FieldDef) -&gt; <span class="self">Self </span>{
+<a href=#951 id=951 data-nosnippet>951</a>            <span class="kw">let </span>field_span = field.ident.span;
+<a href=#952 id=952 data-nosnippet>952</a>            <span class="self">Self </span>{ span, field_span }
+<a href=#953 id=953 data-nosnippet>953</a>        }
+<a href=#954 id=954 data-nosnippet>954</a>    }
+<a href=#955 id=955 data-nosnippet>955</a>
+<a href=#956 id=956 data-nosnippet>956</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#957 id=957 data-nosnippet>957</a>    #[diag(driver_reflected_enum_with_refined_by, code = E0999)]
+<a href=#958 id=958 data-nosnippet>958</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>ReflectedEnumWithRefinedBy {
+<a href=#959 id=959 data-nosnippet>959</a>        <span class="attr">#[primary_span]
+<a href=#960 id=960 data-nosnippet>960</a>        #[label]
+<a href=#961 id=961 data-nosnippet>961</a>        </span>span: Span,
+<a href=#962 id=962 data-nosnippet>962</a>    }
+<a href=#963 id=963 data-nosnippet>963</a>    <span class="kw">impl </span>ReflectedEnumWithRefinedBy {
+<a href=#964 id=964 data-nosnippet>964</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+<a href=#965 id=965 data-nosnippet>965</a>            <span class="self">Self </span>{ span }
+<a href=#966 id=966 data-nosnippet>966</a>        }
+<a href=#967 id=967 data-nosnippet>967</a>    }
+<a href=#968 id=968 data-nosnippet>968</a>
+<a href=#969 id=969 data-nosnippet>969</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#970 id=970 data-nosnippet>970</a>    #[diag(driver_missing_variant, code = E0999)]
+<a href=#971 id=971 data-nosnippet>971</a>    #[note]
+<a href=#972 id=972 data-nosnippet>972</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MissingVariant {
+<a href=#973 id=973 data-nosnippet>973</a>        <span class="attr">#[primary_span]
+<a href=#974 id=974 data-nosnippet>974</a>        #[label]
+<a href=#975 id=975 data-nosnippet>975</a>        </span>span: Span,
+<a href=#976 id=976 data-nosnippet>976</a>    }
+<a href=#977 id=977 data-nosnippet>977</a>
+<a href=#978 id=978 data-nosnippet>978</a>    <span class="kw">impl </span>MissingVariant {
+<a href=#979 id=979 data-nosnippet>979</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+<a href=#980 id=980 data-nosnippet>980</a>            <span class="self">Self </span>{ span }
+<a href=#981 id=981 data-nosnippet>981</a>        }
+<a href=#982 id=982 data-nosnippet>982</a>    }
+<a href=#983 id=983 data-nosnippet>983</a>
+<a href=#984 id=984 data-nosnippet>984</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#985 id=985 data-nosnippet>985</a>    #[diag(driver_mismatched_spec_name, code = E0999)]
+<a href=#986 id=986 data-nosnippet>986</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>MismatchedSpecName {
+<a href=#987 id=987 data-nosnippet>987</a>        <span class="attr">#[primary_span]
+<a href=#988 id=988 data-nosnippet>988</a>        #[label]
+<a href=#989 id=989 data-nosnippet>989</a>        </span>span: Span,
+<a href=#990 id=990 data-nosnippet>990</a>        <span class="attr">#[label(driver_item_def_ident)]
+<a href=#991 id=991 data-nosnippet>991</a>        </span>item_ident_span: Span,
+<a href=#992 id=992 data-nosnippet>992</a>        item_ident: Ident,
+<a href=#993 id=993 data-nosnippet>993</a>        def_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+<a href=#994 id=994 data-nosnippet>994</a>    }
+<a href=#995 id=995 data-nosnippet>995</a>
+<a href=#996 id=996 data-nosnippet>996</a>    <span class="kw">impl </span>MismatchedSpecName {
+<a href=#997 id=997 data-nosnippet>997</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(tcx: TyCtxt, ident: Ident, def_id: DefId) -&gt; <span class="self">Self </span>{
+<a href=#998 id=998 data-nosnippet>998</a>            <span class="kw">let </span>def_descr = tcx.def_descr(def_id);
+<a href=#999 id=999 data-nosnippet>999</a>            <span class="kw">let </span>item_ident = tcx.opt_item_ident(def_id).unwrap();
+<a href=#1000 id=1000 data-nosnippet>1000</a>            <span class="self">Self </span>{ span: ident.span, item_ident_span: item_ident.span, item_ident, def_descr }
+<a href=#1001 id=1001 data-nosnippet>1001</a>        }
+<a href=#1002 id=1002 data-nosnippet>1002</a>    }
+<a href=#1003 id=1003 data-nosnippet>1003</a>}</code></pre></div></section></main></body></html>

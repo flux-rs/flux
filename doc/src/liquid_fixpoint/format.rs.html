@@ -336,7 +336,7 @@
 <a href=#336 id=336 data-nosnippet>336</a>            Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
 <a href=#337 id=337 data-nosnippet>337</a>            Constant::String(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, s.display()),
 <a href=#338 id=338 data-nosnippet>338</a>            Constant::BitVec(i, sz) =&gt; {
-<a href=#339 id=339 data-nosnippet>339</a>                <span class="kw">if </span>sz % <span class="number">4 </span>== <span class="number">0 </span>{
+<a href=#339 id=339 data-nosnippet>339</a>                <span class="kw">if </span>sz.is_multiple_of(<span class="number">4</span>) {
 <a href=#340 id=340 data-nosnippet>340</a>                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#x{i:00$x}\" (BitVec Size{sz}))"</span>, (sz / <span class="number">4</span>) <span class="kw">as </span>usize)
 <a href=#341 id=341 data-nosnippet>341</a>                } <span class="kw">else </span>{
 <a href=#342 id=342 data-nosnippet>342</a>                    <span class="macro">write!</span>(f, <span class="string">"(lit \"#b{i:00$x}\" (BitVec Size{sz}))"</span>, <span class="kw-2">*</span>sz <span class="kw">as </span>usize)
