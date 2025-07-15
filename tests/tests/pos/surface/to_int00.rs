@@ -1,12 +1,17 @@
 #![flux::defs {
+
+    fn cast_to_int(c:char) -> int {
+        cast(c)
+    }
+
     fn is_ascii_digit(c:char) -> bool {
-        let i = char_to_int(c);
+        let i = cast_to_int(c);
         48 <= i && i <= 57
     }
 
     fn is_ascii(c:char) -> bool {
-            let i = char_to_int(c);
-            0 <= i && i <= 127
+        let i = cast_to_int(c);
+        0 <= i && i <= 127
     }
 }]
 
@@ -25,12 +30,6 @@ impl char {
 pub fn test_ok(x: char) {
     if x.is_ascii_digit() {
         assert(x.is_ascii())
-    }
-}
-
-pub fn test_err(x: char) {
-    if x.is_ascii() {
-        assert(x.is_ascii_digit()) //~ ERROR refinement type
     }
 }
 

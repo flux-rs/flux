@@ -37,6 +37,8 @@ pub struct Flags {
     pub solver: SmtSolver,
     /// Enables qualifier scrapping in fixpoint
     pub scrape_quals: bool,
+    /// Enables uninterpreted casts
+    pub allow_uninterpreted_cast: bool,
     /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
     /// away inside `flux`.
     pub smt_define_fun: bool,
@@ -84,6 +86,7 @@ impl Default for Flags {
             cache: None,
             check_overflow: false,
             scrape_quals: false,
+            allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
             smt_define_fun: false,
             verbose: false,
@@ -114,6 +117,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
             "check-overflow" => parse_bool(&mut flags.check_overflow, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
+            "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
             "verbose" => parse_bool(&mut flags.verbose, value),
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),

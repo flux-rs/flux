@@ -141,7 +141,7 @@ impl SpanEncoder for EncodeContext<'_, '_> {
 
     fn encode_byte_symbol(&mut self, byte_sym: ByteSymbol) {
         self.encode_symbol_or_byte_symbol(byte_sym.as_u32(), |this| {
-            this.emit_byte_str(byte_sym.as_byte_str())
+            this.emit_byte_str(byte_sym.as_byte_str());
         });
     }
 }

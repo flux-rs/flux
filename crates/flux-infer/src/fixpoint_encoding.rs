@@ -381,6 +381,7 @@ enum ConstKey<'tcx> {
     Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
+    Cast(rty::Sort, rty::Sort),
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
@@ -1054,6 +1055,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn internal_func_to_fixpoint(
         &mut self,
         internal_func: &InternalFuncKind,
+        sort_args: &[rty::SortArg],
         args: &[rty::Expr],
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
@@ -1071,10 +1073,26 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 };
                 self.expr_to_fixpoint(&expr, scx)
             }
-            InternalFuncKind::CharToInt | InternalFuncKind::IntToChar => {
-                // We can erase the "call" because fixpoint uses `int` to represent `char`
-                // so the conversions are unnecessary.
-                self.expr_to_fixpoint(&args[0], scx)
+            InternalFuncKind::Cast => {
+                let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &sort_args else {
+                    span_bug!(self.def_span(), "unexpected cast")
+                };
+                match from.cast_kind(to) {
+                    rty::CastKind::Identity => self.expr_to_fixpoint(&args[0], scx),
+                    rty::CastKind::BoolToInt => {
+                        Ok(fixpoint::Expr::IfThenElse(Box::new([
+                            self.expr_to_fixpoint(&args[0], scx)?,
+                            fixpoint::Expr::int(1),
+                            fixpoint::Expr::int(0),
+                        ])))
+                    }
+                    rty::CastKind::IntoUnit => self.expr_to_fixpoint(&rty::Expr::unit(), scx),
+                    rty::CastKind::Uninterpreted => {
+                        let func = fixpoint::Expr::Var(self.define_const_for_cast(from, to, scx));
+                        let args = self.exprs_to_fixpoint(args, scx)?;
+                        Ok(fixpoint::Expr::App(Box::new(func), args))
+                    }
+                }
             }
         }
     }
@@ -1106,9 +1124,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let var = self.define_const_for_rust_const(*did, scx);
                 fixpoint::Expr::Var(var)
             }
-            rty::ExprKind::App(func, args) => {
+            rty::ExprKind::App(func, sort_args, args) => {
                 if let rty::ExprKind::InternalFunc(func) = func.kind() {
-                    self.internal_func_to_fixpoint(func, args, scx)?
+                    self.internal_func_to_fixpoint(func, sort_args, args, scx)?
                 } else {
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let args = self.exprs_to_fixpoint(args, scx)?;
@@ -1469,6 +1487,28 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             _ => span_bug!(span, "unexpected prim op: {op:?} in `prim_op_sort`"),
         }
+    }
+
+    fn define_const_for_cast(
+        &mut self,
+        from: &rty::Sort,
+        to: &rty::Sort,
+        scx: &mut SortEncodingCtxt,
+    ) -> fixpoint::Var {
+        let key = ConstKey::Cast(from.clone(), to.clone());
+        self.const_map
+            .entry(key)
+            .or_insert_with(|| {
+                let fsort = rty::FuncSort::new(vec![from.clone()], to.clone());
+                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+                let sort = scx.func_sort_to_fixpoint(&fsort);
+                fixpoint::ConstDecl {
+                    name: fixpoint::Var::Global(self.global_var_gen.fresh(), None),
+                    sort,
+                    comment: Some(format!("cast uif: ({from:?}) -> {to:?}")),
+                }
+            })
+            .name
     }
 
     fn define_const_for_prim_op(

@@ -887,8 +887,9 @@ impl TypeSuperVisitable for Expr {
             ExprKind::FieldProj(e, _) | ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) => {
                 e.visit_with(visitor)
             }
-            ExprKind::App(func, arg) => {
+            ExprKind::App(func, sorts, arg) => {
                 func.visit_with(visitor)?;
+                sorts.visit_with(visitor)?;
                 arg.visit_with(visitor)
             }
             ExprKind::IfThenElse(p, e1, e2) => {
@@ -944,8 +945,12 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Tuple(flds) => Expr::tuple(flds.try_fold_with(folder)?),
             ExprKind::Ctor(ctor, flds) => Expr::ctor(*ctor, flds.try_fold_with(folder)?),
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
-            ExprKind::App(func, arg) => {
-                Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)
+            ExprKind::App(func, sorts, arg) => {
+                Expr::app(
+                    func.try_fold_with(folder)?,
+                    sorts.try_fold_with(folder)?,
+                    arg.try_fold_with(folder)?,
+                )
             }
             ExprKind::IfThenElse(p, e1, e2) => {
                 Expr::ite(

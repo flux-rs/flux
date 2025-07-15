@@ -957,3 +957,12 @@ or lemmas. See `tests/tests/pos/surface/primops00.rs` for an example.
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/primops00.rs}}
 ```
+
+## Casting Sorts
+
+You can convert refinements of different sorts -- e.g. `int` to `char` or `int` to `bool` --
+using the `cast` internal function.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/to_int00.rs}}
+```

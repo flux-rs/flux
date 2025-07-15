@@ -949,6 +949,17 @@ pub enum Sort {
     Err,
 }
 
+pub enum CastKind {
+    /// Identity cast, which is erasable (e.g. int -> int, char -> int)
+    Identity,
+    /// From bool to int
+    BoolToInt,
+    /// Casts to unit index, (e.g. int -> float)
+    IntoUnit,
+    /// Uninterpreted casts, only allowed with explicit flag
+    Uninterpreted,
+}
+
 impl Sort {
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
@@ -1001,6 +1012,20 @@ impl Sort {
 
     pub fn is_numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
+    }
+
+    pub fn cast_kind(self: &Sort, to: &Sort) -> CastKind {
+        if self == to
+            || (matches!(self, Sort::Char | Sort::Int) && matches!(to, Sort::Char | Sort::Int))
+        {
+            CastKind::Identity
+        } else if matches!(self, Sort::Bool) && matches!(to, Sort::Int) {
+            CastKind::BoolToInt
+        } else if to.is_unit() {
+            CastKind::IntoUnit
+        } else {
+            CastKind::Uninterpreted
+        }
     }
 
     pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
@@ -2736,6 +2761,7 @@ impl_slice_internable!(
     Ensures,
     InferMode,
     Sort,
+    SortArg,
     GenericParamDef,
     TraitRef,
     Binder<ExistentialPredicate>,
@@ -2791,6 +2817,7 @@ pub use crate::_Ref as Ref;
 pub struct WfckResults {
     pub owner: FluxOwnerId,
     bin_op_sorts: ItemLocalMap<Sort>,
+    fn_app_sorts: ItemLocalMap<List<SortArg>>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     field_projs: ItemLocalMap<FieldProj>,
     node_sorts: ItemLocalMap<Sort>,
@@ -2825,11 +2852,20 @@ impl WfckResults {
             field_projs: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
             record_ctors: ItemLocalMap::default(),
+            fn_app_sorts: ItemLocalMap::default(),
         }
     }
 
     pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.bin_op_sorts }
+    }
+
+    pub fn fn_app_sorts_mut(&mut self) -> LocalTableInContextMut<'_, List<SortArg>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.fn_app_sorts }
+    }
+
+    pub fn fn_app_sorts(&self) -> LocalTableInContext<'_, List<SortArg>> {
+        LocalTableInContext { owner: self.owner, data: &self.fn_app_sorts }
     }
 
     pub fn bin_op_sorts(&self) -> LocalTableInContext<'_, Sort> {

@@ -532,8 +532,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_infer_opts(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
-        if let Some(check_overflow) = attrs.infer_opts() {
-            self.specs.infer_opts.insert(def_id, check_overflow);
+        if let Some(infer_opts) = attrs.infer_opts() {
+            self.specs.infer_opts.insert(def_id, infer_opts);
         }
     }
 }
@@ -827,6 +827,7 @@ impl AttrMap {
 
     fn try_into_infer_opts(&mut self) -> AttrMapErr<PartialInferOpts> {
         let mut infer_opts = PartialInferOpts::default();
+        try_read_setting!(self, allow_uninterpreted_cast, bool, infer_opts);
         try_read_setting!(self, check_overflow, bool, infer_opts);
         try_read_setting!(self, scrape_quals, bool, infer_opts);
         try_read_setting!(self, solver, SmtSolver, infer_opts);

@@ -99,6 +99,11 @@ fhir_analysis_cannot_infer_sort =
     .label = cannot infer sort
     .note = sort must be known at this point
 
+fhir_analysis_invalid_cast =
+    invalid cast from `{$from}` to `{$to}`
+    .label = invalid cast
+    .note = use `allow_uninterpreted_cast` to enable this cast
+
 # Structural Compatibility
 
 fhir_analysis_incompatible_refinement =
