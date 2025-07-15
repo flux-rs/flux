@@ -1016,9 +1016,14 @@ impl Expr<'_> {
 }
 
 #[derive(Clone, Copy)]
+pub enum NumLitKind {
+    Int,
+    Real,
+}
+
+#[derive(Clone, Copy)]
 pub enum Lit {
-    Int(u128),
-    Real(u128),
+    Int(u128, Option<NumLitKind>),
     Bool(bool),
     Str(Symbol),
     Char(char),
@@ -1192,7 +1197,7 @@ pub enum SpecFuncKind {
     Uif(FluxDefId),
     /// User-defined functions with a body definition
     Def(FluxDefId),
-    /// Char-Int Conversions
+    /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
 }
 
@@ -1548,8 +1553,8 @@ impl fmt::Debug for PathExpr<'_> {
 impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Lit::Int(i) => write!(f, "{i}"),
-            Lit::Real(r) => write!(f, "{r}real"),
+            Lit::Int(i, Some(NumLitKind::Real)) => write!(f, "{i}real"),
+            Lit::Int(i, _) => write!(f, "{i}"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
             Lit::Char(c) => write!(f, "\'{c}\'"),

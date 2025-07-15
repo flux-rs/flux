@@ -69,7 +69,7 @@ fn check_overflow() -> bool {
     FLAGS.check_overflow
 }
 
-fn allow_uninterpreted_cast() -> bool {
+pub fn allow_uninterpreted_cast() -> bool {
     FLAGS.allow_uninterpreted_cast
 }
 
