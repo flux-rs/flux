@@ -3613,15 +3613,14 @@ pub fn test4(n: usize) -&gt; i32 {
 <p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
 using the <code>cast</code> internal function.</p>
 <pre><code class="language-rust noplayground">#![flux::defs {
-
-    fn is_ascii_digit(c:char) -&gt; bool {
+    fn is_ascii_digit(c: char) -&gt; bool {
         let i = cast(c);
-        48int &lt;= i &amp;&amp; i &lt;= 57
+        48 &lt;= i &amp;&amp; i &lt;= 57
     }
 
-    fn is_ascii(c:char) -&gt; bool {
+    fn is_ascii(c: char) -&gt; bool {
         let i = cast(c);
-        0int &lt;= i &amp;&amp; i &lt;= 127
+        0 &lt;= i &amp;&amp; i &lt;= 127
     }
 }]
 
