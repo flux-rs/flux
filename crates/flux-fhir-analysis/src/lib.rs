@@ -136,12 +136,12 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
         .try_collect()
 }
 
-fn prim_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimProp>> {
+fn primop_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimOpProp>> {
     genv.map()
-        .prim_props()
-        .map(|prim_prop| {
-            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimProp(prim_prop))?;
-            Ok(conv::conv_prim_prop(genv, prim_prop, &wfckresults)?.normalize(genv))
+        .primop_props()
+        .map(|primop_prop| {
+            let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimOpProp(primop_prop))?;
+            Ok(conv::conv_primop_prop(genv, primop_prop, &wfckresults)?.normalize(genv))
         })
         .try_collect()
 }
@@ -156,12 +156,12 @@ fn conjoin_bind_exprs(exprs: Vec<Binder<rty::Expr>>) -> Binder<rty::Expr> {
 }
 
 fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> {
-    let prim_props = prim_props(genv)?
+    let primop_props = primop_props(genv)?
         .into_iter()
-        .into_group_map_by(|prim_prop| prim_prop.op.clone());
+        .into_group_map_by(|primop_prop| primop_prop.op.clone());
 
     let mut res = UnordMap::default();
-    for (op, props) in prim_props {
+    for (op, props) in primop_props {
         let exprs = props
             .iter()
             .map(|prop| prop.body.clone())

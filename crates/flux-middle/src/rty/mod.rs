@@ -1325,7 +1325,7 @@ pub struct Qualifier {
 /// can be conjoined to get the definition of the [`PrimRel`] for that
 /// primitive operation.
 #[derive(Debug, TypeVisitable, TypeFoldable)]
-pub struct PrimProp {
+pub struct PrimOpProp {
     pub def_id: FluxLocalDefId,
     pub op: BinOp,
     pub body: Binder<Expr>,

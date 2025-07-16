@@ -92,7 +92,7 @@ impl PeekExpected for AnyLit {
 /// There are some lexing ambiguities with `>>` because it can represet both a right shift or two
 /// closing angle brackets (e.g., `Vec<Option<i32>>`). We solve the ambiguity by giving `>` a
 /// special token if it's immediately followed by another `>`,  i.e., `>>` is tokenized as
-/// [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
+/// [`TokenKind::GtFollowedByGt`] followed by [`TokenKind::Gt`].
 ///
 /// Use this struct to match on a right angle bracket for the purpose of parsing generics.
 #[derive(Clone, Copy)]
@@ -110,7 +110,7 @@ impl PeekExpected for RAngle {
 
 /// This is the same as [`RAngle`] but for opening angle brackets.
 ///
-/// It is less common to have two opening angle brackets, but it appears in stuf like
+/// It is less common to have two opening angle brackets, but it appears in stuff like
 /// `<<Self as Trait1>::Assoc1 as Trait2>::Assoc2`
 #[derive(Clone, Copy)]
 pub(crate) struct LAngle;
@@ -281,8 +281,8 @@ impl<'cx> ParseCtxt<'cx> {
         }
     }
 
-    /// If the next token matches the requested type of token advances the cursor, otherwise
-    /// returns an `unexpected token` error.
+    /// If the next token matches the requested rule advances the cursor, otherwise returns an
+    /// `unexpected token` error.
     pub(crate) fn expect<T: PeekExpected>(&mut self, t: T) -> ParseResult {
         if self.advance_if(t) { Ok(()) } else { Err(self.unexpected_token(vec![t.expected()])) }
     }

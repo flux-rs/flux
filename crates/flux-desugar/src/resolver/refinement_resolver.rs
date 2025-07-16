@@ -127,9 +127,9 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
-    fn visit_prim_prop(&mut self, prop: &surface::PrimOpProp) {
+    fn visit_primop_prop(&mut self, prop: &surface::PrimOpProp) {
         self.with_scope(ScopeKind::Misc, |this| {
-            surface::visit::walk_prim_prop(this, prop);
+            surface::visit::walk_primop_prop(this, prop);
         });
     }
 
@@ -427,11 +427,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         Self::for_flux_item(resolver, &defn.sort_vars).run(|r| r.visit_defn(defn))
     }
 
-    pub(crate) fn resolve_prim_prop(
+    pub(crate) fn resolve_primop_prop(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         prop: &surface::PrimOpProp,
     ) -> Result {
-        Self::for_flux_item(resolver, &[]).run(|r| r.visit_prim_prop(prop))
+        Self::for_flux_item(resolver, &[]).run(|r| r.visit_primop_prop(prop))
     }
 
     pub(crate) fn resolve_fn_sig(

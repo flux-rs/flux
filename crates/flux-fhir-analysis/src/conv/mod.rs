@@ -430,30 +430,30 @@ pub(crate) fn conv_defn(
     }
 }
 
-pub(crate) fn conv_prim_prop(
+pub(crate) fn conv_primop_prop(
     genv: GlobalEnv,
-    prim_prop: &fhir::PrimProp,
+    primop_prop: &fhir::PrimOpProp,
     wfckresults: &WfckResults,
-) -> QueryResult<rty::PrimProp> {
+) -> QueryResult<rty::PrimOpProp> {
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
     let mut env = Env::new(&[]);
-    env.push_layer(Layer::list(wfckresults, 0, prim_prop.args));
-    let body = cx.conv_expr(&mut env, &prim_prop.body)?;
+    env.push_layer(Layer::list(wfckresults, 0, primop_prop.args));
+    let body = cx.conv_expr(&mut env, &primop_prop.body)?;
     let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(genv)?);
-    let op = match prim_prop.op {
+    let op = match primop_prop.op {
         fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
         fhir::BinOp::BitOr => rty::BinOp::BitOr,
         fhir::BinOp::BitShl => rty::BinOp::BitShl,
         fhir::BinOp::BitShr => rty::BinOp::BitShr,
         _ => {
             span_bug!(
-                prim_prop.span,
+                primop_prop.span,
                 "unexpected binary operator in primitive property: {:?}",
-                prim_prop.op
+                primop_prop.op
             )
         }
     };
-    Ok(rty::PrimProp { def_id: prim_prop.def_id, op, body })
+    Ok(rty::PrimOpProp { def_id: primop_prop.def_id, op, body })
 }
 
 pub(crate) fn conv_qualifier(

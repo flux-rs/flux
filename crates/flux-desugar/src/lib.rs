@@ -320,8 +320,8 @@ impl CrateDesugar<'_, '_> {
                             .collect_err(&mut self.err);
                     }
                     surface::Item::SortDecl(_) => {}
-                    surface::Item::PrimProp(prim_prop) => {
-                        self.desugar_prim_prop(def_id, prim_prop)
+                    surface::Item::PrimOpProp(primop_prop) => {
+                        self.desugar_primop_prop(def_id, primop_prop)
                             .collect_err(&mut self.err);
                     }
                 }
@@ -329,11 +329,15 @@ impl CrateDesugar<'_, '_> {
         }
     }
 
-    fn desugar_prim_prop(&mut self, def_id: FluxLocalDefId, prop: &surface::PrimOpProp) -> Result {
-        let prop = desugar::desugar_prim_prop(self.genv, self.resolver_output, def_id, prop)?;
+    fn desugar_primop_prop(
+        &mut self,
+        def_id: FluxLocalDefId,
+        prop: &surface::PrimOpProp,
+    ) -> Result {
+        let prop = desugar::desugar_primop_prop(self.genv, self.resolver_output, def_id, prop)?;
         self.fhir
             .items
-            .insert(def_id, fhir::FluxItem::PrimProp(self.genv.alloc(prop)));
+            .insert(def_id, fhir::FluxItem::PrimOpProp(self.genv.alloc(prop)));
         Ok(())
     }
 

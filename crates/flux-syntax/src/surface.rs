@@ -32,7 +32,7 @@ pub enum Item {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
-    PrimProp(PrimOpProp),
+    PrimOpProp(PrimOpProp),
 }
 
 impl Item {
@@ -41,7 +41,7 @@ impl Item {
             Item::Qualifier(qualifier) => qualifier.name,
             Item::FuncDef(spec_func) => spec_func.name,
             Item::SortDecl(sort_decl) => sort_decl.name,
-            Item::PrimProp(prim_prop) => prim_prop.name,
+            Item::PrimOpProp(primop_prop) => primop_prop.name,
         }
     }
 }

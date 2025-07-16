@@ -597,9 +597,9 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         })
     }
 
-    pub fn prim_props(self) -> impl Iterator<Item = &'genv fhir::PrimProp<'genv>> {
+    pub fn primop_props(self) -> impl Iterator<Item = &'genv fhir::PrimOpProp<'genv>> {
         self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::PrimProp(prop) = item { Some(*prop) } else { None }
+            if let fhir::FluxItem::PrimOpProp(prop) = item { Some(*prop) } else { None }
         })
     }
 

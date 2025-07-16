@@ -140,21 +140,21 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
     // We special-case primop applications to declare their parameters because their
     // parameters are implicit from the underlying primop and must not be declared explicitly.
-    fn declare_params_for_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) -> Result {
-        let Some((sorts, _)) = prim_op_sort(&prim_prop.op) else {
+    fn declare_params_for_primop_prop(&mut self, primop_prop: &fhir::PrimOpProp<'genv>) -> Result {
+        let Some((sorts, _)) = prim_op_sort(&primop_prop.op) else {
             return Err(self
                 .errors
-                .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op)));
+                .emit(errors::UnsupportedPrimOp::new(primop_prop.span, primop_prop.op)));
         };
-        if prim_prop.args.len() != sorts.len() {
+        if primop_prop.args.len() != sorts.len() {
             return Err(self.errors.emit(errors::ArgCountMismatch::new(
-                Some(prim_prop.span),
+                Some(primop_prop.span),
                 String::from("primop"),
                 sorts.len(),
-                prim_prop.args.len(),
+                primop_prop.args.len(),
             )));
         }
-        for (arg, sort) in prim_prop.args.iter().zip(sorts) {
+        for (arg, sort) in primop_prop.args.iter().zip(sorts) {
             self.infcx.declare_param(*arg, sort);
         }
         Ok(())
@@ -162,8 +162,8 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
     /// Recursively traverse `item` and declare all refinement parameters
     fn declare_params_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> Result {
-        if let fhir::FluxItem::PrimProp(prim_prop) = item {
-            self.declare_params_for_prim_prop(prim_prop)
+        if let fhir::FluxItem::PrimOpProp(primop_prop) = item {
+            self.declare_params_for_primop_prop(primop_prop)
         } else {
             visit_refine_params(|vis| vis.visit_flux_item(&item), |param| self.declare_param(param))
         }
@@ -322,24 +322,24 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             .collect_err(&mut self.errors);
     }
 
-    fn visit_prim_prop(&mut self, prim_prop: &fhir::PrimProp<'genv>) {
-        let Some((sorts, _)) = prim_op_sort(&prim_prop.op) else {
+    fn visit_primop_prop(&mut self, primop_prop: &fhir::PrimOpProp<'genv>) {
+        let Some((sorts, _)) = prim_op_sort(&primop_prop.op) else {
             self.errors
-                .emit(errors::UnsupportedPrimOp::new(prim_prop.span, prim_prop.op));
+                .emit(errors::UnsupportedPrimOp::new(primop_prop.span, primop_prop.op));
             return;
         };
 
-        if prim_prop.args.len() != sorts.len() {
+        if primop_prop.args.len() != sorts.len() {
             self.errors.emit(errors::ArgCountMismatch::new(
-                Some(prim_prop.span),
+                Some(primop_prop.span),
                 String::from("primop"),
                 sorts.len(),
-                prim_prop.args.len(),
+                primop_prop.args.len(),
             ));
             return;
         }
         self.infcx
-            .check_expr(&prim_prop.body, &rty::Sort::Bool)
+            .check_expr(&primop_prop.body, &rty::Sort::Bool)
             .collect_err(&mut self.errors);
     }
 
