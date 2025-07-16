@@ -2037,15 +2037,19 @@ fn uint_int_cast(idx: &Expr, uint_ty: UintTy, int_ty: IntTy) -> Ty {
     }
 }
 
+fn guarded_uint_ty(idx: &Expr, uint_ty: UintTy) -> Ty {
+    // uint_ty2{v: idx <= max_value => v == idx }
+    let max_value = Expr::uint_max(uint_ty);
+    let guard = Expr::le(idx.clone(), max_value);
+    let eq = Expr::eq(Expr::nu(), idx.clone());
+    Ty::exists_with_constr(BaseTy::Uint(uint_ty), Expr::implies(guard, eq))
+}
+
 fn uint_uint_cast(idx: &Expr, uint_ty1: UintTy, uint_ty2: UintTy) -> Ty {
     if uint_bit_width(uint_ty1) <= uint_bit_width(uint_ty2) {
         Ty::indexed(BaseTy::Uint(uint_ty2), idx.clone())
     } else {
-        // uint_ty2{v: idx <= max_value => v == idx }
-        let max_value = Expr::uint_max(uint_ty2);
-        let guard = Expr::le(idx.clone(), max_value);
-        let eq = Expr::eq(Expr::nu(), idx.clone());
-        Ty::exists_with_constr(BaseTy::Uint(uint_ty2), Expr::implies(guard, eq))
+        guarded_uint_ty(idx, uint_ty2)
     }
 }
 
