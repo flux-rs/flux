@@ -804,10 +804,10 @@ impl<'genv> InferCtxt<'genv, '_> {
         // such that we properly apply the fallback for unconstrained num vars.
         for (node, sort) in std::mem::take(&mut self.sort_of_literal) {
             // Fallback to `int` when a num variable is unconstrained. Note that we unconditionally
-            // unify the the variable. This is fine, because if the variable has already been unified,
-            // the operation will fail and this won't have any effect. Also note that unifying a variable
-            // could solve variables in the same set that appear later in this same iteration. This
-            // is fine because the order doesn't matter as we are unifying everything to `int`.
+            // unify the variable. This is fine because if the variable has already been unified,
+            // the operation will fail and this won't have any effect. Also note that unifying a
+            // variable could solve variables that appear later in this for loop. This is also fine
+            // because the order doesn't matter as we are unifying everything to `int`.
             if let rty::Sort::Infer(rty::SortInfer::NumVar(vid)) = &sort {
                 let _ = self
                     .num_unification_table
@@ -1089,7 +1089,7 @@ struct NodeMap<'genv, T> {
 impl<'genv, T> NodeMap<'genv, T> {
     /// Add a `node` to the map with associated `data`
     fn insert(&mut self, node: fhir::Expr<'genv>, data: T) {
-        debug_assert!(self.map.insert(node.fhir_id, (node, data)).is_none());
+        assert!(self.map.insert(node.fhir_id, (node, data)).is_none());
     }
 }
 
