@@ -830,11 +830,10 @@ impl<'genv> InferCtxt<'genv, '_> {
                 .insert(node.fhir_id, sort);
         }
 
-        let allow_uninterpreted_cast = flux_config::allow_uninterpreted_cast();
         let allow_uninterpreted_cast = self
             .owner
             .def_id()
-            .map_or(allow_uninterpreted_cast, |def_id| {
+            .map_or_else(flux_config::allow_uninterpreted_cast, |def_id| {
                 self.genv.infer_opts(def_id).allow_uninterpreted_cast
             });
 
