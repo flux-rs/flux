@@ -830,13 +830,23 @@ impl<'genv> InferCtxt<'genv, '_> {
         for (node, sort_args) in std::mem::take(&mut self.sort_args_of_app) {
             let mut res = vec![];
             for sort_arg in &sort_args {
-                let sort_arg = if let rty::SortArg::Sort(sort) = sort_arg {
-                    let sort = self
-                        .fully_resolve(sort)
-                        .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
-                    rty::SortArg::Sort(sort)
-                } else {
-                    sort_arg.clone()
+                let sort_arg = match sort_arg {
+                    rty::SortArg::Sort(sort) => {
+                        let sort = self
+                            .fully_resolve(sort)
+                            .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
+                        rty::SortArg::Sort(sort)
+                    }
+                    rty::SortArg::BvSize(rty::BvSize::Infer(vid)) => {
+                        let size = self
+                            .bv_size_unification_table
+                            .probe_value(*vid)
+                            .ok_or_else(|| {
+                                self.emit_err(errors::CannotInferSort::new(node.span))
+                            })?;
+                        rty::SortArg::BvSize(size)
+                    }
+                    _ => sort_arg.clone(),
                 };
                 res.push(sort_arg);
             }
