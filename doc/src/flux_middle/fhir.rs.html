@@ -269,7 +269,7 @@
 <a href=#269 id=269 data-nosnippet>269</a></span><span class="kw">pub enum </span>FluxItem&lt;<span class="lifetime">'fhir</span>&gt; {
 <a href=#270 id=270 data-nosnippet>270</a>    Qualifier(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Qualifier&lt;<span class="lifetime">'fhir</span>&gt;),
 <a href=#271 id=271 data-nosnippet>271</a>    Func(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>SpecFunc&lt;<span class="lifetime">'fhir</span>&gt;),
-<a href=#272 id=272 data-nosnippet>272</a>    PrimProp(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>PrimProp&lt;<span class="lifetime">'fhir</span>&gt;),
+<a href=#272 id=272 data-nosnippet>272</a>    PrimOpProp(<span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>PrimOpProp&lt;<span class="lifetime">'fhir</span>&gt;),
 <a href=#273 id=273 data-nosnippet>273</a>}
 <a href=#274 id=274 data-nosnippet>274</a>
 <a href=#275 id=275 data-nosnippet>275</a><span class="kw">impl </span>FluxItem&lt;<span class="lifetime">'_</span>&gt; {
@@ -277,7 +277,7 @@
 <a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">match </span><span class="self">self </span>{
 <a href=#278 id=278 data-nosnippet>278</a>            FluxItem::Qualifier(qualifier) =&gt; qualifier.def_id,
 <a href=#279 id=279 data-nosnippet>279</a>            FluxItem::Func(func) =&gt; func.def_id,
-<a href=#280 id=280 data-nosnippet>280</a>            FluxItem::PrimProp(prop) =&gt; prop.def_id,
+<a href=#280 id=280 data-nosnippet>280</a>            FluxItem::PrimOpProp(prop) =&gt; prop.def_id,
 <a href=#281 id=281 data-nosnippet>281</a>        }
 <a href=#282 id=282 data-nosnippet>282</a>    }
 <a href=#283 id=283 data-nosnippet>283</a>}
@@ -1181,7 +1181,7 @@
 <a href=#1181 id=1181 data-nosnippet>1181</a>    <span class="kw">pub </span>hide: bool,
 <a href=#1182 id=1182 data-nosnippet>1182</a>}
 <a href=#1183 id=1183 data-nosnippet>1183</a><span class="attr">#[derive(Debug)]
-<a href=#1184 id=1184 data-nosnippet>1184</a></span><span class="kw">pub struct </span>PrimProp&lt;<span class="lifetime">'fhir</span>&gt; {
+<a href=#1184 id=1184 data-nosnippet>1184</a></span><span class="kw">pub struct </span>PrimOpProp&lt;<span class="lifetime">'fhir</span>&gt; {
 <a href=#1185 id=1185 data-nosnippet>1185</a>    <span class="kw">pub </span>def_id: FluxLocalDefId,
 <a href=#1186 id=1186 data-nosnippet>1186</a>    <span class="kw">pub </span>op: BinOp,
 <a href=#1187 id=1187 data-nosnippet>1187</a>    <span class="kw">pub </span>args: <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>[RefineParam&lt;<span class="lifetime">'fhir</span>&gt;],

@@ -597,9 +597,9 @@
 <a href=#597 id=597 data-nosnippet>597</a>        })
 <a href=#598 id=598 data-nosnippet>598</a>    }
 <a href=#599 id=599 data-nosnippet>599</a>
-<a href=#600 id=600 data-nosnippet>600</a>    <span class="kw">pub fn </span>prim_props(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::PrimProp&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#600 id=600 data-nosnippet>600</a>    <span class="kw">pub fn </span>primop_props(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>fhir::PrimOpProp&lt;<span class="lifetime">'genv</span>&gt;&gt; {
 <a href=#601 id=601 data-nosnippet>601</a>        <span class="self">self</span>.fhir.items.values().filter_map(|item| {
-<a href=#602 id=602 data-nosnippet>602</a>            <span class="kw">if let </span>fhir::FluxItem::PrimProp(prop) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>prop) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+<a href=#602 id=602 data-nosnippet>602</a>            <span class="kw">if let </span>fhir::FluxItem::PrimOpProp(prop) = item { <span class="prelude-val">Some</span>(<span class="kw-2">*</span>prop) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
 <a href=#603 id=603 data-nosnippet>603</a>        })
 <a href=#604 id=604 data-nosnippet>604</a>    }
 <a href=#605 id=605 data-nosnippet>605</a>

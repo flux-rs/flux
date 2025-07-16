@@ -54,16 +54,16 @@
 <a href=#54 id=54 data-nosnippet>54</a>    })
 <a href=#55 id=55 data-nosnippet>55</a>}
 <a href=#56 id=56 data-nosnippet>56</a>
-<a href=#57 id=57 data-nosnippet>57</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_prim_prop&lt;<span class="lifetime">'genv</span>&gt;(
+<a href=#57 id=57 data-nosnippet>57</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>desugar_primop_prop&lt;<span class="lifetime">'genv</span>&gt;(
 <a href=#58 id=58 data-nosnippet>58</a>    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
 <a href=#59 id=59 data-nosnippet>59</a>    resolver_output: <span class="kw-2">&amp;</span><span class="lifetime">'genv </span>ResolverOutput,
 <a href=#60 id=60 data-nosnippet>60</a>    def_id: FluxLocalDefId,
-<a href=#61 id=61 data-nosnippet>61</a>    prim_prop: <span class="kw-2">&amp;</span>surface::PrimOpProp,
-<a href=#62 id=62 data-nosnippet>62</a>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PrimProp&lt;<span class="lifetime">'genv</span>&gt;&gt; {
+<a href=#61 id=61 data-nosnippet>61</a>    primop_prop: <span class="kw-2">&amp;</span>surface::PrimOpProp,
+<a href=#62 id=62 data-nosnippet>62</a>) -&gt; <span class="prelude-ty">Result</span>&lt;fhir::PrimOpProp&lt;<span class="lifetime">'genv</span>&gt;&gt; {
 <a href=#63 id=63 data-nosnippet>63</a>    FluxItemCtxt::with(genv, resolver_output, def_id, FluxItemKind::PrimProp, |cx| {
-<a href=#64 id=64 data-nosnippet>64</a>        <span class="kw">let </span>body = cx.desugar_expr(<span class="kw-2">&amp;</span>prim_prop.body);
-<a href=#65 id=65 data-nosnippet>65</a>        <span class="kw">let </span>args = cx.desugar_refine_params(<span class="kw-2">&amp;</span>prim_prop.params);
-<a href=#66 id=66 data-nosnippet>66</a>        fhir::PrimProp { def_id, op: prim_prop.op, args, body, span: prim_prop.span }
+<a href=#64 id=64 data-nosnippet>64</a>        <span class="kw">let </span>body = cx.desugar_expr(<span class="kw-2">&amp;</span>primop_prop.body);
+<a href=#65 id=65 data-nosnippet>65</a>        <span class="kw">let </span>args = cx.desugar_refine_params(<span class="kw-2">&amp;</span>primop_prop.params);
+<a href=#66 id=66 data-nosnippet>66</a>        fhir::PrimOpProp { def_id, op: primop_prop.op, args, body, span: primop_prop.span }
 <a href=#67 id=67 data-nosnippet>67</a>    })
 <a href=#68 id=68 data-nosnippet>68</a>}
 <a href=#69 id=69 data-nosnippet>69</a>

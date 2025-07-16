@@ -127,9 +127,9 @@
 <a href=#127 id=127 data-nosnippet>127</a>        });
 <a href=#128 id=128 data-nosnippet>128</a>    }
 <a href=#129 id=129 data-nosnippet>129</a>
-<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">fn </span>visit_prim_prop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, prop: <span class="kw-2">&amp;</span>surface::PrimOpProp) {
+<a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">fn </span>visit_primop_prop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, prop: <span class="kw-2">&amp;</span>surface::PrimOpProp) {
 <a href=#131 id=131 data-nosnippet>131</a>        <span class="self">self</span>.with_scope(ScopeKind::Misc, |this| {
-<a href=#132 id=132 data-nosnippet>132</a>            surface::visit::walk_prim_prop(this, prop);
+<a href=#132 id=132 data-nosnippet>132</a>            surface::visit::walk_primop_prop(this, prop);
 <a href=#133 id=133 data-nosnippet>133</a>        });
 <a href=#134 id=134 data-nosnippet>134</a>    }
 <a href=#135 id=135 data-nosnippet>135</a>
@@ -427,11 +427,11 @@
 <a href=#427 id=427 data-nosnippet>427</a>        <span class="self">Self</span>::for_flux_item(resolver, <span class="kw-2">&amp;</span>defn.sort_vars).run(|r| r.visit_defn(defn))
 <a href=#428 id=428 data-nosnippet>428</a>    }
 <a href=#429 id=429 data-nosnippet>429</a>
-<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_prim_prop(
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_primop_prop(
 <a href=#431 id=431 data-nosnippet>431</a>        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 <a href=#432 id=432 data-nosnippet>432</a>        prop: <span class="kw-2">&amp;</span>surface::PrimOpProp,
 <a href=#433 id=433 data-nosnippet>433</a>    ) -&gt; <span class="prelude-ty">Result</span> {
-<a href=#434 id=434 data-nosnippet>434</a>        <span class="self">Self</span>::for_flux_item(resolver, <span class="kw-2">&amp;</span>[]).run(|r| r.visit_prim_prop(prop))
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="self">Self</span>::for_flux_item(resolver, <span class="kw-2">&amp;</span>[]).run(|r| r.visit_primop_prop(prop))
 <a href=#435 id=435 data-nosnippet>435</a>    }
 <a href=#436 id=436 data-nosnippet>436</a>
 <a href=#437 id=437 data-nosnippet>437</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_fn_sig(

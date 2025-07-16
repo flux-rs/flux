@@ -37,8 +37,8 @@
 <a href=#37 id=37 data-nosnippet>37</a>        walk_defn(<span class="self">self</span>, defn);
 <a href=#38 id=38 data-nosnippet>38</a>    }
 <a href=#39 id=39 data-nosnippet>39</a>
-<a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">fn </span>visit_prim_prop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, prop: <span class="kw-2">&amp;</span>PrimOpProp) {
-<a href=#41 id=41 data-nosnippet>41</a>        walk_prim_prop(<span class="self">self</span>, prop);
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="kw">fn </span>visit_primop_prop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, prop: <span class="kw-2">&amp;</span>PrimOpProp) {
+<a href=#41 id=41 data-nosnippet>41</a>        walk_primop_prop(<span class="self">self</span>, prop);
 <a href=#42 id=42 data-nosnippet>42</a>    }
 <a href=#43 id=43 data-nosnippet>43</a>
 <a href=#44 id=44 data-nosnippet>44</a>    <span class="kw">fn </span>visit_refine_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>RefineParam) {
@@ -205,7 +205,7 @@
 <a href=#205 id=205 data-nosnippet>205</a>    }
 <a href=#206 id=206 data-nosnippet>206</a>}
 <a href=#207 id=207 data-nosnippet>207</a>
-<a href=#208 id=208 data-nosnippet>208</a><span class="kw">pub fn </span>walk_prim_prop&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, prop: <span class="kw-2">&amp;</span>PrimOpProp) {
+<a href=#208 id=208 data-nosnippet>208</a><span class="kw">pub fn </span>walk_primop_prop&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, prop: <span class="kw-2">&amp;</span>PrimOpProp) {
 <a href=#209 id=209 data-nosnippet>209</a>    vis.visit_ident(prop.name);
 <a href=#210 id=210 data-nosnippet>210</a>    <span class="macro">walk_list!</span>(vis, visit_refine_param, <span class="kw-2">&amp;</span>prop.params);
 <a href=#211 id=211 data-nosnippet>211</a>    vis.visit_expr(<span class="kw-2">&amp;</span>prop.body);

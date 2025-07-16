@@ -136,12 +136,12 @@
 <a href=#136 id=136 data-nosnippet>136</a>        .try_collect()
 <a href=#137 id=137 data-nosnippet>137</a>}
 <a href=#138 id=138 data-nosnippet>138</a>
-<a href=#139 id=139 data-nosnippet>139</a><span class="kw">fn </span>prim_props(genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::PrimProp&gt;&gt; {
+<a href=#139 id=139 data-nosnippet>139</a><span class="kw">fn </span>primop_props(genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::PrimOpProp&gt;&gt; {
 <a href=#140 id=140 data-nosnippet>140</a>    genv.map()
-<a href=#141 id=141 data-nosnippet>141</a>        .prim_props()
-<a href=#142 id=142 data-nosnippet>142</a>        .map(|prim_prop| {
-<a href=#143 id=143 data-nosnippet>143</a>            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimProp(prim_prop))<span class="question-mark">?</span>;
-<a href=#144 id=144 data-nosnippet>144</a>            <span class="prelude-val">Ok</span>(conv::conv_prim_prop(genv, prim_prop, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>.normalize(genv))
+<a href=#141 id=141 data-nosnippet>141</a>        .primop_props()
+<a href=#142 id=142 data-nosnippet>142</a>        .map(|primop_prop| {
+<a href=#143 id=143 data-nosnippet>143</a>            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimOpProp(primop_prop))<span class="question-mark">?</span>;
+<a href=#144 id=144 data-nosnippet>144</a>            <span class="prelude-val">Ok</span>(conv::conv_primop_prop(genv, primop_prop, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>.normalize(genv))
 <a href=#145 id=145 data-nosnippet>145</a>        })
 <a href=#146 id=146 data-nosnippet>146</a>        .try_collect()
 <a href=#147 id=147 data-nosnippet>147</a>}
@@ -156,12 +156,12 @@
 <a href=#156 id=156 data-nosnippet>156</a>}
 <a href=#157 id=157 data-nosnippet>157</a>
 <a href=#158 id=158 data-nosnippet>158</a><span class="kw">fn </span>prim_rel(genv: GlobalEnv) -&gt; QueryResult&lt;UnordMap&lt;rty::BinOp, rty::PrimRel&gt;&gt; {
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">let </span>prim_props = prim_props(genv)<span class="question-mark">?
+<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">let </span>primop_props = primop_props(genv)<span class="question-mark">?
 <a href=#160 id=160 data-nosnippet>160</a>        </span>.into_iter()
-<a href=#161 id=161 data-nosnippet>161</a>        .into_group_map_by(|prim_prop| prim_prop.op.clone());
+<a href=#161 id=161 data-nosnippet>161</a>        .into_group_map_by(|primop_prop| primop_prop.op.clone());
 <a href=#162 id=162 data-nosnippet>162</a>
 <a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">let </span><span class="kw-2">mut </span>res = UnordMap::default();
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">for </span>(op, props) <span class="kw">in </span>prim_props {
+<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">for </span>(op, props) <span class="kw">in </span>primop_props {
 <a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span>exprs = props
 <a href=#166 id=166 data-nosnippet>166</a>            .iter()
 <a href=#167 id=167 data-nosnippet>167</a>            .map(|prop| prop.body.clone())

@@ -92,7 +92,7 @@
 <a href=#92 id=92 data-nosnippet>92</a><span class="doccomment">/// There are some lexing ambiguities with `&gt;&gt;` because it can represet both a right shift or two
 <a href=#93 id=93 data-nosnippet>93</a>/// closing angle brackets (e.g., `Vec&lt;Option&lt;i32&gt;&gt;`). We solve the ambiguity by giving `&gt;` a
 <a href=#94 id=94 data-nosnippet>94</a>/// special token if it's immediately followed by another `&gt;`,  i.e., `&gt;&gt;` is tokenized as
-<a href=#95 id=95 data-nosnippet>95</a>/// [`Token::GtFollowedByGt`] followed by [`Token::Gt`].
+<a href=#95 id=95 data-nosnippet>95</a>/// [`TokenKind::GtFollowedByGt`] followed by [`TokenKind::Gt`].
 <a href=#96 id=96 data-nosnippet>96</a>///
 <a href=#97 id=97 data-nosnippet>97</a>/// Use this struct to match on a right angle bracket for the purpose of parsing generics.
 <a href=#98 id=98 data-nosnippet>98</a></span><span class="attr">#[derive(Clone, Copy)]
@@ -110,7 +110,7 @@
 <a href=#110 id=110 data-nosnippet>110</a>
 <a href=#111 id=111 data-nosnippet>111</a><span class="doccomment">/// This is the same as [`RAngle`] but for opening angle brackets.
 <a href=#112 id=112 data-nosnippet>112</a>///
-<a href=#113 id=113 data-nosnippet>113</a>/// It is less common to have two opening angle brackets, but it appears in stuf like
+<a href=#113 id=113 data-nosnippet>113</a>/// It is less common to have two opening angle brackets, but it appears in stuff like
 <a href=#114 id=114 data-nosnippet>114</a>/// `&lt;&lt;Self as Trait1&gt;::Assoc1 as Trait2&gt;::Assoc2`
 <a href=#115 id=115 data-nosnippet>115</a></span><span class="attr">#[derive(Clone, Copy)]
 <a href=#116 id=116 data-nosnippet>116</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>LAngle;
@@ -281,8 +281,8 @@
 <a href=#281 id=281 data-nosnippet>281</a>        </span>}
 <a href=#282 id=282 data-nosnippet>282</a>    }
 <a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a>    <span class="doccomment">/// If the next token matches the requested type of token advances the cursor, otherwise
-<a href=#285 id=285 data-nosnippet>285</a>    /// returns an `unexpected token` error.
+<a href=#284 id=284 data-nosnippet>284</a>    <span class="doccomment">/// If the next token matches the requested rule advances the cursor, otherwise returns an
+<a href=#285 id=285 data-nosnippet>285</a>    /// `unexpected token` error.
 <a href=#286 id=286 data-nosnippet>286</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>expect&lt;T: PeekExpected&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, t: T) -&gt; ParseResult {
 <a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">if </span><span class="self">self</span>.advance_if(t) { <span class="prelude-val">Ok</span>(()) } <span class="kw">else </span>{ <span class="prelude-val">Err</span>(<span class="self">self</span>.unexpected_token(<span class="macro">vec!</span>[t.expected()])) }
 <a href=#288 id=288 data-nosnippet>288</a>    }
