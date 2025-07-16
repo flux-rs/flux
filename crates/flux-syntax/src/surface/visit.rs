@@ -37,8 +37,8 @@ pub trait Visitor: Sized {
         walk_defn(self, defn);
     }
 
-    fn visit_prim_prop(&mut self, prop: &PrimOpProp) {
-        walk_prim_prop(self, prop);
+    fn visit_primop_prop(&mut self, prop: &PrimOpProp) {
+        walk_primop_prop(self, prop);
     }
 
     fn visit_refine_param(&mut self, param: &RefineParam) {
@@ -205,7 +205,7 @@ pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {
     }
 }
 
-pub fn walk_prim_prop<V: Visitor>(vis: &mut V, prop: &PrimOpProp) {
+pub fn walk_primop_prop<V: Visitor>(vis: &mut V, prop: &PrimOpProp) {
     vis.visit_ident(prop.name);
     walk_list!(vis, visit_refine_param, &prop.params);
     vis.visit_expr(&prop.body);

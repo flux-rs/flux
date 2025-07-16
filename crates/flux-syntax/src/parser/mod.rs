@@ -66,22 +66,34 @@ fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
 }
 
 /// ```text
-/// ⟨ident⟩,*
+/// ⟨qual_names⟩ := ⟨ident⟩,*
 /// ```
 pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
     let names = punctuated_until(cx, Comma, token::Eof, parse_ident)?;
     Ok(QualNames { names })
 }
 
+/// ```text
+/// ⟨reveal_names⟩ := ⟨ident⟩,*
+/// ```
 pub(crate) fn parse_reveal_names(cx: &mut ParseCtxt) -> ParseResult<RevealNames> {
     let names = punctuated_until(cx, Comma, token::Eof, parse_ident)?;
     Ok(RevealNames { names })
 }
 
+/// ```text
+/// ⟨flux_items⟩ := ⟨flux_item⟩*
+/// ```
 pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
     until(cx, token::Eof, parse_flux_item)
 }
 
+/// ```text
+/// ⟨flux_item⟩ := ⟨func_def⟩
+///              | ⟨qualifier⟩
+///              | ⟨sort_decl⟩
+///              | ⟨primop_prop⟩
+/// ```
 fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
@@ -91,7 +103,7 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     } else if lookahead.peek(kw::Opaque) {
         parse_sort_decl(cx).map(Item::SortDecl)
     } else if lookahead.peek(kw::Property) {
-        parse_prim_property(cx).map(Item::PrimProp)
+        parse_primop_property(cx).map(Item::PrimOpProp)
     } else {
         Err(lookahead.into_error())
     }
@@ -107,6 +119,13 @@ fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {
     Ok(true)
 }
 
+/// ```text
+/// ⟨func_def⟩ := ⟨ # [ hide ] ⟩?
+///               fn ⟨ident⟩ ⟨ < ⟨ident⟩,* > ⟩?
+///               ( ⟨refine_param⟩,* )
+///               ->
+///               ⟨sort⟩
+/// ```
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     let hide = parse_hide_attr(cx)?;
     cx.expect(kw::Fn)?;
@@ -124,6 +143,11 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     Ok(SpecFunc { name, sort_vars, params, output, body, hide })
 }
 
+/// ```text
+/// ⟨qualifier⟩ :=  ⟨ local ⟩?
+///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
+///                 ⟨block⟩
+/// ```
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let lo = cx.lo();
     let local = cx.advance_if(kw::Local);
@@ -135,6 +159,9 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     Ok(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
 }
 
+/// ```text
+/// ⟨sort_decl⟩ := opaque sort ⟨ident⟩ ;
+/// ```
 fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     cx.expect(kw::Opaque)?;
     cx.expect(kw::Sort)?;
@@ -143,6 +170,7 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     Ok(SortDecl { name })
 }
 
+/// `⟨bin_op⟩ := ⟨ a binary operator ⟩
 fn parse_binop(cx: &mut ParseCtxt) -> ParseResult<BinOp> {
     let (op, ntokens) = cx
         .peek_binop()
@@ -151,7 +179,10 @@ fn parse_binop(cx: &mut ParseCtxt) -> ParseResult<BinOp> {
     Ok(op)
 }
 
-fn parse_prim_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
+/// ```text
+/// ⟨primop_prop⟩ := property ⟨ident⟩ [ ⟨bin_op⟩ ] ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ```
+fn parse_primop_property(cx: &mut ParseCtxt) -> ParseResult<PrimOpProp> {
     let lo = cx.lo();
     cx.expect(kw::Property)?;
 
@@ -1137,6 +1168,11 @@ fn parse_if_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     Ok(else_)
 }
 
+/// `⟨block⟩ := { ⟨block_expr⟩ }`
+fn parse_block(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    delimited(cx, Brace, parse_block_expr)
+}
+
 /// `⟨block_expr⟩ = ⟨let_decl⟩* ⟨expr⟩`
 fn parse_block_expr(cx: &mut ParseCtxt) -> ParseResult<Expr> {
     let lo = cx.lo();
@@ -1160,11 +1196,6 @@ fn parse_let_decl(cx: &mut ParseCtxt) -> ParseResult<LetDecl> {
     let init = parse_expr(cx, true)?;
     cx.expect(token::Semi)?;
     Ok(LetDecl { param, init })
-}
-
-/// `⟨block⟩ := { ⟨let_decls⟩ ⟨expr⟩ }`
-fn parse_block(cx: &mut ParseCtxt) -> ParseResult<Expr> {
-    delimited(cx, Brace, parse_block_expr)
 }
 
 /// ```text

@@ -269,7 +269,7 @@ pub enum ImplItemKind<'fhir> {
 pub enum FluxItem<'fhir> {
     Qualifier(&'fhir Qualifier<'fhir>),
     Func(&'fhir SpecFunc<'fhir>),
-    PrimProp(&'fhir PrimProp<'fhir>),
+    PrimOpProp(&'fhir PrimOpProp<'fhir>),
 }
 
 impl FluxItem<'_> {
@@ -277,7 +277,7 @@ impl FluxItem<'_> {
         match self {
             FluxItem::Qualifier(qualifier) => qualifier.def_id,
             FluxItem::Func(func) => func.def_id,
-            FluxItem::PrimProp(prop) => prop.def_id,
+            FluxItem::PrimOpProp(prop) => prop.def_id,
         }
     }
 }
@@ -1181,7 +1181,7 @@ pub struct SpecFunc<'fhir> {
     pub hide: bool,
 }
 #[derive(Debug)]
-pub struct PrimProp<'fhir> {
+pub struct PrimOpProp<'fhir> {
     pub def_id: FluxLocalDefId,
     pub op: BinOp,
     pub args: &'fhir [RefineParam<'fhir>],
