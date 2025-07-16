@@ -21,7 +21,7 @@ pub use rustc_middle::{
         LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
-use rustc_span::{Symbol, symbol::kw};
+use rustc_span::Symbol;
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
@@ -1155,17 +1155,14 @@ impl fmt::Debug for Const {
 
 pub fn region_to_string(region: Region) -> String {
     match region {
-        Region::ReBound(_, region) => {
+        Region::ReBound(debruijn, region) => {
             match region.kind {
                 BoundRegionKind::Anon => "'<annon>".to_string(),
-                BoundRegionKind::Named(_, sym) => {
-                    if sym == kw::UnderscoreLifetime {
-                        format!("{sym}{:?}", region.var)
-                    } else {
-                        format!("{sym}")
-                    }
+                BoundRegionKind::Named(_) => {
+                    format!("{debruijn:?}{region:?}")
                 }
                 BoundRegionKind::ClosureEnv => "'<env>".to_string(),
+                BoundRegionKind::NamedAnon(sym) => format!("{sym}"),
             }
         }
         Region::ReEarlyParam(region) => region.name.to_string(),

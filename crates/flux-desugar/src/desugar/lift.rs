@@ -226,8 +226,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::TyKind::Ref(lft, mut_ty) => {
                 fhir::TyKind::Ref(self.lift_lifetime(lft), self.lift_mut_ty(mut_ty))
             }
-            hir::TyKind::BareFn(bare_fn) => {
-                let bare_fn = self.lift_bare_fn(ty.span, bare_fn);
+            hir::TyKind::FnPtr(fn_ptr) => {
+                let bare_fn = self.lift_bare_fn(ty.span, fn_ptr);
                 fhir::TyKind::BareFn(self.genv.alloc(bare_fn))
             }
             hir::TyKind::Never => fhir::TyKind::Never,
@@ -287,20 +287,20 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         fhir::Ty { kind, span: ty.span }
     }
 
-    fn lift_bare_fn(&mut self, span: Span, bare_fn: &hir::BareFnTy) -> fhir::BareFnTy<'genv> {
+    fn lift_bare_fn(&mut self, span: Span, fn_ptr: &hir::FnPtrTy) -> fhir::BareFnTy<'genv> {
         let generic_params = self.genv.alloc_slice_fill_iter(
-            bare_fn
+            fn_ptr
                 .generic_params
                 .iter()
                 .map(|param| self.lift_generic_param(param)),
         );
-        let decl = self.lift_fn_decl_inner(span, bare_fn.decl);
+        let decl = self.lift_fn_decl_inner(span, fn_ptr.decl);
         fhir::BareFnTy {
-            safety: bare_fn.safety,
-            abi: bare_fn.abi,
+            safety: fn_ptr.safety,
+            abi: fn_ptr.abi,
             generic_params,
             decl: self.genv.alloc(decl),
-            param_idents: self.genv.alloc_slice(bare_fn.param_idents),
+            param_idents: self.genv.alloc_slice(fn_ptr.param_idents),
         }
     }
 
