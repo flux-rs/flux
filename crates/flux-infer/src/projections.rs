@@ -747,6 +747,10 @@ fn normalize_projection_ty_with_rustc<'tcx>(
     ))
 }
 
+/// Do one step of normalization, unfolding associated refinements if they are concrete.
+///
+/// Use this if you are about to match structurally on an [`ExprKind`] and you need associated
+/// refinements to be normalized.
 pub fn structurally_normalize_expr(
     genv: GlobalEnv,
     def_id: DefId,
@@ -761,6 +765,9 @@ pub fn structurally_normalize_expr(
     }
 }
 
+/// Normalizes an [`AliasReft`]. This uses the trait solver to find the [`ImplSourceUserDefinedData`]
+/// and uses the `args` there, which we map back to Flux via refining. This loses refinements,
+/// but that's fine because [`AliasReft`] should not rely on refinements for trait solving.
 fn normalize_alias_reft(
     genv: GlobalEnv,
     def_id: DefId,
