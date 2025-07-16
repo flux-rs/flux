@@ -318,7 +318,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
     Some(sort)
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Specs {
     pub fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
     pub constants: UnordMap<OwnerId, surface::ConstantInfo>,

@@ -482,6 +482,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("specs", hir::AttrArgs::Delimited(dargs)) => {
+                panic!("oh boyo: {dargs:#?}")
+            }
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -572,6 +575,7 @@ enum FluxAttrKind {
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
+    Detached(Specs),
 }
 
 macro_rules! read_flag {
@@ -734,6 +738,7 @@ impl FluxAttrKind {
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::Detached(_) => attr_name!(Detached),
         }
     }
 }

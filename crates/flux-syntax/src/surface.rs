@@ -234,6 +234,7 @@ pub struct ImplAssocReft {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Trait {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<TraitAssocReft>,
