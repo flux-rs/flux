@@ -800,8 +800,20 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     pub(crate) fn into_results(mut self) -> Result<WfckResults> {
-        // Make sure the int literals are fully resolved
+        // Make sure the int literals are fully resolved. This must happen before everything else
+        // such that we properly apply the fallback for unconstrained num vars.
         for (node, sort) in std::mem::take(&mut self.sort_of_literal) {
+            // Fallback to `int` when a num variable is unconstrained. Note that we unconditionally
+            // unify the the variable. This is fine, because if the variable has already been unified,
+            // the operation will fail and this won't have any effect. Also note that unifying a variable
+            // could solve variables in the same set that appear later in this same iteration. This
+            // is fine because the order doesn't matter as we are unifying everything to `int`.
+            if let rty::Sort::Infer(rty::SortInfer::NumVar(vid)) = &sort {
+                let _ = self
+                    .num_unification_table
+                    .unify_var_value(*vid, Some(rty::NumVarValue::Int));
+            }
+
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
