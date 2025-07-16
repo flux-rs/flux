@@ -448,6 +448,7 @@ dependencies = [
 name = "flux-fhir-analysis"
 version = "0.1.0"
 dependencies = [
+ "derive-where",
  "ena",
  "flux-common",
  "flux-config",

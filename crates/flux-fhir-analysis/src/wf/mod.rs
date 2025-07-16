@@ -46,10 +46,10 @@ pub(crate) fn check_flux_item<'genv>(
     infcx.into_results()
 }
 
-pub(crate) fn check_constant_expr(
-    genv: GlobalEnv,
+pub(crate) fn check_constant_expr<'genv>(
+    genv: GlobalEnv<'genv, '_>,
     owner: OwnerId,
-    expr: &fhir::Expr,
+    expr: &fhir::Expr<'genv>,
     sort: &rty::Sort,
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
@@ -354,7 +354,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         }
     }
 
-    fn visit_impl_assoc_reft(&mut self, assoc_reft: &fhir::ImplAssocReft) {
+    fn visit_impl_assoc_reft(&mut self, assoc_reft: &fhir::ImplAssocReft<'genv>) {
         let Ok(output) = self
             .as_conv_ctxt()
             .conv_sort(&assoc_reft.output)
@@ -367,7 +367,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             .collect_err(&mut self.errors);
     }
 
-    fn visit_trait_assoc_reft(&mut self, assoc_reft: &fhir::TraitAssocReft) {
+    fn visit_trait_assoc_reft(&mut self, assoc_reft: &fhir::TraitAssocReft<'genv>) {
         if let Some(body) = &assoc_reft.body {
             let Ok(output) = self
                 .as_conv_ctxt()
@@ -382,7 +382,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         }
     }
 
-    fn visit_variant_ret(&mut self, ret: &fhir::VariantRet) {
+    fn visit_variant_ret(&mut self, ret: &fhir::VariantRet<'genv>) {
         let genv = self.infcx.genv;
         let enum_id = ret.enum_id;
         let Ok(adt_sort_def) = genv.adt_sort_def_of(enum_id).emit(&self.errors) else { return };

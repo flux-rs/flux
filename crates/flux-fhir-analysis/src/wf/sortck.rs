@@ -1,5 +1,6 @@
 use std::iter;
 
+use derive_where::derive_where;
 use ena::unify::InPlaceUnificationTable;
 use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
@@ -17,7 +18,7 @@ use flux_middle::{
 use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, def_id::DefId, symbol::Ident};
 
@@ -35,12 +36,11 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     params: FxHashMap<fhir::ParamId, (fhir::RefineParam<'genv>, rty::Sort)>,
     sort_of_bty: FxHashMap<FhirId, rty::Sort>,
-    sort_of_literal: FxHashMap<FhirId, (rty::Sort, Span)>,
-    sort_of_bin_op: FxHashMap<FhirId, (rty::Sort, Span)>,
-    sort_args_of_app: FxHashMap<FhirId, (List<rty::SortArg>, Span)>,
-    casts: FxHashSet<FhirId>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
+    sort_of_literal: NodeMap<'genv, rty::Sort>,
+    sort_of_bin_op: NodeMap<'genv, rty::Sort>,
+    sort_args_of_app: NodeMap<'genv, List<rty::SortArg>>,
 }
 
 pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
@@ -66,20 +66,19 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             bv_size_unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
             sort_of_bty: Default::default(),
-            sort_of_literal: Default::default(),
-            sort_of_bin_op: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
+            sort_of_literal: Default::default(),
+            sort_of_bin_op: Default::default(),
             sort_args_of_app: Default::default(),
-            casts: Default::default(),
         }
     }
 
     fn check_abs(
         &mut self,
-        expr: &fhir::Expr,
+        expr: &fhir::Expr<'genv>,
         params: &[fhir::RefineParam],
-        body: &fhir::Expr,
+        body: &fhir::Expr<'genv>,
         expected: &rty::Sort,
     ) -> Result {
         let Some(fsort) = self.is_coercible_from_func(expected, expr.fhir_id) else {
@@ -114,8 +113,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         expr_span: Span,
         sort_def: &AdtSortDef,
         sort_args: &[rty::Sort],
-        field_exprs: &[fhir::FieldExpr],
-        spread: &Option<&fhir::Spread>,
+        field_exprs: &[fhir::FieldExpr<'genv>],
+        spread: &Option<&fhir::Spread<'genv>>,
         expected: &rty::Sort,
     ) -> Result {
         let sort_by_field_name = sort_def.struct_variant().sort_by_field_name(sort_args);
@@ -148,8 +147,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     fn check_constructor(
         &mut self,
         expr: &fhir::Expr,
-        field_exprs: &[fhir::FieldExpr],
-        spread: &Option<&fhir::Spread>,
+        field_exprs: &[fhir::FieldExpr<'genv>],
+        spread: &Option<&fhir::Spread<'genv>>,
         expected: &rty::Sort,
     ) -> Result {
         let expected = self.resolve_vars_if_possible(expected);
@@ -166,8 +165,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn check_record(
         &mut self,
-        arg: &fhir::Expr,
-        flds: &[fhir::Expr],
+        arg: &fhir::Expr<'genv>,
+        flds: &[fhir::Expr<'genv>],
         expected: &rty::Sort,
     ) -> Result {
         if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
@@ -197,7 +196,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    pub(super) fn check_expr(&mut self, expr: &fhir::Expr, expected: &rty::Sort) -> Result {
+    pub(super) fn check_expr(&mut self, expr: &fhir::Expr<'genv>, expected: &rty::Sort) -> Result {
         match &expr.kind {
             fhir::ExprKind::IfThenElse(p, e1, e2) => {
                 self.check_expr(p, &rty::Sort::Bool)?;
@@ -245,14 +244,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_lit(&mut self, lit: fhir::Lit, expr: &fhir::Expr) -> rty::Sort {
+    fn synth_lit(&mut self, lit: fhir::Lit, expr: &fhir::Expr<'genv>) -> rty::Sort {
         match lit {
             fhir::Lit::Int(_, Some(fhir::NumLitKind::Int)) => rty::Sort::Int,
             fhir::Lit::Int(_, Some(fhir::NumLitKind::Real)) => rty::Sort::Real,
             fhir::Lit::Int(_, None) => {
                 let sort = self.next_num_var();
-                self.sort_of_literal
-                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                self.sort_of_literal.insert(*expr, sort.clone());
                 sort
             }
             fhir::Lit::Bool(_) => rty::Sort::Bool,
@@ -264,8 +262,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     fn synth_prim_app(
         &mut self,
         op: &fhir::BinOp,
-        e1: &fhir::Expr,
-        e2: &fhir::Expr,
+        e1: &fhir::Expr<'genv>,
+        e2: &fhir::Expr<'genv>,
         span: Span,
     ) -> Result<rty::Sort> {
         let Some((inputs, output)) = prim_op_sort(op) else {
@@ -284,7 +282,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         Ok(output)
     }
 
-    fn synth_expr(&mut self, expr: &fhir::Expr) -> Result<rty::Sort> {
+    fn synth_expr(&mut self, expr: &fhir::Expr<'genv>) -> Result<rty::Sort> {
         match expr.kind {
             fhir::ExprKind::Var(var, _) => self.synth_path(&var),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
@@ -296,12 +294,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let Some(poly_fsort) = self.is_coercible_to_func(&sort, callee.fhir_id) else {
                     return Err(self.emit_err(errors::ExpectedFun::new(callee.span, &sort)));
                 };
-                let fhir_id = expr.fhir_id;
-                let span = expr.span;
-                let fsort = self.instantiate_func_sort(poly_fsort, fhir_id, span);
-                if matches!(callee.res, ExprRes::GlobalFunc(fhir::SpecFuncKind::Cast)) {
-                    self.casts.insert(fhir_id);
-                }
+                let fsort = self.instantiate_func_sort(expr, poly_fsort);
                 self.synth_app(fsort, args, expr.span)
             }
             fhir::ExprKind::BoundedQuant(.., body) => {
@@ -441,10 +434,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_binary_op(
         &mut self,
-        expr: &fhir::Expr,
+        expr: &fhir::Expr<'genv>,
         op: fhir::BinOp,
-        e1: &fhir::Expr,
-        e2: &fhir::Expr,
+        e1: &fhir::Expr<'genv>,
+        e2: &fhir::Expr<'genv>,
     ) -> Result<rty::Sort> {
         match op {
             fhir::BinOp::Or | fhir::BinOp::And | fhir::BinOp::Iff | fhir::BinOp::Imp => {
@@ -462,8 +455,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_sort_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-                self.sort_of_bin_op
-                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                self.sort_of_bin_op.insert(*expr, sort.clone());
                 Ok(rty::Sort::Bool)
             }
             fhir::BinOp::Add
@@ -474,8 +466,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 let sort = self.next_num_var();
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
-                self.sort_of_bin_op
-                    .insert(expr.fhir_id, (sort.clone(), expr.span));
+                self.sort_of_bin_op.insert(*expr, sort.clone());
                 // check that the sort is integral for mod
                 self.check_integral(op, &sort, expr.span)?;
 
@@ -493,7 +484,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_unary_op(&mut self, op: fhir::UnOp, e: &fhir::Expr) -> Result<rty::Sort> {
+    fn synth_unary_op(&mut self, op: fhir::UnOp, e: &fhir::Expr<'genv>) -> Result<rty::Sort> {
         match op {
             fhir::UnOp::Not => {
                 self.check_expr(e, &rty::Sort::Bool)?;
@@ -506,7 +497,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_app(&mut self, fsort: FuncSort, args: &[fhir::Expr], span: Span) -> Result<rty::Sort> {
+    fn synth_app(
+        &mut self,
+        fsort: FuncSort,
+        args: &[fhir::Expr<'genv>],
+        span: Span,
+    ) -> Result<rty::Sort> {
         if args.len() != fsort.inputs().len() {
             return Err(self.emit_err(errors::ArgCountMismatch::new(
                 Some(span),
@@ -524,9 +520,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn instantiate_func_sort(
         &mut self,
+        app_expr: &fhir::Expr<'genv>,
         fsort: rty::PolyFuncSort,
-        fhir_id: FhirId,
-        span: Span,
     ) -> rty::FuncSort {
         let args = fsort
             .params()
@@ -538,7 +533,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             })
             .collect_vec();
         self.sort_args_of_app
-            .insert(fhir_id, (List::from_vec(args.clone()), span));
+            .insert(*app_expr, List::from_slice(&args));
         fsort.instantiate(&args)
     }
 
@@ -805,57 +800,82 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     pub(crate) fn into_results(mut self) -> Result<WfckResults> {
-        // Make sure the int literals are fully resolved
-        for (fhir_id, (sort, span)) in std::mem::take(&mut self.sort_of_literal) {
+        // Make sure the int literals are fully resolved. This must happen before everything else
+        // such that we properly apply the fallback for unconstrained num vars.
+        for (node, sort) in std::mem::take(&mut self.sort_of_literal) {
+            // Fallback to `int` when a num variable is unconstrained. Note that we unconditionally
+            // unify the variable. This is fine because if the variable has already been unified,
+            // the operation will fail and this won't have any effect. Also note that unifying a
+            // variable could solve variables that appear later in this for loop. This is also fine
+            // because the order doesn't matter as we are unifying everything to `int`.
+            if let rty::Sort::Infer(rty::SortInfer::NumVar(vid)) = &sort {
+                let _ = self
+                    .num_unification_table
+                    .unify_var_value(*vid, Some(rty::NumVarValue::Int));
+            }
+
             let sort = self
                 .fully_resolve(&sort)
-                .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
-            self.wfckresults.node_sorts_mut().insert(fhir_id, sort);
+                .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
+            self.wfckresults.node_sorts_mut().insert(node.fhir_id, sort);
         }
 
         // Make sure the binary operators are fully resolved
-        for (fhir_id, (sort, span)) in std::mem::take(&mut self.sort_of_bin_op) {
+        for (node, sort) in std::mem::take(&mut self.sort_of_bin_op) {
             let sort = self
                 .fully_resolve(&sort)
-                .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
-            self.wfckresults.bin_op_sorts_mut().insert(fhir_id, sort);
+                .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
+            self.wfckresults
+                .bin_op_sorts_mut()
+                .insert(node.fhir_id, sort);
         }
 
-        let allow_uninterpreted_cast = flux_config::allow_uninterpreted_cast();
         let allow_uninterpreted_cast = self
             .owner
             .def_id()
-            .map_or(allow_uninterpreted_cast, |def_id| {
+            .map_or_else(flux_config::allow_uninterpreted_cast, |def_id| {
                 self.genv.infer_opts(def_id).allow_uninterpreted_cast
             });
 
         // Make sure that function applications are fully resolved
-        for (fhir_id, (sort_args, span)) in std::mem::take(&mut self.sort_args_of_app) {
+        for (node, sort_args) in std::mem::take(&mut self.sort_args_of_app) {
             let mut res = vec![];
             for sort_arg in &sort_args {
-                let sort_arg = if let rty::SortArg::Sort(sort) = sort_arg {
-                    let sort = self
-                        .fully_resolve(sort)
-                        .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
-                    rty::SortArg::Sort(sort)
-                } else {
-                    sort_arg.clone()
+                let sort_arg = match sort_arg {
+                    rty::SortArg::Sort(sort) => {
+                        let sort = self
+                            .fully_resolve(sort)
+                            .map_err(|_| self.emit_err(errors::CannotInferSort::new(node.span)))?;
+                        rty::SortArg::Sort(sort)
+                    }
+                    rty::SortArg::BvSize(rty::BvSize::Infer(vid)) => {
+                        let size = self
+                            .bv_size_unification_table
+                            .probe_value(*vid)
+                            .ok_or_else(|| {
+                                self.emit_err(errors::CannotInferSort::new(node.span))
+                            })?;
+                        rty::SortArg::BvSize(size)
+                    }
+                    _ => sort_arg.clone(),
                 };
                 res.push(sort_arg);
             }
-            if self.casts.contains(&fhir_id) {
+            if let fhir::ExprKind::App(callee, _) = node.kind
+                && matches!(callee.res, ExprRes::GlobalFunc(fhir::SpecFuncKind::Cast))
+            {
                 let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &res[..] else {
-                    span_bug!(span, "invalid sort args!")
+                    span_bug!(node.span, "invalid sort args!")
                 };
                 if !allow_uninterpreted_cast
                     && matches!(from.cast_kind(to), rty::CastKind::Uninterpreted)
                 {
-                    return Err(self.emit_err(errors::InvalidCast::new(span, from, to)));
+                    return Err(self.emit_err(errors::InvalidCast::new(node.span, from, to)));
                 }
             }
             self.wfckresults
                 .fn_app_sorts_mut()
-                .insert(fhir_id, res.into());
+                .insert(node.fhir_id, res.into());
         }
 
         // Make sure all parameters are fully resolved
@@ -1055,5 +1075,30 @@ impl FallibleTypeFolder for FullResolver<'_, '_, '_> {
             rty::Sort::Infer(_) | rty::Sort::BitVec(rty::BvSize::Infer(_)) => Err(()),
             _ => s.try_super_fold_with(self),
         }
+    }
+}
+
+/// Map to associate data to a node (i.e., an expression).
+///
+/// Used to record elaborated information.
+#[derive_where(Default)]
+struct NodeMap<'genv, T> {
+    map: FxHashMap<FhirId, (fhir::Expr<'genv>, T)>,
+}
+
+impl<'genv, T> NodeMap<'genv, T> {
+    /// Add a `node` to the map with associated `data`
+    fn insert(&mut self, node: fhir::Expr<'genv>, data: T) {
+        assert!(self.map.insert(node.fhir_id, (node, data)).is_none());
+    }
+}
+
+impl<'genv, T> IntoIterator for NodeMap<'genv, T> {
+    type Item = (fhir::Expr<'genv>, T);
+
+    type IntoIter = std::collections::hash_map::IntoValues<FhirId, Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.map.into_values()
     }
 }
