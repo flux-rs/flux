@@ -12,11 +12,10 @@ use flux_common::{
 };
 use flux_config::{self as config, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{
-    Specs,
-    fhir::{Ignored, Trusted},
+use flux_syntax::{
+    ParseResult, ParseSess, surface,
+    surface::{Ignored, Specs, Trusted},
 };
-use flux_syntax::{ParseResult, ParseSess, surface};
 use itertools::Itertools;
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_errors::ErrorGuaranteed;
@@ -29,6 +28,7 @@ use rustc_hir::{
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
 
+use crate::collector::{hir::def_id::LocalModDefId, surface::Ident};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) struct SpecCollector<'sess, 'tcx> {
@@ -92,6 +92,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
+        self.collect_detached_specs(&mut attrs, CRATE_DEF_ID)?;
         self.specs
             .flux_items_by_parent
             .entry(CRATE_OWNER_ID)
@@ -106,7 +107,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-
+        self.collect_detached_specs(&mut attrs, CRATE_DEF_ID)?;
         match &item.kind {
             ItemKind::Fn { .. } => {
                 self.collect_fn_spec(owner_id, attrs)?;
@@ -482,6 +483,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("specs", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
+            }
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -489,6 +493,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
         Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
     }
+
+    // fn parse_detached_specs(&mut self, dargs: &rustc_ast::DelimArgs) -> Result<FluxAttrKind> {
+    //     let span = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
+    //     ParseSess::parse_detached_specs(&mut self.parse_sess, &mut self.specs, &dargs.tokens, span)
+    //         .map(|_| FluxAttrKind::DetachedSpecs)
+    //         .map_err(errors::SyntaxErr::from)
+    //         .emit(&self.errors)
+    // }
 
     fn parse<T>(
         &mut self,
@@ -536,6 +548,80 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             self.specs.infer_opts.insert(def_id, infer_opts);
         }
     }
+
+    fn collect_detached_specs(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) -> Result {
+        let Some(detached_specs) = attrs.detached_specs() else {
+            return Ok(());
+        };
+
+        self.collect_detached_specs_visitor(detached_specs, def_id)
+    }
+
+    fn collect_detached_specs_visitor(
+        &mut self,
+        detached_specs: surface::DetachedSpecs,
+        parent: LocalDefId,
+    ) -> Result {
+        let mut idents = detached_specs
+            .items
+            .into_iter()
+            .map(|item| (item.ident(), (item, None)))
+            .collect();
+
+        resolve_idents_in_scope(self.tcx, parent, &mut idents);
+
+        for (ident, (item, def_id)) in idents {
+            let Some(def_id) = def_id else {
+                return Err(self.errors.emit(errors::AttrMapErr {
+                    span: ident.span,
+                    message: format!("unresolved identifier `{ident}`"),
+                }));
+            };
+            let owner_id = self.tcx.local_def_id_to_hir_id(def_id).owner;
+            self.collect_detached_item(owner_id, item);
+        }
+        Ok(())
+    }
+
+    fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::DetachedItem) {
+        match item {
+            surface::DetachedItem::FnSig(_, fn_sig) => {
+                self.specs
+                    .fn_sigs
+                    .entry(owner_id)
+                    .or_insert(surface::FnSpec {
+                        fn_sig: Some(fn_sig),
+                        qual_names: None,
+                        reveal_names: None,
+                    });
+            }
+        }
+    }
+}
+
+struct DetachedIdentResolver<'a> {
+    items: &'a mut HashMap<Ident, (surface::DetachedItem, Option<LocalDefId>)>,
+}
+
+impl<'tcx> hir::intravisit::Visitor<'tcx> for DetachedIdentResolver<'_> {
+    fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
+        if let ItemKind::Fn { ident, .. } = item.kind {
+            if let Some(val) = self.items.get_mut(&ident)
+                && val.1.is_none()
+            {
+                val.1 = Some(item.owner_id.def_id)
+            }
+        }
+    }
+}
+
+fn resolve_idents_in_scope(
+    tcx: TyCtxt,
+    scope: LocalDefId,
+    idents: &mut HashMap<Ident, (surface::DetachedItem, Option<LocalDefId>)>,
+) {
+    let scope = LocalModDefId::new_unchecked(scope);
+    tcx.hir_visit_item_likes_in_module(scope, &mut DetachedIdentResolver { items: idents });
 }
 
 #[derive(Debug)]
@@ -572,6 +658,8 @@ enum FluxAttrKind {
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
+    /// See `detachXX.rs`
+    DetachedSpecs(surface::DetachedSpecs),
 }
 
 macro_rules! read_flag {
@@ -708,6 +796,10 @@ impl FluxAttrs {
     fn should_fail(&self) -> bool {
         read_flag!(self, ShouldFail)
     }
+
+    fn detached_specs(&mut self) -> Option<surface::DetachedSpecs> {
+        read_attr!(self, DetachedSpecs)
+    }
 }
 
 impl FluxAttrKind {
@@ -734,6 +826,7 @@ impl FluxAttrKind {
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
         }
     }
 }
@@ -930,6 +1023,9 @@ mod errors {
                     ParseErrorKind::InvalidSort => {
                         "property parameter sort is inherited from the primitive operator"
                             .to_string()
+                    }
+                    ParseErrorKind::InvalidDetachedSpec => {
+                        "detached spec requires an identifier name".to_string()
                     }
                 },
             );

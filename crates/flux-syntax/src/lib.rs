@@ -1,14 +1,15 @@
-#![feature(rustc_private, box_patterns, new_range_api)]
+#![feature(rustc_private, box_patterns, map_try_insert, new_range_api)]
 
 extern crate rustc_ast;
+extern crate rustc_data_structures;
 extern crate rustc_errors;
+extern crate rustc_hir;
 extern crate rustc_span;
 
 pub mod lexer;
 mod parser;
 pub mod surface;
 pub mod symbols;
-
 use lexer::{Cursor, TokenKind};
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
@@ -47,7 +48,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::FnSig> {
-        parser::parse_fn_sig(&mut self.cx(tokens, span))
+        parser::parse_fn_sig(&mut self.cx(tokens, span), true)
     }
 
     pub fn parse_trait_assoc_reft(
@@ -128,9 +129,17 @@ impl ParseSess {
         self.next_node_id += 1;
         id
     }
+
+    pub fn parse_detached_specs(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<surface::DetachedSpecs> {
+        parser::parse_detached_specs(&mut self.cx(tokens, span))
+    }
 }
 
-struct ParseCtxt<'a> {
+pub struct ParseCtxt<'a> {
     sess: &'a mut ParseSess,
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
@@ -139,7 +148,7 @@ struct ParseCtxt<'a> {
 }
 
 impl<'a> ParseCtxt<'a> {
-    fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
+    pub fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
         Self {
             sess,
             ctx: span.ctxt(),
@@ -198,4 +207,5 @@ pub enum ParseErrorKind {
     CannotBeChained,
     InvalidBinding,
     InvalidSort,
+    InvalidDetachedSpec,
 }

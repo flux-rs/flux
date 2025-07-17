@@ -19,13 +19,13 @@ use crate::{
     },
     parser::lookahead::{AnyOf, Expected, PeekExpected as _},
     surface::{
-        Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
-        FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam,
-        Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind, Mutability, ParamMode,
-        Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
-        RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc, Spread,
-        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        self, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
+        ConstructorArg, DetachedItem, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment,
+        FieldExpr, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
+        GenericParam, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl, LitKind, Mutability,
+        ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
+        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
+        Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
     symbols::{kw, sym},
@@ -104,6 +104,35 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
         parse_sort_decl(cx).map(Item::SortDecl)
     } else if lookahead.peek(kw::Property) {
         parse_primop_property(cx).map(Item::PrimOpProp)
+    } else {
+        Err(lookahead.into_error())
+    }
+}
+
+///```text
+/// <specs> ::= <spec>*
+/// ```
+pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::DetachedSpecs> {
+    let items = until(cx, token::Eof, parse_detached_item)?;
+    Ok(surface::DetachedSpecs { items })
+}
+
+///```text
+/// <spec>  ::= <fn-spec>
+///           | <struct-spec>
+///           | <enum-spec>
+///           | impl <PATH> { <specs> }
+///           | mod  <PATH> { <specs> }
+/// ```
+pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
+    let mut lookahead = cx.lookahead1();
+    if lookahead.peek(kw::Fn) {
+        let fn_sig = parse_fn_sig(cx, false)?;
+        let ident = fn_sig.ident.clone().ok_or_else(|| {
+            ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span: fn_sig.span }
+        })?;
+
+        Ok(DetachedItem::FnSig(ident, fn_sig))
     } else {
         Err(lookahead.into_error())
     }
@@ -389,7 +418,7 @@ fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnI
 ///             ⟨-> ⟨ty⟩⟩?
 ///             ⟨requires⟩ ⟨ensures⟩ ⟨where⟩
 /// ```
-pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
+pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt, eof: bool) -> ParseResult<FnSig> {
     let lo = cx.lo();
     let asyncness = parse_asyncness(cx);
     cx.expect(kw::Fn)?;
@@ -406,7 +435,9 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt) -> ParseResult<FnSig> {
     let ensures = parse_opt_ensures(cx)?;
     let inputs = mut_as_strg(inputs, &ensures)?;
     generics.predicates = parse_opt_where(cx)?;
-    cx.expect(token::Eof)?;
+    if eof {
+        cx.expect(token::Eof)?;
+    }
     let hi = cx.hi();
     Ok(FnSig {
         asyncness,

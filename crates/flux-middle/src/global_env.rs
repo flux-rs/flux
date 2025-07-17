@@ -5,6 +5,7 @@ use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
+use flux_syntax::surface::Specs;
 use rustc_data_structures::unord::UnordSet;
 use rustc_hir::{
     def::DefKind,
@@ -64,7 +65,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.sess
     }
 
-    pub fn collect_specs(self) -> &'genv crate::Specs {
+    pub fn collect_specs(self) -> &'genv Specs {
         self.inner.queries.collect_specs(self)
     }
 
