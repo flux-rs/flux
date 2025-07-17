@@ -574,6 +574,20 @@ impl Expr {
         vec
     }
 
+    pub fn flatten_impls(&self) -> (Vec<&Expr>, &Expr) {
+        fn go<'a>(e: &'a Expr, impls: &mut Vec<&'a Expr>) -> &'a Expr {
+            if let ExprKind::BinaryOp(BinOp::Imp, e1, e2) = e.kind() {
+                impls.push(e1);
+                go(e2, impls)
+            } else {
+                e
+            }
+        }
+        let mut impls = vec![];
+        let rhs = go(self, &mut impls);
+        (impls, rhs)
+    }
+
     pub fn has_evars(&self) -> bool {
         struct HasEvars;
 

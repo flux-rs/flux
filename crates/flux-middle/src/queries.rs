@@ -734,12 +734,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| (self.providers.fn_sig)(genv, def_id.local_id()),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    let fn_sig = genv
+                    let mut fn_sig = genv
                         .lower_fn_sig(def_id)?
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
-                        .hoist_input_binders()
-                        .add_weak_kvars(def_id);
+                        .hoist_input_binders();
+                    if genv.weak_kvars_for(def_id).is_none() {
+                        fn_sig = fn_sig.add_weak_kvars(def_id);
+                    }
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )
