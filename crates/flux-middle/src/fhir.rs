@@ -84,6 +84,7 @@ impl From<bool> for Trusted {
         if value { Trusted::Yes } else { Trusted::No }
     }
 }
+
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
