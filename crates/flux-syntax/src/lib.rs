@@ -1,7 +1,9 @@
-#![feature(rustc_private, box_patterns, new_range_api)]
+#![feature(rustc_private, box_patterns, map_try_insert, new_range_api)]
 
 extern crate rustc_ast;
+extern crate rustc_data_structures;
 extern crate rustc_errors;
+extern crate rustc_hir;
 extern crate rustc_span;
 
 pub mod lexer;
@@ -130,7 +132,7 @@ impl ParseSess {
     }
 }
 
-struct ParseCtxt<'a> {
+pub struct ParseCtxt<'a> {
     sess: &'a mut ParseSess,
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
@@ -139,7 +141,7 @@ struct ParseCtxt<'a> {
 }
 
 impl<'a> ParseCtxt<'a> {
-    fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
+    pub fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
         Self {
             sess,
             ctx: span.ctxt(),

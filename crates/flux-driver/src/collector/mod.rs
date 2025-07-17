@@ -12,11 +12,10 @@ use flux_common::{
 };
 use flux_config::{self as config, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{
-    Specs,
-    fhir::{Ignored, Trusted},
+use flux_syntax::{
+    ParseCtxt, ParseResult, ParseSess, surface,
+    surface::{Ignored, Specs, Trusted},
 };
-use flux_syntax::{ParseResult, ParseSess, surface};
 use itertools::Itertools;
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_errors::ErrorGuaranteed;
@@ -24,11 +23,10 @@ use rustc_hir::{
     self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
     VariantData,
     def::DefKind,
-    def_id::{CRATE_DEF_ID, LocalDefId},
+    def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
-
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) struct SpecCollector<'sess, 'tcx> {
@@ -483,7 +481,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
             ("specs", hir::AttrArgs::Delimited(dargs)) => {
-                panic!("oh boyo: {dargs:#?}")
+                self.parse_detached_specs(dargs)?;
+                FluxAttrKind::DetachedSpecs
             }
             _ => return Err(invalid_attr_err(self)),
         };
@@ -491,6 +490,15 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             self.stats.add(self.tcx, segment.as_str(), &attr_item.args);
         }
         Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
+    }
+
+    fn parse_detached_specs(&mut self, dargs: &rustc_ast::DelimArgs) -> Result {
+        let span = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
+        let tokens = &dargs.tokens;
+        let mut cx = SpecsParseCtxt::new(&mut self.parse_sess, &mut self.specs, tokens, span);
+        cx.parse()
+            .map_err(errors::SyntaxErr::from)
+            .emit(&self.errors)
     }
 
     fn parse<T>(
@@ -541,6 +549,40 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 }
 
+struct SpecsParseCtxt<'a> {
+    inner: ParseCtxt<'a>,
+    specs: &'a mut Specs,
+    stack: Vec<DefId>,
+}
+
+impl<'a> SpecsParseCtxt<'a> {
+    fn new(
+        sess: &'a mut ParseSess,
+        specs: &'a mut Specs,
+        tokens: &'a TokenStream,
+        span: Span,
+    ) -> Self {
+        Self { inner: ParseCtxt::new(sess, tokens, span), specs, stack: vec![] }
+    }
+
+    ///```text
+    /// <specs> ::= <spec>*
+    /// <spec>  ::= <fn-spec>
+    ///           | <struct-spec>
+    ///           | <enum-spec>
+    ///           | <impl-spec>
+    ///           | <mod-spec>
+    /// ```
+    fn parse(&mut self) -> ParseResult {
+        // while !self.inner.peek(token::Eof) {
+        //     self.parse_flux_item(&mut self.specs)?;
+        // }
+
+        todo!("SpecsParseCtxt::parse")
+        // see parse_flux_item
+    }
+}
+
 #[derive(Debug)]
 struct FluxAttrs {
     map: HashMap<&'static str, Vec<FluxAttr>>,
@@ -575,7 +617,8 @@ enum FluxAttrKind {
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
-    Detached(Specs),
+    /// See `detachXX.rs`
+    DetachedSpecs,
 }
 
 macro_rules! read_flag {
@@ -738,7 +781,7 @@ impl FluxAttrKind {
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
-            FluxAttrKind::Detached(_) => attr_name!(Detached),
+            FluxAttrKind::DetachedSpecs => attr_name!(DetachedSpecs),
         }
     }
 }

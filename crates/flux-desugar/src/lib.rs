@@ -13,6 +13,7 @@ extern crate rustc_span;
 use desugar::RustItemCtxt;
 use flux_common::result::{ErrorCollector, ResultExt};
 use flux_macros::fluent_messages;
+use flux_syntax::surface::Specs;
 use rustc_data_structures::unord::UnordMap;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -22,7 +23,7 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    ResolverOutput, Specs,
+    ResolverOutput,
     def_id::FluxLocalDefId,
     fhir,
     global_env::GlobalEnv,

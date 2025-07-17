@@ -1,7 +1,7 @@
 use std::iter;
 
-use flux_middle::ExternSpecMappingErr;
 use flux_rustc_bridge::lowering;
+use flux_syntax::surface::ExternSpecMappingErr;
 use rustc_errors::Diagnostic;
 use rustc_hir as hir;
 use rustc_hir::{

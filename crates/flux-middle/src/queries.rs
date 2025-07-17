@@ -11,6 +11,7 @@ use flux_rustc_bridge::{
     lowering::{self, Lower, UnsupportedErr},
     mir, ty,
 };
+use flux_syntax::surface::Specs;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
@@ -153,7 +154,7 @@ impl ErrCtxt {
 }
 
 pub struct Providers {
-    pub collect_specs: fn(GlobalEnv) -> crate::Specs,
+    pub collect_specs: fn(GlobalEnv) -> Specs,
     pub resolve_crate: fn(GlobalEnv) -> crate::ResolverOutput,
     pub desugar: for<'genv> fn(
         GlobalEnv<'genv, '_>,
@@ -229,7 +230,7 @@ impl Default for Providers {
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<mir::Body<'tcx>>>>,
-    collect_specs: OnceCell<crate::Specs>,
+    collect_specs: OnceCell<Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
     fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
@@ -309,7 +310,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn collect_specs(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv crate::Specs {
+    pub(crate) fn collect_specs(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv Specs {
         self.collect_specs
             .get_or_init(|| (self.providers.collect_specs)(genv))
     }
