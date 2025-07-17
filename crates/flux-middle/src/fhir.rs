@@ -41,6 +41,49 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
+/// A boolean-like enum used to mark whether a piece of code is ignored.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Ignored {
+    Yes,
+    No,
+}
+
+impl Ignored {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Ignored::Yes => true,
+            Ignored::No => false,
+        }
+    }
+}
+
+impl From<bool> for Ignored {
+    fn from(value: bool) -> Self {
+        if value { Ignored::Yes } else { Ignored::No }
+    }
+}
+
+/// A boolean-like enum used to mark whether some code should be trusted.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Trusted {
+    Yes,
+    No,
+}
+
+impl Trusted {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Trusted::Yes => true,
+            Trusted::No => false,
+        }
+    }
+}
+
+impl From<bool> for Trusted {
+    fn from(value: bool) -> Self {
+        if value { Trusted::Yes } else { Trusted::No }
+    }
+}
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],

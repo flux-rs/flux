@@ -11,7 +11,6 @@ use flux_rustc_bridge::{
     lowering::{self, Lower, UnsupportedErr},
     mir, ty,
 };
-use flux_syntax::surface::Specs;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
@@ -24,6 +23,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
+    Specs,
     def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,

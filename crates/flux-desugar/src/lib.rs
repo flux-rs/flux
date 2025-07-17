@@ -13,7 +13,6 @@ extern crate rustc_span;
 use desugar::RustItemCtxt;
 use flux_common::result::{ErrorCollector, ResultExt};
 use flux_macros::fluent_messages;
-use flux_syntax::surface::Specs;
 use rustc_data_structures::unord::UnordMap;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -23,7 +22,7 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    ResolverOutput,
+    ResolverOutput, Specs,
     def_id::FluxLocalDefId,
     fhir,
     global_env::GlobalEnv,
@@ -313,16 +312,16 @@ impl CrateDesugar<'_, '_> {
                 let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
                 match item {
                     surface::Item::Qualifier(qual) => {
-                        self.desugar_qualifier(def_id, qual)
+                        self.desugar_qualifier(def_id, &qual)
                             .collect_err(&mut self.err);
                     }
                     surface::Item::FuncDef(defn) => {
-                        self.desugar_func_defn(def_id, defn)
+                        self.desugar_func_defn(def_id, &defn)
                             .collect_err(&mut self.err);
                     }
                     surface::Item::SortDecl(_) => {}
                     surface::Item::PrimOpProp(primop_prop) => {
-                        self.desugar_primop_prop(def_id, primop_prop)
+                        self.desugar_primop_prop(def_id, &primop_prop)
                             .collect_err(&mut self.err);
                     }
                 }

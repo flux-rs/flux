@@ -5,7 +5,6 @@ use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
-use flux_syntax::surface::Specs;
 use rustc_data_structures::unord::UnordSet;
 use rustc_hir::{
     def::DefKind,
@@ -18,6 +17,7 @@ use rustc_middle::{
 pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
+    Specs,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},

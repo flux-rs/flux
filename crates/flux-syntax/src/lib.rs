@@ -1,9 +1,7 @@
 #![feature(rustc_private, box_patterns, map_try_insert, new_range_api)]
 
 extern crate rustc_ast;
-extern crate rustc_data_structures;
 extern crate rustc_errors;
-extern crate rustc_hir;
 extern crate rustc_span;
 
 pub mod lexer;

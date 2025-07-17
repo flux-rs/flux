@@ -4,13 +4,12 @@ use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
 use flux_middle::{
-    fhir,
+    Specs, fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     timings,
 };
 use flux_refineck as refineck;
-use flux_syntax::surface::Specs;
 use itertools::Itertools;
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};

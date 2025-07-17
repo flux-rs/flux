@@ -12,10 +12,11 @@ use flux_common::{
 };
 use flux_config::{self as config, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
-use flux_syntax::{
-    ParseResult, ParseSess, surface,
-    surface::{Ignored, Specs, Trusted},
+use flux_middle::{
+    Specs,
+    fhir::{Ignored, Trusted},
 };
+use flux_syntax::{ParseResult, ParseSess, surface};
 use itertools::Itertools;
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_errors::ErrorGuaranteed;
@@ -107,7 +108,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-        self.collect_detached_specs(&mut attrs, CRATE_DEF_ID)?;
         match &item.kind {
             ItemKind::Fn { .. } => {
                 self.collect_fn_spec(owner_id, attrs)?;
@@ -493,14 +493,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
         Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
     }
-
-    // fn parse_detached_specs(&mut self, dargs: &rustc_ast::DelimArgs) -> Result<FluxAttrKind> {
-    //     let span = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
-    //     ParseSess::parse_detached_specs(&mut self.parse_sess, &mut self.specs, &dargs.tokens, span)
-    //         .map(|_| FluxAttrKind::DetachedSpecs)
-    //         .map_err(errors::SyntaxErr::from)
-    //         .emit(&self.errors)
-    // }
 
     fn parse<T>(
         &mut self,

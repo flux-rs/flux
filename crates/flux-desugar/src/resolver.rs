@@ -6,12 +6,12 @@ use flux_common::{
 };
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
-    ResolverOutput,
+    ResolverOutput, Specs,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
     fhir,
     global_env::GlobalEnv,
 };
-use flux_syntax::surface::{self, Ident, Specs, visit::Visitor as _};
+use flux_syntax::surface::{self, Ident, visit::Visitor as _};
 use hir::{ItemId, ItemKind, OwnerId, def::DefKind};
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
