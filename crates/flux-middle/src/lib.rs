@@ -318,7 +318,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
     Some(sort)
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Specs {
     pub fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
     pub constants: UnordMap<OwnerId, surface::ConstantInfo>,
@@ -341,9 +341,9 @@ pub struct Specs {
     /// in the set).
     ///
     /// [ignored items]: Specs::ignores
-    pub dummy_extern: UnordSet<LocalDefId>,
-    pub extern_id_to_local_id: UnordMap<DefId, LocalDefId>,
-    pub local_id_to_extern_id: UnordMap<LocalDefId, DefId>,
+    dummy_extern: UnordSet<LocalDefId>,
+    extern_id_to_local_id: UnordMap<DefId, LocalDefId>,
+    local_id_to_extern_id: UnordMap<LocalDefId, DefId>,
 }
 
 impl Specs {
