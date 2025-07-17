@@ -17,7 +17,7 @@ use crate::{
         TokenKind::{self, Caret, Comma},
         token,
     },
-    parser::lookahead::{AnyOf, Expected, PeekExpected as _, Peekable},
+    parser::lookahead::{AnyOf, Expected, Parser, PeekExpected as _},
     surface::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
@@ -111,14 +111,21 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
 
 ///```text
 /// <specs> ::= <spec>*
+/// ```
+pub(crate) fn parse_detached_specs(cx: &mut SpecsParseCtxt) -> ParseResult {
+    until(cx, token::Eof, parse_detached_spec)?;
+    Ok(())
+}
+
+///```text
 /// <spec>  ::= <fn-spec>
 ///           | <struct-spec>
 ///           | <enum-spec>
-///           | <impl-spec>
-///           | <mod-spec>
+///           | impl <PATH> { <specs> }
+///           | mod  <PATH> { <specs> }
 /// ```
-pub(crate) fn parse_detached_specs(cx: &mut SpecsParseCtxt) -> ParseResult {
-    todo!("parse-detached_specs")
+pub(crate) fn parse_detached_spec(cx: &mut SpecsParseCtxt) -> ParseResult {
+    todo!("parse-detached-spec")
 }
 
 fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {

@@ -5,7 +5,7 @@ use std::fmt;
 use rustc_span::{Symbol, edition::Edition};
 
 use crate::{
-    ParseCtxt, ParseError, ParseResult,
+    ParseCtxt, ParseError, ParseResult, SpecsParseCtxt,
     lexer::{Token, TokenKind},
     surface::BinOp,
     symbols,
@@ -194,15 +194,23 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
     }
 }
 
-pub(crate) trait Peekable {
+pub(crate) trait Parser {
     fn peek<T: Peek>(&mut self, t: T) -> bool;
 }
 
-impl<'cx> Peekable for ParseCtxt<'cx> {
+impl Parser for ParseCtxt<'_> {
     /// Looks at the next token in the underlying cursor to determine whether it matches the
     /// requested type of token. Does not advance the position of the cursor.
     fn peek<T: Peek>(&mut self, t: T) -> bool {
         self.peek_at(0, t)
+    }
+}
+
+impl Parser for SpecsParseCtxt<'_> {
+    /// Looks at the next token in the underlying cursor to determine whether it matches the
+    /// requested type of token. Does not advance the position of the cursor.
+    fn peek<T: Peek>(&mut self, t: T) -> bool {
+        self.inner.peek_at(0, t)
     }
 }
 
