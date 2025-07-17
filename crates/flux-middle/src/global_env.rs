@@ -17,7 +17,6 @@ use rustc_middle::{
 pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
-    Specs,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -65,7 +64,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.sess
     }
 
-    pub fn collect_specs(self) -> &'genv Specs {
+    pub fn collect_specs(self) -> &'genv crate::Specs {
         self.inner.queries.collect_specs(self)
     }
 
