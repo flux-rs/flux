@@ -23,7 +23,6 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    Specs,
     def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
@@ -154,7 +153,7 @@ impl ErrCtxt {
 }
 
 pub struct Providers {
-    pub collect_specs: fn(GlobalEnv) -> Specs,
+    pub collect_specs: fn(GlobalEnv) -> crate::Specs,
     pub resolve_crate: fn(GlobalEnv) -> crate::ResolverOutput,
     pub desugar: for<'genv> fn(
         GlobalEnv<'genv, '_>,
