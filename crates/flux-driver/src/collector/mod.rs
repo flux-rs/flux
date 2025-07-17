@@ -13,7 +13,7 @@ use flux_common::{
 use flux_config::{self as config, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
 use flux_syntax::{
-    ParseCtxt, ParseResult, ParseSess, surface,
+    ParseResult, ParseSess, surface,
     surface::{Ignored, Specs, Trusted},
 };
 use itertools::Itertools;
@@ -23,7 +23,7 @@ use rustc_hir::{
     self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
     VariantData,
     def::DefKind,
-    def_id::{CRATE_DEF_ID, DefId, LocalDefId},
+    def_id::{CRATE_DEF_ID, LocalDefId},
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
@@ -480,10 +480,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
-            ("specs", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse_detached_specs(dargs)?;
-                FluxAttrKind::DetachedSpecs
-            }
+            ("specs", hir::AttrArgs::Delimited(dargs)) => self.parse_detached_specs(dargs)?,
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -492,11 +489,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
     }
 
-    fn parse_detached_specs(&mut self, dargs: &rustc_ast::DelimArgs) -> Result {
+    fn parse_detached_specs(&mut self, dargs: &rustc_ast::DelimArgs) -> Result<FluxAttrKind> {
         let span = dargs.dspan.entire().with_ctxt(SyntaxContext::root());
-        let tokens = &dargs.tokens;
-        let mut cx = SpecsParseCtxt::new(&mut self.parse_sess, &mut self.specs, tokens, span);
-        cx.parse()
+        ParseSess::parse_detached_specs(&mut self.parse_sess, &mut self.specs, &dargs.tokens, span)
+            .map(|_| FluxAttrKind::DetachedSpecs)
             .map_err(errors::SyntaxErr::from)
             .emit(&self.errors)
     }
@@ -546,40 +542,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let Some(infer_opts) = attrs.infer_opts() {
             self.specs.infer_opts.insert(def_id, infer_opts);
         }
-    }
-}
-
-struct SpecsParseCtxt<'a> {
-    inner: ParseCtxt<'a>,
-    specs: &'a mut Specs,
-    stack: Vec<DefId>,
-}
-
-impl<'a> SpecsParseCtxt<'a> {
-    fn new(
-        sess: &'a mut ParseSess,
-        specs: &'a mut Specs,
-        tokens: &'a TokenStream,
-        span: Span,
-    ) -> Self {
-        Self { inner: ParseCtxt::new(sess, tokens, span), specs, stack: vec![] }
-    }
-
-    ///```text
-    /// <specs> ::= <spec>*
-    /// <spec>  ::= <fn-spec>
-    ///           | <struct-spec>
-    ///           | <enum-spec>
-    ///           | <impl-spec>
-    ///           | <mod-spec>
-    /// ```
-    fn parse(&mut self) -> ParseResult {
-        // while !self.inner.peek(token::Eof) {
-        //     self.parse_flux_item(&mut self.specs)?;
-        // }
-
-        todo!("SpecsParseCtxt::parse")
-        // see parse_flux_item
     }
 }
 

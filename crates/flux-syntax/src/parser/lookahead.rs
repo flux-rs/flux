@@ -194,16 +194,22 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
     }
 }
 
+pub(crate) trait Peekable {
+    fn peek<T: Peek>(&mut self, t: T) -> bool;
+}
+
+impl<'cx> Peekable for ParseCtxt<'cx> {
+    /// Looks at the next token in the underlying cursor to determine whether it matches the
+    /// requested type of token. Does not advance the position of the cursor.
+    fn peek<T: Peek>(&mut self, t: T) -> bool {
+        self.peek_at(0, t)
+    }
+}
+
 impl<'cx> ParseCtxt<'cx> {
     /// Returns the token at the requested position.
     pub(crate) fn at(&mut self, n: usize) -> Token {
         self.tokens.at(n)
-    }
-
-    /// Looks at the next token in the underlying cursor to determine whether it matches the
-    /// requested type of token. Does not advance the position of the cursor.
-    pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
-        self.peek_at(0, t)
     }
 
     /// Looks at the next two tokens

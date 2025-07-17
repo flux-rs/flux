@@ -1,9 +1,9 @@
 //! Implementation of parser combinators
-
 use super::{LAngle, RAngle, lookahead::Peek};
 use crate::{
     ParseCtxt, ParseResult,
     lexer::{Delimiter, TokenKind},
+    parser::lookahead::Peekable,
 };
 
 /// Parses a list of one ore more items separated by the requested token. Parsing continues
@@ -36,10 +36,10 @@ pub(crate) fn repeat_while<P: Peek, R>(
 
 /// Parses a list of zero or more items. Parsing continues until the requested `end` token
 /// is reached. This does not consume the end token.
-pub(crate) fn until<P: Peek, R>(
-    cx: &mut ParseCtxt,
+pub(crate) fn until<Cx: Peekable, P: Peek, R>(
+    cx: &mut Cx,
     end: P,
-    mut parse: impl FnMut(&mut ParseCtxt) -> ParseResult<R>,
+    mut parse: impl FnMut(&mut Cx) -> ParseResult<R>,
 ) -> ParseResult<Vec<R>> {
     let mut items = vec![];
     while !cx.peek(end) {

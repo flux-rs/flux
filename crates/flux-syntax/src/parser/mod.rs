@@ -10,14 +10,14 @@ use utils::{
 };
 
 use crate::{
-    ParseCtxt, ParseError, ParseResult,
+    ParseCtxt, ParseError, ParseResult, SpecsParseCtxt,
     lexer::{
         Delimiter::*,
         Token,
         TokenKind::{self, Caret, Comma},
         token,
     },
-    parser::lookahead::{AnyOf, Expected, PeekExpected as _},
+    parser::lookahead::{AnyOf, Expected, PeekExpected as _, Peekable},
     surface::{
         Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput,
@@ -107,6 +107,18 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     } else {
         Err(lookahead.into_error())
     }
+}
+
+///```text
+/// <specs> ::= <spec>*
+/// <spec>  ::= <fn-spec>
+///           | <struct-spec>
+///           | <enum-spec>
+///           | <impl-spec>
+///           | <mod-spec>
+/// ```
+pub(crate) fn parse_detached_specs(cx: &mut SpecsParseCtxt) -> ParseResult {
+    todo!("parse-detached_specs")
 }
 
 fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {

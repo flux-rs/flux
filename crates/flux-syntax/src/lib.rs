@@ -10,13 +10,16 @@ pub mod lexer;
 mod parser;
 pub mod surface;
 pub mod symbols;
-
 use lexer::{Cursor, TokenKind};
 use rustc_ast::tokenstream::TokenStream;
-use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
+use rustc_span::{
+    BytePos, Span, Symbol, SyntaxContext,
+    def_id::{DefId, LocalDefId},
+    edition::Edition,
+};
 use surface::NodeId;
 
-use crate::parser::lookahead::Expected;
+use crate::{parser::lookahead::Expected, surface::Specs};
 
 #[derive(Default)]
 pub struct ParseSess {
@@ -26,6 +29,15 @@ pub struct ParseSess {
 impl ParseSess {
     fn cx<'a>(&'a mut self, tokens: &'a TokenStream, span: Span) -> ParseCtxt<'a> {
         ParseCtxt::new(self, tokens, span)
+    }
+
+    fn specs_cx<'a>(
+        &'a mut self,
+        specs: &'a mut Specs,
+        tokens: &'a TokenStream,
+        span: Span,
+    ) -> SpecsParseCtxt<'a> {
+        SpecsParseCtxt::new(self, specs, tokens, span)
     }
 
     pub fn parse_refined_by(
@@ -129,6 +141,32 @@ impl ParseSess {
         let id = NodeId(self.next_node_id);
         self.next_node_id += 1;
         id
+    }
+
+    pub fn parse_detached_specs(
+        &mut self,
+        specs: &mut Specs,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult {
+        parser::parse_detached_specs(&mut self.specs_cx(specs, tokens, span))
+    }
+}
+
+pub struct SpecsParseCtxt<'a> {
+    inner: ParseCtxt<'a>,
+    specs: &'a mut Specs,
+    stack: Vec<DefId>,
+}
+
+impl<'a> SpecsParseCtxt<'a> {
+    pub fn new(
+        sess: &'a mut ParseSess,
+        specs: &'a mut Specs,
+        tokens: &'a TokenStream,
+        span: Span,
+    ) -> Self {
+        Self { inner: ParseCtxt::new(sess, tokens, span), specs, stack: vec![] }
     }
 }
 
