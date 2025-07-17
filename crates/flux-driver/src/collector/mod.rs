@@ -597,12 +597,11 @@ struct DetachedIdentResolver<'a> {
 
 impl<'tcx> hir::intravisit::Visitor<'tcx> for DetachedIdentResolver<'_> {
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
-        if let ItemKind::Fn { ident, .. } = item.kind {
-            if let Some(val) = self.items.get_mut(&ident)
-                && val.1.is_none()
-            {
-                val.1 = Some(item.owner_id.def_id)
-            }
+        if let ItemKind::Fn { ident, .. } = item.kind
+            && let Some(val) = self.items.get_mut(&ident)
+            && val.1.is_none()
+        {
+            val.1 = Some(item.owner_id.def_id);
         }
     }
 }

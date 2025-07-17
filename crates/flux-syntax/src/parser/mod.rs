@@ -128,10 +128,9 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedIte
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(kw::Fn) {
         let fn_sig = parse_fn_sig(cx, false)?;
-        let ident = fn_sig.ident.clone().ok_or_else(|| {
+        let ident = fn_sig.ident.ok_or({
             ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span: fn_sig.span }
         })?;
-
         Ok(DetachedItem::FnSig(ident, fn_sig))
     } else {
         Err(lookahead.into_error())
