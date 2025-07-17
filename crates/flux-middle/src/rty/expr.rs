@@ -600,6 +600,31 @@ impl Expr {
         }
         self.fold_with(&mut SpanEraser)
     }
+
+    /// Replaces [`BoundReftKind::Named(..)`] in [`Var::Bound(..)`] with
+    /// [`BoundReftKind::Annon`]. This is to ensure that expr equality works
+    /// properly --- the names are just annotations that do not change the
+    /// expressions themselves.
+    ///
+    /// If you think you need this function, you may be looking for
+    /// [`Expr::erase_metadata()`].
+    pub fn erase_bound_reft_kind(&self) -> Expr {
+        struct BoundReftKindEraser;
+        impl TypeFolder for BoundReftKindEraser {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::Var(Var::Bound(db_index, BoundReft { var, kind: BoundReftKind::Named(_) })) = expr.kind() {
+                    Expr::bvar(*db_index, *var, BoundReftKind::Annon)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut BoundReftKindEraser)
+    }
+
+    pub fn erase_metadata(&self) -> Expr {
+        self.erase_spans().erase_bound_reft_kind()
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]

@@ -75,6 +75,14 @@ impl RefineTree {
         RefineTree { root: NodePtr(Rc::new(RefCell::new(new_root))) }
     }
 
+    pub(crate) fn lhs_wkvars(&self) -> HashSet<rty::WKVid> {
+        unimplemented!()
+    }
+
+    pub(crate) fn rhs_wkvars(&self) -> HashSet<rty::WKVid> {
+        unimplemented!()
+    }
+
     pub(crate) fn into_fixpoint(
         self,
         cx: &mut FixpointCtxt<Tag>,

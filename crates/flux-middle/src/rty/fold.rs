@@ -1,7 +1,7 @@
 //! This modules follows the implementation of folding in rustc. For more information read the
 //! documentation in [`rustc_middle::ty::fold`].
 
-use std::ops::ControlFlow;
+use std::{collections::HashSet, ops::ControlFlow};
 
 use flux_arc_interner::{Internable, List};
 use flux_common::bug;
@@ -10,9 +10,7 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
-    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind, TyOrBase, normalize::Normalizer,
+    normalize::Normalizer, BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, WKVid
 };
 use crate::{
     global_env::GlobalEnv,
@@ -235,6 +233,23 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectEarlyParams(FxHashSet::default());
+        let _ = self.visit_with(&mut collector);
+        collector.0
+    }
+
+    fn wkvars(&self) -> HashSet<WKVid> {
+        struct CollectWKVids(HashSet<WKVid>);
+
+        impl TypeVisitor for CollectWKVids {
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::WKVar(wkvar) = e.kind() {
+                    self.0.insert(wkvar.wkvid);
+                }
+                e.super_visit_with(self)
+            }
+        }
+
+        let mut collector = CollectWKVids(HashSet::default());
         let _ = self.visit_with(&mut collector);
         collector.0
     }
