@@ -108,6 +108,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
+
         match &item.kind {
             ItemKind::Fn { .. } => {
                 self.collect_fn_spec(owner_id, attrs)?;
