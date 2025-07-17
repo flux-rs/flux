@@ -229,7 +229,7 @@ impl Default for Providers {
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<mir::Body<'tcx>>>>,
-    collect_specs: OnceCell<Specs>,
+    collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
     fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
@@ -309,7 +309,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn collect_specs(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv Specs {
+    pub(crate) fn collect_specs(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv crate::Specs {
         self.collect_specs
             .get_or_init(|| (self.providers.collect_specs)(genv))
     }
