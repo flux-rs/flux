@@ -205,6 +205,7 @@ impl<'cx> ParseCtxt<'cx> {
     pub(crate) fn peek<T: Peek>(&mut self, t: T) -> bool {
         self.peek_at(0, t)
     }
+
     /// Looks at the next two tokens
     pub(crate) fn peek2<T1: Peek, T2: Peek>(&mut self, t1: T1, t2: T2) -> bool {
         self.peek_at(0, t1) && self.peek_at(1, t2)

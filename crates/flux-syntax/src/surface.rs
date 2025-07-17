@@ -5,11 +5,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
-pub use rustc_span::{
-    Span,
-    def_id::{DefId, LocalDefId},
-    symbol::Ident,
-};
+pub use rustc_span::{Span, symbol::Ident};
 use rustc_span::{Symbol, symbol::sym};
 
 use crate::surface::visit::Visitor;

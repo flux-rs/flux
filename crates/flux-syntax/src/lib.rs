@@ -137,7 +137,7 @@ impl ParseSess {
     }
 }
 
-pub struct ParseCtxt<'a> {
+struct ParseCtxt<'a> {
     sess: &'a mut ParseSess,
     ctx: SyntaxContext,
     parent: Option<LocalDefId>,
@@ -146,7 +146,7 @@ pub struct ParseCtxt<'a> {
 }
 
 impl<'a> ParseCtxt<'a> {
-    pub fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
+    fn new(sess: &'a mut ParseSess, tokens: &'a TokenStream, span: Span) -> Self {
         Self {
             sess,
             ctx: span.ctxt(),
