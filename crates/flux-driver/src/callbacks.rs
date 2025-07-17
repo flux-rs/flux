@@ -114,7 +114,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("-----------------------");
         println!("Starting solution loop.");
 
-        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 25)
+        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100)
         {
             Ok((solution, errors)) => (solution, errors),
             Err(e) => panic!("Encountered error {:?}", e),
@@ -136,7 +136,13 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(*wkvid, solution_subst.clone())].into() };
             let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
             println!(" (found)  {:?}", solution_subst);
-            println!(" (actual) {:?}", genv.weak_kvars_for(wkvid.0).unwrap()[&wkvid.1.as_u32()].iter().map(|expr| format!("{:?}", expr)).join(" && "));
+            if let Some(solution_map) = genv.weak_kvars_for(wkvid.0) {
+                if let Some(sols) = solution_map.get(&wkvid.1.as_u32()) {
+                    println!(" (actual) {:?}", sols.iter().map(|expr| format!("{:?}", expr)).join(" && "));
+                } else {
+                    println!(" (actual) None");
+                }
+            }
             let num_solved = solution.solved_exprs.as_ref().map_or(0, |es| es.skip_binder_ref().len());
             let num_assumed = solution.assumed_exprs.as_ref().map_or(0, |es| es.skip_binder_ref().len());
             let num_removed = solution.removed_solved_exprs.len();

@@ -585,7 +585,7 @@ fn variants_of(
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    match genv.fhir_node(def_id.local_id())? {
+     match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
         | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
@@ -600,9 +600,10 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
 
             let mut fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, &fn_sig, def_id)?;
             if fn_sig.vars().is_empty() {
-                fn_sig = fn_sig
-                    .hoist_input_binders()
-                    .add_weak_kvars(def_id.local_id().into());
+                fn_sig = fn_sig.hoist_input_binders();
+                if genv.weak_kvars_for(def_id.local_id().into()).is_none() {
+                    fn_sig = fn_sig.add_weak_kvars(def_id.local_id().into());
+                }
             }
 
             if config::dump_rty() {

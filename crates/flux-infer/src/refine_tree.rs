@@ -79,12 +79,24 @@ impl RefineTree {
         RefineTree { root: NodePtr(Rc::new(RefCell::new(new_root))) }
     }
 
-    pub(crate) fn lhs_wkvars(&self) -> HashSet<rty::WKVid> {
-        unimplemented!()
-    }
-
-    pub(crate) fn rhs_wkvars(&self) -> HashSet<rty::WKVid> {
-        unimplemented!()
+    /// Returns wkvars appearing in (assumptive position, head position)
+    pub(crate) fn wkvars(&self) -> (HashSet<rty::WKVid>, HashSet<rty::WKVid>) {
+        let mut lhs_wkvars = HashSet::default();
+        let mut rhs_wkvars = HashSet::default();
+        self.root.borrow().visit_expr(&mut |assumed| {
+            assumed.flatten_conjs().into_iter().for_each(|conj| {
+                if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                    lhs_wkvars.insert(wkvar.wkvid);
+                }
+            })
+        }, &mut |head| {
+            head.flatten_conjs().into_iter().for_each(|conj| {
+                if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                    rhs_wkvars.insert(wkvar.wkvid);
+                }
+            })
+        });
+        (lhs_wkvars, rhs_wkvars)
     }
 
     pub(crate) fn into_fixpoint(
@@ -618,6 +630,23 @@ impl Node {
     /// [`Head`]: NodeKind::Head
     fn is_head(&self) -> bool {
         matches!(self.kind, NodeKind::Head(..))
+    }
+
+    fn visit_expr(&self, visit_assumed: &mut impl FnMut(&Expr), visit_head: &mut impl FnMut(&Expr)) {
+        match &self.kind {
+            NodeKind::Assumption(expr) => {
+                visit_assumed(&expr);
+            }
+            NodeKind::Head(expr, _) => {
+                let (impls, rhs) = expr.flatten_impls();
+                impls.into_iter().for_each(|imp| visit_assumed(imp));
+                visit_head(rhs);
+            }
+            NodeKind::Trace(..) | NodeKind::Root(..) | NodeKind::True | NodeKind::ForAll(..) => {}
+        }
+        for child in &self.children {
+            child.borrow().visit_expr(visit_assumed, visit_head);
+        }
     }
 }
 
