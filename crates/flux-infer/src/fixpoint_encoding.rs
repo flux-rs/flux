@@ -518,7 +518,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
-    blame_ctx_map: HashMap<TagIdx, BlameCtxt>,
+    pub blame_ctx_map: HashMap<TagIdx, BlameCtxt>,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -1562,10 +1562,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
-            rty::ExprKind::WKVar(_) => {
-                fixpoint::Expr::Constant(liquid_fixpoint::Constant::Boolean(true))
-            }
-            rty::ExprKind::Hole(..)
+            rty::ExprKind::WKVar(_)
+            | rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)

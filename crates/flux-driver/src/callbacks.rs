@@ -114,7 +114,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("-----------------------");
         println!("Starting solution loop.");
 
-        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 10)
+        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 25)
         {
             Ok((solution, errors)) => (solution, errors),
             Err(e) => panic!("Encountered error {:?}", e),
@@ -122,18 +122,35 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         println!("Solution loop finished.");
         println!("Solutions:");
-        for (wkvid, bound_exprs) in &solution.solutions {
+        let mut total_solved = 0;
+        let mut total_assumed = 0;
+        let mut total_removed = 0;
+        let mut total_wkvars = 0;
+        for (wkvid, solution) in &solution.solutions {
+            total_wkvars += 1;
             let fn_name = genv.tcx().def_path_str(wkvid.0);
             println!("wkvar {} for {}:", wkvid.1.as_usize(), fn_name);
 
             let fn_sig = genv.fn_sig(wkvid.0).unwrap();
-            let solution = bound_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
-            let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(*wkvid, solution)].into() };
+            let solution_subst = solution.into_wkvar_subst();
+            let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(*wkvid, solution_subst.clone())].into() };
             let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
-            println!(" (found)  {:?}", bound_exprs.map_ref(|exprs| exprs.iter().map(|expr| format!("{:?}", expr)).join(" && ")));
+            println!(" (found)  {:?}", solution_subst);
             println!(" (actual) {:?}", genv.weak_kvars_for(wkvid.0).unwrap()[&wkvid.1.as_u32()].iter().map(|expr| format!("{:?}", expr)).join(" && "));
+            let num_solved = solution.solved_exprs.as_ref().map_or(0, |es| es.skip_binder_ref().len());
+            let num_assumed = solution.assumed_exprs.as_ref().map_or(0, |es| es.skip_binder_ref().len());
+            let num_removed = solution.removed_solved_exprs.len();
+            total_solved += num_solved;
+            total_assumed += num_assumed;
+            total_removed += num_removed;
+            println!(" (stats) solved_exprs: {:?}, assumed_exprs: {:?}, removed_solved_exprs: {:?}",
+                     num_solved,
+                     num_assumed,
+                     num_removed,
+            );
             println!(" fn_sig: {}", format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)));
         }
+        println!("Total solved: {}, total assumed: {}, total removed: {}, total wkvars: {}", total_solved, total_assumed, total_removed, total_wkvars);
         if let Some((local_id, _)) = errors.last().clone() {
             let local_id = *local_id;
             let errs = errors

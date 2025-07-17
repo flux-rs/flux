@@ -22,7 +22,7 @@ use flux_middle::{
 };
 use liquid_fixpoint::SmtSolver;
 use rustc_hir::def_id::LocalDefId;
-use rustc_data_structures::{fx::FxHashSet, snapshot_map::SnapshotMap};
+use rustc_data_structures::{fx::{FxHashSet, FxHashMap}, snapshot_map::SnapshotMap};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::{
@@ -100,7 +100,7 @@ impl WKVarInstantiator<'_> {
     ) -> Option<rty::Binder<rty::Expr>> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
-            wkvar.args.iter().map(|arg| arg.erase_spans()),
+            wkvar.args.iter().map(|arg| arg.erase_metadata()),
             // We'll make an instantiator that is generic because this instatiation
             // may (and probably will) be used in multiple places
             (0..wkvar.params.len()).into_iter().map(|var_num| rty::Expr::bvar(INNERMOST, var_num.into(), rty::BoundReftKind::Annon)),
@@ -115,7 +115,7 @@ impl WKVarInstantiator<'_> {
             // so the scope is the same.
             current_index: INNERMOST,
         };
-        instantiator.try_fold_expr(&expr.erase_spans()).ok().map(|instantiated_e| {
+        instantiator.try_fold_expr(&expr.erase_metadata()).ok().map(|instantiated_e| {
             rty::Binder::bind_with_sorts(instantiated_e, &std::iter::repeat_n(rty::Sort::Err, wkvar.params.len()).collect_vec())
         })
     }
@@ -210,7 +210,95 @@ impl<'a> ProductEtaExpander<'a> {
 #[derive(Clone)]
 pub struct WKVarSolutions {
     /// Each Expr is part of a conjunction of the solution.
-    pub solutions: HashMap<rty::WKVid, rty::Binder<FxHashSet<rty::Expr>>>,
+    pub solutions: HashMap<rty::WKVid, WKVarSolution>,
+}
+
+/// NOTE: we expect that the binders for `solved_exprs` and `assumed_exprs` are
+/// in the same order, though it is likely (and probable) that the names differ.
+/// We at least will check that the number of variables matches.
+#[derive(Clone, Default)]
+pub struct WKVarSolution {
+    /// Exprs we solved using our analysis (in a conjunction)
+    pub solved_exprs: Option<rty::Binder<FxHashSet<rty::Expr>>>,
+    /// Exprs we assumed (this only happens when we cannot
+    /// solve _any_ wkvar --- we'll assume a solution to
+    /// try and make everything work), also in a conjunction
+    pub assumed_exprs: Option<rty::Binder<FxHashSet<rty::Expr>>>,
+    /// Expressions removed from the `solved_exprs`. Given without
+    /// a binder because we assume them to be compatible.
+    pub removed_solved_exprs: FxHashSet<rty::Expr>,
+}
+
+impl WKVarSolution {
+    pub fn into_wkvar_subst(&self) -> rty::Binder<rty::Expr> {
+        // TODO: remove the `removed_solved_exprs`
+        match (&self.solved_exprs, &self.assumed_exprs) {
+            (None, Some(assumed_exprs)) => assumed_exprs.map_ref(|exprs| {
+                rty::Expr::and_from_iter((exprs - &self.removed_solved_exprs).iter().cloned())
+            }),
+            (Some(solved_exprs), None)  => solved_exprs.map_ref(|exprs| {
+                rty::Expr::and_from_iter(exprs.iter().cloned())
+            }),
+            (None, None)                => unreachable!("Invariant: a solution should have at least one expr"),
+            (Some(solved_exprs), Some(assumed_exprs)) => {
+                // The best we can do is just check the # of vars matches
+                // since we can't reasonably expect the names to be the same
+                assert!(solved_exprs.vars().len() == assumed_exprs.vars().len());
+                assumed_exprs.map_ref(|assumed_exprs_inner| {
+                    // Put all of the solutions into a conjunction
+                    let solved_exprs_updated = solved_exprs.skip_binder_ref() - &self.removed_solved_exprs;
+                    rty::Expr::and_from_iter(assumed_exprs_inner.iter().cloned().chain(solved_exprs_updated.iter().cloned()))
+                })
+            }
+        }
+    }
+
+    fn add_expr(opt_exprs: &mut Option<rty::Binder<FxHashSet<rty::Expr>>>, expr: &rty::Binder<rty::Expr>) -> bool {
+        if let Some(exprs) = opt_exprs {
+            assert!(exprs.vars() == expr.vars());
+            exprs.skip_binder_ref_mut().insert(expr.skip_binder_ref().erase_metadata())
+        } else {
+            *opt_exprs = Some(expr.map_ref(|inner_expr| {
+                let mut set = FxHashSet::default();
+                set.insert(inner_expr.erase_metadata());
+                set
+            }));
+            true
+        }
+    }
+
+    fn add_solved_expr(&mut self, solved_expr: &rty::Binder<rty::Expr>) -> bool {
+        Self::add_expr(&mut self.solved_exprs, solved_expr)
+    }
+
+    fn add_assumed_expr(&mut self, assumed_expr: &rty::Binder<rty::Expr>) -> bool {
+        if self.solved_exprs.as_ref().map(|solved_exprs| solved_exprs.skip_binder_ref().contains(&assumed_expr.skip_binder_ref().erase_metadata())).unwrap_or(false) {
+            return false;
+        }
+        Self::add_expr(&mut self.assumed_exprs, assumed_expr)
+    }
+
+    fn remove_solved_expr(&mut self, annotated_solution: &Option<&Vec<rty::Binder<rty::Expr>>>) -> bool {
+        if let Some(solved_exprs) = &self.solved_exprs {
+            let expr_to_remove = solved_exprs.skip_binder_ref().iter().filter(|solved_expr| {
+                // Is the solved_expr in any of the annotated solutions?
+                if let Some(annotated_solution) = annotated_solution {
+                !annotated_solution.iter().any(|annotated_expr| {
+                    annotated_expr.skip_binder_ref().erase_metadata().kind() == solved_expr.kind()
+                })
+                } else {
+                    true
+                }
+            }).next();
+            if let Some(expr_to_remove) = expr_to_remove {
+                // Make sure we haven't added it already
+                if self.removed_solved_exprs.insert(expr_to_remove.erase_metadata()) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
 }
 
 impl WKVarSolutions {
@@ -235,13 +323,34 @@ pub fn iterative_solve(
     cstrs: Constraints,
     max_iters: usize,
 ) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>)> {
-    let mut any_solution = true;
+    let mut constraint_lhs_wkvars: FxHashMap<LocalDefId, FxHashSet<rty::WKVid>> = FxHashMap::default();
+    let mut constraint_rhs_wkvars: FxHashMap<LocalDefId, FxHashSet<rty::WKVid>> = FxHashMap::default();
+    for cstr in &cstrs {
+        let id = cstr.def_id.expect_local();
+        let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
+        // println!("finding wkvars for {:?}", id);
+        cstr.refine_tree.clone().into_fixpoint(&mut fcx)?;
+        // println!("There are entries in the blame ctx for tags {:?}", fcx.blame_ctx_map.keys().collect_vec());
+        let mut rhs_wkvars = FxHashSet::default();
+        fcx.blame_ctx_map.values().for_each(|blame_ctx| {
+            for conj in blame_ctx.expr.flatten_conjs() {
+                if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                    rhs_wkvars.insert(wkvar.wkvid);
+                }
+            }
+        });
+        constraint_rhs_wkvars.insert(id, rhs_wkvars);
+        let lhs_wkvars = cstr.refine_tree.wkvars();
+        // println!("all LHS wkvars for {:?}: {:?}", id, wkvars.iter().collect_vec());
+        constraint_lhs_wkvars.insert(id, lhs_wkvars.into_iter().collect());
+    }
+    let mut any_wkvar_change = true;
     let mut solutions = WKVarSolutions::new();
     let mut i = 1;
     let mut all_errors = Vec::new();
-    while any_solution && i <= max_iters {
+    while any_wkvar_change && i <= max_iters {
         println!("iteration {} of {}", i, max_iters);
-        any_solution = false;
+        any_wkvar_change = false;
         all_errors = Vec::new();
         for cstr in &cstrs {
             let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
@@ -250,8 +359,8 @@ pub fn iterative_solve(
                 wkvar_instantiations: solutions
                     .solutions
                     .iter()
-                    .map(|(wkvid, exprs_binder)| {
-                        (wkvid.clone(), exprs_binder.map_ref(|bound_es| rty::Expr::and_from_iter(bound_es.iter().cloned())))
+                    .map(|(wkvid, solution)| {
+                        (wkvid.clone(), solution.into_wkvar_subst())
                     })
                     .collect(),
             };
@@ -273,7 +382,7 @@ pub fn iterative_solve(
                 cstr.backend,
             )?;
             for error in &errors {
-                println!("failing constraint {:?}", &error.blame_ctx.expr);
+                // println!("failing constraint {:?}", &error.blame_ctx.expr);
                 let solution_candidates = find_solution_candidates(&error.blame_ctx);
                 let wkvars = error
                     .blame_ctx
@@ -290,27 +399,99 @@ pub fn iterative_solve(
                         ) {
                             // println!("Adding an instantiation for wkvar {:?}:", wkvar);
                             // println!("  {:?}", instantiation);
-                            any_solution = true;
-                            match solutions.solutions.entry(wkvar.wkvid) {
-                                Entry::Occupied(mut entry) => {
-                                    assert!(entry.get().vars() == instantiation.vars());
-                                    entry.get_mut().skip_binder_ref_mut().insert(instantiation.skip_binder());
-                                }
-                                Entry::Vacant(entry) => {
-                                    entry.insert(instantiation.map(|bound_e| {
-                                        let mut set = FxHashSet::default();
-                                        set.insert(bound_e);
-                                        set
-                                    }));
-                                }
-                            }
+                            any_wkvar_change = true;
+                            let solution = solutions.solutions.entry(wkvar.wkvid).or_default();
+                            solution.add_solved_expr(&instantiation);
                             break 'outer;
                         }
                     }
                 }
             }
-            if let Some(local_id) = cstr.def_id.as_local() {
+            let local_id = cstr.def_id.expect_local();
+            if !errors.is_empty() {
                 all_errors.push((local_id, errors));
+            }
+        }
+        // Early exit if there are no errors to process.
+        //
+        // Before we would just rely on `any_wkvar_change` and exit if there
+        // were no more changes, but now we have logic that will try to reveal
+        // wkvars which we should only do if there are no more errors.
+        if all_errors.is_empty() {
+            break;
+        }
+        // Our analysis cannot solve _any_ wkvars, so we will try to continue by
+        // "revealing" one of the correct solutions.
+        //
+        // If our analysis cannot solve a wkvar because there are no more
+        // errors, this won't change anything (because the errors list will be
+        // empty).
+        if !any_wkvar_change {
+            println!("No changes: trying to add a wkvar solution");
+            'outer: for (_local_id, errs) in &all_errors {
+                for err in errs {
+                    for wkvar in &err.blame_ctx.blame_analysis.wkvars {
+                        if let Some(solutions_map) = &genv.weak_kvars_for(wkvar.wkvid.0) {
+                            if let Some(sols) = solutions_map.get(&wkvar.wkvid.1.as_u32()) {
+                                for sol in sols {
+                                    let current_sol = solutions.solutions.entry(wkvar.wkvid).or_default();
+                                    any_wkvar_change = current_sol.add_assumed_expr(sol);
+                                    if any_wkvar_change {
+                                        println!("assumed solution {:?} for wkvar {:?}", sol, wkvar);
+                                        break 'outer;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // If we can't reveal _any_ wkvar that directly relates to a constraint,
+        // we will instead try to reveal a wkvar used in the function itself.
+        if !any_wkvar_change {
+            println!("Still no changes: trying to add a wkvar solution anywhere in the failing functions");
+            'outer: for (local_id, _errs) in &all_errors {
+                for wkvid in &constraint_lhs_wkvars[local_id] {
+                    println!("Trying {:?} for {:?}", wkvid, local_id);
+                    if let Some(solutions_map) = &genv.weak_kvars_for(wkvid.0) {
+                        if let Some(sols) = solutions_map.get(&wkvid.1.as_u32()) {
+                            for sol in sols {
+                                let current_sol = solutions.solutions.entry(*wkvid).or_default();
+                                any_wkvar_change = current_sol.add_assumed_expr(sol);
+                                if any_wkvar_change {
+                                    println!("assumed solution {:?} for wkvid {:?}", sol, wkvid);
+                                    break 'outer;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // If we still haven't gotten any changes, start to remove spurious
+        // constraints from the solutions
+        if !any_wkvar_change {
+            println!("Still no changes: trying to remove wkvar solutions");
+            'outer: for (local_id, _errs) in &all_errors {
+                for wkvid in &constraint_rhs_wkvars[local_id] {
+                    println!("Trying {:?} for {:?}", wkvid, local_id);
+                    if let Some(solution) = solutions.solutions.get_mut(wkvid) {
+                        match &genv.weak_kvars_for(wkvid.0) {
+                            Some(solutions_map) => {
+                                let current_solutions = solutions_map.get(&wkvid.1.as_u32());
+                                any_wkvar_change = solution.remove_solved_expr(&current_solutions);
+                            }
+                            None => {
+                                any_wkvar_change = solution.remove_solved_expr(&None);
+                            }
+                        }
+                        if any_wkvar_change {
+                            println!("Removed a part of a wkvar solution, continuing...");
+                            break 'outer;
+                        }
+                    }
+                }
             }
         }
         i += 1;
