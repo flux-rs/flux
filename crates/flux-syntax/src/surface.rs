@@ -116,7 +116,7 @@ pub struct DetachedSpecs {
 
 #[derive(Debug)]
 pub enum DetachedItem {
-    FnSig(Ident, FnSig),
+    FnSig(Ident, Box<FnSig>),
     Mod(Ident, DetachedSpecs),
     // Impl(Ident, Box<DetachedSpecs>),
 }

@@ -140,7 +140,7 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     let ident = fn_sig.ident.ok_or({
         ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span: fn_sig.span }
     })?;
-    Ok(DetachedItem::FnSig(ident, fn_sig))
+    Ok(DetachedItem::FnSig(ident, Box::new(fn_sig)))
 }
 
 fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {

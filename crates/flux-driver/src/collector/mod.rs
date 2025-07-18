@@ -583,7 +583,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     .fn_sigs
                     .entry(owner_id)
                     .or_insert(surface::FnSpec {
-                        fn_sig: Some(fn_sig),
+                        fn_sig: Some(*fn_sig),
                         qual_names: None,
                         reveal_names: None,
                     });
