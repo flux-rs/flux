@@ -213,7 +213,7 @@ pub struct WKVarSolutions {
 /// NOTE: we expect that the binders for `solved_exprs` and `assumed_exprs` are
 /// in the same order, though it is likely (and probable) that the names differ.
 /// We at least will check that the number of variables matches.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct WKVarSolution {
     /// Exprs we solved using our analysis (in a conjunction)
     pub solved_exprs: Option<rty::Binder<FxHashSet<rty::Expr>>>,
@@ -224,9 +224,29 @@ pub struct WKVarSolution {
     /// Expressions removed from the `solved_exprs`. Given without
     /// a binder because we assume them to be compatible.
     pub removed_solved_exprs: FxHashSet<rty::Expr>,
+    pub actual_exprs: Vec<rty::Binder<rty::Expr>>
 }
 
 impl WKVarSolution {
+    pub fn empty(genv: GlobalEnv, wkvid: rty::WKVid) -> Self {
+        let actual_exprs;
+        if let Some(solutions_map) = &genv.weak_kvars_for(wkvid.0) {
+            if let Some(sols) = solutions_map.get(&wkvid.1.as_u32()) {
+                actual_exprs = sols.clone();
+            } else {
+                actual_exprs = vec![];
+            }
+        } else {
+            actual_exprs = vec![];
+        }
+
+        Self {
+            solved_exprs: Default::default(),
+            assumed_exprs: Default::default(),
+            removed_solved_exprs: Default::default(),
+            actual_exprs,
+        }
+    }
     pub fn into_wkvar_subst(&self) -> rty::Binder<rty::Expr> {
         match (&self.solved_exprs, &self.assumed_exprs) {
             (None, Some(assumed_exprs)) => assumed_exprs.map_ref(|exprs| {
@@ -283,6 +303,10 @@ impl WKVarSolution {
         Self::add_expr(&mut self.assumed_exprs, assumed_expr)
     }
 
+    fn add_actual_exprs(&mut self, actual_exprs: &Vec<rty::Binder<rty::Expr>>) {
+        self.actual_exprs = actual_exprs.clone();
+    }
+
     fn remove_solved_expr(&mut self, annotated_solution: &Option<&Vec<rty::Binder<rty::Expr>>>) -> bool {
         if let Some(solved_exprs) = &self.solved_exprs {
             let mut exprs_to_remove = solved_exprs.skip_binder_ref().iter().filter(|solved_expr| {
@@ -305,12 +329,154 @@ impl WKVarSolution {
         }
         false
     }
+
+    pub fn to_summary(&self, genv: GlobalEnv) -> WKVarSolutionSummary {
+        let pretty_cx = flux_middle::pretty::PrettyCx::default(genv);
+        let summary_solved_exprs =
+            if let Some(solved_exprs) = &self.solved_exprs {
+                let binder_vars = solved_exprs.vars();
+                solved_exprs.skip_binder_ref().iter().flat_map(|expr| {
+                    if !self.removed_solved_exprs.contains(expr) {
+                        let binder = rty::Binder::bind_with_vars(expr.clone(), binder_vars.clone());
+                        Some(format!("{:?}", flux_middle::pretty::with_cx!(&pretty_cx, &binder)))
+                    } else {
+                        None
+                    }
+                }).collect()
+            } else {
+                vec![]
+            };
+        let summary_assumed_exprs =
+            if let Some(assumed_exprs) = &self.assumed_exprs {
+                let binder_vars = assumed_exprs.vars();
+                assumed_exprs.skip_binder_ref().iter().map(|expr| {
+                    let binder = rty::Binder::bind_with_vars(expr.clone(), binder_vars.clone());
+                    format!("{:?}", flux_middle::pretty::with_cx!(&pretty_cx, &binder))
+                }).collect()
+            } else {
+                vec![]
+            };
+        let summary_removed_solved_exprs = self.removed_solved_exprs.iter().map(|expr| {
+            format!("{:?}", flux_middle::pretty::with_cx!(&pretty_cx, &expr))
+        }).collect_vec();
+        let summary_actual_exprs = self.actual_exprs.iter().map(|expr| {
+            format!("{:?}", flux_middle::pretty::with_cx!(&pretty_cx, &expr))
+        }).collect_vec();
+        WKVarSolutionSummary {
+            solved_exprs: summary_solved_exprs,
+            assumed_exprs: summary_assumed_exprs,
+            removed_solved_exprs: summary_removed_solved_exprs,
+            actual_exprs: summary_actual_exprs,
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct WKVarSolutionSummary {
+    pub solved_exprs: Vec<String>,
+    pub assumed_exprs: Vec<String>,
+    pub removed_solved_exprs: Vec<String>,
+    pub actual_exprs: Vec<String>
+}
+
+impl WKVarSolutionSummary {
+    pub fn to_stats(&self) -> WKVarSolutionStats {
+        WKVarSolutionStats {
+            num_solved_exprs: self.solved_exprs.len(),
+            num_assumed_exprs: self.assumed_exprs.len(),
+            num_removed_solved_exprs: self.removed_solved_exprs.len(),
+            num_actual_exprs: self.actual_exprs.len(),
+        }
+    }
+}
+
+#[derive(serde::Serialize, Default)]
+pub struct WKVarSolutionStats {
+    pub num_solved_exprs: usize,
+    pub num_assumed_exprs: usize,
+    pub num_removed_solved_exprs: usize,
+    pub num_actual_exprs: usize,
+}
+
+impl WKVarSolutionStats {
+    pub fn combine(&self, other: &Self) -> Self {
+        Self {
+            num_solved_exprs: self.num_solved_exprs + other.num_solved_exprs,
+            num_assumed_exprs: self.num_assumed_exprs + other.num_assumed_exprs,
+            num_removed_solved_exprs: self.num_removed_solved_exprs + other.num_removed_solved_exprs,
+            num_actual_exprs: self.num_actual_exprs + other.num_actual_exprs,
+        }
+    }
 }
 
 impl WKVarSolutions {
     pub fn new() -> Self {
         Self { solutions: HashMap::new() }
     }
+
+    pub fn write_summary_file(&self, genv: GlobalEnv, path: &std::path::PathBuf) -> std::io::Result<()> {
+        let solutions_by_wkvar: HashMap<String, WKVarSolutionSummary> = self.solutions.iter().map(|(wkvid, solution)| {
+            let wkvar_key = format!("{}::$wk{}", genv.tcx().def_path_str(wkvid.0), wkvid.1.as_u32());
+            (wkvar_key, solution.to_summary(genv))
+        }).collect();
+        let file = std::fs::File::create(path.as_path())?;
+        let mut writer = std::io::BufWriter::new(file);
+        Ok(serde_json::to_writer_pretty(writer, &solutions_by_wkvar)?)
+    }
+
+    pub fn write_stats_file(&self, genv: GlobalEnv, path: &std::path::PathBuf) -> std::io::Result<()> {
+        #[derive(serde::Serialize)]
+        struct CsvRow {
+            fn_name: String,
+            num_solved_exprs: usize,
+            num_assumed_exprs: usize,
+            num_removed_solved_exprs: usize,
+            num_actual_exprs: usize,
+        }
+        let mut stats_by_fn: HashMap<String, WKVarSolutionStats> = HashMap::default();
+        self.solutions.iter().for_each(|(wkvid, solution)| {
+            let wkvar_fn_name = genv.tcx().def_path_str(wkvid.0);
+            stats_by_fn.entry(wkvar_fn_name)
+                       .and_modify(|stats| {
+                           *stats = stats.combine(&solution.to_summary(genv).to_stats());
+                       })
+                       .or_insert_with(|| solution.to_summary(genv).to_stats());
+        });
+
+        let mut writer = csv::Writer::from_path(path.as_path())?;
+        let mut total = WKVarSolutionStats::default();
+        stats_by_fn.into_iter().try_for_each(|(fn_name, stats)| {
+            total = total.combine(&stats);
+            let row = CsvRow {
+                fn_name,
+                num_solved_exprs: stats.num_solved_exprs,
+                num_assumed_exprs: stats.num_assumed_exprs,
+                num_removed_solved_exprs: stats.num_removed_solved_exprs,
+                num_actual_exprs: stats.num_actual_exprs,
+            };
+            println!("fn {}", row.fn_name);
+            println!("  num solved:  {}", row.num_solved_exprs);
+            println!("  num assumed: {}", row.num_assumed_exprs);
+            println!("  num removed: {}", row.num_removed_solved_exprs);
+            println!("  num actual:  {}", row.num_actual_exprs);
+            writer.serialize(row)
+        });
+        println!("TOTAL");
+        println!("  num solved:  {}", total.num_solved_exprs);
+        println!("  num assumed: {}", total.num_assumed_exprs);
+        println!("  num removed: {}", total.num_removed_solved_exprs);
+        println!("  num actual:  {}", total.num_actual_exprs);
+        let total_row = CsvRow {
+            fn_name: "TOTAL".to_string(),
+            num_solved_exprs: total.num_solved_exprs,
+            num_assumed_exprs: total.num_assumed_exprs,
+            num_removed_solved_exprs: total.num_removed_solved_exprs,
+            num_actual_exprs: total.num_actual_exprs,
+        };
+        writer.serialize(total_row)?;
+        writer.flush()
+    }
+
 }
 
 pub struct Constraint {
@@ -334,8 +500,8 @@ pub fn iterative_solve(
     for cstr in &cstrs {
         let id = cstr.def_id.expect_local();
         let (lhs_wkvars, rhs_wkvars) = cstr.refine_tree.wkvars();
-        println!("all LHS wkvars for {:?}: {:?}", id, lhs_wkvars.iter().collect_vec());
-        println!("all RHS wkvars for {:?}: {:?}", id, rhs_wkvars.iter().collect_vec());
+        // println!("all LHS wkvars for {:?}: {:?}", id, lhs_wkvars.iter().collect_vec());
+        // println!("all RHS wkvars for {:?}: {:?}", id, rhs_wkvars.iter().collect_vec());
         constraint_rhs_wkvars.insert(id, rhs_wkvars.into_iter().collect());
         constraint_lhs_wkvars.insert(id, lhs_wkvars.into_iter().collect());
     }
@@ -401,7 +567,7 @@ pub fn iterative_solve(
                             };
                             // println!("Adding an instantiation for wkvar {:?}:", wkvar);
                             // println!("  {:?}", instantiation);
-                            let solution = solutions.solutions.entry(wkvar.wkvid).or_default();
+                            let solution = solutions.solutions.entry(wkvar.wkvid).or_insert_with(|| WKVarSolution::empty(genv, wkvar.wkvid));
                             // HACK: so that we don't waste time running around in circles, we
                             // will not attempt to add a wkvar instantiation if:
                             //   1. All of the ground truth solutions are
@@ -452,7 +618,7 @@ pub fn iterative_solve(
                             if let Some(sols) = solutions_map.get(&wkvar.wkvid.1.as_u32()) {
                                 // println!("There are some solutions, trying them...");
                                 for sol in sols {
-                                    let current_sol = solutions.solutions.entry(wkvar.wkvid).or_default();
+                                    let current_sol = solutions.solutions.entry(wkvar.wkvid).or_insert_with(|| WKVarSolution::empty(genv, wkvar.wkvid));
                                     any_wkvar_change = current_sol.add_assumed_expr(sol);
                                     if any_wkvar_change {
                                         println!("assumed solution {:?} for wkvar {:?}", sol, wkvar);
@@ -476,7 +642,7 @@ pub fn iterative_solve(
                         if let Some(sols) = solutions_map.get(&wkvid.1.as_u32()) {
                             // println!("There are some solutions, trying them...");
                             for sol in sols {
-                                let current_sol = solutions.solutions.entry(*wkvid).or_default();
+                                let current_sol = solutions.solutions.entry(*wkvid).or_insert_with(|| WKVarSolution::empty(genv, *wkvid));
                                 any_wkvar_change = current_sol.add_assumed_expr(sol);
                                 if any_wkvar_change {
                                     println!("assumed solution {:?} for wkvid {:?}", sol, wkvid);
