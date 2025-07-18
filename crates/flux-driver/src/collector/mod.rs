@@ -108,6 +108,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
+        self.collect_detached_specs(&mut attrs, CRATE_DEF_ID)?;
 
         match &item.kind {
             ItemKind::Fn { .. } => {
@@ -579,14 +580,25 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::DetachedItem) -> Result {
         match item {
             surface::DetachedItem::FnSig(_, fn_sig) => {
-                self.specs
+                let spec = self
+                    .specs
                     .fn_sigs
                     .entry(owner_id)
                     .or_insert(surface::FnSpec {
-                        fn_sig: Some(*fn_sig),
+                        fn_sig: None,
                         qual_names: None,
                         reveal_names: None,
                     });
+
+                if spec.fn_sig.is_some() {
+                    let name = self.tcx.def_path_str(owner_id.to_def_id());
+                    return Err(self.errors.emit(errors::AttrMapErr {
+                        span: fn_sig.span,
+                        message: format!("multiple specs for `{name}`"),
+                    }));
+                }
+
+                spec.fn_sig = Some(*fn_sig);
                 Ok(())
             }
             surface::DetachedItem::Mod(_, detached_specs) => {
