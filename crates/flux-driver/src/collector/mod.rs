@@ -577,29 +577,29 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         Ok(())
     }
 
+    fn collect_detached_fn_sig(&mut self, owner_id: OwnerId, fn_sig: surface::FnSig) -> Result {
+        let spec = self
+            .specs
+            .fn_sigs
+            .entry(owner_id)
+            .or_insert(surface::FnSpec { fn_sig: None, qual_names: None, reveal_names: None });
+
+        if spec.fn_sig.is_some() {
+            let name = self.tcx.def_path_str(owner_id.to_def_id());
+            return Err(self.errors.emit(errors::AttrMapErr {
+                span: fn_sig.span,
+                message: format!("multiple specs for `{name}`"),
+            }));
+        }
+
+        spec.fn_sig = Some(fn_sig);
+        Ok(())
+    }
+
     fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::DetachedItem) -> Result {
         match item {
             surface::DetachedItem::FnSig(_, fn_sig) => {
-                let spec = self
-                    .specs
-                    .fn_sigs
-                    .entry(owner_id)
-                    .or_insert(surface::FnSpec {
-                        fn_sig: None,
-                        qual_names: None,
-                        reveal_names: None,
-                    });
-
-                if spec.fn_sig.is_some() {
-                    let name = self.tcx.def_path_str(owner_id.to_def_id());
-                    return Err(self.errors.emit(errors::AttrMapErr {
-                        span: fn_sig.span,
-                        message: format!("multiple specs for `{name}`"),
-                    }));
-                }
-
-                spec.fn_sig = Some(*fn_sig);
-                Ok(())
+                self.collect_detached_fn_sig(owner_id, *fn_sig)
             }
             surface::DetachedItem::Mod(_, detached_specs) => {
                 self.collect_detached_specs_visitor(detached_specs, owner_id.def_id)
