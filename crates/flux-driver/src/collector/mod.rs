@@ -604,6 +604,14 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for DetachedIdentResolver<'_> {
     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
         if let ItemKind::Fn { ident, .. } = item.kind
             && let Some(val) = self.items.get_mut(&ident)
+            && matches!(val.0, surface::DetachedItem::FnSig(_, _))
+            && val.1.is_none()
+        {
+            val.1 = Some(item.owner_id.def_id);
+        }
+        if let ItemKind::Mod(ident, ..) = item.kind
+            && let Some(val) = self.items.get_mut(&ident)
+            && matches!(val.0, surface::DetachedItem::Mod(_, _))
             && val.1.is_none()
         {
             val.1 = Some(item.owner_id.def_id);
@@ -614,10 +622,10 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for DetachedIdentResolver<'_> {
 fn resolve_idents_in_scope(
     tcx: TyCtxt,
     scope: LocalDefId,
-    idents: &mut HashMap<Ident, (surface::DetachedItem, Option<LocalDefId>)>,
+    items: &mut HashMap<Ident, (surface::DetachedItem, Option<LocalDefId>)>,
 ) {
     let scope = LocalModDefId::new_unchecked(scope);
-    tcx.hir_visit_item_likes_in_module(scope, &mut DetachedIdentResolver { items: idents });
+    tcx.hir_visit_item_likes_in_module(scope, &mut DetachedIdentResolver { items });
 }
 
 #[derive(Debug)]
