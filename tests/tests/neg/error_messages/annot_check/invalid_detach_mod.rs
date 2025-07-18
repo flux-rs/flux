@@ -2,7 +2,7 @@
 
     fn blah(n:i32) -> i32[n+1]
 
-    mod bob {
+    mod glob { //~ ERROR invalid attribute
 
         fn inc(n:i32) -> i32{v: n < v}
 
