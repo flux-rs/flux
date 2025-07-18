@@ -571,12 +571,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 }));
             };
             let owner_id = self.tcx.local_def_id_to_hir_id(def_id).owner;
-            self.collect_detached_item(owner_id, item);
+            self.collect_detached_item(owner_id, item)?;
         }
         Ok(())
     }
 
-    fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::DetachedItem) {
+    fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::DetachedItem) -> Result {
         match item {
             surface::DetachedItem::FnSig(_, fn_sig) => {
                 self.specs
@@ -587,6 +587,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                         qual_names: None,
                         reveal_names: None,
                     });
+                Ok(())
+            }
+            surface::DetachedItem::Mod(_, detached_specs) => {
+                self.collect_detached_specs_visitor(detached_specs, owner_id.def_id)
             }
         }
     }

@@ -117,14 +117,14 @@ pub struct DetachedSpecs {
 #[derive(Debug)]
 pub enum DetachedItem {
     FnSig(Ident, FnSig),
+    Mod(Ident, DetachedSpecs),
     // Impl(Ident, Box<DetachedSpecs>),
-    // Mod(Ident, Box<DetachedSpecs>),
 }
 
 impl DetachedItem {
     pub fn ident(&self) -> Ident {
         match self {
-            DetachedItem::FnSig(ident, _) => *ident,
+            DetachedItem::FnSig(ident, _) | DetachedItem::Mod(ident, _) => *ident,
             // DetachedItem::Impl(ident, _) | DetachedItem::Mod(ident, _) => *ident,
         }
     }
