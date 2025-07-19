@@ -1,4 +1,5 @@
 mod annot_stats;
+mod detached_specs;
 mod extern_specs;
 
 use std::collections::HashMap;
@@ -29,6 +30,7 @@ use rustc_hir::{
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
 
+use crate::collector::detached_specs::DetachedSpecsCollector;
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) struct SpecCollector<'sess, 'tcx> {
@@ -92,6 +94,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
+        DetachedSpecsCollector::collect(self, &mut attrs)?;
+
         self.specs
             .flux_items_by_parent
             .entry(CRATE_OWNER_ID)
@@ -106,6 +110,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
+        DetachedSpecsCollector::collect(self, &mut attrs)?;
 
         match &item.kind {
             ItemKind::Fn { .. } => {
@@ -482,6 +487,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
             ("extern_spec", hir::AttrArgs::Empty) => FluxAttrKind::ExternSpec,
             ("should_fail", hir::AttrArgs::Empty) => FluxAttrKind::ShouldFail,
+            ("specs", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_detached_specs, FluxAttrKind::DetachedSpecs)?
+            }
             _ => return Err(invalid_attr_err(self)),
         };
         if config::annots() {
@@ -562,7 +570,7 @@ enum FluxAttrKind {
     Generics(surface::Generics),
     QualNames(surface::QualNames),
     RevealNames(surface::RevealNames),
-    Items(Vec<surface::Item>),
+    Items(Vec<surface::FluxItem>),
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
@@ -572,6 +580,8 @@ enum FluxAttrKind {
     Ignore(Ignored),
     ShouldFail,
     ExternSpec,
+    /// See `detachXX.rs`
+    DetachedSpecs(surface::DetachedSpecs),
 }
 
 macro_rules! read_flag {
@@ -639,7 +649,7 @@ impl FluxAttrs {
         read_flag!(self, Reflect)
     }
 
-    fn items(&mut self) -> Vec<surface::Item> {
+    fn items(&mut self) -> Vec<surface::FluxItem> {
         read_attrs!(self, Items).into_iter().flatten().collect()
     }
 
@@ -708,6 +718,10 @@ impl FluxAttrs {
     fn should_fail(&self) -> bool {
         read_flag!(self, ShouldFail)
     }
+
+    fn detached_specs(&mut self) -> Option<surface::DetachedSpecs> {
+        read_attr!(self, DetachedSpecs)
+    }
 }
 
 impl FluxAttrKind {
@@ -734,6 +748,7 @@ impl FluxAttrKind {
             FluxAttrKind::Invariant(_) => attr_name!(Invariant),
             FluxAttrKind::ShouldFail => attr_name!(ShouldFail),
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
+            FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
         }
     }
 }
@@ -930,6 +945,9 @@ mod errors {
                     ParseErrorKind::InvalidSort => {
                         "property parameter sort is inherited from the primitive operator"
                             .to_string()
+                    }
+                    ParseErrorKind::InvalidDetachedSpec => {
+                        "detached spec requires an identifier name".to_string()
                     }
                 },
             );

@@ -311,16 +311,16 @@ impl CrateDesugar<'_, '_> {
             for item in items {
                 let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
                 match item {
-                    surface::Item::Qualifier(qual) => {
+                    surface::FluxItem::Qualifier(qual) => {
                         self.desugar_qualifier(def_id, qual)
                             .collect_err(&mut self.err);
                     }
-                    surface::Item::FuncDef(defn) => {
+                    surface::FluxItem::FuncDef(defn) => {
                         self.desugar_func_defn(def_id, defn)
                             .collect_err(&mut self.err);
                     }
-                    surface::Item::SortDecl(_) => {}
-                    surface::Item::PrimOpProp(primop_prop) => {
+                    surface::FluxItem::SortDecl(_) => {}
+                    surface::FluxItem::PrimOpProp(primop_prop) => {
                         self.desugar_primop_prop(def_id, primop_prop)
                             .collect_err(&mut self.err);
                     }

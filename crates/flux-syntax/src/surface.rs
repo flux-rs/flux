@@ -1,5 +1,4 @@
 pub mod visit;
-
 use std::{borrow::Cow, fmt, ops::Range};
 
 pub use rustc_ast::{
@@ -28,20 +27,20 @@ pub struct SortDecl {
 }
 
 #[derive(Debug)]
-pub enum Item {
+pub enum FluxItem {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
 }
 
-impl Item {
+impl FluxItem {
     pub fn name(&self) -> Ident {
         match self {
-            Item::Qualifier(qualifier) => qualifier.name,
-            Item::FuncDef(spec_func) => spec_func.name,
-            Item::SortDecl(sort_decl) => sort_decl.name,
-            Item::PrimOpProp(primop_prop) => primop_prop.name,
+            FluxItem::Qualifier(qualifier) => qualifier.name,
+            FluxItem::FuncDef(spec_func) => spec_func.name,
+            FluxItem::SortDecl(sort_decl) => sort_decl.name,
+            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
         }
     }
 }
@@ -108,6 +107,27 @@ pub struct TyAlias {
     pub ty: Ty,
     pub node_id: NodeId,
     pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct DetachedSpecs {
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug)]
+pub enum Item {
+    FnSig(Ident, Box<FnSig>),
+    Mod(Ident, DetachedSpecs),
+    // Impl(Ident, Box<DetachedSpecs>),
+}
+
+impl Item {
+    pub fn ident(&self) -> Ident {
+        match self {
+            Item::FnSig(ident, _) | Item::Mod(ident, _) => *ident,
+            // DetachedItem::Impl(ident, _) | DetachedItem::Mod(ident, _) => *ident,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -234,6 +254,7 @@ pub struct ImplAssocReft {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Trait {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<TraitAssocReft>,
