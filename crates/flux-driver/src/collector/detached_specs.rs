@@ -81,36 +81,11 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     }
 }
 
-// struct DetachedIdentResolver<'a> {
-//     items: &'a mut HashMap<Ident, (surface::Item, Option<DefId>)>,
-// }
-//
-// impl<'tcx> hir::intravisit::Visitor<'tcx> for DetachedIdentResolver<'_> {
-//     fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
-//         if let ItemKind::Fn { ident, .. } = item.kind
-//             && let Some(val) = self.items.get_mut(&ident)
-//             && matches!(val.0, surface::Item::FnSig(_, _))
-//             && val.1.is_none()
-//         {
-//             val.1 = Some(item.owner_id.def_id);
-//         }
-//         if let ItemKind::Mod(ident, ..) = item.kind
-//             && let Some(val) = self.items.get_mut(&ident)
-//             && matches!(val.0, surface::Item::Mod(_, _))
-//             && val.1.is_none()
-//         {
-//             val.1 = Some(item.owner_id.def_id);
-//         }
-//     }
-// }
-
 fn resolve_idents_in_scope(
     tcx: TyCtxt,
     scope: LocalDefId,
     items: &mut HashMap<Ident, (surface::Item, Option<DefId>)>,
 ) {
-    // let scope = LocalModDefId::new_unchecked(scope);
-    // tcx.hir_visit_item_likes_in_module(scope, &mut DetachedIdentResolver { items });
     for child in tcx.module_children_local(scope) {
         let ident = child.ident;
         if let Res::Def(kind, def_id) = child.res {
