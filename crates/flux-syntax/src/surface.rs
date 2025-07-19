@@ -111,20 +111,20 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct DetachedSpecs {
-    pub items: Vec<DetachedItem>,
+    pub items: Vec<Item>,
 }
 
 #[derive(Debug)]
-pub enum DetachedItem {
+pub enum Item {
     FnSig(Ident, Box<FnSig>),
     Mod(Ident, DetachedSpecs),
     // Impl(Ident, Box<DetachedSpecs>),
 }
 
-impl DetachedItem {
+impl Item {
     pub fn ident(&self) -> Ident {
         match self {
-            DetachedItem::FnSig(ident, _) | DetachedItem::Mod(ident, _) => *ident,
+            Item::FnSig(ident, _) | Item::Mod(ident, _) => *ident,
             // DetachedItem::Impl(ident, _) | DetachedItem::Mod(ident, _) => *ident,
         }
     }

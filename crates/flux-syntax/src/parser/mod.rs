@@ -20,7 +20,7 @@ use crate::{
     parser::lookahead::{AnyOf, Expected, PeekExpected},
     surface::{
         self, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, DetachedItem, DetachedSpecs, Ensures, Expr, ExprKind, ExprPath,
+        ConstructorArg, Item, DetachedSpecs, Ensures, Expr, ExprKind, ExprPath,
         ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
         GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
         LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
@@ -124,7 +124,7 @@ pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::D
 ///           | impl <PATH> { <specs> }
 ///           | mod  <PATH> { <specs> }
 /// ```
-pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
+pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(kw::Fn) {
         parse_detached_fn_sig(cx)
@@ -135,21 +135,21 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedIte
     }
 }
 
-fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
+fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let fn_sig = parse_fn_sig(cx, token::Semi)?;
     let ident = fn_sig.ident.ok_or({
         ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span: fn_sig.span }
     })?;
-    Ok(DetachedItem::FnSig(ident, Box::new(fn_sig)))
+    Ok(Item::FnSig(ident, Box::new(fn_sig)))
 }
 
-fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
+fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Mod)?;
     let ident = parse_ident(cx)?;
     cx.expect(TokenKind::open_delim(Brace))?;
     let items = until(cx, TokenKind::close_delim(Brace), parse_detached_item)?;
     cx.expect(TokenKind::close_delim(Brace))?;
-    Ok(DetachedItem::Mod(ident, DetachedSpecs { items }))
+    Ok(Item::Mod(ident, DetachedSpecs { items }))
 }
 
 fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {
