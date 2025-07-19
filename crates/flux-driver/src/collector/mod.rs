@@ -1,4 +1,5 @@
 mod annot_stats;
+mod detached_specs;
 mod extern_specs;
 
 use std::collections::HashMap;
@@ -29,7 +30,7 @@ use rustc_hir::{
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
 
-use crate::collector::{hir::def_id::LocalModDefId, surface::Ident};
+use crate::collector::detached_specs::DetachedSpecsCollector;
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 pub(crate) struct SpecCollector<'sess, 'tcx> {
@@ -93,7 +94,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
-        self.collect_detached_specs(&mut attrs, CRATE_DEF_ID)?;
+        DetachedSpecsCollector::collect(self, &mut attrs)?;
+
         self.specs
             .flux_items_by_parent
             .entry(CRATE_OWNER_ID)
@@ -108,7 +110,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-        self.collect_detached_specs(&mut attrs, CRATE_DEF_ID)?;
+        DetachedSpecsCollector::collect(self, &mut attrs)?;
 
         match &item.kind {
             ItemKind::Fn { .. } => {
@@ -542,102 +544,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             self.specs.infer_opts.insert(def_id, infer_opts);
         }
     }
-
-    fn collect_detached_specs(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) -> Result {
-        let Some(detached_specs) = attrs.detached_specs() else {
-            return Ok(());
-        };
-
-        self.collect_detached_specs_visitor(detached_specs, def_id)
-    }
-
-    fn collect_detached_specs_visitor(
-        &mut self,
-        detached_specs: surface::DetachedSpecs,
-        parent: LocalDefId,
-    ) -> Result {
-        let mut idents = detached_specs
-            .items
-            .into_iter()
-            .map(|item| (item.ident(), (item, None)))
-            .collect();
-
-        resolve_idents_in_scope(self.tcx, parent, &mut idents);
-
-        for (ident, (item, def_id)) in idents {
-            let Some(def_id) = def_id else {
-                return Err(self.errors.emit(errors::AttrMapErr {
-                    span: ident.span,
-                    message: format!("unresolved identifier `{ident}`"),
-                }));
-            };
-            let owner_id = self.tcx.local_def_id_to_hir_id(def_id).owner;
-            self.collect_detached_item(owner_id, item)?;
-        }
-        Ok(())
-    }
-
-    fn collect_detached_fn_sig(&mut self, owner_id: OwnerId, fn_sig: surface::FnSig) -> Result {
-        let spec = self
-            .specs
-            .fn_sigs
-            .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig: None, qual_names: None, reveal_names: None });
-
-        if spec.fn_sig.is_some() {
-            let name = self.tcx.def_path_str(owner_id.to_def_id());
-            return Err(self.errors.emit(errors::AttrMapErr {
-                span: fn_sig.span,
-                message: format!("multiple specs for `{name}`"),
-            }));
-        }
-
-        spec.fn_sig = Some(fn_sig);
-        Ok(())
-    }
-
-    fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::DetachedItem) -> Result {
-        match item {
-            surface::DetachedItem::FnSig(_, fn_sig) => {
-                self.collect_detached_fn_sig(owner_id, *fn_sig)
-            }
-            surface::DetachedItem::Mod(_, detached_specs) => {
-                self.collect_detached_specs_visitor(detached_specs, owner_id.def_id)
-            }
-        }
-    }
-}
-
-struct DetachedIdentResolver<'a> {
-    items: &'a mut HashMap<Ident, (surface::DetachedItem, Option<LocalDefId>)>,
-}
-
-impl<'tcx> hir::intravisit::Visitor<'tcx> for DetachedIdentResolver<'_> {
-    fn visit_item(&mut self, item: &'tcx Item<'tcx>) {
-        if let ItemKind::Fn { ident, .. } = item.kind
-            && let Some(val) = self.items.get_mut(&ident)
-            && matches!(val.0, surface::DetachedItem::FnSig(_, _))
-            && val.1.is_none()
-        {
-            val.1 = Some(item.owner_id.def_id);
-        }
-        if let ItemKind::Mod(ident, ..) = item.kind
-            && let Some(val) = self.items.get_mut(&ident)
-            && matches!(val.0, surface::DetachedItem::Mod(_, _))
-            && val.1.is_none()
-        {
-            val.1 = Some(item.owner_id.def_id);
-        }
-    }
-}
-
-fn resolve_idents_in_scope(
-    tcx: TyCtxt,
-    scope: LocalDefId,
-    items: &mut HashMap<Ident, (surface::DetachedItem, Option<LocalDefId>)>,
-) {
-    let scope = LocalModDefId::new_unchecked(scope);
-    tcx.hir_visit_item_likes_in_module(scope, &mut DetachedIdentResolver { items });
 }
 
 #[derive(Debug)]
