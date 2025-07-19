@@ -28,7 +28,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         };
         Ok(())
     }
-
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "this is pre-extern specs so it's fine: https://flux-rs.zulipchat.com/#narrow/channel/486369-verify-std/topic/detached-specs/near/529548357"
+    )]
     fn run(&mut self, detached_specs: surface::DetachedSpecs, parent: LocalDefId) -> Result {
         let mut idents = detached_specs
             .items
