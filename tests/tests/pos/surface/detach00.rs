@@ -15,9 +15,9 @@ pub fn test() {
 
 #[flux::specs {
 
-   fn inc(n:i32) -> i32[n+1]
+   fn inc(n:i32) -> i32[n+1];
 
-   fn id(n:i32) -> i32[n]
+   fn id(n:i32) -> i32[n];
 
 }]
 const _: () = ();

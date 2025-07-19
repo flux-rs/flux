@@ -17,7 +17,7 @@ use crate::{
         TokenKind::{self, Caret, Comma},
         token,
     },
-    parser::lookahead::{AnyOf, Expected, PeekExpected as _},
+    parser::lookahead::{AnyOf, Expected, PeekExpected},
     surface::{
         self, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, DetachedItem, DetachedSpecs, Ensures, Expr, ExprKind, ExprPath,
@@ -136,7 +136,7 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedIte
 }
 
 fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
-    let fn_sig = parse_fn_sig(cx, false)?;
+    let fn_sig = parse_fn_sig(cx, token::Semi)?;
     let ident = fn_sig.ident.ok_or({
         ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span: fn_sig.span }
     })?;
@@ -432,7 +432,7 @@ fn mut_as_strg(inputs: Vec<FnInput>, ensures: &[Ensures]) -> ParseResult<Vec<FnI
 ///             ⟨-> ⟨ty⟩⟩?
 ///             ⟨requires⟩ ⟨ensures⟩ ⟨where⟩
 /// ```
-pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt, eof: bool) -> ParseResult<FnSig> {
+pub(crate) fn parse_fn_sig<T: PeekExpected>(cx: &mut ParseCtxt, end: T) -> ParseResult<FnSig> {
     let lo = cx.lo();
     let asyncness = parse_asyncness(cx);
     cx.expect(kw::Fn)?;
@@ -449,9 +449,7 @@ pub(crate) fn parse_fn_sig(cx: &mut ParseCtxt, eof: bool) -> ParseResult<FnSig> 
     let ensures = parse_opt_ensures(cx)?;
     let inputs = mut_as_strg(inputs, &ensures)?;
     generics.predicates = parse_opt_where(cx)?;
-    if eof {
-        cx.expect(token::Eof)?;
-    }
+    cx.expect(end)?;
     let hi = cx.hi();
     Ok(FnSig {
         asyncness,

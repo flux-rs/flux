@@ -14,13 +14,13 @@ mod bob {
 
 #[flux::specs {
 
-    fn blah(n:i32) -> i32[n+1]
+    fn blah(n:i32) -> i32[n+1];
 
     mod bob {
 
-        fn inc(n:i32) -> i32{v: n < v}
+        fn inc(n:i32) -> i32{v: n < v};
 
-        fn id(n:i32) -> i32[n]
+        fn id(n:i32) -> i32[n];
     }
 
 }]

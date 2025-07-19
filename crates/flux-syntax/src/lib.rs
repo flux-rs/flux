@@ -13,7 +13,7 @@ use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
 use surface::NodeId;
 
-use crate::parser::lookahead::Expected;
+use crate::{lexer::token, parser::lookahead::Expected};
 
 #[derive(Default)]
 pub struct ParseSess {
@@ -46,7 +46,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::FnSig> {
-        parser::parse_fn_sig(&mut self.cx(tokens, span), true)
+        parser::parse_fn_sig(&mut self.cx(tokens, span), token::Eof)
     }
 
     pub fn parse_trait_assoc_reft(
