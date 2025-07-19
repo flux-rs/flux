@@ -85,7 +85,7 @@ impl ParseSess {
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<Vec<surface::Item>> {
+    ) -> ParseResult<Vec<surface::FluxItem>> {
         parser::parse_flux_items(&mut self.cx(tokens, span))
     }
 

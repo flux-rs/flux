@@ -570,7 +570,7 @@ enum FluxAttrKind {
     Generics(surface::Generics),
     QualNames(surface::QualNames),
     RevealNames(surface::RevealNames),
-    Items(Vec<surface::Item>),
+    Items(Vec<surface::FluxItem>),
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
     Constant(surface::ConstantInfo),
@@ -649,7 +649,7 @@ impl FluxAttrs {
         read_flag!(self, Reflect)
     }
 
-    fn items(&mut self) -> Vec<surface::Item> {
+    fn items(&mut self) -> Vec<surface::FluxItem> {
         read_attrs!(self, Items).into_iter().flatten().collect()
     }
 

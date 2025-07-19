@@ -21,11 +21,11 @@ use crate::{
     surface::{
         self, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, DetachedItem, DetachedSpecs, Ensures, Expr, ExprKind, ExprPath,
-        ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
-        GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl,
-        LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier,
-        QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl,
-        SortPath, SpecFunc, Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp,
+        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
+        GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
+        LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
+        Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort,
+        SortDecl, SortPath, SpecFunc, Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp,
         VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
@@ -84,7 +84,7 @@ pub(crate) fn parse_reveal_names(cx: &mut ParseCtxt) -> ParseResult<RevealNames>
 /// ```text
 /// ⟨flux_items⟩ := ⟨flux_item⟩*
 /// ```
-pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
+pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<FluxItem>> {
     until(cx, token::Eof, parse_flux_item)
 }
 
@@ -94,16 +94,16 @@ pub(crate) fn parse_flux_items(cx: &mut ParseCtxt) -> ParseResult<Vec<Item>> {
 ///              | ⟨sort_decl⟩
 ///              | ⟨primop_prop⟩
 /// ```
-fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
+fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
-        parse_reft_func(cx).map(Item::FuncDef)
+        parse_reft_func(cx).map(FluxItem::FuncDef)
     } else if lookahead.peek(kw::Local) || lookahead.peek(kw::Qualifier) {
-        parse_qualifier(cx).map(Item::Qualifier)
+        parse_qualifier(cx).map(FluxItem::Qualifier)
     } else if lookahead.peek(kw::Opaque) {
-        parse_sort_decl(cx).map(Item::SortDecl)
+        parse_sort_decl(cx).map(FluxItem::SortDecl)
     } else if lookahead.peek(kw::Property) {
-        parse_primop_property(cx).map(Item::PrimOpProp)
+        parse_primop_property(cx).map(FluxItem::PrimOpProp)
     } else {
         Err(lookahead.into_error())
     }
