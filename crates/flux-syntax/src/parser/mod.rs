@@ -170,7 +170,7 @@ fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
     } else {
         vec![]
     };
-    Ok(Item::StructDef(
+    Ok(Item::Struct(
         ident,
         Box::new(StructDef { generics: None, opaque: false, refined_by, invariants, fields }),
     ))

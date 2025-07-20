@@ -118,14 +118,15 @@ pub struct DetachedSpecs {
 pub enum Item {
     FnSig(Ident, Box<FnSig>),
     Mod(Ident, DetachedSpecs),
-    StructDef(Ident, Box<StructDef>),
+    Struct(Ident, Box<StructDef>),
+    Enum(Ident, Box<EnumDef>),
     // Impl(Ident, Box<DetachedSpecs>),
 }
 
 impl Item {
     pub fn ident(&self) -> Ident {
         match self {
-            Item::FnSig(ident, _) | Item::Mod(ident, _) | Item::StructDef(ident, _) => *ident,
+            Item::FnSig(ident, _) | Item::Mod(ident, _) | Item::Struct(ident, _) => *ident,
             // DetachedItem::Impl(ident, _) | DetachedItem::Mod(ident, _) => *ident,
         }
     }

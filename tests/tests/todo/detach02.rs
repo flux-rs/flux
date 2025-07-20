@@ -1,25 +1,15 @@
 #![flux::specs {
 
-    struct MyStruct
-        refined_by(vx: int, vy: int)
-        invariant(vx < vy)
-    {
-        x: usize[vx],
-        y: usize[vy],
-    }
-
-    enum Option<T>
-        refined_by(valid: bool)
+    enum Option<T>[valid: bool]
     {
       Some(T) -> Option<T>[true],
       None    -> Option<T>[false],
     }
 
-    enum List<T>
-        refined_by(len: int)
-        invariant(len >= 0)
+    enum List<T>[len: int]
+      invariant(len >= 0)
     {
-      Cons(T, List<T>[@n]) -> List<T>[n+1],
+      Cons {x: T, y: List<T>[@n]} -> List<T>[n+1],
       Nil                  -> List<T>[0],
     }
 

@@ -1,47 +1,33 @@
-#![flux::specs {
+enum Nat {
+    Zero,
+    Succ(Box<Nat>),
+}
 
-    enum Option<T>
-        refined_by(valid: bool)
+fn zero() -> Nat {
+    Nat::Zero
+}
+
+fn succ(n: Nat) -> Nat {
+    Nat::Succ(Box::new(n))
+}
+
+fn from_usize(n: usize) -> Nat {
+    if n == 0 { zero() } else { succ(from_usize(n - 1)) }
+}
+
+#[flux::specs {
+
+    enum Nat[n:int]
+      invariant(0 <= n)
     {
-      Some(T) -> Option<T>[true],
-      None    -> Option<T>[false],
+      Zero               -> Nat[0],
+      Succ(Box<Nat[@n]>) -> Nat[n+1],
     }
 
+    fn zero() -> Nat[0];
+
+    fn succ(n:Nat) -> Nat[n+1];
+
+    fn from_usize(n:usize) -> Nat[n];
 }]
-
-// #![flux::specs {
-//     mod core {
-//         mod option {
-//             #[refined_by(valid: bool)]
-//             enum Option<T> {
-//               #[variant((T) -> Option<T>[{valid: true}])]
-//               Some(T),
-//               #[variant(Option<T>[{valid: false}])]
-//               None,
-//             }
-
-//             impl Option<T> {
-//                 fn is_some(&Self[@valid]) -> bool[valid];
-//             }
-//         }
-//     }
-// }]
-
-struct MyStruct {
-    x: usize,
-    y: usize,
-}
-
-#[refined_by(vx: int, vy: int)]
-struct MyStructOrig {
-    #[field(usize[vx])]
-    x: usize,
-    #[field({usize[vy] | vx < vy})]
-    y: usize,
-}
-
-impl MyStruct {
-    fn foo(&self) -> i32 {
-        12
-    }
-}
+const _: () = ();

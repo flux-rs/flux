@@ -110,7 +110,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
         match item {
             surface::Item::FnSig(_, fn_sig) => self.collect_detached_fn_sig(owner_id, *fn_sig),
-            surface::Item::StructDef(ident, struct_def) => {
+            surface::Item::Struct(ident, struct_def) => {
                 self.collect_detached_struct_def(ident, owner_id, *struct_def)
             }
             surface::Item::Mod(_, detached_specs) => self.run(detached_specs, owner_id.def_id),
@@ -142,7 +142,7 @@ fn resolve_idents_in_scope(
             }
             if let DefKind::Struct = kind
                 && let Some(val) = items.get_mut(&ident)
-                && matches!(val.0, surface::Item::StructDef(_, _))
+                && matches!(val.0, surface::Item::Struct(_, _))
                 && val.1.is_none()
             {
                 val.1 = Some(def_id);
