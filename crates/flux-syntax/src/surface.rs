@@ -126,8 +126,10 @@ pub enum Item {
 impl Item {
     pub fn ident(&self) -> Ident {
         match self {
-            Item::FnSig(ident, _) | Item::Mod(ident, _) | Item::Struct(ident, _) => *ident,
-            // DetachedItem::Impl(ident, _) | DetachedItem::Mod(ident, _) => *ident,
+            Item::FnSig(ident, _)
+            | Item::Mod(ident, _)
+            | Item::Struct(ident, _)
+            | Item::Enum(ident, _) => *ident,
         }
     }
 }
@@ -174,6 +176,13 @@ impl EnumDef {
     /// Whether the enum contains any path that needs to be resolved.
     pub fn needs_resolving(&self) -> bool {
         self.variants.iter().any(Option::is_some)
+    }
+
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.reflected
+            || self.variants.iter().any(Option::is_some)
     }
 }
 

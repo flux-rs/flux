@@ -20,7 +20,7 @@ use crate::{
     parser::lookahead::{AnyOf, Expected, PeekExpected},
     surface::{
         self, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, DetachedSpecs, Ensures, Expr, ExprKind, ExprPath, ExprPathSegment,
+        ConstructorArg, DetachedSpecs, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment,
         FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind,
         GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl,
         LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier,
@@ -132,27 +132,37 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
         parse_detached_mod(cx)
     } else if lookahead.peek(kw::Struct) {
         parse_detached_struct(cx)
+    } else if lookahead.peek(kw::Enum) {
+        parse_detached_enum(cx)
     } else {
         Err(lookahead.into_error())
     }
 }
 
-fn detached_struct_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
+///```text
+/// <field>  ::= <Ident> : <Ty>
+/// ```
+fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
     let ident = parse_ident(cx)?;
     cx.expect(token::Colon)?;
     let ty = parse_type(cx)?;
     Ok((ident, ty))
 }
 
-fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
-    cx.expect(kw::Struct)?;
-    let ident = parse_ident(cx)?;
+///```text
+/// <field>  ::= refined_by(<refined_by>)?
+///              invariant(<expr>)?
+/// ```
+fn parse_detached_refined_by_and_invariants(
+    cx: &mut ParseCtxt,
+) -> ParseResult<(Option<Vec<RefineParam>>, Vec<Expr>)> {
     let tok_refined_by = token::Ident(Symbol::intern("refined_by"));
     let tok_invariant = token::Ident(Symbol::intern("invariant"));
-
     let refined_by = if cx.peek(tok_refined_by) {
         cx.expect(tok_refined_by)?;
         Some(parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
+    } else if cx.peek(token::OpenBracket) {
+        Some(brackets(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
     } else {
         None
     };
@@ -162,8 +172,40 @@ fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
     } else {
         vec![]
     };
+    Ok((refined_by, invariants))
+}
+
+///```text
+/// <field>  ::= <Ident> : <Ty>
+/// ```
+fn parse_detached_variant(cx: &mut ParseCtxt) -> ParseResult<(Ident, VariantDef)> {
+    let ident = parse_ident(cx)?;
+    let variant = parse_variant(cx, true)?;
+    Ok((ident, variant))
+}
+
+fn parse_detached_enum(cx: &mut ParseCtxt) -> ParseResult<Item> {
+    cx.expect(kw::Enum)?;
+    let ident = parse_ident(cx)?;
+    let generics = Some(parse_opt_generics(cx)?);
+    let (refined_by, invariants) = parse_detached_refined_by_and_invariants(cx)?;
+    let variants = braces(cx, Comma, parse_detached_variant)?
+        .into_iter()
+        .map(|(_, variant)| Some(variant))
+        .collect();
+    Ok(Item::Enum(
+        ident,
+        Box::new(EnumDef { generics, refined_by, variants, invariants, reflected: false }),
+    ))
+}
+
+fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
+    cx.expect(kw::Struct)?;
+    let ident = parse_ident(cx)?;
+    let generics = Some(parse_opt_generics(cx)?);
+    let (refined_by, invariants) = parse_detached_refined_by_and_invariants(cx)?;
     let fields = if cx.peek(token::OpenBrace) {
-        braces(cx, Comma, detached_struct_field)?
+        braces(cx, Comma, parse_detached_field)?
             .into_iter()
             .map(|(_, ty)| Some(ty))
             .collect()
@@ -172,7 +214,7 @@ fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
     };
     Ok(Item::Struct(
         ident,
-        Box::new(StructDef { generics: None, opaque: false, refined_by, invariants, fields }),
+        Box::new(StructDef { generics, opaque: false, refined_by, invariants, fields }),
     ))
 }
 
@@ -345,7 +387,7 @@ pub(crate) fn parse_refined_by(cx: &mut ParseCtxt) -> ParseResult<RefineParams> 
 ///            | ⟨fields⟩
 ///            | ⟨variant_ret⟩
 /// ```
-pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> ParseResult<VariantDef> {
+pub(crate) fn parse_variant(cx: &mut ParseCtxt, ret_arrow: bool) -> ParseResult<VariantDef> {
     let lo = cx.lo();
     let mut fields = vec![];
     let mut ret = None;
@@ -355,6 +397,9 @@ pub(crate) fn parse_variant(cx: &mut ParseCtxt) -> ParseResult<VariantDef> {
             ret = Some(parse_variant_ret(cx)?);
         }
     } else {
+        if ret_arrow {
+            cx.expect(token::RArrow)?;
+        }
         ret = Some(parse_variant_ret(cx)?);
     };
     let hi = cx.hi();

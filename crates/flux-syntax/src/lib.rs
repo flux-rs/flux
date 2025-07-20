@@ -98,7 +98,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::VariantDef> {
-        parser::parse_variant(&mut self.cx(tokens, span))
+        parser::parse_variant(&mut self.cx(tokens, span), false)
     }
 
     pub fn parse_expr(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Expr> {

@@ -56,7 +56,38 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_detached_struct_def(
+    fn collect_detached_enum(
+        &mut self,
+        ident: Ident,
+        owner_id: OwnerId,
+        enum_def: surface::EnumDef,
+    ) -> Result {
+        let entry = self
+            .inner
+            .specs
+            .enums
+            .entry(owner_id)
+            .or_insert(surface::EnumDef {
+                generics: None,
+                refined_by: None,
+                variants: vec![],
+                invariants: vec![],
+                reflected: false,
+            });
+
+        if entry.is_nontrivial() {
+            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
+            return Err(self.inner.errors.emit(errors::AttrMapErr {
+                span: ident.span,
+                message: format!("multiple specs for `{name}`"),
+            }));
+        } else {
+            *entry = enum_def;
+        }
+        Ok(())
+    }
+
+    fn collect_detached_struct(
         &mut self,
         ident: Ident,
         owner_id: OwnerId,
@@ -111,7 +142,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         match item {
             surface::Item::FnSig(_, fn_sig) => self.collect_detached_fn_sig(owner_id, *fn_sig),
             surface::Item::Struct(ident, struct_def) => {
-                self.collect_detached_struct_def(ident, owner_id, *struct_def)
+                self.collect_detached_struct(ident, owner_id, *struct_def)
+            }
+            surface::Item::Enum(ident, enum_def) => {
+                self.collect_detached_enum(ident, owner_id, *enum_def)
             }
             surface::Item::Mod(_, detached_specs) => self.run(detached_specs, owner_id.def_id),
         }
@@ -143,6 +177,13 @@ fn resolve_idents_in_scope(
             if let DefKind::Struct = kind
                 && let Some(val) = items.get_mut(&ident)
                 && matches!(val.0, surface::Item::Struct(_, _))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
+            }
+            if let DefKind::Enum = kind
+                && let Some(val) = items.get_mut(&ident)
+                && matches!(val.0, surface::Item::Enum(_, _))
                 && val.1.is_none()
             {
                 val.1 = Some(def_id);
