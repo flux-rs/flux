@@ -10,7 +10,7 @@ use utils::{
 };
 
 use crate::{
-    ParseCtxt, ParseError, ParseResult,
+    ParseCtxt, ParseError, ParseResult, Symbol,
     lexer::{
         Delimiter::*,
         Token,
@@ -25,7 +25,7 @@ use crate::{
         GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices, Item, LetDecl,
         LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier,
         QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl,
-        SortPath, SpecFunc, Spread, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp,
+        SortPath, SpecFunc, Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp,
         VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
@@ -130,9 +130,50 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
         parse_detached_fn_sig(cx)
     } else if lookahead.peek(kw::Mod) {
         parse_detached_mod(cx)
+    } else if lookahead.peek(kw::Struct) {
+        parse_detached_struct(cx)
     } else {
         Err(lookahead.into_error())
     }
+}
+
+fn detached_struct_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
+    let ident = parse_ident(cx)?;
+    cx.expect(token::Colon)?;
+    let ty = parse_type(cx)?;
+    Ok((ident, ty))
+}
+
+fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
+    cx.expect(kw::Struct)?;
+    let ident = parse_ident(cx)?;
+    let tok_refined_by = token::Ident(Symbol::intern("refined_by"));
+    let tok_invariant = token::Ident(Symbol::intern("invariant"));
+
+    let refined_by = if cx.peek(tok_refined_by) {
+        cx.expect(tok_refined_by)?;
+        Some(parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
+    } else {
+        None
+    };
+    let invariants = if cx.peek(tok_invariant) {
+        cx.expect(tok_invariant)?;
+        vec![delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?]
+    } else {
+        vec![]
+    };
+    let fields = if cx.peek(token::OpenBrace) {
+        braces(cx, Comma, detached_struct_field)?
+            .into_iter()
+            .map(|(_, ty)| Some(ty))
+            .collect()
+    } else {
+        vec![]
+    };
+    Ok(Item::StructDef(
+        ident,
+        Box::new(StructDef { generics: None, opaque: false, refined_by, invariants, fields }),
+    ))
 }
 
 fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<Item> {

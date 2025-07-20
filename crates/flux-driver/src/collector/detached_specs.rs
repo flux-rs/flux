@@ -56,6 +56,37 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
+    fn collect_detached_struct_def(
+        &mut self,
+        ident: Ident,
+        owner_id: OwnerId,
+        struct_def: surface::StructDef,
+    ) -> Result {
+        let entry = self
+            .inner
+            .specs
+            .structs
+            .entry(owner_id)
+            .or_insert(surface::StructDef {
+                generics: None,
+                refined_by: None,
+                fields: vec![],
+                opaque: false,
+                invariants: vec![],
+            });
+
+        if entry.is_nontrivial() {
+            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
+            return Err(self.inner.errors.emit(errors::AttrMapErr {
+                span: ident.span,
+                message: format!("multiple specs for `{name}`"),
+            }));
+        } else {
+            *entry = struct_def;
+        }
+        Ok(())
+    }
+
     fn collect_detached_fn_sig(&mut self, owner_id: OwnerId, fn_sig: surface::FnSig) -> Result {
         let spec = self
             .inner
@@ -79,6 +110,9 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
         match item {
             surface::Item::FnSig(_, fn_sig) => self.collect_detached_fn_sig(owner_id, *fn_sig),
+            surface::Item::StructDef(ident, struct_def) => {
+                self.collect_detached_struct_def(ident, owner_id, *struct_def)
+            }
             surface::Item::Mod(_, detached_specs) => self.run(detached_specs, owner_id.def_id),
         }
     }
@@ -102,6 +136,13 @@ fn resolve_idents_in_scope(
             if let DefKind::Mod = kind
                 && let Some(val) = items.get_mut(&ident)
                 && matches!(val.0, surface::Item::Mod(_, _))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
+            }
+            if let DefKind::Struct = kind
+                && let Some(val) = items.get_mut(&ident)
+                && matches!(val.0, surface::Item::StructDef(_, _))
                 && val.1.is_none()
             {
                 val.1 = Some(def_id);

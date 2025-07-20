@@ -118,13 +118,14 @@ pub struct DetachedSpecs {
 pub enum Item {
     FnSig(Ident, Box<FnSig>),
     Mod(Ident, DetachedSpecs),
+    StructDef(Ident, Box<StructDef>),
     // Impl(Ident, Box<DetachedSpecs>),
 }
 
 impl Item {
     pub fn ident(&self) -> Ident {
         match self {
-            Item::FnSig(ident, _) | Item::Mod(ident, _) => *ident,
+            Item::FnSig(ident, _) | Item::Mod(ident, _) | Item::StructDef(ident, _) => *ident,
             // DetachedItem::Impl(ident, _) | DetachedItem::Mod(ident, _) => *ident,
         }
     }
@@ -148,6 +149,14 @@ impl StructDef {
     /// Whether the struct contains any path that needs to be resolved.
     pub fn needs_resolving(&self) -> bool {
         self.fields.iter().any(Option::is_some)
+    }
+
+    /// Is a non-trivial StructDef
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.opaque
+            || self.fields.iter().any(Option::is_some)
     }
 }
 

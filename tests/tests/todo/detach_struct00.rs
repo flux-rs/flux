@@ -1,15 +1,15 @@
 use flux_rs::assert;
 
-struct MyStruct {
+pub struct MyStruct {
     x: usize,
     y: usize,
 }
 
-fn mk_struct(x: usize, y: usize) -> MyStruct {
+pub fn mk_struct(x: usize, y: usize) -> MyStruct {
     MyStruct { x, y } //~ ERROR refinement type
 }
 
-fn use_struct(s: MyStruct) {
+pub fn use_struct(s: MyStruct) {
     assert(s.x < s.y)
 }
 
