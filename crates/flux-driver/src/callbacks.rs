@@ -15,8 +15,9 @@ use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
+    CRATE_HIR_ID,
     def::DefKind,
-    def_id::{DefId, LOCAL_CRATE, LocalDefId},
+    def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
@@ -114,6 +115,16 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
 }
 
 fn encode_and_save_metadata(genv: GlobalEnv) {
+    // HACK(nilehmann) do not encode metadata for `core`, this is so verify-rust-std works even
+    // if it has supported items. We report errors lazily so partially including the crate should
+    // skip the error, except that encoding the metadata for the crate will trigger conversion for
+    // all items which can trigger the error even if not included. To fix this properly we should
+    // consider how to properly handle metadata encoding if only part of crate is included in the
+    // analysis.
+    if genv.tcx().crate_name(LOCAL_CRATE) == flux_syntax::symbols::sym::core {
+        return;
+    }
+
     // We only save metadata when `--emit=metadata` is passed as an argument. In this case, we save
     // the `.fluxmeta` file alongside the `.rmeta` file. This setup works for `cargo flux`, which
     // wraps `cargo check` and always passes `--emit=metadata`. Tests also explicitly pass this flag.
