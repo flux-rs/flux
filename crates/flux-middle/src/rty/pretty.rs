@@ -26,7 +26,8 @@ impl Pretty for BoundRegionKind {
     fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             BoundRegionKind::Anon => w!(cx, f, "'<annon>"),
-            BoundRegionKind::Named(_, sym) => w!(cx, f, "{sym}"),
+            BoundRegionKind::NamedAnon(sym) => w!(cx, f, "'{sym}"),
+            BoundRegionKind::Named(def_id) => w!(cx, f, "'{def_id:?}"),
             BoundRegionKind::ClosureEnv => w!(cx, f, "'<env>"),
         }
     }
