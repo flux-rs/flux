@@ -44,7 +44,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{CtorOf, DefKind},
-    def_id::{DefId, LOCAL_CRATE, LocalDefId},
+    def_id::{DefId, LocalDefId},
 };
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -607,39 +607,6 @@ fn check_wf(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Rc<WfckResults>>
     let node = genv.map().expect_owner_node(def_id)?;
     let wfckresults = wf::check_node(genv, &node)?;
     Ok(Rc::new(wfckresults))
-}
-
-pub fn check_crate_wf(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
-    let errors = Errors::new(genv.sess());
-    for def_id in genv.tcx().hir_crate_items(()).definitions() {
-        if genv.ignored(def_id) || genv.is_dummy(def_id) {
-            continue;
-        }
-        let def_kind = genv.def_kind(def_id);
-        match def_kind {
-            DefKind::TyAlias
-            | DefKind::Struct
-            | DefKind::Enum
-            | DefKind::Fn
-            | DefKind::AssocFn
-            | DefKind::Trait
-            | DefKind::Impl { .. }
-            // we skip checking the DefKind::OpaqueTy because they
-            // must be wf-checked (and desugared) in the context of
-            // their "parent", so we do so "lazily" when the appropriate
-            // query is called on the "parent"
-            => {
-                let _ = genv.check_wf(def_id).emit(&errors);
-            }
-            _ => {}
-        }
-    }
-
-    // Query qualifiers and spec funcs to report wf errors
-    let _ = genv.qualifiers().emit(&errors);
-    let _ = genv.normalized_defns(LOCAL_CRATE);
-
-    errors.into_result()
 }
 
 mod errors {

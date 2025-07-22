@@ -16,7 +16,7 @@ use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
@@ -80,7 +80,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
         tracing::info!("Callbacks::check_wf");
 
-        flux_fhir_analysis::check_crate_wf(genv)?;
+        // Query qualifiers and spec funcs to report wf errors
+        let _ = genv.qualifiers().emit(&genv)?;
+        let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
 
@@ -112,6 +114,16 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
 }
 
 fn encode_and_save_metadata(genv: GlobalEnv) {
+    // HACK(nilehmann) do not encode metadata for `core`, this is so verify-rust-std works even
+    // if it has unsupported items. We report errors lazily so partially analyzing the crate should
+    // skip the error, except that encoding the metadata for the crate will trigger conversion for
+    // all items which can trigger the error even if not included for analysis. To fix this properly
+    // we should consider how to handle metadata encoding if only part of the crate is included for
+    // analysis.
+    if genv.tcx().crate_name(LOCAL_CRATE) == flux_syntax::symbols::sym::core {
+        return;
+    }
+
     // We only save metadata when `--emit=metadata` is passed as an argument. In this case, we save
     // the `.fluxmeta` file alongside the `.rmeta` file. This setup works for `cargo flux`, which
     // wraps `cargo check` and always passes `--emit=metadata`. Tests also explicitly pass this flag.
@@ -187,8 +199,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 refineck::check_fn(self.genv, &mut self.cache, local_id)
             }
             DefKind::Enum => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
+                self.genv.variants_of(def_id).emit(&self.genv)?;
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
-                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
                 let enum_def = self
                     .genv
                     .map()
@@ -207,8 +220,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
                 // However, we leave the below code in to force the queries that do the conversions that check
                 // for ill-formed annotations e.g. see tests/tests/neg/error_messages/annot_check/struct_error.rs
-                let _adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
-                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
+                self.genv.adt_def(def_id).emit(&self.genv)?;
+                self.genv.variants_of(def_id).emit(&self.genv)?;
                 let _struct_def = self
                     .genv
                     .map()
@@ -218,6 +232,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 Ok(())
             }
             DefKind::Impl { of_trait } => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 if of_trait {
                     refineck::compare_impl_item::check_impl_against_trait(self.genv, def_id)
                         .emit(&self.genv)?;
@@ -225,7 +240,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 Ok(())
             }
             DefKind::TyAlias => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 self.genv.type_of(def_id).emit(&self.genv)?;
+                Ok(())
+            }
+            DefKind::Trait => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 Ok(())
             }
             _ => Ok(()),
@@ -241,40 +261,31 @@ fn force_conv(genv: GlobalEnv, def_id: DefId) -> QueryResult {
     Ok(())
 }
 
-fn stash_body_with_borrowck_facts<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
-    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
-        tcx,
-        def_id,
-        ConsumerOptions::RegionInferenceContext,
-    );
-    if config::dump_mir() {
-        rustc_middle::mir::pretty::write_mir_fn(
-            tcx,
-            &body_with_facts.body,
-            &mut |_, _| Ok(()),
-            &mut dbg::writer_for_item(tcx, def_id.to_def_id(), "mir").unwrap(),
-            rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
-        )
-        .unwrap();
-    }
-
-    // SAFETY: This is safe because we are feeding in the same `tcx` that is
-    // going to be used as a witness when pulling out the data.
-    unsafe {
-        flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
-    }
-}
-
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
 ) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
-    // grab the body-and-borrowck-facts for `def_id` and all transitively nested bodies.
-    let mut worklist = vec![def_id];
-    while let Some(def_id) = worklist.pop() {
-        stash_body_with_borrowck_facts(tcx, def_id);
-        for nested_def_id in tcx.nested_bodies_within(def_id) {
-            worklist.push(nested_def_id);
+    let bodies_with_facts = rustc_borrowck::consumers::get_bodies_with_borrowck_facts(
+        tcx,
+        def_id,
+        ConsumerOptions::RegionInferenceContext,
+    );
+    for (def_id, body_with_facts) in bodies_with_facts {
+        if config::dump_mir() {
+            rustc_middle::mir::pretty::write_mir_fn(
+                tcx,
+                &body_with_facts.body,
+                &mut |_, _| Ok(()),
+                &mut dbg::writer_for_item(tcx, def_id.to_def_id(), "mir").unwrap(),
+                rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
+            )
+            .unwrap();
+        }
+
+        // SAFETY: This is safe because we are feeding in the same `tcx` that is
+        // going to be used as a witness when pulling out the data.
+        unsafe {
+            flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
         }
     }
     let mut providers = query::Providers::default();
