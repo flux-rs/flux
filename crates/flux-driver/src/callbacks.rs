@@ -15,9 +15,8 @@ use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    CRATE_HIR_ID,
     def::DefKind,
-    def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
