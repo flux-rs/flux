@@ -241,40 +241,31 @@ fn force_conv(genv: GlobalEnv, def_id: DefId) -> QueryResult {
     Ok(())
 }
 
-fn stash_body_with_borrowck_facts<'tcx>(tcx: TyCtxt<'tcx>, def_id: LocalDefId) {
-    let body_with_facts = rustc_borrowck::consumers::get_body_with_borrowck_facts(
-        tcx,
-        def_id,
-        ConsumerOptions::RegionInferenceContext,
-    );
-    if config::dump_mir() {
-        rustc_middle::mir::pretty::write_mir_fn(
-            tcx,
-            &body_with_facts.body,
-            &mut |_, _| Ok(()),
-            &mut dbg::writer_for_item(tcx, def_id.to_def_id(), "mir").unwrap(),
-            rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
-        )
-        .unwrap();
-    }
-
-    // SAFETY: This is safe because we are feeding in the same `tcx` that is
-    // going to be used as a witness when pulling out the data.
-    unsafe {
-        flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
-    }
-}
-
 fn mir_borrowck<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
 ) -> query::queries::mir_borrowck::ProvidedValue<'tcx> {
-    // grab the body-and-borrowck-facts for `def_id` and all transitively nested bodies.
-    let mut worklist = vec![def_id];
-    while let Some(def_id) = worklist.pop() {
-        stash_body_with_borrowck_facts(tcx, def_id);
-        for nested_def_id in tcx.nested_bodies_within(def_id) {
-            worklist.push(nested_def_id);
+    let bodies_with_facts = rustc_borrowck::consumers::get_bodies_with_borrowck_facts(
+        tcx,
+        def_id,
+        ConsumerOptions::RegionInferenceContext,
+    );
+    for (def_id, body_with_facts) in bodies_with_facts {
+        if config::dump_mir() {
+            rustc_middle::mir::pretty::write_mir_fn(
+                tcx,
+                &body_with_facts.body,
+                &mut |_, _| Ok(()),
+                &mut dbg::writer_for_item(tcx, def_id.to_def_id(), "mir").unwrap(),
+                rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
+            )
+            .unwrap();
+        }
+
+        // SAFETY: This is safe because we are feeding in the same `tcx` that is
+        // going to be used as a witness when pulling out the data.
+        unsafe {
+            flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
         }
     }
     let mut providers = query::Providers::default();
