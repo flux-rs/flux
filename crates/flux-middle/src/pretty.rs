@@ -137,6 +137,7 @@ pub fn pprint_with_default_cx<T: Pretty>(
 }
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
+use crate::rty::EarlyReftParam;
 use crate::{
     global_env::GlobalEnv,
     rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind},
@@ -198,7 +199,8 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_sorts: bool,
     // Better names to give to free vars
     pub free_var_substs: HashMap<Name, String>,
-    pub env: BoundVarEnv,
+    pub bvar_env: BoundVarEnv,
+    pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
 }
 
 macro_rules! set_opts {
@@ -227,7 +229,8 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_regions: false,
             hide_sorts: true,
             free_var_substs: HashMap::default(),
-            env: BoundVarEnv::default(),
+            bvar_env: BoundVarEnv::default(),
+            earlyparam_env: RefCell::new(None),
         }
     }
 
@@ -265,9 +268,9 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 
     pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
-        self.env.push_layer(vars, None);
+        self.bvar_env.push_layer(vars, None);
         let r = f();
-        self.env.pop_layer();
+        self.bvar_env.pop_layer();
         r
     }
 
@@ -277,9 +280,9 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         fn_root_layer_type: FnRootLayerType,
         f: impl FnOnce() -> R,
     ) -> (R, FxHashSet<BoundVar>) {
-        self.env.push_layer(vars, Some(fn_root_layer_type));
+        self.bvar_env.push_layer(vars, Some(fn_root_layer_type));
         let r = f();
-        match self.env.pop_layer() {
+        match self.bvar_env.pop_layer() {
             Some(BoundVarLayer::FnRootLayer(fn_root_layer)) => (r, fn_root_layer.seen_vars),
             _ => unreachable!("The popped layer must exist and be an FnRootLayer"),
         }
@@ -313,7 +316,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                     if print_infer_mode {
                         w!(self, f, "{}", ^mode.prefix_str())?;
                     }
-                    if let Some(name) = self.env.lookup(INNERMOST, BoundVar::from_usize(i)) {
+                    if let Some(name) = self.bvar_env.lookup(INNERMOST, BoundVar::from_usize(i)) {
                         w!(self, f, "{:?}", ^name)?;
                     } else {
                         w!(self, f, "_")?;
@@ -335,7 +338,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     ) -> fmt::Result {
         match breft.kind {
             BoundReftKind::Annon => {
-                if let Some(name) = self.env.lookup(debruijn, breft.var) {
+                if let Some(name) = self.bvar_env.lookup(debruijn, breft.var) {
                     w!(self, f, "{name:?}")
                 } else {
                     w!(self, f, "⭡{}/#{:?}", ^debruijn.as_usize(), ^breft.var)
@@ -345,6 +348,14 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                 w!(self, f, "{name}")
             }
         }
+    }
+
+    pub fn with_early_params<R>(&self, f: impl FnOnce() -> R) -> R {
+        assert!(self.earlyparam_env.borrow().is_none(), "Already in an early param env");
+        *self.earlyparam_env.borrow_mut() = Some(FxHashSet::default());
+        let r = f();
+        *self.earlyparam_env.borrow_mut() = None;
+        r
     }
 
     pub fn kvar_args(self, kvar_args: KVarArgs) -> Self {
@@ -434,7 +445,7 @@ impl BoundVarEnv {
     ///
     /// It updates the set of seen variables at the function root layer when it
     /// does the check.
-    pub fn check_if_seen_fn_root_var(
+    pub fn check_if_seen_fn_root_bvar(
         &self,
         debruijn: DebruijnIndex,
         var: BoundVar,
@@ -443,7 +454,7 @@ impl BoundVarEnv {
         let mut layer = self.layers.borrow_mut();
         match layer.get_mut(num_layers.checked_sub(debruijn.as_usize() + 1)?)? {
             BoundVarLayer::FnRootLayer(fn_root_layer) => {
-                Some((fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type))
+                Some((!fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type))
             }
             BoundVarLayer::Layer(..) => None,
         }
@@ -482,6 +493,8 @@ impl BoundVarEnv {
         self.layers.borrow_mut().pop()
     }
 }
+
+type EarlyParamEnv = FxHashSet<EarlyReftParam>;
 
 pub struct WithCx<'a, 'genv, 'tcx, T> {
     data: T,

@@ -42,15 +42,9 @@ use flux_infer::{
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
-    FixpointQueryKind,
-    def_id::MaybeExternId,
-    global_env::GlobalEnv,
-    pretty,
-    rty::{
-        self, ESpan, Name,
-        fold::{TypeFolder, TypeVisitable},
-    },
-    timings,
+    def_id::MaybeExternId, global_env::GlobalEnv, pretty, rty::{
+        self, fold::{TypeFolder, TypeVisitable}, ESpan, EarlyBinder, Name
+    }, timings, FixpointQueryKind
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -477,7 +471,7 @@ fn add_fn_fix_diagnostic<'a>(
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
     let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(wkvid, solution.clone())].into() };
-    let solved_fn_sig = wkvar_subst.fold_binder(fn_sig.skip_binder_ref());
+    let solved_fn_sig = EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
     diag.subdiagnostic(errors::WKVarFnFix {
         span: fn_span,
         fn_name,
