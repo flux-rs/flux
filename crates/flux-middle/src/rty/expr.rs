@@ -664,7 +664,7 @@ impl Expr {
     }
 
     /// Replaces [`BoundReftKind::Named(..)`] in [`Var::Bound(..)`] with
-    /// [`BoundReftKind::Annon`]. This is to ensure that expr equality works
+    /// [`BoundReftKind::Anon`]. This is to ensure that expr equality works
     /// properly --- the names are just annotations that do not change the
     /// expressions themselves.
     ///
@@ -675,7 +675,7 @@ impl Expr {
         impl TypeFolder for BoundReftKindEraser {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
                 if let ExprKind::Var(Var::Bound(db_index, BoundReft { var, kind: BoundReftKind::Named(_) })) = expr.kind() {
-                    Expr::bvar(*db_index, *var, BoundReftKind::Annon)
+                    Expr::bvar(*db_index, *var, BoundReftKind::Anon)
                 } else {
                     expr.super_fold_with(self)
                 }

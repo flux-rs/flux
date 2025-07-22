@@ -103,7 +103,7 @@ impl WKVarInstantiator<'_> {
             wkvar.args.iter().map(|arg| arg.erase_metadata()),
             // We'll make an instantiator that is generic because this instatiation
             // may (and probably will) be used in multiple places
-            (0..wkvar.params.len()).into_iter().map(|var_num| rty::Expr::bvar(INNERMOST, var_num.into(), rty::BoundReftKind::Annon)),
+            (0..wkvar.params.len()).into_iter().map(|var_num| rty::Expr::bvar(INNERMOST, var_num.into(), rty::BoundReftKind::Anon)),
         )
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
