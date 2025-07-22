@@ -16,7 +16,7 @@ use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     def::DefKind,
-    def_id::{DefId, LocalDefId},
+    def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
 use rustc_middle::{query, ty::TyCtxt};
@@ -80,7 +80,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
         tracing::info!("Callbacks::check_wf");
 
-        flux_fhir_analysis::check_crate_wf(genv)?;
+        // Query qualifiers and spec funcs to report wf errors
+        let _ = genv.qualifiers().emit(&genv)?;
+        let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
 
@@ -187,8 +189,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 refineck::check_fn(self.genv, &mut self.cache, local_id)
             }
             DefKind::Enum => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
+                self.genv.variants_of(def_id).emit(&self.genv)?;
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
-                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
                 let enum_def = self
                     .genv
                     .map()
@@ -207,8 +210,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 // We check invariants for `struct` in `check_constructor` (i.e. when the struct is built).
                 // However, we leave the below code in to force the queries that do the conversions that check
                 // for ill-formed annotations e.g. see tests/tests/neg/error_messages/annot_check/struct_error.rs
-                let _adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
-                let _ = self.genv.variants_of(def_id).emit(&self.genv)?;
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
+                self.genv.adt_def(def_id).emit(&self.genv)?;
+                self.genv.variants_of(def_id).emit(&self.genv)?;
                 let _struct_def = self
                     .genv
                     .map()
@@ -218,6 +222,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 Ok(())
             }
             DefKind::Impl { of_trait } => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 if of_trait {
                     refineck::compare_impl_item::check_impl_against_trait(self.genv, def_id)
                         .emit(&self.genv)?;
@@ -225,7 +230,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 Ok(())
             }
             DefKind::TyAlias => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 self.genv.type_of(def_id).emit(&self.genv)?;
+                Ok(())
+            }
+            DefKind::Trait => {
+                self.genv.check_wf(def_id.local_id()).emit(&self.genv)?;
                 Ok(())
             }
             _ => Ok(()),
