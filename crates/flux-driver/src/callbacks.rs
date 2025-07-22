@@ -115,10 +115,10 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
 
 fn encode_and_save_metadata(genv: GlobalEnv) {
     // HACK(nilehmann) do not encode metadata for `core`, this is so verify-rust-std works even
-    // if it has supported items. We report errors lazily so partially including the crate should
+    // if it has unsupported items. We report errors lazily so partially analyzing the crate should
     // skip the error, except that encoding the metadata for the crate will trigger conversion for
-    // all items which can trigger the error even if not included. To fix this properly we should
-    // consider how to properly handle metadata encoding if only part of crate is included in the
+    // all items which can trigger the error even if not included for analysis. To fix this properly
+    // we should consider how to handle metadata encoding if only part of the crate is included for
     // analysis.
     if genv.tcx().crate_name(LOCAL_CRATE) == flux_syntax::symbols::sym::core {
         return;
