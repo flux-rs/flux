@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::span_bug;
 use flux_syntax::surface::{self, Span};
@@ -18,7 +18,6 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 struct DetachedItems {
     items: HashMap<Ident, (surface::Item, Option<DefId>)>,
     inherent_impls: HashMap<Ident, (surface::DetachedImpl, Option<DefId>)>,
-    // trait_impls: HashMap<(Ident, Ident), (surface::Item, Option<DefId>)>,
 }
 
 impl DetachedItems {
@@ -178,7 +177,15 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let mut table: HashMap<Symbol, (surface::FnSig, Option<DefId>, Span)> = HashMap::default();
         // 1. make a table of the impl-items
         for item in detached_impl.items {
-            table.insert(item.ident.name, (item.kind, None, item.ident.span));
+            let key = item.ident.name;
+            if let Entry::Occupied(_) = table.entry(key) {
+                return Err(self.inner.errors.emit(errors::AttrMapErr {
+                    span: item.ident.span,
+                    message: format!("multiple specs for `{}`", item.ident),
+                }));
+            } else {
+                table.insert(item.ident.name, (item.kind, None, item.ident.span));
+            }
         }
         // 2. walk over all the impl-def-ids resolving the items
         for impl_id in self.inner.tcx.inherent_impls(ty_def_id) {
