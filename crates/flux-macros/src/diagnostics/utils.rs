@@ -1,17 +1,15 @@
-use std::{
-    cell::RefCell,
-    collections::{BTreeSet, HashMap},
-    fmt,
-    str::FromStr,
-};
+use std::cell::RefCell;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt;
+use std::str::FromStr;
 
 use proc_macro::Span;
 use proc_macro2::{Ident, TokenStream};
 use quote::{ToTokens, format_ident, quote};
-use syn::{
-    Attribute, Field, LitStr, Meta, Path, Token, Type, TypeTuple, meta::ParseNestedMeta,
-    parenthesized, punctuated::Punctuated, spanned::Spanned,
-};
+use syn::meta::ParseNestedMeta;
+use syn::punctuated::Punctuated;
+use syn::spanned::Spanned;
+use syn::{Attribute, Field, LitStr, Meta, Path, Token, Type, TypeTuple, parenthesized};
 use synstructure::{BindingInfo, VariantInfo};
 
 use super::error::invalid_attr;
@@ -150,7 +148,7 @@ impl<'ty> FieldInnerTy<'ty> {
             let path = &ty_path.path;
             let ty = path.segments.iter().last().unwrap();
             let syn::PathArguments::AngleBracketed(bracketed) = &ty.arguments else {
-                panic!("expected bracketed generic arguments")
+                panic!("expected bracketed generic arguments");
             };
 
             assert_eq!(bracketed.args.len(), 1);
@@ -192,27 +190,21 @@ impl<'ty> FieldInnerTy<'ty> {
     /// Surrounds `inner` with destructured wrapper type, exposing inner type as `binding`.
     pub(crate) fn with(&self, binding: impl ToTokens, inner: impl ToTokens) -> TokenStream {
         match self {
-            FieldInnerTy::Option(..) => {
-                quote! {
-                    if let Some(#binding) = #binding {
-                        #inner
-                    }
+            FieldInnerTy::Option(..) => quote! {
+                if let Some(#binding) = #binding {
+                    #inner
                 }
-            }
-            FieldInnerTy::Vec(..) => {
-                quote! {
-                    for #binding in #binding {
-                        #inner
-                    }
+            },
+            FieldInnerTy::Vec(..) => quote! {
+                for #binding in #binding {
+                    #inner
                 }
-            }
-            FieldInnerTy::Plain(t) if type_is_bool(t) => {
-                quote! {
-                    if #binding {
-                        #inner
-                    }
+            },
+            FieldInnerTy::Plain(t) if type_is_bool(t) => quote! {
+                if #binding {
+                    #inner
                 }
-            }
+            },
             FieldInnerTy::Plain(..) => quote! { #inner },
         }
     }
@@ -251,7 +243,7 @@ impl<T> SetOnce<T> for SpannedOption<T> {
                 *self = Some((value, span));
             }
             Some((_, prev_span)) => {
-                span_err(span, "specified multiple times")
+                span_err(span, "attribute specified multiple times")
                     .span_note(*prev_span, "previously specified here")
                     .emit();
             }
@@ -644,9 +636,8 @@ impl SubdiagnosticVariant {
             _ => {
                 // Recover old `#[(multipart_)suggestion_*]` syntaxes
                 // FIXME(#100717): remove
-                if let Some(suggestion_kind) = name
-                    .strip_prefix("suggestion")
-                    .and_then(SuggestionKind::from_suffix)
+                if let Some(suggestion_kind) =
+                    name.strip_prefix("suggestion").and_then(SuggestionKind::from_suffix)
                 {
                     if suggestion_kind != SuggestionKind::Normal {
                         invalid_attr(attr)
@@ -662,9 +653,8 @@ impl SubdiagnosticVariant {
                         code_field: new_code_ident(),
                         code_init: TokenStream::new(),
                     }
-                } else if let Some(suggestion_kind) = name
-                    .strip_prefix("multipart_suggestion")
-                    .and_then(SuggestionKind::from_suffix)
+                } else if let Some(suggestion_kind) =
+                    name.strip_prefix("multipart_suggestion").and_then(SuggestionKind::from_suffix)
                 {
                     if suggestion_kind != SuggestionKind::Normal {
                         invalid_attr(attr)

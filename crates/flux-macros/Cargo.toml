@@ -8,7 +8,7 @@ edition.workspace = true
 proc-macro = true
 
 [dependencies]
-annotate-snippets = "0.10"
+annotate-snippets = "0.11"
 fluent-bundle = "0.16.0"
 fluent-syntax = "0.12.0"
 itertools.workspace = true
