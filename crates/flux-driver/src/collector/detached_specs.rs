@@ -25,7 +25,7 @@ impl DetachedItems {
         let mut items = HashMap::default();
         let mut inherent_impls: HashMap<Ident, (surface::DetachedImpl, Option<DefId>)> =
             HashMap::default();
-        for item in detached_specs.items.into_iter() {
+        for item in detached_specs.items {
             if let surface::ItemKind::InherentImpl(detached_impl) = item.kind {
                 if let Some(existing) = inherent_impls.get_mut(&item.ident) {
                     existing.0.extend(detached_impl);
@@ -54,37 +54,38 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         };
         Ok(())
     }
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "this is pre-extern specs so it's fine: https://flux-rs.zulipchat.com/#narrow/channel/486369-verify-std/topic/detached-specs/near/529548357"
-    )]
+
     fn run(&mut self, detached_specs: surface::DetachedSpecs, parent: LocalDefId) -> Result {
         let mut detached_items = DetachedItems::new(detached_specs);
 
         resolve_idents_in_scope(self.inner.tcx, parent, &mut detached_items);
 
         for (ident, (item, def_id)) in detached_items.items {
-            let def_id = self.unwrap_def_id(ident, def_id)?;
-            if let Some(def_id) = def_id.as_local() {
+            if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
                 self.collect_detached_item(owner_id, item)?;
             }
         }
         for (ident, (detached_impl, def_id)) in detached_items.inherent_impls {
-            let def_id = self.unwrap_def_id(ident, def_id)?;
-            self.collect_detached_impl(def_id, detached_impl)?;
+            if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
+                self.collect_detached_impl(def_id, detached_impl)?;
+            }
         }
         Ok(())
     }
 
-    fn unwrap_def_id(&mut self, ident: Ident, def_id: Option<DefId>) -> Result<DefId> {
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "this is pre-extern specs so it's fine: https://flux-rs.zulipchat.com/#narrow/channel/486369-verify-std/topic/detached-specs/near/529548357"
+    )]
+    fn unwrap_def_id(&mut self, ident: Ident, def_id: Option<DefId>) -> Result<Option<LocalDefId>> {
         let Some(def_id) = def_id else {
             return Err(self.inner.errors.emit(errors::AttrMapErr {
                 span: ident.span,
                 message: format!("unresolved identifier `{ident}`"),
             }));
         };
-        Ok(def_id)
+        Ok(def_id.as_local())
     }
 
     fn collect_detached_enum(
@@ -171,7 +172,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
     fn collect_detached_impl(
         &mut self,
-        ty_def_id: DefId,
+        ty_def_id: LocalDefId,
         detached_impl: surface::DetachedImpl,
     ) -> Result {
         let mut table: HashMap<Symbol, (surface::FnSig, Option<DefId>, Span)> = HashMap::default();
@@ -206,8 +207,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
         for (name, (fn_sig, def_id, span)) in table {
             let ident = Ident { name, span };
-            let def_id = self.unwrap_def_id(ident, def_id)?;
-            if let Some(def_id) = def_id.as_local() {
+            if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
                 self.collect_detached_fn_sig(owner_id, fn_sig)?;
             }
@@ -268,7 +268,7 @@ fn resolve_idents_in_scope(tcx: TyCtxt, scope: LocalDefId, detached_items: &mut 
             if matches!(kind, DefKind::Struct | DefKind::Enum)
                 && let Some(val) = detached_items.inherent_impls.get_mut(&ident)
             {
-                val.1 = Some(def_id)
+                val.1 = Some(def_id);
             }
         }
     }

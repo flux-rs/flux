@@ -121,7 +121,7 @@ pub struct DetachedImpl {
 
 impl DetachedImpl {
     pub fn extend(&mut self, other: DetachedImpl) {
-        self.items.extend(other.items)
+        self.items.extend(other.items);
     }
 }
 
