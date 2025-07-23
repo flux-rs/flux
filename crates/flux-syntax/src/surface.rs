@@ -115,23 +115,23 @@ pub struct DetachedSpecs {
 }
 
 #[derive(Debug)]
-pub enum Item {
-    FnSig(Ident, Box<FnSig>),
-    Mod(Ident, DetachedSpecs),
-    Struct(Ident, Box<StructDef>),
-    Enum(Ident, Box<EnumDef>),
-    // Impl(Ident, Box<DetachedSpecs>),
+pub struct DetachedImpl {
+    pub items: Vec<Item<FnSig>>,
 }
 
-impl Item {
-    pub fn ident(&self) -> Ident {
-        match self {
-            Item::FnSig(ident, _)
-            | Item::Mod(ident, _)
-            | Item::Struct(ident, _)
-            | Item::Enum(ident, _) => *ident,
-        }
-    }
+#[derive(Debug)]
+pub struct Item<K = ItemKind> {
+    pub ident: Ident,
+    pub kind: K,
+}
+
+#[derive(Debug)]
+pub enum ItemKind {
+    FnSig(Item<FnSig>),
+    Mod(DetachedSpecs),
+    Struct(StructDef),
+    Enum(EnumDef),
+    InherentImpl(DetachedImpl),
 }
 
 #[derive(Debug)]
