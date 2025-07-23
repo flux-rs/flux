@@ -8,7 +8,7 @@ use flux_common::bug;
 use itertools::Itertools;
 use rustc_data_structures::fx::FxHashMap;
 use rustc_hash::FxHashSet;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
     normalize::Normalizer, BaseTy, Binder, BoundVariableKind, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, WKVid
@@ -255,16 +255,98 @@ pub trait TypeVisitable: Sized {
         collector.0
     }
 
-    fn count_bvar_occurrences(&self, bvars: &BoundVariableKinds) -> FxHashMap<BoundVariableKind, usize> {
-        struct BVarOccurrences((DebruijnIndex, FxHashMap<BoundVariableKind, usize>));
+    /// Gives the indices of the provided bvars which:
+    ///   1. Only occur a single time.
+    ///   2. In their occurrence, are either
+    ///     a. The direct argument in an index (e.g. `exists b0. usize[b0]`)
+    ///     b. The direct argument of a constructor in an index (e.g.
+    ///        `exists b0. Vec<usize>[{len: b0}]`)
+    ///
+    /// This is to be used for "re-sugaring" existentials into surface syntax
+    /// that doesn't use existentials.
+    ///
+    /// For 2b., we do need to be careful to ensure that if a constructor has
+    /// multiple arguments, they _all_ are redundant bvars, e.g. as in
+    ///
+    ///     exists b0, b1. RMat<f32>[{rows: b0, cols: b1}]
+    ///
+    /// which may be rewritten as `RMat<f32>`,
+    /// versus the (unlikely) edge case
+    ///
+    ///     exists b0. RMat<f32>[{rows: b0, cols: b0}]
+    ///
+    /// for which the existential is now necessary.
+    ///
+    /// NOTE: this only applies to refinement bvars.
+    fn redundant_bvars(&self) -> Vec<BoundVar> {
+        struct RedundantBVarFinder {
+            debruijn: DebruijnIndex,
+            bvar_occurrences: FxHashMap<BoundVar, usize>,
+            bvar_index_occurrences: FxHashMap<BoundVar, usize>,
+        }
 
-        impl TypeVisitor for BVarOccurrences {
+        impl TypeVisitor for RedundantBVarFinder {
+            // Here we count all times we see a bvar
             fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
-                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, kind })) = e.kind() {
-
+                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = e.kind() {
+                    if debruijn == &self.debruijn {
+                        self.bvar_occurrences
+                            .entry(*var)
+                            .and_modify(|count| {*count = *count + 1; })
+                            .or_insert(1);
+                    }
                 }
+                e.super_visit_with(self)
+            }
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
+                // Here we check for bvars specifically as the direct arguments
+                // to an index or as the direct arguments to a Ctor in an index.
+                if let TyKind::Indexed(_bty, expr) = ty.kind() {
+                    match expr.kind() {
+                        ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) => {
+                            if debruijn == &self.debruijn {
+                                self.bvar_index_occurrences
+                                    .entry(*var)
+                                    .and_modify(|count| {*count = *count + 1;})
+                                    .or_insert(1);
+                            }
+                        }
+                        ExprKind::Ctor(_ctor, exprs) => {
+                            exprs.iter().for_each(|expr| {
+                                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = expr.kind() {
+                                    if debruijn == &self.debruijn {
+                                        self.bvar_index_occurrences
+                                            .entry(*var)
+                                            .and_modify(|count| {*count = *count + 1; })
+                                            .or_insert(1);
+                                    }
+                                }
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+                ty.super_visit_with(self)
+            }
+
+            fn visit_binder<T: TypeVisitable>(&mut self, t: &Binder<T>) -> ControlFlow<Self::BreakTy> {
+                self.debruijn.shift_in(1);
+                t.super_visit_with(self)?;
+                self.debruijn.shift_out(1);
+                ControlFlow::Continue(())
             }
         }
+
+        let mut finder = RedundantBVarFinder {
+            debruijn: INNERMOST,
+            bvar_occurrences: FxHashMap::default(),
+            bvar_index_occurrences: FxHashMap::default(),
+        };
+        let _ = self.visit_with(&mut finder);
+
+        finder.bvar_index_occurrences.keys().copied().filter(|var_index| {
+            *finder.bvar_occurrences.get(var_index).unwrap_or(&0) == 1
+        }).collect()
     }
 }
 

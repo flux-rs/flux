@@ -267,8 +267,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         );
     }
 
-    pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
-        self.bvar_env.push_layer(vars, None);
+    pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], vars_to_remove: FxHashSet<BoundVar>, f: impl FnOnce() -> R) -> R {self.bvar_env.push_layer(vars, vars_to_remove, None);
         let r = f();
         self.bvar_env.pop_layer();
         r
@@ -277,13 +276,14 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     pub fn with_fn_root_bound_vars<R>(
         &self,
         vars: &[BoundVariableKind],
+        vars_to_remove: FxHashSet<BoundVar>,
         fn_root_layer_type: FnRootLayerType,
         f: impl FnOnce() -> R,
     ) -> (R, FxHashSet<BoundVar>) {
-        self.bvar_env.push_layer(vars, Some(fn_root_layer_type));
+        self.bvar_env.push_layer(vars, vars_to_remove, Some(fn_root_layer_type));
         let r = f();
         match self.bvar_env.pop_layer() {
-            Some(BoundVarLayer::FnRootLayer(fn_root_layer)) => (r, fn_root_layer.seen_vars),
+            Some(BoundVarLayer {layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), ..}) => (r, fn_root_layer.seen_vars),
             _ => unreachable!("The popped layer must exist and be an FnRootLayer"),
         }
     }
@@ -396,14 +396,20 @@ pub enum FnRootLayerType {
 }
 
 #[derive(Clone)]
-pub struct FnRootLayer {
+pub struct FnRootLayerMap {
     name_map: UnordMap<BoundVar, BoundVarName>,
     seen_vars: FxHashSet<BoundVar>,
     layer_type: FnRootLayerType,
 }
 
-pub enum BoundVarLayer {
-    Layer(UnordMap<BoundVar, BoundVarName>),
+pub struct BoundVarLayer {
+    layer_map: BoundVarLayerMap,
+    vars_to_remove: FxHashSet<BoundVar>,
+    successfully_removed_vars: FxHashSet<BoundVar>,
+}
+
+pub enum BoundVarLayerMap {
+    LayerMap(UnordMap<BoundVar, BoundVarName>),
     /// We treat vars at the function root differently. The UnordMap
     /// functions the same as in a regular layer (i.e. giving names to
     /// anonymous bound vars), but we additionally track a set of
@@ -419,14 +425,14 @@ pub enum BoundVarLayer {
     /// We do the same thing for `m` but with a different layer.
     ///
     /// This is a behavior we _only_ do for bound vars at the fn root level.
-    FnRootLayer(FnRootLayer),
+    FnRootLayerMap(FnRootLayerMap),
 }
 
-impl BoundVarLayer {
+impl BoundVarLayerMap {
     fn name_map(&self) -> &UnordMap<BoundVar, BoundVarName> {
         match self {
-            Self::Layer(name_map) => name_map,
-            Self::FnRootLayer(root_layer) => &root_layer.name_map,
+            Self::LayerMap(name_map) => name_map,
+            Self::FnRootLayerMap(root_layer) => &root_layer.name_map,
         }
     }
 }
@@ -453,40 +459,62 @@ impl BoundVarEnv {
         let num_layers = self.layers.borrow().len();
         let mut layer = self.layers.borrow_mut();
         match layer.get_mut(num_layers.checked_sub(debruijn.as_usize() + 1)?)? {
-            BoundVarLayer::FnRootLayer(fn_root_layer) => {
+            BoundVarLayer { layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), .. } => {
                 Some((!fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type))
             }
-            BoundVarLayer::Layer(..) => None,
+            _ => None,
         }
+    }
+
+    fn should_remove_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
+        let layers = self.layers.borrow();
+        Some(layers
+            .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
+            .vars_to_remove
+            .contains(&var))
+    }
+
+    fn mark_var_as_removed(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
+        let mut layers = self.layers.borrow_mut();
+        let layer_index = layers.len().checked_sub(debruijn.as_usize() + 1)?;
+        Some(layers
+            .get_mut(layer_index)?
+            .successfully_removed_vars
+            .insert(var))
     }
 
     fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
         let layers = self.layers.borrow();
         layers
             .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
+            .layer_map
             .name_map()
             .get(&var)
             .copied()
     }
 
-    fn push_layer(&self, vars: &[BoundVariableKind], is_fn_root_layer: Option<FnRootLayerType>) {
+    fn push_layer(&self, vars: &[BoundVariableKind], vars_to_remove: FxHashSet<BoundVar>, is_fn_root_layer: Option<FnRootLayerType>) {
         let mut name_map = UnordMap::default();
         for (idx, var) in vars.iter().enumerate() {
             if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
                 name_map.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
             }
         }
-        self.layers
-            .borrow_mut()
-            .push(if let Some(layer_type) = is_fn_root_layer {
-                BoundVarLayer::FnRootLayer(FnRootLayer {
-                    name_map,
-                    seen_vars: FxHashSet::default(),
-                    layer_type,
-                })
-            } else {
-                BoundVarLayer::Layer(name_map)
-            });
+        let layer_map = if let Some(layer_type) = is_fn_root_layer {
+            BoundVarLayerMap::FnRootLayerMap(FnRootLayerMap {
+                name_map,
+                seen_vars: FxHashSet::default(),
+                layer_type,
+            })
+        } else {
+            BoundVarLayerMap::LayerMap(name_map)
+        };
+        let layer = BoundVarLayer {
+            layer_map,
+            vars_to_remove,
+            successfully_removed_vars: FxHashSet::default(),
+        };
+        self.layers.borrow_mut().push(layer);
     }
 
     fn pop_layer(&self) -> Option<BoundVarLayer> {

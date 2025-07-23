@@ -395,7 +395,7 @@ mod pretty {
             match self {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
-                    cx.with_bound_vars(poly_constr.vars(), || {
+                    cx.with_bound_vars(poly_constr.vars(), todo!(), || {
                         let constr = poly_constr.skip_binder_ref();
                         if constr.pred().is_trivially_true() {
                             w!(cx, f, "{{ ")?;
