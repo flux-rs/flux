@@ -119,6 +119,12 @@ pub struct DetachedImpl {
     pub items: Vec<Item<FnSig>>,
 }
 
+impl DetachedImpl {
+    pub fn extend(&mut self, other: DetachedImpl) {
+        self.items.extend(other.items)
+    }
+}
+
 #[derive(Debug)]
 pub struct Item<K = ItemKind> {
     pub ident: Ident,

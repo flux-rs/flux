@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
 use flux_common::span_bug;
-use flux_syntax::surface::{self};
+use flux_syntax::surface::{self, Span};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{DefKind, Res},
     def_id::{CRATE_DEF_ID, LocalDefId},
 };
-use rustc_middle::ty::TyCtxt;
-use rustc_span::def_id::DefId;
+use rustc_middle::ty::{AssocKind, TyCtxt};
+use rustc_span::{Symbol, def_id::DefId};
 
 use crate::collector::{FluxAttrs, SpecCollector, errors, surface::Ident};
 
@@ -24,10 +24,15 @@ struct DetachedItems {
 impl DetachedItems {
     fn new(detached_specs: surface::DetachedSpecs) -> Self {
         let mut items = HashMap::default();
-        let mut inherent_impls = HashMap::default();
+        let mut inherent_impls: HashMap<Ident, (surface::DetachedImpl, Option<DefId>)> =
+            HashMap::default();
         for item in detached_specs.items.into_iter() {
             if let surface::ItemKind::InherentImpl(detached_impl) = item.kind {
-                inherent_impls.insert(item.ident, (detached_impl, None));
+                if let Some(existing) = inherent_impls.get_mut(&item.ident) {
+                    existing.0.extend(detached_impl);
+                } else {
+                    inherent_impls.insert(item.ident, (detached_impl, None));
+                }
             } else {
                 items.insert(item.ident, (item, None));
             }
@@ -69,7 +74,6 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         for (ident, (detached_impl, def_id)) in detached_items.inherent_impls {
             let def_id = self.unwrap_def_id(ident, def_id)?;
             self.collect_detached_impl(def_id, detached_impl)?;
-            // panic!("TRACE: inherent_impls {ident:?} => {impls:?}");
         }
         Ok(())
     }
@@ -171,19 +175,38 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         ty_def_id: DefId,
         detached_impl: surface::DetachedImpl,
     ) -> Result {
-        Ok(())
-        // let mut table = HashMap::default();
-        // for if let surface::Item::InherentImpl(ident, detached_impl) = item {
-        //         inherent_impls.insert(ident, (detached_impl, None));
-        // } else {
+        let mut table: HashMap<Symbol, (surface::FnSig, Option<DefId>, Span)> = HashMap::default();
+        // 1. make a table of the impl-items
+        for item in detached_impl.items {
+            table.insert(item.ident.name, (item.kind, None, item.ident.span));
+        }
+        // 2. walk over all the impl-def-ids resolving the items
+        for impl_id in self.inner.tcx.inherent_impls(ty_def_id) {
+            for item in self
+                .inner
+                .tcx
+                .associated_items(impl_id)
+                .in_definition_order()
+            {
+                if let AssocKind::Fn { name, .. } = item.kind
+                    && let Some(val) = table.get_mut(&name)
+                    && val.1.is_none()
+                {
+                    val.1 = Some(item.def_id);
+                }
+            }
+        }
 
-        // for impl_def_id in self.inner.tcx.inherent_impls(def_id) {
-        //    update-table-with-impl-def-id
-        // }
-        // for entry in table {
-        //   if unbound(entry) report error else { link }
-        // }
-        //
+        for (name, (fn_sig, def_id, span)) in table {
+            let ident = Ident { name, span };
+            let def_id = self.unwrap_def_id(ident, def_id)?;
+            if let Some(def_id) = def_id.as_local() {
+                let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+                self.collect_detached_fn_sig(owner_id, fn_sig)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
