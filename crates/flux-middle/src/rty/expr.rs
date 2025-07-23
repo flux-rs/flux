@@ -1443,7 +1443,7 @@ pub(crate) mod pretty {
                 }
                 ExprKind::ForAll(expr) => {
                     let vars = expr.vars();
-                    cx.with_bound_vars(vars, || {
+                    cx.with_bound_vars(vars, Default::default(), || {
                         if !vars.is_empty() {
                             cx.fmt_bound_vars(false, "∀", vars, ". ", f)?;
                         }
@@ -1452,7 +1452,7 @@ pub(crate) mod pretty {
                 }
                 ExprKind::BoundedQuant(kind, rng, body) => {
                     let vars = body.vars();
-                    cx.with_bound_vars(vars, || {
+                    cx.with_bound_vars(vars, Default::default(), || {
                         w!(
                             cx,
                             f,
@@ -1466,7 +1466,7 @@ pub(crate) mod pretty {
                 }
                 ExprKind::Let(init, body) => {
                     let vars = body.vars();
-                    cx.with_bound_vars(vars, || {
+                    cx.with_bound_vars(vars, Default::default(), || {
                         cx.fmt_bound_vars(false, "(let ", vars, " = ", f)?;
                         w!(cx, f, "{:?} in {:?})", init, body.skip_binder_ref())
                     })
@@ -1512,7 +1512,7 @@ pub(crate) mod pretty {
     impl Pretty for Lambda {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let vars = self.body.vars();
-            cx.with_bound_vars(vars, || {
+            cx.with_bound_vars(vars, todo!(), || {
                 cx.fmt_bound_vars(false, "λ", vars, ". ", f)?;
                 w!(cx, f, "{:?}", self.body.as_ref().skip_binder())
             })
@@ -1609,7 +1609,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            nested_with_bound_vars(cx, "λ", self.body.vars(), None, |prefix| {
+            nested_with_bound_vars(cx, "λ", self.body.vars(), todo!(), None, |prefix| {
                 let expr_d = self.body.skip_binder_ref().fmt_nested(cx)?;
                 let text = format!("{}{}", prefix, expr_d.text);
                 Ok(NestedString { text, children: expr_d.children, key: None })
@@ -1780,7 +1780,7 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
                 ExprKind::Let(init, body) => {
                     // FIXME this is very wrong!
-                    nested_with_bound_vars(cx, "let", body.vars(), None, |prefix| {
+                    nested_with_bound_vars(cx, "let", body.vars(), Default::default(), None, |prefix| {
                         let body = body.skip_binder_ref().fmt_nested(cx)?;
                         let text = format!("{:?} {}{}", init, prefix, body.text);
                         Ok(NestedString { text, children: body.children, key: None })
@@ -1793,14 +1793,14 @@ pub(crate) mod pretty {
                     };
                     let right = Some(format!(" in {}..{}", rng.start, rng.end));
 
-                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+                    nested_with_bound_vars(cx, left, body.vars(), Default::default(), right, |all_str| {
                         let expr_d = body.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })
                     })
                 }
                 ExprKind::ForAll(expr) => {
-                    nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
+                    nested_with_bound_vars(cx, "∀", expr.vars(), Default::default(), None, |all_str| {
                         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })

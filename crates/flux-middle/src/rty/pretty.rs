@@ -2,6 +2,7 @@ use std::{fmt, iter};
 
 use expr::{FieldBind, pretty::aggregate_nested};
 use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_hash::FxHashSet;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree, region_to_string};
 
@@ -38,7 +39,7 @@ where
     T: Pretty,
 {
     default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        cx.with_bound_vars(self.vars(), || {
+        cx.with_bound_vars(self.vars(), FxHashSet::default(), || {
             if !self.vars().is_empty() {
                 cx.fmt_bound_vars(true, "for<", self.vars(), "> ", f)?;
             }
@@ -63,7 +64,7 @@ fn format_fn_root_binder<T: Pretty>(
     let vars = binder.vars();
     // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
     let (formatted_fn_body, seen_vars) =
-        cx.with_fn_root_bound_vars(vars, fn_root_layer_type, || {
+        cx.with_fn_root_bound_vars(vars, todo!(), fn_root_layer_type, || {
             format!("{:?}", with_cx!(cx, binder.skip_binder_ref()))
         });
     // Then remove any vars that we added a decorator to.
@@ -338,7 +339,7 @@ impl Pretty for Ty {
             }
             TyKind::Exists(ty_ctor) => {
                 let vars = ty_ctor.vars();
-                cx.with_bound_vars(vars, || {
+                cx.with_bound_vars(vars, todo!(), || {
                     if cx.hide_refinements {
                         w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
                     } else {
@@ -596,7 +597,7 @@ impl Pretty for GenericArg {
         match self {
             GenericArg::Ty(ty) => w!(cx, f, "{:?}", ty),
             GenericArg::Base(ctor) => {
-                cx.with_bound_vars(ctor.vars(), || {
+                cx.with_bound_vars(ctor.vars(), FxHashSet::default(), || {
                     if !cx.hide_refinements {
                         cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
                     }
@@ -665,7 +666,7 @@ impl PrettyNested for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.fmt_nested(cx),
             GenericArg::Base(ctor) => {
-                nested_with_bound_vars(cx, "λ", ctor.vars(), None, |prefix| {
+                nested_with_bound_vars(cx, "λ", ctor.vars(), Default::default(), None, |prefix| {
                     let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
                     let text = format!("{}{}", prefix, ctor_d.text);
                     Ok(NestedString { text, children: ctor_d.children, key: None })
@@ -769,11 +770,12 @@ pub fn nested_with_bound_vars(
     cx: &PrettyCx,
     left: &str,
     vars: &[BoundVariableKind],
+    vars_to_remove: FxHashSet<BoundVar>,
     right: Option<String>,
     f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
 ) -> Result<NestedString, fmt::Error> {
     let mut buffer = String::new();
-    cx.with_bound_vars(vars, || {
+    cx.with_bound_vars(vars, vars_to_remove, || {
         if !vars.is_empty() {
             let right = right.unwrap_or(". ".to_string());
             cx.fmt_bound_vars(false, left, vars, &right, &mut buffer)?;
@@ -797,7 +799,7 @@ impl PrettyNested for Ty {
                 Ok(NestedString { text, children, key: None })
             }
             TyKind::Exists(ty_ctor) => {
-                nested_with_bound_vars(cx, "∃", ty_ctor.vars(), None, |exi_str| {
+                nested_with_bound_vars(cx, "∃", ty_ctor.vars(), todo!(), None, |exi_str| {
                     let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
                     let text = format!("{}{}", exi_str, ty_ctor_d.text);
                     Ok(NestedString { text, children: ty_ctor_d.children, key: None })
