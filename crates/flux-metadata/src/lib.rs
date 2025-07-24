@@ -286,7 +286,7 @@ impl CrateMetadata {
 fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
 
-    for (def_id, item) in genv.map().flux_items() {
+    for (def_id, item) in genv.fhir_iter_flux_items() {
         let fhir::FluxItem::Func(_) = item else { continue };
         tables
             .func_sort

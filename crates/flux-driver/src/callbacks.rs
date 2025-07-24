@@ -204,8 +204,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 let adt_def = self.genv.adt_def(def_id).emit(&self.genv)?;
                 let enum_def = self
                     .genv
-                    .map()
-                    .expect_item(def_id.local_id())
+                    .fhir_expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_enum();
                 refineck::invariants::check_invariants(
@@ -225,8 +224,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 self.genv.variants_of(def_id).emit(&self.genv)?;
                 let _struct_def = self
                     .genv
-                    .map()
-                    .expect_item(def_id.local_id())
+                    .fhir_expect_item(def_id.local_id())
                     .emit(&self.genv)?
                     .expect_struct();
                 Ok(())
