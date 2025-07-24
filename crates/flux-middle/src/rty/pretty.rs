@@ -1,4 +1,4 @@
-use std::{fmt, iter};
+use std::{fmt::{self, Write}, iter};
 
 use expr::{FieldBind, pretty::aggregate_nested};
 use rustc_data_structures::snapshot_map::SnapshotMap;
@@ -7,6 +7,7 @@ use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree, region_to_string};
 
 use super::*;
+use super::fold::TypeVisitable;
 use crate::pretty::*;
 
 impl Pretty for ClauseKind {
@@ -53,7 +54,7 @@ impl<T: Pretty> std::fmt::Debug for Binder<T> {
     }
 }
 
-fn format_fn_root_binder<T: Pretty>(
+fn format_fn_root_binder<T: Pretty + TypeVisitable>(
     binder: &Binder<T>,
     cx: &PrettyCx,
     fn_root_layer_type: FnRootLayerType,
@@ -61,9 +62,10 @@ fn format_fn_root_binder<T: Pretty>(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let vars = binder.vars();
+    let redundant_bvars = binder.skip_binder_ref().redundant_bvars().into_iter().collect();
     // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
     let (formatted_fn_body, seen_vars) =
-        cx.with_fn_root_bound_vars(vars, todo!(), fn_root_layer_type, || {
+        cx.with_fn_root_bound_vars(vars, redundant_bvars, fn_root_layer_type, || {
             format!("{:?}", with_cx!(cx, binder.skip_binder_ref()))
         });
     // Then remove any vars that we added a decorator to.
@@ -249,11 +251,12 @@ impl Pretty for Ensures {
 
 impl Pretty for SubsetTy {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.pred.is_trivially_true() {
-            w!(cx, f, "{:?}[{:?}]", &self.bty, &self.idx)
-        } else {
-            w!(cx, f, "{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
-        }
+        w!(cx, f, "{:?}", &self.to_ty())
+        // if self.pred.is_trivially_true() {
+        //     w!(cx, f, "{:?}[{:?}]", &self.bty, &self.idx)
+        // } else {
+        //     w!(cx, f, "{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
+        // }
     }
 }
 
@@ -281,6 +284,7 @@ impl Pretty for IdxFmt {
         } else {
             self.0.clone()
         };
+        let mut buf = String::new();
         match e.kind() {
             ExprKind::Ctor(ctor, flds)
                 if let Some(adt_sort_def) = cx.adt_sort_def_of(ctor.def_id())
@@ -289,7 +293,26 @@ impl Pretty for IdxFmt {
                 let fields = iter::zip(variant.field_names(), flds)
                     .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                     .collect_vec();
-                w!(cx, f, "{{ {:?} }}", join!(", ", fields))
+                // Check if _all_ the fields can be removed
+                if fields.iter().all(|field| {
+                    if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) = field.value.kind() {
+                        cx.bvar_env.should_remove_var(*debruijn, *var).unwrap_or(false)
+                    } else {
+                        false
+                    }
+                }) {
+                    fields.iter().for_each(|field| {
+                        // we just checked that they are all this.
+                        let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) = field.value.kind()
+                            else {
+                                unreachable!()
+                            };
+                        cx.bvar_env.mark_var_as_removed(*debruijn, *var);
+                    });
+                    // We write nothing here: we can erase the index
+                } else {
+                    buf.write_str(&format_cx!(cx, "{{ {:?} }}", join!(", ", fields)))?;
+                }
             }
             // The first time we encounter a var in an index position where it
             // can introduce an existential (at the function root level), we put
@@ -298,25 +321,45 @@ impl Pretty for IdxFmt {
             // * If it's in the argument position, we use @
             // * If it's in the return position, we use #
             //
+            // This does not take priority over removing variables, which
+            // we check to do first.
+            //
             // TODO: handle more complicated cases such as structs.
-            ExprKind::Var(Var::Bound(debruijn, breft))
-                if let Some((seen, layer_type)) =
-                    cx.bvar_env.check_if_seen_fn_root_bvar(*debruijn, breft.var)
-                    && !seen =>
+            ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) =>
             {
-                match layer_type {
-                    FnRootLayerType::FnArgs => w!(cx, f, "@")?,
-                    FnRootLayerType::FnRet => w!(cx, f, "#")?,
+                if cx.bvar_env.should_remove_var(*debruijn, *var).unwrap_or(false) {
+                    cx.bvar_env.mark_var_as_removed(*debruijn, *var);
+                    // don't write anything
+                } else {
+                    if let Some((seen, layer_type)) =
+                        cx.bvar_env.check_if_seen_fn_root_bvar(*debruijn, *var)
+                        && !seen {
+                            match layer_type {
+                                FnRootLayerType::FnArgs => {
+                                    buf.write_str("@")?;
+                                }
+                                FnRootLayerType::FnRet => {
+                                    buf.write_str("#")?;
+                                }
+                            }
+                    }
+                    buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }
-                w!(cx, f, "{:?}", e)
             }
             ExprKind::Var(Var::EarlyParam(ep))
                 if cx.earlyparam_env.borrow_mut().as_mut().unwrap().insert(*ep) =>
             {
                 // FIXME: handle adding # for early params in output position
-                w!(cx, f, "@{:?}", e)
+                buf.write_str(&format_cx!(cx, "@{:?}", e))?;
             }
-            _ => w!(cx, f, "{:?}", e),
+            _ => {
+                buf.write_str(&format_cx!(cx, "{:?}", e))?;
+            }
+        }
+        if !buf.is_empty() {
+            write!(f, "[{}]", buf)
+        } else {
+            Ok(())
         }
     }
 }
@@ -332,20 +375,21 @@ impl Pretty for Ty {
                 if idx.is_unit() {
                     w!(cx, f, "{:?}", bty)?;
                 } else {
-                    w!(cx, f, "{:?}[{:?}]", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
+                    w!(cx, f, "{:?}{:?}", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
             TyKind::Exists(ty_ctor) => {
-                let vars = ty_ctor.vars();
-                cx.with_bound_vars(vars, todo!(), || {
-                    if cx.hide_refinements {
-                        w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
-                    } else {
-                        cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
-                        w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
-                    }
-                })
+                w!(cx, f, "{:?}", self.shallow_canonicalize())
+                // let vars = ty_ctor.vars();
+                // cx.with_bound_vars(vars, todo!(), || {
+                //     if cx.hide_refinements {
+                //         w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
+                //     } else {
+                //         cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
+                //         w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
+                //     }
+                // })
             }
             TyKind::Uninit => w!(cx, f, "uninit"),
             TyKind::StrgRef(re, loc, ty) => w!(cx, f, "&{:?} strg <{:?}: {:?}>", re, loc, ty),
@@ -596,11 +640,12 @@ impl Pretty for GenericArg {
         match self {
             GenericArg::Ty(ty) => w!(cx, f, "{:?}", ty),
             GenericArg::Base(ctor) => {
-                cx.with_bound_vars(ctor.vars(), FxHashSet::default(), || {
+                let redundant_bvars = ctor.skip_binder_ref().to_ty().redundant_bvars().into_iter().collect();
+                cx.with_bound_vars(ctor.vars(), redundant_bvars, || {
                     if !cx.hide_refinements {
                         cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
                     }
-                    w!(cx, f, "{:?}", ctor.skip_binder_ref())
+                    w!(cx, f, "{:?}", ctor.skip_binder_ref().to_ty())
                 })
             }
             GenericArg::Lifetime(re) => w!(cx, f, "{:?}", re),
@@ -792,7 +837,7 @@ impl PrettyNested for Ty {
                 let text = if idx_d.text.is_empty() {
                     bty_d.text
                 } else {
-                    format!("{}[{}]", bty_d.text, idx_d.text)
+                    format!("{}{}", bty_d.text, idx_d.text)
                 };
                 let children = float_children(vec![bty_d.children, idx_d.children]);
                 Ok(NestedString { text, children, key: None })

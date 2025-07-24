@@ -466,7 +466,7 @@ impl BoundVarEnv {
         }
     }
 
-    fn should_remove_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
+    pub fn should_remove_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
         let layers = self.layers.borrow();
         Some(layers
             .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
@@ -474,7 +474,7 @@ impl BoundVarEnv {
             .contains(&var))
     }
 
-    fn mark_var_as_removed(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
+    pub fn mark_var_as_removed(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
         let mut layers = self.layers.borrow_mut();
         let layer_index = layers.len().checked_sub(debruijn.as_usize() + 1)?;
         Some(layers
