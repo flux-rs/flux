@@ -39,7 +39,7 @@ where
     T: Pretty,
 {
     default fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        cx.with_bound_vars(self.vars(), FxHashSet::default(), || {
+        cx.with_bound_vars(self.vars(), || {
             if !self.vars().is_empty() {
                 cx.fmt_bound_vars(true, "for<", self.vars(), "> ", f)?;
             }
@@ -639,15 +639,7 @@ impl Pretty for GenericArg {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             GenericArg::Ty(ty) => w!(cx, f, "{:?}", ty),
-            GenericArg::Base(ctor) => {
-                let redundant_bvars = ctor.skip_binder_ref().to_ty().redundant_bvars().into_iter().collect();
-                cx.with_bound_vars(ctor.vars(), redundant_bvars, || {
-                    if !cx.hide_refinements {
-                        cx.fmt_bound_vars(false, "λ", ctor.vars(), ". ", f)?;
-                    }
-                    w!(cx, f, "{:?}", ctor.skip_binder_ref().to_ty())
-                })
-            }
+            GenericArg::Base(ctor) => w!(cx, f, "{:?}", ctor.to_ty()),
             GenericArg::Lifetime(re) => w!(cx, f, "{:?}", re),
             GenericArg::Const(c) => w!(cx, f, "{:?}", c),
         }
@@ -710,7 +702,7 @@ impl PrettyNested for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.fmt_nested(cx),
             GenericArg::Base(ctor) => {
-                nested_with_bound_vars(cx, "λ", ctor.vars(), Default::default(), None, |prefix| {
+                nested_with_bound_vars(cx, "λ", ctor.vars(), None, |prefix| {
                     let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
                     let text = format!("{}{}", prefix, ctor_d.text);
                     Ok(NestedString { text, children: ctor_d.children, key: None })
@@ -814,12 +806,11 @@ pub fn nested_with_bound_vars(
     cx: &PrettyCx,
     left: &str,
     vars: &[BoundVariableKind],
-    vars_to_remove: FxHashSet<BoundVar>,
     right: Option<String>,
     f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
 ) -> Result<NestedString, fmt::Error> {
     let mut buffer = String::new();
-    cx.with_bound_vars(vars, vars_to_remove, || {
+    cx.with_bound_vars(vars, || {
         if !vars.is_empty() {
             let right = right.unwrap_or(". ".to_string());
             cx.fmt_bound_vars(false, left, vars, &right, &mut buffer)?;
@@ -843,7 +834,8 @@ impl PrettyNested for Ty {
                 Ok(NestedString { text, children, key: None })
             }
             TyKind::Exists(ty_ctor) => {
-                nested_with_bound_vars(cx, "∃", ty_ctor.vars(), todo!(), None, |exi_str| {
+                todo!("remove redundant vars");
+                nested_with_bound_vars(cx, "∃", ty_ctor.vars(), None, |exi_str| {
                     let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
                     let text = format!("{}{}", exi_str, ty_ctor_d.text);
                     Ok(NestedString { text, children: ty_ctor_d.children, key: None })

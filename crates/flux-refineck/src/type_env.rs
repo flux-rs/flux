@@ -858,7 +858,7 @@ mod pretty {
             w!(cx, f, "{:?} ", &self.scope)?;
 
             let vars = self.data.vars();
-            cx.with_bound_vars(vars, Default::default(), || {
+            cx.with_bound_vars(vars, || {
                 if !vars.is_empty() {
                     cx.fmt_bound_vars(true, "for<", vars, "> ", f)?;
                 }
