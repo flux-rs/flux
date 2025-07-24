@@ -7,7 +7,10 @@ use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId},
     try_alloc_slice,
 };
-use rustc_hir::{self as hir, FnHeader, def_id::LocalDefId};
+use rustc_hir::{
+    self as hir, FnHeader,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_span::Span;
 
 use super::{DesugarCtxt, RustItemCtxt};
@@ -350,7 +353,13 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         let segments =
             try_alloc_slice!(self.genv, path.segments, |segment| self.lift_path_segment(segment))?;
 
-        Ok(fhir::Path { res, fhir_id: self.next_fhir_id(), segments, refine: &[], span: path.span })
+        Ok(fhir::Path {
+            res: self.fix_maybe_extern_id_in_res(res),
+            fhir_id: self.next_fhir_id(),
+            segments,
+            refine: &[],
+            span: path.span,
+        })
     }
 
     fn lift_path_segment(
@@ -469,6 +478,38 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             owner_id: MaybeExternId::Local(foreign_item.owner_id),
             span: foreign_item.span,
         })
+    }
+
+    /// Fixes the def ids inside `res` to point to resolved ids.
+    fn fix_maybe_extern_id_in_res(&self, res: fhir::Res) -> fhir::Res {
+        match res {
+            fhir::Res::SelfTyParam { trait_ } => {
+                fhir::Res::SelfTyParam { trait_: self.fix_maybe_extern_id(trait_) }
+            }
+            fhir::Res::SelfTyAlias { alias_to, is_trait_impl } => {
+                fhir::Res::SelfTyAlias {
+                    alias_to: self.fix_maybe_extern_id(alias_to),
+                    is_trait_impl,
+                }
+            }
+            fhir::Res::Def(kind, def_id) => fhir::Res::Def(kind, self.fix_maybe_extern_id(def_id)),
+            _ => res,
+        }
+    }
+
+    /// Fixes a [`DefId`] that may correspond to a dummy local item for an extern spec to be the
+    /// "resolved id". This is to upholad the invariant that a [`DefId`] always corresponds to
+    /// the resolved item.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "we are fixing the def_id to uphold the invariant on extern specs"
+    )]
+    fn fix_maybe_extern_id(&self, def_id: DefId) -> DefId {
+        if let Some(def_id) = def_id.as_local() {
+            self.genv.maybe_extern_id(def_id).resolved_id()
+        } else {
+            def_id
+        }
     }
 }
 
