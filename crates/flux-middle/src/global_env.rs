@@ -467,6 +467,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         if let Some(local_id) = maybe_extern_spec {
             ResolvedDefId::ExternSpec(local_id, def_id)
         } else if let Some(local_id) = def_id.as_local() {
+            debug_assert!(
+                self.maybe_extern_id(local_id).is_local(),
+                "def id points to dummy local item `{def_id:?}`"
+            );
             ResolvedDefId::Local(local_id)
         } else {
             ResolvedDefId::Extern(def_id)
