@@ -1321,7 +1321,7 @@ pub struct Qualifier {
     pub global: bool,
 }
 
-/// A [`PrimProp`] is a single property for a primitive operation which
+/// A `PrimOpProp` is a single property for a primitive operation which
 /// can be conjoined to get the definition of the [`PrimRel`] for that
 /// primitive operation.
 #[derive(Debug, TypeVisitable, TypeFoldable)]

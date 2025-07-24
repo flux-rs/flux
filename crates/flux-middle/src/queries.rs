@@ -776,7 +776,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 }
 
 /// Logic to *dispatch* a `def_id` to a provider (`local`, `external`, or `default`).
-/// This is a trait so it can be implemented for `DefId` and for `FluxDefId.
+/// This is a trait so it can be implemented for [`DefId`] and for [`FluxDefId`].
 trait DispatchKey: Sized {
     type LocalId;
 
