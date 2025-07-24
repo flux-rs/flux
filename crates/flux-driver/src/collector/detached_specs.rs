@@ -22,7 +22,7 @@ struct DetachedItems {
 }
 
 impl DetachedItems {
-    fn new(detached_specs: surface::DetachedSpecs) -> Self {
+    fn new(detached_specs: surface::DetachedSpecs, collector: &mut SpecCollector) -> Result<Self> {
         let mut items = HashMap::default();
         let mut inherent_impls: HashMap<Ident, (surface::DetachedInherentImpl, Option<DefId>)> =
             HashMap::default();
@@ -39,10 +39,13 @@ impl DetachedItems {
                 surface::ItemKind::TraitImpl(detached_impl) => {
                     let key = (item.ident.name, detached_impl.trait_.name);
                     let span = item.ident.span;
-                    if trait_impls.contains_key(&key) {
-                        panic!("yikes")
+                    if let std::collections::hash_map::Entry::Vacant(e) = trait_impls.entry(key) {
+                        e.insert((detached_impl, None, span));
                     } else {
-                        trait_impls.insert(key, (detached_impl, None, span));
+                        return Err(collector.errors.emit(errors::AttrMapErr {
+                            span,
+                            message: format!("multiple impls for `{}`", item.ident.name),
+                        }));
                     }
                 }
                 _ => {
@@ -50,7 +53,7 @@ impl DetachedItems {
                 }
             }
         }
-        DetachedItems { items, inherent_impls, trait_impls }
+        Ok(DetachedItems { items, inherent_impls, trait_impls })
     }
 
     fn resolve(&mut self, tcx: TyCtxt, scope: LocalDefId) {
@@ -78,12 +81,11 @@ impl DetachedItems {
     fn resolve_inherent_impls(&mut self, tcx: TyCtxt, scope: LocalDefId) {
         for child in tcx.module_children_local(scope) {
             let ident = child.ident;
-            if let Res::Def(kind, def_id) = child.res {
-                if matches!(kind, DefKind::Struct | DefKind::Enum)
-                    && let Some(val) = self.inherent_impls.get_mut(&ident)
-                {
-                    val.1 = Some(def_id);
-                }
+            if let Res::Def(kind, def_id) = child.res
+                && matches!(kind, DefKind::Struct | DefKind::Enum)
+                && let Some(val) = self.inherent_impls.get_mut(&ident)
+            {
+                val.1 = Some(def_id);
             }
         }
     }
@@ -142,7 +144,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     }
 
     fn run(&mut self, detached_specs: surface::DetachedSpecs, parent: LocalDefId) -> Result {
-        let mut detached_items = DetachedItems::new(detached_specs);
+        let mut detached_items = DetachedItems::new(detached_specs, self.inner)?;
 
         detached_items.resolve(self.inner.tcx, parent);
 
