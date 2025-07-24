@@ -22,7 +22,7 @@ use flux_config as config;
 use flux_errors::Errors;
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId},
+    def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
         self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
         TraitItemKind,
@@ -71,14 +71,13 @@ pub fn provide(providers: &mut Providers) {
     providers.item_bounds = item_bounds;
 }
 
-fn adt_sort_def_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtSortDef> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn adt_sort_def_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtSortDef> {
     let kind = genv.fhir_expect_refinement_kind(def_id.local_id())?;
     conv::conv_adt_sort_def(genv, def_id, kind)
 }
 
-fn func_sort(genv: GlobalEnv, def_id: FluxLocalDefId) -> rty::PolyFuncSort {
-    let func = genv.fhir_spec_func_body(def_id).unwrap();
+fn func_sort(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> rty::PolyFuncSort {
+    let func = genv.fhir_spec_func_body(def_id.local_id()).unwrap();
     match conv::conv_func_decl(genv, func).emit(&genv) {
         Ok(normalized) => normalized,
         Err(err) => {
@@ -175,8 +174,7 @@ fn prim_rel(genv: GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>> 
     Ok(res)
 }
 
-fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn adt_def(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtDef> {
     let item = genv.fhir_expect_item(def_id.local_id())?;
     let invariants = invariants_of(genv, item)?;
 
@@ -187,25 +185,24 @@ fn adt_def(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::AdtDef> {
     Ok(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)?, invariants, is_opaque))
 }
 
-fn constant_info(genv: GlobalEnv, local_def_id: LocalDefId) -> QueryResult<rty::ConstantInfo> {
-    let def_id = genv.maybe_extern_id(local_def_id);
+fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::ConstantInfo> {
     let node = genv.fhir_node(def_id.local_id())?;
-    let owner = rustc_hir::OwnerId { def_id: local_def_id };
-    let Some(sort) = genv.sort_of_def_id(owner.def_id.to_def_id()).emit(&genv)? else {
+    let owner = rustc_hir::OwnerId { def_id: def_id.local_id() };
+    let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
         return Ok(rty::ConstantInfo::Uninterpreted);
     };
     match node {
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
             // for these constants we must check and use the expression
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
-            conv::conv_constant_expr(genv, local_def_id.to_def_id(), expr, sort, &wfckresults)
+            conv::conv_constant_expr(genv, def_id.resolved_id(), expr, sort, &wfckresults)
         }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
         | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. })
         | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) => {
             // for these constants we try to evaluate if they are integral and return uninterpreted if we fail
-            conv::conv_constant(genv, local_def_id.to_def_id())
+            conv::conv_constant(genv, def_id.resolved_id())
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
     }
@@ -228,9 +225,8 @@ fn invariants_of<'genv>(
 
 fn predicates_of(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
-    let def_id = genv.maybe_extern_id(def_id);
     match genv.def_kind(def_id) {
         DefKind::Impl { .. }
         | DefKind::Struct
@@ -267,22 +263,20 @@ fn predicates_of(
 
 fn assoc_refinements_of(
     genv: GlobalEnv,
-    local_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -> QueryResult<rty::AssocRefinements> {
-    let local_id = genv.maybe_extern_id(local_id);
-
     #[allow(
         clippy::disallowed_methods,
         reason = "We are iterationg over associated refinemens in fhir, so this is the *source of of truth*"
     )]
-    let predicates = match &genv.fhir_expect_item(local_id.local_id())?.kind {
+    let predicates = match &genv.fhir_expect_item(def_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
             trait_
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
                     AssocReft::new(
-                        FluxDefId::new(local_id.resolved_id(), assoc_reft.name),
+                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name),
                         assoc_reft.final_,
                     )
                 })
@@ -293,11 +287,11 @@ fn assoc_refinements_of(
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    AssocReft::new(FluxDefId::new(local_id.resolved_id(), assoc_reft.name), false)
+                    AssocReft::new(FluxDefId::new(def_id.resolved_id(), assoc_reft.name), false)
                 })
                 .collect()
         }
-        _ => Err(query_bug!(local_id.resolved_id(), "expected trait or impl"))?,
+        _ => Err(query_bug!(def_id.resolved_id(), "expected trait or impl"))?,
     };
     Ok(rty::AssocRefinements { items: predicates })
 }
@@ -372,8 +366,10 @@ fn sort_of_assoc_reft(
     }
 }
 
-fn item_bounds(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn item_bounds(
+    genv: GlobalEnv,
+    def_id: MaybeExternId,
+) -> QueryResult<rty::EarlyBinder<rty::Clauses>> {
     let parent = genv.tcx().local_parent(def_id.local_id());
     let wfckresults = genv.check_wf(parent)?;
     let opaque_ty = genv.fhir_node(def_id.local_id())?.expect_opaque_ty();
@@ -384,8 +380,7 @@ fn item_bounds(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBin
     ))
 }
 
-fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn generics_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Generics> {
     let def_kind = genv.def_kind(def_id);
     let generics = match def_kind {
         DefKind::Impl { .. }
@@ -422,12 +417,12 @@ fn generics_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::Generics
 
 fn refinement_generics_of(
     genv: GlobalEnv,
-    local_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>> {
-    let parent = genv.tcx().generics_of(local_id).parent;
+    let parent = genv.tcx().generics_of(def_id).parent;
     let parent_count =
         if let Some(def_id) = parent { genv.refinement_generics_of(def_id)?.count() } else { 0 };
-    let generics = match genv.fhir_node(local_id)? {
+    let generics = match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(fhir::Item {
             kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
             generics,
@@ -441,7 +436,7 @@ fn refinement_generics_of(
         | fhir::Node::ImplItem(fhir::ImplItem {
             kind: fhir::ImplItemKind::Fn(..), generics, ..
         }) => {
-            let wfckresults = genv.check_wf(local_id)?;
+            let wfckresults = genv.check_wf(def_id.local_id())?;
             let params = conv::conv_refinement_generics(generics.refinement_params, &wfckresults)?;
             rty::RefinementGenerics { parent, parent_count, own_params: params }
         }
@@ -450,8 +445,7 @@ fn refinement_generics_of(
     Ok(rty::EarlyBinder(generics))
 }
 
-fn type_of(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn type_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
     let ty = match genv.def_kind(def_id) {
         DefKind::TyAlias => {
             let fhir_ty_alias = genv
@@ -516,9 +510,8 @@ fn ty_param_owner(genv: GlobalEnv, def_id: DefId) -> DefId {
 
 fn variants_of(
     genv: GlobalEnv,
-    def_id: LocalDefId,
+    def_id: MaybeExternId,
 ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-    let def_id = genv.maybe_extern_id(def_id);
     let local_id = def_id.local_id();
 
     let item = &genv.fhir_expect_item(local_id)?;
@@ -549,8 +542,7 @@ fn variants_of(
     Ok(variants)
 }
 
-fn fn_sig(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-    let def_id = genv.maybe_extern_id(def_id);
+fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
     match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })

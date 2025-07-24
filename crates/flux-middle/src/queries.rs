@@ -23,7 +23,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
     rty::{
@@ -163,23 +163,23 @@ pub struct Providers {
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
     pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
-    pub func_sort: fn(GlobalEnv, FluxLocalDefId) -> rty::PolyFuncSort,
-    pub adt_sort_def_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtSortDef>,
-    pub check_wf: for<'genv> fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
-    pub adt_def: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AdtDef>,
-    pub constant_info: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::ConstantInfo>,
-    pub type_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
+    pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
+    pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
+    pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
+    pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
+    pub constant_info: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::ConstantInfo>,
+    pub type_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>>,
     pub variants_of: fn(
         GlobalEnv,
-        LocalDefId,
+        MaybeExternId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>,
-    pub fn_sig: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
-    pub generics_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::Generics>,
+    pub fn_sig: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>>,
+    pub generics_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::Generics>,
     pub refinement_generics_of:
-        fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>,
+        fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>>,
     pub predicates_of:
-        fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
-    pub assoc_refinements_of: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::AssocRefinements>,
+        fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>>,
+    pub assoc_refinements_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AssocRefinements>,
     pub sort_of_assoc_reft:
         fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<rty::EarlyBinder<rty::FuncSort>>,
     pub assoc_refinement_body:
@@ -187,7 +187,8 @@ pub struct Providers {
     #[allow(clippy::type_complexity)]
     pub default_assoc_refinement_body:
         fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
-    pub item_bounds: fn(GlobalEnv, LocalDefId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
+    pub item_bounds:
+        fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
 }
 
 macro_rules! empty_query {
@@ -440,7 +441,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 genv,
                 |def_id| {
                     // refinement functions cannot be extern specs so we simply grab the local id
-                    (self.providers.func_sort)(genv, def_id.local_id())
+                    (self.providers.func_sort)(genv, def_id)
                 },
                 |def_id| genv.cstore().func_sort(def_id),
                 |_| {
@@ -477,7 +478,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.adt_sort_def_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.adt_sort_def_of)(genv, def_id),
                 |def_id| genv.cstore().adt_sort_def(def_id),
                 |def_id| {
                     let variants = IndexVec::from([rty::AdtSortVariant::new(vec![])]);
@@ -503,7 +504,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.constant_info, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.constant_info)(genv, def_id.local_id()),
+                |def_id| (self.providers.constant_info)(genv, def_id),
                 |def_id| genv.cstore().constant_info(def_id),
                 |def_id| {
                     // TODO(RJ): fix duplication with [`conv_constant`]` in `flux-fhir-analysis`
@@ -530,7 +531,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.adt_def, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.adt_def)(genv, def_id.local_id()),
+                |def_id| (self.providers.adt_def)(genv, def_id),
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
                     let adt_def = genv.tcx().adt_def(def_id).lower(genv.tcx());
@@ -544,7 +545,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.generics_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.generics_of)(genv, def_id),
                 |def_id| genv.cstore().generics_of(def_id),
                 |def_id| {
                     Ok(refining::refine_generics(genv, def_id, &genv.lower_generics_of(def_id)))
@@ -561,7 +562,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.refinement_generics_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.refinement_generics_of)(genv, def_id),
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
                     let parent = genv.tcx().generics_of(def_id).parent;
@@ -583,7 +584,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.item_bounds, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.item_bounds)(genv, def_id.local_id()),
+                |def_id| (self.providers.item_bounds)(genv, def_id),
                 |def_id| genv.cstore().item_bounds(def_id),
                 |def_id| {
                     let clauses = genv
@@ -608,7 +609,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.predicates_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.predicates_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.predicates_of)(genv, def_id),
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
                     let predicates = genv
@@ -628,7 +629,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.assoc_refinements_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.assoc_refinements_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.assoc_refinements_of)(genv, def_id),
                 |def_id| genv.cstore().assoc_refinements_of(def_id),
                 |_| Ok(rty::AssocRefinements::default()),
             )
@@ -705,7 +706,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.type_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.type_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.type_of)(genv, def_id),
                 |def_id| genv.cstore().type_of(def_id),
                 |def_id| {
                     // If we're given a type parameter, provide the generics of the parent container.
@@ -732,7 +733,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.variants_of, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.variants_of)(genv, def_id.local_id()),
+                |def_id| (self.providers.variants_of)(genv, def_id),
                 |def_id| genv.cstore().variants_of(def_id),
                 |def_id| {
                     let variants = genv
@@ -759,7 +760,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         run_with_cache(&self.fn_sig, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.fn_sig)(genv, def_id.local_id()),
+                |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
                     let fn_sig = genv
