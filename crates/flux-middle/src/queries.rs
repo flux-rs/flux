@@ -733,7 +733,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             def_id.dispatch_query(
                 genv,
                 |def_id| (self.providers.variants_of)(genv, def_id.local_id()),
-                |def_id| genv.cstore().variants(def_id),
+                |def_id| genv.cstore().variants_of(def_id),
                 |def_id| {
                     let variants = genv
                         .tcx()

@@ -116,7 +116,7 @@ pub struct Tables<K: Eq + Hash> {
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
-    variants: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
+    variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     normalized_defns: Rc<rty::NormalizedDefns>,
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
@@ -166,7 +166,7 @@ impl CStore {
         merge_extern_table!(self, tcx, fn_sig, extern_tables);
         merge_extern_table!(self, tcx, adt_def, extern_tables);
         merge_extern_table!(self, tcx, adt_sort_def, extern_tables);
-        merge_extern_table!(self, tcx, variants, extern_tables);
+        merge_extern_table!(self, tcx, variants_of, extern_tables);
         merge_extern_table!(self, tcx, type_of, extern_tables);
     }
 }
@@ -196,11 +196,11 @@ impl CrateStore for CStore {
         get!(self, adt_sort_def, def_id)
     }
 
-    fn variants(
+    fn variants_of(
         &self,
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-        get!(self, variants, def_id)
+        get!(self, variants_of, def_id)
     }
 
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>> {
@@ -369,7 +369,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 tables
                     .adt_sort_def
                     .insert(key, genv.adt_sort_def_of(def_id));
-                tables.variants.insert(key, genv.variants_of(def_id));
+                tables.variants_of.insert(key, genv.variants_of(def_id));
                 tables.type_of.insert(key, genv.type_of(def_id));
             }
             DefKind::TyAlias => {
