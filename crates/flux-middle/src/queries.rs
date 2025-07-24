@@ -436,9 +436,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     pub(crate) fn func_sort(&self, genv: GlobalEnv, def_id: FluxDefId) -> rty::PolyFuncSort {
         run_with_cache(&self.func_sort, def_id, || {
-            dispatch_query_flux_id(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| {
                     // refinement functions cannot be extern specs so we simply grab the local id
                     (self.providers.func_sort)(genv, def_id.local_id())
@@ -476,9 +475,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AdtSortDef> {
         run_with_cache(&self.adt_sort_def_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.adt_sort_def_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().adt_sort_def(def_id),
                 |def_id| {
@@ -503,9 +501,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::ConstantInfo> {
         run_with_cache(&self.constant_info, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.constant_info)(genv, def_id.local_id()),
                 |def_id| genv.cstore().constant_info(def_id),
                 |def_id| {
@@ -531,9 +528,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     pub(crate) fn adt_def(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::AdtDef> {
         run_with_cache(&self.adt_def, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.adt_def)(genv, def_id.local_id()),
                 |def_id| genv.cstore().adt_def(def_id),
                 |def_id| {
@@ -546,9 +542,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     pub(crate) fn generics_of(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::Generics> {
         run_with_cache(&self.generics_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.generics_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().generics_of(def_id),
                 |def_id| {
@@ -564,9 +559,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::RefinementGenerics>> {
         run_with_cache(&self.refinement_generics_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.refinement_generics_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().refinement_generics_of(def_id),
                 |def_id| {
@@ -587,9 +581,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>> {
         run_with_cache(&self.item_bounds, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.item_bounds)(genv, def_id.local_id()),
                 |def_id| genv.cstore().item_bounds(def_id),
                 |def_id| {
@@ -613,9 +606,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::GenericPredicates>> {
         run_with_cache(&self.predicates_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.predicates_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().predicates_of(def_id),
                 |def_id| {
@@ -634,9 +626,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::AssocRefinements> {
         run_with_cache(&self.assoc_refinements_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.assoc_refinements_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().assoc_refinements_of(def_id),
                 |_| Ok(rty::AssocRefinements::default()),
@@ -650,9 +641,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         impl_assoc_id: FluxDefId,
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         run_with_cache(&self.assoc_refinement_body, impl_assoc_id, || {
-            dispatch_query_flux_id(
+            impl_assoc_id.dispatch_query(
                 genv,
-                impl_assoc_id,
                 |impl_assoc_id| (self.providers.assoc_refinement_body)(genv, impl_assoc_id),
                 |impl_assoc_id| genv.cstore().assoc_refinements_def(impl_assoc_id),
                 |impl_assoc_id| {
@@ -671,9 +661,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         trait_assoc_id: FluxDefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         run_with_cache(&self.default_assoc_refinement_body, trait_assoc_id, || {
-            dispatch_query_flux_id(
+            trait_assoc_id.dispatch_query(
                 genv,
-                trait_assoc_id,
                 |trait_assoc_id| {
                     (self.providers.default_assoc_refinement_body)(genv, trait_assoc_id)
                 },
@@ -694,9 +683,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         assoc_id: FluxDefId,
     ) -> QueryResult<rty::EarlyBinder<rty::FuncSort>> {
         run_with_cache(&self.sort_of_assoc_reft, assoc_id, || {
-            dispatch_query_flux_id(
+            assoc_id.dispatch_query(
                 genv,
-                assoc_id,
                 |assoc_id| (self.providers.sort_of_assoc_reft)(genv, assoc_id),
                 |assoc_id| genv.cstore().sort_of_assoc_reft(assoc_id),
                 |assoc_id| {
@@ -715,9 +703,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::TyOrCtor>> {
         run_with_cache(&self.type_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.type_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().type_of(def_id),
                 |def_id| {
@@ -743,9 +730,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
         run_with_cache(&self.variants_of, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.variants_of)(genv, def_id.local_id()),
                 |def_id| genv.cstore().variants(def_id),
                 |def_id| {
@@ -771,9 +757,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
         run_with_cache(&self.fn_sig, def_id, || {
-            dispatch_query(
+            def_id.dispatch_query(
                 genv,
-                def_id,
                 |def_id| (self.providers.fn_sig)(genv, def_id.local_id()),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
@@ -789,56 +774,74 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
     }
 }
 
-/// [Resolve] the `def_id` and *dispatch* it to a provider (`local`, `external`, or `default`).
-///
-/// [Resolve]: GlobalEnv::resolve_id
-fn dispatch_query<R>(
-    genv: GlobalEnv,
-    def_id: DefId,
-    local: impl FnOnce(MaybeExternId) -> R,
-    external: impl FnOnce(DefId) -> Option<R>,
-    default: impl FnOnce(DefId) -> R,
-) -> R {
-    match genv.resolve_id(def_id) {
-        ResolvedDefId::Local(local_id) => {
-            // Case 1: `def_id` is a `LocalDefId` so forward it to the *local provider*
-            local(MaybeExternId::Local(local_id))
-        }
-        ResolvedDefId::ExternSpec(local_id, def_id) => {
-            // Case 2: `def_id` is a `LocalDefId` wrapping an extern spec, so we also
-            // forward it to the local provider
-            local(MaybeExternId::Extern(local_id, def_id))
-        }
-        ResolvedDefId::Extern(def_id) if let Some(v) = external(def_id) => {
-            // Case 3: `def_id` is an external `def_id` for which we have an annotation in the
-            // *external provider*
-            v
-        }
-        ResolvedDefId::Extern(def_id) => {
-            // Case 4: If none of the above, we generate a default annotation
-            default(def_id)
+/// Logic to *dispatch* a `def_id` to a provider (`local`, `external`, or `default`).
+/// This is a trait so it can be implemented for `DefId` and for `FluxDefId.
+trait DispatchKey: Sized {
+    type LocalId;
+
+    fn dispatch_query<R>(
+        self,
+        genv: GlobalEnv,
+        local: impl FnOnce(Self::LocalId) -> R,
+        external: impl FnOnce(Self) -> Option<R>,
+        default: impl FnOnce(Self) -> R,
+    ) -> R;
+}
+
+impl DispatchKey for DefId {
+    type LocalId = MaybeExternId;
+
+    fn dispatch_query<R>(
+        self,
+        genv: GlobalEnv,
+        local: impl FnOnce(MaybeExternId) -> R,
+        external: impl FnOnce(Self) -> Option<R>,
+        default: impl FnOnce(Self) -> R,
+    ) -> R {
+        match genv.resolve_id(self) {
+            ResolvedDefId::Local(local_id) => {
+                // Case 1: `def_id` is a `LocalDefId` so forward it to the *local provider*
+                local(MaybeExternId::Local(local_id))
+            }
+            ResolvedDefId::ExternSpec(local_id, def_id) => {
+                // Case 2: `def_id` is a `LocalDefId` wrapping an extern spec, so we also
+                // forward it to the local provider
+                local(MaybeExternId::Extern(local_id, def_id))
+            }
+            ResolvedDefId::Extern(def_id) if let Some(v) = external(def_id) => {
+                // Case 3: `def_id` is an external `def_id` for which we have an annotation in the
+                // *external provider*
+                v
+            }
+            ResolvedDefId::Extern(def_id) => {
+                // Case 4: If none of the above, we generate a default annotation
+                default(def_id)
+            }
         }
     }
 }
 
-fn dispatch_query_flux_id<R>(
-    genv: GlobalEnv,
-    def_id: FluxId<DefId>,
-    local: impl FnOnce(FluxId<MaybeExternId>) -> R,
-    external: impl FnOnce(FluxId<DefId>) -> Option<R>,
-    default: impl FnOnce(FluxId<DefId>) -> R,
-) -> R {
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "we are mapping the parent id to a different representation which still guarantees the existence of the item"
-    )]
-    dispatch_query(
-        genv,
-        def_id.parent(),
-        |container_id| local(FluxId::new(container_id, def_id.name())),
-        |container_id| external(FluxId::new(container_id, def_id.name())),
-        |container_id| default(FluxId::new(container_id, def_id.name())),
-    )
+impl DispatchKey for FluxDefId {
+    type LocalId = FluxId<MaybeExternId>;
+
+    fn dispatch_query<R>(
+        self,
+        genv: GlobalEnv,
+        local: impl FnOnce(FluxId<MaybeExternId>) -> R,
+        external: impl FnOnce(FluxId<DefId>) -> Option<R>,
+        default: impl FnOnce(FluxId<DefId>) -> R,
+    ) -> R {
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "we are mapping the parent id to a different representation which still guarantees the existence of the item"
+        )]
+        self.parent().dispatch_query(
+            genv,
+            |container_id| local(FluxId::new(container_id, self.name())),
+            |container_id| external(FluxId::new(container_id, self.name())),
+            |container_id| default(FluxId::new(container_id, self.name())),
+        )
+    }
 }
 
 fn run_with_cache<K, V>(cache: &Cache<K, V>, key: K, f: impl FnOnce() -> V) -> V
