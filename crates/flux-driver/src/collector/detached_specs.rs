@@ -64,11 +64,8 @@ impl DetachedItems {
             if let Some(trait_symbol) = tcx.opt_item_name(*trait_id) {
                 for impl_id in impl_ids {
                     if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
-                        println!("TRACE: resolving (0): {trait_symbol:?} ==> {poly_trait_ref:?}");
                         let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                        println!("TRACE: resolving (1): {trait_symbol:?} ==> {self_ty:?}");
                         let self_symbol = Symbol::intern(&format!("{self_ty:?}"));
-
                         if let Some(val) = self.trait_impls.get_mut(&(self_symbol, trait_symbol)) {
                             val.1 = Some(*impl_id);
                         }
