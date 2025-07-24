@@ -764,7 +764,7 @@
 <a href=#764 id=764 data-nosnippet>764</a>            <span class="kw">let </span>adt_def = tcx.adt_def(adt_id);
 <a href=#765 id=765 data-nosnippet>765</a>            <span class="kw">let </span>field_def = <span class="kw-2">&amp;</span>adt_def.variant(variant_idx).fields[field_idx];
 <a href=#766 id=766 data-nosnippet>766</a>
-<a href=#767 id=767 data-nosnippet>767</a>            <span class="kw">let </span>item = genv.map().expect_item(adt_id.local_id()).unwrap();
+<a href=#767 id=767 data-nosnippet>767</a>            <span class="kw">let </span>item = genv.fhir_expect_item(adt_id.local_id()).unwrap();
 <a href=#768 id=768 data-nosnippet>768</a>            <span class="kw">let </span>span = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
 <a href=#769 id=769 data-nosnippet>769</a>                fhir::ItemKind::Enum(enum_def) =&gt; {
 <a href=#770 id=770 data-nosnippet>770</a>                    enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
@@ -860,7 +860,7 @@
 <a href=#860 id=860 data-nosnippet>860</a>
 <a href=#861 id=861 data-nosnippet>861</a>            <span class="comment">// Get the span of the variant if this is an enum. Structs cannot have produce a field
 <a href=#862 id=862 data-nosnippet>862</a>            // count mismatch.
-<a href=#863 id=863 data-nosnippet>863</a>            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
+<a href=#863 id=863 data-nosnippet>863</a>            </span><span class="kw">let </span>span = <span class="kw">if let </span><span class="prelude-val">Ok</span>(fhir::Node::Item(item)) = genv.fhir_node(adt_def_id.local_id())
 <a href=#864 id=864 data-nosnippet>864</a>                &amp;&amp; <span class="kw">let </span>fhir::ItemKind::Enum(enum_def) = <span class="kw-2">&amp;</span>item.kind
 <a href=#865 id=865 data-nosnippet>865</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(variant) = enum_def.variants.get(variant_idx.as_usize())
 <a href=#866 id=866 data-nosnippet>866</a>            {
