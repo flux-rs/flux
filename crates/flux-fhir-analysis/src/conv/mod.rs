@@ -647,8 +647,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::TyCtor> {
         let generics = self
             .genv()
-            .map()
-            .get_generics(ty_alias_id.local_id())?
+            .fhir_get_generics(ty_alias_id.local_id())?
             .unwrap();
 
         let mut env = Env::new(generics.refinement_params);
@@ -680,7 +679,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let late_bound_regions =
             refining::refine_bound_variables(&self.genv().lower_late_bound_vars(fn_id.local_id())?);
 
-        let generics = self.genv().map().get_generics(fn_id.local_id())?.unwrap();
+        let generics = self.genv().fhir_get_generics(fn_id.local_id())?.unwrap();
         let mut env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
@@ -781,8 +780,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let parent = self.tcx().local_parent(def_id.local_id());
         let refparams = &self
             .genv()
-            .map()
-            .get_generics(parent)?
+            .fhir_get_generics(parent)?
             .unwrap()
             .refinement_params;
 

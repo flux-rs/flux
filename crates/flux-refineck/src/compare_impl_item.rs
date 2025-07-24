@@ -63,8 +63,7 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
             )?;
         } else {
             let fhir_impl_assoc_reft = genv
-                .map()
-                .expect_item(impl_id.local_id())?
+                .fhir_expect_item(impl_id.local_id())?
                 .expect_impl()
                 .find_assoc_reft(name)
                 .unwrap();
@@ -90,8 +89,7 @@ fn check_assoc_reft(
 
     let impl_span = infcx
         .genv
-        .map()
-        .expect_item(impl_id.local_id())?
+        .fhir_expect_item(impl_id.local_id())?
         .expect_impl()
         .find_assoc_reft(impl_assoc_id.name())
         .unwrap()
