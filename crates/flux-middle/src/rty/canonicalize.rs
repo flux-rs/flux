@@ -31,6 +31,7 @@
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
 use std::ops::ControlFlow;
+use std::fmt::Write;
 
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
@@ -434,16 +435,35 @@ mod pretty {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars().into_iter().collect();
-                    cx.with_bound_vars(poly_constr.vars(), redundant_bvars, || {
+                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, |f_body| {
                         let constr = poly_constr.skip_binder_ref();
                         if constr.pred().is_trivially_true() {
-                            w!(cx, f, "{{ ")?;
-                            cx.fmt_bound_vars(false, "", poly_constr.vars(), ". ", f)?;
-                            w!(cx, f, "{:?} }}", &constr.ty)
+                            w!(cx, f_body, "{:?}", &constr.ty)
                         } else {
-                            w!(cx, f, "{{ ")?;
-                            cx.fmt_bound_vars(false, "", poly_constr.vars(), ". ", f)?;
-                            w!(cx, f, "{:?} | {:?} }}", &constr.ty, &constr.pred)
+                            w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                        }
+                    },
+                    |(), bound_var_layer, body| {
+                        let vars = poly_constr
+                            .vars()
+                            .into_iter()
+                            .enumerate()
+                            .filter_map(|(idx, var)| {
+                                let not_removed = !bound_var_layer.successfully_removed_vars.contains(&BoundVar::from_usize(idx));
+                                let refine_var  = matches!(var, BoundVariableKind::Refine(..));
+                                if not_removed && refine_var {
+                                    Some(var.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect_vec();
+                        if vars.is_empty() {
+                            write!(f, "{}", body)
+                        } else {
+                            let left = "{";
+                            let right = format!(". {} }}", body);
+                            cx.fmt_bound_vars(false, left, &vars, &right, f)
                         }
                     })
                 }

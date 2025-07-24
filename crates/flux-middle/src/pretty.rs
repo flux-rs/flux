@@ -263,10 +263,33 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         );
     }
 
-    pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], vars_to_remove: FxHashSet<BoundVar>, f: impl FnOnce() -> R) -> R {self.bvar_env.push_layer(vars, vars_to_remove, None);
+    pub fn with_bound_vars<R>(&self, vars: &[BoundVariableKind], f: impl FnOnce() -> R) -> R {
+        self.bvar_env.push_layer(vars, FxHashSet::default(), None);
         let r = f();
         self.bvar_env.pop_layer();
         r
+    }
+
+    pub fn with_bound_vars_removable<R1, R2>(
+        &self,
+        vars: &[BoundVariableKind],
+        vars_to_remove: FxHashSet<BoundVar>,
+        fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
+        fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
+    ) -> Result<R2, fmt::Error>
+    {
+        self.bvar_env.push_layer(vars, vars_to_remove, None);
+        let mut body = String::new();
+        let r1 = fmt_body(&mut body)?;
+        // We need to be careful when rendering the vars to _not_
+        // refer to the `vars_to_remove` in the context since it'll
+        // still be there. If we remove the layer, then the vars
+        // won't render accurately.
+        //
+        // For now, this should be fine, though.
+        let r2 = fmt_vars_with_body(r1, self.bvar_env.peek_layer().unwrap(), body)?;
+        self.bvar_env.pop_layer();
+        Ok(r2)
     }
 
     pub fn with_fn_root_bound_vars<R>(
@@ -394,12 +417,14 @@ pub struct FnRootLayerMap {
     layer_type: FnRootLayerType,
 }
 
+#[derive(Clone)]
 pub struct BoundVarLayer {
     layer_map: BoundVarLayerMap,
     vars_to_remove: FxHashSet<BoundVar>,
-    successfully_removed_vars: FxHashSet<BoundVar>,
+    pub successfully_removed_vars: FxHashSet<BoundVar>,
 }
 
+#[derive(Clone)]
 pub enum BoundVarLayerMap {
     LayerMap(UnordMap<BoundVar, BoundVarName>),
     /// We treat vars at the function root differently. The UnordMap
@@ -507,6 +532,10 @@ impl BoundVarEnv {
             successfully_removed_vars: FxHashSet::default(),
         };
         self.layers.borrow_mut().push(layer);
+    }
+
+    fn peek_layer(&self) -> Option<BoundVarLayer> {
+        self.layers.borrow().last().cloned()
     }
 
     fn pop_layer(&self) -> Option<BoundVarLayer> {
