@@ -1512,7 +1512,8 @@ pub(crate) mod pretty {
     impl Pretty for Lambda {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let vars = self.body.vars();
-            cx.with_bound_vars(vars, todo!(), || {
+            let redundant_bvars = self.body.redundant_bvars().into_iter().collect();
+            cx.with_bound_vars(vars, redundant_bvars, || {
                 cx.fmt_bound_vars(false, "λ", vars, ". ", f)?;
                 w!(cx, f, "{:?}", self.body.as_ref().skip_binder())
             })

@@ -30,6 +30,8 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
+use std::ops::ControlFlow;
+
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use itertools::Itertools;
@@ -37,9 +39,7 @@ use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
-    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitor, TypeVisitable}, BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig, SubsetTy, Ty, TyCtor, TyKind, TyOrBase
 };
 use crate::rty::{ExprKind, HoleKind};
 
@@ -352,6 +352,19 @@ pub enum CanonicalTy {
     Exists(Binder<CanonicalConstrTy>),
 }
 
+impl TypeVisitable for CanonicalTy {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            Self::Constr(constr_ty) => {
+                constr_ty.visit_with(visitor)
+            }
+            Self::Exists(binder) => {
+                binder.visit_with(visitor)
+            }
+        }
+    }
+}
+
 impl CanonicalTy {
     pub fn to_ty(&self) -> Ty {
         match self {
@@ -420,7 +433,8 @@ mod pretty {
             match self {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
-                    cx.with_bound_vars(poly_constr.vars(), todo!(), || {
+                    let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars().into_iter().collect();
+                    cx.with_bound_vars(poly_constr.vars(), redundant_bvars, || {
                         let constr = poly_constr.skip_binder_ref();
                         if constr.pred().is_trivially_true() {
                             w!(cx, f, "{{ ")?;
