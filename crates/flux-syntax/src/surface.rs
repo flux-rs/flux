@@ -115,12 +115,18 @@ pub struct DetachedSpecs {
 }
 
 #[derive(Debug)]
-pub struct DetachedImpl {
+pub struct DetachedTraitImpl {
+    pub trait_: Ident,
     pub items: Vec<Item<FnSig>>,
 }
 
-impl DetachedImpl {
-    pub fn extend(&mut self, other: DetachedImpl) {
+#[derive(Debug)]
+pub struct DetachedInherentImpl {
+    pub items: Vec<Item<FnSig>>,
+}
+
+impl DetachedInherentImpl {
+    pub fn extend(&mut self, other: DetachedInherentImpl) {
         self.items.extend(other.items);
     }
 }
@@ -137,7 +143,8 @@ pub enum ItemKind {
     Mod(DetachedSpecs),
     Struct(StructDef),
     Enum(EnumDef),
-    InherentImpl(DetachedImpl),
+    InherentImpl(DetachedInherentImpl),
+    TraitImpl(DetachedTraitImpl),
 }
 
 #[derive(Debug)]

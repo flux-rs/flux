@@ -20,13 +20,14 @@ use crate::{
     parser::lookahead::{AnyOf, Expected, PeekExpected},
     surface::{
         self, Async, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, DetachedImpl, DetachedSpecs, Ensures, EnumDef, Expr, ExprKind, ExprPath,
-        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
-        GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices, Item,
-        ItemKind, LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp,
-        QualNames, Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires,
-        RevealNames, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef, TraitAssocReft,
-        TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        ConstructorArg, DetachedInherentImpl, DetachedSpecs, DetachedTraitImpl, Ensures, EnumDef,
+        Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy,
+        FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam, Generics, Ident,
+        ImplAssocReft, Indices, Item, ItemKind, LetDecl, LitKind, Mutability, ParamMode, Path,
+        PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg, RefineParam,
+        RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
+        TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        WhereBoundPredicate,
     },
     symbols::{kw, sym},
 };
@@ -238,11 +239,27 @@ fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
 
 fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Impl)?;
-    let ident = parse_ident(cx)?;
+    let outer_ident = parse_segment(cx)?.ident;
+    let inner_ident = if cx.peek(kw::For) {
+        cx.expect(kw::For)?;
+        Some(parse_segment(cx)?.ident)
+    } else {
+        None
+    };
     cx.expect(TokenKind::open_delim(Brace))?;
     let items = until(cx, TokenKind::close_delim(Brace), parse_detached_fn_sig)?;
     cx.expect(TokenKind::close_delim(Brace))?;
-    Ok(Item { ident, kind: ItemKind::InherentImpl(DetachedImpl { items }) })
+    if let Some(ident) = inner_ident {
+        Ok(Item {
+            ident,
+            kind: ItemKind::TraitImpl(DetachedTraitImpl { trait_: outer_ident, items }),
+        })
+    } else {
+        Ok(Item {
+            ident: outer_ident,
+            kind: ItemKind::InherentImpl(DetachedInherentImpl { items }),
+        })
+    }
 }
 
 fn parse_hide_attr(cx: &mut ParseCtxt) -> ParseResult<bool> {

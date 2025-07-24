@@ -17,13 +17,13 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 struct DetachedItems {
     items: HashMap<Ident, (surface::Item, Option<DefId>)>,
-    inherent_impls: HashMap<Ident, (surface::DetachedImpl, Option<DefId>)>,
+    inherent_impls: HashMap<Ident, (surface::DetachedInherentImpl, Option<DefId>)>,
 }
 
 impl DetachedItems {
     fn new(detached_specs: surface::DetachedSpecs) -> Self {
         let mut items = HashMap::default();
-        let mut inherent_impls: HashMap<Ident, (surface::DetachedImpl, Option<DefId>)> =
+        let mut inherent_impls: HashMap<Ident, (surface::DetachedInherentImpl, Option<DefId>)> =
             HashMap::default();
         for item in detached_specs.items {
             if let surface::ItemKind::InherentImpl(detached_impl) = item.kind {
@@ -173,7 +173,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     fn collect_detached_impl(
         &mut self,
         ty_def_id: LocalDefId,
-        detached_impl: surface::DetachedImpl,
+        detached_impl: surface::DetachedInherentImpl,
     ) -> Result {
         let mut table: HashMap<Symbol, (surface::FnSig, Option<DefId>, Span)> = HashMap::default();
         // 1. make a table of the impl-items
