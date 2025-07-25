@@ -201,6 +201,7 @@ impl EnumDef {
 
 #[derive(Debug)]
 pub struct VariantDef {
+    pub ident: Option<Ident>,
     pub fields: Vec<Ty>,
     pub ret: Option<VariantRet>,
     pub node_id: NodeId,

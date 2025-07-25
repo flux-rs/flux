@@ -111,7 +111,7 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
 }
 
 ///```text
-/// <specs> ::= <spec>*
+/// ⟨specs⟩ ::= ⟨specs⟩*
 /// ```
 pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::DetachedSpecs> {
     let items = until(cx, token::Eof, parse_detached_item)?;
@@ -119,11 +119,11 @@ pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::D
 }
 
 ///```text
-/// <spec>  ::= <fn-spec>
-///           | <struct-spec>
-///           | <enum-spec>
-///           | impl <PATH> { <specs> }
-///           | mod  <PATH> { <specs> }
+/// ⟨specs⟩ ::= ⟨fn-spec⟩
+///           | ⟨struct-spec⟩
+///           | ⟨enum-spec⟩
+///           | mod  <PATH> { ⟨specs⟩ }
+///           | impl <PATH> { ⟨impl-spec⟩ }
 /// ```
 pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
@@ -146,7 +146,7 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
 }
 
 ///```text
-/// <field>  ::= <Ident> : <Ty>
+/// ⟨field⟩ ::= Ident : ⟨Ty⟩
 /// ```
 fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
     let ident = parse_ident(cx)?;
@@ -156,24 +156,19 @@ fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
 }
 
 ///```text
-/// <field>  ::= refined_by(<refined_by>)?
-///              invariant(<expr>)?
+/// ⟨refine_info⟩ ::= [(Ident : ⟨sort⟩)*]?
+///                   invariant(<expr>)?
 /// ```
-fn parse_detached_refined_by_and_invariants(
+fn parse_detached_refine_info(
     cx: &mut ParseCtxt,
 ) -> ParseResult<(Option<Vec<RefineParam>>, Vec<Expr>)> {
-    let tok_refined_by = token::Ident(Symbol::intern("refined_by"));
     let tok_invariant = token::Ident(Symbol::intern("invariant"));
-    let refined_by = if cx.peek(tok_refined_by) {
-        cx.expect(tok_refined_by)?;
-        Some(parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
-    } else if cx.peek(token::OpenBracket) {
+    let refined_by = if cx.peek(token::OpenBracket) {
         Some(brackets(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
     } else {
         None
     };
-    let invariants = if cx.peek(tok_invariant) {
-        cx.expect(tok_invariant)?;
+    let invariants = if cx.advance_if(tok_invariant) {
         vec![delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?]
     } else {
         vec![]
@@ -182,7 +177,8 @@ fn parse_detached_refined_by_and_invariants(
 }
 
 ///```text
-/// <field>  ::= <Ident> : <Ty>
+/// ⟨variant⟩ := Ident ⟨fields⟩ -> ⟨variant_ret⟩
+///            | Ident          -> ⟨variant_ret⟩
 /// ```
 fn parse_detached_variant(cx: &mut ParseCtxt) -> ParseResult<(Ident, VariantDef)> {
     let ident = parse_ident(cx)?;
@@ -190,14 +186,17 @@ fn parse_detached_variant(cx: &mut ParseCtxt) -> ParseResult<(Ident, VariantDef)
     Ok((ident, variant))
 }
 
+///```text
+/// ⟨enum⟩ := enum Ident ⟨refine_info⟩ { ⟨variant⟩* }
+/// ```
 fn parse_detached_enum(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Enum)?;
     let ident = parse_ident(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
-    let (refined_by, invariants) = parse_detached_refined_by_and_invariants(cx)?;
-    let variants = braces(cx, Comma, parse_detached_variant)?
+    let (refined_by, invariants) = parse_detached_refine_info(cx)?;
+    let variants = braces(cx, Comma, |cx| parse_variant(cx, true))?
         .into_iter()
-        .map(|(_, variant)| Some(variant))
+        .map(|variant| Some(variant))
         .collect();
     let enum_def = EnumDef { generics, refined_by, variants, invariants, reflected: false };
     Ok(Item { ident, kind: ItemKind::Enum(enum_def) })
@@ -207,7 +206,7 @@ fn parse_detached_struct(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Struct)?;
     let ident = parse_ident(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
-    let (refined_by, invariants) = parse_detached_refined_by_and_invariants(cx)?;
+    let (refined_by, invariants) = parse_detached_refine_info(cx)?;
     let fields = if cx.peek(token::OpenBrace) {
         braces(cx, Comma, parse_detached_field)?
             .into_iter()
@@ -228,6 +227,9 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<Item<FnSig>> {
     Ok(Item { ident, kind: fn_sig })
 }
 
+///```text
+/// ⟨mod⟩ ::= mod Ident { ⟨specs⟩ }
+/// ```
 fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Mod)?;
     let ident = parse_ident(cx)?;
@@ -237,15 +239,13 @@ fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
     Ok(Item { ident, kind: ItemKind::Mod(DetachedSpecs { items }) })
 }
 
+///```text
+/// ⟨impl-spec⟩ ::= impl Ident (for Ident)? { ⟨fn-spec⟩* }
+/// ```
 fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Impl)?;
     let outer_ident = parse_segment(cx)?.ident;
-    let inner_ident = if cx.peek(kw::For) {
-        cx.expect(kw::For)?;
-        Some(parse_segment(cx)?.ident)
-    } else {
-        None
-    };
+    let inner_ident = if cx.advance_if(kw::For) { Some(parse_segment(cx)?.ident) } else { None };
     cx.expect(TokenKind::open_delim(Brace))?;
     let items = until(cx, TokenKind::close_delim(Brace), parse_detached_fn_sig)?;
     cx.expect(TokenKind::close_delim(Brace))?;
@@ -418,6 +418,11 @@ pub(crate) fn parse_variant(cx: &mut ParseCtxt, ret_arrow: bool) -> ParseResult<
     let lo = cx.lo();
     let mut fields = vec![];
     let mut ret = None;
+    let ident = if ret_arrow || cx.peek2(NonReserved, token::OpenParen) {
+        Some(parse_ident(cx)?)
+    } else {
+        None
+    };
     if cx.peek(token::OpenParen) || cx.peek(token::OpenBrace) {
         fields = parse_fields(cx)?;
         if cx.advance_if(token::RArrow) {
@@ -430,7 +435,7 @@ pub(crate) fn parse_variant(cx: &mut ParseCtxt, ret_arrow: bool) -> ParseResult<
         ret = Some(parse_variant_ret(cx)?);
     };
     let hi = cx.hi();
-    Ok(VariantDef { fields, ret, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
+    Ok(VariantDef { ident, fields, ret, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
 /// ```text

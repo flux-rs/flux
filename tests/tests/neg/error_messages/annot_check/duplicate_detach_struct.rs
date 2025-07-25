@@ -18,8 +18,7 @@ pub fn use_struct(s: MyStruct) {
 
 #[flux::specs {
 
-    struct MyStruct  //~ ERROR invalid attribute: multiple specs for `MyStruct`
-        refined_by(vx: int, vy: int)
+    struct MyStruct[vx: int, vy: int]  //~ ERROR invalid attribute: multiple specs for `MyStruct`
         invariant(vx <= vy)
     {
         x: usize[vx],
