@@ -1,0 +1,17 @@
+name: "Install fixpoint"
+description: "Download and install the fixpoint binary"
+runs:
+  using: "composite"
+  steps:
+    - name: Download fixpoint
+      run: |
+        curl -fsSL -o fixpoint https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-x86_64-linux-gnu
+        chmod +x fixpoint
+        mkdir -p ~/.local/bin
+        cp fixpoint ~/.local/bin/
+        echo ~/.local/bin >> $GITHUB_PATH
+      shell: bash
+
+    - name: Check fixpoint
+      run: which fixpoint
+      shell: bash
