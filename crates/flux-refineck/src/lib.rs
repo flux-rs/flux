@@ -308,7 +308,9 @@ fn report_errors(
             );
             err_diag.note(debug_str);
         } else {
-            let pred_pretty_cx = pretty::PrettyCx::default(genv).with_free_var_substs(subst);
+            let pred_pretty_cx = pretty::PrettyCx::default(genv)
+                .with_free_var_substs(subst)
+                .hide_regions(true);
             err_diag.subdiagnostic(errors::FailingConstraint {
                 constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             });
@@ -475,7 +477,7 @@ fn add_fn_fix_diagnostic<'a>(
     diag.subdiagnostic(errors::WKVarFnFix {
         span: fn_span,
         fn_name,
-        fix: format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)),
+        fix: format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig)),
     });
 }
 

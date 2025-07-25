@@ -63,26 +63,42 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
 ) -> fmt::Result {
     let vars = binder.vars();
     let redundant_bvars = binder.skip_binder_ref().redundant_bvars().into_iter().collect();
-    // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
-    let (formatted_fn_body, seen_vars) =
-        cx.with_fn_root_bound_vars(vars, redundant_bvars, fn_root_layer_type, || {
-            format!("{:?}", with_cx!(cx, binder.skip_binder_ref()))
-        });
-    // Then remove any vars that we added a decorator to.
-    //
-    // The order is important here because we can't know which vars to
-    // include in the `for` until we try to write them in the body.
-    let filtered_vars = vars
-        .iter()
-        .enumerate()
-        .filter_map(|(i, var)| {
-            if seen_vars.contains(&BoundVar::from_usize(i)) { None } else { Some(var.clone()) }
-        })
-        .collect_vec();
-    if !filtered_vars.is_empty() {
-        cx.fmt_bound_vars(true, &format!("{binder_name}<"), &filtered_vars, "> ", f)?;
-    }
-    f.write_str(&formatted_fn_body)
+
+    cx.with_bound_vars_removable(vars, redundant_bvars, Some(fn_root_layer_type), |f_body| {
+        // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
+        w!(cx, f_body, "{:?}", binder.skip_binder_ref())
+    },
+    |(), bound_var_layer, body| {
+        // Then remove any vars that we added a decorator to.
+        //
+        // As well as any vars that we are removing because they are redundant.
+
+        let BoundVarLayer { successfully_removed_vars, layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), .. } = bound_var_layer
+            else {
+                unreachable!()
+            };
+        let filtered_vars = vars
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, var)| {
+                let not_removed = !successfully_removed_vars.contains(&BoundVar::from_usize(idx));
+                let refine_var  = matches!(var, BoundVariableKind::Refine(..));
+                let not_seen = !fn_root_layer.seen_vars.contains(&BoundVar::from_usize(idx));
+                if not_removed && refine_var && not_seen {
+                    Some(var.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        if filtered_vars.is_empty() {
+            write!(f, "{}", body)
+        } else {
+            let left = format!("{binder_name}<");
+            let right = format!("> {}", body);
+            cx.fmt_bound_vars(true, &left, &filtered_vars, &right, f)
+        }
+    })
 }
 
 impl<T: Pretty> Pretty for EarlyBinder<T> {
@@ -293,23 +309,45 @@ impl Pretty for IdxFmt {
                 let fields = iter::zip(variant.field_names(), flds)
                     .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                     .collect_vec();
-                // Check if _all_ the fields can be removed
-                if fields.iter().all(|field| {
+                // Check if _all_ the fields are vars
+                if let Some(var_fields) = fields.iter().map(|field| {
                     if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) = field.value.kind() {
-                        cx.bvar_env.should_remove_var(*debruijn, *var).unwrap_or(false)
+                        Some((*debruijn, *var, field.value.clone()))
                     } else {
-                        false
+                        None
                     }
-                }) {
-                    fields.iter().for_each(|field| {
-                        // we just checked that they are all this.
-                        let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) = field.value.kind()
-                            else {
-                                unreachable!()
-                            };
-                        cx.bvar_env.mark_var_as_removed(*debruijn, *var);
-                    });
-                    // We write nothing here: we can erase the index
+                }).collect::<Option<Vec<_>>>() {
+                    // If they are all meant to be removed, we can elide the entire index.
+                    if var_fields.iter().all(|(debruijn, var, _e)| {
+                        cx.bvar_env.should_remove_var(*debruijn, *var).unwrap_or(false)
+                    }) {
+                        var_fields.iter().for_each(|(debruijn, var, _e)| {
+                            cx.bvar_env.mark_var_as_removed(*debruijn, *var);
+                        });
+                        // We write nothing here: we can erase the index
+                    // If we can't remove all of the vars, we can still elide the
+                    // constructor names and do our normal thing of adding @ and #
+                    //
+                    // NOTE: this is heavily copied from the var case below.
+                    } else {
+                        let mut fields = var_fields.into_iter().map(|(debruijn, var, e)| {
+                            if let Some((seen, layer_type)) =
+                                cx.bvar_env.check_if_seen_fn_root_bvar(debruijn, var)
+                                && !seen {
+                                    match layer_type {
+                                        FnRootLayerType::FnArgs => {
+                                            format_cx!(cx, "@{:?}", e)
+                                        }
+                                        FnRootLayerType::FnRet => {
+                                            format_cx!(cx, "#{:?}", e)
+                                        }
+                                    }
+                            } else {
+                                    format_cx!(cx, "{:?}", e)
+                            }
+                        });
+                        buf.write_str(&fields.join(", "))?;
+                    }
                 } else {
                     buf.write_str(&format_cx!(cx, "{{ {:?} }}", join!(", ", fields)))?;
                 }
@@ -685,12 +723,12 @@ impl PrettyNested for SubsetTy {
         let bty_d = self.bty.fmt_nested(cx)?;
         let idx_d = IdxFmt(self.idx.clone()).fmt_nested(cx)?;
         if self.pred.is_trivially_true() {
-            let text = format!("{}[{}]", bty_d.text, idx_d.text);
+            let text = format!("{}{}", bty_d.text, idx_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children]);
             Ok(NestedString { text, children, key: None })
         } else {
             let pred_d = self.pred.fmt_nested(cx)?;
-            let text = format!("{{ {}[{}] | {} }}", bty_d.text, idx_d.text, pred_d.text);
+            let text = format!("{{ {}{} | {} }}", bty_d.text, idx_d.text, pred_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children, pred_d.children]);
             Ok(NestedString { text, children, key: None })
         }

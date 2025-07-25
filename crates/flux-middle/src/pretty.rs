@@ -278,11 +278,12 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         &self,
         vars: &[BoundVariableKind],
         vars_to_remove: FxHashSet<BoundVar>,
+        fn_root_layer_type: Option<FnRootLayerType>,
         fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
         fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
     ) -> Result<R2, fmt::Error>
     {
-        self.bvar_env.push_layer(vars, vars_to_remove, None);
+        self.bvar_env.push_layer(vars, vars_to_remove, fn_root_layer_type);
         let mut body = String::new();
         let r1 = fmt_body(&mut body)?;
         // We need to be careful when rendering the vars to _not_
@@ -296,20 +297,21 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         Ok(r2)
     }
 
-    pub fn with_fn_root_bound_vars<R>(
-        &self,
-        vars: &[BoundVariableKind],
-        vars_to_remove: FxHashSet<BoundVar>,
-        fn_root_layer_type: FnRootLayerType,
-        f: impl FnOnce() -> R,
-    ) -> (R, FxHashSet<BoundVar>) {
-        self.bvar_env.push_layer(vars, vars_to_remove, Some(fn_root_layer_type));
-        let r = f();
-        match self.bvar_env.pop_layer() {
-            Some(BoundVarLayer {layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), ..}) => (r, fn_root_layer.seen_vars),
-            _ => unreachable!("The popped layer must exist and be an FnRootLayer"),
-        }
-    }
+    // pub fn with_fn_root_bound_vars<R1, R2>(
+    //     &self,
+    //     vars: &[BoundVariableKind],
+    //     vars_to_remove: FxHashSet<BoundVar>,
+    //     fn_root_layer_type: FnRootLayerType,
+    //     fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
+    //     fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
+    // ) -> Result<R2, fmt::Error> {
+    //     self.bvar_env.push_layer(vars, vars_to_remove, Some(fn_root_layer_type));
+    //     let r = f();
+    //     match self.bvar_env.pop_layer() {
+    //         Some(BoundVarLayer {layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), ..}) => (r, fn_root_layer.seen_vars),
+    //         _ => unreachable!("The popped layer must exist and be an FnRootLayer"),
+    //     }
+    // }
 
     pub fn fmt_bound_vars(
         &self,
@@ -420,15 +422,15 @@ pub enum FnRootLayerType {
 
 #[derive(Clone)]
 pub struct FnRootLayerMap {
-    name_map: UnordMap<BoundVar, BoundVarName>,
-    seen_vars: FxHashSet<BoundVar>,
-    layer_type: FnRootLayerType,
+    pub name_map: UnordMap<BoundVar, BoundVarName>,
+    pub seen_vars: FxHashSet<BoundVar>,
+    pub layer_type: FnRootLayerType,
 }
 
 #[derive(Clone)]
 pub struct BoundVarLayer {
-    layer_map: BoundVarLayerMap,
-    vars_to_remove: FxHashSet<BoundVar>,
+    pub layer_map: BoundVarLayerMap,
+    pub vars_to_remove: FxHashSet<BoundVar>,
     pub successfully_removed_vars: FxHashSet<BoundVar>,
 }
 
