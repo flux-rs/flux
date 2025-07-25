@@ -435,7 +435,7 @@ mod pretty {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
                     let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars().into_iter().collect();
-                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, |f_body| {
+                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, None, |f_body| {
                         let constr = poly_constr.skip_binder_ref();
                         if constr.pred().is_trivially_true() {
                             w!(cx, f_body, "{:?}", &constr.ty)

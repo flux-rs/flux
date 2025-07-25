@@ -1525,7 +1525,10 @@ pub(crate) mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
-                Var::EarlyParam(var) => w!(cx, f, "{}", ^var.name),
+                Var::EarlyParam(var) => {
+                    println!("printint early param {:?}", var);
+                    w!(cx, f, "{}", ^var.name)
+                }
                 Var::Free(name) => w!(cx, f, "{:?}", ^name),
                 Var::EVar(evar) => w!(cx, f, "{:?}", ^evar),
                 Var::ConstGeneric(param) => w!(cx, f, "{}", ^param.name),
