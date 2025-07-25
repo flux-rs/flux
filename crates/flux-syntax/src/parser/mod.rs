@@ -177,16 +177,6 @@ fn parse_detached_refine_info(
 }
 
 ///```text
-/// ⟨variant⟩ := Ident ⟨fields⟩ -> ⟨variant_ret⟩
-///            | Ident          -> ⟨variant_ret⟩
-/// ```
-fn parse_detached_variant(cx: &mut ParseCtxt) -> ParseResult<(Ident, VariantDef)> {
-    let ident = parse_ident(cx)?;
-    let variant = parse_variant(cx, true)?;
-    Ok((ident, variant))
-}
-
-///```text
 /// ⟨enum⟩ := enum Ident ⟨refine_info⟩ { ⟨variant⟩* }
 /// ```
 fn parse_detached_enum(cx: &mut ParseCtxt) -> ParseResult<Item> {

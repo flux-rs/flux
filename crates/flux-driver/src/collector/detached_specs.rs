@@ -15,10 +15,12 @@ use crate::collector::{FluxAttrs, SpecCollector, errors, surface::Ident};
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
+type TraitImplKey = (Symbol, Symbol);
+
 struct DetachedItems {
     items: HashMap<Ident, (surface::Item, Option<DefId>)>,
     inherent_impls: HashMap<Ident, (surface::DetachedInherentImpl, Option<DefId>)>,
-    trait_impls: HashMap<(Symbol, Symbol), (surface::DetachedTraitImpl, Option<LocalDefId>, Span)>,
+    trait_impls: HashMap<TraitImplKey, (surface::DetachedTraitImpl, Option<LocalDefId>, Span)>,
 }
 
 impl DetachedItems {
