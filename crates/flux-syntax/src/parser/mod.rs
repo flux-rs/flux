@@ -186,7 +186,7 @@ fn parse_detached_enum(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let (refined_by, invariants) = parse_detached_refine_info(cx)?;
     let variants = braces(cx, Comma, |cx| parse_variant(cx, true))?
         .into_iter()
-        .map(|variant| Some(variant))
+        .map(Some)
         .collect();
     let enum_def = EnumDef { generics, refined_by, variants, invariants, reflected: false };
     Ok(Item { ident, kind: ItemKind::Enum(enum_def) })
