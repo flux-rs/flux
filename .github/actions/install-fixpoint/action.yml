@@ -5,7 +5,20 @@ runs:
   steps:
     - name: Download fixpoint
       run: |
-        curl -fsSL -o fixpoint https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-x86_64-linux-gnu
+        set -e
+        OS=$(uname -s)
+        ARCH=$(uname -m)
+        if [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
+          URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-x86_64-linux-gnu"
+        elif [ "$OS" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
+          URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-x86_64-apple-darwin"
+        elif [ "$OS" = "Darwin" ] && { [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; }; then
+          URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-aarch64-apple-darwin"
+        else
+          echo "Unsupported OS/architecture: $OS/$ARCH" >&2
+          exit 1
+        fi
+        curl -fsSL -o fixpoint "$URL"
         chmod +x fixpoint
         mkdir -p ~/.local/bin
         cp fixpoint ~/.local/bin/
