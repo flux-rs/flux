@@ -1544,7 +1544,6 @@ pub(crate) mod pretty {
             match self {
                 Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
                 Var::EarlyParam(var) => {
-                    println!("printint early param {:?}", var);
                     w!(cx, f, "{}", ^var.name)
                 }
                 Var::Free(name) => {
