@@ -11,16 +11,13 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
+    BaseTy, Binder, BoundVariableKind, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
     GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
     SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer, WKVid,
 };
-use super::{
-    normalize::Normalizer, BaseTy, Binder, BoundVariableKind, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, WKVid
-};
 use crate::{
     global_env::GlobalEnv,
-    rty::{BoundReft, BoundRegion, Var, VariantSig, expr::HoleKind},
+    rty::{expr::HoleKind, BoundReft, BoundRegion, Var, VariantSig},
 };
 
 pub trait TypeVisitor: Sized {
@@ -352,17 +349,6 @@ pub trait TypeVisitable: Sized {
             .into_iter()
             .filter(|var_index| finder.total_bvar_occurrences.get(var_index) == Some(&1))
             .collect()
-    }
-    fn count_bvar_occurrences(&self, bvars: &BoundVariableKinds) -> FxHashMap<BoundVariableKind, usize> {
-        struct BVarOccurrences((DebruijnIndex, FxHashMap<BoundVariableKind, usize>));
-
-        impl TypeVisitor for BVarOccurrences {
-            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
-                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, kind })) = e.kind() {
-
-                }
-            }
-        }
     }
 }
 
