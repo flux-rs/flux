@@ -8,14 +8,83 @@ use rustc_hir::{
     def::{DefKind, Res},
     def_id::{CRATE_DEF_ID, LocalDefId},
 };
-use rustc_middle::ty::{AssocKind, TyCtxt};
+use rustc_middle::ty::{AssocKind, Ty, TyCtxt};
 use rustc_span::{Symbol, def_id::DefId};
 
-use crate::collector::{FluxAttrs, SpecCollector, errors, surface::Ident};
-
+use crate::collector::{FluxAttrs, SpecCollector, errors, hir::PrimTy, surface::Ident};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-type TraitImplKey = (Symbol, Symbol);
+#[derive(PartialEq, Eq, Debug, Hash)]
+enum ImplKey {
+    /// for impl of types with an explicit DefId type constructor
+    Ident(Symbol),
+    /// for impl of primitive types
+    Prim(PrimTy),
+}
+
+// pub enum PrimTy {
+//     Int(IntTy),
+//     Uint(UintTy),
+//     Float(FloatTy),
+//     Str,
+//     Bool,
+//     Char,
+// }
+impl From<Ty<'_>> for ImplKey {
+    fn from(ty: Ty) -> Self {
+        match ty.kind() {
+        //     rustc_middle::ty::TyKind::Bool => ImplKey::Prim(PrimTy::Bool),
+        //     rustc_middle::ty::TyKind::Char => ImplKey::Prim(PrimTy::Char),
+        //     // rustc_middle::ty::TyKind::Int(int_ty) => ImplKey::Prim(PrimTy::Int(*int_ty)),
+        //     // rustc_middle::ty::TyKind::Uint(uint_ty) => ImplKey::Prim(PrimTy::Uint(*uint_ty)),
+        //     // rustc_middle::ty::TyKind::Float(float_ty) => ImplKey::Prim(PrimTy::Float(*float_ty)),
+        //     rustc_middle::ty::TyKind::Str => ImplKey::Prim(PrimTy::Str),
+        //     rustc_middle::ty::TyKind::Adt(adt_def, _) => {
+        //         ImplKey::Ident(adt_def.did().as_local().map_or_else(
+        //             || Symbol::intern(&format!("{:?}", adt_def.did())),
+        //             |local_def_id| Symbol::intern(&format!("{:?}", local_def_id)),
+        //         ))
+        //     }
+        //     rustc_middle::ty::TyKind::Tuple(_) => ImplKey::Ident(Symbol::intern("tuple")),
+        //     rustc_middle::ty::TyKind::Array(_, _) => ImplKey::Ident(Symbol::intern("array")),
+        //     rustc_middle::ty::TyKind::Slice(_) => ImplKey::Ident(Symbol::intern("slice")),
+        //     rustc_middle::ty::TyKind::RawPtr(_, _) => ImplKey::Ident(Symbol::intern("raw_ptr")),
+        //     rustc_middle::ty::TyKind::Ref(_, _, _) => ImplKey::Ident(Symbol::intern("ref")),
+        //     rustc_middle::ty::TyKind::FnDef(def_id, _) => {
+        //         ImplKey::Ident(Symbol::intern(&format!("{:?}", def_id)))
+        //     }
+        //     rustc_middle::ty::TyKind::FnPtr(_) => ImplKey::Ident(Symbol::intern("fn_ptr")),
+        //     rustc_middle::ty::TyKind::Closure(def_id, _) => {
+        //         ImplKey::Ident(Symbol::intern(&format!("{:?}", def_id)))
+        //     }
+        //     rustc_middle::ty::TyKind::CoroutineClosure(def_id, _) => {
+        //         ImplKey::Ident(Symbol::intern(&format!("{:?}", def_id)))
+        //     }
+        //     rustc_middle::ty::TyKind::Coroutine(def_id, _) => {
+        //         ImplKey::Ident(Symbol::intern(&format!("{:?}", def_id)))
+        //     }
+        //     rustc_middle::ty::TyKind::CoroutineWitness(def_id, _) => {
+        //         ImplKey::Ident(Symbol::intern(&format!("{:?}", def_id)))
+        //     }
+        //     rustc_middle::ty::TyKind::Never => ImplKey::Ident(Symbol::intern("never")),
+        //     rustc_middle::ty::TyKind::Dynamic(_, _, _) => ImplKey::Ident(Symbol::intern("dyn")),
+        //     rustc_middle::ty::TyKind::Foreign(def_id) => {
+        //         ImplKey::Ident(Symbol::intern(&format!("{:?}", def_id)))
+        //     }
+        //     rustc_middle::ty::TyKind::Alias(_, _) => ImplKey::Ident(Symbol::intern("alias")),
+        //     rustc_middle::ty::TyKind::Param(param_ty) => ImplKey::Ident(param_ty.name),
+        //     rustc_middle::ty::TyKind::Bound(_, _) => ImplKey::Ident(Symbol::intern("bound")),
+        //     rustc_middle::ty::TyKind::Placeholder(_) => {
+        //         ImplKey::Ident(Symbol::intern("placeholder"))
+        //     }
+        //     rustc_middle::ty::TyKind::Infer(_) => ImplKey::Ident(Symbol::intern("infer")),
+        //     rustc_middle::ty::TyKind::Error(_) => ImplKey::Ident(Symbol::intern("error")),
+        // }
+        }
+    }
+}
+
+type TraitImplKey = (ImplKey, Symbol);
 
 struct DetachedItems {
     items: HashMap<Ident, (surface::Item, Option<DefId>)>,
@@ -39,7 +108,7 @@ impl DetachedItems {
                     }
                 }
                 surface::ItemKind::TraitImpl(detached_impl) => {
-                    let key = (item.ident.name, detached_impl.trait_.name);
+                    let key = (ImplKey::Ident(item.ident.name), detached_impl.trait_.name);
                     let span = item.ident.span;
                     if let std::collections::hash_map::Entry::Vacant(e) = trait_impls.entry(key) {
                         e.insert((detached_impl, None, span));
@@ -69,9 +138,10 @@ impl DetachedItems {
             if let Some(trait_symbol) = tcx.opt_item_name(*trait_id) {
                 for impl_id in impl_ids {
                     if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
-                        let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                        let self_symbol = Symbol::intern(&format!("{self_ty:?}"));
-                        if let Some(val) = self.trait_impls.get_mut(&(self_symbol, trait_symbol)) {
+                        // let self_ty = poly_trait_ref.instantiate_identity().self_ty();
+                        // let self_symbol = Symbol::intern(&format!("{self_ty:?}"));
+                        let self_key = poly_trait_ref.instantiate_identity().self_ty().into();
+                        if let Some(val) = self.trait_impls.get_mut(&(self_key, trait_symbol)) {
                             val.1 = Some(*impl_id);
                         }
                     }
