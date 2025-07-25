@@ -15,24 +15,11 @@ use crate::collector::{FluxAttrs, SpecCollector, errors, surface::Ident};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 #[derive(PartialEq, Eq, Debug, Hash)]
-enum ImplKey {
-    /// for impl of types with an explicit DefId type constructor
-    Ident(Symbol),
-    /// for impl of primitive types
-    PrimTy(Symbol),
-}
+struct ImplKey(Symbol);
 
 impl ImplKey {
     fn new(ty: Ty) -> Self {
-        let symbol = Symbol::intern(&format!("{ty:?}"));
-        match ty.kind() {
-            rustc_middle::ty::TyKind::Bool
-            | rustc_middle::ty::TyKind::Char
-            | rustc_middle::ty::TyKind::Int(_)
-            | rustc_middle::ty::TyKind::Uint(_)
-            | rustc_middle::ty::TyKind::Float(_) => ImplKey::PrimTy(symbol),
-            _ => ImplKey::Ident(symbol), // TODO: use tcx.item_name
-        }
+        ImplKey(Symbol::intern(&format!("{ty:?}")))
     }
 }
 
@@ -60,7 +47,7 @@ impl DetachedItems {
                     }
                 }
                 surface::ItemKind::TraitImpl(detached_impl) => {
-                    let key = (ImplKey::Ident(item.ident.name), detached_impl.trait_.name);
+                    let key = (ImplKey(item.ident.name), detached_impl.trait_.name);
                     let span = item.ident.span;
                     if let std::collections::hash_map::Entry::Vacant(e) = trait_impls.entry(key) {
                         e.insert((detached_impl, None, span));
@@ -90,11 +77,9 @@ impl DetachedItems {
             if let Some(trait_symbol) = tcx.opt_item_name(*trait_id) {
                 for impl_id in impl_ids {
                     if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
-                        // let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                        // let self_symbol = Symbol::intern(&format!("{self_ty:?}"));
-                        let self_key =
+                        let impl_key =
                             ImplKey::new(poly_trait_ref.instantiate_identity().self_ty());
-                        if let Some(val) = self.trait_impls.get_mut(&(self_key, trait_symbol)) {
+                        if let Some(val) = self.trait_impls.get_mut(&(impl_key, trait_symbol)) {
                             val.1 = Some(*impl_id);
                         }
                     }
