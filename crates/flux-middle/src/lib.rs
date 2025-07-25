@@ -366,8 +366,8 @@ impl Specs {
         Ok(())
     }
 
-    pub fn insert_dummy(&mut self, owner_id: OwnerId) {
-        self.dummy_extern.insert(owner_id.def_id);
+    pub fn insert_dummy(&mut self, def_id: LocalDefId) {
+        self.dummy_extern.insert(def_id);
     }
 }
 

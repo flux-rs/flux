@@ -1,6 +1,9 @@
+#![feature(variant_count)]
+
 use std::{
     env,
     ffi::OsStr,
+    mem::variant_count,
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
@@ -31,6 +34,8 @@ xflags::xflags! {
             required input: PathBuf
             /// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=y`
             repeated opts: String
+            /// Do not build Flux libs for extern specs
+            optional --no-extern-specs
         }
         /// Expand Flux macros
         cmd expand {
@@ -41,8 +46,8 @@ xflags::xflags! {
         cmd install {
             /// Select build profile for the `flux-driver`, either 'release', 'dev', or 'profiling'. Default 'release'
             optional --profile profile: Profile
-            /// Do not build Flux libs
-            optional --no-libs
+            /// Do not install Flux libs or extern specs
+            optional --no-extern-specs
         }
         /// Uninstall Flux binaries and libraries
         cmd uninstall { }
@@ -115,7 +120,7 @@ fn main() -> anyhow::Result<()> {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 dst: local_sysroot_dir()?,
-                build_libs: BuildLibs::Yes { force: true, tests: true },
+                build_libs: BuildLibs { force: true, tests: true, libs: &FluxLib::ALL },
             };
             install_sysroot(&sh, &config)?;
             Ok(())
@@ -129,7 +134,7 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs::Yes { force: false, tests: !args.no_lib_tests },
+        build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: &FluxLib::ALL },
     };
     let flux = build_binary("flux", config.profile)?;
     install_sysroot(&sh, &config)?;
@@ -145,9 +150,11 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
 }
 
 fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
+    let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     run_inner(
         &sh,
         args.input,
+        BuildLibs { force: false, tests: false, libs },
         ["-Ztrack-diagnostics=y".to_string()]
             .into_iter()
             .chain(args.opts),
@@ -156,20 +163,22 @@ fn run(sh: Shell, args: Run) -> anyhow::Result<()> {
 }
 
 fn expand(sh: &Shell, args: Expand) -> Result<(), anyhow::Error> {
-    run_inner(sh, args.input, ["-Zunpretty=expanded".to_string()])?;
+    run_inner(
+        sh,
+        args.input,
+        BuildLibs { force: false, tests: false, libs: &[FluxLib::FluxRs] },
+        ["-Zunpretty=expanded".to_string()],
+    )?;
     Ok(())
 }
 
 fn run_inner(
     sh: &Shell,
     input: PathBuf,
+    build_libs: BuildLibs,
     flags: impl IntoIterator<Item = String>,
 ) -> Result<(), anyhow::Error> {
-    let config = SysrootConfig {
-        profile: Profile::Dev,
-        dst: local_sysroot_dir()?,
-        build_libs: BuildLibs::Yes { force: false, tests: false },
-    };
+    let config = SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()?, build_libs };
 
     install_sysroot(sh, &config)?;
     let flux = build_binary("flux", config.profile)?;
@@ -185,14 +194,11 @@ fn run_inner(
 }
 
 fn install(sh: &Shell, args: &Install, extra: &[&str]) -> anyhow::Result<()> {
+    let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     let config = SysrootConfig {
         profile: args.profile(),
         dst: default_sysroot_dir(),
-        build_libs: if args.no_libs {
-            BuildLibs::No
-        } else {
-            BuildLibs::Yes { force: false, tests: false }
-        },
+        build_libs: BuildLibs { force: false, tests: false, libs },
     };
     install_sysroot(sh, &config)?;
     Command::new("cargo")
@@ -247,12 +253,51 @@ struct SysrootConfig {
     build_libs: BuildLibs,
 }
 
-/// Whether to build Flux's libs
-enum BuildLibs {
-    /// If `force` is true, forces a clean build. If `tests` is true, check library tests.
-    Yes { force: bool, tests: bool },
-    /// Do not build libs
-    No,
+struct BuildLibs {
+    /// If true, forces a clean build.
+    force: bool,
+    /// If is true, run library tests.
+    tests: bool,
+    /// List of libraries to install
+    libs: &'static [FluxLib],
+}
+
+#[derive(Clone, Copy)]
+enum FluxLib {
+    FluxAlloc,
+    FluxAttrs,
+    FluxCore,
+    FluxRs,
+}
+
+impl FluxLib {
+    const ALL: &[FluxLib] = &[Self::FluxAlloc, Self::FluxAttrs, Self::FluxCore, Self::FluxRs];
+
+    const _ASSERT_ALL: () = { assert!(Self::ALL.len() == variant_count::<Self>()) };
+
+    const fn package_name(self) -> &'static str {
+        match self {
+            FluxLib::FluxAlloc => "flux-alloc",
+            FluxLib::FluxAttrs => "flux-attrs",
+            FluxLib::FluxCore => "flux-core",
+            FluxLib::FluxRs => "flux-rs",
+        }
+    }
+
+    const fn target_name(self) -> &'static str {
+        match self {
+            FluxLib::FluxAlloc => "flux_alloc",
+            FluxLib::FluxAttrs => "flux_attrs",
+            FluxLib::FluxCore => "flux_core",
+            FluxLib::FluxRs => "flux_rs",
+        }
+    }
+
+    fn is_flux_lib(artifact: &Artifact) -> bool {
+        Self::ALL
+            .iter()
+            .any(|lib| &artifact.target.name == lib.target_name())
+    }
 }
 
 fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
@@ -263,28 +308,33 @@ fn install_sysroot(sh: &Shell, config: &SysrootConfig) -> anyhow::Result<()> {
 
     let cargo_flux = build_binary("cargo-flux", config.profile)?;
 
-    if let BuildLibs::Yes { force, tests } = config.build_libs {
-        if force {
-            Command::new(&cargo_flux)
-                .args(["flux", "clean"])
-                .env(FLUX_SYSROOT, &config.dst)
-                .run()?;
-        }
-
-        let artifacts = Command::new(cargo_flux)
-            .args(["flux", "-p", "flux-rs", "-p", "flux-core", "-p", "flux-alloc"])
+    if config.build_libs.force {
+        Command::new(&cargo_flux)
+            .args(["flux", "clean"])
             .env(FLUX_SYSROOT, &config.dst)
-            .env_if(tests, FLUX_SYSROOT_TEST, "1")
-            .run_with_cargo_metadata()?;
-
-        copy_artifacts(sh, &artifacts, &config.dst)?;
+            .run()?;
     }
+
+    let artifacts = Command::new(cargo_flux)
+        .arg("flux")
+        .args(
+            config
+                .build_libs
+                .libs
+                .iter()
+                .flat_map(|lib| ["-p", lib.package_name()]),
+        )
+        .env(FLUX_SYSROOT, &config.dst)
+        .env_if(config.build_libs.tests, FLUX_SYSROOT_TEST, "1")
+        .run_with_cargo_metadata()?;
+
+    copy_artifacts(sh, &artifacts, &config.dst)?;
     Ok(())
 }
 
 fn copy_artifacts(sh: &Shell, artifacts: &[Artifact], sysroot: &Path) -> anyhow::Result<()> {
     for artifact in artifacts {
-        if !is_flux_lib(artifact) {
+        if !FluxLib::is_flux_lib(artifact) {
             continue;
         }
 
@@ -304,10 +354,6 @@ fn copy_artifact(sh: &Shell, filename: &Utf8Path, dst: &Path) -> anyhow::Result<
         }
     }
     Ok(())
-}
-
-fn is_flux_lib(artifact: &Artifact) -> bool {
-    matches!(&artifact.target.name[..], "flux_rs" | "flux_attrs" | "flux_core" | "flux_alloc")
 }
 
 impl Install {
