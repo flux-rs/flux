@@ -966,3 +966,14 @@ using the `cast` internal function.
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/to_int00.rs}}
 ```
+
+## Detached Specifications
+
+Sometimes you may want to write specs for functions etc. but not _directly_ attached to the function
+i.e. as an attribute of the function, for example, because you don't want to modify the original source file.
+
+You can do this using the "detached" `spec` as illustrated by the following
+
+```rust,noplayground
+{{#include ../../../tests/tests/neg/surface/detached00.rs}}
+```

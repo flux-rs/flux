@@ -99,11 +99,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
                 match item {
-                    surface::Item::Qualifier(qual) => {
+                    surface::FluxItem::Qualifier(qual) => {
                         let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
                         self.qualifiers.insert(qual.name.name, def_id);
                     }
-                    surface::Item::FuncDef(defn) => {
+                    surface::FluxItem::FuncDef(defn) => {
                         let parent = parent.def_id.to_def_id();
                         let def_id = FluxDefId::new(parent, defn.name.name);
                         let kind = if defn.body.is_some() {
@@ -113,13 +113,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         };
                         self.func_decls.insert(defn.name.name, kind);
                     }
-                    surface::Item::PrimOpProp(primop_prop) => {
+                    surface::FluxItem::PrimOpProp(primop_prop) => {
                         let name = primop_prop.name.name;
                         let parent = parent.def_id.to_def_id();
                         let def_id = FluxDefId::new(parent, name);
                         self.primop_props.insert(name, def_id);
                     }
-                    surface::Item::SortDecl(sort_decl) => {
+                    surface::FluxItem::SortDecl(sort_decl) => {
                         self.sort_decls.insert(
                             sort_decl.name.name,
                             fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
@@ -270,14 +270,14 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
         for item in items {
             match item {
-                surface::Item::Qualifier(qual) => {
+                surface::FluxItem::Qualifier(qual) => {
                     RefinementResolver::resolve_qualifier(self, qual).collect_err(&mut self.err);
                 }
-                surface::Item::FuncDef(defn) => {
+                surface::FluxItem::FuncDef(defn) => {
                     RefinementResolver::resolve_defn(self, defn).collect_err(&mut self.err);
                 }
-                surface::Item::SortDecl(_) => {}
-                surface::Item::PrimOpProp(primop_prop) => {
+                surface::FluxItem::SortDecl(_) => {}
+                surface::FluxItem::PrimOpProp(primop_prop) => {
                     RefinementResolver::resolve_primop_prop(self, primop_prop)
                         .collect_err(&mut self.err);
                 }

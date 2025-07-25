@@ -326,7 +326,7 @@ pub struct Specs {
     pub traits: UnordMap<OwnerId, surface::Trait>,
     pub impls: UnordMap<OwnerId, surface::Impl>,
     pub enums: UnordMap<OwnerId, surface::EnumDef>,
-    pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::Item>>,
+    pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::FluxItem>>,
     pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,

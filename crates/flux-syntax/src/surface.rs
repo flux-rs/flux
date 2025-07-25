@@ -1,5 +1,4 @@
 pub mod visit;
-
 use std::{borrow::Cow, fmt, ops::Range};
 
 pub use rustc_ast::{
@@ -28,20 +27,20 @@ pub struct SortDecl {
 }
 
 #[derive(Debug)]
-pub enum Item {
+pub enum FluxItem {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
 }
 
-impl Item {
+impl FluxItem {
     pub fn name(&self) -> Ident {
         match self {
-            Item::Qualifier(qualifier) => qualifier.name,
-            Item::FuncDef(spec_func) => spec_func.name,
-            Item::SortDecl(sort_decl) => sort_decl.name,
-            Item::PrimOpProp(primop_prop) => primop_prop.name,
+            FluxItem::Qualifier(qualifier) => qualifier.name,
+            FluxItem::FuncDef(spec_func) => spec_func.name,
+            FluxItem::SortDecl(sort_decl) => sort_decl.name,
+            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
         }
     }
 }
@@ -111,6 +110,44 @@ pub struct TyAlias {
 }
 
 #[derive(Debug)]
+pub struct DetachedSpecs {
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug)]
+pub struct DetachedTraitImpl {
+    pub trait_: Ident,
+    pub items: Vec<Item<FnSig>>,
+}
+
+#[derive(Debug)]
+pub struct DetachedInherentImpl {
+    pub items: Vec<Item<FnSig>>,
+}
+
+impl DetachedInherentImpl {
+    pub fn extend(&mut self, other: DetachedInherentImpl) {
+        self.items.extend(other.items);
+    }
+}
+
+#[derive(Debug)]
+pub struct Item<K = ItemKind> {
+    pub ident: Ident,
+    pub kind: K,
+}
+
+#[derive(Debug)]
+pub enum ItemKind {
+    FnSig(Item<FnSig>),
+    Mod(DetachedSpecs),
+    Struct(StructDef),
+    Enum(EnumDef),
+    InherentImpl(DetachedInherentImpl),
+    TraitImpl(DetachedTraitImpl),
+}
+
+#[derive(Debug)]
 pub struct ConstantInfo {
     pub expr: Option<Expr>,
 }
@@ -129,6 +166,14 @@ impl StructDef {
     pub fn needs_resolving(&self) -> bool {
         self.fields.iter().any(Option::is_some)
     }
+
+    /// Is a non-trivial StructDef
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.opaque
+            || self.fields.iter().any(Option::is_some)
+    }
 }
 
 #[derive(Debug)]
@@ -145,10 +190,18 @@ impl EnumDef {
     pub fn needs_resolving(&self) -> bool {
         self.variants.iter().any(Option::is_some)
     }
+
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.reflected
+            || self.variants.iter().any(Option::is_some)
+    }
 }
 
 #[derive(Debug)]
 pub struct VariantDef {
+    pub ident: Option<Ident>,
     pub fields: Vec<Ty>,
     pub ret: Option<VariantRet>,
     pub node_id: NodeId,
@@ -234,6 +287,7 @@ pub struct ImplAssocReft {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Trait {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<TraitAssocReft>,
