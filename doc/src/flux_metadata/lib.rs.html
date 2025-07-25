@@ -116,7 +116,7 @@
 <a href=#116 id=116 data-nosnippet>116</a>    adt_def: UnordMap&lt;K, QueryResult&lt;rty::AdtDef&gt;&gt;,
 <a href=#117 id=117 data-nosnippet>117</a>    constant_info: UnordMap&lt;K, QueryResult&lt;rty::ConstantInfo&gt;&gt;,
 <a href=#118 id=118 data-nosnippet>118</a>    adt_sort_def: UnordMap&lt;K, QueryResult&lt;rty::AdtSortDef&gt;&gt;,
-<a href=#119 id=119 data-nosnippet>119</a>    variants: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
+<a href=#119 id=119 data-nosnippet>119</a>    variants_of: UnordMap&lt;K, QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt;&gt;,
 <a href=#120 id=120 data-nosnippet>120</a>    type_of: UnordMap&lt;K, QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt;&gt;,
 <a href=#121 id=121 data-nosnippet>121</a>    normalized_defns: Rc&lt;rty::NormalizedDefns&gt;,
 <a href=#122 id=122 data-nosnippet>122</a>    func_sort: UnordMap&lt;FluxId&lt;K&gt;, rty::PolyFuncSort&gt;,
@@ -166,7 +166,7 @@
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, fn_sig, extern_tables);
 <a href=#167 id=167 data-nosnippet>167</a>        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, adt_def, extern_tables);
 <a href=#168 id=168 data-nosnippet>168</a>        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, adt_sort_def, extern_tables);
-<a href=#169 id=169 data-nosnippet>169</a>        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, variants, extern_tables);
+<a href=#169 id=169 data-nosnippet>169</a>        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, variants_of, extern_tables);
 <a href=#170 id=170 data-nosnippet>170</a>        <span class="macro">merge_extern_table!</span>(<span class="self">self</span>, tcx, type_of, extern_tables);
 <a href=#171 id=171 data-nosnippet>171</a>    }
 <a href=#172 id=172 data-nosnippet>172</a>}
@@ -196,11 +196,11 @@
 <a href=#196 id=196 data-nosnippet>196</a>        <span class="macro">get!</span>(<span class="self">self</span>, adt_sort_def, def_id)
 <a href=#197 id=197 data-nosnippet>197</a>    }
 <a href=#198 id=198 data-nosnippet>198</a>
-<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">fn </span>variants(
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">fn </span>variants_of(
 <a href=#200 id=200 data-nosnippet>200</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#201 id=201 data-nosnippet>201</a>        def_id: DefId,
 <a href=#202 id=202 data-nosnippet>202</a>    ) -&gt; OptResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="macro">get!</span>(<span class="self">self</span>, variants, def_id)
+<a href=#203 id=203 data-nosnippet>203</a>        <span class="macro">get!</span>(<span class="self">self</span>, variants_of, def_id)
 <a href=#204 id=204 data-nosnippet>204</a>    }
 <a href=#205 id=205 data-nosnippet>205</a>
 <a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">fn </span>type_of(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: DefId) -&gt; OptResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt; {
@@ -369,7 +369,7 @@
 <a href=#369 id=369 data-nosnippet>369</a>                tables
 <a href=#370 id=370 data-nosnippet>370</a>                    .adt_sort_def
 <a href=#371 id=371 data-nosnippet>371</a>                    .insert(key, genv.adt_sort_def_of(def_id));
-<a href=#372 id=372 data-nosnippet>372</a>                tables.variants.insert(key, genv.variants_of(def_id));
+<a href=#372 id=372 data-nosnippet>372</a>                tables.variants_of.insert(key, genv.variants_of(def_id));
 <a href=#373 id=373 data-nosnippet>373</a>                tables.type_of.insert(key, genv.type_of(def_id));
 <a href=#374 id=374 data-nosnippet>374</a>            }
 <a href=#375 id=375 data-nosnippet>375</a>            DefKind::TyAlias =&gt; {
