@@ -68,7 +68,7 @@ jobs:
       - name: Clone vtock
         run: |
           git clone https://github.com/PLSysSec/tock
-          cp rust-toolchain tock/rust-toolchain.toml
+          cp rust-toolchain.toml tock/rust-toolchain.toml
 
       - name: Patch flux-rs dependency if in pull request
         if: github.event_name == 'pull_request'
