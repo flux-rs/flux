@@ -60,7 +60,7 @@ pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
 }
 
 pub fn get_rust_toolchain() -> Result<String> {
-    let toolchain_str = include_str!("../../../rust-toolchain");
+    let toolchain_str = include_str!("../../../rust-toolchain.toml");
     let toolchain_file: ToolchainToml = toml::from_str(toolchain_str)?;
     Ok(toolchain_file.toolchain.channel)
 }

@@ -203,9 +203,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn define_foreign_items(&mut self, items: &[rustc_hir::ForeignItemRef]) {
-        for item_ref in items {
-            let item = self.genv.tcx().hir_foreign_item(item_ref.id);
+    fn define_foreign_items(&mut self, items: &[rustc_hir::ForeignItemId]) {
+        for item_id in items {
+            let item = self.genv.tcx().hir_foreign_item(*item_id);
             match item.kind {
                 rustc_hir::ForeignItemKind::Type => {
                     self.define_res_in(
