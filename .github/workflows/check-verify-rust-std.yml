@@ -1,0 +1,73 @@
+name: check-verify-rust-std
+
+on:
+  schedule:
+    # Run every 30 minutes at minute 17 and 47 (arbitrary minutes to avoid load spikes)
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check-workflow-status:
+    runs-on: ubuntu-latest
+    env:
+      REPO: model-checking/verify-rust-std
+      WORKFLOW: Flux
+      TIMESTAMP_PATH: last-timestamp.txt
+      TIMESTAMP_ARTIFACT: last-check-verify-rust-std-timestamp
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Get current run timestamp
+        id: now
+        run: |
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Download last run timestamp
+        id: last
+        run: |
+          ts=""
+          gh run download --name "$TIMESTAMP_ARTIFACT" --repo "${{ github.repository }}"
+          if [ -f $TIMESTAMP_PATH ]; then
+            ts=$(cat $TIMESTAMP_PATH)
+            echo "Found timestamp: $ts"
+          fi
+          echo "timestamp=$ts" >> $GITHUB_OUTPUT
+
+      - name: Query and print failed runs since last workflow run
+        id: failed_runs
+        run: |
+          since="${{ steps.last.outputs.timestamp }}"
+          if [ -z "$since" ]; then
+            echo "No previous timestamp found, querying last 24h."
+            since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          fi
+          failed_run_ids=$(gh run list \
+            --repo "$REPO" \
+            --workflow "$WORKFLOW" \
+            --created ">=$since" \
+            --status failure \
+            --json databaseId \
+            --limit 1000 \
+            --jq ".[].databaseId")
+
+          if [ -n "$failed_run_ids" ]; then
+            echo "Failed run IDs:"
+            echo "$failed_run_ids"
+            for run_id in $failed_run_ids; do
+              echo "--- Run ID: $run_id ---"
+              gh run view "$run_id" --repo "$REPO"
+            done
+            exit 1
+          else
+            echo "No failed runs found."
+          fi
+
+      - name: Save current run timestamp for next run
+        if: ${{ always() }}
+        run: echo "${{ steps.now.outputs.timestamp }}" > "$TIMESTAMP_PATH"
+
+      - name: Upload timestamp artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.TIMESTAMP_ARTIFACT }}
+          path: ${{ env.TIMESTAMP_PATH }}
