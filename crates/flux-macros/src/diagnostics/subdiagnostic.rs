@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 #![deny(unused_must_use)]
 
 use proc_macro2::TokenStream;
@@ -390,7 +391,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     span_attrs.push("suggestion_part");
                 }
                 if !kind_stats.all_multipart_suggestions {
-                    span_attrs.push("primary_span")
+                    span_attrs.push("primary_span");
                 }
 
                 invalid_attr(attr)
@@ -479,7 +480,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     span_attrs.push("suggestion_part");
                 }
                 if !kind_stats.all_multipart_suggestions {
-                    span_attrs.push("primary_span")
+                    span_attrs.push("primary_span");
                 }
                 diag.help(format!(
                     "only `{}`, `applicability` and `skip_arg` are valid field attributes",

@@ -158,7 +158,7 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
     for entry in resource.entries() {
         if let Entry::Message(msg) = entry {
             let Message { id: Identifier { name }, attributes, value, .. } = msg;
-            let _ = previous_defns.entry(name.to_string()).or_insert(resource_span);
+            let _ = previous_defns.entry((*name).to_string()).or_insert(resource_span);
             if name.contains('-') {
                 Diagnostic::spanned(
                     resource_span,
@@ -254,11 +254,11 @@ pub(crate) fn fluent_messages(input: proc_macro::TokenStream) -> proc_macro::Tok
             constants.extend(quote! {
                 #[cfg(test)]
                 pub const #ident: &[&str] = &[#(#vrefs),*];
-            })
+            });
         }
     }
 
-    for (mref, name) in message_refs.into_iter() {
+    for (mref, name) in message_refs {
         if !previous_defns.contains_key(mref) {
             Diagnostic::spanned(
                 resource_span,

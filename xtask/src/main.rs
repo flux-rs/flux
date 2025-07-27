@@ -120,7 +120,7 @@ fn main() -> anyhow::Result<()> {
             let config = SysrootConfig {
                 profile: Profile::Dev,
                 dst: local_sysroot_dir()?,
-                build_libs: BuildLibs { force: true, tests: true, libs: &FluxLib::ALL },
+                build_libs: BuildLibs { force: true, tests: true, libs: FluxLib::ALL },
             };
             install_sysroot(&sh, &config)?;
             Ok(())
@@ -134,7 +134,7 @@ fn test(sh: Shell, args: Test) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
         dst: local_sysroot_dir()?,
-        build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: &FluxLib::ALL },
+        build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: FluxLib::ALL },
     };
     let flux = build_binary("flux", config.profile)?;
     install_sysroot(&sh, &config)?;
@@ -262,6 +262,7 @@ struct BuildLibs {
     libs: &'static [FluxLib],
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Clone, Copy)]
 enum FluxLib {
     FluxAlloc,
@@ -296,7 +297,7 @@ impl FluxLib {
     fn is_flux_lib(artifact: &Artifact) -> bool {
         Self::ALL
             .iter()
-            .any(|lib| &artifact.target.name == lib.target_name())
+            .any(|lib| artifact.target.name == lib.target_name())
     }
 }
 
