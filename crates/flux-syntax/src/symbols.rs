@@ -14,6 +14,9 @@ symbols! {
         Qualifier: "qualifier",
         Sort: "sort",
         Strg: "strg",
+        Trusted: "trusted",
+        Assoc: "assoc",
+        Invariant: "invariant",
     }
 
     Symbols {

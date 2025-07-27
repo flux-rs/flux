@@ -352,11 +352,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let reveal_names: Option<surface::RevealNames> = attrs.reveal_names();
 
+        let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
+
         Ok(self
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names }))
+            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {

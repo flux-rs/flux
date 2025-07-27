@@ -1,6 +1,7 @@
 use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::span_bug;
+use flux_middle::fhir::Trusted;
 use flux_syntax::surface::{self, Span};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -161,7 +162,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         for (ident, (item, def_id)) in detached_items.items {
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.collect_detached_item(owner_id, item)?;
+                self.collect_item(owner_id, item)?;
             }
         }
         for (ident, (inherent_impl, def_id)) in detached_items.inherent_impls {
@@ -191,7 +192,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(def_id.as_local())
     }
 
-    fn collect_detached_enum(
+    fn collect_enum(
         &mut self,
         ident: Ident,
         owner_id: OwnerId,
@@ -222,7 +223,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_detached_struct(
+    fn collect_struct(
         &mut self,
         ident: Ident,
         owner_id: OwnerId,
@@ -253,13 +254,20 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_fn_sig(&mut self, owner_id: OwnerId, fn_sig: surface::FnSig) -> Result {
+    fn collect_fn_spec(&mut self, owner_id: OwnerId, fn_spec: surface::FnSpec) -> Result {
         let spec = self
             .inner
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig: None, qual_names: None, reveal_names: None });
+            .or_insert(surface::FnSpec {
+                fn_sig: None,
+                qual_names: None,
+                reveal_names: None,
+                trusted: false,
+            });
+
+        let fn_sig = fn_spec.fn_sig.unwrap();
 
         if spec.fn_sig.is_some() {
             let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
@@ -270,6 +278,15 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         }
 
         spec.fn_sig = Some(fn_sig);
+        spec.trusted = fn_spec.trusted;
+
+        if fn_spec.trusted {
+            self.inner
+                .specs
+                .trusted
+                .insert(owner_id.def_id, Trusted::Yes);
+        }
+
         Ok(())
     }
 
@@ -278,7 +295,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         impl_id: LocalDefId,
         trait_impl: surface::DetachedTraitImpl,
     ) -> Result {
-        let mut table: HashMap<Symbol, (surface::FnSig, Option<DefId>, Span)> = HashMap::default();
+        let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
         // 1. make a table of the impl-items
         for item in trait_impl.items {
             let key = item.ident.name;
@@ -312,7 +329,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             let ident = Ident { name, span };
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.collect_fn_sig(owner_id, fn_sig)?;
+                self.collect_fn_spec(owner_id, fn_sig)?;
             }
         }
 
@@ -324,7 +341,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         ty_def_id: LocalDefId,
         inherent_impl: surface::DetachedInherentImpl,
     ) -> Result {
-        let mut table: HashMap<Symbol, (surface::FnSig, Option<DefId>, Span)> = HashMap::default();
+        let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
         // 1. make a table of the impl-items
         for item in inherent_impl.items {
             let key = item.ident.name;
@@ -355,26 +372,24 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         }
 
         // 3. Attach the `fn_sig` to the resolved `DefId`
-        for (name, (fn_sig, def_id, span)) in table {
+        for (name, (fn_spec, def_id, span)) in table {
             let ident = Ident { name, span };
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.collect_fn_sig(owner_id, fn_sig)?;
+                self.collect_fn_spec(owner_id, fn_spec)?;
             }
         }
 
         Ok(())
     }
 
-    fn collect_detached_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
+    fn collect_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
         match item.kind {
-            surface::ItemKind::FnSig(item) => self.collect_fn_sig(owner_id, item.kind),
+            surface::ItemKind::FnSig(item) => self.collect_fn_spec(owner_id, item.kind),
             surface::ItemKind::Struct(struct_def) => {
-                self.collect_detached_struct(item.ident, owner_id, struct_def)
+                self.collect_struct(item.ident, owner_id, struct_def)
             }
-            surface::ItemKind::Enum(enum_def) => {
-                self.collect_detached_enum(item.ident, owner_id, enum_def)
-            }
+            surface::ItemKind::Enum(enum_def) => self.collect_enum(item.ident, owner_id, enum_def),
             surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id),
             _ => {
                 span_bug!(item.ident.span, "unexpected detached item!")

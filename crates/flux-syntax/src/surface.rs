@@ -117,12 +117,12 @@ pub struct DetachedSpecs {
 #[derive(Debug)]
 pub struct DetachedTraitImpl {
     pub trait_: Ident,
-    pub items: Vec<Item<FnSig>>,
+    pub items: Vec<Item<FnSpec>>,
 }
 
 #[derive(Debug)]
 pub struct DetachedInherentImpl {
-    pub items: Vec<Item<FnSig>>,
+    pub items: Vec<Item<FnSpec>>,
 }
 
 impl DetachedInherentImpl {
@@ -139,7 +139,7 @@ pub struct Item<K = ItemKind> {
 
 #[derive(Debug)]
 pub enum ItemKind {
-    FnSig(Item<FnSig>),
+    FnSig(Item<FnSpec>),
     Mod(DetachedSpecs),
     Struct(StructDef),
     Enum(EnumDef),
@@ -308,6 +308,7 @@ pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
     pub reveal_names: Option<RevealNames>,
+    pub trusted: bool,
 }
 
 #[derive(Debug)]
@@ -514,6 +515,16 @@ pub enum RefineArg {
 pub enum BindKind {
     At,
     Pound,
+}
+
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+pub enum Attr {
+    /// A `#[trusted]` attribute
+    Trusted,
+    /// A `#[hide]` attribute
+    Hide,
+    /// A `#[assoc]` attribute
+    Assoc,
 }
 
 #[derive(Debug)]
