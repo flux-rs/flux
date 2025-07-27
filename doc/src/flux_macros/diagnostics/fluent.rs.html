@@ -158,7 +158,7 @@
 <a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">for </span>entry <span class="kw">in </span>resource.entries() {
 <a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">if let </span>Entry::Message(msg) = entry {
 <a href=#160 id=160 data-nosnippet>160</a>            <span class="kw">let </span>Message { id: Identifier { name }, attributes, value, .. } = msg;
-<a href=#161 id=161 data-nosnippet>161</a>            <span class="kw">let _ </span>= previous_defns.entry(name.to_string()).or_insert(resource_span);
+<a href=#161 id=161 data-nosnippet>161</a>            <span class="kw">let _ </span>= previous_defns.entry((<span class="kw-2">*</span>name).to_string()).or_insert(resource_span);
 <a href=#162 id=162 data-nosnippet>162</a>            <span class="kw">if </span>name.contains(<span class="string">'-'</span>) {
 <a href=#163 id=163 data-nosnippet>163</a>                Diagnostic::spanned(
 <a href=#164 id=164 data-nosnippet>164</a>                    resource_span,
@@ -254,11 +254,11 @@
 <a href=#254 id=254 data-nosnippet>254</a>            constants.extend(<span class="macro">quote!</span> {
 <a href=#255 id=255 data-nosnippet>255</a>                <span class="attr">#[cfg(test)]
 <a href=#256 id=256 data-nosnippet>256</a>                </span><span class="kw">pub const </span>#ident: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[#(#vrefs),<span class="kw-2">*</span>];
-<a href=#257 id=257 data-nosnippet>257</a>            })
+<a href=#257 id=257 data-nosnippet>257</a>            });
 <a href=#258 id=258 data-nosnippet>258</a>        }
 <a href=#259 id=259 data-nosnippet>259</a>    }
 <a href=#260 id=260 data-nosnippet>260</a>
-<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">for </span>(mref, name) <span class="kw">in </span>message_refs.into_iter() {
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">for </span>(mref, name) <span class="kw">in </span>message_refs {
 <a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">if </span>!previous_defns.contains_key(mref) {
 <a href=#263 id=263 data-nosnippet>263</a>            Diagnostic::spanned(
 <a href=#264 id=264 data-nosnippet>264</a>                resource_span,
