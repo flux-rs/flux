@@ -913,6 +913,13 @@ mod errors {
         pub ident: Ident,
     }
 
+    #[derive(Diagnostic)]
+    #[diag(driver_duplicate_specification, code = E0999)]
+    pub(super) struct DuplicateSpecification {
+        #[primary_span]
+        pub span: Span,
+        pub name: String,
+    }
     pub(super) struct SyntaxErr(flux_syntax::ParseError);
 
     impl From<flux_syntax::ParseError> for SyntaxErr {

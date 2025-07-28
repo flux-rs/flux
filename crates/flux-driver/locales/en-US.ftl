@@ -10,6 +10,8 @@ driver_invalid_attr_map =
 driver_unresolved_identifier =
     unresolved identifier `{$ident}`
 
+driver_duplicate_specification =
+    multiple specifications for `{$name}`
 
 driver_syntax_err =
     syntax error

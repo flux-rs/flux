@@ -204,7 +204,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let name = self.inner.tcx.def_path_str(def_id);
         self.inner
             .errors
-            .emit(errors::AttrMapErr { span, message: format!("multiple specs for `{name}`") })
+            .emit(errors::DuplicateSpecification { name, span })
     }
 
     fn collect_trait(
