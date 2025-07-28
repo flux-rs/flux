@@ -32,25 +32,22 @@ jobs:
           fi
           echo "timestamp=$ts" >> $GITHUB_OUTPUT
 
-      - name: Query and print failed runs since last workflow run
+      - name: Query failed runs
         id: failed_runs
         run: |
-          since="${{ steps.last.outputs.timestamp }}"
-          if [ -z "$since" ]; then
-            echo "No previous timestamp found, querying last 24h."
-            since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
-          fi
-          failed_run_ids=$(gh run list \
+          last_ts="${{ steps.last.outputs.timestamp }}"
+          since=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          failed_runs=$(gh run list \
             --repo "$REPO" \
             --workflow "$WORKFLOW" \
             --created ">=$since" \
             --status failure \
-            --json databaseId \
-            --limit 1000 \
-            --jq ".[].databaseId")
+            --json databaseId,updatedAt \
+            --jq '.[] | select(.updatedAt >= "$last_ts") | .databaseId' \
+            --limit 1000)
 
           if [ -n "$failed_run_ids" ]; then
-            echo "Failed run IDs:"
+            echo "Failed run IDs (completed after last execution):"
             echo "$failed_run_ids"
             for run_id in $failed_run_ids; do
               echo "--- Run ID: $run_id ---"
@@ -58,7 +55,7 @@ jobs:
             done
             exit 1
           else
-            echo "No failed runs found."
+            echo "No failed runs found (after last execution)."
           fi
 
       - name: Save current run timestamp for next run
