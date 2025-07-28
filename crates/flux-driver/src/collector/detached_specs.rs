@@ -2,14 +2,14 @@ use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::span_bug;
 use flux_middle::fhir::Trusted;
-use flux_syntax::surface::{self, Span};
+use flux_syntax::surface::{self, FnSpec, Item, Span};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{DefKind, Res},
     def_id::{CRATE_DEF_ID, LocalDefId},
 };
-use rustc_middle::ty::{AssocKind, Ty, TyCtxt};
+use rustc_middle::ty::{AssocItem, AssocKind, Ty, TyCtxt};
 use rustc_span::{Symbol, def_id::DefId};
 
 use crate::collector::{FluxAttrs, SpecCollector, errors, surface::Ident};
@@ -134,6 +134,13 @@ impl DetachedItems {
                 {
                     val.1 = Some(def_id);
                 }
+                if let DefKind::Trait = kind
+                    && let Some(val) = self.items.get_mut(&ident)
+                    && matches!(val.0.kind, surface::ItemKind::Trait(_))
+                    && val.1.is_none()
+                {
+                    val.1 = Some(def_id);
+                }
             }
         }
     }
@@ -190,6 +197,34 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }));
         };
         Ok(def_id.as_local())
+    }
+
+    fn collect_trait(
+        &mut self,
+        ident: Ident,
+        owner_id: OwnerId,
+        trait_def: surface::DetachedTrait,
+    ) -> Result {
+        let entry = self
+            .inner
+            .specs
+            .traits
+            .entry(owner_id)
+            .or_insert(surface::Trait { generics: None, assoc_refinements: vec![] });
+
+        if entry.is_nontrivial() {
+            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
+            return Err(self.inner.errors.emit(errors::AttrMapErr {
+                span: ident.span,
+                message: format!("multiple specs for `{name}`"),
+            }));
+        }
+        for trait_assoc_reft in trait_def.refts {
+            entry.assoc_refinements.push(trait_assoc_reft);
+        }
+        let tcx = self.inner.tcx;
+        let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
+        self.collect_assoc_methods(trait_def.items, assoc_items)
     }
 
     fn collect_enum(
@@ -290,14 +325,14 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_trait_impl(
+    fn collect_assoc_methods(
         &mut self,
-        impl_id: LocalDefId,
-        trait_impl: surface::DetachedTraitImpl,
+        methods: Vec<Item<FnSpec>>,
+        assoc_items: impl Iterator<Item = &'tcx AssocItem>,
     ) -> Result {
         let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
         // 1. make a table of the impl-items
-        for item in trait_impl.items {
+        for item in methods {
             let key = item.ident.name;
             if let Entry::Occupied(_) = table.entry(key) {
                 return Err(self.inner.errors.emit(errors::AttrMapErr {
@@ -308,14 +343,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 table.insert(item.ident.name, (item.kind, None, item.ident.span));
             }
         }
-
-        // 2. walk over all associated-items, resolving the items
-        for item in self
-            .inner
-            .tcx
-            .associated_items(impl_id)
-            .in_definition_order()
-        {
+        // 2. walk over all the assoc-items to resolve names
+        for item in assoc_items {
             if let AssocKind::Fn { name, .. } = item.kind
                 && let Some(val) = table.get_mut(&name)
                 && val.1.is_none()
@@ -323,54 +352,6 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 val.1 = Some(item.def_id);
             }
         }
-
-        // 3. Attach the `fn_sig` to the resolved `DefId`
-        for (name, (fn_sig, def_id, span)) in table {
-            let ident = Ident { name, span };
-            if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
-                let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.collect_fn_spec(owner_id, fn_sig)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn collect_inherent_impl(
-        &mut self,
-        ty_def_id: LocalDefId,
-        inherent_impl: surface::DetachedInherentImpl,
-    ) -> Result {
-        let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
-        // 1. make a table of the impl-items
-        for item in inherent_impl.items {
-            let key = item.ident.name;
-            if let Entry::Occupied(_) = table.entry(key) {
-                return Err(self.inner.errors.emit(errors::AttrMapErr {
-                    span: item.ident.span,
-                    message: format!("multiple specs for `{}`", item.ident),
-                }));
-            } else {
-                table.insert(item.ident.name, (item.kind, None, item.ident.span));
-            }
-        }
-        // 2. walk over all the impl-def-ids resolving the items
-        for impl_id in self.inner.tcx.inherent_impls(ty_def_id) {
-            for item in self
-                .inner
-                .tcx
-                .associated_items(impl_id)
-                .in_definition_order()
-            {
-                if let AssocKind::Fn { name, .. } = item.kind
-                    && let Some(val) = table.get_mut(&name)
-                    && val.1.is_none()
-                {
-                    val.1 = Some(item.def_id);
-                }
-            }
-        }
-
         // 3. Attach the `fn_sig` to the resolved `DefId`
         for (name, (fn_spec, def_id, span)) in table {
             let ident = Ident { name, span };
@@ -379,8 +360,113 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 self.collect_fn_spec(owner_id, fn_spec)?;
             }
         }
-
         Ok(())
+    }
+
+    fn collect_trait_impl(
+        &mut self,
+        impl_id: LocalDefId,
+        trait_impl: surface::DetachedTraitImpl,
+    ) -> Result {
+        let assoc_items = self
+            .inner
+            .tcx
+            .associated_items(impl_id)
+            .in_definition_order();
+        self.collect_assoc_methods(trait_impl.items, assoc_items)
+
+        // let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
+        // // 1. make a table of the impl-items
+        // for item in trait_impl.items {
+        //     let key = item.ident.name;
+        //     if let Entry::Occupied(_) = table.entry(key) {
+        //         return Err(self.inner.errors.emit(errors::AttrMapErr {
+        //             span: item.ident.span,
+        //             message: format!("multiple specs for `{}`", item.ident),
+        //         }));
+        //     } else {
+        //         table.insert(item.ident.name, (item.kind, None, item.ident.span));
+        //     }
+        // }
+
+        // // 2. walk over all associated-items, resolving the items
+        // for item in self
+        //     .inner
+        //     .tcx
+        //     .associated_items(impl_id)
+        //     .in_definition_order()
+        // {
+        //     if let AssocKind::Fn { name, .. } = item.kind
+        //         && let Some(val) = table.get_mut(&name)
+        //         && val.1.is_none()
+        //     {
+        //         val.1 = Some(item.def_id);
+        //     }
+        // }
+
+        // // 3. Attach the `fn_sig` to the resolved `DefId`
+        // for (name, (fn_sig, def_id, span)) in table {
+        //     let ident = Ident { name, span };
+        //     if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
+        //         let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+        //         self.collect_fn_spec(owner_id, fn_sig)?;
+        //     }
+        // }
+
+        // Ok(())
+    }
+
+    fn collect_inherent_impl(
+        &mut self,
+        ty_def_id: LocalDefId,
+        inherent_impl: surface::DetachedInherentImpl,
+    ) -> Result {
+        let tcx = self.inner.tcx;
+        let assoc_items = tcx
+            .inherent_impls(ty_def_id)
+            .into_iter()
+            .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
+        self.collect_assoc_methods(inherent_impl.items, assoc_items)
+
+        // let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
+        // // 1. make a table of the impl-items
+        // for item in inherent_impl.items {
+        //     let key = item.ident.name;
+        //     if let Entry::Occupied(_) = table.entry(key) {
+        //         return Err(self.inner.errors.emit(errors::AttrMapErr {
+        //             span: item.ident.span,
+        //             message: format!("multiple specs for `{}`", item.ident),
+        //         }));
+        //     } else {
+        //         table.insert(item.ident.name, (item.kind, None, item.ident.span));
+        //     }
+        // }
+        // // 2. walk over all the impl-def-ids resolving the items
+        // for impl_id in self.inner.tcx.inherent_impls(ty_def_id) {
+        //     for item in self
+        //         .inner
+        //         .tcx
+        //         .associated_items(impl_id)
+        //         .in_definition_order()
+        //     {
+        //         if let AssocKind::Fn { name, .. } = item.kind
+        //             && let Some(val) = table.get_mut(&name)
+        //             && val.1.is_none()
+        //         {
+        //             val.1 = Some(item.def_id);
+        //         }
+        //     }
+        // }
+
+        // // 3. Attach the `fn_sig` to the resolved `DefId`
+        // for (name, (fn_spec, def_id, span)) in table {
+        //     let ident = Ident { name, span };
+        //     if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
+        //         let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+        //         self.collect_fn_spec(owner_id, fn_spec)?;
+        //     }
+        // }
+        // Ok(())
     }
 
     fn collect_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
@@ -391,6 +477,9 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }
             surface::ItemKind::Enum(enum_def) => self.collect_enum(item.ident, owner_id, enum_def),
             surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id),
+            surface::ItemKind::Trait(trait_def) => {
+                self.collect_trait(item.ident, owner_id, trait_def)
+            }
             _ => {
                 span_bug!(item.ident.span, "unexpected detached item!")
             }

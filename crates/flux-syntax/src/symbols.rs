@@ -15,7 +15,7 @@ symbols! {
         Sort: "sort",
         Strg: "strg",
         Trusted: "trusted",
-        Assoc: "assoc",
+        Reft: "reft",
         Invariant: "invariant",
     }
 

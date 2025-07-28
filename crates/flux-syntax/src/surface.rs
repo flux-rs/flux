@@ -118,6 +118,14 @@ pub struct DetachedSpecs {
 pub struct DetachedTraitImpl {
     pub trait_: Ident,
     pub items: Vec<Item<FnSpec>>,
+    pub refts: Vec<ImplAssocReft>,
+}
+
+#[derive(Debug)]
+pub struct DetachedTrait {
+    pub ident: Ident,
+    pub items: Vec<Item<FnSpec>>,
+    pub refts: Vec<TraitAssocReft>,
 }
 
 #[derive(Debug)]
@@ -145,6 +153,7 @@ pub enum ItemKind {
     Enum(EnumDef),
     InherentImpl(DetachedInherentImpl),
     TraitImpl(DetachedTraitImpl),
+    Trait(DetachedTrait),
 }
 
 #[derive(Debug)]
@@ -293,6 +302,11 @@ pub struct Trait {
     pub assoc_refinements: Vec<TraitAssocReft>,
 }
 
+impl Trait {
+    pub fn is_nontrivial(&self) -> bool {
+        self.generics.is_some() || !self.assoc_refinements.is_empty()
+    }
+}
 #[derive(Debug)]
 pub struct TraitAssocReft {
     pub name: Ident,
@@ -523,8 +537,8 @@ pub enum Attr {
     Trusted,
     /// A `#[hide]` attribute
     Hide,
-    /// A `#[assoc]` attribute
-    Assoc,
+    /// A `#[reft]` attribute
+    Reft,
 }
 
 #[derive(Debug)]
