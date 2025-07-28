@@ -7,11 +7,10 @@ pub enum List<T> {
 
 #[flux::specs {
 
-    enum List
-      refined_by(len: int)
-      invariant(len >= 0)
-    {
-      Nil                  -> List<T>[0],
+    #[refined_by(n: int)]
+    #[invariant(n >= 0)]
+    enum List<T> {
+      Nil                       -> List<T>[0],
       Cons(T, Box<List<T>[@n]>) -> List<T>[n+1],
     }
 

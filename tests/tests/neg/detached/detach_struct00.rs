@@ -15,10 +15,9 @@ pub fn use_struct(s: MyStruct) {
 
 #[flux::specs {
 
-    struct MyStruct
-        refined_by(vx: int, vy: int)
-        invariant(vx < vy)
-    {
+    #[refined_by(vx: int, vy: int)]
+    #[invariant(vx < vy)]
+    struct MyStruct {
         x: usize[vx],
         y: usize[vy],
     }

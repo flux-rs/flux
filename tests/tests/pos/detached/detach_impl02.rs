@@ -55,10 +55,9 @@ fn test_c() -> usize {
 
 #[flux::specs {
 
-    enum Nat
-      refined_by(n:int)
-      invariant(0 <= n)
-    {
+    #[refined_by(n: int)]
+    #[invariant(0 <= n)]
+    enum Nat {
       Zero               -> Nat[0],
       Succ(Box<Nat[@n]>) -> Nat[n + 1],
     }
