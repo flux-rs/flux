@@ -67,10 +67,11 @@ impl DetachedItems {
         Ok(DetachedItems { items, inherent_impls, trait_impls })
     }
 
-    fn resolve(&mut self, tcx: TyCtxt, scope: LocalDefId) {
-        self.resolve_items(tcx, scope);
+    fn resolve(&mut self, collector: &mut SpecCollector, tcx: TyCtxt, scope: LocalDefId) -> Result {
+        self.resolve_items(collector, tcx, scope)?;
         self.resolve_inherent_impls(tcx, scope);
         self.resolve_trait_impls(tcx);
+        Ok(())
     }
 
     fn resolve_trait_impls(&mut self, tcx: TyCtxt) {
@@ -101,43 +102,64 @@ impl DetachedItems {
         }
     }
 
-    fn resolve_items(&mut self, tcx: TyCtxt, scope: LocalDefId) {
+    fn expect_kind(
+        tcx: TyCtxt,
+        collector: &mut SpecCollector,
+        def_id: DefId,
+        exp_kind: DefKind,
+        kind: DefKind,
+        span: Span,
+    ) -> Result {
+        let expected_span = tcx.def_span(def_id);
+        let expected = exp_kind.descr(def_id);
+        let name = tcx.def_path_str(def_id);
+        if kind != exp_kind {
+            return Err(collector.errors.emit(errors::UnexpectedSpecification::new(
+                name,
+                span,
+                expected,
+                expected_span,
+            )));
+        }
+        Ok(())
+    }
+
+    fn resolve_items(
+        &mut self,
+        collector: &mut SpecCollector,
+        tcx: TyCtxt,
+        scope: LocalDefId,
+    ) -> Result {
         for child in tcx.module_children_local(scope) {
             let ident = child.ident;
-            let Res::Def(kind, def_id) = child.res else { continue };
+            let Res::Def(exp_kind, def_id) = child.res else { continue };
             let Some(val) = self.items.get_mut(&ident) else { continue };
-
-            if let DefKind::Fn = kind
-                && matches!(val.0.kind, surface::ItemKind::FnSig(_))
-                && val.1.is_none()
-            {
-                val.1 = Some(def_id);
+            let span = val.0.ident.span;
+            match val.0.kind {
+                surface::ItemKind::FnSig(_) => {
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Fn, span)?
+                }
+                surface::ItemKind::Mod(_) => {
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Mod, span)?
+                }
+                surface::ItemKind::Struct(_) => {
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Struct, span)?
+                }
+                surface::ItemKind::Enum(_) => {
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Enum, span)?
+                }
+                surface::ItemKind::Trait(_) => {
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Trait, span)?
+                }
+                _ => continue,
             }
-            if let DefKind::Mod = kind
-                && matches!(val.0.kind, surface::ItemKind::Mod(_))
-                && val.1.is_none()
-            {
-                val.1 = Some(def_id);
-            }
-            if let DefKind::Struct = kind
-                && matches!(val.0.kind, surface::ItemKind::Struct(_))
-                && val.1.is_none()
-            {
-                val.1 = Some(def_id);
-            }
-            if let DefKind::Enum = kind
-                && matches!(val.0.kind, surface::ItemKind::Enum(_))
-                && val.1.is_none()
-            {
-                val.1 = Some(def_id);
-            }
-            if let DefKind::Trait = kind
-                && matches!(val.0.kind, surface::ItemKind::Trait(_))
-                && val.1.is_none()
-            {
+            if val.1.is_some() {
+                span_bug!(val.0.ident.span, "detached item already resolved {val:?}")
+            } else {
                 val.1 = Some(def_id);
             }
         }
+        Ok(())
     }
 }
 
@@ -160,7 +182,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let mut detached_items = DetachedItems::new(detached_specs, self.inner)?;
         let tcx = self.inner.tcx;
 
-        detached_items.resolve(tcx, parent);
+        detached_items.resolve(self.inner, tcx, parent)?;
 
         for (ident, (item, def_id)) in detached_items.items {
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
@@ -204,7 +226,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let name = self.inner.tcx.def_path_str(def_id);
         self.inner
             .errors
-            .emit(errors::DuplicateSpecification { name, span })
+            .emit(errors::MultipleSpecifications { name, span })
     }
 
     fn collect_trait(
