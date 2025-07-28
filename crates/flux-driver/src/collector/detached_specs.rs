@@ -182,10 +182,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
             }
         }
-        for ((_, _), (trait_impl, impl_id, _)) in detached_items.trait_impls {
+        for ((_, _), (trait_impl, impl_id, span)) in detached_items.trait_impls {
             if let Some(impl_id) = impl_id {
-                let assoc_items = tcx.associated_items(impl_id).in_definition_order();
-                self.collect_assoc_methods(trait_impl.items, assoc_items)?;
+                let owner_id = tcx.local_def_id_to_hir_id(impl_id).owner;
+                self.collect_trait_impl(owner_id, trait_impl, span)?;
             }
         }
         Ok(())
@@ -211,13 +211,13 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         owner_id: OwnerId,
         trait_def: surface::DetachedTrait,
     ) -> Result {
+        // 1. Collect the associated-refinements
         let entry = self
             .inner
             .specs
             .traits
             .entry(owner_id)
             .or_insert(surface::Trait { generics: None, assoc_refinements: vec![] });
-
         if entry.is_nontrivial() {
             let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
             return Err(self.inner.errors.emit(errors::AttrMapErr {
@@ -228,9 +228,41 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         for trait_assoc_reft in trait_def.refts {
             entry.assoc_refinements.push(trait_assoc_reft);
         }
+
+        // 2. Collect the method specifications
         let tcx = self.inner.tcx;
         let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
         self.collect_assoc_methods(trait_def.items, assoc_items)
+    }
+
+    fn collect_trait_impl(
+        &mut self,
+        owner_id: OwnerId,
+        trait_impl: surface::DetachedTraitImpl,
+        span: Span,
+    ) -> Result {
+        // 1. Collect the associated-refinements
+        let entry = self
+            .inner
+            .specs
+            .impls
+            .entry(owner_id)
+            .or_insert(surface::Impl { generics: None, assoc_refinements: vec![] });
+        if entry.is_nontrivial() {
+            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
+            return Err(self.inner.errors.emit(errors::AttrMapErr {
+                span,
+                message: format!("multiple specs for `{name}`"),
+            }));
+        }
+        for assoc_reft in trait_impl.refts {
+            entry.assoc_refinements.push(assoc_reft);
+        }
+
+        // 2. Collect the method specifications
+        let tcx = self.inner.tcx;
+        let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
+        self.collect_assoc_methods(trait_impl.items, assoc_items)
     }
 
     fn collect_enum(

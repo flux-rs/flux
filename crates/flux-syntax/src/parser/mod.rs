@@ -254,7 +254,7 @@ fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<Item> {
         }
     }
     cx.expect(TokenKind::close_delim(Brace))?;
-    Ok(Item { ident, kind: ItemKind::Trait(DetachedTrait { ident, items, refts: vec![] }) })
+    Ok(Item { ident, kind: ItemKind::Trait(DetachedTrait { ident, items, refts }) })
 }
 
 ///```text

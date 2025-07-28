@@ -287,6 +287,12 @@ pub struct Impl {
     pub assoc_refinements: Vec<ImplAssocReft>,
 }
 
+impl Impl {
+    pub fn is_nontrivial(&self) -> bool {
+        self.generics.is_some() || !self.assoc_refinements.is_empty()
+    }
+}
+
 #[derive(Debug)]
 pub struct ImplAssocReft {
     pub name: Ident,
