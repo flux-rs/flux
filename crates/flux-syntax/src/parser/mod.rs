@@ -124,8 +124,8 @@ pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::D
 /// ⟨specs⟩ ::= ⟨fn-spec⟩
 ///           | ⟨struct-spec⟩
 ///           | ⟨enum-spec⟩
-///           | mod  <PATH> { ⟨specs⟩ }
-///           | impl <PATH> { ⟨impl-spec⟩ }
+///           | ⟨mod⟩
+///           | ⟨impl⟩
 /// ```
 pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let mut lookahead = cx.lookahead1();
