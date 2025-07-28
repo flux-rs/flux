@@ -224,7 +224,7 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt) -> ParseResult<Item<FnSpec>> {
 }
 
 ///```text
-/// ⟨mod⟩ ::= mod Ident { ⟨specs⟩ }
+/// ⟨mod⟩ ::= mod ⟨ident⟩ { ⟨specs⟩ }
 /// ```
 fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Mod)?;
