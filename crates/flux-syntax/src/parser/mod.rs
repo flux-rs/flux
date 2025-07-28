@@ -180,7 +180,7 @@ fn parse_detached_refine_info(
 }
 
 ///```text
-/// ⟨enum⟩ := enum Ident ⟨refine_info⟩ { ⟨variant⟩* }
+/// ⟨enum⟩ := enum ⟨ident⟩ ⟨refine_info⟩ { ⟨variant⟩* }
 /// ```
 fn parse_detached_enum(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Enum)?;
