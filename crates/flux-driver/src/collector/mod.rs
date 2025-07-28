@@ -905,6 +905,14 @@ mod errors {
         pub message: String,
     }
 
+    #[derive(Diagnostic)]
+    #[diag(driver_unresolved_identifier, code = E0999)]
+    pub(super) struct UnresolvedIdentifier {
+        #[primary_span]
+        pub span: Span,
+        pub ident: Ident,
+    }
+
     pub(super) struct SyntaxErr(flux_syntax::ParseError);
 
     impl From<flux_syntax::ParseError> for SyntaxErr {

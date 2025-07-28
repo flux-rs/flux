@@ -104,43 +104,38 @@ impl DetachedItems {
     fn resolve_items(&mut self, tcx: TyCtxt, scope: LocalDefId) {
         for child in tcx.module_children_local(scope) {
             let ident = child.ident;
+            let Res::Def(kind, def_id) = child.res else { continue };
+            let Some(val) = self.items.get_mut(&ident) else { continue };
 
-            if let Res::Def(kind, def_id) = child.res {
-                if let DefKind::Fn = kind
-                    && let Some(val) = self.items.get_mut(&ident)
-                    && matches!(val.0.kind, surface::ItemKind::FnSig(_))
-                    && val.1.is_none()
-                {
-                    val.1 = Some(def_id);
-                }
-                if let DefKind::Mod = kind
-                    && let Some(val) = self.items.get_mut(&ident)
-                    && matches!(val.0.kind, surface::ItemKind::Mod(_))
-                    && val.1.is_none()
-                {
-                    val.1 = Some(def_id);
-                }
-                if let DefKind::Struct = kind
-                    && let Some(val) = self.items.get_mut(&ident)
-                    && matches!(val.0.kind, surface::ItemKind::Struct(_))
-                    && val.1.is_none()
-                {
-                    val.1 = Some(def_id);
-                }
-                if let DefKind::Enum = kind
-                    && let Some(val) = self.items.get_mut(&ident)
-                    && matches!(val.0.kind, surface::ItemKind::Enum(_))
-                    && val.1.is_none()
-                {
-                    val.1 = Some(def_id);
-                }
-                if let DefKind::Trait = kind
-                    && let Some(val) = self.items.get_mut(&ident)
-                    && matches!(val.0.kind, surface::ItemKind::Trait(_))
-                    && val.1.is_none()
-                {
-                    val.1 = Some(def_id);
-                }
+            if let DefKind::Fn = kind
+                && matches!(val.0.kind, surface::ItemKind::FnSig(_))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
+            }
+            if let DefKind::Mod = kind
+                && matches!(val.0.kind, surface::ItemKind::Mod(_))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
+            }
+            if let DefKind::Struct = kind
+                && matches!(val.0.kind, surface::ItemKind::Struct(_))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
+            }
+            if let DefKind::Enum = kind
+                && matches!(val.0.kind, surface::ItemKind::Enum(_))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
+            }
+            if let DefKind::Trait = kind
+                && matches!(val.0.kind, surface::ItemKind::Trait(_))
+                && val.1.is_none()
+            {
+                val.1 = Some(def_id);
             }
         }
     }
@@ -197,10 +192,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     )]
     fn unwrap_def_id(&mut self, ident: Ident, def_id: Option<DefId>) -> Result<Option<LocalDefId>> {
         let Some(def_id) = def_id else {
-            return Err(self.inner.errors.emit(errors::AttrMapErr {
-                span: ident.span,
-                message: format!("unresolved identifier `{ident}`"),
-            }));
+            return Err(self
+                .inner
+                .errors
+                .emit(errors::UnresolvedIdentifier { span: ident.span, ident }));
         };
         Ok(def_id.as_local())
     }

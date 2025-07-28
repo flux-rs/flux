@@ -7,6 +7,10 @@ driver_invalid_attr =
 driver_invalid_attr_map =
     invalid attribute: {$message}
 
+driver_unresolved_identifier =
+    unresolved identifier `{$ident}`
+
+
 driver_syntax_err =
     syntax error
 

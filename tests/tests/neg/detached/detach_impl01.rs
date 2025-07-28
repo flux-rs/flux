@@ -59,7 +59,8 @@ fn test_c() -> Usize {
 
 #[flux::specs {
 
-    enum Nat[n:int]
+    enum Nat
+      refined_by(n:int)
       invariant(0 <= n)
     {
       Zero               -> Nat[0],

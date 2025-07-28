@@ -7,7 +7,8 @@ pub enum List<T> {
 
 #[flux::specs {
 
-    enum List[len: int]
+    enum List
+      refined_by(len: int)
       invariant(len >= 0)
     {
       Nil                  -> List<T>[0],

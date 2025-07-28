@@ -150,7 +150,7 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
 }
 
 ///```text
-/// ⟨field⟩ ::= Ident : ⟨Ty⟩
+/// ⟨field⟩ ::= ⟨ident⟩ : ⟨type⟩
 /// ```
 fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
     let ident = parse_ident(cx)?;
@@ -160,14 +160,14 @@ fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
 }
 
 ///```text
-/// ⟨refine_info⟩ ::= [(Ident : ⟨sort⟩)*]?
-///                   invariant(<expr>)?
+/// ⟨refine_info⟩ ::= refined_by(Ident : ⟨sort⟩)*)?
+///                   invariant(⟨expr⟩)?
 /// ```
 fn parse_detached_refine_info(
     cx: &mut ParseCtxt,
 ) -> ParseResult<(Option<Vec<RefineParam>>, Vec<Expr>)> {
-    let refined_by = if cx.peek(token::OpenBracket) {
-        Some(brackets(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
+    let refined_by = if cx.advance_if(kw::RefinedBy) {
+        Some(parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?)
     } else {
         None
     };

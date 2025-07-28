@@ -17,6 +17,7 @@ symbols! {
         Trusted: "trusted",
         Reft: "reft",
         Invariant: "invariant",
+        RefinedBy: "refined_by",
     }
 
     Symbols {

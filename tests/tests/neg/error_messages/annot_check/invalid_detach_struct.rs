@@ -18,7 +18,8 @@ pub fn use_struct(s: MyStruct) {
 
 #[flux::specs {
 
-    struct MStruct[vx: int, vy: int]  //~ ERROR invalid attribute: unresolved identifier `MStruct`
+    struct MStruct//~ ERROR unresolved identifier `MStruct`
+        refined_by(vx: int, vy: int)
         invariant(vx <= vy)
     {
         x: usize[vx],
