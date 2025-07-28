@@ -163,23 +163,29 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
     fn run(&mut self, detached_specs: surface::DetachedSpecs, parent: LocalDefId) -> Result {
         let mut detached_items = DetachedItems::new(detached_specs, self.inner)?;
+        let tcx = self.inner.tcx;
 
-        detached_items.resolve(self.inner.tcx, parent);
+        detached_items.resolve(tcx, parent);
 
         for (ident, (item, def_id)) in detached_items.items {
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
-                let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+                let owner_id = tcx.local_def_id_to_hir_id(def_id).owner;
                 self.collect_item(owner_id, item)?;
             }
         }
         for (ident, (inherent_impl, def_id)) in detached_items.inherent_impls {
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
-                self.collect_inherent_impl(def_id, inherent_impl)?;
+                let assoc_items = tcx
+                    .inherent_impls(def_id)
+                    .into_iter()
+                    .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
+                self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
             }
         }
         for ((_, _), (trait_impl, impl_id, _)) in detached_items.trait_impls {
             if let Some(impl_id) = impl_id {
-                self.collect_trait_impl(impl_id, trait_impl)?;
+                let assoc_items = tcx.associated_items(impl_id).in_definition_order();
+                self.collect_assoc_methods(trait_impl.items, assoc_items)?;
             }
         }
         Ok(())
@@ -361,112 +367,6 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }
         }
         Ok(())
-    }
-
-    fn collect_trait_impl(
-        &mut self,
-        impl_id: LocalDefId,
-        trait_impl: surface::DetachedTraitImpl,
-    ) -> Result {
-        let assoc_items = self
-            .inner
-            .tcx
-            .associated_items(impl_id)
-            .in_definition_order();
-        self.collect_assoc_methods(trait_impl.items, assoc_items)
-
-        // let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
-        // // 1. make a table of the impl-items
-        // for item in trait_impl.items {
-        //     let key = item.ident.name;
-        //     if let Entry::Occupied(_) = table.entry(key) {
-        //         return Err(self.inner.errors.emit(errors::AttrMapErr {
-        //             span: item.ident.span,
-        //             message: format!("multiple specs for `{}`", item.ident),
-        //         }));
-        //     } else {
-        //         table.insert(item.ident.name, (item.kind, None, item.ident.span));
-        //     }
-        // }
-
-        // // 2. walk over all associated-items, resolving the items
-        // for item in self
-        //     .inner
-        //     .tcx
-        //     .associated_items(impl_id)
-        //     .in_definition_order()
-        // {
-        //     if let AssocKind::Fn { name, .. } = item.kind
-        //         && let Some(val) = table.get_mut(&name)
-        //         && val.1.is_none()
-        //     {
-        //         val.1 = Some(item.def_id);
-        //     }
-        // }
-
-        // // 3. Attach the `fn_sig` to the resolved `DefId`
-        // for (name, (fn_sig, def_id, span)) in table {
-        //     let ident = Ident { name, span };
-        //     if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
-        //         let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-        //         self.collect_fn_spec(owner_id, fn_sig)?;
-        //     }
-        // }
-
-        // Ok(())
-    }
-
-    fn collect_inherent_impl(
-        &mut self,
-        ty_def_id: LocalDefId,
-        inherent_impl: surface::DetachedInherentImpl,
-    ) -> Result {
-        let tcx = self.inner.tcx;
-        let assoc_items = tcx
-            .inherent_impls(ty_def_id)
-            .into_iter()
-            .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
-        self.collect_assoc_methods(inherent_impl.items, assoc_items)
-
-        // let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
-        // // 1. make a table of the impl-items
-        // for item in inherent_impl.items {
-        //     let key = item.ident.name;
-        //     if let Entry::Occupied(_) = table.entry(key) {
-        //         return Err(self.inner.errors.emit(errors::AttrMapErr {
-        //             span: item.ident.span,
-        //             message: format!("multiple specs for `{}`", item.ident),
-        //         }));
-        //     } else {
-        //         table.insert(item.ident.name, (item.kind, None, item.ident.span));
-        //     }
-        // }
-        // // 2. walk over all the impl-def-ids resolving the items
-        // for impl_id in self.inner.tcx.inherent_impls(ty_def_id) {
-        //     for item in self
-        //         .inner
-        //         .tcx
-        //         .associated_items(impl_id)
-        //         .in_definition_order()
-        //     {
-        //         if let AssocKind::Fn { name, .. } = item.kind
-        //             && let Some(val) = table.get_mut(&name)
-        //             && val.1.is_none()
-        //         {
-        //             val.1 = Some(item.def_id);
-        //         }
-        //     }
-        // }
-
-        // // 3. Attach the `fn_sig` to the resolved `DefId`
-        // for (name, (fn_spec, def_id, span)) in table {
-        //     let ident = Ident { name, span };
-        //     if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
-        //         let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-        //         self.collect_fn_spec(owner_id, fn_spec)?;
-        //     }
-        // }
-        // Ok(())
     }
 
     fn collect_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
