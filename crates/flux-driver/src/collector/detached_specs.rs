@@ -205,6 +205,13 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(def_id.as_local())
     }
 
+    fn err_multiple_specs(&mut self, def_id: DefId, span: Span) -> ErrorGuaranteed {
+        let name = self.inner.tcx.def_path_str(def_id);
+        self.inner
+            .errors
+            .emit(errors::AttrMapErr { span, message: format!("multiple specs for `{name}`") })
+    }
+
     fn collect_trait(
         &mut self,
         ident: Ident,
@@ -212,21 +219,17 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         trait_def: surface::DetachedTrait,
     ) -> Result {
         // 1. Collect the associated-refinements
-        let entry = self
-            .inner
-            .specs
-            .traits
-            .entry(owner_id)
-            .or_insert(surface::Trait { generics: None, assoc_refinements: vec![] });
-        if entry.is_nontrivial() {
-            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
-            return Err(self.inner.errors.emit(errors::AttrMapErr {
-                span: ident.span,
-                message: format!("multiple specs for `{name}`"),
-            }));
-        }
-        for trait_assoc_reft in trait_def.refts {
-            entry.assoc_refinements.push(trait_assoc_reft);
+        match self.inner.specs.traits.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(surface::Trait { generics: None, assoc_refinements: trait_def.refts });
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                self.err_multiple_specs(owner_id.to_def_id(), ident.span);
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                existing.assoc_refinements.extend(trait_def.refts);
+            }
         }
 
         // 2. Collect the method specifications
@@ -242,21 +245,17 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         span: Span,
     ) -> Result {
         // 1. Collect the associated-refinements
-        let entry = self
-            .inner
-            .specs
-            .impls
-            .entry(owner_id)
-            .or_insert(surface::Impl { generics: None, assoc_refinements: vec![] });
-        if entry.is_nontrivial() {
-            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
-            return Err(self.inner.errors.emit(errors::AttrMapErr {
-                span,
-                message: format!("multiple specs for `{name}`"),
-            }));
-        }
-        for assoc_reft in trait_impl.refts {
-            entry.assoc_refinements.push(assoc_reft);
+        match self.inner.specs.impls.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(surface::Impl { generics: None, assoc_refinements: trait_impl.refts });
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                existing.assoc_refinements.extend(trait_impl.refts);
+            }
         }
 
         // 2. Collect the method specifications
@@ -271,27 +270,17 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         owner_id: OwnerId,
         enum_def: surface::EnumDef,
     ) -> Result {
-        let entry = self
-            .inner
-            .specs
-            .enums
-            .entry(owner_id)
-            .or_insert(surface::EnumDef {
-                generics: None,
-                refined_by: None,
-                variants: vec![],
-                invariants: vec![],
-                reflected: false,
-            });
-
-        if entry.is_nontrivial() {
-            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
-            return Err(self.inner.errors.emit(errors::AttrMapErr {
-                span: ident.span,
-                message: format!("multiple specs for `{name}`"),
-            }));
-        } else {
-            *entry = enum_def;
+        match self.inner.specs.enums.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(enum_def);
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), ident.span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                *existing = enum_def;
+            }
         }
         Ok(())
     }
@@ -302,64 +291,42 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         owner_id: OwnerId,
         struct_def: surface::StructDef,
     ) -> Result {
-        let entry = self
-            .inner
-            .specs
-            .structs
-            .entry(owner_id)
-            .or_insert(surface::StructDef {
-                generics: None,
-                refined_by: None,
-                fields: vec![],
-                opaque: false,
-                invariants: vec![],
-            });
-
-        if entry.is_nontrivial() {
-            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
-            return Err(self.inner.errors.emit(errors::AttrMapErr {
-                span: ident.span,
-                message: format!("multiple specs for `{name}`"),
-            }));
-        } else {
-            *entry = struct_def;
+        match self.inner.specs.structs.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(struct_def);
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), ident.span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                *existing = struct_def;
+            }
         }
         Ok(())
     }
 
     fn collect_fn_spec(&mut self, owner_id: OwnerId, fn_spec: surface::FnSpec) -> Result {
-        let spec = self
-            .inner
-            .specs
-            .fn_sigs
-            .entry(owner_id)
-            .or_insert(surface::FnSpec {
-                fn_sig: None,
-                qual_names: None,
-                reveal_names: None,
-                trusted: false,
-            });
-
-        let fn_sig = fn_spec.fn_sig.unwrap();
-
-        if spec.fn_sig.is_some() {
-            let name = self.inner.tcx.def_path_str(owner_id.to_def_id());
-            return Err(self.inner.errors.emit(errors::AttrMapErr {
-                span: fn_sig.span,
-                message: format!("multiple specs for `{name}`"),
-            }));
+        match self.inner.specs.fn_sigs.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(fn_spec);
+            }
+            Entry::Occupied(ref e) if e.get().fn_sig.is_some() => {
+                let fn_sig = fn_spec.fn_sig.unwrap();
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), fn_sig.span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                (*existing).fn_sig = Some(fn_spec.fn_sig.unwrap());
+                (*existing).trusted = fn_spec.trusted;
+                if fn_spec.trusted {
+                    self.inner
+                        .specs
+                        .trusted
+                        .insert(owner_id.def_id, Trusted::Yes);
+                }
+            }
         }
-
-        spec.fn_sig = Some(fn_sig);
-        spec.trusted = fn_spec.trusted;
-
-        if fn_spec.trusted {
-            self.inner
-                .specs
-                .trusted
-                .insert(owner_id.def_id, Trusted::Yes);
-        }
-
         Ok(())
     }
 
