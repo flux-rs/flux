@@ -286,7 +286,7 @@ fn parse_attr(cx: &mut ParseCtxt) -> ParseResult<Attr> {
     } else if cx.advance_if(kw::Reft) {
         Attr::Reft
     } else if cx.advance_if(kw::RefinedBy) {
-        Attr::RefinedBy(delimited(cx, Parenthesis, |cx| parse_refined_by(cx))?)
+        Attr::RefinedBy(delimited(cx, Parenthesis, parse_refined_by)?)
     } else if cx.advance_if(kw::Invariant) {
         Attr::Invariant(delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?)
     } else {
@@ -321,7 +321,7 @@ fn parse_attrs(cx: &mut ParseCtxt) -> ParseResult<Attrs> {
 ///               ⟨sort⟩
 /// ```
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
-    let hide = if let Some(Attr::Hide) = parse_attr_opt(cx)? { true } else { false };
+    let hide = matches!(parse_attr_opt(cx)?, Some(Attr::Hide));
     cx.expect(kw::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;

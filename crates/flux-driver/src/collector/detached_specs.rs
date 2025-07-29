@@ -137,24 +137,24 @@ impl DetachedItems {
             let span = val.0.ident.span;
             match val.0.kind {
                 surface::ItemKind::FnSig(_) => {
-                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Fn, span)?
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Fn, span)?;
                 }
                 surface::ItemKind::Mod(_) => {
-                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Mod, span)?
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Mod, span)?;
                 }
                 surface::ItemKind::Struct(_) => {
-                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Struct, span)?
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Struct, span)?;
                 }
                 surface::ItemKind::Enum(_) => {
-                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Enum, span)?
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Enum, span)?;
                 }
                 surface::ItemKind::Trait(_) => {
-                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Trait, span)?
+                    Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Trait, span)?;
                 }
                 _ => continue,
             }
             if val.1.is_some() {
-                span_bug!(val.0.ident.span, "detached item already resolved {val:?}")
+                span_bug!(val.0.ident.span, "detached item already resolved {val:?}");
             } else {
                 val.1 = Some(def_id);
             }
@@ -194,7 +194,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let assoc_items = tcx
                     .inherent_impls(def_id)
-                    .into_iter()
+                    .iter()
                     .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
                 self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
             }
@@ -334,8 +334,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }
             Entry::Occupied(ref mut e) => {
                 let existing = e.get_mut();
-                (*existing).fn_sig = Some(fn_spec.fn_sig.unwrap());
-                (*existing).trusted = fn_spec.trusted;
+                existing.fn_sig = Some(fn_spec.fn_sig.unwrap());
+                existing.trusted = fn_spec.trusted;
                 if fn_spec.trusted {
                     self.inner
                         .specs
