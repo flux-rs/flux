@@ -19,8 +19,15 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 struct ImplKey(Symbol);
 
 impl ImplKey {
-    fn new(ty: &Ty) -> Self {
-        ImplKey(Symbol::intern(&format!("{ty:?}")))
+    fn new(tcx: TyCtxt, ty: &Ty) -> Self {
+        let name = match ty.kind() {
+            rustc_middle::ty::TyKind::Adt(adt_def, _) => {
+                let def_id = adt_def.did();
+                tcx.def_path_str(def_id)
+            }
+            _ => format!("{ty:?}"),
+        };
+        ImplKey(Symbol::intern(&name))
     }
 }
 
@@ -39,6 +46,7 @@ fn path_to_symbol(path: &surface::ExprPath) -> Symbol {
     );
     Symbol::intern(&path_string)
 }
+
 fn item_def_kind(kind: &surface::ItemKind) -> Vec<DefKind> {
     match kind {
         surface::ItemKind::FnSig(_) => vec![DefKind::Fn],
@@ -92,9 +100,8 @@ impl TraitImplResolver {
                 for impl_id in impl_ids {
                     if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
                         let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                        let self_ty = ImplKey::new(&self_ty);
+                        let self_ty = ImplKey::new(tcx, &self_ty);
                         let key = TraitImplKey { trait_, self_ty };
-                        // println!("TRACE: resolve_trait_impls: {key:?} => {impl_id:?}");
                         items.insert(key, *impl_id);
                     }
                 }
@@ -176,10 +183,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         {
             return Ok(impl_id);
         }
-        return Err(self
+        Err(self
             .inner
             .errors
-            .emit(errors::UnresolvedSpecification::new(&item.path, "item")));
+            .emit(errors::UnresolvedSpecification::new(&item.path, "item")))
     }
 
     fn attach(&mut self, item: surface::Item) -> Result {
@@ -189,7 +196,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         match item.kind {
             surface::ItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
             surface::ItemKind::Struct(struct_def) => {
-                self.collect_struct(span, owner_id, struct_def)?
+                self.collect_struct(span, owner_id, struct_def)?;
             }
             surface::ItemKind::Enum(enum_def) => self.collect_enum(span, owner_id, enum_def)?,
             surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id)?,

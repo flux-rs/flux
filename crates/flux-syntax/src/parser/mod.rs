@@ -254,7 +254,13 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Impl)?;
     let outer_path = parse_expr_path(cx)?;
     let _generics = parse_opt_generics(cx)?;
-    let inner_path = if cx.advance_if(kw::For) { Some(parse_expr_path(cx)?) } else { None };
+    let inner_path = if cx.advance_if(kw::For) {
+        let path = parse_expr_path(cx)?;
+        let _generics = parse_opt_generics(cx)?;
+        Some(path)
+    } else {
+        None
+    };
     cx.expect(TokenKind::open_delim(Brace))?;
 
     let mut items = vec![];
