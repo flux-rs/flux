@@ -2,8 +2,7 @@
 
 #[flux::specs {
 
-    // unresolved impl
-    impl From<u32> for busize {
+    impl From<u32> for busize { //~ ERROR unresolved trait implementation
       fn gromp() -> usize[0];
     }
 }]

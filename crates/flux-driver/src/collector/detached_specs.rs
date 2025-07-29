@@ -1,7 +1,7 @@
 use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::span_bug;
-use flux_middle::fhir::{Trait, Trusted};
+use flux_middle::fhir::Trusted;
 use flux_syntax::surface::{self, FnSpec, Item, Span};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -55,8 +55,9 @@ struct InherentImplInfo {
 #[derive(Debug)]
 struct TraitImplInfo {
     trait_impl: surface::DetachedTraitImpl,
-    trait_id: IdentRes,
-    self_ty: IdentRes,
+    _trait_id: IdentRes,
+    _self_ty: IdentRes,
+    impl_id: Option<LocalDefId>,
     span: Span,
 }
 
@@ -92,8 +93,9 @@ impl DetachedItems {
                     let span = item.ident.span;
                     let info = TraitImplInfo {
                         trait_impl: detached_impl,
-                        trait_id: IdentRes::Unknown,
-                        self_ty: IdentRes::Unknown,
+                        _trait_id: IdentRes::Unknown,
+                        _self_ty: IdentRes::Unknown,
+                        impl_id: None,
                         span,
                     };
                     if let std::collections::hash_map::Entry::Vacant(e) = trait_impls.entry(key) {
@@ -128,7 +130,7 @@ impl DetachedItems {
                         let impl_key =
                             ImplKey::new(poly_trait_ref.instantiate_identity().self_ty());
                         if let Some(val) = self.trait_impls.get_mut(&(impl_key, trait_symbol)) {
-                            todo!("val.1 = Some(*impl_id)");
+                            val.impl_id = Some(*impl_id);
                         }
                     }
                 }
@@ -246,17 +248,16 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             }
         }
         for ((_, _), info) in detached_items.trait_impls {
-            todo!("collect trait impls: {info:?}");
-            // if let Some(impl_id) = impl_id {
-            //     let owner_id = tcx.local_def_id_to_hir_id(impl_id).owner;
-            //     self.collect_trait_impl(owner_id, trait_impl, span)?;
-            // } else {
-            //     let ident = trait_impl.trait_;
-            //     return Err(self
-            //         .inner
-            //         .errors
-            //         .emit(errors::UnresolvedSpecification::new(ident, "trait implementation")));
-            // }
+            if let Some(impl_id) = info.impl_id {
+                let owner_id = tcx.local_def_id_to_hir_id(impl_id).owner;
+                self.collect_trait_impl(owner_id, info.trait_impl, info.span)?;
+            } else {
+                let ident = info.trait_impl.trait_;
+                return Err(self
+                    .inner
+                    .errors
+                    .emit(errors::UnresolvedSpecification::new(ident, "trait implementation")));
+            }
         }
         Ok(())
     }
