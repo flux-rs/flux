@@ -43,7 +43,6 @@ use flux_middle::{
     rty::{self, ESpan},
     timings,
 };
-use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;

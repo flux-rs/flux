@@ -57,7 +57,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             hir::ItemKind::Struct(_, _, variant) => {
                 self.collect_extern_struct(item.owner_id, variant, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, _, bounds, items) => {
+            hir::ItemKind::Trait(_, _, _, _, _, bounds, items) => {
                 self.collect_extern_trait(item.owner_id, bounds, items, attrs)
             }
             hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),
