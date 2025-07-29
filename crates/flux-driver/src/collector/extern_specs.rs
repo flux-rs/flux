@@ -57,7 +57,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             hir::ItemKind::Struct(_, _, variant) => {
                 self.collect_extern_struct(item.owner_id, variant, attrs)
             }
-            hir::ItemKind::Trait(_, _, _, _, bounds, items) => {
+            hir::ItemKind::Trait(_, _, _, _, _, bounds, items) => {
                 self.collect_extern_trait(item.owner_id, bounds, items, attrs)
             }
             hir::ItemKind::Impl(impl_) => self.collect_extern_impl(item.owner_id, impl_, attrs),
@@ -166,10 +166,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
 
         let mut extern_impl_id = impl_of_trait;
-        for item in impl_.items {
-            let item_id = item.id.owner_id.def_id;
-            let extern_item = if let hir::AssocItemKind::Fn { .. } = item.kind {
-                let attrs = self.inner.parse_attrs_and_report_dups(item_id)?;
+        for item_id in impl_.items {
+            let item = self.tcx().hir_impl_item(*item_id);
+            let extern_item = if let hir::ImplItemKind::Fn { .. } = item.kind {
+                let attrs = self
+                    .inner
+                    .parse_attrs_and_report_dups(item_id.owner_id.def_id)?;
                 self.collect_extern_impl_fn(impl_of_trait, item, attrs)?
             } else {
                 continue;
@@ -191,15 +193,14 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn collect_extern_impl_fn(
         &mut self,
         impl_of_trait: Option<DefId>,
-        item: &hir::ImplItemRef,
+        item: &hir::ImplItem,
         attrs: FluxAttrs,
     ) -> Result<ExternImplItem> {
-        let item_id = item.id.owner_id;
-        self.inner.collect_fn_spec(item_id, attrs)?;
+        self.inner.collect_fn_spec(item.owner_id, attrs)?;
 
         let extern_impl_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
-        self.insert_extern_id(item_id.def_id, extern_impl_item.item_id)?;
-        self.check_generics(item_id, extern_impl_item.item_id)?;
+        self.insert_extern_id(item.owner_id.def_id, extern_impl_item.item_id)?;
+        self.check_generics(item.owner_id, extern_impl_item.item_id)?;
 
         Ok(extern_impl_item)
     }
@@ -208,7 +209,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         &mut self,
         trait_id: OwnerId,
         bounds: &hir::GenericBounds,
-        items: &[hir::TraitItemRef],
+        items: &[hir::TraitItemId],
         attrs: FluxAttrs,
     ) -> Result {
         self.inner.collect_trait(trait_id, attrs)?;
@@ -217,10 +218,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.insert_extern_id(trait_id.def_id, extern_trait_id)?;
         self.check_generics(trait_id, extern_trait_id)?;
 
-        for item in items {
-            let item_id = item.id.owner_id.def_id;
-            if let hir::AssocItemKind::Fn { .. } = item.kind {
-                let attrs = self.inner.parse_attrs_and_report_dups(item_id)?;
+        for item_id in items {
+            let item = self.tcx().hir_trait_item(*item_id);
+            if let hir::TraitItemKind::Fn { .. } = item.kind {
+                let attrs = self
+                    .inner
+                    .parse_attrs_and_report_dups(item.owner_id.def_id)?;
                 self.collect_extern_trait_fn(extern_trait_id, item, attrs)?;
             } else {
                 continue;
@@ -233,14 +236,14 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn collect_extern_trait_fn(
         &mut self,
         extern_trait_id: DefId,
-        item: &hir::TraitItemRef,
+        item: &hir::TraitItem,
         attrs: FluxAttrs,
     ) -> Result {
-        let item_id = item.id.owner_id;
+        let item_id = item.owner_id;
         self.inner.collect_fn_spec(item_id, attrs)?;
 
         let extern_fn_id = self.extract_extern_id_from_trait_fn(extern_trait_id, item)?;
-        self.insert_extern_id(item.id.owner_id.def_id, extern_fn_id)?;
+        self.insert_extern_id(item.owner_id.def_id, extern_fn_id)?;
         self.check_generics(item_id, extern_fn_id)?;
 
         Ok(())
@@ -269,16 +272,16 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn extract_extern_id_from_impl_fn(
         &self,
         impl_of_trait: Option<DefId>,
-        item: &hir::ImplItemRef,
+        item: &hir::ImplItem,
     ) -> Result<ExternImplItem> {
-        if let hir::ImplItemKind::Fn(_, body_id) = self.tcx().hir_impl_item(item.id).kind {
+        if let hir::ImplItemKind::Fn(_, body_id) = item.kind {
             let callee_id = self.extract_callee_from_body(body_id)?;
             if let Some(extern_impl_id) = impl_of_trait {
                 let map = self.tcx().impl_item_implementor_ids(extern_impl_id);
                 if let Some(extern_item_id) = map.get(&callee_id) {
                     Ok(ExternImplItem { impl_id: extern_impl_id, item_id: *extern_item_id })
                 } else {
-                    Err(self.item_not_in_trait_impl(item.id.owner_id, callee_id, extern_impl_id))
+                    Err(self.item_not_in_trait_impl(item.owner_id, callee_id, extern_impl_id))
                 }
             } else {
                 let opt_extern_impl_id = self.tcx().impl_of_method(callee_id);
@@ -286,7 +289,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                     debug_assert!(self.tcx().trait_id_of_impl(extern_impl_id).is_none());
                     Ok(ExternImplItem { impl_id: extern_impl_id, item_id: callee_id })
                 } else {
-                    Err(self.invalid_item_in_inherent_impl(item.id.owner_id, callee_id))
+                    Err(self.invalid_item_in_inherent_impl(item.owner_id, callee_id))
                 }
             }
         } else {
@@ -308,9 +311,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn extract_extern_id_from_trait_fn(
         &self,
         trait_id: DefId,
-        item: &hir::TraitItemRef,
+        item: &hir::TraitItem,
     ) -> Result<DefId> {
-        if let hir::TraitItemKind::Fn(_, trait_fn) = self.tcx().hir_trait_item(item.id).kind
+        if let hir::TraitItemKind::Fn(_, trait_fn) = item.kind
             && let hir::TraitFn::Provided(body_id) = trait_fn
         {
             let callee_id = self.extract_callee_from_body(body_id)?;
@@ -321,7 +324,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             } else {
                 // I can't figure out how to trigger this via code generated with the extern spec
                 // macro that also type checks but leaving it here as a precaution.
-                Err(self.item_not_in_trait(item.id.owner_id, callee_id, trait_id))
+                Err(self.item_not_in_trait(item.owner_id, callee_id, trait_id))
             }
         } else {
             Err(self.malformed())
@@ -329,11 +332,11 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn extract_extern_id_from_impl(&self, impl_id: OwnerId, impl_: &hir::Impl) -> Result<DefId> {
-        if let Some(item) = impl_.items.first()
-            && let hir::AssocItemKind::Fn { .. } = item.kind
+        if let Some(item_id) = impl_.items.first()
+            && let hir::ImplItemKind::Fn { .. } = self.tcx().hir_impl_item(*item_id).kind
             && let Some((clause, _)) = self
                 .tcx()
-                .predicates_of(item.id.owner_id.def_id)
+                .predicates_of(item_id.owner_id.def_id)
                 .predicates
                 .first()
             && let Some(poly_trait_pred) = clause.as_trait_clause()

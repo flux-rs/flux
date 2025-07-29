@@ -505,12 +505,11 @@ impl<T: Pretty> fmt::Debug for WithCx<'_, '_, '_, T> {
 
 impl Pretty for DefId {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let path = cx.tcx().def_path(*self);
         if cx.fully_qualified_paths {
-            let krate = cx.tcx().crate_name(self.krate);
-            w!(cx, f, "{}{}", ^krate, ^path.to_string_no_crate_verbose())
+            w!(cx, f, "{}", ^cx.tcx().def_path_str(self))
         } else {
-            w!(cx, f, "{}", ^path.data.last().unwrap())
+            let path = cx.tcx().def_path(*self);
+            w!(cx, f, "{}", ^path.data.last().unwrap().as_sym(false))
         }
     }
 }

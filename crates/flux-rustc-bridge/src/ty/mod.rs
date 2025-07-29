@@ -1050,10 +1050,7 @@ impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
             TyKind::Adt(adt_def, args) => {
-                let adt_name = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(adt_def.did());
-                    path.data.iter().join("::")
-                });
+                let adt_name = rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(adt_def.did()));
                 write!(f, "{adt_name}")?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;

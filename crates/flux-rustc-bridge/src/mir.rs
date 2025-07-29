@@ -552,10 +552,7 @@ impl fmt::Debug for CallKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CallKind::FnDef { resolved_id, resolved_args, .. } => {
-                let fname = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*resolved_id);
-                    path.data.iter().join("::")
-                });
+                let fname = rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(*resolved_id));
                 write!(f, "call {fname}")?;
                 if !resolved_args.lowered.is_empty() {
                     write!(f, "<{:?}>", resolved_args.lowered.iter().format(", "))?;
@@ -690,7 +687,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
-                    let fname = tcx.def_path(*def_id).data.iter().join("::");
+                    let fname = tcx.def_path_str(*def_id);
                     (fname, variant_name)
                 });
                 write!(f, "{fname}::{variant_name}")?;
