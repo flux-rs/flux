@@ -5,10 +5,20 @@ You can install and then run Flux either on a single file or on an entire crate.
 ## Requirements
 
 - [rustup](https://rustup.rs/)
+
+  Rustup is required because Flux needs access to the source code of the Rust compiler, which we grab from rustup.
+
 - [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint)
+
+  Nightly binary builds are avilable on [GitHub Releases](https://github.com/ucsd-progsys/liquid-fixpoint/releases/tag/nightly). If there is no binary available
+for your platform, you will need to [build it from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install).
+
 - [z3](https://github.com/Z3Prover/z3)
 
-Be sure that the `liquid-fixpoint` and `z3` executables are in your `$PATH`.
+  You can download a binary for your platfrom from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). We recommend downloading the latest version, but older version should also work.
+
+**Note:**
+Make sure that the `liquid-fixpoint` and `z3` binaries are in your `$PATH`.
 
 ## Install
 
@@ -69,7 +79,7 @@ When running flux on a file with `flux path/to/test.rs`, refinement annotations 
 For example, the refinement below will only work when running `flux` which is intended for use on a single file.
 
 ```rust
-#[flux::sig(fn(x: i32) -> i32{v: x < v})]
+#[flux::spec(fn(x: i32) -> i32{v: x < v})]
 fn inc(x: i32) -> i32 {
     x - 1
 }
@@ -106,9 +116,9 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 Then, import attributes from `flux_rs` and add the appropriate refinement annoations.
 
 ```rust
-use flux_rs::*;
+use flux_rs::attrs::*;
 
-#[sig(fn(x: i32) -> i32{v: x < v})]
+#[spec(fn(x: i32) -> i32{v: x < v})]
 fn inc(x: i32) -> i32 {
     x - 1
 }
@@ -123,7 +133,7 @@ to register the `flux` tool in order to
 add refinement annotations to functions.
 
 ```rust
-#[flux::sig(fn(x: i32) -> i32{v: x < v})]
+#[flux::spec(fn(x: i32) -> i32{v: x < v})]
 pub fn inc(x: i32) -> i32 {
     x - 1
 }
