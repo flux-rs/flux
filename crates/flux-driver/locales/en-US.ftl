@@ -13,10 +13,6 @@ driver_unresolved_specification =
 driver_multiple_specifications =
     multiple specifications for `{$name}`
 
-driver_unexpected_specification =
-    unexpected specification for `{$name}`
-    .label = expected `{$expected}`
-
 driver_syntax_err =
     syntax error
 

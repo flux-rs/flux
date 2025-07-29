@@ -20,7 +20,7 @@ pub fn use_struct(s: MyStruct) {
 
     #[refined_by(vx: int, vy: int)]
     #[invariant(vx <= vy)]
-    struct MStruct//~ ERROR unresolved identifier `MStruct`
+    struct MStruct//~ ERROR unresolved name `MStruct`
     {
         x: usize[vx],
         y: usize[vy],

@@ -934,23 +934,6 @@ mod errors {
         pub name: Symbol,
     }
 
-    #[derive(Diagnostic)]
-    #[diag(driver_unexpected_specification, code = E0999)]
-    pub(super) struct UnexpectedSpecification {
-        pub name: String,
-        #[primary_span]
-        pub span: Span,
-        pub expected: String,
-        #[label]
-        pub expected_span: Span,
-    }
-
-    impl UnexpectedSpecification {
-        pub(super) fn new(name: String, span: Span, expected: &str, expected_span: Span) -> Self {
-            Self { name, span, expected: expected.to_string(), expected_span }
-        }
-    }
-
     pub(super) struct SyntaxErr(flux_syntax::ParseError);
 
     impl From<flux_syntax::ParseError> for SyntaxErr {

@@ -2,7 +2,7 @@
 
     fn blah(n:i32) -> i32[n+1];
 
-    mod glob { //~ ERROR unresolved identifier `glob`
+    mod glob { //~ ERROR unresolved name `glob`
 
         fn inc(n:i32) -> i32{v: n < v};
         fn id(n:i32) -> i32[n];

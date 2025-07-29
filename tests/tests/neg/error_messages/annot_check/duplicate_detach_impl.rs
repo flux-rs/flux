@@ -48,7 +48,7 @@ pub fn test_b() -> Nat {
 
     impl Nat {
 
-        fn zero() -> Nat[0];    //~ ERROR invalid attribute: multiple specs for `zero`
+        fn zero() -> Nat[0];    //~ ERROR multiple specifications
 
         fn succ(n:Nat) -> Nat[n+1];
 
