@@ -1,6 +1,5 @@
 use std::collections::{HashMap, hash_map::Entry};
 
-use flux_common::span_bug;
 use flux_middle::fhir::Trusted;
 use flux_syntax::surface::{self, ExprPath, FnSpec, Item, NodeId, Span};
 use itertools::Itertools;
@@ -72,17 +71,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn expect_kind(
-        &mut self,
-        def_id: DefId,
-        exp_kind: DefKind,
-        kind: DefKind,
-        span: Span,
-    ) -> Result {
+    fn expect_kind(&mut self, def_id: DefId, eq: bool, expected: &str, span: Span) -> Result {
         let expected_span = self.inner.tcx.def_span(def_id);
-        let expected = exp_kind.descr(def_id);
         let name = self.inner.tcx.def_path_str(def_id);
-        if kind != exp_kind {
+        if !eq {
             return Err(self.inner.errors.emit(errors::UnexpectedSpecification::new(
                 name,
                 span,
@@ -106,21 +98,25 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             };
             match item.kind {
                 surface::ItemKind::FnSig(_) => {
-                    self.expect_kind(def_id, exp_kind, DefKind::Fn, span)?;
+                    self.expect_kind(def_id, exp_kind == DefKind::Fn, "fn", span)?;
                 }
                 surface::ItemKind::Mod(_) => {
-                    self.expect_kind(def_id, exp_kind, DefKind::Mod, span)?;
+                    self.expect_kind(def_id, exp_kind == DefKind::Mod, "mod", span)?;
                 }
                 surface::ItemKind::Struct(_) => {
-                    self.expect_kind(def_id, exp_kind, DefKind::Struct, span)?;
+                    self.expect_kind(def_id, exp_kind == DefKind::Struct, "struct", span)?;
                 }
                 surface::ItemKind::Enum(_) => {
-                    self.expect_kind(def_id, exp_kind, DefKind::Enum, span)?;
+                    self.expect_kind(def_id, exp_kind == DefKind::Enum, "enum", span)?;
                 }
                 surface::ItemKind::Trait(_) => {
-                    self.expect_kind(def_id, exp_kind, DefKind::Trait, span)?;
+                    self.expect_kind(def_id, exp_kind == DefKind::Trait, "trait", span)?;
                 }
-                _ => continue,
+                surface::ItemKind::InherentImpl(_) => {
+                    let eq = matches!(exp_kind, DefKind::Struct | DefKind::Enum);
+                    self.expect_kind(def_id, eq, "struct or enum", span)?;
+                }
+                surface::ItemKind::TraitImpl(_) => todo!(),
             }
             self.resolved_ids
                 .insert(item.path.node_id, Res::Def(exp_kind, def_id));
@@ -160,7 +156,15 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             surface::ItemKind::Enum(enum_def) => self.collect_enum(span, owner_id, enum_def)?,
             surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id)?,
             surface::ItemKind::Trait(trait_def) => self.collect_trait(span, owner_id, trait_def)?,
-            _ => span_bug!(span, "unexpected detached item!"),
+            surface::ItemKind::InherentImpl(inherent_impl) => {
+                let tcx = self.inner.tcx;
+                let assoc_items = tcx
+                    .inherent_impls(def_id)
+                    .iter()
+                    .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
+                self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
+            }
+            surface::ItemKind::TraitImpl(_detached_trait_impl) => todo!("attach trait impl"),
         };
         Ok(())
     }
