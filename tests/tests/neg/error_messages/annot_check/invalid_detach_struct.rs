@@ -18,9 +18,9 @@ pub fn use_struct(s: MyStruct) {
 
 #[flux::specs {
 
+    #[refined_by(vx: int, vy: int)]
+    #[invariant(vx <= vy)]
     struct MStruct//~ ERROR unresolved identifier `MStruct`
-        refined_by(vx: int, vy: int)
-        invariant(vx <= vy)
     {
         x: usize[vx],
         y: usize[vy],

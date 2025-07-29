@@ -537,7 +537,7 @@ pub enum BindKind {
     Pound,
 }
 
-#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Attr {
     /// A `#[trusted]` attribute
     Trusted,
@@ -545,6 +545,38 @@ pub enum Attr {
     Hide,
     /// A `#[reft]` attribute
     Reft,
+    /// A `#[invariant]` attribute
+    Invariant(Expr),
+    /// A `#[refined_by]` attribute
+    RefinedBy(RefineParams),
+}
+
+pub struct Attrs(pub Vec<Attr>);
+
+impl Attrs {
+    pub fn is_reft(&self) -> bool {
+        self.0.iter().any(|attr| matches!(attr, Attr::Reft))
+    }
+
+    pub fn is_trusted(&self) -> bool {
+        self.0.iter().any(|attr| matches!(attr, Attr::Trusted))
+    }
+
+    pub fn refined_by(&mut self) -> Option<RefineParams> {
+        let pos = self
+            .0
+            .iter()
+            .position(|x| matches!(x, Attr::RefinedBy(_)))?;
+        if let Attr::RefinedBy(params) = self.0.remove(pos) { Some(params) } else { None }
+    }
+
+    pub fn invariant(&mut self) -> Option<Expr> {
+        let pos = self
+            .0
+            .iter()
+            .position(|x| matches!(x, Attr::Invariant(_)))?;
+        if let Attr::Invariant(exp) = self.0.remove(pos) { Some(exp) } else { None }
+    }
 }
 
 #[derive(Debug)]
