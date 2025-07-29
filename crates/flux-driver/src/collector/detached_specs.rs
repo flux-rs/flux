@@ -2,19 +2,316 @@ use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::span_bug;
 use flux_middle::fhir::Trusted;
-use flux_syntax::surface::{self, FnSpec, Item, Span};
+use flux_syntax::surface::{self, ExprPath, FnSpec, Item, NodeId, Span};
+use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{DefKind, Res},
     def_id::{CRATE_DEF_ID, LocalDefId},
 };
-use rustc_middle::ty::{AssocItem, AssocKind, Ty, TyCtxt};
+use rustc_middle::ty::{AssocItem, AssocKind, TyCtxt};
 use rustc_span::{Symbol, def_id::DefId};
 
-use crate::collector::{FluxAttrs, SpecCollector, errors, surface::Ident};
+use crate::collector::{FluxAttrs, SpecCollector, errors};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
+fn path_to_symbol(path: &surface::ExprPath) -> Symbol {
+    let path_string = format!(
+        "{}",
+        path.segments
+            .iter()
+            .format_with("::", |s, f| f(&s.ident.name))
+    );
+    Symbol::intern(&path_string)
+}
+
+struct ScopeResolver {
+    items: HashMap<Symbol, (DefKind, DefId)>,
+}
+
+impl ScopeResolver {
+    fn new(tcx: TyCtxt, def_id: LocalDefId) -> Self {
+        let mut items = HashMap::default();
+        for child in tcx.module_children_local(def_id) {
+            let ident = child.ident;
+            let Res::Def(exp_kind, def_id) = child.res else { continue };
+            items.insert(ident.name, (exp_kind, def_id));
+        }
+        Self { items }
+    }
+
+    fn lookup(&self, path: &ExprPath) -> Option<(DefKind, DefId)> {
+        let name = path_to_symbol(path);
+        self.items.get(&name).cloned()
+    }
+}
+
+pub(super) struct DetachedSpecsCollector<'a, 'sess, 'tcx> {
+    inner: &'a mut SpecCollector<'sess, 'tcx>,
+    resolved_ids: HashMap<NodeId, Res>,
+}
+
+impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
+    pub(super) fn collect(
+        inner: &'a mut SpecCollector<'sess, 'tcx>,
+        attrs: &mut FluxAttrs,
+    ) -> Result {
+        if let Some(detached_specs) = attrs.detached_specs() {
+            let mut collector = Self { inner, resolved_ids: HashMap::default() };
+            collector.run(detached_specs, CRATE_DEF_ID)?;
+        };
+        Ok(())
+    }
+
+    fn run(&mut self, detached_specs: surface::DetachedSpecs, def_id: LocalDefId) -> Result {
+        self.resolve(&detached_specs, def_id)?;
+        for item in detached_specs.items {
+            self.attach(item)?;
+        }
+        Ok(())
+    }
+
+    fn expect_kind(
+        &mut self,
+        def_id: DefId,
+        exp_kind: DefKind,
+        kind: DefKind,
+        span: Span,
+    ) -> Result {
+        let expected_span = self.inner.tcx.def_span(def_id);
+        let expected = exp_kind.descr(def_id);
+        let name = self.inner.tcx.def_path_str(def_id);
+        if kind != exp_kind {
+            return Err(self.inner.errors.emit(errors::UnexpectedSpecification::new(
+                name,
+                span,
+                expected,
+                expected_span,
+            )));
+        }
+        Ok(())
+    }
+
+    fn resolve(&mut self, detached_specs: &surface::DetachedSpecs, def_id: LocalDefId) -> Result {
+        let resolver = ScopeResolver::new(self.inner.tcx, def_id);
+        for item in &detached_specs.items {
+            let path = &item.path;
+            let span = path.span;
+            let Some((exp_kind, def_id)) = resolver.lookup(path) else {
+                return Err(self
+                    .inner
+                    .errors
+                    .emit(errors::UnresolvedSpecification::new(path, "name")));
+            };
+            match item.kind {
+                surface::ItemKind::FnSig(_) => {
+                    self.expect_kind(def_id, exp_kind, DefKind::Fn, span)?;
+                }
+                surface::ItemKind::Mod(_) => {
+                    self.expect_kind(def_id, exp_kind, DefKind::Mod, span)?;
+                }
+                surface::ItemKind::Struct(_) => {
+                    self.expect_kind(def_id, exp_kind, DefKind::Struct, span)?;
+                }
+                surface::ItemKind::Enum(_) => {
+                    self.expect_kind(def_id, exp_kind, DefKind::Enum, span)?;
+                }
+                surface::ItemKind::Trait(_) => {
+                    self.expect_kind(def_id, exp_kind, DefKind::Trait, span)?;
+                }
+                _ => continue,
+            }
+            self.resolved_ids
+                .insert(item.path.node_id, Res::Def(exp_kind, def_id));
+        }
+        Ok(())
+    }
+
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "this is pre-extern specs so it's fine: https://flux-rs.zulipchat.com/#narrow/channel/486369-verify-std/topic/detached-specs/near/529548357"
+    )]
+    fn unwrap_def_id(&self, def_id: &DefId) -> Result<Option<LocalDefId>> {
+        Ok(def_id.as_local())
+    }
+
+    fn lookup(&mut self, item: &surface::Item) -> Result<(DefKind, LocalDefId)> {
+        if let Some(Res::Def(kind, def_id)) = self.resolved_ids.get(&item.path.node_id)
+            && let Some(local_def_id) = self.unwrap_def_id(def_id)?
+        {
+            return Ok((*kind, local_def_id));
+        }
+        return Err(self
+            .inner
+            .errors
+            .emit(errors::UnresolvedSpecification::new(&item.path, "item")));
+    }
+
+    fn attach(&mut self, item: surface::Item) -> Result {
+        let (_, def_id) = self.lookup(&item)?;
+        let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+        let span = item.path.span;
+        match item.kind {
+            surface::ItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
+            surface::ItemKind::Struct(struct_def) => {
+                self.collect_struct(span, owner_id, struct_def)?
+            }
+            surface::ItemKind::Enum(enum_def) => self.collect_enum(span, owner_id, enum_def)?,
+            surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id)?,
+            surface::ItemKind::Trait(trait_def) => self.collect_trait(span, owner_id, trait_def)?,
+            _ => span_bug!(span, "unexpected detached item!"),
+        };
+        Ok(())
+    }
+
+    fn collect_fn_spec(&mut self, owner_id: OwnerId, fn_spec: surface::FnSpec) -> Result {
+        match self.inner.specs.fn_sigs.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(fn_spec);
+            }
+            Entry::Occupied(ref e) if e.get().fn_sig.is_some() => {
+                let fn_sig = fn_spec.fn_sig.unwrap();
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), fn_sig.span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                existing.fn_sig = Some(fn_spec.fn_sig.unwrap());
+                existing.trusted = fn_spec.trusted;
+                if fn_spec.trusted {
+                    self.inner
+                        .specs
+                        .trusted
+                        .insert(owner_id.def_id, Trusted::Yes);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn collect_struct(
+        &mut self,
+        span: Span,
+        owner_id: OwnerId,
+        struct_def: surface::StructDef,
+    ) -> Result {
+        match self.inner.specs.structs.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(struct_def);
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                *existing = struct_def;
+            }
+        }
+        Ok(())
+    }
+
+    fn collect_enum(
+        &mut self,
+        span: Span,
+        owner_id: OwnerId,
+        enum_def: surface::EnumDef,
+    ) -> Result {
+        match self.inner.specs.enums.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(enum_def);
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                return Err(self.err_multiple_specs(owner_id.to_def_id(), span));
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                *existing = enum_def;
+            }
+        }
+        Ok(())
+    }
+
+    fn collect_trait(
+        &mut self,
+        span: Span,
+        owner_id: OwnerId,
+        trait_def: surface::DetachedTrait,
+    ) -> Result {
+        // 1. Collect the associated-refinements
+        match self.inner.specs.traits.entry(owner_id) {
+            Entry::Vacant(v) => {
+                v.insert(surface::Trait { generics: None, assoc_refinements: trait_def.refts });
+            }
+            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
+                self.err_multiple_specs(owner_id.to_def_id(), span);
+            }
+            Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                existing.assoc_refinements.extend(trait_def.refts);
+            }
+        }
+
+        // 2. Collect the method specifications
+        let tcx = self.inner.tcx;
+        let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
+        self.collect_assoc_methods(trait_def.items, assoc_items)
+    }
+
+    fn collect_assoc_methods(
+        &mut self,
+        methods: Vec<Item<FnSpec>>,
+        assoc_items: impl Iterator<Item = &'tcx AssocItem>,
+    ) -> Result {
+        let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, ExprPath)> =
+            HashMap::default();
+        // 1. make a table of the impl-items
+        for item in methods {
+            let name = path_to_symbol(&item.path);
+            let span = item.path.span;
+            if let Entry::Occupied(_) = table.entry(name) {
+                return Err(self
+                    .inner
+                    .errors
+                    .emit(errors::MultipleSpecifications { name, span }));
+            } else {
+                table.insert(name, (item.kind, None, item.path));
+            }
+        }
+        // 2. walk over all the assoc-items to resolve names
+        for item in assoc_items {
+            if let AssocKind::Fn { name, .. } = item.kind
+                && let Some(val) = table.get_mut(&name)
+                && val.1.is_none()
+            {
+                val.1 = Some(item.def_id);
+            }
+        }
+        // 3. Attach the `fn_sig` to the resolved `DefId`
+        for (_name, (fn_spec, def_id, path)) in table {
+            let Some(def_id) = def_id else {
+                return Err(self
+                    .inner
+                    .errors
+                    .emit(errors::UnresolvedSpecification::new(&path, "identifier")));
+            };
+            if let Some(def_id) = self.unwrap_def_id(&def_id)? {
+                let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+                self.collect_fn_spec(owner_id, fn_spec)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn err_multiple_specs(&mut self, def_id: DefId, span: Span) -> ErrorGuaranteed {
+        let name = self.inner.tcx.def_path_str(def_id);
+        let name = Symbol::intern(&name);
+        self.inner
+            .errors
+            .emit(errors::MultipleSpecifications { name, span })
+    }
+}
+
+/*
 #[derive(PartialEq, Eq, Debug, Hash)]
 struct ImplKey(Symbol);
 
@@ -23,6 +320,10 @@ impl ImplKey {
         ImplKey(Symbol::intern(&format!("{ty:?}")))
     }
 }
+
+
+
+
 
 type TraitImplKey = (ImplKey, Symbol);
 
@@ -213,18 +514,38 @@ impl DetachedItems {
     }
 }
 
-pub(super) struct DetachedSpecsCollector<'a, 'sess, 'tcx> {
-    inner: &'a mut SpecCollector<'sess, 'tcx>,
-}
+
 
 impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
+    fn new(inner: &'a mut SpecCollector<'sess, 'tcx>) -> Self {
+        Self { inner, resolved_ids: HashMap::default() }
+    }
+
     pub(super) fn collect(
         inner: &'a mut SpecCollector<'sess, 'tcx>,
         attrs: &mut FluxAttrs,
     ) -> Result {
         if let Some(detached_specs) = attrs.detached_specs() {
-            Self { inner }.run(detached_specs, CRATE_DEF_ID)?;
+            let mut collector = Self::new(inner);
+            collector.resolve(&detached_specs, CRATE_DEF_ID)?;
+            collector.attach_detached_specs(&detached_specs)?;
+            // Self { inner }.run(detached_specs, CRATE_DEF_ID)?;
         };
+        Ok(())
+    }
+
+    fn resolve(&mut self, detached_specs: &surface::DetachedSpecs, scope: LocalDefId) -> Result {
+        for item in detached_specs.items {
+            match item.kind {
+                surface::ItemKind::FnSig(fn_spec) => todo!(),
+                surface::ItemKind::Mod(detached_specs) => todo!(),
+                surface::ItemKind::Struct(struct_def) => todo!(),
+                surface::ItemKind::Enum(enum_def) => todo!(),
+                surface::ItemKind::InherentImpl(detached_inherent_impl) => todo!(),
+                surface::ItemKind::TraitImpl(detached_trait_impl) => todo!(),
+                surface::ItemKind::Trait(detached_trait) => todo!(),
+            }
+        }
         Ok(())
     }
 
@@ -264,52 +585,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    #[allow(
-        clippy::disallowed_methods,
-        reason = "this is pre-extern specs so it's fine: https://flux-rs.zulipchat.com/#narrow/channel/486369-verify-std/topic/detached-specs/near/529548357"
-    )]
-    fn unwrap_def_id(&mut self, ident: Ident, res: IdentRes) -> Result<Option<LocalDefId>> {
-        let IdentRes::DefId(def_id) = res else {
-            return Err(self
-                .inner
-                .errors
-                .emit(errors::UnresolvedSpecification::new(ident, "identifier")));
-        };
-        Ok(def_id.as_local())
-    }
 
-    fn err_multiple_specs(&mut self, def_id: DefId, span: Span) -> ErrorGuaranteed {
-        let name = self.inner.tcx.def_path_str(def_id);
-        self.inner
-            .errors
-            .emit(errors::MultipleSpecifications { name, span })
-    }
-
-    fn collect_trait(
-        &mut self,
-        ident: Ident,
-        owner_id: OwnerId,
-        trait_def: surface::DetachedTrait,
-    ) -> Result {
-        // 1. Collect the associated-refinements
-        match self.inner.specs.traits.entry(owner_id) {
-            Entry::Vacant(v) => {
-                v.insert(surface::Trait { generics: None, assoc_refinements: trait_def.refts });
-            }
-            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
-                self.err_multiple_specs(owner_id.to_def_id(), ident.span);
-            }
-            Entry::Occupied(ref mut e) => {
-                let existing = e.get_mut();
-                existing.assoc_refinements.extend(trait_def.refts);
-            }
-        }
-
-        // 2. Collect the method specifications
-        let tcx = self.inner.tcx;
-        let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
-        self.collect_assoc_methods(trait_def.items, assoc_items)
-    }
 
     fn collect_trait_impl(
         &mut self,
@@ -337,109 +613,6 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         self.collect_assoc_methods(trait_impl.items, assoc_items)
     }
 
-    fn collect_enum(
-        &mut self,
-        ident: Ident,
-        owner_id: OwnerId,
-        enum_def: surface::EnumDef,
-    ) -> Result {
-        match self.inner.specs.enums.entry(owner_id) {
-            Entry::Vacant(v) => {
-                v.insert(enum_def);
-            }
-            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
-                return Err(self.err_multiple_specs(owner_id.to_def_id(), ident.span));
-            }
-            Entry::Occupied(ref mut e) => {
-                let existing = e.get_mut();
-                *existing = enum_def;
-            }
-        }
-        Ok(())
-    }
-
-    fn collect_struct(
-        &mut self,
-        ident: Ident,
-        owner_id: OwnerId,
-        struct_def: surface::StructDef,
-    ) -> Result {
-        match self.inner.specs.structs.entry(owner_id) {
-            Entry::Vacant(v) => {
-                v.insert(struct_def);
-            }
-            Entry::Occupied(ref e) if e.get().is_nontrivial() => {
-                return Err(self.err_multiple_specs(owner_id.to_def_id(), ident.span));
-            }
-            Entry::Occupied(ref mut e) => {
-                let existing = e.get_mut();
-                *existing = struct_def;
-            }
-        }
-        Ok(())
-    }
-
-    fn collect_fn_spec(&mut self, owner_id: OwnerId, fn_spec: surface::FnSpec) -> Result {
-        match self.inner.specs.fn_sigs.entry(owner_id) {
-            Entry::Vacant(v) => {
-                v.insert(fn_spec);
-            }
-            Entry::Occupied(ref e) if e.get().fn_sig.is_some() => {
-                let fn_sig = fn_spec.fn_sig.unwrap();
-                return Err(self.err_multiple_specs(owner_id.to_def_id(), fn_sig.span));
-            }
-            Entry::Occupied(ref mut e) => {
-                let existing = e.get_mut();
-                existing.fn_sig = Some(fn_spec.fn_sig.unwrap());
-                existing.trusted = fn_spec.trusted;
-                if fn_spec.trusted {
-                    self.inner
-                        .specs
-                        .trusted
-                        .insert(owner_id.def_id, Trusted::Yes);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn collect_assoc_methods(
-        &mut self,
-        methods: Vec<Item<FnSpec>>,
-        assoc_items: impl Iterator<Item = &'tcx AssocItem>,
-    ) -> Result {
-        let mut table: HashMap<Symbol, (surface::FnSpec, IdentRes, Span)> = HashMap::default();
-        // 1. make a table of the impl-items
-        for item in methods {
-            let key = item.path.name;
-            if let Entry::Occupied(_) = table.entry(key) {
-                return Err(self.inner.errors.emit(errors::AttrMapErr {
-                    span: item.path.span,
-                    message: format!("multiple specs for `{}`", item.path),
-                }));
-            } else {
-                table.insert(item.path.name, (item.kind, IdentRes::Unknown, item.path.span));
-            }
-        }
-        // 2. walk over all the assoc-items to resolve names
-        for item in assoc_items {
-            if let AssocKind::Fn { name, .. } = item.kind
-                && let Some(val) = table.get_mut(&name)
-                && matches!(val.1, IdentRes::Unknown)
-            {
-                val.1 = IdentRes::DefId(item.def_id);
-            }
-        }
-        // 3. Attach the `fn_sig` to the resolved `DefId`
-        for (name, (fn_spec, def_id, span)) in table {
-            let ident = Ident { name, span };
-            if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
-                let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.collect_fn_spec(owner_id, fn_spec)?;
-            }
-        }
-        Ok(())
-    }
 
     fn collect_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
         match item.kind {
@@ -458,3 +631,5 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         }
     }
 }
+
+*/

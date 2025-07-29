@@ -876,11 +876,12 @@ fn attr_args_span(attr_args: &hir::AttrArgs) -> Option<Span> {
 mod errors {
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
+    use flux_syntax::surface::ExprPath;
     use itertools::Itertools;
     use rustc_errors::{Diag, DiagCtxtHandle, Diagnostic, Level};
     use rustc_hir::def_id::DefId;
     use rustc_middle::ty::TyCtxt;
-    use rustc_span::{ErrorGuaranteed, Span, symbol::Ident};
+    use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(driver_duplicated_attr, code = E0999)]
@@ -915,8 +916,13 @@ mod errors {
     }
 
     impl UnresolvedSpecification {
-        pub(super) fn new(ident: Ident, thing: &str) -> Self {
-            Self { span: ident.span, ident, thing: thing.to_string() }
+        pub(super) fn new(path: &ExprPath, thing: &str) -> Self {
+            let span = path.span;
+            let ident = path
+                .segments
+                .last()
+                .map_or_else(|| Ident::with_dummy_span(Symbol::intern("")), |seg| seg.ident);
+            Self { span, ident, thing: thing.to_string() }
         }
     }
 
@@ -925,7 +931,7 @@ mod errors {
     pub(super) struct MultipleSpecifications {
         #[primary_span]
         pub span: Span,
-        pub name: String,
+        pub name: Symbol,
     }
 
     #[derive(Diagnostic)]
