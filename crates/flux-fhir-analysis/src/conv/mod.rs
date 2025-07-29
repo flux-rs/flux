@@ -1702,7 +1702,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 }
             }
             fhir::Res::Def(DefKind::AssocTy, assoc_id) => {
-                let trait_id = self.tcx().trait_of_item(assoc_id).unwrap();
+                let trait_id = self.tcx().trait_of_assoc(assoc_id).unwrap();
 
                 let [.., trait_segment, assoc_segment] = path.segments else {
                     span_bug!(path.span, "expected at least two segments");

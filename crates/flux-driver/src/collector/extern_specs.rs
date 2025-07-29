@@ -284,7 +284,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                     Err(self.item_not_in_trait_impl(item.owner_id, callee_id, extern_impl_id))
                 }
             } else {
-                let opt_extern_impl_id = self.tcx().impl_of_method(callee_id);
+                let opt_extern_impl_id = self.tcx().impl_of_assoc(callee_id);
                 if let Some(extern_impl_id) = opt_extern_impl_id {
                     debug_assert!(self.tcx().trait_id_of_impl(extern_impl_id).is_none());
                     Ok(ExternImplItem { impl_id: extern_impl_id, item_id: callee_id })
@@ -317,7 +317,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             && let hir::TraitFn::Provided(body_id) = trait_fn
         {
             let callee_id = self.extract_callee_from_body(body_id)?;
-            if let Some(callee_trait_id) = self.tcx().trait_of_item(callee_id)
+            if let Some(callee_trait_id) = self.tcx().trait_of_assoc(callee_id)
                 && trait_id == callee_trait_id
             {
                 Ok(callee_id)
