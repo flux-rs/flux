@@ -116,14 +116,13 @@ pub struct DetachedSpecs {
 
 #[derive(Debug)]
 pub struct DetachedTraitImpl {
-    pub trait_: Ident,
+    pub trait_: ExprPath,
     pub items: Vec<Item<FnSpec>>,
     pub refts: Vec<ImplAssocReft>,
 }
 
 #[derive(Debug)]
 pub struct DetachedTrait {
-    pub ident: Ident,
     pub items: Vec<Item<FnSpec>>,
     pub refts: Vec<TraitAssocReft>,
 }
@@ -141,13 +140,13 @@ impl DetachedInherentImpl {
 
 #[derive(Debug)]
 pub struct Item<K = ItemKind> {
-    pub ident: Ident,
+    pub path: ExprPath,
     pub kind: K,
 }
 
 #[derive(Debug)]
 pub enum ItemKind {
-    FnSig(Item<FnSpec>),
+    FnSig(FnSpec),
     Mod(DetachedSpecs),
     Struct(StructDef),
     Enum(EnumDef),

@@ -78,19 +78,19 @@ impl DetachedItems {
         for item in detached_specs.items {
             match item.kind {
                 surface::ItemKind::InherentImpl(detached_impl) => {
-                    if let Some(existing) = inherent_impls.get_mut(&item.ident) {
+                    if let Some(existing) = inherent_impls.get_mut(&item.path) {
                         existing.inherent_impl.extend(detached_impl);
                     } else {
                         let info = InherentImplInfo {
                             inherent_impl: detached_impl,
                             self_ty: IdentRes::Unknown,
                         };
-                        inherent_impls.insert(item.ident, info);
+                        inherent_impls.insert(item.path, info);
                     }
                 }
                 surface::ItemKind::TraitImpl(detached_impl) => {
-                    let key = (ImplKey(item.ident.name), detached_impl.trait_.name);
-                    let span = item.ident.span;
+                    let key = (ImplKey(item.path.name), detached_impl.trait_.name);
+                    let span = item.path.span;
                     let info = TraitImplInfo {
                         trait_impl: detached_impl,
                         _trait_id: IdentRes::Unknown,
@@ -103,12 +103,12 @@ impl DetachedItems {
                     } else {
                         return Err(collector.errors.emit(errors::AttrMapErr {
                             span,
-                            message: format!("multiple impls for `{}`", item.ident.name),
+                            message: format!("multiple impls for `{}`", item.path.name),
                         }));
                     }
                 }
                 _ => {
-                    items.insert(item.ident, ItemInfo { item, def_id: IdentRes::Unknown });
+                    items.insert(item.path, ItemInfo { item, def_id: IdentRes::Unknown });
                 }
             }
         }
@@ -129,7 +129,9 @@ impl DetachedItems {
                     if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
                         let impl_key =
                             ImplKey::new(poly_trait_ref.instantiate_identity().self_ty());
-                        if let Some(val) = self.trait_impls.get_mut(&(impl_key, trait_symbol)) {
+                        let key = (impl_key, trait_symbol);
+                        println!("TRACE: resolve_trait_impls: {key:?} => {impl_id:?}");
+                        if let Some(val) = self.trait_impls.get_mut(&key) {
                             val.impl_id = Some(*impl_id);
                         }
                     }
@@ -182,7 +184,7 @@ impl DetachedItems {
             let ident = child.ident;
             let Res::Def(exp_kind, def_id) = child.res else { continue };
             let Some(val) = self.items.get_mut(&ident) else { continue };
-            let span = val.item.ident.span;
+            let span = val.item.path.span;
             match val.item.kind {
                 surface::ItemKind::FnSig(_) => {
                     Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Fn, span)?;
@@ -409,14 +411,14 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let mut table: HashMap<Symbol, (surface::FnSpec, IdentRes, Span)> = HashMap::default();
         // 1. make a table of the impl-items
         for item in methods {
-            let key = item.ident.name;
+            let key = item.path.name;
             if let Entry::Occupied(_) = table.entry(key) {
                 return Err(self.inner.errors.emit(errors::AttrMapErr {
-                    span: item.ident.span,
-                    message: format!("multiple specs for `{}`", item.ident),
+                    span: item.path.span,
+                    message: format!("multiple specs for `{}`", item.path),
                 }));
             } else {
-                table.insert(item.ident.name, (item.kind, IdentRes::Unknown, item.ident.span));
+                table.insert(item.path.name, (item.kind, IdentRes::Unknown, item.path.span));
             }
         }
         // 2. walk over all the assoc-items to resolve names
@@ -443,15 +445,15 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         match item.kind {
             surface::ItemKind::FnSig(item) => self.collect_fn_spec(owner_id, item.kind),
             surface::ItemKind::Struct(struct_def) => {
-                self.collect_struct(item.ident, owner_id, struct_def)
+                self.collect_struct(item.path, owner_id, struct_def)
             }
-            surface::ItemKind::Enum(enum_def) => self.collect_enum(item.ident, owner_id, enum_def),
+            surface::ItemKind::Enum(enum_def) => self.collect_enum(item.path, owner_id, enum_def),
             surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id),
             surface::ItemKind::Trait(trait_def) => {
-                self.collect_trait(item.ident, owner_id, trait_def)
+                self.collect_trait(item.path, owner_id, trait_def)
             }
             _ => {
-                span_bug!(item.ident.span, "unexpected detached item!")
+                span_bug!(item.path.span, "unexpected detached item!")
             }
         }
     }
