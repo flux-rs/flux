@@ -41,7 +41,7 @@ use flux_infer::{
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
-    def_id::MaybeExternId, global_env::GlobalEnv,
+    def_id::{MaybeExternId, ResolvedDefId}, global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     pretty, rty::{
         self, fold::{TypeFolder, TypeVisitable}, ESpan, EarlyBinder, Name
@@ -49,8 +49,8 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
-use rustc_errors::{Diag, ErrorGuaranteed};
-use rustc_hir::def_id::LocalDefId;
+use rustc_errors::{Diag, ErrorGuaranteed, Applicability};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_span::{FileNameDisplayPreference, Span, source_map::SourceMap};
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
@@ -496,11 +496,43 @@ fn add_fn_fix_diagnostic<'a>(
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
     let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(wkvid, solution.clone())].into() };
     let solved_fn_sig = EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
-    diag.subdiagnostic(errors::WKVarFnFix {
-        span: fn_span,
-        fn_name,
-        fix: format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)),
-    });
+    let fixed_fn_sig_snippet = format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
+    match genv.resolve_id(wkvid.0) {
+        ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
+            if let Ok(fn_sig) = genv.map().fhir_expect_fn_sig(local_id) {
+                diag.span_suggestion(fn_sig.decl.span,
+                                     format!("try adding the refinement {:?}", solution),
+                                     fixed_fn_sig_snippet,
+                                     Applicability::MaybeIncorrect
+                );
+            } else {
+                let fn_first_line = fn_first_line(genv, wkvid.0);
+                let fn_first_line_snippet = genv.tcx().sess.source_map().span_to_snippet(fn_first_line).expect(&format!("No snippet for span {:?}", fn_first_line));
+                let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet.find(|c: char| !c.is_whitespace()).unwrap_or(fn_first_line_snippet.len())];
+                diag.span_suggestion(fn_first_line,
+                                     "try adding the signature",
+                                     format!("{}flux_rs::sig[{}]\n{}",prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+                                     Applicability::MaybeIncorrect
+                );
+            }
+        }
+        ResolvedDefId::Extern(def_id) => {
+            diag.subdiagnostic(errors::WKVarFnFix {
+                span: fn_span,
+                fn_name,
+                fix: fixed_fn_sig_snippet,
+            });
+        }
+    }
+
+}
+
+fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
+    let span = genv.tcx().def_span(def_id);
+    let first_line = genv.tcx().sess.source_map().lookup_line(span.lo())
+                                                 .expect(&format!("span for {:?} doesn't have a first line", def_id));
+    let first_line_range = first_line.sf.line_bounds(first_line.line);
+    Span::new(first_line_range.start, first_line_range.end, span.ctxt(), None)
 }
 
 fn add_blame_var_diagnostic<'a>(

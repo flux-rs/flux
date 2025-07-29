@@ -662,6 +662,32 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
+    pub fn fhir_expect_fn_sig(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::FnSig<'genv>> {
+        match self.node(def_id)? {
+            fhir::Node::Item(fhir::Item {
+                kind: fhir::ItemKind::Fn(fn_sig),
+                ..
+            }) |
+            fhir::Node::ImplItem(fhir::ImplItem {
+                kind: fhir::ImplItemKind::Fn(fn_sig),
+                ..
+            }) |
+            fhir::Node::TraitItem(fhir::TraitItem {
+                kind: fhir::TraitItemKind::Fn(fn_sig),
+                ..
+            }) |
+            fhir::Node::ForeignItem(fhir::ForeignItem {
+                kind: fhir::ForeignItemKind::Fn(fn_sig, _),
+                ..
+            }) => {
+                Ok(fn_sig)
+            }
+            _ => {
+                bug!("Expected fn_sig: `{def_id:?}`")
+            }
+        }
+    }
+
     pub fn fhir_expect_owner_node(self, def_id: LocalDefId) -> QueryResult<fhir::OwnerNode<'genv>> {
         let Some(owner) = self.fhir_node(def_id)?.as_owner() else {
             return Err(query_bug!(def_id, "cannot find owner node"));
