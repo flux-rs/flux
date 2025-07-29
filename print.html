@@ -204,11 +204,22 @@ to learn how you can use Flux on your Rust code.</p>
 <p>You can install and then run Flux either on a single file or on an entire crate.</p>
 <h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
-<li><a href="https://rustup.rs/">rustup</a></li>
-<li><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a></li>
-<li><a href="https://github.com/Z3Prover/z3">z3</a></li>
+<li>
+<p><a href="https://rustup.rs/">rustup</a></p>
+<p>Rustup is required because Flux needs access to the source code of the Rust compiler, which we grab from rustup.</p>
+</li>
+<li>
+<p><a href="https://github.com/ucsd-progsys/liquid-fixpoint">liquid-fixpoint</a></p>
+<p>Nightly binary builds are avilable on <a href="https://github.com/ucsd-progsys/liquid-fixpoint/releases/tag/nightly">GitHub Releases</a>. If there is no binary available
+for your platform, you will need to <a href="https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install">build it from source</a>.</p>
+</li>
+<li>
+<p><a href="https://github.com/Z3Prover/z3">z3</a></p>
+<p>You can download a binary for your platfrom from <a href="https://github.com/Z3Prover/z3/releases">Z3 GitHub Releases</a>. We recommend downloading the latest version, but older version should also work.</p>
+</li>
 </ul>
-<p>Be sure that the <code>liquid-fixpoint</code> and <code>z3</code> executables are in your <code>$PATH</code>.</p>
+<p><strong>Note:</strong>
+Make sure that the <code>liquid-fixpoint</code> and <code>z3</code> binaries are in your <code>$PATH</code>.</p>
 <h2 id="install"><a class="header" href="#install">Install</a></h2>
 <p>The only way to use Flux is to build it from source.</p>
 <p>First you need to clone the repository</p>
@@ -244,7 +255,7 @@ You could for example check a file as a library instead of a binary like so</p>
 <p>For example, the refinement below will only work when running <code>flux</code> which is intended for use on a single file.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
+</span>#[flux::spec(fn(x: i32) -&gt; i32{v: x &lt; v})]
 fn inc(x: i32) -&gt; i32 {
     x - 1
 }
@@ -267,9 +278,9 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 <p>Then, import attributes from <code>flux_rs</code> and add the appropriate refinement annoations.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use flux_rs::*;
+</span>use flux_rs::attrs::*;
 
-#[sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
+#[spec(fn(x: i32) -&gt; i32{v: x &lt; v})]
 fn inc(x: i32) -&gt; i32 {
     x - 1
 }
@@ -282,7 +293,7 @@ to register the <code>flux</code> tool in order to
 add refinement annotations to functions.</p>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[flux::sig(fn(x: i32) -&gt; i32{v: x &lt; v})]
+</span>#[flux::spec(fn(x: i32) -&gt; i32{v: x &lt; v})]
 pub fn inc(x: i32) -&gt; i32 {
     x - 1
 }
