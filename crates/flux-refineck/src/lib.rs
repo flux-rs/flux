@@ -489,7 +489,7 @@ fn add_fn_fix_diagnostic<'a>(
                 let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet.find(|c: char| !c.is_whitespace()).unwrap_or(fn_first_line_snippet.len())];
                 diag.span_suggestion(fn_first_line,
                                      "try adding the signature",
-                                     format!("{}flux_rs::sig[{}]\n{}",prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
+                                     format!("{}#[spec({})]\n{}",prefix_spaces, fixed_fn_sig_snippet, fn_first_line_snippet),
                                      Applicability::MaybeIncorrect
                 );
             }
