@@ -31,7 +31,7 @@ runs:
         fi
         mkdir -p ~/.local/bin
         echo ~/.local/bin >> $GITHUB_PATH
-        curl -fsSL -o "$ZIP" "$URL"
+        curl -fsSL --retry 3 -o "$ZIP" "$URL"
         unzip "$ZIP"
         cp "$DIR/bin/cvc5" ~/.local/bin/
         rm -rf "$DIR" "$ZIP"

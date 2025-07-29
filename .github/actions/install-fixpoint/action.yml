@@ -18,7 +18,7 @@ runs:
           echo "Unsupported OS/architecture: $OS/$ARCH" >&2
           exit 1
         fi
-        curl -fsSL -o fixpoint "$URL"
+        curl -fsSL --retry 3 -o fixpoint "$URL"
         chmod +x fixpoint
         mkdir -p ~/.local/bin
         cp fixpoint ~/.local/bin/
