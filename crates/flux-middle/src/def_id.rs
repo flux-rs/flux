@@ -198,7 +198,7 @@ impl rustc_middle::query::IntoQueryParam<DefId> for MaybeExternId {
 /// cases. For handling local items that may correspond to an extern spec, see [`MaybeExternId`].
 ///
 /// [`GlobalEnv::resolve_id`]: crate::global_env::GlobalEnv::resolve_id
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum ResolvedDefId {
     /// A local definition. Corresponds to [`MaybeExternId::Local`].
     Local(LocalDefId),

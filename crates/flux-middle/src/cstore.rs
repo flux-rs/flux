@@ -26,7 +26,7 @@ pub trait CrateStore {
         key: FluxDefId,
     ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>>;
     fn sort_of_assoc_reft(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::FuncSort>>;
-    fn variants(
+    fn variants_of(
         &self,
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>;

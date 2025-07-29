@@ -1,6 +1,6 @@
 #![flux::defs {
     fn nat(x: int) -> bool { 0 <= x }
-    fn bat(x: int) -> int  { 0 <= x } //~ ERROR mismatched sorts
+    fn bat(x: int) -> bool { 0 <= x }
 }]
 
 #[flux::sig(fn(x:i32{nat(x)}) -> i32{v:nat(v, v)})] //~ ERROR this function takes 1 refinement argument but 2 were found

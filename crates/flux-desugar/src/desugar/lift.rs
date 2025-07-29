@@ -7,7 +7,10 @@ use flux_middle::{
     fhir::{self, FhirId, FluxOwnerId},
     try_alloc_slice,
 };
-use rustc_hir::{self as hir, FnHeader, def_id::LocalDefId};
+use rustc_hir::{
+    self as hir, FnHeader,
+    def_id::{DefId, LocalDefId},
+};
 use rustc_span::Span;
 
 use super::{DesugarCtxt, RustItemCtxt};
@@ -226,8 +229,8 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             hir::TyKind::Ref(lft, mut_ty) => {
                 fhir::TyKind::Ref(self.lift_lifetime(lft), self.lift_mut_ty(mut_ty))
             }
-            hir::TyKind::BareFn(bare_fn) => {
-                let bare_fn = self.lift_bare_fn(ty.span, bare_fn);
+            hir::TyKind::FnPtr(fn_ptr) => {
+                let bare_fn = self.lift_bare_fn(ty.span, fn_ptr);
                 fhir::TyKind::BareFn(self.genv.alloc(bare_fn))
             }
             hir::TyKind::Never => fhir::TyKind::Never,
@@ -287,20 +290,20 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         fhir::Ty { kind, span: ty.span }
     }
 
-    fn lift_bare_fn(&mut self, span: Span, bare_fn: &hir::BareFnTy) -> fhir::BareFnTy<'genv> {
+    fn lift_bare_fn(&mut self, span: Span, fn_ptr: &hir::FnPtrTy) -> fhir::BareFnTy<'genv> {
         let generic_params = self.genv.alloc_slice_fill_iter(
-            bare_fn
+            fn_ptr
                 .generic_params
                 .iter()
                 .map(|param| self.lift_generic_param(param)),
         );
-        let decl = self.lift_fn_decl_inner(span, bare_fn.decl);
+        let decl = self.lift_fn_decl_inner(span, fn_ptr.decl);
         fhir::BareFnTy {
-            safety: bare_fn.safety,
-            abi: bare_fn.abi,
+            safety: fn_ptr.safety,
+            abi: fn_ptr.abi,
             generic_params,
             decl: self.genv.alloc(decl),
-            param_idents: self.genv.alloc_slice(bare_fn.param_idents),
+            param_idents: self.genv.alloc_slice(fn_ptr.param_idents),
         }
     }
 
@@ -350,7 +353,13 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         let segments =
             try_alloc_slice!(self.genv, path.segments, |segment| self.lift_path_segment(segment))?;
 
-        Ok(fhir::Path { res, fhir_id: self.next_fhir_id(), segments, refine: &[], span: path.span })
+        Ok(fhir::Path {
+            res: self.fix_maybe_extern_id_in_res(res),
+            fhir_id: self.next_fhir_id(),
+            segments,
+            refine: &[],
+            span: path.span,
+        })
     }
 
     fn lift_path_segment(
@@ -469,6 +478,38 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             owner_id: MaybeExternId::Local(foreign_item.owner_id),
             span: foreign_item.span,
         })
+    }
+
+    /// Fixes the def ids inside `res` to point to resolved ids.
+    fn fix_maybe_extern_id_in_res(&self, res: fhir::Res) -> fhir::Res {
+        match res {
+            fhir::Res::SelfTyParam { trait_ } => {
+                fhir::Res::SelfTyParam { trait_: self.fix_maybe_extern_id(trait_) }
+            }
+            fhir::Res::SelfTyAlias { alias_to, is_trait_impl } => {
+                fhir::Res::SelfTyAlias {
+                    alias_to: self.fix_maybe_extern_id(alias_to),
+                    is_trait_impl,
+                }
+            }
+            fhir::Res::Def(kind, def_id) => fhir::Res::Def(kind, self.fix_maybe_extern_id(def_id)),
+            _ => res,
+        }
+    }
+
+    /// Fixes a [`DefId`] that may correspond to a dummy local item for an extern spec to be the
+    /// "resolved id". This is to upholad the invariant that a [`DefId`] always corresponds to
+    /// the resolved item.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "we are fixing the def_id to uphold the invariant on extern specs"
+    )]
+    fn fix_maybe_extern_id(&self, def_id: DefId) -> DefId {
+        if let Some(def_id) = def_id.as_local() {
+            self.genv.maybe_extern_id(def_id).resolved_id()
+        } else {
+            def_id
+        }
     }
 }
 

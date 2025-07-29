@@ -764,7 +764,7 @@ mod errors {
             let adt_def = tcx.adt_def(adt_id);
             let field_def = &adt_def.variant(variant_idx).fields[field_idx];
 
-            let item = genv.map().expect_item(adt_id.local_id()).unwrap();
+            let item = genv.fhir_expect_item(adt_id.local_id()).unwrap();
             let span = match &item.kind {
                 fhir::ItemKind::Enum(enum_def) => {
                     enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
@@ -860,7 +860,7 @@ mod errors {
 
             // Get the span of the variant if this is an enum. Structs cannot have produce a field
             // count mismatch.
-            let span = if let Ok(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
+            let span = if let Ok(fhir::Node::Item(item)) = genv.fhir_node(adt_def_id.local_id())
                 && let fhir::ItemKind::Enum(enum_def) = &item.kind
                 && let Some(variant) = enum_def.variants.get(variant_idx.as_usize())
             {

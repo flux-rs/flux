@@ -80,10 +80,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.fhir_crate(self)
     }
 
-    pub fn map(self) -> Map<'genv, 'tcx> {
-        Map::new(self, self.fhir_crate())
-    }
-
     pub fn alloc<T>(&self, val: T) -> &'genv T {
         self.inner.arena.alloc(val)
     }
@@ -151,15 +147,25 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let names: UnordSet<_> = self.map().fn_quals_for(did)?.iter().copied().collect();
+        let quals = if let Some(fn_sig) = self.fhir_expect_owner_node(did)?.fn_sig() {
+            fn_sig.qualifiers
+        } else {
+            &[]
+        };
+        let names: UnordSet<_> = quals.iter().copied().collect();
         Ok(self
             .qualifiers()?
             .iter()
             .filter(move |qual| qual.global || names.contains(&qual.def_id)))
     }
 
+    /// Return the list of flux function definitions that should be revelaed for item
     pub fn reveals_for(self, did: LocalDefId) -> QueryResult<impl Iterator<Item = FluxDefId>> {
-        let reveals = self.map().fn_reveals_for(did)?;
+        let reveals = if let Some(fn_sig) = self.fhir_expect_owner_node(did)?.fn_sig() {
+            fn_sig.reveals
+        } else {
+            &[]
+        };
         Ok(reveals.iter().copied())
     }
 
@@ -461,6 +467,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         if let Some(local_id) = maybe_extern_spec {
             ResolvedDefId::ExternSpec(local_id, def_id)
         } else if let Some(local_id) = def_id.as_local() {
+            debug_assert!(
+                self.maybe_extern_id(local_id).is_local(),
+                "def id points to dummy local item `{def_id:?}`"
+            );
             ResolvedDefId::Local(local_id)
         } else {
             ResolvedDefId::Extern(def_id)
@@ -541,34 +551,55 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Map<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    fhir: &'genv fhir::FluxItems<'genv>,
-}
-
-impl<'genv, 'tcx> Map<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, fhir: &'genv fhir::FluxItems<'genv>) -> Self {
-        Self { genv, fhir }
+impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
+    pub fn fhir_iter_flux_items(
+        self,
+    ) -> impl Iterator<Item = (FluxLocalDefId, fhir::FluxItem<'genv>)> {
+        self.fhir_crate()
+            .items
+            .iter()
+            .map(|(id, item)| (*id, *item))
     }
 
-    pub fn get_generics(
+    pub fn fhir_spec_func_body(
+        &self,
+        def_id: FluxLocalDefId,
+    ) -> Option<&'genv fhir::SpecFunc<'genv>> {
+        self.fhir_crate()
+            .items
+            .get(&def_id)
+            .and_then(|item| if let fhir::FluxItem::Func(defn) = item { Some(*defn) } else { None })
+    }
+
+    pub fn fhir_qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
+        self.fhir_crate().items.values().filter_map(|item| {
+            if let fhir::FluxItem::Qualifier(qual) = item { Some(*qual) } else { None }
+        })
+    }
+
+    pub fn fhir_primop_props(self) -> impl Iterator<Item = &'genv fhir::PrimOpProp<'genv>> {
+        self.fhir_crate().items.values().filter_map(|item| {
+            if let fhir::FluxItem::PrimOpProp(prop) = item { Some(*prop) } else { None }
+        })
+    }
+
+    pub fn fhir_get_generics(
         self,
         def_id: LocalDefId,
     ) -> QueryResult<Option<&'genv fhir::Generics<'genv>>> {
         // We don't have nodes for closures and coroutines
-        if matches!(self.genv.def_kind(def_id), DefKind::Closure) {
+        if matches!(self.def_kind(def_id), DefKind::Closure) {
             Ok(None)
         } else {
-            Ok(Some(self.expect_owner_node(def_id)?.generics()))
+            Ok(Some(self.fhir_expect_owner_node(def_id)?.generics()))
         }
     }
 
-    pub fn refinement_kind(
+    pub fn fhir_expect_refinement_kind(
         self,
         def_id: LocalDefId,
     ) -> QueryResult<&'genv fhir::RefinementKind<'genv>> {
-        let kind = match &self.expect_item(def_id)?.kind {
+        let kind = match &self.fhir_expect_item(def_id)?.kind {
             fhir::ItemKind::Enum(enum_def) => &enum_def.refinement,
             fhir::ItemKind::Struct(struct_def) => &struct_def.refinement,
             _ => bug!("expected struct, enum or type alias"),
@@ -576,67 +607,23 @@ impl<'genv, 'tcx> Map<'genv, 'tcx> {
         Ok(kind)
     }
 
-    pub fn flux_items(self) -> impl Iterator<Item = (FluxLocalDefId, fhir::FluxItem<'genv>)> {
-        self.fhir.items.iter().map(|(id, item)| (*id, *item))
-    }
-
-    pub fn flux_item(&self, id: FluxLocalDefId) -> Option<&'genv fhir::FluxItem<'genv>> {
-        self.fhir.items.get(&id)
-    }
-
-    pub fn spec_func(&self, def_id: FluxLocalDefId) -> Option<&'genv fhir::SpecFunc<'genv>> {
-        self.fhir
-            .items
-            .get(&def_id)
-            .and_then(|item| if let fhir::FluxItem::Func(defn) = item { Some(*defn) } else { None })
-    }
-
-    pub fn qualifiers(self) -> impl Iterator<Item = &'genv fhir::Qualifier<'genv>> {
-        self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::Qualifier(qual) = item { Some(*qual) } else { None }
-        })
-    }
-
-    pub fn primop_props(self) -> impl Iterator<Item = &'genv fhir::PrimOpProp<'genv>> {
-        self.fhir.items.values().filter_map(|item| {
-            if let fhir::FluxItem::PrimOpProp(prop) = item { Some(*prop) } else { None }
-        })
-    }
-
-    pub fn fn_quals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxLocalDefId]> {
-        // This is called on adts when checking invariants
-        if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
-            Ok(fn_sig.qualifiers)
-        } else {
-            Ok(&[])
-        }
-    }
-
-    fn fn_reveals_for(self, def_id: LocalDefId) -> QueryResult<&'genv [FluxDefId]> {
-        if let Some(fn_sig) = self.expect_owner_node(def_id)?.fn_sig() {
-            Ok(fn_sig.reveals)
-        } else {
-            Ok(&[])
-        }
-    }
-
-    pub fn expect_item(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::Item<'genv>> {
-        if let fhir::Node::Item(item) = self.node(def_id)? {
+    pub fn fhir_expect_item(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::Item<'genv>> {
+        if let fhir::Node::Item(item) = self.fhir_node(def_id)? {
             Ok(item)
         } else {
-            bug!("expected item: `{def_id:?}`")
+            Err(query_bug!(def_id, "expected item: `{def_id:?}`"))
         }
     }
 
-    pub fn node(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
-        self.genv.desugar(def_id)
-    }
-
-    pub fn expect_owner_node(self, def_id: LocalDefId) -> QueryResult<fhir::OwnerNode<'genv>> {
-        let Some(owner) = self.node(def_id)?.as_owner() else {
+    pub fn fhir_expect_owner_node(self, def_id: LocalDefId) -> QueryResult<fhir::OwnerNode<'genv>> {
+        let Some(owner) = self.fhir_node(def_id)?.as_owner() else {
             return Err(query_bug!(def_id, "cannot find owner node"));
         };
         Ok(owner)
+    }
+
+    pub fn fhir_node(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
+        self.desugar(def_id)
     }
 }
 

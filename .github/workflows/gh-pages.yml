@@ -19,7 +19,7 @@ jobs:
       - run: mdbook build book
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.7.8
+        uses: Swatinem/rust-cache@v2.8.0
 
       - run: cargo xtask doc && mv target/doc book/book
 

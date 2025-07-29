@@ -647,8 +647,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::TyCtor> {
         let generics = self
             .genv()
-            .map()
-            .get_generics(ty_alias_id.local_id())?
+            .fhir_get_generics(ty_alias_id.local_id())?
             .unwrap();
 
         let mut env = Env::new(generics.refinement_params);
@@ -680,7 +679,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let late_bound_regions =
             refining::refine_bound_variables(&self.genv().lower_late_bound_vars(fn_id.local_id())?);
 
-        let generics = self.genv().map().get_generics(fn_id.local_id())?.unwrap();
+        let generics = self.genv().fhir_get_generics(fn_id.local_id())?.unwrap();
         let mut env = Env::new(generics.refinement_params);
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
@@ -781,8 +780,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let parent = self.tcx().local_parent(def_id.local_id());
         let refparams = &self
             .genv()
-            .map()
-            .get_generics(parent)?
+            .fhir_get_generics(parent)?
             .unwrap()
             .refinement_params;
 
@@ -1615,15 +1613,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let Some(depth) = env.depth().checked_sub(1) else {
                     span_bug!(span, "late-bound variable at depth 0")
                 };
-                let name = lifetime_name(def_id.to_def_id());
-                let kind = rty::BoundRegionKind::Named(def_id.to_def_id(), name);
+                let kind = rty::BoundRegionKind::Named(def_id.to_def_id());
                 let var = BoundVar::from_u32(index);
                 let bound_region = rty::BoundRegion { var, kind };
                 rty::ReBound(rty::DebruijnIndex::from_usize(depth), bound_region)
             }
             ResolvedArg::Free(scope, id) => {
-                let name = lifetime_name(id.to_def_id());
-                let kind = rty::LateParamRegionKind::Named(id.to_def_id(), name);
+                let kind = rty::LateParamRegionKind::Named(id.to_def_id());
                 rty::ReLateParam(rty::LateParamRegion { scope: scope.to_def_id(), kind })
             }
             ResolvedArg::Error(_) => bug!("lifetime resolved to an error"),
@@ -1779,10 +1775,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         param: &fhir::GenericParam,
     ) -> QueryResult<rty::BoundVariableKind> {
         let def_id = param.def_id.resolved_id();
-        let name = self.tcx().item_name(def_id);
         match param.kind {
             fhir::GenericParamKind::Lifetime => {
-                Ok(rty::BoundVariableKind::Region(rty::BoundRegionKind::Named(def_id, name)))
+                Ok(rty::BoundVariableKind::Region(rty::BoundRegionKind::Named(def_id)))
             }
             fhir::GenericParamKind::Const { .. } | fhir::GenericParamKind::Type { .. } => {
                 Err(query_bug!(def_id, "unsupported param kind `{:?}`", param.kind))

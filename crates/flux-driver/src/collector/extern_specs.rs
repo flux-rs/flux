@@ -82,11 +82,15 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         attrs: FluxAttrs,
     ) -> Result {
         let dummy_struct = self.item_at(1)?;
-        self.inner.specs.insert_dummy(dummy_struct.owner_id);
+        self.inner.specs.insert_dummy(dummy_struct.owner_id.def_id);
 
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
         self.insert_extern_id(struct_id.def_id, extern_id)?;
         self.check_generics(struct_id, extern_id)?;
+
+        if let Some(ctor_id) = variant.ctor_def_id() {
+            self.inner.specs.insert_dummy(ctor_id);
+        }
 
         self.inner.collect_struct_def(struct_id, attrs, variant)?;
 
@@ -100,7 +104,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         attrs: FluxAttrs,
     ) -> Result {
         let dummy_struct = self.item_at(1)?;
-        self.inner.specs.insert_dummy(dummy_struct.owner_id);
+        self.inner.specs.insert_dummy(dummy_struct.owner_id.def_id);
 
         let extern_id = self.extract_extern_id_from_struct(dummy_struct).unwrap();
         self.insert_extern_id(enum_id.def_id, extern_id)?;
@@ -129,7 +133,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
                 self.insert_extern_id(ctor, extern_ctor)?;
             } else {
                 let reason = format!(
-                    "extern variant {extern_variant:?} incompatible with specified {variant:?}"
+                    "extern variant `{}` incompatible with specified `{}`",
+                    extern_variant.ident(self.tcx()),
+                    rustc_hir_pretty::id_to_string(&self.tcx(), variant.hir_id)
                 );
                 return Err(self.invalid_enum_extern_spec(reason));
             }
@@ -146,7 +152,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         self.inner.collect_impl(impl_id, attrs)?;
 
         let dummy_item = self.item_at(1)?;
-        self.inner.specs.insert_dummy(dummy_item.owner_id);
+        self.inner.specs.insert_dummy(dummy_item.owner_id.def_id);
 
         // If this is a trait impl compute the impl_id from the trait_ref
         let mut impl_of_trait = None;
@@ -154,7 +160,9 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             impl_of_trait =
                 Some(self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?);
 
-            self.inner.specs.insert_dummy(self.item_at(2)?.owner_id);
+            self.inner
+                .specs
+                .insert_dummy(self.item_at(2)?.owner_id.def_id);
         }
 
         let mut extern_impl_id = impl_of_trait;
@@ -492,6 +500,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         })
     }
 
+    #[track_caller]
     fn emit<'b>(&'b self, err: impl Diagnostic<'b>) -> ErrorGuaranteed {
         self.inner.errors.emit(err)
     }

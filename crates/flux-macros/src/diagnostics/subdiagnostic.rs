@@ -1,20 +1,21 @@
-#![allow(clippy::pedantic)]
+#![allow(clippy::all)]
 #![deny(unused_must_use)]
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{Attribute, Meta, MetaList, Path, spanned::Spanned};
+use syn::spanned::Spanned;
+use syn::{Attribute, Meta, MetaList, Path};
 use synstructure::{BindingInfo, Structure, VariantInfo};
 
 use super::utils::SubdiagnosticVariant;
-use crate::diagnostics::{
-    error::{DiagnosticDeriveError, invalid_attr, span_err, throw_invalid_attr, throw_span_err},
-    utils::{
-        AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap, HasFieldMap, SetOnce,
-        SpannedOption, SubdiagnosticKind, build_field_mapping, build_suggestion_code,
-        is_doc_comment, new_code_ident, report_error_if_not_applied_to_applicability,
-        report_error_if_not_applied_to_span, should_generate_arg,
-    },
+use crate::diagnostics::error::{
+    DiagnosticDeriveError, invalid_attr, span_err, throw_invalid_attr, throw_span_err,
+};
+use crate::diagnostics::utils::{
+    AllowMultipleAlternatives, FieldInfo, FieldInnerTy, FieldMap, HasFieldMap, SetOnce,
+    SpannedOption, SubdiagnosticKind, build_field_mapping, build_suggestion_code, is_doc_comment,
+    new_code_ident, report_error_if_not_applied_to_applicability,
+    report_error_if_not_applied_to_span, should_generate_arg,
 };
 
 /// The central struct for constructing the `add_to_diag` method from an annotated struct.
@@ -73,9 +74,7 @@ impl SubdiagnosticDerive {
                     has_subdiagnostic: false,
                     is_enum,
                 };
-                builder
-                    .into_tokens()
-                    .unwrap_or_else(|v| v.to_compile_error())
+                builder.into_tokens().unwrap_or_else(|v| v.to_compile_error())
             });
 
             quote! {
@@ -282,15 +281,13 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
             Meta::Path(path) => {
                 self.generate_field_code_inner_path(kind_stats, attr, info, path.clone())
             }
-            Meta::List(list) => {
-                self.generate_field_code_inner_list(
-                    kind_stats,
-                    attr,
-                    info,
-                    list,
-                    clone_suggestion_code,
-                )
-            }
+            Meta::List(list) => self.generate_field_code_inner_list(
+                kind_stats,
+                attr,
+                info,
+                list,
+                clone_suggestion_code,
+            ),
             _ => throw_invalid_attr!(attr),
         }
     }
@@ -394,7 +391,7 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                     span_attrs.push("suggestion_part");
                 }
                 if !kind_stats.all_multipart_suggestions {
-                    span_attrs.push("primary_span")
+                    span_attrs.push("primary_span");
                 }
 
                 invalid_attr(attr)
@@ -477,31 +474,27 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
                 };
                 Ok(quote! { suggestions.push((#binding, #code_field)); })
             }
-            _ => {
-                throw_invalid_attr!(attr, |diag| {
-                    let mut span_attrs = vec![];
-                    if kind_stats.has_multipart_suggestion {
-                        span_attrs.push("suggestion_part");
-                    }
-                    if !kind_stats.all_multipart_suggestions {
-                        span_attrs.push("primary_span")
-                    }
-                    diag.help(format!(
-                        "only `{}`, `applicability` and `skip_arg` are valid field attributes",
-                        span_attrs.join(", ")
-                    ))
-                })
-            }
+            _ => throw_invalid_attr!(attr, |diag| {
+                let mut span_attrs = vec![];
+                if kind_stats.has_multipart_suggestion {
+                    span_attrs.push("suggestion_part");
+                }
+                if !kind_stats.all_multipart_suggestions {
+                    span_attrs.push("primary_span");
+                }
+                diag.help(format!(
+                    "only `{}`, `applicability` and `skip_arg` are valid field attributes",
+                    span_attrs.join(", ")
+                ))
+            }),
         }
     }
 
     pub(crate) fn into_tokens(&mut self) -> Result<TokenStream, DiagnosticDeriveError> {
         let kind_slugs = self.identify_kind()?;
 
-        let kind_stats: KindsStatistics = kind_slugs
-            .iter()
-            .map(|(kind, _slug, _no_span)| kind)
-            .collect();
+        let kind_stats: KindsStatistics =
+            kind_slugs.iter().map(|(kind, _slug, _no_span)| kind).collect();
 
         let init = if kind_stats.has_multipart_suggestion {
             quote! { let mut suggestions = Vec::new(); }
@@ -608,7 +601,12 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
 
             calls.extend(call);
         }
-
+        let store_args = quote! {
+            #diag.store_args();
+        };
+        let restore_args = quote! {
+            #diag.restore_args();
+        };
         let plain_args: TokenStream = self
             .variant
             .bindings()
@@ -618,12 +616,21 @@ impl<'parent, 'a> SubdiagnosticDeriveVariantBuilder<'parent, 'a> {
             .collect();
 
         let formatting_init = &self.formatting_init;
+
+        // For #[derive(Subdiagnostic)]
+        //
+        // - Store args of the main diagnostic for later restore.
+        // - Add args of subdiagnostic.
+        // - Generate the calls, such as note, label, etc.
+        // - Restore the arguments for allowing main and subdiagnostic share the same fields.
         Ok(quote! {
             #init
             #formatting_init
             #attr_args
+            #store_args
             #plain_args
             #calls
+            #restore_args
         })
     }
 }

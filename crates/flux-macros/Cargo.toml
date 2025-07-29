@@ -8,15 +8,15 @@ edition.workspace = true
 proc-macro = true
 
 [dependencies]
-annotate-snippets = "0.10"
-fluent-bundle = "0.15.3"
-fluent-syntax = "0.11"
+annotate-snippets = "0.11"
+fluent-bundle = "0.16.0"
+fluent-syntax = "0.12.0"
 itertools.workspace = true
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
 synstructure = "0.13.1"
-unic-langid = { version = "0.9.5", features = ["macros"] }
+unic-langid = { version = "0.9.6", features = ["macros"] }
 
 [lints]
 workspace = true
