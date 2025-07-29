@@ -1,7 +1,7 @@
 use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::span_bug;
-use flux_middle::fhir::Trusted;
+use flux_middle::fhir::{Trait, Trusted};
 use flux_syntax::surface::{self, FnSpec, Item, Span};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -26,32 +26,78 @@ impl ImplKey {
 
 type TraitImplKey = (ImplKey, Symbol);
 
+#[derive(PartialEq, Eq, Debug, Hash)]
+enum IdentRes {
+    Unknown,
+    DefId(DefId),
+    // Prim(Symbol),
+}
+
+impl IdentRes {
+    fn is_known(&self) -> bool {
+        matches!(self, IdentRes::DefId(_))
+        // matches!(self, IdentRes::DefId(_) | IdentRes::Prim(_))
+    }
+}
+
+#[derive(Debug)]
+struct ItemInfo {
+    item: surface::Item,
+    def_id: IdentRes,
+}
+
+#[derive(Debug)]
+struct InherentImplInfo {
+    inherent_impl: surface::DetachedInherentImpl,
+    self_ty: IdentRes,
+}
+
+#[derive(Debug)]
+struct TraitImplInfo {
+    trait_impl: surface::DetachedTraitImpl,
+    trait_id: IdentRes,
+    self_ty: IdentRes,
+    span: Span,
+}
+
 struct DetachedItems {
-    items: HashMap<Ident, (surface::Item, Option<DefId>)>,
-    inherent_impls: HashMap<Ident, (surface::DetachedInherentImpl, Option<DefId>)>,
-    trait_impls: HashMap<TraitImplKey, (surface::DetachedTraitImpl, Option<LocalDefId>, Span)>,
+    /// the `DefId` is that of the item being specified
+    items: HashMap<Ident, ItemInfo>,
+    /// the `DefId` is that of the type whose inherent impl is being specified
+    inherent_impls: HashMap<Ident, InherentImplInfo>,
+    /// the `LocalDefId` is that of the trait impl, the `ImplKey` is the type and trait name
+    trait_impls: HashMap<TraitImplKey, TraitImplInfo>,
 }
 
 impl DetachedItems {
     fn new(detached_specs: surface::DetachedSpecs, collector: &mut SpecCollector) -> Result<Self> {
         let mut items = HashMap::default();
-        let mut inherent_impls: HashMap<Ident, (surface::DetachedInherentImpl, Option<DefId>)> =
-            HashMap::default();
+        let mut inherent_impls: HashMap<Ident, InherentImplInfo> = HashMap::default();
         let mut trait_impls = HashMap::default();
         for item in detached_specs.items {
             match item.kind {
                 surface::ItemKind::InherentImpl(detached_impl) => {
                     if let Some(existing) = inherent_impls.get_mut(&item.ident) {
-                        existing.0.extend(detached_impl);
+                        existing.inherent_impl.extend(detached_impl);
                     } else {
-                        inherent_impls.insert(item.ident, (detached_impl, None));
+                        let info = InherentImplInfo {
+                            inherent_impl: detached_impl,
+                            self_ty: IdentRes::Unknown,
+                        };
+                        inherent_impls.insert(item.ident, info);
                     }
                 }
                 surface::ItemKind::TraitImpl(detached_impl) => {
                     let key = (ImplKey(item.ident.name), detached_impl.trait_.name);
                     let span = item.ident.span;
+                    let info = TraitImplInfo {
+                        trait_impl: detached_impl,
+                        trait_id: IdentRes::Unknown,
+                        self_ty: IdentRes::Unknown,
+                        span,
+                    };
                     if let std::collections::hash_map::Entry::Vacant(e) = trait_impls.entry(key) {
-                        e.insert((detached_impl, None, span));
+                        e.insert(info);
                     } else {
                         return Err(collector.errors.emit(errors::AttrMapErr {
                             span,
@@ -60,7 +106,7 @@ impl DetachedItems {
                     }
                 }
                 _ => {
-                    items.insert(item.ident, (item, None));
+                    items.insert(item.ident, ItemInfo { item, def_id: IdentRes::Unknown });
                 }
             }
         }
@@ -82,7 +128,7 @@ impl DetachedItems {
                         let impl_key =
                             ImplKey::new(poly_trait_ref.instantiate_identity().self_ty());
                         if let Some(val) = self.trait_impls.get_mut(&(impl_key, trait_symbol)) {
-                            val.1 = Some(*impl_id);
+                            todo!("val.1 = Some(*impl_id)");
                         }
                     }
                 }
@@ -97,7 +143,7 @@ impl DetachedItems {
                 && matches!(kind, DefKind::Struct | DefKind::Enum)
                 && let Some(val) = self.inherent_impls.get_mut(&ident)
             {
-                val.1 = Some(def_id);
+                val.self_ty = IdentRes::DefId(def_id);
             }
         }
     }
@@ -134,8 +180,8 @@ impl DetachedItems {
             let ident = child.ident;
             let Res::Def(exp_kind, def_id) = child.res else { continue };
             let Some(val) = self.items.get_mut(&ident) else { continue };
-            let span = val.0.ident.span;
-            match val.0.kind {
+            let span = val.item.ident.span;
+            match val.item.kind {
                 surface::ItemKind::FnSig(_) => {
                     Self::expect_kind(tcx, collector, def_id, exp_kind, DefKind::Fn, span)?;
                 }
@@ -153,10 +199,10 @@ impl DetachedItems {
                 }
                 _ => continue,
             }
-            if val.1.is_some() {
-                span_bug!(val.0.ident.span, "detached item already resolved {val:?}");
+            if val.def_id.is_known() {
+                span_bug!(span, "detached item already resolved {val:?}");
             } else {
-                val.1 = Some(def_id);
+                val.def_id = IdentRes::DefId(def_id);
             }
         }
         Ok(())
@@ -184,14 +230,14 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
         detached_items.resolve(self.inner, tcx, parent)?;
 
-        for (ident, (item, def_id)) in detached_items.items {
+        for (ident, ItemInfo { item, def_id }) in detached_items.items {
             if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
                 let owner_id = tcx.local_def_id_to_hir_id(def_id).owner;
                 self.collect_item(owner_id, item)?;
             }
         }
-        for (ident, (inherent_impl, def_id)) in detached_items.inherent_impls {
-            if let Some(def_id) = self.unwrap_def_id(ident, def_id)? {
+        for (ident, InherentImplInfo { inherent_impl, self_ty }) in detached_items.inherent_impls {
+            if let Some(def_id) = self.unwrap_def_id(ident, self_ty)? {
                 let assoc_items = tcx
                     .inherent_impls(def_id)
                     .iter()
@@ -199,11 +245,18 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                 self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
             }
         }
-        for ((_, _), (trait_impl, impl_id, span)) in detached_items.trait_impls {
-            if let Some(impl_id) = impl_id {
-                let owner_id = tcx.local_def_id_to_hir_id(impl_id).owner;
-                self.collect_trait_impl(owner_id, trait_impl, span)?;
-            }
+        for ((_, _), info) in detached_items.trait_impls {
+            todo!("collect trait impls: {info:?}");
+            // if let Some(impl_id) = impl_id {
+            //     let owner_id = tcx.local_def_id_to_hir_id(impl_id).owner;
+            //     self.collect_trait_impl(owner_id, trait_impl, span)?;
+            // } else {
+            //     let ident = trait_impl.trait_;
+            //     return Err(self
+            //         .inner
+            //         .errors
+            //         .emit(errors::UnresolvedSpecification::new(ident, "trait implementation")));
+            // }
         }
         Ok(())
     }
@@ -212,12 +265,12 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         clippy::disallowed_methods,
         reason = "this is pre-extern specs so it's fine: https://flux-rs.zulipchat.com/#narrow/channel/486369-verify-std/topic/detached-specs/near/529548357"
     )]
-    fn unwrap_def_id(&mut self, ident: Ident, def_id: Option<DefId>) -> Result<Option<LocalDefId>> {
-        let Some(def_id) = def_id else {
+    fn unwrap_def_id(&mut self, ident: Ident, res: IdentRes) -> Result<Option<LocalDefId>> {
+        let IdentRes::DefId(def_id) = res else {
             return Err(self
                 .inner
                 .errors
-                .emit(errors::UnresolvedIdentifier { span: ident.span, ident }));
+                .emit(errors::UnresolvedSpecification::new(ident, "identifier")));
         };
         Ok(def_id.as_local())
     }
@@ -352,7 +405,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         methods: Vec<Item<FnSpec>>,
         assoc_items: impl Iterator<Item = &'tcx AssocItem>,
     ) -> Result {
-        let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, Span)> = HashMap::default();
+        let mut table: HashMap<Symbol, (surface::FnSpec, IdentRes, Span)> = HashMap::default();
         // 1. make a table of the impl-items
         for item in methods {
             let key = item.ident.name;
@@ -362,16 +415,16 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     message: format!("multiple specs for `{}`", item.ident),
                 }));
             } else {
-                table.insert(item.ident.name, (item.kind, None, item.ident.span));
+                table.insert(item.ident.name, (item.kind, IdentRes::Unknown, item.ident.span));
             }
         }
         // 2. walk over all the assoc-items to resolve names
         for item in assoc_items {
             if let AssocKind::Fn { name, .. } = item.kind
                 && let Some(val) = table.get_mut(&name)
-                && val.1.is_none()
+                && matches!(val.1, IdentRes::Unknown)
             {
-                val.1 = Some(item.def_id);
+                val.1 = IdentRes::DefId(item.def_id);
             }
         }
         // 3. Attach the `fn_sig` to the resolved `DefId`

@@ -7,8 +7,8 @@ driver_invalid_attr =
 driver_invalid_attr_map =
     invalid attribute: {$message}
 
-driver_unresolved_identifier =
-    unresolved identifier `{$ident}`
+driver_unresolved_specification =
+    unresolved {$thing} `{$ident}`
 
 driver_multiple_specifications =
     multiple specifications for `{$name}`

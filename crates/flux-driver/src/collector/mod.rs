@@ -906,11 +906,18 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(driver_unresolved_identifier, code = E0999)]
-    pub(super) struct UnresolvedIdentifier {
+    #[diag(driver_unresolved_specification, code = E0999)]
+    pub(super) struct UnresolvedSpecification {
         #[primary_span]
         pub span: Span,
         pub ident: Ident,
+        pub thing: String,
+    }
+
+    impl UnresolvedSpecification {
+        pub(super) fn new(ident: Ident, thing: &str) -> Self {
+            Self { span: ident.span, ident, thing: thing.to_string() }
+        }
     }
 
     #[derive(Diagnostic)]
