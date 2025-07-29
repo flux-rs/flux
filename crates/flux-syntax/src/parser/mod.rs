@@ -124,8 +124,8 @@ pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::D
 /// ⟨specs⟩ ::= ⟨fn-spec⟩
 ///           | ⟨struct-spec⟩
 ///           | ⟨enum-spec⟩
-///           | mod  <PATH> { ⟨specs⟩ }
-///           | impl <PATH> { ⟨impl-spec⟩ }
+///           | ⟨mod⟩
+///           | ⟨impl⟩
 /// ```
 pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
     let attrs = parse_attrs(cx)?;
@@ -207,7 +207,7 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Item<F
 }
 
 ///```text
-/// ⟨mod⟩ ::= mod Ident { ⟨specs⟩ }
+/// ⟨mod⟩ ::= mod ⟨ident⟩ { ⟨specs⟩ }
 /// ```
 fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Mod)?;
