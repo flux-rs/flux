@@ -27,8 +27,13 @@ echo "Start toolchain: $start_toolchain"
 echo "End toolchain: $end_toolchain"
 echo "Days per iteration: $days_per_iter"
 
-curr_toolchain=$(date -I -d "$start_toolchain + $days_per_iter day")
-while [[ "$curr_toolchain" < "$end_toolchain" || "$curr_toolchain" == "$end_toolchain" ]]; do
+
+curr_toolchain=$start_toolchain
+while true; do
+  curr_toolchain=$(date -I -d "$curr_toolchain + $days_per_iter day")
+  if [[ "$curr_toolchain" > "$end_toolchain" ]]; then
+    curr_toolchain="$end_toolchain"
+  fi
 
   echo "::group::Upgrade to nightly-$curr_toolchain"
   sed -i "s/^channel = \"nightly-[0-9\-]*\"/channel = \"nightly-$curr_toolchain\"/" rust-toolchain.toml
@@ -56,11 +61,7 @@ while [[ "$curr_toolchain" < "$end_toolchain" || "$curr_toolchain" == "$end_tool
   cd ../flux
   echo "::endgroup::"
 
-  # Advance by days_per_iter, but don't overshoot end_toolchain
-  next_toolchain=$(date -I -d "$curr_toolchain + $days_per_iter day")
-  if [[ "$next_toolchain" > "$end_toolchain" ]]; then
-    curr_toolchain="$end_toolchain"
-  else
-    curr_toolchain="$next_toolchain"
+  if [[ "$curr_toolchain" == "$end_toolchain" ]]; then
+    break
   fi
 done
