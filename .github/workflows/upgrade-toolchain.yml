@@ -1,0 +1,122 @@
+name: upgrade-toolchain
+description:
+  Try to update the toolchain by gradual increments. Stops when reaching a day that fails regression
+  tests or when reaching the end toolchain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      end_toolchain:
+        description:
+          "The last toolchain to consider (format: YYYY-MM-DD). If not specified, use the latest
+          available toolchain in rustup"
+        required: false
+        type: string
+      days_per_step:
+        description: "Number of days to increment per iteration (default: 1)"
+        required: false
+        type: number
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    env:
+      prev_toolchain: ""
+      last_toolchain: ""
+      prev_toolchain_hash: ""
+      last_toolchain_hash: ""
+      git_log: ""
+    steps:
+      - name: Checkout flux
+        uses: actions/checkout@v4
+        with:
+          path: flux
+          ref: main
+
+      - name: Checkout vtock
+        uses: actions/checkout@v4
+        with:
+          repository: PLSysSec/tock
+          path: tock
+
+      - name: Checkout rust
+        uses: actions/checkout@v4
+        with:
+          repository: rust-lang/rust
+          path: rust
+          filter: tree:0
+
+      - name: Install Z3
+        uses: cda-tum/setup-z3@v1.6.1
+        with:
+          version: 4.12.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Fixpoint
+        uses: ./flux/.github/actions/install-fixpoint
+
+      - name: Install CVC5
+        uses: ./flux/.github/actions/install-cvc5
+        with:
+          version: 1.2.1
+
+      - name: Run update loop
+        run: |
+          days_per_step="${{ github.event.inputs.days_per_step }}"
+          if [ -z "$days_per_step" ]; then
+            days_per_step=1
+          fi
+          bash flux/.github/scripts/try-upgrade-toolchain.sh "${{ github.event.inputs.end_toolchain }}" "$days_per_step"
+
+      - if: always()
+        run: |
+          last_toolchain=$(grep ^channel flux/rust-toolchain.toml | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
+          prev_toolchain=$(git show HEAD^:flux/rust-toolchain.toml | grep ^channel | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
+
+          echo "prev_toolchain=$prev_toolchain" >> $GITHUB_ENV
+          echo "last_toolchain=$last_toolchain" >> $GITHUB_ENV
+
+      - name: Create Pull Request on success
+        if: success()
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: flux
+          branch: toolchain-${{ env.last_toolchain }}
+          delete-branch: true
+          title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
+          body: Update Rust toolchain to nightly-${{ env.last_toolchain }}
+
+      - name: Get Log for failure
+        if: failure()
+        run: |
+          prev_toolchain_hash=$(curl https://static.rust-lang.org/dist/$prev_toolchain/channel-rust-nightly-git-commit-hash.txt)
+          last_toolchain_hash=$(curl https://static.rust-lang.org/dist/$last_toolchain/channel-rust-nightly-git-commit-hash.txt)
+
+          echo "prev_toolchain_hash=$prev_toolchain_hash" >> $GITHUB_ENV
+          echo "last_toolchain_hash=$last_toolchain_hash" >> $GITHUB_ENV
+
+          cd rust
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "git_log<<$EOF" >> $GITHUB_ENV
+          git log --oneline --ancestry-path $prev_toolchain_hash..$last_toolchain_hash | \
+              sed 's#^#https://github.com/rust-lang/rust/commit/#' >> $GITHUB_ENV
+          echo "$EOF" >> $GITHUB_ENV
+
+      - name: Create Pull Request
+        if: failure()
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: flux
+          branch: toolchain-${{ env.last_toolchain }}
+          delete-branch: true
+          title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
+          body: |
+            Update Rust toolchain to nightly-${{ env.last_toolchain }}
+            Update failed when going from nightly-${{ env.prev_toolchain}} to nightly-${{ env.last_toolchain }}
+
+            Please review the changes from https://github.com/rust-lang/rust/commit/${{ env.prev_toolchain_hash }} up to https://github.com/rust-lang/rust/commit/${{ env.last_toolchain_hash }}
+            <details>
+            <summary>Log for this commit range</summary>
+            ${{ env.git_log }}
+            </details>
