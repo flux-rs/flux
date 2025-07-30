@@ -363,7 +363,7 @@ pub(crate) fn trait_impl_subtyping<'genv, 'tcx>(
         return Ok(None);
     }
 
-    let impl_id = tcx.impl_of_method(impl_method_id).unwrap();
+    let impl_id = tcx.impl_of_assoc(impl_method_id).unwrap();
     let impl_method_args = GenericArg::identity_for_item(genv, impl_method_id)?;
     let trait_method_args = impl_method_args.rebase_onto(&tcx, impl_id, &impl_trait_ref.args);
     let trait_refine_args = RefineArgs::identity_for_item(genv, trait_method_id)?;
@@ -398,7 +398,7 @@ fn find_trait_item(
 ) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
     let tcx = genv.tcx();
     let def_id = def_id.to_def_id();
-    if let Some(impl_id) = tcx.impl_of_method(def_id)
+    if let Some(impl_id) = tcx.impl_of_assoc(def_id)
         && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
     {
         let impl_trait_ref = impl_trait_ref.instantiate_identity();

@@ -121,7 +121,7 @@ fn resolve_call_query<'tcx>(
     callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let trait_id = tcx.trait_of_item(callee_id)?;
+    let trait_id = tcx.trait_of_assoc(callee_id)?;
     let trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
     let (impl_def_id, impl_args) = trait_ref_impl_id(tcx, selcx, param_env, trait_ref)?;
     let impl_args = args.rebase_onto(tcx, trait_id, impl_args);
