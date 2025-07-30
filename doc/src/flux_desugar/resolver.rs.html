@@ -99,11 +99,11 @@
 <a href=#99 id=99 data-nosnippet>99</a>        <span class="kw">for </span>(parent, items) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.specs.flux_items_by_parent {
 <a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">for </span>item <span class="kw">in </span>items {
 <a href=#101 id=101 data-nosnippet>101</a>                <span class="kw">match </span>item {
-<a href=#102 id=102 data-nosnippet>102</a>                    surface::Item::Qualifier(qual) =&gt; {
+<a href=#102 id=102 data-nosnippet>102</a>                    surface::FluxItem::Qualifier(qual) =&gt; {
 <a href=#103 id=103 data-nosnippet>103</a>                        <span class="kw">let </span>def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
 <a href=#104 id=104 data-nosnippet>104</a>                        <span class="self">self</span>.qualifiers.insert(qual.name.name, def_id);
 <a href=#105 id=105 data-nosnippet>105</a>                    }
-<a href=#106 id=106 data-nosnippet>106</a>                    surface::Item::FuncDef(defn) =&gt; {
+<a href=#106 id=106 data-nosnippet>106</a>                    surface::FluxItem::FuncDef(defn) =&gt; {
 <a href=#107 id=107 data-nosnippet>107</a>                        <span class="kw">let </span>parent = parent.def_id.to_def_id();
 <a href=#108 id=108 data-nosnippet>108</a>                        <span class="kw">let </span>def_id = FluxDefId::new(parent, defn.name.name);
 <a href=#109 id=109 data-nosnippet>109</a>                        <span class="kw">let </span>kind = <span class="kw">if </span>defn.body.is_some() {
@@ -113,13 +113,13 @@
 <a href=#113 id=113 data-nosnippet>113</a>                        };
 <a href=#114 id=114 data-nosnippet>114</a>                        <span class="self">self</span>.func_decls.insert(defn.name.name, kind);
 <a href=#115 id=115 data-nosnippet>115</a>                    }
-<a href=#116 id=116 data-nosnippet>116</a>                    surface::Item::PrimOpProp(primop_prop) =&gt; {
+<a href=#116 id=116 data-nosnippet>116</a>                    surface::FluxItem::PrimOpProp(primop_prop) =&gt; {
 <a href=#117 id=117 data-nosnippet>117</a>                        <span class="kw">let </span>name = primop_prop.name.name;
 <a href=#118 id=118 data-nosnippet>118</a>                        <span class="kw">let </span>parent = parent.def_id.to_def_id();
 <a href=#119 id=119 data-nosnippet>119</a>                        <span class="kw">let </span>def_id = FluxDefId::new(parent, name);
 <a href=#120 id=120 data-nosnippet>120</a>                        <span class="self">self</span>.primop_props.insert(name, def_id);
 <a href=#121 id=121 data-nosnippet>121</a>                    }
-<a href=#122 id=122 data-nosnippet>122</a>                    surface::Item::SortDecl(sort_decl) =&gt; {
+<a href=#122 id=122 data-nosnippet>122</a>                    surface::FluxItem::SortDecl(sort_decl) =&gt; {
 <a href=#123 id=123 data-nosnippet>123</a>                        <span class="self">self</span>.sort_decls.insert(
 <a href=#124 id=124 data-nosnippet>124</a>                            sort_decl.name.name,
 <a href=#125 id=125 data-nosnippet>125</a>                            fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
@@ -270,14 +270,14 @@
 <a href=#270 id=270 data-nosnippet>270</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(items) = <span class="self">self</span>.specs.flux_items_by_parent.get(<span class="kw-2">&amp;</span>parent) <span class="kw">else </span>{ <span class="kw">return </span>};
 <a href=#271 id=271 data-nosnippet>271</a>        <span class="kw">for </span>item <span class="kw">in </span>items {
 <a href=#272 id=272 data-nosnippet>272</a>            <span class="kw">match </span>item {
-<a href=#273 id=273 data-nosnippet>273</a>                surface::Item::Qualifier(qual) =&gt; {
+<a href=#273 id=273 data-nosnippet>273</a>                surface::FluxItem::Qualifier(qual) =&gt; {
 <a href=#274 id=274 data-nosnippet>274</a>                    RefinementResolver::resolve_qualifier(<span class="self">self</span>, qual).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
 <a href=#275 id=275 data-nosnippet>275</a>                }
-<a href=#276 id=276 data-nosnippet>276</a>                surface::Item::FuncDef(defn) =&gt; {
+<a href=#276 id=276 data-nosnippet>276</a>                surface::FluxItem::FuncDef(defn) =&gt; {
 <a href=#277 id=277 data-nosnippet>277</a>                    RefinementResolver::resolve_defn(<span class="self">self</span>, defn).collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
 <a href=#278 id=278 data-nosnippet>278</a>                }
-<a href=#279 id=279 data-nosnippet>279</a>                surface::Item::SortDecl(<span class="kw">_</span>) =&gt; {}
-<a href=#280 id=280 data-nosnippet>280</a>                surface::Item::PrimOpProp(primop_prop) =&gt; {
+<a href=#279 id=279 data-nosnippet>279</a>                surface::FluxItem::SortDecl(<span class="kw">_</span>) =&gt; {}
+<a href=#280 id=280 data-nosnippet>280</a>                surface::FluxItem::PrimOpProp(primop_prop) =&gt; {
 <a href=#281 id=281 data-nosnippet>281</a>                    RefinementResolver::resolve_primop_prop(<span class="self">self</span>, primop_prop)
 <a href=#282 id=282 data-nosnippet>282</a>                        .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
 <a href=#283 id=283 data-nosnippet>283</a>                }

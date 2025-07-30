@@ -3646,6 +3646,11 @@ pub fn test_ok(x: char) {
 pub fn test_digit(x: char) {
     assert(x.is_ascii_digit())
 }</code></pre>
+<h2 id="detached-specifications"><a class="header" href="#detached-specifications">Detached Specifications</a></h2>
+<p>Sometimes you may want to write specs for functions etc. but not <em>directly</em> attached to the function
+i.e. as an attribute of the function, for example, because you don't want to modify the original source file.</p>
+<p>You can do this using the "detached" <code>spec</code> as illustrated by the following</p>
+<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/detached00.rs}}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>

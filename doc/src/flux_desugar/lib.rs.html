@@ -311,16 +311,16 @@
 <a href=#311 id=311 data-nosnippet>311</a>            <span class="kw">for </span>item <span class="kw">in </span>items {
 <a href=#312 id=312 data-nosnippet>312</a>                <span class="kw">let </span>def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
 <a href=#313 id=313 data-nosnippet>313</a>                <span class="kw">match </span>item {
-<a href=#314 id=314 data-nosnippet>314</a>                    surface::Item::Qualifier(qual) =&gt; {
+<a href=#314 id=314 data-nosnippet>314</a>                    surface::FluxItem::Qualifier(qual) =&gt; {
 <a href=#315 id=315 data-nosnippet>315</a>                        <span class="self">self</span>.desugar_qualifier(def_id, qual)
 <a href=#316 id=316 data-nosnippet>316</a>                            .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
 <a href=#317 id=317 data-nosnippet>317</a>                    }
-<a href=#318 id=318 data-nosnippet>318</a>                    surface::Item::FuncDef(defn) =&gt; {
+<a href=#318 id=318 data-nosnippet>318</a>                    surface::FluxItem::FuncDef(defn) =&gt; {
 <a href=#319 id=319 data-nosnippet>319</a>                        <span class="self">self</span>.desugar_func_defn(def_id, defn)
 <a href=#320 id=320 data-nosnippet>320</a>                            .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
 <a href=#321 id=321 data-nosnippet>321</a>                    }
-<a href=#322 id=322 data-nosnippet>322</a>                    surface::Item::SortDecl(<span class="kw">_</span>) =&gt; {}
-<a href=#323 id=323 data-nosnippet>323</a>                    surface::Item::PrimOpProp(primop_prop) =&gt; {
+<a href=#322 id=322 data-nosnippet>322</a>                    surface::FluxItem::SortDecl(<span class="kw">_</span>) =&gt; {}
+<a href=#323 id=323 data-nosnippet>323</a>                    surface::FluxItem::PrimOpProp(primop_prop) =&gt; {
 <a href=#324 id=324 data-nosnippet>324</a>                        <span class="self">self</span>.desugar_primop_prop(def_id, primop_prop)
 <a href=#325 id=325 data-nosnippet>325</a>                            .collect_err(<span class="kw-2">&amp;mut </span><span class="self">self</span>.err);
 <a href=#326 id=326 data-nosnippet>326</a>                    }

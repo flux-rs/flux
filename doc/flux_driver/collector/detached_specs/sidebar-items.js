@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["item_def_kind","path_to_symbol"],"struct":["DetachedSpecsCollector","ImplKey","ScopeResolver","TraitImplKey","TraitImplResolver"],"type":["Result"]};
