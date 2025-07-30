@@ -109,7 +109,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           path: flux
-          branch: toolchain-${{ env.last_toolchain }}
+          branch: toolchain-upgrade
           delete-branch: true
           title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
           body: |
@@ -119,5 +119,7 @@ jobs:
             Please review the changes from https://github.com/rust-lang/rust/commit/${{ env.prev_toolchain_hash }} up to https://github.com/rust-lang/rust/commit/${{ env.last_toolchain_hash }}
             <details>
             <summary>Log for this commit range</summary>
+
             ${{ env.git_log }}
+
             </details>
