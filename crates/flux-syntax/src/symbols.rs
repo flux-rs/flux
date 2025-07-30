@@ -14,6 +14,10 @@ symbols! {
         Qualifier: "qualifier",
         Sort: "sort",
         Strg: "strg",
+        Trusted: "trusted",
+        Reft: "reft",
+        Invariant: "invariant",
+        RefinedBy: "refined_by",
     }
 
     Symbols {

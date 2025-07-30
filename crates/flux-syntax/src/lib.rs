@@ -8,13 +8,12 @@ pub mod lexer;
 mod parser;
 pub mod surface;
 pub mod symbols;
-
 use lexer::{Cursor, TokenKind};
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
 use surface::NodeId;
 
-use crate::parser::lookahead::Expected;
+use crate::{lexer::token, parser::lookahead::Expected};
 
 #[derive(Default)]
 pub struct ParseSess {
@@ -47,7 +46,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::FnSig> {
-        parser::parse_fn_sig(&mut self.cx(tokens, span))
+        parser::parse_fn_sig(&mut self.cx(tokens, span), token::Eof)
     }
 
     pub fn parse_trait_assoc_reft(
@@ -86,7 +85,7 @@ impl ParseSess {
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<Vec<surface::Item>> {
+    ) -> ParseResult<Vec<surface::FluxItem>> {
         parser::parse_flux_items(&mut self.cx(tokens, span))
     }
 
@@ -99,7 +98,7 @@ impl ParseSess {
         tokens: &TokenStream,
         span: Span,
     ) -> ParseResult<surface::VariantDef> {
-        parser::parse_variant(&mut self.cx(tokens, span))
+        parser::parse_variant(&mut self.cx(tokens, span), false)
     }
 
     pub fn parse_expr(&mut self, tokens: &TokenStream, span: Span) -> ParseResult<surface::Expr> {
@@ -127,6 +126,14 @@ impl ParseSess {
         let id = NodeId(self.next_node_id);
         self.next_node_id += 1;
         id
+    }
+
+    pub fn parse_detached_specs(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<surface::DetachedSpecs> {
+        parser::parse_detached_specs(&mut self.cx(tokens, span))
     }
 }
 
@@ -198,4 +205,5 @@ pub enum ParseErrorKind {
     CannotBeChained,
     InvalidBinding,
     InvalidSort,
+    InvalidDetachedSpec,
 }

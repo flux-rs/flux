@@ -1,5 +1,4 @@
 pub mod visit;
-
 use std::{borrow::Cow, fmt, ops::Range};
 
 pub use rustc_ast::{
@@ -28,20 +27,20 @@ pub struct SortDecl {
 }
 
 #[derive(Debug)]
-pub enum Item {
+pub enum FluxItem {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
     PrimOpProp(PrimOpProp),
 }
 
-impl Item {
+impl FluxItem {
     pub fn name(&self) -> Ident {
         match self {
-            Item::Qualifier(qualifier) => qualifier.name,
-            Item::FuncDef(spec_func) => spec_func.name,
-            Item::SortDecl(sort_decl) => sort_decl.name,
-            Item::PrimOpProp(primop_prop) => primop_prop.name,
+            FluxItem::Qualifier(qualifier) => qualifier.name,
+            FluxItem::FuncDef(spec_func) => spec_func.name,
+            FluxItem::SortDecl(sort_decl) => sort_decl.name,
+            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
         }
     }
 }
@@ -111,6 +110,52 @@ pub struct TyAlias {
 }
 
 #[derive(Debug)]
+pub struct DetachedSpecs {
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug)]
+pub struct DetachedTraitImpl {
+    pub trait_: ExprPath,
+    pub items: Vec<Item<FnSpec>>,
+    pub refts: Vec<ImplAssocReft>,
+}
+
+#[derive(Debug)]
+pub struct DetachedTrait {
+    pub items: Vec<Item<FnSpec>>,
+    pub refts: Vec<TraitAssocReft>,
+}
+
+#[derive(Debug)]
+pub struct DetachedInherentImpl {
+    pub items: Vec<Item<FnSpec>>,
+}
+
+impl DetachedInherentImpl {
+    pub fn extend(&mut self, other: DetachedInherentImpl) {
+        self.items.extend(other.items);
+    }
+}
+
+#[derive(Debug)]
+pub struct Item<K = ItemKind> {
+    pub path: ExprPath,
+    pub kind: K,
+}
+
+#[derive(Debug)]
+pub enum ItemKind {
+    FnSig(FnSpec),
+    Mod(DetachedSpecs),
+    Struct(StructDef),
+    Enum(EnumDef),
+    InherentImpl(DetachedInherentImpl),
+    TraitImpl(DetachedTraitImpl),
+    Trait(DetachedTrait),
+}
+
+#[derive(Debug)]
 pub struct ConstantInfo {
     pub expr: Option<Expr>,
 }
@@ -129,6 +174,14 @@ impl StructDef {
     pub fn needs_resolving(&self) -> bool {
         self.fields.iter().any(Option::is_some)
     }
+
+    /// Is a non-trivial StructDef
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.opaque
+            || self.fields.iter().any(Option::is_some)
+    }
 }
 
 #[derive(Debug)]
@@ -145,10 +198,18 @@ impl EnumDef {
     pub fn needs_resolving(&self) -> bool {
         self.variants.iter().any(Option::is_some)
     }
+
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.reflected
+            || self.variants.iter().any(Option::is_some)
+    }
 }
 
 #[derive(Debug)]
 pub struct VariantDef {
+    pub ident: Option<Ident>,
     pub fields: Vec<Ty>,
     pub ret: Option<VariantRet>,
     pub node_id: NodeId,
@@ -225,6 +286,12 @@ pub struct Impl {
     pub assoc_refinements: Vec<ImplAssocReft>,
 }
 
+impl Impl {
+    pub fn is_nontrivial(&self) -> bool {
+        self.generics.is_some() || !self.assoc_refinements.is_empty()
+    }
+}
+
 #[derive(Debug)]
 pub struct ImplAssocReft {
     pub name: Ident,
@@ -234,11 +301,17 @@ pub struct ImplAssocReft {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Trait {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<TraitAssocReft>,
 }
 
+impl Trait {
+    pub fn is_nontrivial(&self) -> bool {
+        self.generics.is_some() || !self.assoc_refinements.is_empty()
+    }
+}
 #[derive(Debug)]
 pub struct TraitAssocReft {
     pub name: Ident,
@@ -254,6 +327,7 @@ pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
     pub reveal_names: Option<RevealNames>,
+    pub trusted: bool,
 }
 
 #[derive(Debug)]
@@ -460,6 +534,48 @@ pub enum RefineArg {
 pub enum BindKind {
     At,
     Pound,
+}
+
+#[derive(Debug)]
+pub enum Attr {
+    /// A `#[trusted]` attribute
+    Trusted,
+    /// A `#[hide]` attribute
+    Hide,
+    /// A `#[reft]` attribute
+    Reft,
+    /// A `#[invariant]` attribute
+    Invariant(Expr),
+    /// A `#[refined_by]` attribute
+    RefinedBy(RefineParams),
+}
+
+pub struct Attrs(pub Vec<Attr>);
+
+impl Attrs {
+    pub fn is_reft(&self) -> bool {
+        self.0.iter().any(|attr| matches!(attr, Attr::Reft))
+    }
+
+    pub fn is_trusted(&self) -> bool {
+        self.0.iter().any(|attr| matches!(attr, Attr::Trusted))
+    }
+
+    pub fn refined_by(&mut self) -> Option<RefineParams> {
+        let pos = self
+            .0
+            .iter()
+            .position(|x| matches!(x, Attr::RefinedBy(_)))?;
+        if let Attr::RefinedBy(params) = self.0.remove(pos) { Some(params) } else { None }
+    }
+
+    pub fn invariant(&mut self) -> Option<Expr> {
+        let pos = self
+            .0
+            .iter()
+            .position(|x| matches!(x, Attr::Invariant(_)))?;
+        if let Attr::Invariant(exp) = self.0.remove(pos) { Some(exp) } else { None }
+    }
 }
 
 #[derive(Debug)]
