@@ -71,8 +71,9 @@ jobs:
 
       - if: always()
         run: |
-          last_toolchain=$(grep ^channel flux/rust-toolchain.toml | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
-          prev_toolchain=$(git show HEAD^:flux/rust-toolchain.toml | grep ^channel | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
+          cd flux
+          last_toolchain=$(grep ^channel rust-toolchain.toml | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
+          prev_toolchain=$(git show HEAD^:rust-toolchain.toml | grep ^channel | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
 
           echo "prev_toolchain=$prev_toolchain" >> $GITHUB_ENV
           echo "last_toolchain=$last_toolchain" >> $GITHUB_ENV
