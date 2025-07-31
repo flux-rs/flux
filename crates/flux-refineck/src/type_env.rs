@@ -2,7 +2,11 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
+use flux_common::{
+    bug,
+    dbg::{SpanTrace, debug_assert_eq3},
+    tracked_span_bug, tracked_span_dbg_assert_eq,
+};
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
