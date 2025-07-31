@@ -4,7 +4,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 pub use toml::Value;
 
-use crate::{PointerWidth, SmtSolver};
+use crate::{OverflowMode, PointerWidth, SmtSolver};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -42,9 +42,10 @@ pub struct Flags {
     /// Translates _monomorphic_ `defs` functions into SMT `define-fun` instead of inlining them
     /// away inside `flux`.
     pub smt_define_fun: bool,
-    /// If true checks for over and underflow on arithmetic integer operations, default `false`. When
-    /// set to `false`, it still checks for underflow on unsigned integer subtraction.
-    pub check_overflow: bool,
+    /// If `strict` checks for over and underflow on arithmetic integer operations,
+    /// If `lazy` checks for underflow and loses information if possible overflow,
+    /// If `none` (default), it still checks for underflow on unsigned integer subtraction.
+    pub check_overflow: OverflowMode,
     /// Dump constraints generated for each function (debugging)
     pub dump_constraint: bool,
     /// Saves the checker's trace (debugging)
@@ -84,7 +85,7 @@ impl Default for Flags {
             check_def: String::new(),
             include: None,
             cache: None,
-            check_overflow: false,
+            check_overflow: OverflowMode::default(),
             scrape_quals: false,
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
@@ -115,7 +116,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),
             "catch-bugs" => parse_bool(&mut flags.catch_bugs, value),
             "pointer-width" => parse_pointer_width(&mut flags.pointer_width, value),
-            "check-overflow" => parse_bool(&mut flags.check_overflow, value),
+            "check-overflow" => parse_overflow(&mut flags.check_overflow, value),
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
@@ -228,6 +229,16 @@ fn parse_pointer_width(slot: &mut PointerWidth, v: Option<&str>) -> Result<(), &
             Ok(())
         }
         _ => Err(PointerWidth::ERROR),
+    }
+}
+
+fn parse_overflow(slot: &mut OverflowMode, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(OverflowMode::ERROR),
     }
 }
 

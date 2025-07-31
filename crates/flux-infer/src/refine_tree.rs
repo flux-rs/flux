@@ -5,6 +5,7 @@ use std::{
 };
 
 use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
+use flux_config::OverflowMode;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
@@ -160,11 +161,16 @@ impl Cursor<'_> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn assume_invariants(&mut self, tcx: TyCtxt, ty: &Ty, overflow_checking: bool) {
+    pub(crate) fn assume_invariants(
+        &mut self,
+        tcx: TyCtxt,
+        ty: &Ty,
+        overflow_checking: OverflowMode,
+    ) {
         struct Visitor<'a, 'b, 'tcx> {
             tcx: TyCtxt<'tcx>,
             cursor: &'a mut Cursor<'b>,
-            overflow_checking: bool,
+            overflow_mode: OverflowMode,
         }
         impl TypeVisitor for Visitor<'_, '_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
@@ -180,7 +186,7 @@ impl Cursor<'_> {
                 if let TyKind::Indexed(bty, idx) = ty.kind()
                     && !idx.has_escaping_bvars()
                 {
-                    for invariant in bty.invariants(self.tcx, self.overflow_checking) {
+                    for invariant in bty.invariants(self.tcx, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
                         self.cursor.assume_pred(&invariant);
                     }
@@ -188,7 +194,7 @@ impl Cursor<'_> {
                 ty.super_visit_with(self)
             }
         }
-        let _ = ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_checking });
+        let _ = ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_mode: overflow_checking });
     }
 }
 

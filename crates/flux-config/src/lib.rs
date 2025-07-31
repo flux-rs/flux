@@ -65,7 +65,7 @@ pub fn cache_path() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
 }
 
-fn check_overflow() -> bool {
+fn check_overflow() -> OverflowMode {
     FLAGS.check_overflow
 }
 
@@ -107,6 +107,53 @@ pub fn verify() -> bool {
 
 pub fn full_compilation() -> bool {
     FLAGS.full_compilation
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(try_from = "String")]
+pub enum OverflowMode {
+    /// No overflow checking
+    #[default]
+    None,
+    /// Lose all information unless values are known to be in valid range
+    Lazy,
+    /// Check values are always in valid range
+    Strict,
+}
+
+impl OverflowMode {
+    const ERROR: &'static str = "expected one of `none`, `lazy`, or `strict`";
+}
+impl FromStr for OverflowMode {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        match s.as_str() {
+            "none" => Ok(OverflowMode::None),
+            "lazy" => Ok(OverflowMode::Lazy),
+            "strict" => Ok(OverflowMode::Strict),
+            _ => Err(Self::ERROR),
+        }
+    }
+}
+
+impl TryFrom<String> for OverflowMode {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for OverflowMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OverflowMode::None => write!(f, "none"),
+            OverflowMode::Lazy => write!(f, "lazy"),
+            OverflowMode::Strict => write!(f, "strict"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
@@ -156,7 +203,7 @@ impl fmt::Display for SmtSolver {
 pub struct InferOpts {
     /// Enable overflow checking. This affects the signature of primitive operations and the
     /// invariants assumed for primitive types.
-    pub check_overflow: bool,
+    pub check_overflow: OverflowMode,
     /// Whether qualifiers should be scraped from the constraint.
     pub scrape_quals: bool,
     pub solver: SmtSolver,
@@ -179,7 +226,7 @@ impl From<PartialInferOpts> for InferOpts {
 
 #[derive(Clone, Copy, Default, Deserialize, Debug)]
 pub struct PartialInferOpts {
-    pub check_overflow: Option<bool>,
+    pub check_overflow: Option<OverflowMode>,
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
     pub allow_uninterpreted_cast: Option<bool>,
