@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
-use flux_config::{self as config, InferOpts};
+use flux_config::{self as config, InferOpts, OverflowMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
     FixpointQueryKind,
@@ -242,7 +242,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
-    pub check_overflow: bool,
+    pub check_overflow: OverflowMode,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }

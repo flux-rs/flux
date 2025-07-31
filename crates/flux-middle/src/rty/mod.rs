@@ -25,6 +25,7 @@ pub use expr::{
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
+use flux_config::OverflowMode;
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
@@ -1850,13 +1851,13 @@ impl BaseTy {
     pub fn invariants(
         &self,
         tcx: TyCtxt,
-        overflow_checking: bool,
+        overflow_mode: OverflowMode,
     ) -> impl Iterator<Item = Invariant> {
         let (invariants, args) = match self {
             BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder(), &args[..]),
-            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_checking), &[][..]),
-            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_checking), &[][..]),
-            BaseTy::Slice(_) => (slice_invariants(overflow_checking), &[][..]),
+            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode), &[][..]),
+            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode), &[][..]),
+            BaseTy::Slice(_) => (slice_invariants(overflow_mode), &[][..]),
             _ => (&[][..], &[][..]),
         };
         invariants
@@ -2679,7 +2680,7 @@ impl TyKind {
 }
 
 /// returns the same invariants as for `usize` which is the length of a slice
-fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
+fn slice_invariants(overflow_mode: OverflowMode) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
@@ -2696,10 +2697,14 @@ fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
             },
         ]
     });
-    if overflow_checking { &*OVERFLOW } else { &*DEFAULT }
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+        &*OVERFLOW
+    } else {
+        &*DEFAULT
+    }
 }
 
-fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
+fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
@@ -2723,10 +2728,14 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             })
             .collect()
     });
-    if overflow_checking { &OVERFLOW[&uint_ty] } else { &*DEFAULT }
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+        &OVERFLOW[&uint_ty]
+    } else {
+        &*DEFAULT
+    }
 }
 
-fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant] {
+fn int_invariants(int_ty: IntTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
     static DEFAULT: [Invariant; 0] = [];
 
     static OVERFLOW: LazyLock<UnordMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
@@ -2751,7 +2760,11 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             })
             .collect()
     });
-    if overflow_checking { &OVERFLOW[&int_ty] } else { &DEFAULT }
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
+        &OVERFLOW[&int_ty]
+    } else {
+        &DEFAULT
+    }
 }
 
 impl_internable!(AdtDefData, AdtSortDefData, TyKind);

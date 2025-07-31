@@ -1,5 +1,5 @@
 // configure check for the entire thing
-#![cfg_attr(flux, flux::opts(check_overflow = true))]
+#![cfg_attr(flux, flux::opts(check_overflow = "strict"))]
 
 const MAX: u32 = std::u32::MAX;
 
@@ -8,7 +8,7 @@ fn add(x: u32, y: u32) -> u32 {
     x + y
 }
 
-#[flux::opts(check_overflow = false)]
+#[flux::opts(check_overflow = "none")]
 fn add_more(x: u32, y: u32, z: u32) -> u32 {
     x + y + z
 }

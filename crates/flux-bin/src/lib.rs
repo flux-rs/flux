@@ -1,5 +1,5 @@
 use cargo_metadata::camino::Utf8Path;
-use flux_config::SmtSolver;
+use flux_config::{OverflowMode, SmtSolver};
 use serde::Deserialize;
 
 pub mod utils;
@@ -15,7 +15,7 @@ pub struct FluxMetadata {
     /// Enable qualifier scrapping in fixpoint
     pub scrape_quals: Option<bool>,
     /// Enable overflow checking
-    pub check_overflow: Option<bool>,
+    pub check_overflow: Option<OverflowMode>,
     /// Enable uninterpreted casts
     pub allow_uninterpreted_cast: Option<bool>,
     /// Enable flux-defs to be defined as SMT functions
