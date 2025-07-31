@@ -79,7 +79,6 @@ impl FluxCallbacks {
 fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
     tracing::info_span!("check_crate").in_scope(move || {
         tracing::info!("Callbacks::check_wf");
-        println!("TRACE: callbacks::check_crate");
         // Query qualifiers and spec funcs to report wf errors
         let _ = genv.qualifiers().emit(&genv)?;
         let _ = genv.normalized_defns(LOCAL_CRATE);

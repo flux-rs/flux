@@ -156,7 +156,6 @@ pub use crate::_shape_goto_exit as shape_goto_exit;
 #[macro_export]
 macro_rules! _detached_link {
     ($tcx:expr, $src_span:expr, $dst_span:expr) => {{
-       // println!("TRACE: bing-bong detached link src = {:?}, dst = {:?}", $src_span, $dst_span);
        let src_json = SpanTrace::new($tcx, $src_span);
        let dst_json = SpanTrace::new($tcx, $dst_span);
        tracing::info!(event = "detached_link", src_span = ?src_json, dst_span = ?dst_json)

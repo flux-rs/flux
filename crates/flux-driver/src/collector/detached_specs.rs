@@ -375,6 +375,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     .emit(errors::UnresolvedSpecification::new(&path, "identifier")));
             };
             if let Some(def_id) = self.unwrap_def_id(&def_id)? {
+                dbg::detached_link!(self.inner.tcx, path.span, self.inner.tcx.def_span(def_id));
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
                 self.collect_fn_spec(owner_id, fn_spec)?;
             }
