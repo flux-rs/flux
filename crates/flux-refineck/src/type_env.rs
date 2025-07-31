@@ -916,7 +916,7 @@ fn loc_span(
     if let Loc::Local(local) = loc {
         return local_decls
             .get(*local)
-            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
+            .map(|local_decl| SpanTrace::new(genv.tcx(), local_decl.source_info.span));
     }
     None
 }
@@ -969,8 +969,7 @@ impl SpanTrace {
             None
         }
     }
-    pub fn new(genv: GlobalEnv, span: Span) -> Self {
-        let tcx = genv.tcx();
+    pub fn new(tcx: TyCtxt, span: Span) -> Self {
         let sm = tcx.sess.source_map();
         let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
         let file = SpanTrace::span_file(tcx, span);

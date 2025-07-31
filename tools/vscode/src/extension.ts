@@ -255,7 +255,7 @@ class InfoProvider {
 
   public async loadFluxInfo() {
     try {
-      const lineInfos = await readFluxCheckerTrace();
+      const [detachedLinks, lineInfos] = await readFluxCheckerTrace();
       lineInfos.forEach((lineInfo, fileName) => {
         this.updateInfo(fileName, lineInfo);
       });
@@ -880,12 +880,12 @@ async function readEventsStreaming(logPath: string): Promise<any[]> {
   return events;
 }
 
-async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
+async function readFluxCheckerTrace(): Promise<[ Array<DetachedLink>, Map<string, LineInfo[]> ] > {
   try {
     // Get the workspace folder
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      return new Map();
+      return [ new Array(), new Map() ];
     }
 
     // Read the file using VS Code's file system API
@@ -893,10 +893,11 @@ async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
     const logPath = path.join(workspacePath, checkerPath);
     const events = await readEventsStreaming(logPath);
     const data = parseEvents(events);
-    return data;
+    const links = parseDetachedLinkEvents(events);
+    return [ links, data ];
   } catch (error) {
     // vscode.window.showErrorMessage(`Failed to read line info: ${error}`);
-    return new Map();
+    return [ new Array(), new Map() ];
   }
 }
 
@@ -982,6 +983,24 @@ function parseEvent(event: any): [string, LineInfo] | undefined {
     console.log(`Failed to parse event: ${error}`);
   }
   return undefined;
+}
+
+type DetachedLink = {src_span: StmtSpan, dst_span: StmtSpan};
+
+function parseDetachedLinkEvents(events: any[]): Array<DetachedLink> {
+  return events
+    .filter(event => event.fields && event.fields.event === "detached_link")
+    .map(event => {
+      try {
+        const src_span = JSON.parse(event.fields.src_span) as StmtSpan;
+        const dst_span = JSON.parse(event.fields.dst_span) as StmtSpan;
+        return { src_span, dst_span };
+      } catch (error) {
+        console.log(`Failed to parse detached_link event: ${error}`);
+        return null;
+      }
+    })
+    .filter(result => result !== null) as Array<{src_span: StmtSpan, dst_span: StmtSpan}>;
 }
 
 function parseEvents(events: any[]): Map<string, LineInfo[]> {

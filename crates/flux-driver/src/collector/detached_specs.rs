@@ -1,5 +1,6 @@
 use std::collections::{HashMap, hash_map::Entry};
 
+use flux_common::dbg::{self, SpanTrace};
 use flux_middle::fhir::Trusted;
 use flux_syntax::surface::{self, ExprPath, FnSpec, Item, NodeId, Span};
 use itertools::Itertools;
@@ -192,7 +193,9 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     fn attach(&mut self, item: surface::Item) -> Result {
         let def_id = self.lookup(&item)?;
         let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-        let span = item.path.span;
+        let span = item.span();
+        let dst_span = self.inner.tcx.def_span(def_id);
+        dbg::detached_link!(self.inner.tcx, span, dst_span);
         match item.kind {
             surface::ItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
             surface::ItemKind::Struct(struct_def) => {

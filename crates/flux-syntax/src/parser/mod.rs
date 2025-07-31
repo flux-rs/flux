@@ -251,7 +251,10 @@ fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<Item> {
 /// ⟨impl-spec⟩ ::= impl Ident (for Ident)? { ⟨#[assoc] impl_assoc_reft⟩* ⟨fn-spec⟩* }
 /// ```
 fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
+    let lo = cx.lo();
     cx.expect(kw::Impl)?;
+    let hi = cx.hi();
+    let span = cx.mk_span(lo, hi);
     let outer_path = parse_expr_path(cx)?;
     let _generics = parse_opt_generics(cx)?;
     let inner_path = if cx.advance_if(kw::For) {
@@ -278,10 +281,10 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
     if let Some(path) = inner_path {
         Ok(Item {
             path,
-            kind: ItemKind::TraitImpl(DetachedTraitImpl { trait_: outer_path, items, refts }),
+            kind: ItemKind::TraitImpl(DetachedTraitImpl { trait_: outer_path, items, refts, span }),
         })
     } else {
-        Ok(Item { path: outer_path, kind: ItemKind::InherentImpl(DetachedInherentImpl { items }) })
+        Ok(Item { path: outer_path, kind: ItemKind::InherentImpl(DetachedInherentImpl { items, span }) })
     }
 }
 
