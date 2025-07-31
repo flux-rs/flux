@@ -3489,12 +3489,12 @@ fn test00() {
 <pre><code class="language-rust noplayground">const MAX: u32 = std::u32::MAX;
 
 // Error on this as it may overflow
-#[flux::opts(check_overflow = true)]
+#[flux::opts(check_overflow = "strict")]
 #[flux::sig(fn (u32[@x], u32[@y], u32[@z]) -&gt; u32[x + y + z] requires x + y + z &lt;= MAX)]
 fn add_three(x: u32, y: u32, z: u32) -&gt; u32 {
     x + y + z
 }</code></pre>
-<pre><code class="language-rust noplayground">#[flux::opts(check_overflow = true)]
+<pre><code class="language-rust noplayground">#[flux::opts(check_overflow = "strict")]
 mod my_mod {
     const MAX: u32 = std::u32::MAX;
 
@@ -3522,7 +3522,7 @@ impl MyStruct {
     }
 
     // Error as this may overflow
-    #[flux::opts(check_overflow = true)]
+    #[flux::opts(check_overflow = "strict")]
     #[flux::sig(fn (&amp;MyStruct[@inner]) -&gt; u32[inner + 2] requires inner + 2 &lt;= MAX)]
     fn add2(&amp;self) -&gt; u32 {
         self.inner + 2
@@ -3534,7 +3534,7 @@ struct MyStruct {
     inner: u32,
 }
 
-#[flux::opts(check_overflow = true)]
+#[flux::opts(check_overflow = "strict")]
 trait MyTrait {
     #[flux::sig(fn(u32[@x], { u32[@y] | x + y &lt;= MAX }) -&gt; u32[x + y] )]
     fn add(x: u32, y: u32) -&gt; u32;

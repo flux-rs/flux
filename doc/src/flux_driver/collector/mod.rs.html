@@ -11,7 +11,7 @@
 <a href=#11 id=11 data-nosnippet>11</a>    result::{ErrorCollector, ResultExt},
 <a href=#12 id=12 data-nosnippet>12</a>    tracked_span_assert_eq,
 <a href=#13 id=13 data-nosnippet>13</a>};
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, PartialInferOpts, SmtSolver};
+<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>flux_config::{<span class="self">self </span><span class="kw">as </span>config, OverflowMode, PartialInferOpts, SmtSolver};
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>flux_errors::{Errors, FluxSession};
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>flux_middle::{
 <a href=#17 id=17 data-nosnippet>17</a>    Specs,
@@ -845,7 +845,7 @@
 <a href=#845 id=845 data-nosnippet>845</a>    <span class="kw">fn </span>try_into_infer_opts(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; AttrMapErr&lt;PartialInferOpts&gt; {
 <a href=#846 id=846 data-nosnippet>846</a>        <span class="kw">let </span><span class="kw-2">mut </span>infer_opts = PartialInferOpts::default();
 <a href=#847 id=847 data-nosnippet>847</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, allow_uninterpreted_cast, bool, infer_opts);
-<a href=#848 id=848 data-nosnippet>848</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, check_overflow, bool, infer_opts);
+<a href=#848 id=848 data-nosnippet>848</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, check_overflow, OverflowMode, infer_opts);
 <a href=#849 id=849 data-nosnippet>849</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, scrape_quals, bool, infer_opts);
 <a href=#850 id=850 data-nosnippet>850</a>        <span class="macro">try_read_setting!</span>(<span class="self">self</span>, solver, SmtSolver, infer_opts);
 <a href=#851 id=851 data-nosnippet>851</a>
