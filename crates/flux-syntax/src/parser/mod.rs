@@ -289,6 +289,10 @@ fn parse_attr(cx: &mut ParseCtxt) -> ParseResult<Attr> {
     cx.expect(token::Pound)?;
     cx.expect(token::OpenBracket)?;
     let attr = if cx.advance_if(kw::Trusted) {
+        if cx.advance_if(token::OpenParen) {
+            parse_reason(cx)?;
+            cx.expect(token::CloseParen)?;
+        }
         Attr::Trusted
     } else if cx.advance_if(sym::hide) {
         Attr::Hide
