@@ -946,33 +946,3 @@ impl TypeEnvTrace {
         TypeEnvTrace(bindings)
     }
 }
-
-#[derive(Serialize, DebugAsJson)]
-pub struct SpanTrace {
-    file: Option<String>,
-    start_line: usize,
-    start_col: usize,
-    end_line: usize,
-    end_col: usize,
-}
-
-impl SpanTrace {
-    fn span_file(tcx: TyCtxt, span: Span) -> Option<String> {
-        let sm = tcx.sess.source_map();
-        let current_dir = &tcx.sess.opts.working_dir;
-        let current_dir = current_dir.local_path()?;
-        if let rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
-            let file_path = file_name.local_path()?;
-            let full_path = current_dir.join(file_path);
-            Some(full_path.display().to_string())
-        } else {
-            None
-        }
-    }
-    pub fn new(tcx: TyCtxt, span: Span) -> Self {
-        let sm = tcx.sess.source_map();
-        let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
-        let file = SpanTrace::span_file(tcx, span);
-        SpanTrace { file, start_line, start_col, end_line, end_col }
-    }
-}

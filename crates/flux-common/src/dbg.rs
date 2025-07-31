@@ -3,12 +3,13 @@ use std::{
     fmt, fs,
     io::{self, Write},
 };
-use rustc_span::Span;
-use serde::Serialize;
+
 use flux_config as config;
+use flux_macros::DebugAsJson;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
-use flux_macros::DebugAsJson;
+use rustc_span::Span;
+use serde::Serialize;
 
 #[derive(Serialize, DebugAsJson)]
 pub struct SpanTrace {
@@ -39,8 +40,6 @@ impl SpanTrace {
         SpanTrace { file, start_line, start_col, end_line, end_col }
     }
 }
-
-
 
 pub fn writer_for_item(
     tcx: TyCtxt,

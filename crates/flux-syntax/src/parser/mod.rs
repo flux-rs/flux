@@ -284,7 +284,10 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
             kind: ItemKind::TraitImpl(DetachedTraitImpl { trait_: outer_path, items, refts, span }),
         })
     } else {
-        Ok(Item { path: outer_path, kind: ItemKind::InherentImpl(DetachedInherentImpl { items, span }) })
+        Ok(Item {
+            path: outer_path,
+            kind: ItemKind::InherentImpl(DetachedInherentImpl { items, span }),
+        })
     }
 }
 
