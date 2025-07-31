@@ -12,7 +12,7 @@ impl MyStruct {
     }
 
     // Error as this may overflow
-    #[flux::opts(check_overflow = true)]
+    #[flux::opts(check_overflow = "strict")]
     #[flux::sig(fn (&MyStruct[@inner]) -> u32[inner + 2] requires inner + 2 <= MAX)]
     fn add2(&self) -> u32 {
         self.inner + 2

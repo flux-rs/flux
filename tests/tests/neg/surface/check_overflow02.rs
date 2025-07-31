@@ -10,7 +10,7 @@ impl MyStruct {
     }
 
     // Error as this may overflow
-    #[flux::opts(check_overflow = true)]
+    #[flux::opts(check_overflow = "strict")]
     fn add2(&self) -> u32 {
         self.inner + 2 //~ERROR arithmetic operation may overflow
     }
