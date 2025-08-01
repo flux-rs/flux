@@ -2041,11 +2041,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
 fn prim_ty_to_bty(prim_ty: rustc_hir::PrimTy) -> rty::BaseTy {
     match prim_ty {
-        rustc_hir::PrimTy::Int(int_ty) => rty::BaseTy::Int(rustc_middle::ty::int_ty(int_ty)),
-        rustc_hir::PrimTy::Uint(uint_ty) => rty::BaseTy::Uint(rustc_middle::ty::uint_ty(uint_ty)),
-        rustc_hir::PrimTy::Float(float_ty) => {
-            rty::BaseTy::Float(rustc_middle::ty::float_ty(float_ty))
-        }
+        rustc_hir::PrimTy::Int(int_ty) => rty::BaseTy::Int(int_ty),
+        rustc_hir::PrimTy::Uint(uint_ty) => rty::BaseTy::Uint(uint_ty),
+        rustc_hir::PrimTy::Float(float_ty) => rty::BaseTy::Float(float_ty),
         rustc_hir::PrimTy::Str => rty::BaseTy::Str,
         rustc_hir::PrimTy::Bool => rty::BaseTy::Bool,
         rustc_hir::PrimTy::Char => rty::BaseTy::Char,
