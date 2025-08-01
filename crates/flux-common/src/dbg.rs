@@ -5,8 +5,41 @@ use std::{
 };
 
 use flux_config as config;
+use flux_macros::DebugAsJson;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Span;
+use serde::Serialize;
+
+#[derive(Serialize, DebugAsJson)]
+pub struct SpanTrace {
+    file: Option<String>,
+    start_line: usize,
+    start_col: usize,
+    end_line: usize,
+    end_col: usize,
+}
+
+impl SpanTrace {
+    fn span_file(tcx: TyCtxt, span: Span) -> Option<String> {
+        let sm = tcx.sess.source_map();
+        let current_dir = &tcx.sess.opts.working_dir;
+        let current_dir = current_dir.local_path()?;
+        if let rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
+            let file_path = file_name.local_path()?;
+            let full_path = current_dir.join(file_path);
+            Some(full_path.display().to_string())
+        } else {
+            None
+        }
+    }
+    pub fn new(tcx: TyCtxt, span: Span) -> Self {
+        let sm = tcx.sess.source_map();
+        let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
+        let file = SpanTrace::span_file(tcx, span);
+        SpanTrace { file, start_line, start_col, end_line, end_col }
+    }
+}
 
 pub fn writer_for_item(
     tcx: TyCtxt,
@@ -76,7 +109,7 @@ macro_rules! _statement{
             let local_decls = &ck.body.local_decls;
             let rcx_json = RefineCtxtTrace::new(genv, rcx);
             let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
-            let span_json = SpanTrace::new(genv, $span);
+            let span_json = SpanTrace::new(genv.tcx(), $span);
             tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
         }
     }};
@@ -118,6 +151,16 @@ macro_rules! _shape_goto_exit {
     }};
 }
 pub use crate::_shape_goto_exit as shape_goto_exit;
+
+#[macro_export]
+macro_rules! _detached_link {
+    ($tcx:expr, $src_span:expr, $dst_span:expr) => {{
+       let src_json = SpanTrace::new($tcx, $src_span);
+       let dst_json = SpanTrace::new($tcx, $dst_span);
+       tracing::info!(event = "detached_link", src_span = ?src_json, dst_span = ?dst_json)
+    }};
+}
+pub use crate::_detached_link as detached_link;
 
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);

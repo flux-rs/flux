@@ -2,7 +2,11 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
+use flux_common::{
+    bug,
+    dbg::{SpanTrace, debug_assert_eq3},
+    tracked_span_bug, tracked_span_dbg_assert_eq,
+};
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
@@ -916,7 +920,7 @@ fn loc_span(
     if let Loc::Local(local) = loc {
         return local_decls
             .get(*local)
-            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
+            .map(|local_decl| SpanTrace::new(genv.tcx(), local_decl.source_info.span));
     }
     None
 }
@@ -944,36 +948,5 @@ impl TypeEnvTrace {
             });
 
         TypeEnvTrace(bindings)
-    }
-}
-
-#[derive(Serialize, DebugAsJson)]
-pub struct SpanTrace {
-    file: Option<String>,
-    start_line: usize,
-    start_col: usize,
-    end_line: usize,
-    end_col: usize,
-}
-
-impl SpanTrace {
-    fn span_file(tcx: TyCtxt, span: Span) -> Option<String> {
-        let sm = tcx.sess.source_map();
-        let current_dir = &tcx.sess.opts.working_dir;
-        let current_dir = current_dir.local_path()?;
-        if let rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
-            let file_path = file_name.local_path()?;
-            let full_path = current_dir.join(file_path);
-            Some(full_path.display().to_string())
-        } else {
-            None
-        }
-    }
-    pub fn new(genv: GlobalEnv, span: Span) -> Self {
-        let tcx = genv.tcx();
-        let sm = tcx.sess.source_map();
-        let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
-        let file = SpanTrace::span_file(tcx, span);
-        SpanTrace { file, start_line, start_col, end_line, end_col }
     }
 }

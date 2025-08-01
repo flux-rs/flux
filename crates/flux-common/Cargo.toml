@@ -11,6 +11,7 @@ flux-config.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+flux-macros.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true

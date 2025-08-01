@@ -119,6 +119,7 @@ pub struct DetachedTraitImpl {
     pub trait_: ExprPath,
     pub items: Vec<Item<FnSpec>>,
     pub refts: Vec<ImplAssocReft>,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -130,6 +131,7 @@ pub struct DetachedTrait {
 #[derive(Debug)]
 pub struct DetachedInherentImpl {
     pub items: Vec<Item<FnSpec>>,
+    pub span: Span,
 }
 
 impl DetachedInherentImpl {
@@ -142,6 +144,16 @@ impl DetachedInherentImpl {
 pub struct Item<K = ItemKind> {
     pub path: ExprPath,
     pub kind: K,
+}
+
+impl Item<ItemKind> {
+    pub fn span(&self) -> Span {
+        match &self.kind {
+            ItemKind::InherentImpl(impl_) => impl_.span,
+            ItemKind::TraitImpl(trait_impl) => trait_impl.span,
+            _ => self.path.span,
+        }
+    }
 }
 
 #[derive(Debug)]
