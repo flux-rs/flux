@@ -1,4 +1,5 @@
 #![feature(if_let_guard)]
+use globset::{Glob, GlobSet, GlobSetBuilder};
 pub use toml::Value;
 pub mod flags;
 
@@ -12,10 +13,6 @@ use std::{
 
 use flags::FLAGS;
 use serde::Deserialize;
-
-pub fn check_def() -> &'static str {
-    &FLAGS.check_def
-}
 
 pub fn dump_checker_trace() -> bool {
     FLAGS.dump_checker_trace
@@ -57,12 +54,12 @@ pub fn ignore_default() -> bool {
     FLAGS.ignore_default
 }
 
-pub fn is_checked_file(file: &Path) -> bool {
-    if let Some(globset) = &FLAGS.include { globset.is_match(file) } else { true }
-}
-
 pub fn cache_path() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
+}
+
+pub fn include_pattern() -> Option<&'static IncludePattern> {
+    FLAGS.include.as_ref()
 }
 
 fn check_overflow() -> OverflowMode {
@@ -107,6 +104,72 @@ pub fn verify() -> bool {
 
 pub fn full_compilation() -> bool {
     FLAGS.full_compilation
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(try_from = "String")]
+pub enum IncludePattern {
+    /// files matching the glob pattern
+    Glob(GlobSet),
+    /// fn matching the given function name as a substring
+    Fn { fn_name: String },
+    /// fn whose implementation overlaps the file, line
+    Span { file: String, line: usize },
+}
+
+impl IncludePattern {
+    const ERROR: &'static str =
+        "expected one of `glob:<glob pattern>`, `fn:<function name>`, or `span:<file>:<line>`";
+}
+
+impl FromStr for IncludePattern {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+
+        // Is it a `fn`
+        if let Some(suffix) = s.strip_prefix("fn:") {
+            return Ok(IncludePattern::Fn { fn_name: suffix.to_string() });
+        }
+        // Is it a `span`
+        if let Some(suffix) = s.strip_prefix("span:") {
+            let parts: Vec<&str> = suffix.split(':').collect();
+            if parts.len() != 2 {
+                return Err("span format should be 'span:<file>:<line>'");
+            }
+            let file = parts[0].to_string();
+            let line = parts[1]
+                .parse::<usize>()
+                .map_err(|_| "invalid line number")?;
+            return Ok(IncludePattern::Span { file, line });
+        }
+
+        // default to glob pattern
+        let suffix = s.strip_prefix("glob:").unwrap_or(s);
+        let mut builder = GlobSetBuilder::new();
+        builder.add(Glob::new(suffix).map_err(|_| "invalid glob pattern")?);
+        let globset = builder.build().map_err(|_| "failed to build glob set")?;
+        Ok(IncludePattern::Glob(globset))
+    }
+}
+
+impl TryFrom<String> for IncludePattern {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for IncludePattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IncludePattern::Glob(_) => write!(f, "glob:..."),
+            IncludePattern::Fn { fn_name } => write!(f, "fn:{}", fn_name),
+            IncludePattern::Span { file, line } => write!(f, "span:{}:{}", file, line),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]

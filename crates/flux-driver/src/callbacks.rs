@@ -1,10 +1,12 @@
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
-use flux_config as config;
+use flux_config::{self as config, IncludePattern};
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
 use flux_middle::{
-    Specs, fhir,
+    Specs,
+    def_id::MaybeExternId,
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     timings,
@@ -15,6 +17,7 @@ use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
+    ImplItem, ImplItemKind, Item, ItemKind, TraitFn, TraitItem, TraitItemKind,
     def::DefKind,
     def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -148,14 +151,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, cache: QueryCache::load() }
     }
 
-    fn matches_check_def(&self, def_id: DefId) -> bool {
-        let def_path = self.genv.tcx().def_path_str(def_id);
-        def_path.contains(config::check_def())
-    }
-
-    /// Check whether the file where `def_id` is defined is included in the list of glob patterns.
-    /// This function will conservatively return `true` if anything unexpected happens.
-    fn file_is_included(&self, def_id: LocalDefId) -> bool {
+    fn matches_file_path(&self, def_id: MaybeExternId, pattern: &IncludePattern) -> bool {
+        let def_id = def_id.local_id();
         let tcx = self.genv.tcx();
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
@@ -169,7 +166,62 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             file_path = p;
         }
 
-        config::is_checked_file(file_path)
+        match pattern {
+            IncludePattern::Glob(globset) => globset.is_match(file_path),
+            IncludePattern::Span { file, .. } => file_path.ends_with(file),
+            IncludePattern::Fn { .. } => false,
+        }
+    }
+
+    fn matches_line(&self, def_id: MaybeExternId, line: usize) -> bool {
+        let def_id = def_id.local_id();
+        let tcx = self.genv.tcx();
+        let hir_id = tcx.local_def_id_to_hir_id(def_id);
+
+        // Get the body_id from the function
+        let body_id = match tcx.hir_node(hir_id) {
+            rustc_hir::Node::Item(Item { kind: ItemKind::Fn { body, .. }, .. }) => *body,
+            rustc_hir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(_, body), .. }) => *body,
+            rustc_hir::Node::TraitItem(TraitItem {
+                kind: TraitItemKind::Fn(_, TraitFn::Provided(body)),
+                ..
+            }) => *body,
+            _ => return true,
+        };
+
+        // Get the body and its span
+        let body = tcx.hir_body(body_id);
+        let body_span = body.value.span;
+
+        let source_map = tcx.sess.source_map();
+        let start_loc = source_map.lookup_char_pos(body_span.lo());
+        let end_loc = source_map.lookup_char_pos(body_span.hi());
+
+        // is the line in the range of the body?
+        start_loc.line <= line && line <= end_loc.line
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `include` pattern, and conservatively return `true` if
+    /// anything unexpected happens.
+    fn is_this_bloody_thing_included(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::include_pattern() else { return true };
+        match pattern {
+            IncludePattern::Glob(_) => {
+                // Does this def_id's defining file match the glob pattern?
+                self.matches_file_path(def_id, pattern)
+            }
+            IncludePattern::Fn { fn_name } => {
+                // Does this def_id's name contain `fn_name`?
+                let def_id = def_id.local_id();
+                let def_path = self.genv.tcx().def_path_str(def_id);
+                def_path.contains(fn_name)
+            }
+            IncludePattern::Span { line, .. } => {
+                // Does this def_id's file and line match the span?
+                self.matches_file_path(def_id, pattern) && self.matches_line(def_id, *line)
+            }
+        }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -181,13 +233,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let def_id = self.genv.maybe_extern_id(def_id);
 
-        if !self.matches_check_def(def_id.resolved_id()) {
-            return Ok(());
-        }
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
-        if !self.file_is_included(def_id.local_id()) {
+        if !self.is_this_bloody_thing_included(def_id) {
             return Ok(());
         }
 
