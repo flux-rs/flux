@@ -160,8 +160,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let mut file_path = file_name.local_path_if_available();
 
         // If the path is absolute try to normalize it to be relative to the working_dir
+        let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
         if file_path.is_absolute() {
-            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
             let Ok(p) = file_path.strip_prefix(working_dir) else { return true };
             file_path = p;
         }
@@ -169,7 +169,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         match pattern {
             IncludePattern::Glob(globset) => globset.is_match(file_path),
             IncludePattern::Span { file, .. } => file_path.ends_with(file),
-            IncludePattern::Fn { .. } => false,
+            IncludePattern::Fn { .. } => true,
         }
     }
 
@@ -190,21 +190,19 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         };
 
         // Get the body and its span
-        let body = tcx.hir_body(body_id);
-        let body_span = body.value.span;
-
         let source_map = tcx.sess.source_map();
-        let start_loc = source_map.lookup_char_pos(body_span.lo());
-        let end_loc = source_map.lookup_char_pos(body_span.hi());
+        let body_span = tcx.hir_body(body_id).value.span;
+        let start_line = source_map.lookup_char_pos(body_span.lo()).line;
+        let end_line = source_map.lookup_char_pos(body_span.hi()).line;
 
         // is the line in the range of the body?
-        start_loc.line <= line && line <= end_loc.line
+        start_line <= line && line <= end_line
     }
 
     /// Check whether the `def_id` (or the file where `def_id` is defined)
     /// is in the `include` pattern, and conservatively return `true` if
     /// anything unexpected happens.
-    fn is_this_bloody_thing_included(&self, def_id: MaybeExternId) -> bool {
+    fn is_included(&self, def_id: MaybeExternId) -> bool {
         let Some(pattern) = config::include_pattern() else { return true };
         match pattern {
             IncludePattern::Glob(_) => {
@@ -213,8 +211,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
             IncludePattern::Fn { fn_name } => {
                 // Does this def_id's name contain `fn_name`?
-                let def_id = def_id.local_id();
-                let def_path = self.genv.tcx().def_path_str(def_id);
+                let def_path = self.genv.tcx().def_path_str(def_id.local_id());
                 def_path.contains(fn_name)
             }
             IncludePattern::Span { line, .. } => {
@@ -236,7 +233,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
-        if !self.is_this_bloody_thing_included(def_id) {
+        if !self.is_included(def_id) {
             return Ok(());
         }
 
