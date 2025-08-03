@@ -109,17 +109,16 @@ pub fn full_compilation() -> bool {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub enum IncludePattern {
-    /// files matching the glob pattern
+    /// files matching the glob pattern, e.g. `glob:src/**/*.rs`
     Glob(GlobSet),
-    /// fn matching the given function name as a substring
+    /// fn matching the given function name as a substring, e.g. `fn:watermelon`
     Fn { fn_name: String },
-    /// fn whose implementation overlaps the file, line
+    /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13`
     Span { file: String, line: usize },
 }
 
 impl IncludePattern {
-    const ERROR: &'static str =
-        "expected one of `glob:<glob pattern>`, `fn:<function name>`, or `span:<file>:<line>`";
+    const ERROR: &'static str = "expected one of `glob:<glob-pattern>`, `fn:<function-name>`, or `span:<path/to/file.rs>:<line>`";
 }
 
 impl FromStr for IncludePattern {
