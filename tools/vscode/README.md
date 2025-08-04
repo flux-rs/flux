@@ -61,11 +61,6 @@ You can then **enable** the extension by runnning the `Toggle Flux View` command
 
 ## Features
 
-Syntax Highlighting
-
-- For `flux` type signatures
-- For `flux` constraints (generated with `FLUX_DUMP_CONSTRAINT=1` for debugging)
-
 Flux View Panel: shows the types and environments known at each program point
 
 - If your cursor is _at or before_ the first non-blank character of a line, the panel will show the types and environments _before_ that line

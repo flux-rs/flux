@@ -2,7 +2,7 @@
   "name": "flux-checker",
   "displayName": "Flux Refinement Type Checker",
   "description": "VSCode Extension for the Flux Refinement Type Checker for Rust",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "RanjitJhala",
   "repository": {
     "type": "git",
@@ -11,6 +11,7 @@
   "homepage": "https://github.com/flux-rs/flux",
   "bugs": "https://github.com/flux-rs/flux/issues",
   "license": "MIT",
+  "icon": "icon.png",
   "keywords": [
     "rust",
     "refinement types",
