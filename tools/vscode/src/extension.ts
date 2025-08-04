@@ -287,7 +287,7 @@ class InfoProvider {
         return file || "*";
       case "Def":
         if (file) {
-          return `span:${file}:${this.currentLine}`;
+          return `span:${file}:${this.currentLine}:${this.currentColumn}`;
         } else {
           return "*";
         }
