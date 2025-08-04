@@ -19,7 +19,6 @@ use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
-    ImplItem, ImplItemKind, Item, ItemKind, TraitFn, TraitItem, TraitItemKind,
     def::DefKind,
     def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -183,25 +182,11 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let def_id = def_id.local_id();
         let tcx = self.genv.tcx();
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
-        // Get the body_id from the function
-        let body_id = match tcx.hir_node(hir_id) {
-            rustc_hir::Node::Item(Item { kind: ItemKind::Fn { body, .. }, .. }) => *body,
-            rustc_hir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(_, body), .. }) => *body,
-            rustc_hir::Node::TraitItem(TraitItem {
-                kind: TraitItemKind::Fn(_, TraitFn::Provided(body)),
-                ..
-            }) => *body,
-            _ => return true,
-        };
-
-        // Get the body and its span
+        let body_span = tcx.hir_span_with_body(hir_id);
         let source_map = tcx.sess.source_map();
-        let body_span = tcx.hir_body(body_id).value.span;
-
         let lo_pos = source_map.lookup_char_pos(body_span.lo());
         let start_line = lo_pos.line;
         let start_col = lo_pos.col_display;
-
         let hi_pos = source_map.lookup_char_pos(body_span.hi());
         let end_line = hi_pos.line;
         let end_col = hi_pos.col_display;
@@ -220,7 +205,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     /// is in the `include` pattern, and conservatively return `true` if
     /// anything unexpected happens.
     fn is_included(&self, def_id: MaybeExternId) -> bool {
-        println!("def_id: {:?}, span: {:?}", def_id, self.genv.tcx().def_span(def_id));
         let Some(pattern) = config::include_pattern() else { return true };
         if self.matches_file_path(def_id, |path| pattern.glob.is_match(path)) {
             return true;
