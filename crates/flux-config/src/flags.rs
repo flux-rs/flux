@@ -13,8 +13,6 @@ pub const EXIT_FAILURE: i32 = 2;
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
     pub log_dir: PathBuf,
-    // CUT /// Only checks definitions containing `name` as a substring
-    // CUT pub check_def: String,
     /// If present, only check files matching a glob pattern. This flag can be specified multiple
     /// times and a file will be checked if it matches any of the patterns. Patterns are checked
     /// relative to the current working directory. For example, to check all the files in the
