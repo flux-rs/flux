@@ -1,9 +1,23 @@
 {
-  "name": "flux",
-  "displayName": "flux",
-  "description": "VSCode Extension for the Flux Refinement Type Checker",
+  "name": "flux-checker",
+  "displayName": "Flux Refinement Type Checker",
+  "description": "VSCode Extension for the Flux Refinement Type Checker for Rust",
   "version": "0.0.2",
-  "repository": "https://github.com/flux-rs/flux",
+  "publisher": "RanjitJhala",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flux-rs/flux"
+  },
+  "homepage": "https://github.com/flux-rs/flux",
+  "bugs": "https://github.com/flux-rs/flux/issues",
+  "license": "MIT",
+  "keywords": [
+    "rust",
+    "refinement types",
+    "verification",
+    "type checker",
+    "flux"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -50,6 +64,16 @@
         "path": "./syntaxes/flux-keywords.tmLanguage.json"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "fluxView",
+          "name": "Flux Type Checker",
+          "when": "resourceExtname == .rs",
+          "icon": "$(symbol-property)"
+        }
+      ]
+    },
     "configuration": {
       "title": "Flux",
       "properties": {
