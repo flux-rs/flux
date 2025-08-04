@@ -1,5 +1,7 @@
+use std::path::Path;
+
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
-use flux_config::{self as config, IncludePattern};
+use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
@@ -151,7 +153,16 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, cache: QueryCache::load() }
     }
 
-    fn matches_file_path(&self, def_id: MaybeExternId, pattern: &IncludePattern) -> bool {
+    fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
+        // Does this def_id's name contain `fn_name`?
+        let def_path = self.genv.tcx().def_path_str(def_id.local_id());
+        def_path.contains(def)
+    }
+
+    fn matches_file_path<F>(&self, def_id: MaybeExternId, matcher: F) -> bool
+    where
+        F: Fn(&Path) -> bool,
+    {
         let def_id = def_id.local_id();
         let tcx = self.genv.tcx();
         let span = tcx.def_span(def_id);
@@ -166,14 +177,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             file_path = p;
         }
 
-        match pattern {
-            IncludePattern::Glob(globset) => globset.is_match(file_path),
-            IncludePattern::Span { file, .. } => file_path.ends_with(file),
-            IncludePattern::Fn { .. } => true,
-        }
+        matcher(&file_path)
     }
 
-    fn matches_line(&self, def_id: MaybeExternId, line: usize) -> bool {
+    fn matches_pos(&self, def_id: MaybeExternId, line: usize, col: usize) -> bool {
         let def_id = def_id.local_id();
         let tcx = self.genv.tcx();
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
@@ -192,11 +199,23 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         // Get the body and its span
         let source_map = tcx.sess.source_map();
         let body_span = tcx.hir_body(body_id).value.span;
-        let start_line = source_map.lookup_char_pos(body_span.lo()).line;
-        let end_line = source_map.lookup_char_pos(body_span.hi()).line;
+
+        let lo_pos = source_map.lookup_char_pos(body_span.lo());
+        let start_line = lo_pos.line;
+        let start_col = lo_pos.col_display;
+
+        let hi_pos = source_map.lookup_char_pos(body_span.hi());
+        let end_line = hi_pos.line;
+        let end_col = hi_pos.col_display;
 
         // is the line in the range of the body?
-        start_line <= line && line <= end_line
+        if start_line < end_line {
+            // multiple lines: check if the line is in the range
+            start_line <= line && line <= end_line
+        } else {
+            // single line: check if the line is the same and the column is in range
+            start_line == line && start_col <= col && col <= end_col
+        }
     }
 
     /// Check whether the `def_id` (or the file where `def_id` is defined)
@@ -204,21 +223,23 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     /// anything unexpected happens.
     fn is_included(&self, def_id: MaybeExternId) -> bool {
         let Some(pattern) = config::include_pattern() else { return true };
-        match pattern {
-            IncludePattern::Glob(_) => {
-                // Does this def_id's defining file match the glob pattern?
-                self.matches_file_path(def_id, pattern)
-            }
-            IncludePattern::Fn { fn_name } => {
-                // Does this def_id's name contain `fn_name`?
-                let def_path = self.genv.tcx().def_path_str(def_id.local_id());
-                def_path.contains(fn_name)
-            }
-            IncludePattern::Span { line, .. } => {
-                // Does this def_id's file and line match the span?
-                self.matches_file_path(def_id, pattern) && self.matches_line(def_id, *line)
-            }
+        if self.matches_file_path(def_id, |path| pattern.glob.is_match(path)) {
+            return true;
         }
+        if pattern.defs.iter().any(|def| self.matches_def(def_id, def)) {
+            return true;
+        }
+        if pattern.spans.iter().any(|pos| {
+            self.matches_file_path(def_id, |path| path.ends_with(&pos.file))
+                && self.matches_pos(def_id, pos.line, pos.column)
+        }) {
+            return true;
+        }
+        false
+        // IncludePattern::Span { line, .. } => {
+        //     // Does this def_id's file and line match the span?
+        //     self.matches_file_path(def_id, pattern) && self.matches_line(def_id, *line)
+        // }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {

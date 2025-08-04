@@ -99,7 +99,7 @@ impl Default for Flags {
 
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
-    // let mut include: Option<GlobSetBuilder> = None;
+    let mut includes: Vec<String> = Vec::new();
     for arg in env::args() {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
@@ -121,7 +121,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
-            "include" => parse_opt_include(&mut flags.include, value),
+            "include" => parse_opt_include(&mut includes, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -135,6 +135,13 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");
             process::exit(1);
         }
+    }
+    if !includes.is_empty() {
+        let include = IncludePattern::new(includes).unwrap_or_else(|err| {
+            eprintln!("error: invalid include pattern: {err}");
+            process::exit(1);
+        });
+        flags.include = Some(include);
     }
     flags
 });
@@ -250,15 +257,9 @@ fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(),
     }
 }
 
-fn parse_opt_include(
-    slot: &mut Option<IncludePattern>,
-    v: Option<&str>,
-) -> Result<(), &'static str> {
-    match v {
-        Some(s) => {
-            *slot = Some(s.parse()?);
-            Ok(())
-        }
-        None => Err(IncludePattern::ERROR),
+fn parse_opt_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'static str> {
+    if let Some(include) = v {
+        slot.push(include.to_string());
     }
+    Ok(())
 }

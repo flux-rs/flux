@@ -108,52 +108,33 @@ pub fn full_compilation() -> bool {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
-pub enum IncludePattern {
-    /// files matching the glob pattern, e.g. `glob:src/**/*.rs`
-    Glob(GlobSet),
-    /// fn matching the given function name as a substring, e.g. `fn:watermelon`
-    Fn { fn_name: String },
-    /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13`
-    Span { file: String, line: usize },
+pub struct Pos {
+    pub file: String,
+    pub line: usize,
+    pub column: usize,
 }
 
-impl IncludePattern {
-    const ERROR: &'static str = "expected one of `glob:<glob-pattern>`, `fn:<function-name>`, or `span:<path/to/file.rs>:<line>`";
-}
-
-impl FromStr for IncludePattern {
+impl FromStr for Pos {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
-
-        // Is it a `fn`
-        if let Some(suffix) = s.strip_prefix("fn:") {
-            return Ok(IncludePattern::Fn { fn_name: suffix.to_string() });
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 3 {
+            return Err("span format should be '<file>:<line>:<column>'");
         }
-        // Is it a `span`
-        if let Some(suffix) = s.strip_prefix("span:") {
-            let parts: Vec<&str> = suffix.split(':').collect();
-            if parts.len() != 2 {
-                return Err("span format should be 'span:<file>:<line>'");
-            }
-            let file = parts[0].to_string();
-            let line = parts[1]
-                .parse::<usize>()
-                .map_err(|_| "invalid line number")?;
-            return Ok(IncludePattern::Span { file, line });
-        }
-
-        // default to glob pattern
-        let suffix = s.strip_prefix("glob:").unwrap_or(s);
-        let mut builder = GlobSetBuilder::new();
-        builder.add(Glob::new(suffix).map_err(|_| "invalid glob pattern")?);
-        let globset = builder.build().map_err(|_| "failed to build glob set")?;
-        Ok(IncludePattern::Glob(globset))
+        let file = parts[0].to_string();
+        let line = parts[1]
+            .parse::<usize>()
+            .map_err(|_| "invalid line number")?;
+        let column = parts[2]
+            .parse::<usize>()
+            .map_err(|_| "invalid column number")?;
+        Ok(Pos { file, line, column })
     }
 }
 
-impl TryFrom<String> for IncludePattern {
+impl TryFrom<String> for Pos {
     type Error = &'static str;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -163,11 +144,47 @@ impl TryFrom<String> for IncludePattern {
 
 impl fmt::Display for IncludePattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IncludePattern::Glob(_) => write!(f, "glob:..."),
-            IncludePattern::Fn { fn_name } => write!(f, "fn:{}", fn_name),
-            IncludePattern::Span { file, line } => write!(f, "span:{}:{}", file, line),
+        write!(f, "[")?;
+        write!(f, "glob:{:?},", self.glob)?;
+        for def in &self.defs {
+            write!(f, "def:{},", def)?;
         }
+        for pos in &self.spans {
+            write!(f, "span:{}:{}:{}", pos.file, pos.line, pos.column)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct IncludePattern {
+    /// files matching the glob pattern, e.g. `glob:src/**/*.rs`
+    pub glob: GlobSet,
+    /// defs (`fn`, `enum`, ...) matching the given function name as a substring, e.g. `fn:watermelon`
+    pub defs: Vec<String>,
+    /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13`
+    pub spans: Vec<Pos>,
+}
+
+impl IncludePattern {
+    fn new(includes: Vec<String>) -> Result<Self, String> {
+        let mut defs = Vec::new();
+        let mut spans = Vec::new();
+        let mut glob = GlobSetBuilder::new();
+        for include in includes {
+            if let Some(suffix) = include.strip_prefix("def:") {
+                defs.push(suffix.to_string());
+            } else if let Some(suffix) = include.strip_prefix("span:") {
+                spans.push(Pos::from_str(suffix)?);
+            } else {
+                let suffix = include.strip_prefix("glob:").unwrap_or(&include);
+                let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
+                glob.add(glob_pattern);
+            }
+        }
+        let glob = glob.build().map_err(|_| "failed to build glob set")?;
+        Ok(IncludePattern { glob, defs, spans })
     }
 }
 

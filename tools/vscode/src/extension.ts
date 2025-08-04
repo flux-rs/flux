@@ -38,7 +38,7 @@ export function activate(context: vscode.ExtensionContext) {
     fluxViewProvider.toggle();
     const editor = vscode.window.activeTextEditor;
     if (editor) {
-      infoProvider.runFlux(context.extensionUri,  editor.document.fileName, "All", () => {
+      infoProvider.runFlux(context.extensionUri, editor.document.fileName, false, "All", () => {
         fluxViewProvider.updateView();
       });
     }
@@ -78,6 +78,18 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Reload the flux trace information for changedFiles
   const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
+
+  // Delete the existing log file to avoid using stale data
+  const logFilePath = path.join(workspacePath, checkerPath);
+  try {
+    if (fs.existsSync(logFilePath)) {
+      fs.unlinkSync(logFilePath);
+      console.log(`Deleted existing log file: ${logFilePath}`);
+    }
+  } catch (error) {
+    console.warn(`Failed to delete log file ${logFilePath}:`, error);
+  }
+
   const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
   console.log(`fileWatcher at:`, logFilePattern);
 
@@ -136,16 +148,21 @@ async function runTouch(file: string) {
 }
 
 // run `cargo flux` on the file (absolute path)
-async function runCargoFlux(workspacePath: string, file: string, includeValue: string, statusBarItem: vscode.StatusBarItem): Promise<any> {
+async function runCargoFlux(workspacePath: string, file: string, trace: boolean, includeValue: string, statusBarItem: vscode.StatusBarItem): Promise<any> {
   // Show spinning indicator
   statusBarItem.text = "$(sync~spin) Running Flux...";
   statusBarItem.tooltip = "Flux type checker is running";
   statusBarItem.show();
 
+  let fluxFlags = `-Finclude=${includeValue}`;
+  if (trace) {
+    fluxFlags += ` -Fdump-checker-trace`;
+  }
+  console.log(`TRACE: Running command: cargo flux with flags=`, fluxFlags);
   try {
     const fluxEnv = {
        ...process.env,
-       FLUXFLAGS: `-Fdump-checker-trace -Finclude=${includeValue}`,
+       FLUXFLAGS: fluxFlags,
     };
 
     // Get the flux command from workspace configuration
@@ -258,7 +275,7 @@ class InfoProvider {
         return "[]"; // empty globset pattern;
     }
   }
-  public async runFlux(uri: vscode.Uri, file: string, checkMode: CheckMode, beforeLoad: () => void) {
+  public async runFlux(uri: vscode.Uri, file: string, trace: boolean, checkMode: CheckMode,  beforeLoad: () => void) {
     if (!file.endsWith(".rs")) {
       return;
     }
@@ -281,7 +298,7 @@ class InfoProvider {
     this._ModifiedAt.set(src, curAt);
     const includeValue = this.modeIncludeValue(checkMode);
     // note we use `file` for the ABSOLUTE path due to odd cargo workspace behavior
-    await runCargoFlux(workspacePath, file, includeValue, this._statusBarItem).then(rustcOutput => {
+    await runCargoFlux(workspacePath, file, trace, includeValue, this._statusBarItem).then(rustcOutput => {
       updateDiagnosticsFromRustc(this._diagnosticCollection, rustcOutput, workspacePath);
     });
   }
@@ -370,6 +387,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
   private _fontFamily: string | undefined = "Arial";
   private _fontSize: number | undefined = 14;
   private _checkMode: CheckMode = "All";
+  private _checkTrace: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -409,6 +427,10 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             this._checkMode = message.mode;
             console.log(`Check mode changed to: ${this._checkMode}`);
             return;
+          case "checkerTraceChanged":
+            this._checkTrace = message.checked;
+            console.log(`Checker trace changed to: ${this._checkTrace}`);
+            return;
         }
       },
       undefined,
@@ -438,7 +460,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
   public runFluxCheck(file: string) {
     this._infoProvider
-      .runFlux(this._extensionUri, file, this._checkMode, () => {
+      .runFlux(this._extensionUri, file, this._checkTrace, this._checkMode, () => {
         this.updateView();
       })
       .then(() => this._infoProvider.loadFluxInfo())
@@ -602,7 +624,11 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     if (this._currentState === DisplayState.Info) {
       body = this._getHtmlForInfo();
     } else if (this._currentState === DisplayState.Loading) {
-      body = this._getHtmlForMessage("Loading...");
+      if (this._checkTrace) {
+        body = this._getHtmlForMessage("Loading...");
+      } else {
+        body = this._getHtmlForMessage("<trace disabled>");
+      }
     } else {
       body = this._getHtmlForMessage("No info available");
     }
@@ -755,6 +781,27 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                   background-color: var(--vscode-button-hoverBackground);
                   opacity: 0.7;
                 }
+
+                .checker-trace-container {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-left: 15px;
+                }
+
+                .checker-trace-checkbox {
+                  margin: 0;
+                  cursor: pointer;
+                }
+
+                .checker-trace-label {
+                  font-size: 12px;
+                  font-weight: 500;
+                  color: var(--vscode-foreground);
+                  cursor: pointer;
+                  user-select: none;
+                  white-space: nowrap;
+                }
                 </style>
             </head>
             <body>
@@ -769,6 +816,10 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                           <button class="four-state-option" data-mode="Mod" title="Only check current file">Mod</button>
                           <button class="four-state-option" data-mode="Def" title="Only check current function definition">Def</button>
                           <button class="four-state-option" data-mode="Off" title="Disable checking">Off</button>
+                        </div>
+                        <div class="checker-trace-container">
+                          <input type="checkbox" id="checker-trace-checkbox" class="checker-trace-checkbox" ${this._checkTrace ? 'checked' : ''}>
+                          <label for="checker-trace-checkbox" class="checker-trace-label">trace</label>
                         </div>
                       </div>
                     </td>
@@ -848,6 +899,15 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                         command: 'checkModeChanged',
                         mode: option.dataset.mode
                     });
+                });
+            });
+
+            // Checker trace checkbox functionality
+            const checkerTraceCheckbox = document.getElementById('checker-trace-checkbox');
+            checkerTraceCheckbox.addEventListener('change', (event) => {
+                vscode.postMessage({
+                    command: 'checkerTraceChanged',
+                    checked: event.target.checked
                 });
             });
             </script>
