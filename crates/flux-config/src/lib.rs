@@ -156,14 +156,16 @@ impl fmt::Display for IncludePattern {
         Ok(())
     }
 }
-
+/// This specifies which [`DefId`] should be checked. It can be specified via multiple patterns
+/// of the form `-Finclude=<pattern>` and the `DefId` is checked if it matches *any* of the patterns.
+/// Patterns are checked relative to the current working directory.
 #[derive(Clone, Debug)]
 pub struct IncludePattern {
-    /// files matching the glob pattern, e.g. `glob:src/**/*.rs`
+    /// files matching the glob pattern, e.g. `glob:src/ascii/*.rs` to check all files in the `ascii` module
     pub glob: GlobSet,
-    /// defs (`fn`, `enum`, ...) matching the given function name as a substring, e.g. `fn:watermelon`
+    /// defs (`fn`, `enum`, ...) matching the given function name as a substring, e.g. `def:watermelon`
     pub defs: Vec<String>,
-    /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13`
+    /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13:3`
     pub spans: Vec<Pos>,
 }
 

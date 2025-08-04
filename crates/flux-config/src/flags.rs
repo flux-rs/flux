@@ -13,11 +13,7 @@ pub const EXIT_FAILURE: i32 = 2;
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
     pub log_dir: PathBuf,
-    /// If present, only check files matching a glob pattern. This flag can be specified multiple
-    /// times and a file will be checked if it matches any of the patterns. Patterns are checked
-    /// relative to the current working directory. For example, to check all the files in the
-    /// `ascii` module of a crate, you can `include` the pattern `"src/ascii/*"` (assuming that's
-    /// where the files are located).
+    /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     pub include: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
