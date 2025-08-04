@@ -23,7 +23,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   const diagnosticCollection = vscode.languages.createDiagnosticCollection('flux');
 
-  const infoProvider = new InfoProvider(workspacePath, diagnosticCollection);
+  // Create status bar item for flux operations
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBarItem.hide(); // Initially hidden
+  context.subscriptions.push(statusBarItem);
+
+  const infoProvider = new InfoProvider(workspacePath, diagnosticCollection, statusBarItem);
   const fluxViewProvider = new FluxViewProvider(
     context.extensionUri,
     infoProvider,
@@ -86,19 +91,25 @@ export function activate(context: vscode.ExtensionContext) {
 const execPromise = promisify(child_process.exec);
 
 async function runShellCommand(env: NodeJS.ProcessEnv, command: string): Promise<any> {
+  const start = performance.now();
   try {
-    // console.log("Running command: ", command);
+    console.log(`TRACE: Running command: ${command} flags=`, env.FLUXFLAGS);
     const { stdout, stderr } = await execPromise(command, {
       env: env,
       cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     });
 
+    const end = performance.now();
+    console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
     // Handle any output
     if (stdout) { console.log(`Command stdout: ${stdout}`); }
     if (stderr) { console.warn(`Command stderr: ${stderr}`); }
 
     return stdout.trim();
   } catch (error: any) {
+
+    const end = performance.now();
+    console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
     // Even when the command fails, we can still get stdout and stderr
     const stdout = error.stdout || '';
     const stderr = error.stderr || '';
@@ -125,14 +136,29 @@ async function runTouch(file: string) {
 }
 
 // run `cargo flux` on the file (absolute path)
-async function runCargoFlux(workspacePath: string, file: string, includeValue: string): Promise<any> {
-  const fluxEnv = {
-     ...process.env,
-     FLUXFLAGS: `-Fdump-checker-trace -Fdump-constraint -Finclude=${includeValue}`,
-  };
-  const command = `cargo flux --workspace --message-format=json-diagnostic-rendered-ansi`;
-  const res = await runShellCommand(fluxEnv, command);
-  return res;
+async function runCargoFlux(workspacePath: string, file: string, includeValue: string, statusBarItem: vscode.StatusBarItem): Promise<any> {
+  // Show spinning indicator
+  statusBarItem.text = "$(sync~spin) Running Flux...";
+  statusBarItem.tooltip = "Flux type checker is running";
+  statusBarItem.show();
+
+  try {
+    const fluxEnv = {
+       ...process.env,
+       FLUXFLAGS: `-Fdump-checker-trace -Finclude=${includeValue}`,
+    };
+
+    // Get the flux command from workspace configuration
+    const config = vscode.workspace.getConfiguration('flux');
+    const baseCommand = config.get<string>('command', 'cargo flux');
+    const command = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`;
+
+    const res = await runShellCommand(fluxEnv, command);
+    return res;
+  } finally {
+    // Hide the status bar item when done
+    statusBarItem.hide();
+  }
 }
 
 // This method is called when your extension is deactivated
@@ -148,7 +174,8 @@ enum Position {
 class InfoProvider {
   constructor(
     private readonly _workspacePath: string,
-    private readonly _diagnosticCollection: vscode.DiagnosticCollection
+    private readonly _diagnosticCollection: vscode.DiagnosticCollection,
+    private readonly _statusBarItem: vscode.StatusBarItem
   ) {}
 
   private _StartMap: Map<string, LineMap> = new Map();
@@ -254,7 +281,7 @@ class InfoProvider {
     this._ModifiedAt.set(src, curAt);
     const includeValue = this.modeIncludeValue(checkMode);
     // note we use `file` for the ABSOLUTE path due to odd cargo workspace behavior
-    await runCargoFlux(workspacePath, file, includeValue).then(rustcOutput => {
+    await runCargoFlux(workspacePath, file, includeValue, this._statusBarItem).then(rustcOutput => {
       updateDiagnosticsFromRustc(this._diagnosticCollection, rustcOutput, workspacePath);
     });
   }

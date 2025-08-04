@@ -16,6 +16,18 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
-		}
+		},
+		{
+            "name": "Launch Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "/Users/rjhala/research/vtock"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js"
+            ],
+            "preLaunchTask": "${defaultBuildTask}"
+        }
 	]
 }
