@@ -184,7 +184,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let def_id = def_id.local_id();
         let tcx = self.genv.tcx();
         let hir_id = tcx.local_def_id_to_hir_id(def_id);
-
         // Get the body_id from the function
         let body_id = match tcx.hir_node(hir_id) {
             rustc_hir::Node::Item(Item { kind: ItemKind::Fn { body, .. }, .. }) => *body,
@@ -222,6 +221,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     /// is in the `include` pattern, and conservatively return `true` if
     /// anything unexpected happens.
     fn is_included(&self, def_id: MaybeExternId) -> bool {
+        println!("def_id: {:?}, span: {:?}", def_id, self.genv.tcx().def_span(def_id));
         let Some(pattern) = config::include_pattern() else { return true };
         if self.matches_file_path(def_id, |path| pattern.glob.is_match(path)) {
             return true;
@@ -236,10 +236,6 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             return true;
         }
         false
-        // IncludePattern::Span { line, .. } => {
-        //     // Does this def_id's file and line match the span?
-        //     self.matches_file_path(def_id, pattern) && self.matches_line(def_id, *line)
-        // }
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {

@@ -977,3 +977,12 @@ You can do this using the "detached" `spec` as illustrated by the following
 ```rust,noplayground
 {{#include ../../../tests/tests/neg/surface/detached00.rs}}
 ```
+
+## Include Patterns
+
+You can include patterns to restrict `flux` to only check a subset of a codebase.
+A `def_id` is checked if it matches any of the patterns.
+
+```
+cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
+```
