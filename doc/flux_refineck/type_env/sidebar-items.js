@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["LocInfo","PtrToRefBound"],"fn":["loc_info","loc_name","loc_span"],"mod":["place_ty","pretty"],"struct":["BasicBlockEnv","BasicBlockEnvData","BasicBlockEnvShape","SpanTrace","TypeEnv","TypeEnvBind","TypeEnvTrace"]};
+window.SIDEBAR_ITEMS = {"enum":["LocInfo","PtrToRefBound"],"fn":["loc_info","loc_name","loc_span"],"mod":["place_ty","pretty"],"struct":["BasicBlockEnv","BasicBlockEnvData","BasicBlockEnvShape","TypeEnv","TypeEnvBind","TypeEnvTrace"]};
