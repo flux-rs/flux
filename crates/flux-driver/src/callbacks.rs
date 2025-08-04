@@ -169,13 +169,13 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let mut file_path = file_name.local_path_if_available();
 
         // If the path is absolute try to normalize it to be relative to the working_dir
-        let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
         if file_path.is_absolute() {
+            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
             let Ok(p) = file_path.strip_prefix(working_dir) else { return true };
             file_path = p;
         }
 
-        matcher(&file_path)
+        matcher(file_path)
     }
 
     fn matches_pos(&self, def_id: MaybeExternId, line: usize, col: usize) -> bool {
