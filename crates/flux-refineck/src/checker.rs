@@ -1,7 +1,7 @@
 use std::{collections::hash_map::Entry, iter, vec};
 
 use flux_common::{
-    bug, dbg, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
+    bug, dbg, dbg::SpanTrace, index::IndexVec, iter::IterExt, span_bug, tracked_span_bug,
     tracked_span_dbg_assert_eq,
 };
 use flux_config::{self as config, InferOpts};
@@ -56,9 +56,7 @@ use crate::{
     primops,
     queue::WorkQueue,
     rty::Char,
-    type_env::{
-        BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, SpanTrace, TypeEnv, TypeEnvTrace,
-    },
+    type_env::{BasicBlockEnv, BasicBlockEnvShape, PtrToRefBound, TypeEnv, TypeEnvTrace},
 };
 
 type Result<T = ()> = std::result::Result<T, CheckerError>;

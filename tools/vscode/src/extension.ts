@@ -97,6 +97,15 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
+  // Register the detached link provider for Rust files
+  const detachedLinkProvider = new DetachedLinkProvider(infoProvider);
+  context.subscriptions.push(
+    vscode.languages.registerDocumentLinkProvider(
+      { scheme: 'file', language: 'rust' },
+      detachedLinkProvider
+    )
+  );
+
   // Reload the flux trace information for changedFiles
   const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
   const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
@@ -165,6 +174,17 @@ type LineMap = Map<number, LineInfo>;
 enum Position {
   Start,
   End,
+}
+
+class DetachedLinkProvider implements vscode.DocumentLinkProvider {
+  constructor(private readonly _infoProvider: InfoProvider) {}
+
+  provideDocumentLinks(
+    document: vscode.TextDocument,
+    token: vscode.CancellationToken
+  ): Promise<vscode.DocumentLink[]> {
+    return parseDetachedLinks(document.fileName);
+  }
 }
 
 class InfoProvider {
@@ -255,7 +275,8 @@ class InfoProvider {
 
   public async loadFluxInfo() {
     try {
-      const lineInfos = await readFluxCheckerTrace();
+      const lineInfos = await parseLineInfos();
+
       lineInfos.forEach((lineInfo, fileName) => {
         this.updateInfo(fileName, lineInfo);
       });
@@ -880,24 +901,32 @@ async function readEventsStreaming(logPath: string): Promise<any[]> {
   return events;
 }
 
-async function readFluxCheckerTrace(): Promise<Map<string, LineInfo[]>> {
+async function parseEventsWith<T>(def: T, parser: (events: any[]) => T): Promise<T> {
   try {
     // Get the workspace folder
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
-      return new Map();
+      return def;
     }
-
     // Read the file using VS Code's file system API
     const workspacePath = workspaceFolders[0].uri.fsPath;
     const logPath = path.join(workspacePath, checkerPath);
     const events = await readEventsStreaming(logPath);
-    const data = parseEvents(events);
-    return data;
+    // Parse the events using the provided parser function
+    const result = parser(events);
+    return result;
   } catch (error) {
     // vscode.window.showErrorMessage(`Failed to read line info: ${error}`);
-    return new Map();
+    return def;
   }
+}
+
+async function parseLineInfos(): Promise<Map<string, LineInfo[]>> {
+  return parseEventsWith(new Map(), parseEvents);
+}
+
+function parseDetachedLinks(documentPath: string): Promise<vscode.DocumentLink[]> {
+  return parseEventsWith(new Array(), (events:any[]) => parseDocumentLinks(documentPath, events));
 }
 
 // TODO: add local-info to TypeEnvBind
@@ -933,23 +962,6 @@ type LineInfo = {
   env: string;
 };
 
-// function parseStatementSpan(span: string): StmtSpan | undefined {
-//     if (span) {
-//         const parts = span.split(':');
-//         if (parts.length === 5) {
-//             const end_col_str = parts[4].split(' ')[0];
-//             const end_col = parseInt(end_col_str, 10);
-//             return {
-//                 file: parts[0],
-//                 start_line: parseInt(parts[1], 10),
-//                 start_col: parseInt(parts[2], 10),
-//                 end_line: parseInt(parts[1], 10),
-//                 end_col: end_col,
-//             };
-//         }
-//     }
-//     return undefined;
-// }
 
 function parseStatementSpanJSON(span: string): StmtSpan | undefined {
   if (span) {
@@ -982,6 +994,51 @@ function parseEvent(event: any): [string, LineInfo] | undefined {
     console.log(`Failed to parse event: ${error}`);
   }
   return undefined;
+}
+
+type DetachedLink = {src_span: StmtSpan, dst_span: StmtSpan};
+
+function parseDocumentLinks(documentPath: string, events: any[]): vscode.DocumentLink[] {
+  return events
+    .filter(event => event.fields && event.fields.event === "detached_link")
+    .map(event => {
+      try {
+        const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;
+        const dstSpan = JSON.parse(event.fields.dst_span) as StmtSpan;
+
+        // Create the source range (0-based indexing for VS Code)
+        const srcRange = new vscode.Range(
+          srcSpan.start_line - 1,
+          srcSpan.start_col - 1,
+          srcSpan.end_line - 1,
+          srcSpan.end_col - 1
+        );
+
+        if (!srcSpan.file || !dstSpan.file) {
+          console.log(`Invalid detached link: ${event.fields}`);
+          return null; // Skip invalid links
+        }
+        if (srcSpan.file !== documentPath) {
+          console.log(`skipping link: Source span file does not match document path: ${srcSpan.file} !== ${documentPath}`);
+          return null;
+        }
+        // Create the target URI with position fragment
+        // VS Code supports URI fragments like file:///path/to/file.rs#L10,5 to jump to specific line/column
+        const targetUri = vscode.Uri.file(dstSpan.file).with({
+          fragment: `L${dstSpan.start_line},${dstSpan.start_col}`
+        });
+
+        // Create the document link
+        const documentLink = new vscode.DocumentLink(srcRange, targetUri);
+        documentLink.tooltip = `Jump to detached specification (line ${dstSpan.start_line}:${dstSpan.start_col})`;
+        return documentLink;
+
+      } catch (error) {
+        console.log(`Failed to parse detached_link event: ${error}`);
+        return null;
+      }
+    })
+    .filter(result => result !== null); // as Array<{src_span: StmtSpan, dst_span: StmtSpan}>;
 }
 
 function parseEvents(events: any[]): Map<string, LineInfo[]> {
