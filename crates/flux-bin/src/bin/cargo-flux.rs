@@ -8,10 +8,7 @@ use anyhow::anyhow;
 use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use flux_bin::{
     FluxMetadata,
-    utils::{
-        EXIT_ERR, LIB_PATH, get_flux_driver_path, get_rust_toolchain, get_rustc_driver_lib_path,
-        prepend_path_to_env_var, sysroot_dir,
-    },
+    utils::{EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain},
 };
 use itertools::Itertools;
 use tempfile::NamedTempFile;
@@ -31,7 +28,7 @@ fn run() -> anyhow::Result<i32> {
     let toolchain = get_rust_toolchain()?;
 
     let metadata = MetadataCommand::new().exec()?;
-    let config_file = write_cargo_config(&toolchain, metadata)?;
+    let config_file = write_cargo_config(metadata)?;
 
     // Cargo can be called like `cargo [OPTIONS] flux`, so we skip all arguments until `flux` is found.
     let mut args = env::args()
@@ -52,7 +49,7 @@ fn run() -> anyhow::Result<i32> {
     // section of the config file to make sure we run flux even when the
     // variable is already set. We also unset `RUSTC_WRAPPER` to avoid
     // conflicts, e.g., see https://github.com/flux-rs/flux/issues/1155
-    let sysroot = sysroot_dir();
+    let sysroot = flux_sysroot_dir();
     let flux_driver_path = get_flux_driver_path(&sysroot)?;
     let exit_code = Command::new("cargo")
         .env("RUSTC", flux_driver_path)
@@ -67,10 +64,7 @@ fn run() -> anyhow::Result<i32> {
     Ok(exit_code.unwrap_or(EXIT_ERR))
 }
 
-fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<NamedTempFile> {
-    let ld_library_path = get_rustc_driver_lib_path(toolchain)?;
-    let extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)?;
-
+fn write_cargo_config(metadata: Metadata) -> anyhow::Result<NamedTempFile> {
     let flux_flags: Option<Vec<String>> = if let Ok(flags) = env::var("FLUXFLAGS") {
         Some(flags.split(" ").map(Into::into).collect())
     } else {
@@ -95,15 +89,13 @@ fn write_cargo_config(toolchain: &str, metadata: Metadata) -> anyhow::Result<Nam
 profile-rustflags = true
 
 [env]
-LIB_PATH = "{lib_path}"
 FLUX_BUILD_SYSROOT = "1"
 FLUX_CARGO = "1"
 
 [profile.flux]
 inherits = "dev"
 incremental = false
-        "#,
-            lib_path = extended_lib_path.display(),
+        "#
         )?;
 
         for package in metadata.packages {
