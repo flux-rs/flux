@@ -1,4 +1,5 @@
 #![feature(if_let_guard)]
+use globset::{Glob, GlobSet, GlobSetBuilder};
 pub use toml::Value;
 pub mod flags;
 
@@ -12,10 +13,6 @@ use std::{
 
 use flags::FLAGS;
 use serde::Deserialize;
-
-pub fn check_def() -> &'static str {
-    &FLAGS.check_def
-}
 
 pub fn dump_checker_trace() -> bool {
     FLAGS.dump_checker_trace
@@ -57,12 +54,12 @@ pub fn ignore_default() -> bool {
     FLAGS.ignore_default
 }
 
-pub fn is_checked_file(file: &Path) -> bool {
-    if let Some(globset) = &FLAGS.include { globset.is_match(file) } else { true }
-}
-
 pub fn cache_path() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
+}
+
+pub fn include_pattern() -> Option<&'static IncludePattern> {
+    FLAGS.include.as_ref()
 }
 
 fn check_overflow() -> OverflowMode {
@@ -107,6 +104,90 @@ pub fn verify() -> bool {
 
 pub fn full_compilation() -> bool {
     FLAGS.full_compilation
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(try_from = "String")]
+pub struct Pos {
+    pub file: String,
+    pub line: usize,
+    pub column: usize,
+}
+
+impl FromStr for Pos {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        let parts: Vec<&str> = s.split(':').collect();
+        if parts.len() != 3 {
+            return Err("span format should be '<file>:<line>:<column>'");
+        }
+        let file = parts[0].to_string();
+        let line = parts[1]
+            .parse::<usize>()
+            .map_err(|_| "invalid line number")?;
+        let column = parts[2]
+            .parse::<usize>()
+            .map_err(|_| "invalid column number")?;
+        Ok(Pos { file, line, column })
+    }
+}
+
+impl TryFrom<String> for Pos {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl fmt::Display for IncludePattern {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[")?;
+        write!(f, "glob:{:?},", self.glob)?;
+        for def in &self.defs {
+            write!(f, "def:{},", def)?;
+        }
+        for pos in &self.spans {
+            write!(f, "span:{}:{}:{}", pos.file, pos.line, pos.column)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
+/// This specifies which [`DefId`] should be checked. It can be specified via multiple patterns
+/// of the form `-Finclude=<pattern>` and the `DefId` is checked if it matches *any* of the patterns.
+/// Patterns are checked relative to the current working directory.
+#[derive(Clone, Debug)]
+pub struct IncludePattern {
+    /// files matching the glob pattern, e.g. `glob:src/ascii/*.rs` to check all files in the `ascii` module
+    pub glob: GlobSet,
+    /// defs (`fn`, `enum`, ...) matching the given function name as a substring, e.g. `def:watermelon`
+    pub defs: Vec<String>,
+    /// fn whose implementation overlaps the file, line, e.g. `span:tests/tests/pos/detached/detach00.rs:13:3`
+    pub spans: Vec<Pos>,
+}
+
+impl IncludePattern {
+    fn new(includes: Vec<String>) -> Result<Self, String> {
+        let mut defs = Vec::new();
+        let mut spans = Vec::new();
+        let mut glob = GlobSetBuilder::new();
+        for include in includes {
+            if let Some(suffix) = include.strip_prefix("def:") {
+                defs.push(suffix.to_string());
+            } else if let Some(suffix) = include.strip_prefix("span:") {
+                spans.push(Pos::from_str(suffix)?);
+            } else {
+                let suffix = include.strip_prefix("glob:").unwrap_or(&include);
+                let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
+                glob.add(glob_pattern);
+            }
+        }
+        let glob = glob.build().map_err(|_| "failed to build glob set")?;
+        Ok(IncludePattern { glob, defs, spans })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Default)]

@@ -1,32 +1,65 @@
-# flux-dev
+# Flux Refinement Type Checker
 
-VS Code extension with language support for flux rust intermediate representations
+A VS Code extension for the **Flux Refinement Type Checker** for Rust, providing advanced type checking capabilities and interactive debugging features.
 
-## Install
+## Features
 
-**Step 1.** To get the extension running you need to **build** the `vsix` file and **install** it manually
+- **Interactive Type Checking**: Four-state switch to control checking scope (All/Mod/Def/Off)
+- **Real-time Diagnostics**: Live error reporting with detailed type information
+- **Trace Debugging**: Optional checker trace for detailed verification insights
+- **Interactive UI**: Toggle between Values, Constraints, and Types views
+- **Clickable Status Bar**: Cancel running operations with a simple click
+- **Detached Link Navigation**: Jump between specifications and implementations
+
+![Flux Extension Demo](static/flux_view_start.jpg)
+
+## Requirements
+
+- **Flux Type Checker**: Follow the [installation guide](https://flux-rs.github.io/flux/guide/install.html)
+- **Rust**: A Rust project with Flux annotations
+
+## Installation
+
+Install from the VS Code Marketplace or manually:
 
 ```bash
-$ npm install -g typescript
 $ npm install -g vsce
-$ npm install --save-dev @types/vscode
 $ vsce package
+$ code --install-extension flux-checker-*.vsix
 ```
 
-**Step 2.** Install `flux`
+## Usage
 
-Following [these instructions](https://flux-rs.github.io/flux/guide/install.html)
+1. Open a Rust project with Flux annotations
+2. Use the command palette: **"Toggle Flux View"**
+3. Configure checking mode using the four-state switch:
+   - **All**: Check entire crate
+   - **Mod**: Check current file only
+   - **Def**: Check current function definition
+   - **Off**: Disable checking
+4. Enable **trace** checkbox for detailed debugging information
 
-**Step 3.** Run the extension!
+## Configuration
+
+Set your custom Flux command in VS Code settings:
+
+```json
+{
+  "flux.command": "cargo flux -p your-package"
+}
+```
+
+## Contributing
+
+This extension is part of the [Flux project](https://github.com/flux-rs/flux). Contributions welcome!
+
+## License
+
+MIT
 
 You can then **enable** the extension by runnning the `Toggle Flux View` command in the command palette.
 
 ## Features
-
-Syntax Highlighting
-
-- For `flux` type signatures
-- For `flux` constraints (generated with `FLUX_DUMP_CONSTRAINT=1` for debugging)
 
 Flux View Panel: shows the types and environments known at each program point
 
@@ -36,5 +69,3 @@ Flux View Panel: shows the types and environments known at each program point
 ![Before Statement](static/flux_view_start.jpg)
 
 ![After Statement](static/flux_view_end.jpg)
-
-

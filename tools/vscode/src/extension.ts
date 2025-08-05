@@ -8,37 +8,12 @@ import * as readline from "readline";
 
 const checkerPath = "log/checker";
 
+// Global variable to track the running flux process
+let runningFluxProcess: child_process.ChildProcess | null = null;
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-  // Configure vscode so rust-analyzer generates `flux` errors on save
-  const rustAnalyzerConfig = vscode.workspace.getConfiguration("rust-analyzer");
-  rustAnalyzerConfig
-    .update("server.extraEnv", {
-      FLUXFLAGS: "-Fdump-checker-trace",
-    })
-    .then(() => {
-      return rustAnalyzerConfig.update(
-        "check.overrideCommand",
-        [
-          "cargo",
-          "flux",
-          "--workspace",
-          "--message-format=json-diagnostic-rendered-ansi",
-        ],
-        vscode.ConfigurationTarget.Workspace,
-      );
-    })
-    .then(
-      () => {
-        vscode.window.showInformationMessage("Flux checking enabled");
-      },
-      (error) => {
-        vscode.window.showErrorMessage(
-          `Failed to update configuration: ${error}`,
-        );
-      },
-    );
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders) {
@@ -49,7 +24,14 @@ export function activate(context: vscode.ExtensionContext) {
   const workspacePath = workspaceFolders[0].uri.fsPath;
   console.log('Extension "flux" is now active in workspace:', workspacePath);
 
-  const infoProvider = new InfoProvider(workspacePath);
+  const diagnosticCollection = vscode.languages.createDiagnosticCollection('flux');
+
+  // Create status bar item for flux operations
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBarItem.hide(); // Initially hidden
+  context.subscriptions.push(statusBarItem);
+
+  const infoProvider = new InfoProvider(workspacePath, diagnosticCollection, statusBarItem);
   const fluxViewProvider = new FluxViewProvider(
     context.extensionUri,
     infoProvider,
@@ -59,12 +41,24 @@ export function activate(context: vscode.ExtensionContext) {
     fluxViewProvider.toggle();
     const editor = vscode.window.activeTextEditor;
     if (editor) {
-      infoProvider.runFlux(editor.document.fileName, () => {
+      infoProvider.runFlux(context.extensionUri, editor.document.fileName, false, "All", () => {
         fluxViewProvider.updateView();
       });
     }
   });
   context.subscriptions.push(disposable);
+
+  // Register command to kill running flux process
+  let killFluxCommand = vscode.commands.registerCommand("Flux.killProcess", () => {
+    if (runningFluxProcess) {
+      console.log("Killing running Flux process...");
+      runningFluxProcess.kill('SIGTERM');
+      runningFluxProcess = null;
+      statusBarItem.hide();
+      vscode.window.showInformationMessage("Flux process terminated");
+    }
+  });
+  context.subscriptions.push(killFluxCommand);
 
   /************************************************************/
   // Register a custom webview panel
@@ -108,6 +102,18 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Reload the flux trace information for changedFiles
   const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
+
+  // Delete the existing log file to avoid using stale data
+  const logFilePath = path.join(workspacePath, checkerPath);
+  try {
+    if (fs.existsSync(logFilePath)) {
+      fs.unlinkSync(logFilePath);
+      console.log(`Deleted existing log file: ${logFilePath}`);
+    }
+  } catch (error) {
+    console.warn(`Failed to delete log file ${logFilePath}:`, error);
+  }
+
   const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
   console.log(`fileWatcher at:`, logFilePattern);
 
@@ -120,24 +126,36 @@ export function activate(context: vscode.ExtensionContext) {
 // Promisify the exec function to use with await
 const execPromise = promisify(child_process.exec);
 
-async function runShellCommand(env: NodeJS.ProcessEnv, command: string) {
+async function runShellCommand(env: NodeJS.ProcessEnv, command: string): Promise<any> {
+  const start = performance.now();
   try {
-    // console.log("Running command: ", command);
+    console.log(`TRACE: Running command: ${command} flags=`, env.FLUXFLAGS);
     const { stdout, stderr } = await execPromise(command, {
       env: env,
       cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
     });
 
+    const end = performance.now();
+    console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
     // Handle any output
     // if (stdout) { console.log(`Command stdout: ${stdout}`); }
     // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
 
     return stdout.trim();
-  } catch (error) {
-    console.log(`Command failed!`);
-    // console.log(`Command failed:`, error);
-    // vscode.window.showErrorMessage(`Command failed: ${error}`);
-    // throw error;
+  } catch (error: any) {
+
+    const end = performance.now();
+    console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
+    // Even when the command fails, we can still get stdout and stderr
+    const stdout = error.stdout || '';
+    const stderr = error.stderr || '';
+    const exitCode = error.code;
+
+    console.log(`Command failed with exit code ${exitCode}`);
+    // if (stdout) { console.log(`Command stdout: ${stdout}`); }
+    // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
+    // Return stdout even on failure - useful for commands that output data but exit with non-zero
+    return stdout.trim();
   }
 }
 
@@ -153,17 +171,90 @@ async function runTouch(file: string) {
 }
 
 // run `cargo flux` on the file (absolute path)
-async function runCargoFlux(workspacePath: string, file: string) {
-  const logDir = path.join(workspacePath, "log");
-  const fluxEnv = {
-    ...process.env,
-    FLUX_LOG_DIR: logDir,
-    FLUX_DUMP_CHECKER_TRACE: "1",
-    FLUX_CHECK_FILES: file,
-  };
-  const command = `cargo flux`;
-  console.log("Running flux:", fluxEnv, command);
-  await runShellCommand(fluxEnv, command);
+async function runCargoFlux(workspacePath: string, file: string, trace: boolean, includeValue: string, statusBarItem: vscode.StatusBarItem): Promise<any> {
+  // Show spinning indicator with clickable command
+  statusBarItem.text = "$(sync~spin) Running Flux... (click to cancel)";
+  statusBarItem.tooltip = "Flux type checker is running - Click to cancel";
+  statusBarItem.command = "Flux.killProcess";
+  statusBarItem.show();
+
+  let fluxFlags = `-Finclude=${includeValue}`;
+  if (trace) {
+    fluxFlags += ` -Fdump-checker-trace`;
+  }
+  // console.log(`TRACE: Running command: cargo flux with flags=`, fluxFlags);
+
+  return new Promise((resolve, reject) => {
+    const fluxEnv = {
+       ...process.env,
+       FLUXFLAGS: fluxFlags,
+    };
+
+    // Get the flux command from workspace configuration
+    const config = vscode.workspace.getConfiguration('flux');
+    const baseCommand = config.get<string>('command', 'cargo flux');
+    const commandArgs = `${baseCommand} --message-format=json-diagnostic-rendered-ansi`.split(' ');
+    const command = commandArgs[0];
+    const args = commandArgs.slice(1);
+
+    const start = performance.now();
+    console.log(`TRACE: Running command: ${command} ${args.join(' ')} flags=`, fluxEnv.FLUXFLAGS);
+
+    // Use spawn to get a killable process reference
+    runningFluxProcess = child_process.spawn(command, args, {
+      env: fluxEnv,
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    runningFluxProcess.stdout?.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    runningFluxProcess.stderr?.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    runningFluxProcess.on('close', (code, signal) => {
+      const end = performance.now();
+      console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
+
+      runningFluxProcess = null;
+      statusBarItem.hide();
+      statusBarItem.command = undefined; // Remove click command
+
+      if (signal === 'SIGTERM') {
+        console.log('Flux process was terminated by user');
+        resolve(''); // Return empty result when cancelled
+        return;
+      }
+
+      if (code !== 0) {
+        console.log(`Command failed with exit code ${code}`);
+      }
+
+      // if (stdout) { console.log(`Command stdout: ${stdout}`); }
+      // if (stderr) { console.warn(`Command stderr: ${stderr}`); }
+
+      // Return stdout even on failure - useful for commands that output data but exit with non-zero
+      resolve(stdout.trim());
+    });
+
+    runningFluxProcess.on('error', (error) => {
+      const end = performance.now();
+      console.log(`TRACE: Finish command: execution time: ${end - start} ms`);
+
+      runningFluxProcess = null;
+      statusBarItem.hide();
+      statusBarItem.command = undefined; // Remove click command
+
+      console.error('Failed to start flux process:', error);
+      reject(error);
+    });
+  });
 }
 
 // This method is called when your extension is deactivated
@@ -188,7 +279,11 @@ class DetachedLinkProvider implements vscode.DocumentLinkProvider {
 }
 
 class InfoProvider {
-  constructor(private readonly _workspacePath: string) {}
+  constructor(
+    private readonly _workspacePath: string,
+    private readonly _diagnosticCollection: vscode.DiagnosticCollection,
+    private readonly _statusBarItem: vscode.StatusBarItem
+  ) {}
 
   private _StartMap: Map<string, LineMap> = new Map();
   private _EndMap: Map<string, LineMap> = new Map();
@@ -199,12 +294,12 @@ class InfoProvider {
   currentColumn: number = 0;
   currentPosition: Position = Position.End;
 
-  private relFile(file: string): string {
+  relativeFile(file: string): string {
     return path.relative(this._workspacePath, file);
   }
 
   public setPosition(file: string, line: number, column: number, text: string) {
-    this.currentFile = file; // this.relFile(file);
+    this.currentFile = file;
     this.currentLine = line;
     this.currentColumn = column;
     this.currentPosition =
@@ -249,14 +344,36 @@ class InfoProvider {
     return this.currentLine;
   }
 
-  public async runFlux(file: string, beforeLoad: () => void) {
+  private modeIncludeValue(mode: CheckMode): string {
+    var file = this.currentFile;
+    if (file) {
+      file = this.relativeFile(file);
+    }
+
+    switch (mode) {
+      case "All":
+        return "*"; // full globset pattern;
+      case "Mod":
+        return file || "*";
+      case "Def":
+        if (file) {
+          return `span:${file}:${this.currentLine}:${this.currentColumn}`;
+        } else {
+          return "*";
+        }
+      case "Off":
+        return "[]"; // empty globset pattern;
+    }
+  }
+  public async runFlux(uri: vscode.Uri, file: string, trace: boolean, checkMode: CheckMode,  beforeLoad: () => void) {
     if (!file.endsWith(".rs")) {
       return;
     }
     const workspacePath = this._workspacePath;
-    const src = this.relFile(file);
+    const src = this.relativeFile(file);
     const lastFluxAt = this._ModifiedAt.get(src);
     const lastModifiedAt = getFileModificationTime(file);
+
     if (lastFluxAt === lastModifiedAt) {
       return;
     }
@@ -269,8 +386,11 @@ class InfoProvider {
     await runTouch(src);
     const curAt = getFileModificationTime(file);
     this._ModifiedAt.set(src, curAt);
+    const includeValue = this.modeIncludeValue(checkMode);
     // note we use `file` for the ABSOLUTE path due to odd cargo workspace behavior
-    await runCargoFlux(workspacePath, file);
+    await runCargoFlux(workspacePath, file, trace, includeValue, this._statusBarItem).then(rustcOutput => {
+      updateDiagnosticsFromRustc(this._diagnosticCollection, rustcOutput, workspacePath);
+    });
   }
 
   public async loadFluxInfo() {
@@ -341,10 +461,12 @@ function parseEnv(env: string): TypeEnv {
     });
 }
 
+type CheckMode = "All" | "Mod" | "Def" | "Off";
+
+
 class FluxViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _panel?: vscode.WebviewPanel;
-  private _currentFile?: string;
   private _currentLine: number = 0;
   private _interactive: boolean = false;
   private _currentState: DisplayState = DisplayState.None;
@@ -355,11 +477,14 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
   private _constraintsExpanded: boolean = true;
   private _fontFamily: string | undefined = "Arial";
   private _fontSize: number | undefined = 14;
+  private _checkMode: CheckMode = "All";
+  private _checkTrace: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _infoProvider: InfoProvider,
   ) {}
+
 
   private show() {
     const panel = vscode.window.createWebviewPanel(
@@ -389,14 +514,13 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             this._constraintsExpanded = !this._constraintsExpanded;
             this.updateView();
             return;
-          case "interactiveClicked":
-            this._interactive = !this._interactive;
-            this.updateView();
+          case "checkModeChanged":
+            this._checkMode = message.mode;
+            console.log(`Check mode changed to: ${this._checkMode}`);
             return;
-          case "runCheck":
-            if (this._currentFile) {
-              this.runFluxCheck(this._currentFile);
-            }
+          case "checkerTraceChanged":
+            this._checkTrace = message.checked;
+            console.log(`Checker trace changed to: ${this._checkTrace}`);
             return;
         }
       },
@@ -427,7 +551,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
 
   public runFluxCheck(file: string) {
     this._infoProvider
-      .runFlux(file, () => {
+      .runFlux(this._extensionUri, file, this._checkTrace, this._checkMode, () => {
         this.updateView();
       })
       .then(() => this._infoProvider.loadFluxInfo())
@@ -435,10 +559,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
   }
 
   public runFlux(file: string) {
-    this._currentFile = file;
-    if (!this._interactive) {
-      this.runFluxCheck(file);
-    }
+    this.runFluxCheck(file);
   }
 
   public setPosition(editor: vscode.TextEditor) {
@@ -594,7 +715,11 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
     if (this._currentState === DisplayState.Info) {
       body = this._getHtmlForInfo();
     } else if (this._currentState === DisplayState.Loading) {
-      body = this._getHtmlForMessage("Loading...");
+      if (this._checkTrace) {
+        body = this._getHtmlForMessage("Loading...");
+      } else {
+        body = this._getHtmlForMessage("<trace disabled>");
+      }
     } else {
       body = this._getHtmlForMessage("No info available");
     }
@@ -695,107 +820,106 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
                 }
 
                 .control-row {
+                    display: flex;
                     align-items: center;
-                    justify-content: center; /* Center items horizontally */
+                    justify-content: flex-start;
                     width: 100%;
-                    padding: 10px 0; /* Add some vertical padding */
+                    padding: 10px 0;
                     background-color: var(--vscode-editor-background);
-                    border-bottom: 1px solid var(--vscode-panel-border); /* Optional: adds a subtle border */
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                    gap: 15px;
                 }
 
-                .toggle-label {
-                  margin-right: 10px;
-                  font-weight: 500;
-                }
-                .toggle-switch {
+                .four-state-switch {
+                  display: flex;
+                  background-color: var(--vscode-input-background);
+                  border: 1px solid var(--vscode-input-border);
+                  border-radius: 8px;
+                  height: 32px;
                   position: relative;
-                  display: inline-block;
-                  width: 48px;
-                  height: 24px;
-                  margin-right: 20px;
+                  gap: 2px;
+                  padding: 2px;
+                  flex: 1;
+                  max-width: 200px;
+                  min-width: 160px;
                 }
-                .toggle-switch input {
-                  opacity: 0;
-                  width: 0;
-                  height: 0;
-                }
-                .slider {
-                  position: absolute;
-                  cursor: pointer;
-                  top: 0;
-                  left: 0;
-                  right: 0;
-                  bottom: 0;
-                  background-color: var(--vscode-disabledForeground);
-                  transition: .3s;
-                  border-radius: 24px;
-                }
-                .slider:before {
-                  position: absolute;
-                  content: "";
-                  height: 16px;
-                  width: 16px;
-                  left: 4px;
-                  bottom: 4px;
-                  background-color: white;
-                  transition: .3s;
-                  border-radius: 50%;
-                }
-                input:checked + .slider {
-                  background-color: var(--vscode-button-background);
-                }
-                input:checked + .slider:before {
-                  transform: translateX(24px);
-                }
-                button {
-                  padding: 8px 16px;
-                  border-radius: 4px;
-                  font-weight: 500;
-                  outline: none;
+                .four-state-option {
+                  flex: 1;
+                  background: none;
                   border: none;
+                  padding: 8px 12px;
+                  font-size: 12px;
+                  font-weight: 500;
+                  color: var(--vscode-foreground);
+                  cursor: pointer;
+                  transition: all 0.2s ease;
+                  z-index: 2;
+                  position: relative;
+                  border-radius: 6px;
+                  min-width: 0;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  text-align: center;
+                  white-space: nowrap;
+                }
+                .four-state-option.active {
+                  color: var(--vscode-button-foreground);
+                  background-color: var(--vscode-button-background);
+                  font-weight: 600;
+                }
+                .four-state-option:hover:not(.active) {
+                  background-color: var(--vscode-button-hoverBackground);
+                  opacity: 0.7;
+                }
+
+                .checker-trace-container {
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  margin-left: 15px;
+                }
+
+                .checker-trace-checkbox {
+                  margin: 0;
                   cursor: pointer;
                 }
-                button:focus {
-                  outline: 2px solid var(--vscode-focusBorder);
-                }
-                button.disabled {
-                  background-color: var(--vscode-disabledForeground);
-                  color: var(--vscode-editor-background);
-                  cursor: not-allowed;
-                }
-                button.enabled {
-                  background-color: var(--vscode-button-background);
-                  color: var(--vscode-button-foreground);
-                }
-                button.enabled:hover {
-                  background-color: var(--vscode-button-hoverBackground);
-                }
-                .toggle-container {
-                    display: flex;
-                    align-items: bottom;
-                    vertical-align: middle;
-                    gap: 10px;
-                    margin-bottom: 20px;
+
+                .checker-trace-label {
+                  font-size: 12px;
+                  font-weight: 500;
+                  color: var(--vscode-foreground);
+                  cursor: pointer;
+                  user-select: none;
+                  white-space: nowrap;
                 }
                 </style>
             </head>
             <body>
 
               <div id="cursor-position">
-                    <table style="border-collapse: collapse">
-                    <tr>
-                      <td colspan="2">
-                        <div class="control-row">
-                          <label class="toggle-switch"><input type="checkbox" id="interactive-toggle"><span class="slider"></span></label>
-                          <button id="check-button" class="disabled" disabled>Check</button>
+                <table style="border-collapse: collapse">
+                  <tr>
+                    <td colspan="2">
+                      <div class="control-row">
+                        <div class="four-state-switch" id="check-mode-switch">
+                          <button class="four-state-option active" data-mode="All" title="Check entire crate">All</button>
+                          <button class="four-state-option" data-mode="Mod" title="Only check current file">Mod</button>
+                          <button class="four-state-option" data-mode="Def" title="Only check current function definition">Def</button>
+                          <button class="four-state-option" data-mode="Off" title="Disable checking">Off</button>
                         </div>
-                      </td>
-                    </tr>
+                        <div class="checker-trace-container">
+                          <input type="checkbox" id="checker-trace-checkbox" class="checker-trace-checkbox" ${this._checkTrace ? 'checked' : ''}>
+                          <label for="checker-trace-checkbox" class="checker-trace-label">trace</label>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
 
-                    <tr>
-                      <th>Line</th><td>${this._currentLine}</td>
-                    </tr>
-                    </table>
+                  <tr>
+                    <th>Line</th><td>${this._currentLine}</td>
+                  </tr>
+                </table>
 
                     <br>
 
@@ -841,32 +965,40 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
             });
 
 
-            const interactiveElement = document.getElementById('interactive-toggle');
-            const checkButton = document.getElementById('check-button');
+            // Four-state switch functionality
+            const checkModeSwitch = document.getElementById('check-mode-switch');
+            const checkModeOptions = checkModeSwitch.querySelectorAll('.four-state-option');
 
-            const isInteractive = ${this._interactive};
-            interactiveElement.checked = isInteractive;
-            checkButton.disabled = !isInteractive;
-            checkButton.className = isInteractive ? 'enabled' : 'disabled';
+            const currentCheckMode = "${this._checkMode}";
 
-            interactiveElement.addEventListener('click', () => {
-              console.log("interactive toggled!");
-              vscode.postMessage({
-                  command: 'interactiveClicked',
-                  text: interactiveElement.checked
-              });
-              if (interactiveElement.checked) {
-                checkButton.className = 'enabled';
-                checkButton.disabled = false;
-              } else {
-                checkButton.className = 'disabled';
-                checkButton.disabled = true;
-              }
+            // Set initial state
+            checkModeOptions.forEach((option) => {
+                if (option.dataset.mode === currentCheckMode) {
+                    option.classList.add('active');
+                } else {
+                    option.classList.remove('active');
+                }
             });
 
-            checkButton.addEventListener('click', () => {
+            // Add click handlers
+            checkModeOptions.forEach((option) => {
+                option.addEventListener('click', () => {
+                    checkModeOptions.forEach(opt => opt.classList.remove('active'));
+                    option.classList.add('active');
+
+                    vscode.postMessage({
+                        command: 'checkModeChanged',
+                        mode: option.dataset.mode
+                    });
+                });
+            });
+
+            // Checker trace checkbox functionality
+            const checkerTraceCheckbox = document.getElementById('checker-trace-checkbox');
+            checkerTraceCheckbox.addEventListener('change', (event) => {
                 vscode.postMessage({
-                    command: 'runCheck'
+                    command: 'checkerTraceChanged',
+                    checked: event.target.checked
                 });
             });
             </script>
@@ -892,9 +1024,8 @@ async function readEventsStreaming(logPath: string): Promise<any[]> {
     try {
       events.push(JSON.parse(line));
     } catch (error) {
-      console.error(`Error parsing line: ${line.substring(0, 100)}...`);
-      console.error(error);
-      throw error; // Uncomment to stop processing on first error
+      // console.error(`Error parsing line: ${line.substring(0, 100)}...`, error, line);
+      // throw error; // Uncomment to stop processing on first error
     }
   }
 
@@ -961,7 +1092,6 @@ type LineInfo = {
   rcx: string;
   env: string;
 };
-
 
 function parseStatementSpanJSON(span: string): StmtSpan | undefined {
   if (span) {
@@ -1117,3 +1247,251 @@ function nestedStringHtml(node: NestedString): string {
 }
 
 /**********************************************************************************************/
+// Rustc JSON Diagnostic Format Conversion (via Claude)
+/**********************************************************************************************/
+
+// TypeScript types representing rustc JSON diagnostic format
+interface RustcSpan {
+  file_name: string;
+  byte_start: number;
+  byte_end: number;
+  line_start: number;
+  line_end: number;
+  column_start: number;
+  column_end: number;
+  is_primary: boolean;
+  text: Array<{
+    text: string;
+    highlight_start: number;
+    highlight_end: number;
+  }>;
+  label?: string;
+  suggested_replacement?: string;
+  suggestion_applicability?: string;
+}
+
+interface RustcCode {
+  code: string;
+  explanation?: string;
+}
+
+interface RustcMessage {
+  message: string;
+  code?: RustcCode;
+  level: 'error' | 'warning' | 'note' | 'help' | 'failure-note' | 'ice';
+  spans: RustcSpan[];
+  children: RustcMessage[];
+  rendered?: string;
+}
+
+interface RustcTarget {
+  kind: string[];
+  crate_types: string[];
+  name: string;
+  src_path: string;
+  edition?: string;
+  doctest?: boolean;
+}
+
+interface RustcDiagnostic {
+  message: RustcMessage;
+  package_id: string;
+  manifest_path?: string;
+  target: RustcTarget;
+}
+
+// Utility functions for conversion
+function convertSeverity(level: string): vscode.DiagnosticSeverity {
+  switch (level) {
+    case 'error':
+    case 'ice': // Internal Compiler Error
+      return vscode.DiagnosticSeverity.Error;
+    case 'warning':
+      return vscode.DiagnosticSeverity.Warning;
+    case 'note':
+    case 'help':
+      return vscode.DiagnosticSeverity.Information;
+    case 'failure-note':
+    default:
+      return vscode.DiagnosticSeverity.Hint;
+  }
+}
+
+function convertPosition(line: number, character: number): vscode.Position {
+  // Convert from rustc's 1-based line/column to VS Code's 0-based
+  return new vscode.Position(
+    Math.max(0, line - 1),
+    Math.max(0, character - 1)
+  );
+}
+
+function convertRange(span: RustcSpan): vscode.Range {
+  const start = convertPosition(span.line_start, span.column_start);
+  const end = convertPosition(span.line_end, span.column_end);
+  return new vscode.Range(start, end);
+}
+
+function convertRelatedInformation(
+  children: RustcMessage[],
+  workspaceRoot?: string
+): vscode.DiagnosticRelatedInformation[] {
+  const related: vscode.DiagnosticRelatedInformation[] = [];
+
+  for (const child of children) {
+    for (const span of child.spans) {
+      if (span.file_name && span.is_primary) {
+        try {
+          const uri = vscode.Uri.file(
+            workspaceRoot
+              ? workspaceRoot + "/" + span.file_name
+              : span.file_name
+          );
+
+          const location = new vscode.Location(uri, convertRange(span));
+          const message = span.label || child.message;
+
+          related.push(new vscode.DiagnosticRelatedInformation(location, message));
+        } catch (error) {
+          // Skip invalid file paths
+          console.warn(`Failed to create related information for ${span.file_name}:`, error);
+        }
+      }
+    }
+  }
+
+  return related;
+}
+
+// Main conversion function
+export function convertRustcDiagnostic(
+  rustcDiag: RustcDiagnostic,
+  workspaceRoot?: string
+): { uri: vscode.Uri; diagnostic: vscode.Diagnostic } | null {
+  const message = rustcDiag.message;
+
+  // Find the primary span (main location where the error occurs)
+  const primarySpan = message.spans.find(span => span.is_primary);
+  if (!primarySpan) {
+    // If no primary span, try to use the first span
+    if (message.spans.length === 0) {
+      return null;
+    }
+  }
+
+  const span = primarySpan || message.spans[0];
+
+  try {
+    // Convert file path to URI
+    const uri = vscode.Uri.file(workspaceRoot + "/" + span.file_name);
+    const range = convertRange(span);
+
+    // Create the diagnostic
+    const diagnostic = new vscode.Diagnostic(
+      range,
+      message.message,
+      convertSeverity(message.level)
+    );
+
+    // Add error code if available
+    if (message.code) {
+      diagnostic.code = message.code.explanation
+        ? {
+            value: message.code.code,
+            target: vscode.Uri.parse(`https://doc.rust-lang.org/error-index.html#${message.code.code}`)
+          }
+        : message.code.code;
+    }
+
+    // Set source
+    diagnostic.source = 'rustc';
+
+    // Add related information from child messages
+    const relatedInfo = convertRelatedInformation(message.children, workspaceRoot);
+    if (relatedInfo.length > 0) {
+      diagnostic.relatedInformation = relatedInfo;
+    }
+
+    // Add tags for specific types of diagnostics
+    const tags: vscode.DiagnosticTag[] = [];
+    if (message.code?.code === 'dead_code' || message.message.includes('never read')) {
+      tags.push(vscode.DiagnosticTag.Unnecessary);
+    }
+    if (message.code?.code.startsWith('deprecated') || message.message.includes('deprecated')) {
+      tags.push(vscode.DiagnosticTag.Deprecated);
+    }
+    if (tags.length > 0) {
+      diagnostic.tags = tags;
+    }
+
+    return { uri, diagnostic };
+  } catch (error) {
+    console.error('Failed to convert rustc diagnostic:', error, rustcDiag);
+    return null;
+  }
+}
+
+// Batch conversion function for multiple diagnostics
+export function convertRustcDiagnostics(
+  rustcDiags: RustcDiagnostic[],
+  workspaceRoot?: string
+): Map<string, vscode.Diagnostic[]> {
+  const diagnosticsByFile = new Map<string, vscode.Diagnostic[]>();
+
+  for (const rustcDiag of rustcDiags) {
+    const converted = convertRustcDiagnostic(rustcDiag, workspaceRoot);
+    if (converted) {
+      const fileKey = converted.uri.toString();
+      const existing = diagnosticsByFile.get(fileKey) || [];
+      existing.push(converted.diagnostic);
+      diagnosticsByFile.set(fileKey, existing);
+    }
+  }
+
+  return diagnosticsByFile;
+}
+
+// Usage example:
+export function updateDiagnosticsFromRustc(
+  diagnosticCollection: vscode.DiagnosticCollection,
+  rustcOutput: string,
+  workspaceRoot?: string
+): void {
+  try {
+    // Parse rustc JSON output (each line is a separate JSON object)
+    const rustcDiagnostics: RustcDiagnostic[] = [];
+
+    for (const line of rustcOutput.split('\n')) {
+      if (line.trim()) {
+        try {
+          const parsed = JSON.parse(line);
+          // Only process compiler messages (not build artifacts)
+          if (parsed.reason === 'compiler-message' && parsed.message) {
+            rustcDiagnostics.push({
+              message: parsed.message,
+              package_id: parsed.package_id,
+              manifest_path: parsed.manifest_path,
+              target: parsed.target
+            });
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse rustc output line:', line, parseError);
+        }
+      }
+    }
+
+    // Convert to VS Code diagnostics
+    const diagnosticsByFile = convertRustcDiagnostics(rustcDiagnostics, workspaceRoot);
+
+    // Clear existing diagnostics
+    diagnosticCollection.clear();
+
+    // Set new diagnostics
+    for (const [uriString, diagnostics] of diagnosticsByFile) {
+      const uri = vscode.Uri.parse(uriString);
+      diagnosticCollection.set(uri, diagnostics);
+    }
+
+  } catch (error) {
+    console.error('Failed to update diagnostics from rustc output:', error);
+  }
+}

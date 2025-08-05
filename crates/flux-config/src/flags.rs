@@ -1,10 +1,9 @@
 use std::{env, path::PathBuf, process, sync::LazyLock};
 
-use globset::{Glob, GlobSet, GlobSetBuilder};
 use serde::Deserialize;
 pub use toml::Value;
 
-use crate::{OverflowMode, PointerWidth, SmtSolver};
+use crate::{IncludePattern, OverflowMode, PointerWidth, SmtSolver};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -14,14 +13,8 @@ pub const EXIT_FAILURE: i32 = 2;
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
     pub log_dir: PathBuf,
-    /// Only checks definitions containing `name` as a substring
-    pub check_def: String,
-    /// If present, only check files matching a glob pattern. This flag can be specified multiple
-    /// times and a file will be checked if it matches any of the patterns. Patterns are checked
-    /// relative to the current working directory. For example, to check all the files in the
-    /// `ascii` module of a crate, you can `include` the pattern `"src/ascii/*"` (assuming that's
-    /// where the files are located).
-    pub include: Option<GlobSet>,
+    /// If present, only check files matching the [`IncludePattern`] a glob pattern.
+    pub include: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
     /// (default `64`).
     pub pointer_width: PointerWidth,
@@ -82,7 +75,6 @@ impl Default for Flags {
             dump_mir: false,
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
-            check_def: String::new(),
             include: None,
             cache: None,
             check_overflow: OverflowMode::default(),
@@ -103,7 +95,7 @@ impl Default for Flags {
 
 pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     let mut flags = Flags::default();
-    let mut include: Option<GlobSetBuilder> = None;
+    let mut includes: Vec<String> = Vec::new();
     for arg in env::args() {
         let Some((key, value)) = parse_flux_arg(&arg) else { continue };
 
@@ -125,8 +117,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
-            "check-def" => parse_string(&mut flags.check_def, value),
-            "include" => parse_include(&mut include, value),
+            "include" => parse_opt_include(&mut includes, value),
             "verify" => parse_bool(&mut flags.verify, value),
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
@@ -141,9 +132,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             process::exit(1);
         }
     }
-    if let Some(include) = include {
-        let include = include.build().unwrap_or_else(|err| {
-            eprintln!("error: invalid include pattern: {err:?}");
+    if !includes.is_empty() {
+        let include = IncludePattern::new(includes).unwrap_or_else(|err| {
+            eprintln!("error: invalid include pattern: {err}");
             process::exit(1);
         });
         flags.include = Some(include);
@@ -262,23 +253,9 @@ fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(),
     }
 }
 
-fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> {
-    match v {
-        Some(s) => {
-            *slot = s.to_string();
-            Ok(())
-        }
-        None => Err("a string"),
+fn parse_opt_include(slot: &mut Vec<String>, v: Option<&str>) -> Result<(), &'static str> {
+    if let Some(include) = v {
+        slot.push(include.to_string());
     }
-}
-
-fn parse_include(slot: &mut Option<GlobSetBuilder>, v: Option<&str>) -> Result<(), &'static str> {
-    match v {
-        Some(s) => {
-            slot.get_or_insert_with(GlobSetBuilder::new)
-                .add(Glob::new(s.trim()).map_err(|_| "invalid glob pattern")?);
-            Ok(())
-        }
-        None => Err("a comma separated list of paths"),
-    }
+    Ok(())
 }

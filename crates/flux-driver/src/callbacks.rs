@@ -1,10 +1,14 @@
+use std::path::Path;
+
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
-use flux_config as config;
+use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
 use flux_middle::{
-    Specs, fhir,
+    Specs,
+    def_id::MaybeExternId,
+    fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     timings,
@@ -147,14 +151,17 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         CrateChecker { genv, cache: QueryCache::load() }
     }
 
-    fn matches_check_def(&self, def_id: DefId) -> bool {
-        let def_path = self.genv.tcx().def_path_str(def_id);
-        def_path.contains(config::check_def())
+    fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
+        // Does this def_id's name contain `fn_name`?
+        let def_path = self.genv.tcx().def_path_str(def_id.local_id());
+        def_path.contains(def)
     }
 
-    /// Check whether the file where `def_id` is defined is included in the list of glob patterns.
-    /// This function will conservatively return `true` if anything unexpected happens.
-    fn file_is_included(&self, def_id: LocalDefId) -> bool {
+    fn matches_file_path<F>(&self, def_id: MaybeExternId, matcher: F) -> bool
+    where
+        F: Fn(&Path) -> bool,
+    {
+        let def_id = def_id.local_id();
         let tcx = self.genv.tcx();
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
@@ -168,7 +175,50 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             file_path = p;
         }
 
-        config::is_checked_file(file_path)
+        matcher(file_path)
+    }
+
+    fn matches_pos(&self, def_id: MaybeExternId, line: usize, col: usize) -> bool {
+        let def_id = def_id.local_id();
+        let tcx = self.genv.tcx();
+        let hir_id = tcx.local_def_id_to_hir_id(def_id);
+        let body_span = tcx.hir_span_with_body(hir_id);
+        let source_map = tcx.sess.source_map();
+        let lo_pos = source_map.lookup_char_pos(body_span.lo());
+        let start_line = lo_pos.line;
+        let start_col = lo_pos.col_display;
+        let hi_pos = source_map.lookup_char_pos(body_span.hi());
+        let end_line = hi_pos.line;
+        let end_col = hi_pos.col_display;
+
+        // is the line in the range of the body?
+        if start_line < end_line {
+            // multiple lines: check if the line is in the range
+            start_line <= line && line <= end_line
+        } else {
+            // single line: check if the line is the same and the column is in range
+            start_line == line && start_col <= col && col <= end_col
+        }
+    }
+
+    /// Check whether the `def_id` (or the file where `def_id` is defined)
+    /// is in the `include` pattern, and conservatively return `true` if
+    /// anything unexpected happens.
+    fn is_included(&self, def_id: MaybeExternId) -> bool {
+        let Some(pattern) = config::include_pattern() else { return true };
+        if self.matches_file_path(def_id, |path| pattern.glob.is_match(path)) {
+            return true;
+        }
+        if pattern.defs.iter().any(|def| self.matches_def(def_id, def)) {
+            return true;
+        }
+        if pattern.spans.iter().any(|pos| {
+            self.matches_file_path(def_id, |path| path.ends_with(&pos.file))
+                && self.matches_pos(def_id, pos.line, pos.column)
+        }) {
+            return true;
+        }
+        false
     }
 
     fn check_def_catching_bugs(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -180,13 +230,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let def_id = self.genv.maybe_extern_id(def_id);
 
-        if !self.matches_check_def(def_id.resolved_id()) {
-            return Ok(());
-        }
         if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
-        if !self.file_is_included(def_id.local_id()) {
+        if !self.is_included(def_id) {
             return Ok(());
         }
 
