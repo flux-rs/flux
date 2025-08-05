@@ -5729,6 +5729,11 @@ pub fn test_digit(x: char) {
 i.e. as an attribute of the function, for example, because you don't want to modify the original source file.</p>
 <p>You can do this using the "detached" <code>spec</code> as illustrated by the following</p>
 <pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/detached00.rs}}</code></pre>
+<h2 id="include-patterns"><a class="header" href="#include-patterns">Include Patterns</a></h2>
+<p>You can include patterns to restrict <code>flux</code> to only check a subset of a codebase.
+A <code>def_id</code> is checked if it matches any of the patterns.</p>
+<pre><code>cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
+</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
