@@ -406,10 +406,10 @@ pub struct ClosureArgsParts<'a, T> {
 #[derive(Debug)]
 pub struct CoroutineArgsParts<'a> {
     pub parent_args: &'a [GenericArg],
+    pub kind_ty: &'a Ty,
     pub resume_ty: &'a Ty,
     pub yield_ty: &'a Ty,
     pub return_ty: &'a Ty,
-    pub witness: &'a Ty,
     pub tupled_upvars_ty: &'a Ty,
 }
 
@@ -586,13 +586,13 @@ impl CoroutineArgs {
 
     fn split(&self) -> CoroutineArgsParts<'_> {
         match &self.args[..] {
-            [parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+            [parent_args @ .., kind_ty, resume_ty, yield_ty, return_ty, tupled_upvars_ty] => {
                 CoroutineArgsParts {
                     parent_args,
+                    kind_ty: kind_ty.expect_type(),
                     resume_ty: resume_ty.expect_type(),
                     yield_ty: yield_ty.expect_type(),
                     return_ty: return_ty.expect_type(),
-                    witness: witness.expect_type(),
                     tupled_upvars_ty: tupled_upvars_ty.expect_type(),
                 }
             }
