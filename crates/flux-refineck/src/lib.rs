@@ -167,6 +167,7 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
                 genv.sess().emit_err(errors::FoldError { span })
             }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
+            ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
     }
@@ -281,6 +282,13 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(refineck_overflow_error, code = E0999)]
     pub struct OverflowError {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_underflow_error, code = E0999)]
+    pub struct UnderflowError {
         #[primary_span]
         pub span: Span,
     }

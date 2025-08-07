@@ -36,6 +36,9 @@ refineck_unknown_error =
 refineck_overflow_error =
     arithmetic operation may overflow
 
+refineck_underflow_error =
+    arithmetic operation may underflow
+
 refineck_unsupported_call =
     unsupported type in function call
     .function_definition = function defined here

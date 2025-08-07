@@ -72,8 +72,7 @@ pub(crate) fn match_un_op(
     let table = match overflow_mode {
         OverflowMode::Strict => &OVERFLOW_STRICT_UN_OPS,
         OverflowMode::None => &OVERFLOW_NONE_UN_OPS,
-        OverflowMode::Lazy => &OVERFLOW_LAZY_UN_OPS,
-        OverflowMode::StrictUnder => &OVERFLOW_STRICT_UNDER_UN_OPS,
+        OverflowMode::Lazy | OverflowMode::StrictUnder => &OVERFLOW_LAZY_UN_OPS,
     };
     table.match_inputs(&op, [(bty.clone(), idx.clone())])
 }
@@ -229,15 +228,6 @@ static OVERFLOW_LAZY_UN_OPS: LazyLock<RuleTable<mir::UnOp, 1>> = LazyLock::new(|
     }
 });
 
-static OVERFLOW_STRICT_UNDER_UN_OPS: LazyLock<RuleTable<mir::UnOp, 1>> = LazyLock::new(|| {
-    use mir::UnOp::*;
-    RuleTable {
-        rules: [(Neg, mk_neg_rules(OverflowMode::StrictUnder)), (Not, mk_not_rules())]
-            .into_iter()
-            .collect(),
-    }
-});
-
 static OVERFLOW_STRICT_UN_OPS: LazyLock<RuleTable<mir::UnOp, 1>> = LazyLock::new(|| {
     use mir::UnOp::*;
     RuleTable {
@@ -259,10 +249,6 @@ fn valid_uint(e: impl Into<Expr>, uint_ty: rty::UintTy) -> rty::Expr {
     E::and(E::ge(e1, 0), E::le(e2, E::uint_max(uint_ty)))
 }
 
-fn nonnegative(e: impl Into<Expr>) -> rty::Expr {
-    E::ge(e.into(), 0)
-}
-
 /// `a + b`
 fn mk_add_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
     match overflow_mode {
@@ -280,21 +266,7 @@ fn mk_add_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
             }
         }
 
-        // like Lazy, but we also check for underflow on unsigned addition
-        OverflowMode::StrictUnder => {
-            primop_rules! {
-                fn(a: T, b: T) -> T{v: E::implies(valid_int(a + b, int_ty), E::eq(v, a+b)) }
-                if let &BaseTy::Int(int_ty) = T
-
-                fn(a: T, b: T) -> T{v: E::implies(valid_uint(a + b, uint_ty), E::eq(v, a+b)) }
-                requires nonnegative(a + b) => ConstrReason::Overflow   // check for underflow
-                if let &BaseTy::Uint(uint_ty) = T
-
-                fn(a: T, b: T) -> T
-            }
-        }
-
-        OverflowMode::Lazy => {
+        OverflowMode::Lazy | OverflowMode::StrictUnder => {
             primop_rules! {
                 fn(a: T, b: T) -> T{v: E::implies(valid_int(a + b, int_ty), E::eq(v, a+b)) }
                 if let &BaseTy::Int(int_ty) = T
@@ -341,7 +313,7 @@ fn mk_mul_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
                 if let &BaseTy::Int(int_ty) = T
 
                 fn(a: T, b: T) -> T{v: E::implies(valid_uint(a * b, uint_ty), E::eq(v, a * b)) }
-                requires nonnegative(a * b) => ConstrReason::Overflow // check for underflow
+                requires E::ge(a * b, 0) => ConstrReason::Underflow
                 if let &BaseTy::Uint(uint_ty) = T
 
                 fn(a: T, b: T) -> T
@@ -396,7 +368,7 @@ fn mk_sub_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
                 if let &BaseTy::Int(int_ty) = T
 
                 fn(a: T, b: T) -> T{v: E::implies(valid_uint(a - b, uint_ty), E::eq(v, a - b)) }
-                requires nonnegative(a - b) => ConstrReason::Overflow // check for underflow
+                requires E::ge(a - b, 0) => ConstrReason::Underflow
                 if let &BaseTy::Uint(uint_ty) = T
 
                 fn(a: T, b: T) -> T
@@ -418,7 +390,7 @@ fn mk_sub_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
         OverflowMode::None => {
             primop_rules! {
                 fn(a: T, b: T) -> T[a - b]
-                requires E::ge(a - b, 0) => ConstrReason::Overflow
+                requires E::ge(a - b, 0) => ConstrReason::Underflow
                 if T.is_unsigned()
 
                 fn(a: T, b: T) -> T[a - b]
