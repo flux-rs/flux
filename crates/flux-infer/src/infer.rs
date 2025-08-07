@@ -74,6 +74,7 @@ pub enum ConstrReason {
     Rem,
     Goto(BasicBlock),
     Overflow,
+    Underflow,
     Subtype(SubtypeReason),
     Other,
 }

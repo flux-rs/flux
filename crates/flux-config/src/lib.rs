@@ -193,12 +193,17 @@ impl IncludePattern {
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum OverflowMode {
-    /// No overflow checking
+    /// Strict-Underflow, No overflow checking
     #[default]
     None,
-    /// Lose all information unless values are known to be in valid range
+    /// Lazy underflow, Lazy overflow checking; lose all information
+    /// unless values are known to be in valid range
     Lazy,
-    /// Check values are always in valid range
+    /// Strict underflow, Lazy overflow checking; always check
+    /// unsignedness (non-negativity) but lazy for upper-bound
+    StrictUnder,
+    /// Strict underflow, Strict overflow checking; always check
+    /// values in valid range for type
     Strict,
 }
 
@@ -214,6 +219,7 @@ impl FromStr for OverflowMode {
             "none" => Ok(OverflowMode::None),
             "lazy" => Ok(OverflowMode::Lazy),
             "strict" => Ok(OverflowMode::Strict),
+            "strict-under" => Ok(OverflowMode::StrictUnder),
             _ => Err(Self::ERROR),
         }
     }
@@ -233,6 +239,7 @@ impl fmt::Display for OverflowMode {
             OverflowMode::None => write!(f, "none"),
             OverflowMode::Lazy => write!(f, "lazy"),
             OverflowMode::Strict => write!(f, "strict"),
+            OverflowMode::StrictUnder => write!(f, "strict-under"),
         }
     }
 }
