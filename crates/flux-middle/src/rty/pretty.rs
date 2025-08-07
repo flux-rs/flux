@@ -433,7 +433,7 @@ impl Pretty for Ty {
                 }
                 Ok(())
             }
-            TyKind::Exists(ty_ctor) => {
+            TyKind::Exists(_ty_ctor) => {
                 w!(cx, f, "{:?}", self.shallow_canonicalize())
             }
             TyKind::Uninit => w!(cx, f, "uninit"),

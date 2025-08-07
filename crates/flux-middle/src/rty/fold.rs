@@ -243,9 +243,9 @@ pub trait TypeVisitable: Sized {
     /// Gives the indices of the provided bvars which:
     ///   1. Only occur a single time.
     ///   2. In their occurrence, are either
-    ///     a. The direct argument in an index (e.g. `exists b0. usize[b0]`)
-    ///     b. The direct argument of a constructor in an index (e.g.
-    ///        `exists b0. Vec<usize>[{len: b0}]`)
+    ///      a. The direct argument in an index (e.g. `exists b0. usize[b0]`)
+    ///      b. The direct argument of a constructor in an index (e.g.
+    ///      `exists b0. Vec<usize>[{len: b0}]`)
     ///
     /// This is to be used for "re-sugaring" existentials into surface syntax
     /// that doesn't use existentials.
