@@ -83,6 +83,12 @@ fn format_fn_root_binder<T: Pretty>(
     f.write_str(&formatted_fn_body)
 }
 
+impl<T: Pretty> Pretty for EarlyBinder<T> {
+    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        cx.with_early_params(|| self.skip_binder_ref().fmt(cx, f))
+    }
+}
+
 impl Pretty for PolyFnSig {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         format_fn_root_binder(self, cx, FnRootLayerType::FnArgs, "for", f)
@@ -295,14 +301,20 @@ impl Pretty for IdxFmt {
             // TODO: handle more complicated cases such as structs.
             ExprKind::Var(Var::Bound(debruijn, breft))
                 if let Some((seen, layer_type)) =
-                    cx.env.check_if_seen_fn_root_var(*debruijn, breft.var)
-                    && seen =>
+                    cx.bvar_env.check_if_seen_fn_root_bvar(*debruijn, breft.var)
+                    && !seen =>
             {
                 match layer_type {
                     FnRootLayerType::FnArgs => w!(cx, f, "@")?,
                     FnRootLayerType::FnRet => w!(cx, f, "#")?,
                 }
                 w!(cx, f, "{:?}", e)
+            }
+            ExprKind::Var(Var::EarlyParam(ep))
+                if cx.earlyparam_env.borrow_mut().as_mut().unwrap().insert(*ep) =>
+            {
+                // FIXME: handle adding # for early params in output position
+                w!(cx, f, "@{:?}", e)
             }
             _ => w!(cx, f, "{:?}", e),
         }
