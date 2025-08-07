@@ -153,14 +153,15 @@ macro_rules! _shape_goto_exit {
 pub use crate::_shape_goto_exit as shape_goto_exit;
 
 #[macro_export]
-macro_rules! _detached_link {
+macro_rules! _hyperlink {
     ($tcx:expr, $src_span:expr, $dst_span:expr) => {{
        let src_json = SpanTrace::new($tcx, $src_span);
        let dst_json = SpanTrace::new($tcx, $dst_span);
-       tracing::info!(event = "detached_link", src_span = ?src_json, dst_span = ?dst_json)
+       println!("TRACE: hyperlink: src={:?}, dst={:?}", src_json, dst_json);
+       tracing::info!(event = "hyperlink", src_span = ?src_json, dst_span = ?dst_json)
     }};
 }
-pub use crate::_detached_link as detached_link;
+pub use crate::_hyperlink as hyperlink;
 
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);

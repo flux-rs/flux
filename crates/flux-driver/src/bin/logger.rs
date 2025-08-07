@@ -18,7 +18,9 @@ pub fn install() -> io::Result<()> {
             .with_filter(
                 Targets::new()
                     .with_target("flux_refineck::checker", Level::DEBUG)
-                    .with_target("flux_driver::collector", Level::DEBUG),
+                    .with_target("flux_driver::collector", Level::INFO)
+                    .with_target("flux_middle::fhir", Level::INFO)
+                    .with_target("flux_middle", Level::INFO),
             );
         let dispatch = Dispatch::new(Registry::default().with(fmt_layer));
         dispatch.clone().init();

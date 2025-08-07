@@ -1130,7 +1130,7 @@ type DetachedLink = {src_span: StmtSpan, dst_span: StmtSpan};
 
 function parseDocumentLinks(documentPath: string, events: any[]): vscode.DocumentLink[] {
   return events
-    .filter(event => event.fields && event.fields.event === "detached_link")
+    .filter(event => event.fields && event.fields.event === "hyperlink")
     .map(event => {
       try {
         const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;

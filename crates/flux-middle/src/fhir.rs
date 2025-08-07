@@ -1093,7 +1093,7 @@ impl<'fhir> PathExpr<'fhir> {
         span: Span,
     ) -> Self {
         if let Some(dst_span) = res.def_span(tcx) {
-            dbg::detached_link!(tcx, span, dst_span);
+            dbg::hyperlink!(tcx, span, dst_span);
         }
         Self { res, segments, fhir_id, span }
     }
