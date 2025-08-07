@@ -31,7 +31,10 @@ use flux_middle::{
     queries::{Providers, QueryResult},
     query_bug,
     rty::{
-        self, Binder, fold::TypeFoldable, refining::{self, Refiner}, AssocReft, WfckResults, },
+        self, AssocReft, Binder, WfckResults,
+        fold::TypeFoldable,
+        refining::{self, Refiner},
+    },
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;

@@ -136,10 +136,9 @@ pub fn pprint_with_default_cx<T: Pretty>(
 }
 
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
-use crate::rty::EarlyReftParam;
 use crate::{
     global_env::GlobalEnv,
-    rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind},
+    rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam},
 };
 
 #[derive(Copy, Clone)]
@@ -277,9 +276,9 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         fn_root_layer_type: Option<FnRootLayerType>,
         fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
         fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
-    ) -> Result<R2, fmt::Error>
-    {
-        self.bvar_env.push_layer(vars, vars_to_remove, fn_root_layer_type);
+    ) -> Result<R2, fmt::Error> {
+        self.bvar_env
+            .push_layer(vars, vars_to_remove, fn_root_layer_type);
         let mut body = String::new();
         let r1 = fmt_body(&mut body)?;
         // We need to be careful when rendering the vars to _not_
@@ -478,28 +477,32 @@ impl BoundVarEnv {
         let num_layers = self.layers.borrow().len();
         let mut layer = self.layers.borrow_mut();
         match layer.get_mut(num_layers.checked_sub(debruijn.as_usize() + 1)?)? {
-            BoundVarLayer { layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), .. } => {
-                Some((!fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type))
-            }
+            BoundVarLayer {
+                layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), ..
+            } => Some((!fn_root_layer.seen_vars.insert(var), fn_root_layer.layer_type)),
             _ => None,
         }
     }
 
     pub fn should_remove_var(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
         let layers = self.layers.borrow();
-        Some(layers
-            .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
-            .vars_to_remove
-            .contains(&var))
+        Some(
+            layers
+                .get(layers.len().checked_sub(debruijn.as_usize() + 1)?)?
+                .vars_to_remove
+                .contains(&var),
+        )
     }
 
     pub fn mark_var_as_removed(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<bool> {
         let mut layers = self.layers.borrow_mut();
         let layer_index = layers.len().checked_sub(debruijn.as_usize() + 1)?;
-        Some(layers
-            .get_mut(layer_index)?
-            .successfully_removed_vars
-            .insert(var))
+        Some(
+            layers
+                .get_mut(layer_index)?
+                .successfully_removed_vars
+                .insert(var),
+        )
     }
 
     fn lookup(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<BoundVarName> {
@@ -512,7 +515,12 @@ impl BoundVarEnv {
             .copied()
     }
 
-    fn push_layer(&self, vars: &[BoundVariableKind], vars_to_remove: FxHashSet<BoundVar>, is_fn_root_layer: Option<FnRootLayerType>) {
+    fn push_layer(
+        &self,
+        vars: &[BoundVariableKind],
+        vars_to_remove: FxHashSet<BoundVar>,
+        is_fn_root_layer: Option<FnRootLayerType>,
+    ) {
         let mut name_map = UnordMap::default();
         for (idx, var) in vars.iter().enumerate() {
             if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {

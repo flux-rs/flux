@@ -1,4 +1,7 @@
-use std::{fmt::{self, Write}, iter};
+use std::{
+    fmt::{self, Write},
+    iter,
+};
 
 use expr::{FieldBind, pretty::aggregate_nested};
 use rustc_data_structures::snapshot_map::SnapshotMap;
@@ -6,8 +9,7 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree, region_to_string};
 
-use super::*;
-use super::fold::TypeVisitable;
+use super::{fold::TypeVisitable, *};
 use crate::pretty::*;
 
 impl Pretty for ClauseKind {
@@ -63,43 +65,53 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let vars = binder.vars();
-    let redundant_bvars = binder.skip_binder_ref().redundant_bvars().into_iter().collect();
+    let redundant_bvars = binder
+        .skip_binder_ref()
+        .redundant_bvars()
+        .into_iter()
+        .collect();
 
-    cx.with_bound_vars_removable(vars, redundant_bvars, Some(fn_root_layer_type), |f_body| {
-        // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
-        w!(cx, f_body, "{:?}", binder.skip_binder_ref())
-    },
-    |(), bound_var_layer, body| {
-        // Then remove any vars that we added a decorator to.
-        //
-        // As well as any vars that we are removing because they are redundant.
+    cx.with_bound_vars_removable(
+        vars,
+        redundant_bvars,
+        Some(fn_root_layer_type),
+        |f_body| {
+            // First format the body, adding a dectorator (@ or #) to vars in indexes that we can.
+            w!(cx, f_body, "{:?}", binder.skip_binder_ref())
+        },
+        |(), bound_var_layer, body| {
+            // Then remove any vars that we added a decorator to.
+            //
+            // As well as any vars that we are removing because they are redundant.
 
-        let BoundVarLayer { successfully_removed_vars, layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), .. } = bound_var_layer
+            let BoundVarLayer {
+                successfully_removed_vars,
+                layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer),
+                ..
+            } = bound_var_layer
             else {
                 unreachable!()
             };
-        let filtered_vars = vars
-            .into_iter()
-            .enumerate()
-            .filter_map(|(idx, var)| {
-                let not_removed = !successfully_removed_vars.contains(&BoundVar::from_usize(idx));
-                let refine_var  = matches!(var, BoundVariableKind::Refine(..));
-                let not_seen = !fn_root_layer.seen_vars.contains(&BoundVar::from_usize(idx));
-                if not_removed && refine_var && not_seen {
-                    Some(var.clone())
-                } else {
-                    None
-                }
-            })
-            .collect_vec();
-        if filtered_vars.is_empty() {
-            write!(f, "{}", body)
-        } else {
-            let left = format!("{binder_name}<");
-            let right = format!("> {}", body);
-            cx.fmt_bound_vars(true, &left, &filtered_vars, &right, f)
-        }
-    })
+            let filtered_vars = vars
+                .into_iter()
+                .enumerate()
+                .filter_map(|(idx, var)| {
+                    let not_removed =
+                        !successfully_removed_vars.contains(&BoundVar::from_usize(idx));
+                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
+                    let not_seen = !fn_root_layer.seen_vars.contains(&BoundVar::from_usize(idx));
+                    if not_removed && refine_var && not_seen { Some(var.clone()) } else { None }
+                })
+                .collect_vec();
+            if filtered_vars.is_empty() {
+                write!(f, "{}", body)
+            } else {
+                let left = format!("{binder_name}<");
+                let right = format!("> {}", body);
+                cx.fmt_bound_vars(true, &left, &filtered_vars, &right, f)
+            }
+        },
+    )
 }
 
 impl<T: Pretty> Pretty for EarlyBinder<T> {
@@ -311,40 +323,49 @@ impl Pretty for IdxFmt {
                     .map(|(name, value)| FieldBind { name: *name, value: value.clone() })
                     .collect_vec();
                 // Check if _all_ the fields are vars
-                if let Some(var_fields) = fields.iter().map(|field| {
-                    if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) = field.value.kind() {
-                        Some((*debruijn, *var, field.value.clone()))
-                    } else {
-                        None
-                    }
-                }).collect::<Option<Vec<_>>>() {
+                if let Some(var_fields) = fields
+                    .iter()
+                    .map(|field| {
+                        if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) =
+                            field.value.kind()
+                        {
+                            Some((*debruijn, *var, field.value.clone()))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Option<Vec<_>>>()
+                {
                     // If they are all meant to be removed, we can elide the entire index.
                     if var_fields.iter().all(|(debruijn, var, _e)| {
-                        cx.bvar_env.should_remove_var(*debruijn, *var).unwrap_or(false)
+                        cx.bvar_env
+                            .should_remove_var(*debruijn, *var)
+                            .unwrap_or(false)
                     }) {
                         var_fields.iter().for_each(|(debruijn, var, _e)| {
                             cx.bvar_env.mark_var_as_removed(*debruijn, *var);
                         });
                         // We write nothing here: we can erase the index
-                    // If we can't remove all of the vars, we can still elide the
-                    // constructor names and do our normal thing of adding @ and #
-                    //
-                    // NOTE: this is heavily copied from the var case below.
+                        // If we can't remove all of the vars, we can still elide the
+                        // constructor names and do our normal thing of adding @ and #
+                        //
+                        // NOTE: this is heavily copied from the var case below.
                     } else {
                         let mut fields = var_fields.into_iter().map(|(debruijn, var, e)| {
                             if let Some((seen, layer_type)) =
                                 cx.bvar_env.check_if_seen_fn_root_bvar(debruijn, var)
-                                && !seen {
-                                    match layer_type {
-                                        FnRootLayerType::FnArgs => {
-                                            format_cx!(cx, "@{:?}", e)
-                                        }
-                                        FnRootLayerType::FnRet => {
-                                            format_cx!(cx, "#{:?}", e)
-                                        }
+                                && !seen
+                            {
+                                match layer_type {
+                                    FnRootLayerType::FnArgs => {
+                                        format_cx!(cx, "@{:?}", e)
                                     }
+                                    FnRootLayerType::FnRet => {
+                                        format_cx!(cx, "#{:?}", e)
+                                    }
+                                }
                             } else {
-                                    format_cx!(cx, "{:?}", e)
+                                format_cx!(cx, "{:?}", e)
                             }
                         });
                         buf.write_str(&fields.join(", "))?;
@@ -364,23 +385,27 @@ impl Pretty for IdxFmt {
             // we check to do first.
             //
             // TODO: handle more complicated cases such as structs.
-            ExprKind::Var(Var::Bound(debruijn, BoundReft { var, ..})) =>
-            {
-                if cx.bvar_env.should_remove_var(*debruijn, *var).unwrap_or(false) {
+            ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) => {
+                if cx
+                    .bvar_env
+                    .should_remove_var(*debruijn, *var)
+                    .unwrap_or(false)
+                {
                     cx.bvar_env.mark_var_as_removed(*debruijn, *var);
                     // don't write anything
                 } else {
                     if let Some((seen, layer_type)) =
                         cx.bvar_env.check_if_seen_fn_root_bvar(*debruijn, *var)
-                        && !seen {
-                            match layer_type {
-                                FnRootLayerType::FnArgs => {
-                                    buf.write_str("@")?;
-                                }
-                                FnRootLayerType::FnRet => {
-                                    buf.write_str("#")?;
-                                }
+                        && !seen
+                    {
+                        match layer_type {
+                            FnRootLayerType::FnArgs => {
+                                buf.write_str("@")?;
                             }
+                            FnRootLayerType::FnRet => {
+                                buf.write_str("#")?;
+                            }
+                        }
                     }
                     buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }
@@ -395,11 +420,7 @@ impl Pretty for IdxFmt {
                 buf.write_str(&format_cx!(cx, "{:?}", e))?;
             }
         }
-        if !buf.is_empty() {
-            write!(f, "[{}]", buf)
-        } else {
-            Ok(())
-        }
+        if !buf.is_empty() { write!(f, "[{}]", buf) } else { Ok(()) }
     }
 }
 

@@ -11,16 +11,11 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name,
-    OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty,
-    TyKind, TyOrBase, normalize::Normalizer,
-};
-use super::{
-    normalize::Normalizer, BaseTy, Binder, BoundVariableKind, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, WKVid
+    normalize::Normalizer, BaseTy, Binder, BoundVariableKind, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind, TyOrBase
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::{Var, VariantSig, expr::HoleKind, BoundReft},
+    rty::{BoundReft, Var, VariantSig, expr::HoleKind},
 };
 
 pub trait TypeVisitor: Sized {
@@ -243,23 +238,6 @@ pub trait TypeVisitable: Sized {
         collector.0
     }
 
-    fn wkvars(&self) -> HashSet<WKVid> {
-        struct CollectWKVids(HashSet<WKVid>);
-
-        impl TypeVisitor for CollectWKVids {
-            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
-                if let ExprKind::WKVar(wkvar) = e.kind() {
-                    self.0.insert(wkvar.wkvid);
-                }
-                e.super_visit_with(self)
-            }
-        }
-
-        let mut collector = CollectWKVids(HashSet::default());
-        let _ = self.visit_with(&mut collector);
-        collector.0
-    }
-
     /// Gives the indices of the provided bvars which:
     ///   1. Only occur a single time.
     ///   2. In their occurrence, are either
@@ -297,7 +275,9 @@ pub trait TypeVisitable: Sized {
                     if debruijn == &self.debruijn {
                         self.bvar_occurrences
                             .entry(*var)
-                            .and_modify(|count| {*count = *count + 1; })
+                            .and_modify(|count| {
+                                *count = *count + 1;
+                            })
                             .or_insert(1);
                     }
                 }
@@ -312,17 +292,23 @@ pub trait TypeVisitable: Sized {
                             if debruijn == &self.debruijn {
                                 self.bvar_index_occurrences
                                     .entry(*var)
-                                    .and_modify(|count| {*count = *count + 1;})
+                                    .and_modify(|count| {
+                                        *count = *count + 1;
+                                    })
                                     .or_insert(1);
                             }
                         }
                         ExprKind::Ctor(_ctor, exprs) => {
                             exprs.iter().for_each(|expr| {
-                                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = expr.kind() {
+                                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) =
+                                    expr.kind()
+                                {
                                     if debruijn == &self.debruijn {
                                         self.bvar_index_occurrences
                                             .entry(*var)
-                                            .and_modify(|count| {*count = *count + 1; })
+                                            .and_modify(|count| {
+                                                *count = *count + 1;
+                                            })
                                             .or_insert(1);
                                     }
                                 }
@@ -334,7 +320,10 @@ pub trait TypeVisitable: Sized {
                 ty.super_visit_with(self)
             }
 
-            fn visit_binder<T: TypeVisitable>(&mut self, t: &Binder<T>) -> ControlFlow<Self::BreakTy> {
+            fn visit_binder<T: TypeVisitable>(
+                &mut self,
+                t: &Binder<T>,
+            ) -> ControlFlow<Self::BreakTy> {
                 self.debruijn.shift_in(1);
                 t.super_visit_with(self)?;
                 self.debruijn.shift_out(1);
@@ -349,9 +338,12 @@ pub trait TypeVisitable: Sized {
         };
         let _ = self.visit_with(&mut finder);
 
-        finder.bvar_index_occurrences.keys().copied().filter(|var_index| {
-            *finder.bvar_occurrences.get(var_index).unwrap_or(&0) == 1
-        }).collect()
+        finder
+            .bvar_index_occurrences
+            .keys()
+            .copied()
+            .filter(|var_index| *finder.bvar_occurrences.get(var_index).unwrap_or(&0) == 1)
+            .collect()
     }
 }
 

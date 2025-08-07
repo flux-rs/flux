@@ -30,8 +30,7 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
-use std::ops::ControlFlow;
-use std::fmt::Write;
+use std::{fmt::Write, ops::ControlFlow};
 
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
@@ -40,7 +39,9 @@ use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitor, TypeVisitable}, BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig, SubsetTy, Ty, TyCtor, TyKind, TyOrBase
+    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
+    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable, TypeVisitor},
 };
 use crate::rty::{ExprKind, HoleKind};
 
@@ -356,12 +357,8 @@ pub enum CanonicalTy {
 impl TypeVisitable for CanonicalTy {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         match self {
-            Self::Constr(constr_ty) => {
-                constr_ty.visit_with(visitor)
-            }
-            Self::Exists(binder) => {
-                binder.visit_with(visitor)
-            }
+            Self::Constr(constr_ty) => constr_ty.visit_with(visitor),
+            Self::Exists(binder) => binder.visit_with(visitor),
         }
     }
 }
@@ -434,38 +431,45 @@ mod pretty {
             match self {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
-                    let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars().into_iter().collect();
-                    cx.with_bound_vars_removable(poly_constr.vars(), redundant_bvars, None, |f_body| {
-                        let constr = poly_constr.skip_binder_ref();
-                        if constr.pred().is_trivially_true() {
-                            w!(cx, f_body, "{:?}", &constr.ty)
-                        } else {
-                            w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
-                        }
-                    },
-                    |(), bound_var_layer, body| {
-                        let vars = poly_constr
-                            .vars()
-                            .into_iter()
-                            .enumerate()
-                            .filter_map(|(idx, var)| {
-                                let not_removed = !bound_var_layer.successfully_removed_vars.contains(&BoundVar::from_usize(idx));
-                                let refine_var  = matches!(var, BoundVariableKind::Refine(..));
-                                if not_removed && refine_var {
-                                    Some(var.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect_vec();
-                        if vars.is_empty() {
-                            write!(f, "{}", body)
-                        } else {
-                            let left = "{";
-                            let right = format!(". {} }}", body);
-                            cx.fmt_bound_vars(false, left, &vars, &right, f)
-                        }
-                    })
+                    let redundant_bvars = poly_constr
+                        .skip_binder_ref()
+                        .redundant_bvars()
+                        .into_iter()
+                        .collect();
+                    cx.with_bound_vars_removable(
+                        poly_constr.vars(),
+                        redundant_bvars,
+                        None,
+                        |f_body| {
+                            let constr = poly_constr.skip_binder_ref();
+                            if constr.pred().is_trivially_true() {
+                                w!(cx, f_body, "{:?}", &constr.ty)
+                            } else {
+                                w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                            }
+                        },
+                        |(), bound_var_layer, body| {
+                            let vars = poly_constr
+                                .vars()
+                                .into_iter()
+                                .enumerate()
+                                .filter_map(|(idx, var)| {
+                                    let not_removed = !bound_var_layer
+                                        .successfully_removed_vars
+                                        .contains(&BoundVar::from_usize(idx));
+                                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
+                                    if not_removed && refine_var { Some(var.clone()) } else { None }
+                                })
+                                .collect_vec();
+                            if vars.is_empty() {
+                                write!(f, "{}", body)
+                            } else {
+                                let left = "{";
+                                let right = format!(". {} }}", body);
+                                cx.fmt_bound_vars(false, left, &vars, &right, f)
+                            }
+                        },
+                    )
                 }
             }
         }
