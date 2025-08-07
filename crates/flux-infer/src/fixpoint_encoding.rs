@@ -20,13 +20,13 @@ use flux_middle::{
     fhir::SpecFuncKind,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, ESpan, GenericArgsExt, Lambda, List, VariantIdx, fold::TypeVisitable},
+    rty::{self, ESpan, GenericArgsExt, Lambda, List, VariantIdx, fold::TypeVisitable, WKVid},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
 use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
+    fx::{FxIndexMap, FxIndexSet, FxHashMap},
     unord::{UnordMap, UnordSet},
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -394,10 +394,17 @@ pub struct BlameCtxt {
     pub expr: rty::Expr,
 }
 
+pub struct WKVarCtxt {
+    pub wkvars_to_convert: FxHashMap<WKVid, KVid>,
+}
+
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
     kvars: KVarGen,
+    /// WKVars that we want to convert to a kvar when sending to fixpoint
+    /// (the rest will be converted to True)
+    wkvar_ctxt: WKVarCtxt,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
@@ -426,11 +433,12 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen, wkvar_ctxt: WKVarCtxt) -> Self {
         let def_span = genv.tcx().def_span(def_id);
         Self {
             comments: vec![],
             kvars,
+            wkvar_ctxt,
             scx: SortEncodingCtxt::default(),
             genv,
             ecx: ExprEncodingCtxt::new(genv, def_span),
@@ -442,14 +450,14 @@ where
         }
     }
 
-    pub fn check(
+    pub fn create_task(
         mut self,
         cache: &mut FixQueryCache,
         constraint: fixpoint::Constraint,
         kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
-    ) -> QueryResult<Vec<FixpointCheckError<Tag>>> {
+    ) -> Task {
         // skip checking trivial constraints
         if !constraint.is_concrete() {
             self.ecx.errors.into_result()?;
@@ -487,7 +495,7 @@ where
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.into_result()?;
 
-        let task = fixpoint::Task {
+        fixpoint::Task {
             comments: self.comments,
             constants,
             kvars,
@@ -497,7 +505,18 @@ where
             scrape_quals,
             solver,
             data_decls: self.scx.into_data_decls(self.genv)?,
-        };
+        }
+    }
+
+    pub fn check(
+        mut self,
+        cache: &mut FixQueryCache,
+        constraint: fixpoint::Constraint,
+        kind: FixpointQueryKind,
+        scrape_quals: bool,
+        solver: SmtSolver,
+    ) -> QueryResult<Vec<FixpointCheckError<Tag>>> {
+        let task = self.create_task(cache, constraint, kind, scrape_quals, solver);
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();
         }
@@ -609,12 +628,21 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::WKVar(_) => {
-                // Don't emit anything to fixpoint for this.
-                //
-                // If a weak kvar appears in this position, we shouldn't track it because
-                // it isn't an assumption. I'm pretty sure this is correct.
-                Ok(fixpoint::Constraint::TRUE)
+            rty::ExprKind::WKVar(wkvar) => {
+                if Some(kvid) = self.wkvar_ctxt.wkvars_to_convert.get(&wkvar.wkvid) {
+                    // If we are meant to treat the wkvar as a kvar, convert it here
+                    // and follow what we do for kvars.
+                    let conv_kvar = self.wkvar_to_kvar(wkvar, kvid);
+                    let mut bindings = vec![];
+                    let pred = self.kvar_to_fixpoint(&conv_kvar, &mut bindings)?;
+                    Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
+                } else {
+                    // Don't emit anything to fixpoint for this normally.
+                    //
+                    // If a weak kvar appears in this position, we shouldn't track it because
+                    // it isn't an assumption. I'm pretty sure this is correct.
+                    Ok(fixpoint::Constraint::TRUE)
+                }
             }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
@@ -687,6 +715,10 @@ where
             }
             rty::ExprKind::WKVar(wkvar) => {
                 blame_analysis.wkvars.push(wkvar.clone());
+                if Some(kvid) = self.wkvar_ctxt.wkvars_to_convert.get(&wkvar.wkvid) {
+                    let conv_kvar = self.wkvar_to_kvar(wkvar, kvid);
+                    preds.push(self.kvar_to_fixpoint(&conv_kvar, bindings));
+                }
             }
             rty::ExprKind::ForAll(_) => {
                 // If a forall appears in assumptive position replace it with true. This is sound
@@ -774,6 +806,16 @@ where
             .collect_vec();
 
         Ok(fixpoint::Pred::And(kvars))
+    }
+
+    fn wkvar_to_kvar(&mut self, wkvar: rty::WKVar, kvid: rty::KVid
+    ) -> rty::KVar {
+        let args = wkvar.args.clone();
+        rty::KVar {
+            kvid,
+            self_args: args.len(),
+            args,
+        }
     }
 
     fn def_span(&self) -> Span {

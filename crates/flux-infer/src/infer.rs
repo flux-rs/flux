@@ -238,7 +238,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             backend,
         });
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Default::default());
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
         fcx.check(cache, cstr, kind, self.opts.scrape_quals, backend)

@@ -514,7 +514,7 @@ pub fn iterative_solve(
         any_wkvar_change = false;
         all_errors = Vec::new();
         for cstr in &cstrs {
-            let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
+            let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone(), FxHashSet::default());
 
             let mut wkvar_subst = WKVarSubst {
                 wkvar_instantiations: solutions
@@ -747,4 +747,16 @@ pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
     //     println!("equality candidate: {:?}", candidate);
     // }
     return candidates;
+}
+
+pub fn combine_constraints(cstrs: Constraints) -> Constraint {
+    if cstrs.is_empty() {
+        panic!("no constraints to combine");
+    }
+    let mut rhs_wkvars = FxHashSet::default();
+    for cstr in &cstrs {
+        let (_lhs_wkvars, mut rhs_wkvars) = cstr.refine_tree.wkvars();
+        rhs_wkvars.extend(rhs_wkvars.into_iter());
+    }
+
 }
