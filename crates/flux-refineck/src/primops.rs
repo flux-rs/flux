@@ -306,21 +306,7 @@ fn mk_mul_rules(overflow_mode: OverflowMode) -> RuleMatcher<2> {
             }
         }
 
-        // like Lazy, but we also check for underflow on unsigned multiplication
-        OverflowMode::StrictUnder => {
-            primop_rules! {
-                fn(a: T, b: T) -> T{v: E::implies(valid_int(a * b, int_ty), E::eq(v, a * b)) }
-                if let &BaseTy::Int(int_ty) = T
-
-                fn(a: T, b: T) -> T{v: E::implies(valid_uint(a * b, uint_ty), E::eq(v, a * b)) }
-                requires E::ge(a * b, 0) => ConstrReason::Underflow
-                if let &BaseTy::Uint(uint_ty) = T
-
-                fn(a: T, b: T) -> T
-            }
-        }
-
-        OverflowMode::Lazy => {
+        OverflowMode::Lazy | OverflowMode::StrictUnder => {
             primop_rules! {
                 fn(a: T, b: T) -> T{v: E::implies(valid_int(a * b, int_ty), E::eq(v, a * b)) }
                 if let &BaseTy::Int(int_ty) = T
