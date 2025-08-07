@@ -17,7 +17,7 @@ pub mod visit;
 
 use std::{borrow::Cow, fmt};
 
-use flux_common::{bug, span_bug};
+use flux_common::{bug, dbg, dbg::SpanTrace, span_bug};
 use flux_rustc_bridge::def_id_to_string;
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
@@ -1059,6 +1059,21 @@ impl<Id> ExprRes<Id> {
     pub fn expect_param(self) -> (ParamKind, Id) {
         if let ExprRes::Param(kind, id) = self { (kind, id) } else { bug!("expected param") }
     }
+
+    pub fn def_span(&self, tcx: TyCtxt) -> Option<Span> {
+        match self {
+            ExprRes::Const(def_id)
+            | ExprRes::Ctor(def_id)
+            | ExprRes::Variant(def_id)
+            | ExprRes::ConstGeneric(def_id) => Some(tcx.def_span(*def_id)),
+            ExprRes::NumConst(_) => None,
+            ExprRes::Param(_, _) => None,
+            ExprRes::GlobalFunc(kind) => {
+                let def_id = kind.def_id()?.parent();
+                Some(tcx.def_span(def_id))
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1067,6 +1082,21 @@ pub struct PathExpr<'fhir> {
     pub res: ExprRes,
     pub fhir_id: FhirId,
     pub span: Span,
+}
+
+impl<'fhir> PathExpr<'fhir> {
+    pub fn new(
+        tcx: TyCtxt,
+        res: ExprRes,
+        segments: &'fhir [Ident],
+        fhir_id: FhirId,
+        span: Span,
+    ) -> Self {
+        if let Some(dst_span) = res.def_span(tcx) {
+            dbg::detached_link!(tcx, span, dst_span);
+        }
+        Self { res, segments, fhir_id, span }
+    }
 }
 
 newtype_index! {

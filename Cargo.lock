@@ -529,6 +529,7 @@ dependencies = [
  "serde",
  "serde_json",
  "toposort-scc",
+ "tracing",
 ]
 
 [[package]]
