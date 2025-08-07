@@ -1512,8 +1512,8 @@ pub(crate) mod pretty {
     impl Pretty for Lambda {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             let vars = self.body.vars();
+            // TODO: remove redundant vars; see Ty
             // let redundant_bvars = self.body.redundant_bvars().into_iter().collect();
-            todo!();
             cx.with_bound_vars(vars, || {
                 cx.fmt_bound_vars(false, "λ", vars, ". ", f)?;
                 w!(cx, f, "{:?}", self.body.as_ref().skip_binder())
@@ -1525,10 +1525,7 @@ pub(crate) mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Bound(debruijn, var) => cx.fmt_bound_reft(*debruijn, *var, f),
-                Var::EarlyParam(var) => {
-                    println!("printint early param {:?}", var);
-                    w!(cx, f, "{}", ^var.name)
-                }
+                Var::EarlyParam(var) => w!(cx, f, "{}", ^var.name),
                 Var::Free(name) => w!(cx, f, "{:?}", ^name),
                 Var::EVar(evar) => w!(cx, f, "{:?}", ^evar),
                 Var::ConstGeneric(param) => w!(cx, f, "{}", ^param.name),
@@ -1614,7 +1611,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            todo!("remove redundant vars");
+            // TODO: remove redundant vars; see Ty
             nested_with_bound_vars(cx, "λ", self.body.vars(), None, |prefix| {
                 let expr_d = self.body.skip_binder_ref().fmt_nested(cx)?;
                 let text = format!("{}{}", prefix, expr_d.text);

@@ -11,7 +11,9 @@ use rustc_hash::FxHashSet;
 use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    normalize::Normalizer, BaseTy, Binder, BoundVariableKind, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort, SubsetTy, Ty, TyKind, TyOrBase
+    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures,
+    Expr, ExprKind, GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased,
+    Region, Sort, SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer,
 };
 use crate::{
     global_env::GlobalEnv,
@@ -271,16 +273,15 @@ pub trait TypeVisitable: Sized {
         impl TypeVisitor for RedundantBVarFinder {
             // Here we count all times we see a bvar
             fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
-                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = e.kind() {
-                    if debruijn == &self.debruijn {
+                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = e.kind()
+                    && debruijn == &self.debruijn {
                         self.bvar_occurrences
                             .entry(*var)
                             .and_modify(|count| {
-                                *count = *count + 1;
+                                *count += 1;
                             })
                             .or_insert(1);
                     }
-                }
                 e.super_visit_with(self)
             }
             fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
@@ -293,7 +294,7 @@ pub trait TypeVisitable: Sized {
                                 self.bvar_index_occurrences
                                     .entry(*var)
                                     .and_modify(|count| {
-                                        *count = *count + 1;
+                                        *count += 1;
                                     })
                                     .or_insert(1);
                             }
@@ -302,16 +303,14 @@ pub trait TypeVisitable: Sized {
                             exprs.iter().for_each(|expr| {
                                 if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) =
                                     expr.kind()
-                                {
-                                    if debruijn == &self.debruijn {
+                                    && debruijn == &self.debruijn {
                                         self.bvar_index_occurrences
                                             .entry(*var)
                                             .and_modify(|count| {
-                                                *count = *count + 1;
+                                                *count += 1;
                                             })
                                             .or_insert(1);
                                     }
-                                }
                             });
                         }
                         _ => {}

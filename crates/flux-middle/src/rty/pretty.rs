@@ -5,7 +5,6 @@ use std::{
 
 use expr::{FieldBind, pretty::aggregate_nested};
 use rustc_data_structures::snapshot_map::SnapshotMap;
-use rustc_hash::FxHashSet;
 use rustc_type_ir::DebruijnIndex;
 use ty::{UnevaluatedConst, ValTree, region_to_string};
 
@@ -281,11 +280,6 @@ impl Pretty for Ensures {
 impl Pretty for SubsetTy {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         w!(cx, f, "{:?}", &self.to_ty())
-        // if self.pred.is_trivially_true() {
-        //     w!(cx, f, "{:?}[{:?}]", &self.bty, &self.idx)
-        // } else {
-        //     w!(cx, f, "{{ {:?}[{:?}] | {:?} }}", &self.bty, &self.idx, &self.pred)
-        // }
     }
 }
 
@@ -441,15 +435,6 @@ impl Pretty for Ty {
             }
             TyKind::Exists(ty_ctor) => {
                 w!(cx, f, "{:?}", self.shallow_canonicalize())
-                // let vars = ty_ctor.vars();
-                // cx.with_bound_vars(vars, todo!(), || {
-                //     if cx.hide_refinements {
-                //         w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
-                //     } else {
-                //         cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
-                //         w!(cx, f, "{:?}", ty_ctor.skip_binder_ref())
-                //     }
-                // })
             }
             TyKind::Uninit => w!(cx, f, "uninit"),
             TyKind::StrgRef(re, loc, ty) => w!(cx, f, "&{:?} strg <{:?}: {:?}>", re, loc, ty),
@@ -894,7 +879,7 @@ impl PrettyNested for Ty {
                 Ok(NestedString { text, children, key: None })
             }
             TyKind::Exists(ty_ctor) => {
-                todo!("remove redundant vars");
+                // TODO: remove redundant vars; see Ty
                 nested_with_bound_vars(cx, "∃", ty_ctor.vars(), None, |exi_str| {
                     let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
                     let text = format!("{}{}", exi_str, ty_ctor_d.text);
