@@ -9,7 +9,7 @@ A VS Code extension for the **Flux Refinement Type Checker** for Rust, providing
 - **Trace Debugging**: Optional checker trace for detailed verification insights
 - **Interactive UI**: Toggle between Values, Constraints, and Types views
 - **Clickable Status Bar**: Cancel running operations with a simple click
-- **Detached Link Navigation**: Jump between specifications and implementations
+- **Spec Navigation**: Jump to flux definitions
 
 ![Flux Extension Demo](static/flux_view_start.jpg)
 
