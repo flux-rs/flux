@@ -9,19 +9,28 @@ runs:
         OS=$(uname -s)
         ARCH=$(uname -m)
         if [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
-          URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-x86_64-linux-gnu"
+          NAME="fixpoint-x86_64-linux-gnu.tar.gz"
         elif [ "$OS" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
-          URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-x86_64-apple-darwin"
+          NAME="fixpoint-x86_64-apple-darwin.tar.gz"
         elif [ "$OS" = "Darwin" ] && { [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; }; then
-          URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/fixpoint-aarch64-apple-darwin"
+          NAME="fixpoint-aarch64-apple-darwin.tar.gz"
         else
           echo "Unsupported OS/architecture: $OS/$ARCH" >&2
           exit 1
         fi
-        curl -fsSL --retry 3 -o fixpoint "$URL"
-        chmod +x fixpoint
+
+        URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${NAME}"
+        echo "Downloading from $URL"
+        curl -fsSL --retry 3 -o "$NAME" "$URL"
+
+        echo "Extracting archive"
+        tar -xzf "$NAME"
         mkdir -p ~/.local/bin
-        cp fixpoint ~/.local/bin/
+        cp fixpoint ~/.local/bin/fixpoint
+
+        echo "Cleaning up"
+        rm -f "$NAME"
+
         echo ~/.local/bin >> $GITHUB_PATH
       shell: bash
 
