@@ -395,7 +395,7 @@ pub struct BlameCtxt {
 }
 
 pub struct WKVarCtxt {
-    pub wkvars_to_convert: FxHashMap<WKVid, KVid>,
+    pub wkvid_to_kvid: FxHashMap<rty::WKVid, rty::KVid>,
 }
 
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
@@ -433,16 +433,40 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen, wkvar_ctxt: WKVarCtxt) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, mut kvars: KVarGen, wkvars_to_convert: Vec<rty::WKVid>) -> Self {
         let def_span = genv.tcx().def_span(def_id);
+        let mut wkvar_ctxt = WKVarCtxt { wkvid_to_kvid: FxHashMap::default() };
+        let mut scx = SortEncodingCtxt::default();
+        let mut kcx = KVarEncodingCtxt::default();
+        for wkvar@(wkv_def_id, wkv_idx) in &wkvars_to_convert {
+            if let Some(wkvar_map) = genv.weak_kvars_for(*wkv_def_id) {
+                if let Some(wkvar_source) = wkvar_map.get(&wkv_idx.as_u32()) {
+                    let first_wkvar = wkvar_source.first().expect("there should be at least one wkvar annotation");
+                    let kvar_e = kvars.fresh(&[first_wkvar.vars().clone()], [], KVarEncoding::Single);
+                    let kvid = match kvar_e.kind() {
+                        rty::ExprKind::KVar(kvar) => kvar.kvid,
+                        _ => unreachable!("kvars.fresh() should only ever return a kvar"),
+                    };
+                    wkvar_ctxt.wkvid_to_kvid.insert(*wkvar, kvid);
+                    let decl = kvars.get(kvid);
+                    // This is important to ensure that the wkvars all have the same `fixpoint::KVid`
+                    // that is shared across all constraints.
+                    kcx.encode(kvid, decl, &mut scx);
+                } else {
+                    println!("Missing entry in the global map for a wkvar we want to convert to a kvar: {:?}", wkvar);
+                }
+            } else {
+                println!("Missing entry in the global map for a wkvar we want to convert to a kvar: {:?}", wkvar);
+            }
+        }
         Self {
             comments: vec![],
             kvars,
             wkvar_ctxt,
-            scx: SortEncodingCtxt::default(),
+            scx,
             genv,
             ecx: ExprEncodingCtxt::new(genv, def_span),
-            kcx: Default::default(),
+            kcx,
             tags: IndexVec::new(),
             tags_inv: Default::default(),
             blame_ctx_map: HashMap::new(),
@@ -457,13 +481,7 @@ where
         kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
-    ) -> Task {
-        // skip checking trivial constraints
-        if !constraint.is_concrete() {
-            self.ecx.errors.into_result()?;
-            return Ok(vec![]);
-        }
-        let def_span = self.def_span();
+    ) -> QueryResult<fixpoint::Task> {
         let def_id = self.def_id;
 
         let kvars = self.kcx.into_fixpoint();
@@ -495,7 +513,7 @@ where
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.into_result()?;
 
-        fixpoint::Task {
+        Ok(fixpoint::Task {
             comments: self.comments,
             constants,
             kvars,
@@ -505,7 +523,7 @@ where
             scrape_quals,
             solver,
             data_decls: self.scx.into_data_decls(self.genv)?,
-        }
+        })
     }
 
     pub fn check(
@@ -516,20 +534,30 @@ where
         scrape_quals: bool,
         solver: SmtSolver,
     ) -> QueryResult<Vec<FixpointCheckError<Tag>>> {
-        let task = self.create_task(cache, constraint, kind, scrape_quals, solver);
+        // skip checking trivial constraints
+        if !constraint.is_concrete() {
+            self.ecx.errors.into_result()?;
+            return Ok(vec![]);
+        }
+        let def_span = self.def_span();
+        let tags = self.tags.clone();
+        let blame_ctx_map = self.blame_ctx_map.clone();
+        let resolved_def_id = self.def_id.resolved_id();
+        let genv = self.genv;
+        let task = self.create_task(cache, constraint, kind, scrape_quals, solver)?;
         if config::dump_constraint() {
-            dbg::dump_item_info(self.genv.tcx(), self.def_id.resolved_id(), "smt2", &task).unwrap();
+            dbg::dump_item_info(genv.tcx(), resolved_def_id, "smt2", &task).unwrap();
         }
 
-        match Self::run_task_with_cache(self.genv, task, self.def_id.resolved_id(), kind, cache) {
+        match Self::run_task_with_cache(genv, task, resolved_def_id, kind, cache) {
             FixpointResult::Safe(_) => Ok(vec![]),
             FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
                     .into_iter()
-                    .map(|err| (err.tag, self.tags[err.tag]))
+                    .map(|err| (err.tag, tags[err.tag]))
                     .unique()
                     .map(|(tag_idx, tag)| {
-                        FixpointCheckError::new(tag, self.blame_ctx_map[&tag_idx].clone())
+                        FixpointCheckError::new(tag, blame_ctx_map[&tag_idx].clone())
                     })
                     .collect_vec())
             }
@@ -629,10 +657,10 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
             rty::ExprKind::WKVar(wkvar) => {
-                if Some(kvid) = self.wkvar_ctxt.wkvars_to_convert.get(&wkvar.wkvid) {
+                if let Some(kvid) = self.wkvar_ctxt.wkvid_to_kvid.get(&wkvar.wkvid) {
                     // If we are meant to treat the wkvar as a kvar, convert it here
                     // and follow what we do for kvars.
-                    let conv_kvar = self.wkvar_to_kvar(wkvar, kvid);
+                    let conv_kvar = self.wkvar_to_kvar(wkvar, *kvid);
                     let mut bindings = vec![];
                     let pred = self.kvar_to_fixpoint(&conv_kvar, &mut bindings)?;
                     Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
@@ -715,9 +743,9 @@ where
             }
             rty::ExprKind::WKVar(wkvar) => {
                 blame_analysis.wkvars.push(wkvar.clone());
-                if Some(kvid) = self.wkvar_ctxt.wkvars_to_convert.get(&wkvar.wkvid) {
-                    let conv_kvar = self.wkvar_to_kvar(wkvar, kvid);
-                    preds.push(self.kvar_to_fixpoint(&conv_kvar, bindings));
+                if let Some(kvid) = self.wkvar_ctxt.wkvid_to_kvid.get(&wkvar.wkvid) {
+                    let conv_kvar = self.wkvar_to_kvar(wkvar, *kvid);
+                    preds.push(self.kvar_to_fixpoint(&conv_kvar, bindings)?);
                 }
             }
             rty::ExprKind::ForAll(_) => {
@@ -808,7 +836,7 @@ where
         Ok(fixpoint::Pred::And(kvars))
     }
 
-    fn wkvar_to_kvar(&mut self, wkvar: rty::WKVar, kvid: rty::KVid
+    fn wkvar_to_kvar(&mut self, wkvar: &rty::WKVar, kvid: rty::KVid
     ) -> rty::KVar {
         let args = wkvar.args.clone();
         rty::KVar {
@@ -966,7 +994,7 @@ pub struct KVarGen {
     /// unnecessary kvars.
     ///
     /// [holes]: rty::ExprKind::Hole
-    dummy: bool,
+    pub dummy: bool,
 }
 
 impl KVarGen {

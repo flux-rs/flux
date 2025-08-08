@@ -675,6 +675,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let vars = env.pop_layer().into_bound_vars(self.genv())?;
             solutions.push(rty::Binder::bind_with_vars(e, vars))
         }
+        // We want to have at least one wkvar.
+        if solutions.is_empty() {
+            let vars = Layer::list(self.results(), 0, wk.params).into_bound_vars(self.genv())?;
+            solutions.push(rty::Binder::bind_with_vars(rty::Expr::tt(), vars))
+        }
         Ok(solutions)
     }
 

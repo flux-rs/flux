@@ -24,7 +24,7 @@ use rustc_data_structures::{fx::{FxHashSet, FxHashMap}, snapshot_map::SnapshotMa
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::{
-    fixpoint_encoding::{BlameCtxt, FixpointCheckError, FixpointCtxt, KVarGen},
+    fixpoint_encoding::{fixpoint, BlameCtxt, FixpointCheckError, FixpointCtxt, KVarEncoding, KVarGen},
     infer::Tag,
     refine_tree::RefineTree,
 };
@@ -213,6 +213,12 @@ pub struct WKVarSolutions {
 /// NOTE: we expect that the binders for `solved_exprs` and `assumed_exprs` are
 /// in the same order, though it is likely (and probable) that the names differ.
 /// We at least will check that the number of variables matches.
+///
+/// TODO:
+/// FIXME:
+/// Remove instance of True from the actual exprs.
+/// We put this in the global weak kvar solution map
+/// so we can have access to the sort data elsewhere.
 #[derive(Clone)]
 pub struct WKVarSolution {
     /// Exprs we solved using our analysis (in a conjunction)
@@ -514,7 +520,7 @@ pub fn iterative_solve(
         any_wkvar_change = false;
         all_errors = Vec::new();
         for cstr in &cstrs {
-            let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone(), FxHashSet::default());
+            let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone(), Default::default());
 
             let mut wkvar_subst = WKVarSubst {
                 wkvar_instantiations: solutions
@@ -749,14 +755,22 @@ pub fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
     return candidates;
 }
 
-pub fn combine_constraints(cstrs: Constraints) -> Constraint {
+pub fn combine_constraints(genv: GlobalEnv, cstrs: Constraints) -> QueryResult<Vec<fixpoint::Task>> {
     if cstrs.is_empty() {
         panic!("no constraints to combine");
     }
     let mut rhs_wkvars = FxHashSet::default();
     for cstr in &cstrs {
-        let (_lhs_wkvars, mut rhs_wkvars) = cstr.refine_tree.wkvars();
-        rhs_wkvars.extend(rhs_wkvars.into_iter());
+        let (_cstr_lhs_wkvars, mut cstr_rhs_wkvars) = cstr.refine_tree.wkvars();
+        rhs_wkvars.extend(cstr_rhs_wkvars.into_iter());
     }
+    // needs to be a vec because order is important.
+    let wkvars_to_convert = rhs_wkvars.into_iter().collect_vec();
 
+    cstrs.into_iter().map(|cstr| {
+        let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone(), wkvars_to_convert.clone());
+        let constraint = cstr.refine_tree
+                             .into_fixpoint(&mut fcx)?;
+        fcx.create_task(&mut Default::default(), constraint, cstr.query_kind, cstr.scrape_quals, cstr.backend)
+    }).collect()
 }
