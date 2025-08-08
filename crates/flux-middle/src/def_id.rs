@@ -1,7 +1,7 @@
 use flux_common::bug;
 use rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
-use rustc_span::{Ident, Span, Symbol};
+use rustc_span::{Span, Symbol};
 
 /// An id for a Flux-specific item that doesn't have a corresponding Rust item and thus, we cannot
 /// identify it with a [`DefId`]. This includes, for example, associated refinements, qualifiers
@@ -53,9 +53,7 @@ impl<Id> FluxId<Id> {
     pub fn new(parent: Id, name: Symbol, span: Span) -> Self {
         Self { parent, name, span }
     }
-    pub fn new_ident(parent: Id, ident: Ident) -> Self {
-        Self { parent, name: ident.name, span: ident.span }
-    }
+
     pub fn parent(self) -> Id {
         self.parent
     }
