@@ -276,7 +276,7 @@ fn assoc_refinements_of(
                 .iter()
                 .map(|assoc_reft| {
                     AssocReft::new(
-                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name),
+                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name, assoc_reft.span),
                         assoc_reft.final_,
                     )
                 })
@@ -287,7 +287,10 @@ fn assoc_refinements_of(
                 .assoc_refinements
                 .iter()
                 .map(|assoc_reft| {
-                    AssocReft::new(FluxDefId::new(def_id.resolved_id(), assoc_reft.name), false)
+                    AssocReft::new(
+                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name, assoc_reft.span),
+                        false,
+                    )
                 })
                 .collect()
         }

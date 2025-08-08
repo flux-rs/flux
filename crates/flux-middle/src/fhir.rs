@@ -1068,10 +1068,7 @@ impl<Id> ExprRes<Id> {
             | ExprRes::ConstGeneric(def_id) => Some(tcx.def_span(*def_id)),
             ExprRes::NumConst(_) => None,
             ExprRes::Param(_, _) => None,
-            ExprRes::GlobalFunc(kind) => {
-                let def_id = kind.def_id()?.parent();
-                Some(tcx.def_span(def_id))
-            }
+            ExprRes::GlobalFunc(kind) => Some(kind.def_id()?.span()),
         }
     }
 }

@@ -157,7 +157,7 @@ macro_rules! _hyperlink {
     ($tcx:expr, $src_span:expr, $dst_span:expr) => {{
        let src_json = SpanTrace::new($tcx, $src_span);
        let dst_json = SpanTrace::new($tcx, $dst_span);
-       println!("TRACE: hyperlink: src={:?}, dst={:?}", src_json, dst_json);
+       // println!("TRACE: hyperlink: src={:?}, dst={:?}", src_json, dst_json);
        tracing::info!(event = "hyperlink", src_span = ?src_json, dst_span = ?dst_json)
     }};
 }

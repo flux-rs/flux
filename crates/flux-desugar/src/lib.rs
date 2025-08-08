@@ -309,7 +309,8 @@ impl CrateDesugar<'_, '_> {
     fn desugar_flux_items(&mut self, specs: &Specs) {
         for (parent, items) in &specs.flux_items_by_parent {
             for item in items {
-                let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
+                let ident = item.name();
+                let def_id = FluxLocalDefId::new(parent.def_id, ident.name, ident.span);
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         self.desugar_qualifier(def_id, qual)

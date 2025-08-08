@@ -838,9 +838,9 @@ impl DispatchKey for FluxDefId {
         )]
         self.parent().dispatch_query(
             genv,
-            |container_id| local(FluxId::new(container_id, self.name())),
-            |container_id| external(FluxId::new(container_id, self.name())),
-            |container_id| default(FluxId::new(container_id, self.name())),
+            |container_id| local(FluxId::new(container_id, self.name(), self.span())),
+            |container_id| external(FluxId::new(container_id, self.name(), self.span())),
+            |container_id| default(FluxId::new(container_id, self.name(), self.span())),
         )
     }
 }
