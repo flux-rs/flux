@@ -80,7 +80,7 @@ jobs:
       - name: Check tock/kernel
         run: |
           cd tock
-          cargo flux -p kernel
+          cargo flux -p cortexm -p rv32i
 
   rustfmt:
     runs-on: ubuntu-latest
