@@ -181,7 +181,9 @@ async function runCargoFlux(workspacePath: string, file: string, trace: boolean,
 
   let fluxFlags = `-Finclude=${includeValue}`;
   if (trace) {
-    fluxFlags += ` -Fdump-checker-trace`;
+    fluxFlags += ` -Fdump-checker-trace=info`;
+  } else {
+    fluxFlags += ` -Fdump-checker-trace=warn`;
   }
   // console.log(`TRACE: Running command: cargo flux with flags=`, fluxFlags);
 
@@ -1237,6 +1239,7 @@ function parseFluxDef(event: any): FluxDef | undefined {
           console.log(`Invalid detached link: ${event.fields}`);
           return undefined; // Skip invalid links
         }
+        console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
         // Create the target location
         const targetUri = vscode.Uri.file(dstSpan.file);
         const targetRange = new vscode.Range(

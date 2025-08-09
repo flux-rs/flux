@@ -101,16 +101,16 @@ pub use crate::_basic_block_start as basic_block_start;
 #[macro_export]
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
-        if config::dump_checker_trace() {
-            let rcx = $infcx.cursor();
-            let ck = $checker;
-            let genv = ck.genv;
-            let local_names = &ck.body.local_names;
-            let local_decls = &ck.body.local_decls;
-            let rcx_json = RefineCtxtTrace::new(genv, rcx);
-            let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
-            let span_json = SpanTrace::new(genv.tcx(), $span);
-            tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
+        if let Some(level) = config::dump_checker_trace() && level <= tracing::Level::INFO {
+          let rcx = $infcx.cursor();
+          let ck = $checker;
+          let genv = ck.genv;
+          let local_names = &ck.body.local_names;
+          let local_decls = &ck.body.local_decls;
+          let rcx_json = RefineCtxtTrace::new(genv, rcx);
+          let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
+          let span_json = SpanTrace::new(genv.tcx(), $span);
+          tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
         }
     }};
 }

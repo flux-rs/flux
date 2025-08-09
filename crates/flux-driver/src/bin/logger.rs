@@ -1,13 +1,13 @@
 use std::{fs, io, sync::Arc};
 
 use flux_config as config;
-use tracing::{Dispatch, Level};
+use tracing::Dispatch;
 use tracing_subscriber::{Registry, filter::Targets, fmt::writer::BoxMakeWriter, prelude::*};
 
 const CHECKER_FILE: &str = "checker";
 
 pub fn install() -> io::Result<()> {
-    if config::dump_checker_trace() {
+    if let Some(level) = config::dump_checker_trace() {
         let log_dir = config::log_dir();
         fs::create_dir_all(log_dir)?;
         let file = fs::File::create(log_dir.join(CHECKER_FILE))?;
@@ -16,12 +16,10 @@ pub fn install() -> io::Result<()> {
             .with_writer(writer)
             .json()
             .with_filter(
-                Targets::new()
-                    .with_default(Level::WARN) // This will capture all WARN, ERROR events from any module
-                    .with_target("flux_refineck::checker", Level::DEBUG)
-                    .with_target("flux_driver::collector", Level::WARN)
-                    // .with_target("flux_middle::fhir", Level::INFO),
-                    .with_target("flux_fhir_analysis::conv", Level::WARN),
+                Targets::new().with_default(level), // This will capture all WARN, ERROR events from any module
+                                                    // .with_target("flux_refineck::checker", level)
+                                                    // .with_target("flux_driver::collector", Level::WARN)
+                                                    // .with_target("flux_fhir_analysis::conv", Level::WARN),
             );
         let dispatch = Dispatch::new(Registry::default().with(fmt_layer));
         dispatch.clone().init();

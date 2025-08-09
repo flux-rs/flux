@@ -1,7 +1,8 @@
-use std::{env, path::PathBuf, process, sync::LazyLock};
+use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
 use serde::Deserialize;
 pub use toml::Value;
+use tracing::Level;
 
 use crate::{IncludePattern, OverflowMode, PointerWidth, SmtSolver};
 
@@ -42,7 +43,7 @@ pub struct Flags {
     /// Dump constraints generated for each function (debugging)
     pub dump_constraint: bool,
     /// Saves the checker's trace (debugging)
-    pub dump_checker_trace: bool,
+    pub dump_checker_trace: Option<tracing::Level>,
     /// Saves the `fhir` for each item (debugging)
     pub dump_fhir: bool,
     /// Saves the the `fhir` (debugging)
@@ -69,7 +70,7 @@ impl Default for Flags {
         Self {
             log_dir: PathBuf::from("./log/"),
             dump_constraint: false,
-            dump_checker_trace: false,
+            dump_checker_trace: None,
             dump_fhir: false,
             dump_rty: false,
             dump_mir: false,
@@ -102,7 +103,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
         let result = match key {
             "log-dir" => parse_path_buf(&mut flags.log_dir, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
-            "dump-checker-trace" => parse_bool(&mut flags.dump_checker_trace, value),
+            "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-mir" => parse_bool(&mut flags.dump_mir, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),
@@ -250,6 +251,16 @@ fn parse_opt_path_buf(slot: &mut Option<PathBuf>, v: Option<&str>) -> Result<(),
             Ok(())
         }
         None => Err("a path"),
+    }
+}
+
+fn parse_opt_level(slot: &mut Option<Level>, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = Some(Level::from_str(s).map_err(|_| "invalid level")?);
+            Ok(())
+        }
+        None => Err("a level"),
     }
 }
 
