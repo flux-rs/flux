@@ -17,9 +17,11 @@ pub fn install() -> io::Result<()> {
             .json()
             .with_filter(
                 Targets::new()
+                    .with_default(Level::WARN) // This will capture all WARN, ERROR events from any module
                     .with_target("flux_refineck::checker", Level::DEBUG)
-                    .with_target("flux_driver::collector", Level::INFO)
-                    .with_target("flux_middle::fhir", Level::INFO),
+                    .with_target("flux_driver::collector", Level::WARN)
+                    // .with_target("flux_middle::fhir", Level::INFO),
+                    .with_target("flux_fhir_analysis::conv", Level::WARN),
             );
         let dispatch = Dispatch::new(Registry::default().with(fmt_layer));
         dispatch.clone().init();

@@ -53,12 +53,12 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
 
     for impl_assoc_reft in &impl_assoc_refts.items {
         let name = impl_assoc_reft.name();
-        if let Some(trait_assoc_id) = trait_assoc_refts.find(name) {
+        if let Some(trait_assoc_reft) = trait_assoc_refts.find(name) {
             check_assoc_reft(
                 &mut infcx,
                 impl_id,
                 &impl_trait_ref,
-                trait_assoc_id,
+                trait_assoc_reft.def_id(),
                 impl_assoc_reft.def_id(),
             )?;
         } else {

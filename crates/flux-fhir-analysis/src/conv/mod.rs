@@ -11,7 +11,12 @@
 pub mod struct_compat;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, dbg, dbg::SpanTrace, iter::IterExt, span_bug};
+use flux_common::{
+    bug,
+    dbg::{self, SpanTrace},
+    iter::IterExt,
+    span_bug,
+};
 use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
@@ -2083,11 +2088,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
+        let tcx = self.tcx();
         let expr = match expr.kind {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(&var).to_expr(),
                     ExprRes::Const(def_id) => {
+                        dbg::hyperlink!(tcx, var.span, tcx.def_span(def_id));
                         if P::HAS_ELABORATED_INFORMATION {
                             rty::Expr::const_def_id(def_id).at(espan)
                         } else {
@@ -2098,11 +2105,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         }
                     }
                     ExprRes::Variant(variant_def_id) => {
+                        dbg::hyperlink!(tcx, var.span, tcx.def_span(variant_def_id));
                         let enum_def_id = self.tcx().parent(variant_def_id);
                         let idx = variant_idx(self.tcx(), variant_def_id);
                         rty::Expr::ctor_enum(enum_def_id, idx)
                     }
                     ExprRes::ConstGeneric(def_id) => {
+                        dbg::hyperlink!(tcx, var.span, tcx.def_span(def_id));
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)
                     }
@@ -2302,11 +2311,21 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
+        let span = func.span;
         let expr = match func.res {
             ExprRes::Param(..) => env.lookup(func).to_expr(),
             ExprRes::GlobalFunc(kind) => {
                 match Self::conv_spec_func(&kind) {
-                    Ok(func) => rty::Expr::global_func(func),
+                    Ok(func) => {
+                        match func {
+                            rty::SpecFuncKind::Uif(flux_id) | rty::SpecFuncKind::Def(flux_id) => {
+                                let dst_span = self.genv().func_span(flux_id);
+                                dbg::hyperlink!(self.genv().tcx(), span, dst_span);
+                            }
+                            _ => {}
+                        }
+                        rty::Expr::global_func(func)
+                    }
                     Err(func) => rty::Expr::internal_func(func),
                 }
             }
@@ -2332,7 +2351,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
 
-        let Some(assoc_id) = self.genv().assoc_refinements_of(trait_id)?.find(alias.name) else {
+        let Some(assoc_reft) = self.genv().assoc_refinements_of(trait_id)?.find(alias.name) else {
             return Err(self.emit(errors::InvalidAssocReft::new(
                 alias.path.span,
                 alias.name,
@@ -2340,7 +2359,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             )))?;
         };
 
-        // TODO:hyperlink dbg::hyperlink!(self.genv().tcx(), alias.path.span, assoc_id.span());
+        let assoc_id = assoc_reft.def_id;
+
+        dbg::hyperlink!(self.genv().tcx(), alias.path.span, assoc_reft.span);
 
         let alias_reft = rty::AliasReft { assoc_id, args: List::from_vec(generic_args) };
 

@@ -17,7 +17,7 @@ pub mod visit;
 
 use std::{borrow::Cow, fmt};
 
-use flux_common::{bug, dbg, dbg::SpanTrace, span_bug};
+use flux_common::{bug, span_bug};
 use flux_rustc_bridge::def_id_to_string;
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
@@ -1179,6 +1179,7 @@ pub struct SpecFunc<'fhir> {
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
     pub hide: bool,
+    pub span: Span,
 }
 #[derive(Debug)]
 pub struct PrimOpProp<'fhir> {

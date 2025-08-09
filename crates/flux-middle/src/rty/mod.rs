@@ -795,13 +795,8 @@ impl AssocRefinements {
             .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
     }
 
-    pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
-        Some(
-            self.items
-                .into_iter()
-                .find(|it| it.name() == name)?
-                .def_id(),
-        )
+    pub fn find(&self, name: Symbol) -> Option<AssocReft> {
+        Some(self.items.into_iter().find(|it| it.name() == name)?.clone())
     }
 }
 

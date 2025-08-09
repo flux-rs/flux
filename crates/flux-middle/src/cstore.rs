@@ -33,6 +33,7 @@ pub trait CrateStore {
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>>;
     fn normalized_defns(&self, krate: CrateNum) -> Rc<rty::NormalizedDefns>;
     fn func_sort(&self, def_id: FluxDefId) -> Option<rty::PolyFuncSort>;
+    fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

@@ -61,9 +61,6 @@ fn path_expr<'genv>(
     fhir_id: FhirId,
     span: Span,
 ) -> fhir::PathExpr<'genv> {
-    // TODO:hyperlink!
-    let dst_span = todo!();
-    dbg::hyperlink!(genv.tcx(), span, dst_span);
     fhir::PathExpr { res, segments: genv.alloc_slice(segments), fhir_id, span }
 }
 
@@ -91,7 +88,8 @@ pub(crate) fn desugar_spec_func<'genv>(
         let params = spec_func.sort_vars.len();
         let sort = cx.desugar_sort(&spec_func.output, None);
         let args = cx.desugar_refine_params(&spec_func.params);
-        fhir::SpecFunc { def_id, params, args, sort, body, hide: spec_func.hide }
+        let span = spec_func.name.span;
+        fhir::SpecFunc { def_id, params, args, sort, body, hide: spec_func.hide, span }
     })
 }
 

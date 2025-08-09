@@ -414,6 +414,7 @@ dependencies = [
  "flux-syntax",
  "itertools",
  "rustc-hash",
+ "tracing",
 ]
 
 [[package]]
