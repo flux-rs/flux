@@ -263,9 +263,9 @@ pub trait TypeVisitable: Sized {
     /// for which the existential is now necessary.
     ///
     /// NOTE: this only applies to refinement bvars.
-    fn redundant_bvars(&self) -> Vec<BoundVar> {
+    fn redundant_bvars(&self) -> FxHashSet<BoundVar> {
         struct RedundantBVarFinder {
-            debruijn: DebruijnIndex,
+            current_index: DebruijnIndex,
             bvar_occurrences: FxHashMap<BoundVar, usize>,
             bvar_index_occurrences: FxHashMap<BoundVar, usize>,
         }
@@ -274,7 +274,7 @@ pub trait TypeVisitable: Sized {
             // Here we count all times we see a bvar
             fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
                 if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = e.kind()
-                    && debruijn == &self.debruijn
+                    && debruijn == &self.current_index
                 {
                     self.bvar_occurrences
                         .entry(*var)
@@ -285,13 +285,14 @@ pub trait TypeVisitable: Sized {
                 }
                 e.super_visit_with(self)
             }
+
             fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
                 // Here we check for bvars specifically as the direct arguments
                 // to an index or as the direct arguments to a Ctor in an index.
                 if let TyKind::Indexed(_bty, expr) = ty.kind() {
                     match expr.kind() {
                         ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) => {
-                            if debruijn == &self.debruijn {
+                            if debruijn == &self.current_index {
                                 self.bvar_index_occurrences
                                     .entry(*var)
                                     .and_modify(|count| {
@@ -304,7 +305,7 @@ pub trait TypeVisitable: Sized {
                             exprs.iter().for_each(|expr| {
                                 if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) =
                                     expr.kind()
-                                    && debruijn == &self.debruijn
+                                    && debruijn == &self.current_index
                                 {
                                     self.bvar_index_occurrences
                                         .entry(*var)
@@ -325,15 +326,15 @@ pub trait TypeVisitable: Sized {
                 &mut self,
                 t: &Binder<T>,
             ) -> ControlFlow<Self::BreakTy> {
-                self.debruijn.shift_in(1);
+                self.current_index.shift_in(1);
                 t.super_visit_with(self)?;
-                self.debruijn.shift_out(1);
+                self.current_index.shift_out(1);
                 ControlFlow::Continue(())
             }
         }
 
         let mut finder = RedundantBVarFinder {
-            debruijn: INNERMOST,
+            current_index: INNERMOST,
             bvar_occurrences: FxHashMap::default(),
             bvar_index_occurrences: FxHashMap::default(),
         };
@@ -343,7 +344,7 @@ pub trait TypeVisitable: Sized {
             .bvar_index_occurrences
             .keys()
             .copied()
-            .filter(|var_index| *finder.bvar_occurrences.get(var_index).unwrap_or(&0) == 1)
+            .filter(|var_index| finder.bvar_occurrences.get(var_index) == Some(&1))
             .collect()
     }
 }

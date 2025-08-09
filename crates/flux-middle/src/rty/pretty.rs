@@ -64,11 +64,7 @@ fn format_fn_root_binder<T: Pretty + TypeVisitable>(
     f: &mut fmt::Formatter<'_>,
 ) -> fmt::Result {
     let vars = binder.vars();
-    let redundant_bvars = binder
-        .skip_binder_ref()
-        .redundant_bvars()
-        .into_iter()
-        .collect();
+    let redundant_bvars = binder.skip_binder_ref().redundant_bvars();
 
     cx.with_bound_vars_removable(
         vars,

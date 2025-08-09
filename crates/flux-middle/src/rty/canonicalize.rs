@@ -30,7 +30,7 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
-use std::{fmt::Write, ops::ControlFlow};
+use std::fmt::Write;
 
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
@@ -41,7 +41,7 @@ use rustc_type_ir::{BoundVar, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
     SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable, TypeVisitor},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
 use crate::rty::{ExprKind, HoleKind};
 
@@ -347,20 +347,12 @@ impl CanonicalConstrTy {
 ///
 /// [existential]: TyKind::Exists
 /// [constraint]: TyKind::Constr
+#[derive(TypeVisitable)]
 pub enum CanonicalTy {
     /// A type of the form `{T | p}`
     Constr(CanonicalConstrTy),
     /// A type of the form `∃v0,…,vn. {T | p}`
     Exists(Binder<CanonicalConstrTy>),
-}
-
-impl TypeVisitable for CanonicalTy {
-    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        match self {
-            Self::Constr(constr_ty) => constr_ty.visit_with(visitor),
-            Self::Exists(binder) => binder.visit_with(visitor),
-        }
-    }
 }
 
 impl CanonicalTy {
@@ -431,11 +423,7 @@ mod pretty {
             match self {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
-                    let redundant_bvars = poly_constr
-                        .skip_binder_ref()
-                        .redundant_bvars()
-                        .into_iter()
-                        .collect();
+                    let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
                     cx.with_bound_vars_removable(
                         poly_constr.vars(),
                         redundant_bvars,
