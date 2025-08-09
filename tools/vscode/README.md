@@ -69,3 +69,7 @@ Flux View Panel: shows the types and environments known at each program point
 ![Before Statement](static/flux_view_start.jpg)
 
 ![After Statement](static/flux_view_end.jpg)
+
+## TODO
+
+- [ ] Add "click for full error message" functionality to the diagnostics panel.
