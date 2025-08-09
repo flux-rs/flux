@@ -1,7 +1,7 @@
 use flux_common::bug;
 use rustc_hir::def_id::{CrateNum, DefId, DefIndex, LocalDefId};
 use rustc_macros::{Decodable, Encodable};
-use rustc_span::{Span, Symbol};
+use rustc_span::Symbol;
 
 /// An id for a Flux-specific item that doesn't have a corresponding Rust item and thus, we cannot
 /// identify it with a [`DefId`]. This includes, for example, associated refinements, qualifiers
@@ -22,36 +22,18 @@ use rustc_span::{Span, Symbol};
 ///   when item existence is guaranteed
 /// * The type is parametric over the parent `Id` type to support various id types (e.g., [`DefId`],
 ///   [`MaybeExternId`])
-#[derive(Debug, Copy, Clone, Encodable, Decodable)]
+#[derive(Eq, PartialEq, Hash, Debug, Copy, Clone, Encodable, Decodable)]
 pub struct FluxId<Id> {
     parent: Id,
     name: Symbol,
-    span: Span,
-}
-
-// Exclude span from equality comparison
-impl<Id: PartialEq> PartialEq for FluxId<Id> {
-    fn eq(&self, other: &Self) -> bool {
-        self.parent == other.parent && self.name == other.name
-    }
-}
-
-impl<Id: Eq> Eq for FluxId<Id> {}
-
-// Exclude span from hash computation to match equality
-impl<Id: std::hash::Hash> std::hash::Hash for FluxId<Id> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.parent.hash(state);
-        self.name.hash(state);
-    }
 }
 
 pub type FluxDefId = FluxId<DefId>;
 pub type FluxLocalDefId = FluxId<LocalDefId>;
 
 impl<Id> FluxId<Id> {
-    pub fn new(parent: Id, name: Symbol, span: Span) -> Self {
-        Self { parent, name, span }
+    pub fn new(parent: Id, name: Symbol) -> Self {
+        Self { parent, name }
     }
 
     pub fn parent(self) -> Id {
@@ -61,10 +43,6 @@ impl<Id> FluxId<Id> {
     pub fn name(self) -> Symbol {
         self.name
     }
-
-    pub fn span(self) -> Span {
-        self.span
-    }
 }
 
 impl FluxDefId {
@@ -73,7 +51,7 @@ impl FluxDefId {
             clippy::disallowed_methods,
             reason = "we also have a warning for `FluxId::as_local`"
         )]
-        Some(FluxId { parent: self.parent.as_local()?, name: self.name, span: self.span })
+        Some(FluxId { parent: self.parent.as_local()?, name: self.name })
     }
 
     #[track_caller]
@@ -93,23 +71,23 @@ impl FluxDefId {
     }
 
     pub fn index(self) -> FluxId<DefIndex> {
-        FluxId { parent: self.parent.index, name: self.name, span: self.span }
+        FluxId { parent: self.parent.index, name: self.name }
     }
 }
 
 impl FluxLocalDefId {
     pub fn to_def_id(self) -> FluxDefId {
-        FluxDefId { parent: self.parent.to_def_id(), name: self.name, span: self.span }
+        FluxDefId { parent: self.parent.to_def_id(), name: self.name }
     }
 
     pub fn local_def_index(self) -> FluxId<DefIndex> {
-        FluxId { parent: self.parent.local_def_index, name: self.name, span: self.span }
+        FluxId { parent: self.parent.local_def_index, name: self.name }
     }
 }
 
 impl FluxId<MaybeExternId> {
     pub fn local_id(self) -> FluxLocalDefId {
-        FluxLocalDefId { parent: self.parent.local_id(), name: self.name, span: self.span }
+        FluxLocalDefId { parent: self.parent.local_id(), name: self.name }
     }
 }
 

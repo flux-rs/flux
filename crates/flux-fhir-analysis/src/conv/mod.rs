@@ -11,7 +11,7 @@
 pub mod struct_compat;
 use std::{borrow::Borrow, iter};
 
-use flux_common::{bug, iter::IterExt, span_bug};
+use flux_common::{bug, dbg, dbg::SpanTrace, iter::IterExt, span_bug};
 use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, ExprRes, FhirId, FluxOwnerId},
@@ -2339,6 +2339,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 format!("{:?}", alias.path),
             )))?;
         };
+
+        // TODO:hyperlink dbg::hyperlink!(self.genv().tcx(), alias.path.span, assoc_id.span());
 
         let alias_reft = rty::AliasReft { assoc_id, args: List::from_vec(generic_args) };
 

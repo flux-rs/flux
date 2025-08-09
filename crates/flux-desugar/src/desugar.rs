@@ -30,7 +30,7 @@ use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
 use rustc_hir::{self as hir, OwnerId};
 use rustc_span::{
-    DUMMY_SP, Span,
+    DUMMY_SP, Ident, Span,
     def_id::{DefId, LocalDefId},
 };
 
@@ -52,6 +52,19 @@ pub(crate) fn desugar_qualifier<'genv>(
             expr: cx.desugar_expr(&qualifier.expr),
         }
     })
+}
+
+fn path_expr<'genv>(
+    genv: GlobalEnv<'genv, '_>,
+    res: ExprRes,
+    segments: &'genv [Ident],
+    fhir_id: FhirId,
+    span: Span,
+) -> fhir::PathExpr<'genv> {
+    // TODO:hyperlink!
+    let dst_span = todo!();
+    dbg::hyperlink!(genv.tcx(), span, dst_span);
+    fhir::PathExpr { res, segments: genv.alloc_slice(segments), fhir_id, span }
 }
 
 pub(crate) fn desugar_primop_prop<'genv>(
@@ -653,13 +666,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             surface::Ensures::Type(loc, ty, node_id) => {
                 let res = self.desugar_loc(*loc, *node_id)?;
                 let segments = self.genv().alloc_slice(&[*loc]);
-                let path = fhir::PathExpr::new(
-                    self.genv().tcx(),
-                    res,
-                    segments,
-                    self.next_fhir_id(),
-                    loc.span,
-                );
+                let path = path_expr(self.genv, res, segments, self.next_fhir_id(), loc.span);
                 let ty = self.desugar_ty(ty);
                 Ok(fhir::Ensures::Type(path, ty))
             }
@@ -691,8 +698,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let span = loc.span;
                 let (id, kind) = self.resolve_implicit_param(*node_id).unwrap();
                 let segments = self.genv.alloc_slice(&[*loc]);
-                let path = fhir::PathExpr::new(
-                    self.genv().tcx(),
+                let path = path_expr(
+                    self.genv,
                     ExprRes::Param(kind, id),
                     segments,
                     self.next_fhir_id(),
@@ -974,7 +981,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let segments = self
             .genv()
             .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
-        fhir::PathExpr::new(self.genv().tcx(), res, segments, self.next_fhir_id(), path.span)
+        path_expr(self.genv(), res, segments, self.next_fhir_id(), path.span)
     }
 
     #[track_caller]
@@ -1181,8 +1188,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     kind,
                     fhir_id: self.next_fhir_id(),
                 };
-                let path = fhir::PathExpr::new(
-                    self.genv().tcx(),
+                let path = path_expr(
+                    self.genv(),
                     ExprRes::Param(kind, id),
                     self.genv().alloc_slice(&[*bind]),
                     self.next_fhir_id(),
@@ -1399,13 +1406,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         node_id: NodeId,
     ) -> Option<fhir::Expr<'genv>> {
         let (id, kind) = self.resolve_implicit_param(node_id)?;
-        let path = fhir::PathExpr::new(
-            self.genv().tcx(),
-            ExprRes::Param(kind, id),
-            self.genv().alloc_slice(&[ident]),
-            self.next_fhir_id(),
-            ident.span,
-        );
+        let path = fhir::PathExpr {
+            res: ExprRes::Param(kind, id),
+            segments: self.genv().alloc_slice(&[ident]),
+            fhir_id: self.next_fhir_id(),
+            span: ident.span,
+        };
         Some(fhir::Expr {
             kind: fhir::ExprKind::Var(path, Some(kind)),
             span: ident.span,
@@ -1520,13 +1526,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             let segments = self
                 .genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
-            Some(fhir::PathExpr::new(
-                self.genv().tcx(),
-                res,
-                segments,
-                self.next_fhir_id(),
-                path.span,
-            ))
+            Some(fhir::PathExpr { res, segments, fhir_id: self.next_fhir_id(), span: path.span })
         } else {
             None
         };

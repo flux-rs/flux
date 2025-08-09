@@ -49,7 +49,7 @@ pub struct Flags {
     pub dump_rty: bool,
     /// Saves the low-level MIR for each analyzed function (debugging)
     pub dump_mir: bool,
-    /// Saves the low-level MIR for each analyzed function (debugging)
+    /// Optimistically keeps running flux even after errors are found to get as many errors as possible
     pub catch_bugs: bool,
     /// Whether verification for the current crate is enabled. If false (the default), `flux-driver`
     /// will behave exactly like `rustc`. This flag is managed by the `cargo flux` and `flux` binaries,

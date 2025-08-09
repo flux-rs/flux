@@ -461,6 +461,7 @@ dependencies = [
  "flux-rustc-bridge",
  "itertools",
  "rustc-hash",
+ "tracing",
 ]
 
 [[package]]

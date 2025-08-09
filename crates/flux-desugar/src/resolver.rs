@@ -101,15 +101,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         let name = qual.name.name;
-                        let span = qual.name.span;
-                        let def_id = FluxLocalDefId::new(parent.def_id, name, span);
+                        let def_id = FluxLocalDefId::new(parent.def_id, name);
                         self.qualifiers.insert(name, def_id);
                     }
                     surface::FluxItem::FuncDef(defn) => {
                         let parent = parent.def_id.to_def_id();
                         let name = defn.name.name;
-                        let span = defn.name.span;
-                        let def_id = FluxDefId::new(parent, name, span);
+                        let def_id = FluxDefId::new(parent, name);
                         let kind = if defn.body.is_some() {
                             fhir::SpecFuncKind::Def(def_id)
                         } else {
@@ -119,9 +117,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     }
                     surface::FluxItem::PrimOpProp(primop_prop) => {
                         let name = primop_prop.name.name;
-                        let span = primop_prop.name.span;
                         let parent = parent.def_id.to_def_id();
-                        let def_id = FluxDefId::new(parent, name, span);
+                        let def_id = FluxDefId::new(parent, name);
                         self.primop_props.insert(name, def_id);
                     }
                     surface::FluxItem::SortDecl(sort_decl) => {
