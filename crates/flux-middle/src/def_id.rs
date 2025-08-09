@@ -22,7 +22,7 @@ use rustc_span::Symbol;
 ///   when item existence is guaranteed
 /// * The type is parametric over the parent `Id` type to support various id types (e.g., [`DefId`],
 ///   [`MaybeExternId`])
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
+#[derive(Eq, PartialEq, Hash, Debug, Copy, Clone, Encodable, Decodable)]
 pub struct FluxId<Id> {
     parent: Id,
     name: Symbol,

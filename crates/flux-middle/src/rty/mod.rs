@@ -52,7 +52,7 @@ pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{DUMMY_SP, Symbol, sym, symbol::kw};
+use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
 pub use rustc_type_ir::{INNERMOST, TyVid};
 
@@ -758,11 +758,12 @@ pub struct AssocReft {
     pub def_id: FluxDefId,
     // NOTE: Field is used to denote final associated generic refinements on Traits
     pub final_: bool,
+    pub span: Span,
 }
 
 impl AssocReft {
-    pub fn new(def_id: FluxDefId, final_: bool) -> Self {
-        Self { def_id, final_ }
+    pub fn new(def_id: FluxDefId, final_: bool, span: Span) -> Self {
+        Self { def_id, final_, span }
     }
 
     pub fn name(&self) -> Symbol {
@@ -794,13 +795,8 @@ impl AssocRefinements {
             .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
     }
 
-    pub fn find(&self, name: Symbol) -> Option<FluxDefId> {
-        Some(
-            self.items
-                .into_iter()
-                .find(|it| it.name() == name)?
-                .def_id(),
-        )
+    pub fn find(&self, name: Symbol) -> Option<AssocReft> {
+        Some(self.items.into_iter().find(|it| it.name() == name)?.clone())
     }
 }
 

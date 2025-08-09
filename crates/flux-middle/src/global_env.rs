@@ -14,6 +14,7 @@ use rustc_middle::{
     query::IntoQueryParam,
     ty::{TyCtxt, Variance},
 };
+use rustc_span::Span;
 pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
@@ -175,6 +176,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .func_sort(self, def_id.into_query_param())
     }
 
+    pub fn func_span(self, def_id: impl IntoQueryParam<FluxDefId>) -> Span {
+        self.inner
+            .queries
+            .func_span(self, def_id.into_query_param())
+    }
+
     pub fn should_inline_fun(self, def_id: FluxDefId) -> bool {
         let is_poly = self.func_sort(def_id).params().len() > 0;
         is_poly || !flux_config::smt_define_fun()
@@ -309,8 +316,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> QueryResult<rty::EarlyBinder<rty::Lambda>> {
         // Check if the implementation has the associated refinement
         let impl_assoc_refts = self.assoc_refinements_of(impl_id)?;
-        if let Some(impl_assoc_id) = impl_assoc_refts.find(trait_assoc_id.name()) {
-            return self.assoc_refinement_body(impl_assoc_id);
+        if let Some(impl_assoc_reft) = impl_assoc_refts.find(trait_assoc_id.name()) {
+            return self.assoc_refinement_body(impl_assoc_reft.def_id());
         }
 
         // Otherwise, check if the trait has a default body

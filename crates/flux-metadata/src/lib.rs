@@ -38,7 +38,10 @@ use rustc_hir::{
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
-use rustc_span::def_id::{CrateNum, DefId, DefIndex};
+use rustc_span::{
+    Span,
+    def_id::{CrateNum, DefId, DefIndex},
+};
 
 pub use crate::encoder::encode_metadata;
 
@@ -120,6 +123,7 @@ pub struct Tables<K: Eq + Hash> {
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
     normalized_defns: Rc<rty::NormalizedDefns>,
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
+    func_span: UnordMap<FluxId<K>, Span>,
 }
 
 impl CStore {
@@ -256,6 +260,10 @@ impl CrateStore for CStore {
     fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
         get!(self, func_sort, key)
     }
+
+    fn func_span(&self, key: FluxDefId) -> Option<Span> {
+        get!(self, func_span, key)
+    }
 }
 
 impl CrateMetadata {
@@ -287,10 +295,13 @@ fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
 
     for (def_id, item) in genv.fhir_iter_flux_items() {
-        let fhir::FluxItem::Func(_) = item else { continue };
+        let fhir::FluxItem::Func(spec_func) = item else { continue };
         tables
             .func_sort
             .insert(def_id.local_def_index(), genv.func_sort(def_id));
+        tables
+            .func_span
+            .insert(def_id.local_def_index(), spec_func.span);
     }
 }
 

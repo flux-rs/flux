@@ -20,6 +20,11 @@ pub fn spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn specs(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::specs(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn qualifiers(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::qualifiers(attr, tokens)
 }
@@ -138,6 +143,7 @@ mod attr_sysroot {
     flux_tool_attrs!(
         alias,
         spec,
+        specs,
         sig,
         qualifiers,
         reveal,
@@ -185,6 +191,7 @@ mod attr_dummy {
     no_op!(
         alias,
         spec,
+        specs,
         sig,
         qualifiers,
         reveal,

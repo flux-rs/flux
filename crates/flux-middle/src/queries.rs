@@ -164,6 +164,7 @@ pub struct Providers {
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
     pub normalized_defns: fn(GlobalEnv) -> rty::NormalizedDefns,
     pub func_sort: fn(GlobalEnv, FluxId<MaybeExternId>) -> rty::PolyFuncSort,
+    pub func_span: fn(GlobalEnv, FluxId<MaybeExternId>) -> Span,
     pub adt_sort_def_of: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtSortDef>,
     pub check_wf: fn(GlobalEnv, LocalDefId) -> QueryResult<Rc<rty::WfckResults>>,
     pub adt_def: fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::AdtDef>,
@@ -206,6 +207,7 @@ impl Default for Providers {
             fhir_crate: |_| empty_query!(),
             normalized_defns: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
+            func_span: |_, _| empty_query!(),
             qualifiers: |_| empty_query!(),
             prim_rel: |_| empty_query!(),
             adt_sort_def_of: |_, _| empty_query!(),
@@ -240,6 +242,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_fn_sig: Cache<DefId, QueryResult<ty::EarlyBinder<ty::PolyFnSig>>>,
     normalized_defns: Cache<CrateNum, Rc<rty::NormalizedDefns>>,
     func_sort: Cache<FluxDefId, rty::PolyFuncSort>,
+    func_span: Cache<FluxDefId, Span>,
     qualifiers: OnceCell<QueryResult<Vec<rty::Qualifier>>>,
     prim_rel: OnceCell<QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>>,
     adt_sort_def_of: Cache<DefId, QueryResult<rty::AdtSortDef>>,
@@ -276,6 +279,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_fn_sig: Default::default(),
             normalized_defns: Default::default(),
             func_sort: Default::default(),
+            func_span: Default::default(),
             qualifiers: Default::default(),
             prim_rel: Default::default(),
             adt_sort_def_of: Default::default(),
@@ -449,6 +453,24 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         "cannot generate default function sort, the refinement must be defined somewhere"
                     )
                 },
+            )
+        })
+    }
+
+    pub(crate) fn func_span(&self, genv: GlobalEnv, def_id: FluxDefId) -> Span {
+        run_with_cache(&self.func_span, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                |def_id| {
+                    // refinement functions cannot be extern specs so we simply grab the local id
+                    (self.providers.func_span)(genv, def_id)
+                },
+                |def_id| genv.cstore().func_span(def_id),
+                |_|
+                bug!(
+                        "cannot generate default function sort, the refinement must be defined somewhere"
+                    )
+                ,
             )
         })
     }

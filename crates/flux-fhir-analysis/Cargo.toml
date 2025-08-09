@@ -12,6 +12,7 @@ flux-macros.workspace = true
 flux-middle.workspace = true
 flux-infer.workspace = true
 flux-rustc-bridge.workspace = true
+tracing = "0.1"
 
 derive-where.workspace = true
 ena = "0.14.3"
