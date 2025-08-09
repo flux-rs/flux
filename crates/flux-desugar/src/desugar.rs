@@ -1498,11 +1498,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     // FIXME(nilehmann) we ought to report this error somewhere else
                     return fhir::ExprKind::Err(self.emit(errors::InvalidAliasReft::new(path)));
                 };
-                let alias_reft = fhir::AliasReft {
-                    qself: self.genv().alloc(qself),
-                    path: fpath,
-                    name: name.name,
-                };
+                let alias_reft =
+                    fhir::AliasReft { qself: self.genv().alloc(qself), path: fpath, name: *name };
                 fhir::ExprKind::Alias(alias_reft, args)
             }
             _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span))),

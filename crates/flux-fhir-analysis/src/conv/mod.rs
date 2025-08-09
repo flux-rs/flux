@@ -2351,17 +2351,21 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let mut generic_args = vec![self_ty];
         self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
 
-        let Some(assoc_reft) = self.genv().assoc_refinements_of(trait_id)?.find(alias.name) else {
+        let Some(assoc_reft) = self
+            .genv()
+            .assoc_refinements_of(trait_id)?
+            .find(alias.name.name)
+        else {
             return Err(self.emit(errors::InvalidAssocReft::new(
                 alias.path.span,
-                alias.name,
+                alias.name.name,
                 format!("{:?}", alias.path),
             )))?;
         };
 
         let assoc_id = assoc_reft.def_id;
 
-        dbg::hyperlink!(self.genv().tcx(), alias.path.span, assoc_reft.span);
+        dbg::hyperlink!(self.genv().tcx(), alias.name.span, assoc_reft.span);
 
         let alias_reft = rty::AliasReft { assoc_id, args: List::from_vec(generic_args) };
 

@@ -939,7 +939,7 @@ impl<'fhir> PolyFuncSort<'fhir> {
 pub struct AliasReft<'fhir> {
     pub qself: &'fhir Ty<'fhir>,
     pub path: Path<'fhir>,
-    pub name: Symbol,
+    pub name: Ident,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -1239,7 +1239,7 @@ function parseFluxDef(event: any): FluxDef | undefined {
           console.log(`Invalid detached link: ${event.fields}`);
           return undefined; // Skip invalid links
         }
-        console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
+        // console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
         // Create the target location
         const targetUri = vscode.Uri.file(dstSpan.file);
         const targetRange = new vscode.Range(
