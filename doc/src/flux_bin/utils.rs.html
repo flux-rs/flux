@@ -1,8 +1,8 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-bin/src/utils.rs`."><title>utils.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-aa0817cf.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_bin" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.0-nightly (ec7c02612 2025-08-05)" data-channel="nightly" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_bin/</div>utils.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-2"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{
 <a href=#2 id=2 data-nosnippet>2</a>    env,
 <a href=#3 id=3 data-nosnippet>3</a>    ffi::OsString,
-<a href=#4 id=4 data-nosnippet>4</a>    fs,
-<a href=#5 id=5 data-nosnippet>5</a>    path::{Path, PathBuf},
+<a href=#4 id=4 data-nosnippet>4</a>    path::{Path, PathBuf},
+<a href=#5 id=5 data-nosnippet>5</a>    process::Command,
 <a href=#6 id=6 data-nosnippet>6</a>};
 <a href=#7 id=7 data-nosnippet>7</a>
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>anyhow::{<span class="prelude-ty">Result</span>, anyhow};
@@ -22,8 +22,8 @@
 <a href=#22 id=22 data-nosnippet>22</a><span class="kw">const </span>FLUX_DRIVER: <span class="kw-2">&amp;</span>str = <span class="string">"FLUX_DRIVER"</span>;
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a><span class="doccomment">/// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
-<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub fn </span>sysroot_dir() -&gt; PathBuf {
-<a href=#26 id=26 data-nosnippet>26</a>    env::var_os(FLUX_SYSROOT).map_or_else(default_sysroot_dir, PathBuf::from)
+<a href=#25 id=25 data-nosnippet>25</a></span><span class="kw">pub fn </span>flux_sysroot_dir() -&gt; PathBuf {
+<a href=#26 id=26 data-nosnippet>26</a>    env::var_os(FLUX_SYSROOT).map_or_else(default_flux_sysroot_dir, PathBuf::from)
 <a href=#27 id=27 data-nosnippet>27</a>}
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a><span class="attr">#[derive(Deserialize)]
@@ -37,7 +37,7 @@
 <a href=#37 id=37 data-nosnippet>37</a>}
 <a href=#38 id=38 data-nosnippet>38</a>
 <a href=#39 id=39 data-nosnippet>39</a><span class="doccomment">/// Return the default sysroot
-<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">fn </span>default_sysroot_dir() -&gt; PathBuf {
+<a href=#40 id=40 data-nosnippet>40</a></span><span class="kw">fn </span>default_flux_sysroot_dir() -&gt; PathBuf {
 <a href=#41 id=41 data-nosnippet>41</a>    home::home_dir()
 <a href=#42 id=42 data-nosnippet>42</a>        .expect(<span class="string">"Couldn't find home directory"</span>)
 <a href=#43 id=43 data-nosnippet>43</a>        .join(<span class="string">".flux"</span>)
@@ -65,35 +65,30 @@
 <a href=#65 id=65 data-nosnippet>65</a>    <span class="prelude-val">Ok</span>(toolchain_file.toolchain.channel)
 <a href=#66 id=66 data-nosnippet>66</a>}
 <a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a><span class="doccomment">/// Path from where to load the rustc-driver library from
-<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">pub fn </span>get_rustc_driver_lib_path(rust_toolchain: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf&gt; {
-<a href=#70 id=70 data-nosnippet>70</a>    <span class="kw">let </span>toolchains_path = home::rustup_home()<span class="question-mark">?</span>.join(<span class="string">"toolchains"</span>);
-<a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">if </span>toolchains_path.is_dir() {
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="kw">let </span>entries = fs::read_dir(toolchains_path)<span class="question-mark">?</span>;
-<a href=#73 id=73 data-nosnippet>73</a>        <span class="kw">for </span>entry <span class="kw">in </span>entries {
-<a href=#74 id=74 data-nosnippet>74</a>            <span class="kw">let </span>toolchain_entry = entry<span class="question-mark">?</span>;
-<a href=#75 id=75 data-nosnippet>75</a>            <span class="kw">let </span>file_name = toolchain_entry.file_name().into_string().map_err(|name| {
-<a href=#76 id=76 data-nosnippet>76</a>                <span class="macro">anyhow!</span>(<span class="string">"Could not convert Rustup toolchain file name: {:?}"</span>, name)
-<a href=#77 id=77 data-nosnippet>77</a>            })<span class="question-mark">?</span>;
-<a href=#78 id=78 data-nosnippet>78</a>            <span class="kw">if </span>file_name.starts_with(rust_toolchain) {
-<a href=#79 id=79 data-nosnippet>79</a>                <span class="kw">return </span>toolchain_entry
-<a href=#80 id=80 data-nosnippet>80</a>                    .path()
-<a href=#81 id=81 data-nosnippet>81</a>                    .join(<span class="string">"lib"</span>)
-<a href=#82 id=82 data-nosnippet>82</a>                    .canonicalize()
-<a href=#83 id=83 data-nosnippet>83</a>                    .map_err(anyhow::Error::from);
-<a href=#84 id=84 data-nosnippet>84</a>            }
-<a href=#85 id=85 data-nosnippet>85</a>        }
-<a href=#86 id=86 data-nosnippet>86</a>    }
-<a href=#87 id=87 data-nosnippet>87</a>    <span class="prelude-val">Err</span>(<span class="macro">anyhow!</span>(<span class="string">"Could not read Rustup toolchains folder"</span>))
-<a href=#88 id=88 data-nosnippet>88</a>}
-<a href=#89 id=89 data-nosnippet>89</a>
-<a href=#90 id=90 data-nosnippet>90</a><span class="doccomment">/// Prepends the path so that it's the first checked.
-<a href=#91 id=91 data-nosnippet>91</a></span><span class="kw">pub fn </span>prepend_path_to_env_var(var_name: <span class="kw-2">&amp;</span>str, new_path: PathBuf) -&gt; <span class="prelude-ty">Result</span>&lt;OsString&gt; {
-<a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">let </span><span class="kw-2">mut </span>paths = <span class="kw">match </span>env::var(var_name) {
-<a href=#93 id=93 data-nosnippet>93</a>        <span class="prelude-val">Ok</span>(paths) =&gt; env::split_paths(<span class="kw-2">&amp;</span>paths).collect(),
-<a href=#94 id=94 data-nosnippet>94</a>        <span class="prelude-val">Err</span>(env::VarError::NotPresent) =&gt; <span class="macro">vec!</span>[],
-<a href=#95 id=95 data-nosnippet>95</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(e)<span class="question-mark">?</span>,
-<a href=#96 id=96 data-nosnippet>96</a>    };
-<a href=#97 id=97 data-nosnippet>97</a>    paths.insert(<span class="number">0</span>, new_path);
-<a href=#98 id=98 data-nosnippet>98</a>    env::join_paths(paths).map_err(anyhow::Error::from)
-<a href=#99 id=99 data-nosnippet>99</a>}</code></pre></div></section></main></body></html>
+<a href=#68 id=68 data-nosnippet>68</a><span class="kw">pub fn </span>get_rust_sysroot(toolchain: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf&gt; {
+<a href=#69 id=69 data-nosnippet>69</a>    <span class="kw">let </span>out = Command::new(<span class="string">"rustc"</span>)
+<a href=#70 id=70 data-nosnippet>70</a>        .arg(<span class="macro">format!</span>(<span class="string">"+{toolchain}"</span>))
+<a href=#71 id=71 data-nosnippet>71</a>        .args([<span class="string">"--print"</span>, <span class="string">"sysroot"</span>])
+<a href=#72 id=72 data-nosnippet>72</a>        .output()<span class="question-mark">?</span>;
+<a href=#73 id=73 data-nosnippet>73</a>    bytes_to_pathbuf(out.stdout)
+<a href=#74 id=74 data-nosnippet>74</a>}
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a><span class="doccomment">/// Path from where to load the rustc-driver library from
+<a href=#77 id=77 data-nosnippet>77</a></span><span class="kw">pub fn </span>get_rust_lib_path(sysroot: <span class="kw-2">&amp;</span>Path) -&gt; PathBuf {
+<a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">if </span><span class="macro">cfg!</span>(windows) { sysroot.join(<span class="string">"bin"</span>) } <span class="kw">else </span>{ sysroot.join(<span class="string">"lib"</span>) }
+<a href=#79 id=79 data-nosnippet>79</a>}
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a><span class="doccomment">/// Prepends the path so that it's the first checked.
+<a href=#82 id=82 data-nosnippet>82</a></span><span class="kw">pub fn </span>prepend_path_to_env_var(var_name: <span class="kw-2">&amp;</span>str, new_path: PathBuf) -&gt; <span class="prelude-ty">Result</span>&lt;OsString&gt; {
+<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">let </span><span class="kw-2">mut </span>paths = <span class="kw">match </span>env::var(var_name) {
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="prelude-val">Ok</span>(paths) =&gt; env::split_paths(<span class="kw-2">&amp;</span>paths).collect(),
+<a href=#85 id=85 data-nosnippet>85</a>        <span class="prelude-val">Err</span>(env::VarError::NotPresent) =&gt; <span class="macro">vec!</span>[],
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(e)<span class="question-mark">?</span>,
+<a href=#87 id=87 data-nosnippet>87</a>    };
+<a href=#88 id=88 data-nosnippet>88</a>    paths.insert(<span class="number">0</span>, new_path);
+<a href=#89 id=89 data-nosnippet>89</a>    env::join_paths(paths).map_err(anyhow::Error::from)
+<a href=#90 id=90 data-nosnippet>90</a>}
+<a href=#91 id=91 data-nosnippet>91</a>
+<a href=#92 id=92 data-nosnippet>92</a><span class="kw">fn </span>bytes_to_pathbuf(input: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf&gt; {
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="prelude-val">Ok</span>(PathBuf::from(String::from_utf8(input)<span class="question-mark">?</span>.trim()))
+<a href=#94 id=94 data-nosnippet>94</a>}</code></pre></div></section></main></body></html>

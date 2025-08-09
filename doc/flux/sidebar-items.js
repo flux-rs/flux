@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["main","run"]};
+window.SIDEBAR_ITEMS = {"fn":["main"]};
