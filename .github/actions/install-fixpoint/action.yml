@@ -3,7 +3,8 @@ description: "Download and install the fixpoint binary"
 runs:
   using: "composite"
   steps:
-    - name: Download fixpoint
+    - name: Download and install fixpoint
+      if: runner.os != 'Windows'
       run: |
         set -e
         OS=$(uname -s)
@@ -33,6 +34,24 @@ runs:
 
         echo ~/.local/bin >> $GITHUB_PATH
       shell: bash
+
+    - name: Download and install fixpoint (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $name = "fixpoint-x86_64-pc-windows.zip"
+        $url = "https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${name}"
+        Write-Host "Downloading from $url"
+        Invoke-WebRequest -Uri $url -OutFile $name
+
+        Write-Host "Extracting archive"
+        Expand-Archive -Path $name -DestinationPath "$env:USERPROFILE\.fixpoint"
+
+        $binPath = "$env:USERPROFILE\.fixpoint"
+        echo "$binPath" >> $env:GITHUB_PATH
+
+        Write-Host "Cleaning up"
+        Remove-Item $name
 
     - name: Check fixpoint
       run: which fixpoint
