@@ -1,15 +1,15 @@
+use std::io::Write;
+
 use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
 use flux_config as config;
 use flux_errors::FluxSession;
-use flux_infer::{fixpoint_encoding::FixQueryCache, refine_tree, wkvars::{Constraints, WKVarSubst}};
+use flux_infer::{fixpoint_encoding::FixQueryCache, refine_tree, wkvars::{combine_constraints, Constraints, WKVarSubst}};
 use flux_metadata::CStore;
 use flux_middle::{
-    fhir, global_env::GlobalEnv, queries::{Providers, QueryResult},
-    rty::{self, fold::{TypeFolder, TypeVisitable}},
-    pretty, timings, Specs
+    fhir, global_env::GlobalEnv, pretty, queries::{Providers, QueryResult}, rty::{self, fold::{TypeFolder, TypeVisitable}}, timings, Specs,
 };
 use flux_refineck::{self as refineck, report_fixpoint_errors};
-use itertools::Itertools;
+use itertools::{join, Itertools};
 use rustc_borrowck::consumers::ConsumerOptions;
 use rustc_driver::{Callbacks, Compilation};
 use rustc_errors::ErrorGuaranteed;
@@ -89,6 +89,14 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let result = crate_items
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
+
+        let crate_name = genv.tcx().crate_name(LOCAL_CRATE);
+        let combined_constraints = combine_constraints(genv, ck.constraints).expect("combine_constriants failed");
+        let rendered_constraint = format!("{}", join(combined_constraints, "\n"));
+
+        let constraint_file = std::fs::File::create(&config::log_dir().join(format!("{}-all-in-one-constraint.smt2", crate_name))).expect("file creation failed");
+        let mut writer = std::io::BufWriter::new(constraint_file);
+        write!(writer, "{}", rendered_constraint).expect("write failed");
 
         // println!("-----------------------");
         // println!("Starting solution loop.");

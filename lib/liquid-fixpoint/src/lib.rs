@@ -235,37 +235,41 @@ impl<T: Types> Task<T> {
     }
 
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
-        let mut child = Command::new("fixpoint")
-            .arg("-q")
-            .arg("--stdin")
-            .arg("--json")
-            .arg("--allowho")
-            .arg("--allowhoqs")
-            .arg(format!("--solver={}", self.solver))
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-        let mut stdin = None;
-        std::mem::swap(&mut stdin, &mut child.stdin);
-        {
-            let mut w = BufWriter::new(stdin.unwrap());
-            writeln!(w, "{self}")?;
-        }
-        let out = child.wait_with_output()?;
-
-        serde_json::from_slice(&out.stdout).map_err(|err| {
-            // If we fail to parse stdout fixpoint may have outputed something to stderr
-            // so use that for the error instead
-            if !out.stderr.is_empty() {
-                let stderr = std::str::from_utf8(&out.stderr)
-                    .unwrap_or("fixpoint exited with a non-zero return code");
-                io::Error::other(stderr)
-            } else {
-                err.into()
-            }
-        })
+        run_fixpoint_with::<T, Task<T>>(&self.solver, self)
     }
+}
+
+pub fn run_fixpoint_with<T: Types, Task: std::fmt::Display>(solver: &SmtSolver, task: &Task) -> io::Result<FixpointResult<T::Tag>> {
+    let mut child = Command::new("fixpoint")
+        .arg("-q")
+        .arg("--stdin")
+        .arg("--json")
+        .arg("--allowho")
+        .arg("--allowhoqs")
+        .arg(format!("--solver={}", solver))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let mut stdin = None;
+    std::mem::swap(&mut stdin, &mut child.stdin);
+    {
+        let mut w = BufWriter::new(stdin.unwrap());
+        writeln!(w, "{task}")?;
+    }
+    let out = child.wait_with_output()?;
+
+    serde_json::from_slice(&out.stdout).map_err(|err| {
+        // If we fail to parse stdout fixpoint may have outputed something to stderr
+        // so use that for the error instead
+        if !out.stderr.is_empty() {
+            let stderr = std::str::from_utf8(&out.stderr)
+                .unwrap_or("fixpoint exited with a non-zero return code");
+            io::Error::other(stderr)
+        } else {
+            err.into()
+        }
+    })
 }
 
 impl<T: Types> KVarDecl<T> {
