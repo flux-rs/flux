@@ -408,8 +408,8 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
-    tags: IndexVec<TagIdx, T>,
-    tags_inv: UnordMap<T, TagIdx>,
+    pub tags: IndexVec<TagIdx, T>,
+    pub tags_inv: UnordMap<T, TagIdx>,
     pub blame_ctx_map: HashMap<TagIdx, BlameCtxt>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we can be checking invariants for
     /// an extern spec on an enum.
@@ -474,6 +474,14 @@ where
         }
     }
 
+    pub fn with_tag_ctx(mut self, tags: IndexVec<TagIdx, Tag>, tags_inv: UnordMap<Tag, TagIdx>) -> Self {
+        Self {
+            tags,
+            tags_inv,
+            ..self
+        }
+    }
+
     pub fn create_task(
         mut self,
         cache: &mut FixQueryCache,
@@ -481,7 +489,7 @@ where
         kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
-    ) -> QueryResult<fixpoint::Task> {
+    ) -> QueryResult<(fixpoint::Task, IndexVec<TagIdx, Tag>, UnordMap<Tag, TagIdx>)> {
         let def_id = self.def_id;
 
         let kvars = self.kcx.into_fixpoint();
@@ -513,7 +521,7 @@ where
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.into_result()?;
 
-        Ok(fixpoint::Task {
+        Ok((fixpoint::Task {
             comments: self.comments,
             constants,
             kvars,
@@ -523,7 +531,9 @@ where
             scrape_quals,
             solver,
             data_decls: self.scx.into_data_decls(self.genv)?,
-        })
+        },
+        self.tags,
+        self.tags_inv))
     }
 
     pub fn check(
@@ -544,7 +554,7 @@ where
         let blame_ctx_map = self.blame_ctx_map.clone();
         let resolved_def_id = self.def_id.resolved_id();
         let genv = self.genv;
-        let task = self.create_task(cache, constraint, kind, scrape_quals, solver)?;
+        let (task, _, _) = self.create_task(cache, constraint, kind, scrape_quals, solver)?;
         if config::dump_constraint() {
             dbg::dump_item_info(genv.tcx(), resolved_def_id, "smt2", &task).unwrap();
         }

@@ -4,7 +4,7 @@ use std::{
 };
 use itertools::Itertools;
 
-use flux_common::cache::QueryCache;
+use flux_common::{index::IndexVec, cache::QueryCache};
 use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
@@ -20,7 +20,7 @@ use flux_middle::{
 };
 use liquid_fixpoint::SmtSolver;
 use rustc_hir::def_id::LocalDefId;
-use rustc_data_structures::{fx::{FxHashSet, FxHashMap}, snapshot_map::SnapshotMap};
+use rustc_data_structures::{fx::{FxHashMap, FxHashSet}, snapshot_map::SnapshotMap, unord::UnordMap};
 use rustc_type_ir::{DebruijnIndex, INNERMOST};
 
 use crate::{
@@ -767,10 +767,21 @@ pub fn combine_constraints(genv: GlobalEnv, cstrs: Constraints) -> QueryResult<V
     // needs to be a vec because order is important.
     let wkvars_to_convert = rhs_wkvars.into_iter().collect_vec();
 
+    let mut tags: Option<IndexVec<_, _>> = None;
+    let mut tags_inv: Option<UnordMap<_, _>> = None;
     cstrs.into_iter().map(|cstr| {
         let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone(), wkvars_to_convert.clone());
+        match (&tags, &tags_inv) {
+            (Some(ts), Some(ts_inv)) => {
+                fcx = fcx.with_tag_ctx(ts.clone(), ts_inv.clone());
+            }
+            _ => {}
+        }
         let constraint = cstr.refine_tree
                              .into_fixpoint(&mut fcx)?;
-        fcx.create_task(&mut Default::default(), constraint, cstr.query_kind, cstr.scrape_quals, cstr.backend)
+        let (task, fcx_tags, fcx_tags_inv) = fcx.create_task(&mut Default::default(), constraint, cstr.query_kind, cstr.scrape_quals, cstr.backend)?;
+        tags = Some(fcx_tags);
+        tags_inv = Some(fcx_tags_inv);
+        Ok(task)
     }).collect()
 }
