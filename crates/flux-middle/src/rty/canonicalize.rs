@@ -30,6 +30,8 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
+use std::fmt::Write;
+
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use itertools::Itertools;
@@ -39,7 +41,7 @@ use rustc_type_ir::{BoundVar, INNERMOST};
 use super::{
     BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
     SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
 use crate::rty::{ExprKind, HoleKind};
 
@@ -345,6 +347,7 @@ impl CanonicalConstrTy {
 ///
 /// [existential]: TyKind::Exists
 /// [constraint]: TyKind::Constr
+#[derive(TypeVisitable)]
 pub enum CanonicalTy {
     /// A type of the form `{T | p}`
     Constr(CanonicalConstrTy),
@@ -407,7 +410,11 @@ mod pretty {
 
     impl Pretty for CanonicalConstrTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            if self.pred().is_trivially_true() {
+                w!(cx, f, "{:?}", &self.ty)
+            } else {
+                w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            }
         }
     }
 
@@ -416,10 +423,41 @@ mod pretty {
             match self {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
-                    cx.with_bound_vars(poly_constr.vars(), || {
-                        cx.fmt_bound_vars(false, "∃", poly_constr.vars(), ". ", f)?;
-                        w!(cx, f, "{:?}", poly_constr.as_ref().skip_binder())
-                    })
+                    let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
+                    cx.with_bound_vars_removable(
+                        poly_constr.vars(),
+                        redundant_bvars,
+                        None,
+                        |f_body| {
+                            let constr = poly_constr.skip_binder_ref();
+                            if constr.pred().is_trivially_true() {
+                                w!(cx, f_body, "{:?}", &constr.ty)
+                            } else {
+                                w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                            }
+                        },
+                        |(), bound_var_layer, body| {
+                            let vars = poly_constr
+                                .vars()
+                                .into_iter()
+                                .enumerate()
+                                .filter_map(|(idx, var)| {
+                                    let not_removed = !bound_var_layer
+                                        .successfully_removed_vars
+                                        .contains(&BoundVar::from_usize(idx));
+                                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
+                                    if not_removed && refine_var { Some(var.clone()) } else { None }
+                                })
+                                .collect_vec();
+                            if vars.is_empty() {
+                                write!(f, "{}", body)
+                            } else {
+                                let left = "{";
+                                let right = format!(". {} }}", body);
+                                cx.fmt_bound_vars(false, left, &vars, &right, f)
+                            }
+                        },
+                    )
                 }
             }
         }
