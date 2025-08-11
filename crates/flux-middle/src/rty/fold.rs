@@ -266,8 +266,8 @@ pub trait TypeVisitable: Sized {
     fn redundant_bvars(&self) -> FxHashSet<BoundVar> {
         struct RedundantBVarFinder {
             current_index: DebruijnIndex,
-            bvar_occurrences: FxHashMap<BoundVar, usize>,
-            bvar_index_occurrences: FxHashMap<BoundVar, usize>,
+            total_bvar_occurrences: FxHashMap<BoundVar, usize>,
+            bvars_appearing_in_index: FxHashSet<BoundVar>,
         }
 
         impl TypeVisitor for RedundantBVarFinder {
@@ -276,7 +276,7 @@ pub trait TypeVisitable: Sized {
                 if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = e.kind()
                     && debruijn == &self.current_index
                 {
-                    self.bvar_occurrences
+                    self.total_bvar_occurrences
                         .entry(*var)
                         .and_modify(|count| {
                             *count += 1;
@@ -293,12 +293,7 @@ pub trait TypeVisitable: Sized {
                     match expr.kind() {
                         ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) => {
                             if debruijn == &self.current_index {
-                                self.bvar_index_occurrences
-                                    .entry(*var)
-                                    .and_modify(|count| {
-                                        *count += 1;
-                                    })
-                                    .or_insert(1);
+                                self.bvars_appearing_in_index.insert(*var);
                             }
                         }
                         ExprKind::Ctor(_ctor, exprs) => {
@@ -307,12 +302,7 @@ pub trait TypeVisitable: Sized {
                                     expr.kind()
                                     && debruijn == &self.current_index
                                 {
-                                    self.bvar_index_occurrences
-                                        .entry(*var)
-                                        .and_modify(|count| {
-                                            *count += 1;
-                                        })
-                                        .or_insert(1);
+                                    self.bvars_appearing_in_index.insert(*var);
                                 }
                             });
                         }
@@ -335,16 +325,15 @@ pub trait TypeVisitable: Sized {
 
         let mut finder = RedundantBVarFinder {
             current_index: INNERMOST,
-            bvar_occurrences: FxHashMap::default(),
-            bvar_index_occurrences: FxHashMap::default(),
+            total_bvar_occurrences: FxHashMap::default(),
+            bvars_appearing_in_index: FxHashSet::default(),
         };
         let _ = self.visit_with(&mut finder);
 
         finder
-            .bvar_index_occurrences
-            .keys()
-            .copied()
-            .filter(|var_index| finder.bvar_occurrences.get(var_index) == Some(&1))
+            .bvars_appearing_in_index
+            .into_iter()
+            .filter(|var_index| finder.total_bvar_occurrences.get(var_index) == Some(&1))
             .collect()
     }
 }
