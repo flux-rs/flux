@@ -53,7 +53,7 @@ fluent_messages! { "../locales/en-US.ftl" }
 pub fn provide(providers: &mut Providers) {
     providers.normalized_defns = normalized_defns;
     providers.func_sort = func_sort;
-    providers.func_span = func_span;
+    providers.func_span = flux_def_ident_span;
     providers.qualifiers = qualifiers;
     providers.prim_rel = prim_rel;
     providers.adt_sort_def_of = adt_sort_def_of;
@@ -88,8 +88,10 @@ fn func_sort(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> rty::PolyFuncSor
     }
 }
 
-fn func_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
-    genv.fhir_spec_func_body(def_id.local_id()).unwrap().span
+fn flux_def_ident_span(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> Span {
+    genv.fhir_spec_func_body(def_id.local_id())
+        .unwrap()
+        .ident_span
 }
 
 fn normalized_defns(genv: GlobalEnv) -> rty::NormalizedDefns {

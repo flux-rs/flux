@@ -1179,7 +1179,7 @@ pub struct SpecFunc<'fhir> {
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
     pub hide: bool,
-    pub span: Span,
+    pub ident_span: Span,
 }
 #[derive(Debug)]
 pub struct PrimOpProp<'fhir> {

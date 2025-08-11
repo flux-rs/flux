@@ -301,7 +301,7 @@ fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
             .insert(def_id.local_def_index(), genv.func_sort(def_id));
         tables
             .func_span
-            .insert(def_id.local_def_index(), spec_func.span);
+            .insert(def_id.local_def_index(), spec_func.ident_span);
     }
 }
 
