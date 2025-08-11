@@ -100,9 +100,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             for item in items {
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
-                        let name = qual.name.name;
-                        let def_id = FluxLocalDefId::new(parent.def_id, name);
-                        self.qualifiers.insert(name, def_id);
+                        let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
+                        self.qualifiers.insert(qual.name.name, def_id);
                     }
                     surface::FluxItem::FuncDef(defn) => {
                         let parent = parent.def_id.to_def_id();
