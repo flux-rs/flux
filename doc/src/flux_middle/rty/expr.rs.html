@@ -1512,301 +1512,304 @@
 <a href=#1512 id=1512 data-nosnippet>1512</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Lambda {
 <a href=#1513 id=1513 data-nosnippet>1513</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
 <a href=#1514 id=1514 data-nosnippet>1514</a>            <span class="kw">let </span>vars = <span class="self">self</span>.body.vars();
-<a href=#1515 id=1515 data-nosnippet>1515</a>            cx.with_bound_vars(vars, || {
-<a href=#1516 id=1516 data-nosnippet>1516</a>                cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"λ"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
-<a href=#1517 id=1517 data-nosnippet>1517</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="self">self</span>.body.as_ref().skip_binder())
-<a href=#1518 id=1518 data-nosnippet>1518</a>            })
-<a href=#1519 id=1519 data-nosnippet>1519</a>        }
-<a href=#1520 id=1520 data-nosnippet>1520</a>    }
-<a href=#1521 id=1521 data-nosnippet>1521</a>
-<a href=#1522 id=1522 data-nosnippet>1522</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Var {
-<a href=#1523 id=1523 data-nosnippet>1523</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1524 id=1524 data-nosnippet>1524</a>            <span class="kw">match </span><span class="self">self </span>{
-<a href=#1525 id=1525 data-nosnippet>1525</a>                Var::Bound(debruijn, var) =&gt; cx.fmt_bound_reft(<span class="kw-2">*</span>debruijn, <span class="kw-2">*</span>var, f),
-<a href=#1526 id=1526 data-nosnippet>1526</a>                Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^var.name),
-<a href=#1527 id=1527 data-nosnippet>1527</a>                Var::Free(name) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^name),
-<a href=#1528 id=1528 data-nosnippet>1528</a>                Var::EVar(evar) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^evar),
-<a href=#1529 id=1529 data-nosnippet>1529</a>                Var::ConstGeneric(param) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^param.name),
-<a href=#1530 id=1530 data-nosnippet>1530</a>            }
-<a href=#1531 id=1531 data-nosnippet>1531</a>        }
-<a href=#1532 id=1532 data-nosnippet>1532</a>    }
-<a href=#1533 id=1533 data-nosnippet>1533</a>
-<a href=#1534 id=1534 data-nosnippet>1534</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>KVar {
-<a href=#1535 id=1535 data-nosnippet>1535</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1536 id=1536 data-nosnippet>1536</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^<span class="self">self</span>.kvid)<span class="question-mark">?</span>;
-<a href=#1537 id=1537 data-nosnippet>1537</a>            <span class="kw">match </span>cx.kvar_args {
-<a href=#1538 id=1538 data-nosnippet>1538</a>                KVarArgs::All =&gt; {
-<a href=#1539 id=1539 data-nosnippet>1539</a>                    <span class="macro">w!</span>(
-<a href=#1540 id=1540 data-nosnippet>1540</a>                        cx,
-<a href=#1541 id=1541 data-nosnippet>1541</a>                        f,
-<a href=#1542 id=1542 data-nosnippet>1542</a>                        <span class="string">"({:?})[{:?}]"</span>,
-<a href=#1543 id=1543 data-nosnippet>1543</a>                        <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.self_args()),
-<a href=#1544 id=1544 data-nosnippet>1544</a>                        <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.scope())
-<a href=#1545 id=1545 data-nosnippet>1545</a>                    )<span class="question-mark">?</span>;
-<a href=#1546 id=1546 data-nosnippet>1546</a>                }
-<a href=#1547 id=1547 data-nosnippet>1547</a>                KVarArgs::SelfOnly =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.self_args()))<span class="question-mark">?</span>,
-<a href=#1548 id=1548 data-nosnippet>1548</a>                KVarArgs::Hide =&gt; {}
-<a href=#1549 id=1549 data-nosnippet>1549</a>            }
-<a href=#1550 id=1550 data-nosnippet>1550</a>            <span class="prelude-val">Ok</span>(())
-<a href=#1551 id=1551 data-nosnippet>1551</a>        }
-<a href=#1552 id=1552 data-nosnippet>1552</a>    }
-<a href=#1553 id=1553 data-nosnippet>1553</a>
-<a href=#1554 id=1554 data-nosnippet>1554</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Path {
-<a href=#1555 id=1555 data-nosnippet>1555</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1556 id=1556 data-nosnippet>1556</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.loc)<span class="question-mark">?</span>;
-<a href=#1557 id=1557 data-nosnippet>1557</a>            <span class="kw">for </span>field <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.projection {
-<a href=#1558 id=1558 data-nosnippet>1558</a>                <span class="macro">w!</span>(cx, f, <span class="string">".{}"</span>, ^u32::from(<span class="kw-2">*</span>field))<span class="question-mark">?</span>;
-<a href=#1559 id=1559 data-nosnippet>1559</a>            }
-<a href=#1560 id=1560 data-nosnippet>1560</a>            <span class="prelude-val">Ok</span>(())
-<a href=#1561 id=1561 data-nosnippet>1561</a>        }
-<a href=#1562 id=1562 data-nosnippet>1562</a>    }
-<a href=#1563 id=1563 data-nosnippet>1563</a>
-<a href=#1564 id=1564 data-nosnippet>1564</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Loc {
-<a href=#1565 id=1565 data-nosnippet>1565</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1566 id=1566 data-nosnippet>1566</a>            <span class="kw">match </span><span class="self">self </span>{
-<a href=#1567 id=1567 data-nosnippet>1567</a>                Loc::Local(local) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^local),
-<a href=#1568 id=1568 data-nosnippet>1568</a>                Loc::Var(var) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, var),
-<a href=#1569 id=1569 data-nosnippet>1569</a>            }
-<a href=#1570 id=1570 data-nosnippet>1570</a>        }
-<a href=#1571 id=1571 data-nosnippet>1571</a>    }
-<a href=#1572 id=1572 data-nosnippet>1572</a>
-<a href=#1573 id=1573 data-nosnippet>1573</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>BinOp {
-<a href=#1574 id=1574 data-nosnippet>1574</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1575 id=1575 data-nosnippet>1575</a>            <span class="kw">match </span><span class="self">self </span>{
-<a href=#1576 id=1576 data-nosnippet>1576</a>                BinOp::Iff =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"⇔"</span>),
-<a href=#1577 id=1577 data-nosnippet>1577</a>                BinOp::Imp =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"⇒"</span>),
-<a href=#1578 id=1578 data-nosnippet>1578</a>                BinOp::Or =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"∨"</span>),
-<a href=#1579 id=1579 data-nosnippet>1579</a>                BinOp::And =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"∧"</span>),
-<a href=#1580 id=1580 data-nosnippet>1580</a>                BinOp::Eq =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"="</span>),
-<a href=#1581 id=1581 data-nosnippet>1581</a>                BinOp::Ne =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"≠"</span>),
-<a href=#1582 id=1582 data-nosnippet>1582</a>                BinOp::Gt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&gt;"</span>),
-<a href=#1583 id=1583 data-nosnippet>1583</a>                BinOp::Ge(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"≥"</span>),
-<a href=#1584 id=1584 data-nosnippet>1584</a>                BinOp::Lt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&lt;"</span>),
-<a href=#1585 id=1585 data-nosnippet>1585</a>                BinOp::Le(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"≤"</span>),
-<a href=#1586 id=1586 data-nosnippet>1586</a>                BinOp::Add(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"+"</span>),
-<a href=#1587 id=1587 data-nosnippet>1587</a>                BinOp::Sub(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"-"</span>),
-<a href=#1588 id=1588 data-nosnippet>1588</a>                BinOp::Mul(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"*"</span>),
-<a href=#1589 id=1589 data-nosnippet>1589</a>                BinOp::Div(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"/"</span>),
-<a href=#1590 id=1590 data-nosnippet>1590</a>                BinOp::Mod(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"mod"</span>),
-<a href=#1591 id=1591 data-nosnippet>1591</a>                BinOp::BitAnd =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&amp;"</span>),
-<a href=#1592 id=1592 data-nosnippet>1592</a>                BinOp::BitOr =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"|"</span>),
-<a href=#1593 id=1593 data-nosnippet>1593</a>                BinOp::BitShl =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&lt;&lt;"</span>),
-<a href=#1594 id=1594 data-nosnippet>1594</a>                BinOp::BitShr =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&gt;&gt;"</span>),
-<a href=#1595 id=1595 data-nosnippet>1595</a>            }
-<a href=#1596 id=1596 data-nosnippet>1596</a>        }
-<a href=#1597 id=1597 data-nosnippet>1597</a>    }
-<a href=#1598 id=1598 data-nosnippet>1598</a>
-<a href=#1599 id=1599 data-nosnippet>1599</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>UnOp {
-<a href=#1600 id=1600 data-nosnippet>1600</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1601 id=1601 data-nosnippet>1601</a>            <span class="kw">match </span><span class="self">self </span>{
-<a href=#1602 id=1602 data-nosnippet>1602</a>                UnOp::Not =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"¬"</span>),
-<a href=#1603 id=1603 data-nosnippet>1603</a>                UnOp::Neg =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"-"</span>),
-<a href=#1604 id=1604 data-nosnippet>1604</a>            }
-<a href=#1605 id=1605 data-nosnippet>1605</a>        }
-<a href=#1606 id=1606 data-nosnippet>1606</a>    }
-<a href=#1607 id=1607 data-nosnippet>1607</a>
-<a href=#1608 id=1608 data-nosnippet>1608</a>    <span class="macro">impl_debug_with_default_cx!</span>(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
+<a href=#1515 id=1515 data-nosnippet>1515</a>            <span class="comment">// TODO: remove redundant vars; see Ty
+<a href=#1516 id=1516 data-nosnippet>1516</a>            // let redundant_bvars = self.body.redundant_bvars().into_iter().collect();
+<a href=#1517 id=1517 data-nosnippet>1517</a>            </span>cx.with_bound_vars(vars, || {
+<a href=#1518 id=1518 data-nosnippet>1518</a>                cx.fmt_bound_vars(<span class="bool-val">false</span>, <span class="string">"λ"</span>, vars, <span class="string">". "</span>, f)<span class="question-mark">?</span>;
+<a href=#1519 id=1519 data-nosnippet>1519</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="self">self</span>.body.as_ref().skip_binder())
+<a href=#1520 id=1520 data-nosnippet>1520</a>            })
+<a href=#1521 id=1521 data-nosnippet>1521</a>        }
+<a href=#1522 id=1522 data-nosnippet>1522</a>    }
+<a href=#1523 id=1523 data-nosnippet>1523</a>
+<a href=#1524 id=1524 data-nosnippet>1524</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Var {
+<a href=#1525 id=1525 data-nosnippet>1525</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1526 id=1526 data-nosnippet>1526</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#1527 id=1527 data-nosnippet>1527</a>                Var::Bound(debruijn, var) =&gt; cx.fmt_bound_reft(<span class="kw-2">*</span>debruijn, <span class="kw-2">*</span>var, f),
+<a href=#1528 id=1528 data-nosnippet>1528</a>                Var::EarlyParam(var) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^var.name),
+<a href=#1529 id=1529 data-nosnippet>1529</a>                Var::Free(name) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^name),
+<a href=#1530 id=1530 data-nosnippet>1530</a>                Var::EVar(evar) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^evar),
+<a href=#1531 id=1531 data-nosnippet>1531</a>                Var::ConstGeneric(param) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{}"</span>, ^param.name),
+<a href=#1532 id=1532 data-nosnippet>1532</a>            }
+<a href=#1533 id=1533 data-nosnippet>1533</a>        }
+<a href=#1534 id=1534 data-nosnippet>1534</a>    }
+<a href=#1535 id=1535 data-nosnippet>1535</a>
+<a href=#1536 id=1536 data-nosnippet>1536</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>KVar {
+<a href=#1537 id=1537 data-nosnippet>1537</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1538 id=1538 data-nosnippet>1538</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^<span class="self">self</span>.kvid)<span class="question-mark">?</span>;
+<a href=#1539 id=1539 data-nosnippet>1539</a>            <span class="kw">match </span>cx.kvar_args {
+<a href=#1540 id=1540 data-nosnippet>1540</a>                KVarArgs::All =&gt; {
+<a href=#1541 id=1541 data-nosnippet>1541</a>                    <span class="macro">w!</span>(
+<a href=#1542 id=1542 data-nosnippet>1542</a>                        cx,
+<a href=#1543 id=1543 data-nosnippet>1543</a>                        f,
+<a href=#1544 id=1544 data-nosnippet>1544</a>                        <span class="string">"({:?})[{:?}]"</span>,
+<a href=#1545 id=1545 data-nosnippet>1545</a>                        <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.self_args()),
+<a href=#1546 id=1546 data-nosnippet>1546</a>                        <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.scope())
+<a href=#1547 id=1547 data-nosnippet>1547</a>                    )<span class="question-mark">?</span>;
+<a href=#1548 id=1548 data-nosnippet>1548</a>                }
+<a href=#1549 id=1549 data-nosnippet>1549</a>                KVarArgs::SelfOnly =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"({:?})"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, <span class="self">self</span>.self_args()))<span class="question-mark">?</span>,
+<a href=#1550 id=1550 data-nosnippet>1550</a>                KVarArgs::Hide =&gt; {}
+<a href=#1551 id=1551 data-nosnippet>1551</a>            }
+<a href=#1552 id=1552 data-nosnippet>1552</a>            <span class="prelude-val">Ok</span>(())
+<a href=#1553 id=1553 data-nosnippet>1553</a>        }
+<a href=#1554 id=1554 data-nosnippet>1554</a>    }
+<a href=#1555 id=1555 data-nosnippet>1555</a>
+<a href=#1556 id=1556 data-nosnippet>1556</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Path {
+<a href=#1557 id=1557 data-nosnippet>1557</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1558 id=1558 data-nosnippet>1558</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.loc)<span class="question-mark">?</span>;
+<a href=#1559 id=1559 data-nosnippet>1559</a>            <span class="kw">for </span>field <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.projection {
+<a href=#1560 id=1560 data-nosnippet>1560</a>                <span class="macro">w!</span>(cx, f, <span class="string">".{}"</span>, ^u32::from(<span class="kw-2">*</span>field))<span class="question-mark">?</span>;
+<a href=#1561 id=1561 data-nosnippet>1561</a>            }
+<a href=#1562 id=1562 data-nosnippet>1562</a>            <span class="prelude-val">Ok</span>(())
+<a href=#1563 id=1563 data-nosnippet>1563</a>        }
+<a href=#1564 id=1564 data-nosnippet>1564</a>    }
+<a href=#1565 id=1565 data-nosnippet>1565</a>
+<a href=#1566 id=1566 data-nosnippet>1566</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Loc {
+<a href=#1567 id=1567 data-nosnippet>1567</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1568 id=1568 data-nosnippet>1568</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#1569 id=1569 data-nosnippet>1569</a>                Loc::Local(local) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, ^local),
+<a href=#1570 id=1570 data-nosnippet>1570</a>                Loc::Var(var) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"{:?}"</span>, var),
+<a href=#1571 id=1571 data-nosnippet>1571</a>            }
+<a href=#1572 id=1572 data-nosnippet>1572</a>        }
+<a href=#1573 id=1573 data-nosnippet>1573</a>    }
+<a href=#1574 id=1574 data-nosnippet>1574</a>
+<a href=#1575 id=1575 data-nosnippet>1575</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>BinOp {
+<a href=#1576 id=1576 data-nosnippet>1576</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1577 id=1577 data-nosnippet>1577</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#1578 id=1578 data-nosnippet>1578</a>                BinOp::Iff =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"⇔"</span>),
+<a href=#1579 id=1579 data-nosnippet>1579</a>                BinOp::Imp =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"⇒"</span>),
+<a href=#1580 id=1580 data-nosnippet>1580</a>                BinOp::Or =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"∨"</span>),
+<a href=#1581 id=1581 data-nosnippet>1581</a>                BinOp::And =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"∧"</span>),
+<a href=#1582 id=1582 data-nosnippet>1582</a>                BinOp::Eq =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"="</span>),
+<a href=#1583 id=1583 data-nosnippet>1583</a>                BinOp::Ne =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"≠"</span>),
+<a href=#1584 id=1584 data-nosnippet>1584</a>                BinOp::Gt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&gt;"</span>),
+<a href=#1585 id=1585 data-nosnippet>1585</a>                BinOp::Ge(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"≥"</span>),
+<a href=#1586 id=1586 data-nosnippet>1586</a>                BinOp::Lt(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&lt;"</span>),
+<a href=#1587 id=1587 data-nosnippet>1587</a>                BinOp::Le(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"≤"</span>),
+<a href=#1588 id=1588 data-nosnippet>1588</a>                BinOp::Add(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"+"</span>),
+<a href=#1589 id=1589 data-nosnippet>1589</a>                BinOp::Sub(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"-"</span>),
+<a href=#1590 id=1590 data-nosnippet>1590</a>                BinOp::Mul(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"*"</span>),
+<a href=#1591 id=1591 data-nosnippet>1591</a>                BinOp::Div(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"/"</span>),
+<a href=#1592 id=1592 data-nosnippet>1592</a>                BinOp::Mod(<span class="kw">_</span>) =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"mod"</span>),
+<a href=#1593 id=1593 data-nosnippet>1593</a>                BinOp::BitAnd =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&amp;"</span>),
+<a href=#1594 id=1594 data-nosnippet>1594</a>                BinOp::BitOr =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"|"</span>),
+<a href=#1595 id=1595 data-nosnippet>1595</a>                BinOp::BitShl =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&lt;&lt;"</span>),
+<a href=#1596 id=1596 data-nosnippet>1596</a>                BinOp::BitShr =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"&gt;&gt;"</span>),
+<a href=#1597 id=1597 data-nosnippet>1597</a>            }
+<a href=#1598 id=1598 data-nosnippet>1598</a>        }
+<a href=#1599 id=1599 data-nosnippet>1599</a>    }
+<a href=#1600 id=1600 data-nosnippet>1600</a>
+<a href=#1601 id=1601 data-nosnippet>1601</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>UnOp {
+<a href=#1602 id=1602 data-nosnippet>1602</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, _cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#1603 id=1603 data-nosnippet>1603</a>            <span class="kw">match </span><span class="self">self </span>{
+<a href=#1604 id=1604 data-nosnippet>1604</a>                UnOp::Not =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"¬"</span>),
+<a href=#1605 id=1605 data-nosnippet>1605</a>                UnOp::Neg =&gt; <span class="macro">w!</span>(cx, f, <span class="string">"-"</span>),
+<a href=#1606 id=1606 data-nosnippet>1606</a>            }
+<a href=#1607 id=1607 data-nosnippet>1607</a>        }
+<a href=#1608 id=1608 data-nosnippet>1608</a>    }
 <a href=#1609 id=1609 data-nosnippet>1609</a>
-<a href=#1610 id=1610 data-nosnippet>1610</a>    <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Lambda {
-<a href=#1611 id=1611 data-nosnippet>1611</a>        <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
-<a href=#1612 id=1612 data-nosnippet>1612</a>            nested_with_bound_vars(cx, <span class="string">"λ"</span>, <span class="self">self</span>.body.vars(), <span class="prelude-val">None</span>, |prefix| {
-<a href=#1613 id=1613 data-nosnippet>1613</a>                <span class="kw">let </span>expr_d = <span class="self">self</span>.body.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1614 id=1614 data-nosnippet>1614</a>                <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, prefix, expr_d.text);
-<a href=#1615 id=1615 data-nosnippet>1615</a>                <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1616 id=1616 data-nosnippet>1616</a>            })
-<a href=#1617 id=1617 data-nosnippet>1617</a>        }
-<a href=#1618 id=1618 data-nosnippet>1618</a>    }
-<a href=#1619 id=1619 data-nosnippet>1619</a>
-<a href=#1620 id=1620 data-nosnippet>1620</a>    <span class="kw">pub fn </span>aggregate_nested(
-<a href=#1621 id=1621 data-nosnippet>1621</a>        cx: <span class="kw-2">&amp;</span>PrettyCx,
-<a href=#1622 id=1622 data-nosnippet>1622</a>        ctor: <span class="kw-2">&amp;</span>Ctor,
-<a href=#1623 id=1623 data-nosnippet>1623</a>        flds: <span class="kw-2">&amp;</span>[Expr],
-<a href=#1624 id=1624 data-nosnippet>1624</a>        is_named: bool,
-<a href=#1625 id=1625 data-nosnippet>1625</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
-<a href=#1626 id=1626 data-nosnippet>1626</a>        <span class="kw">let </span>def_id = ctor.def_id();
-<a href=#1627 id=1627 data-nosnippet>1627</a>        <span class="kw">let </span><span class="kw-2">mut </span>text =
-<a href=#1628 id=1628 data-nosnippet>1628</a>            <span class="kw">if </span>is_named &amp;&amp; ctor.is_enum() { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, ctor) } <span class="kw">else </span>{ <span class="string">""</span>.to_string() };
-<a href=#1629 id=1629 data-nosnippet>1629</a>        <span class="kw">if </span>flds.is_empty() {
-<a href=#1630 id=1630 data-nosnippet>1630</a>            <span class="comment">// No fields, no index
-<a href=#1631 id=1631 data-nosnippet>1631</a>            </span><span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
-<a href=#1632 id=1632 data-nosnippet>1632</a>        } <span class="kw">else if </span>flds.len() == <span class="number">1 </span>{
-<a href=#1633 id=1633 data-nosnippet>1633</a>            <span class="comment">// Single field, inline index
-<a href=#1634 id=1634 data-nosnippet>1634</a>            </span>text += <span class="kw-2">&amp;</span><span class="macro">format_cx!</span>(cx, <span class="string">"{:?} "</span>, flds[<span class="number">0</span>].clone());
-<a href=#1635 id=1635 data-nosnippet>1635</a>            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
-<a href=#1636 id=1636 data-nosnippet>1636</a>        } <span class="kw">else </span>{
-<a href=#1637 id=1637 data-nosnippet>1637</a>            <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(def_id) {
-<a href=#1638 id=1638 data-nosnippet>1638</a>                adt_sort_def
-<a href=#1639 id=1639 data-nosnippet>1639</a>                    .variant(ctor.variant_idx())
-<a href=#1640 id=1640 data-nosnippet>1640</a>                    .field_names()
-<a href=#1641 id=1641 data-nosnippet>1641</a>                    .iter()
-<a href=#1642 id=1642 data-nosnippet>1642</a>                    .map(|name| <span class="macro">format!</span>(<span class="string">"{name}"</span>))
-<a href=#1643 id=1643 data-nosnippet>1643</a>                    .collect_vec()
-<a href=#1644 id=1644 data-nosnippet>1644</a>            } <span class="kw">else </span>{
-<a href=#1645 id=1645 data-nosnippet>1645</a>                (<span class="number">0</span>..flds.len()).map(|i| <span class="macro">format!</span>(<span class="string">"arg{i}"</span>)).collect_vec()
-<a href=#1646 id=1646 data-nosnippet>1646</a>            };
-<a href=#1647 id=1647 data-nosnippet>1647</a>            <span class="comment">// Multiple fields, nested index
-<a href=#1648 id=1648 data-nosnippet>1648</a>            </span>text += <span class="string">"{..}"</span>;
-<a href=#1649 id=1649 data-nosnippet>1649</a>            <span class="kw">let </span><span class="kw-2">mut </span>children = <span class="macro">vec!</span>[];
-<a href=#1650 id=1650 data-nosnippet>1650</a>            <span class="kw">for </span>(key, fld) <span class="kw">in </span>iter::zip(keys, flds) {
-<a href=#1651 id=1651 data-nosnippet>1651</a>                <span class="kw">let </span>fld_d = fld.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1652 id=1652 data-nosnippet>1652</a>                children.push(NestedString { key: <span class="prelude-val">Some</span>(key), ..fld_d });
-<a href=#1653 id=1653 data-nosnippet>1653</a>            }
-<a href=#1654 id=1654 data-nosnippet>1654</a>            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">Some</span>(children), key: <span class="prelude-val">None </span>})
-<a href=#1655 id=1655 data-nosnippet>1655</a>        }
-<a href=#1656 id=1656 data-nosnippet>1656</a>    }
-<a href=#1657 id=1657 data-nosnippet>1657</a>
-<a href=#1658 id=1658 data-nosnippet>1658</a>    <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Expr {
-<a href=#1659 id=1659 data-nosnippet>1659</a>        <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
-<a href=#1660 id=1660 data-nosnippet>1660</a>            <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs {
-<a href=#1661 id=1661 data-nosnippet>1661</a>                <span class="self">self</span>.simplify(<span class="kw-2">&amp;</span>SnapshotMap::default())
-<a href=#1662 id=1662 data-nosnippet>1662</a>            } <span class="kw">else </span>{
-<a href=#1663 id=1663 data-nosnippet>1663</a>                <span class="self">self</span>.clone()
-<a href=#1664 id=1664 data-nosnippet>1664</a>            };
-<a href=#1665 id=1665 data-nosnippet>1665</a>            <span class="kw">match </span>e.kind() {
-<a href=#1666 id=1666 data-nosnippet>1666</a>                ExprKind::Var(..)
-<a href=#1667 id=1667 data-nosnippet>1667</a>                | ExprKind::Local(..)
-<a href=#1668 id=1668 data-nosnippet>1668</a>                | ExprKind::Constant(..)
-<a href=#1669 id=1669 data-nosnippet>1669</a>                | ExprKind::ConstDefId(..)
-<a href=#1670 id=1670 data-nosnippet>1670</a>                | ExprKind::Hole(..)
-<a href=#1671 id=1671 data-nosnippet>1671</a>                | ExprKind::GlobalFunc(..)
-<a href=#1672 id=1672 data-nosnippet>1672</a>                | ExprKind::InternalFunc(..)
-<a href=#1673 id=1673 data-nosnippet>1673</a>                | ExprKind::KVar(..) =&gt; debug_nested(cx, <span class="kw-2">&amp;</span>e),
-<a href=#1674 id=1674 data-nosnippet>1674</a>
-<a href=#1675 id=1675 data-nosnippet>1675</a>                ExprKind::IfThenElse(p, e1, e2) =&gt; {
-<a href=#1676 id=1676 data-nosnippet>1676</a>                    <span class="kw">let </span>p_d = p.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1677 id=1677 data-nosnippet>1677</a>                    <span class="kw">let </span>e1_d = e1.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1678 id=1678 data-nosnippet>1678</a>                    <span class="kw">let </span>e2_d = e2.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1679 id=1679 data-nosnippet>1679</a>                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"(if {} then {} else {})"</span>, p_d.text, e1_d.text, e2_d.text);
-<a href=#1680 id=1680 data-nosnippet>1680</a>                    <span class="kw">let </span>children = float_children(<span class="macro">vec!</span>[p_d.children, e1_d.children, e2_d.children]);
-<a href=#1681 id=1681 data-nosnippet>1681</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1682 id=1682 data-nosnippet>1682</a>                }
-<a href=#1683 id=1683 data-nosnippet>1683</a>                ExprKind::BinaryOp(op, e1, e2) =&gt; {
-<a href=#1684 id=1684 data-nosnippet>1684</a>                    <span class="kw">let </span>e1_d = e1.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1685 id=1685 data-nosnippet>1685</a>                    <span class="kw">let </span>e2_d = e2.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1686 id=1686 data-nosnippet>1686</a>                    <span class="kw">let </span>e1_text = <span class="kw">if </span>should_parenthesize(op, e1) {
-<a href=#1687 id=1687 data-nosnippet>1687</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, e1_d.text)
-<a href=#1688 id=1688 data-nosnippet>1688</a>                    } <span class="kw">else </span>{
-<a href=#1689 id=1689 data-nosnippet>1689</a>                        e1_d.text
-<a href=#1690 id=1690 data-nosnippet>1690</a>                    };
-<a href=#1691 id=1691 data-nosnippet>1691</a>                    <span class="kw">let </span>e2_text = <span class="kw">if </span>should_parenthesize(op, e2) {
-<a href=#1692 id=1692 data-nosnippet>1692</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, e2_d.text)
-<a href=#1693 id=1693 data-nosnippet>1693</a>                    } <span class="kw">else </span>{
-<a href=#1694 id=1694 data-nosnippet>1694</a>                        e2_d.text
-<a href=#1695 id=1695 data-nosnippet>1695</a>                    };
-<a href=#1696 id=1696 data-nosnippet>1696</a>                    <span class="kw">let </span>op_d = debug_nested(cx, op)<span class="question-mark">?</span>;
-<a href=#1697 id=1697 data-nosnippet>1697</a>                    <span class="kw">let </span>op_text = <span class="kw">if </span><span class="macro">matches!</span>(op, BinOp::Div(<span class="kw">_</span>)) {
-<a href=#1698 id=1698 data-nosnippet>1698</a>                        op_d.text
-<a href=#1699 id=1699 data-nosnippet>1699</a>                    } <span class="kw">else </span>{
-<a href=#1700 id=1700 data-nosnippet>1700</a>                        <span class="macro">format!</span>(<span class="string">" {} "</span>, op_d.text)
-<a href=#1701 id=1701 data-nosnippet>1701</a>                    };
-<a href=#1702 id=1702 data-nosnippet>1702</a>                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{e1_text}{op_text}{e2_text}"</span>);
-<a href=#1703 id=1703 data-nosnippet>1703</a>                    <span class="kw">let </span>children = float_children(<span class="macro">vec!</span>[e1_d.children, e2_d.children]);
-<a href=#1704 id=1704 data-nosnippet>1704</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1705 id=1705 data-nosnippet>1705</a>                }
-<a href=#1706 id=1706 data-nosnippet>1706</a>                ExprKind::UnaryOp(op, e) =&gt; {
-<a href=#1707 id=1707 data-nosnippet>1707</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1708 id=1708 data-nosnippet>1708</a>                    <span class="kw">let </span>op_d = debug_nested(cx, op)<span class="question-mark">?</span>;
-<a href=#1709 id=1709 data-nosnippet>1709</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
-<a href=#1710 id=1710 data-nosnippet>1710</a>                        <span class="macro">format!</span>(<span class="string">"{}{}"</span>, op_d.text, e_d.text)
-<a href=#1711 id=1711 data-nosnippet>1711</a>                    } <span class="kw">else </span>{
-<a href=#1712 id=1712 data-nosnippet>1712</a>                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, op_d.text, e_d.text)
-<a href=#1713 id=1713 data-nosnippet>1713</a>                    };
-<a href=#1714 id=1714 data-nosnippet>1714</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1715 id=1715 data-nosnippet>1715</a>                }
-<a href=#1716 id=1716 data-nosnippet>1716</a>                ExprKind::FieldProj(e, proj) =&gt; {
-<a href=#1717 id=1717 data-nosnippet>1717</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1718 id=1718 data-nosnippet>1718</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
-<a href=#1719 id=1719 data-nosnippet>1719</a>                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
-<a href=#1720 id=1720 data-nosnippet>1720</a>                    } <span class="kw">else </span>{
-<a href=#1721 id=1721 data-nosnippet>1721</a>                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
-<a href=#1722 id=1722 data-nosnippet>1722</a>                    };
-<a href=#1723 id=1723 data-nosnippet>1723</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1724 id=1724 data-nosnippet>1724</a>                }
-<a href=#1725 id=1725 data-nosnippet>1725</a>                ExprKind::Tuple(flds) =&gt; {
-<a href=#1726 id=1726 data-nosnippet>1726</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
-<a href=#1727 id=1727 data-nosnippet>1727</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
-<a href=#1728 id=1728 data-nosnippet>1728</a>                    <span class="kw">for </span>e <span class="kw">in </span>flds {
-<a href=#1729 id=1729 data-nosnippet>1729</a>                        <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1730 id=1730 data-nosnippet>1730</a>                        texts.push(e_d.text);
-<a href=#1731 id=1731 data-nosnippet>1731</a>                        kidss.push(e_d.children);
-<a href=#1732 id=1732 data-nosnippet>1732</a>                    }
-<a href=#1733 id=1733 data-nosnippet>1733</a>                    <span class="kw">let </span>text = <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>texts[..] {
-<a href=#1734 id=1734 data-nosnippet>1734</a>                        <span class="macro">format!</span>(<span class="string">"({e},)"</span>)
-<a href=#1735 id=1735 data-nosnippet>1735</a>                    } <span class="kw">else </span>{
-<a href=#1736 id=1736 data-nosnippet>1736</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, texts.join(<span class="string">", "</span>))
-<a href=#1737 id=1737 data-nosnippet>1737</a>                    };
-<a href=#1738 id=1738 data-nosnippet>1738</a>                    <span class="kw">let </span>children = float_children(kidss);
-<a href=#1739 id=1739 data-nosnippet>1739</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1740 id=1740 data-nosnippet>1740</a>                }
-<a href=#1741 id=1741 data-nosnippet>1741</a>                ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">true</span>),
-<a href=#1742 id=1742 data-nosnippet>1742</a>                ExprKind::PathProj(e, field) =&gt; {
-<a href=#1743 id=1743 data-nosnippet>1743</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1744 id=1744 data-nosnippet>1744</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
-<a href=#1745 id=1745 data-nosnippet>1745</a>                        <span class="macro">format!</span>(<span class="string">"{}.{:?}"</span>, e_d.text, field)
-<a href=#1746 id=1746 data-nosnippet>1746</a>                    } <span class="kw">else </span>{
-<a href=#1747 id=1747 data-nosnippet>1747</a>                        <span class="macro">format!</span>(<span class="string">"({}).{:?}"</span>, e_d.text, field)
-<a href=#1748 id=1748 data-nosnippet>1748</a>                    };
-<a href=#1749 id=1749 data-nosnippet>1749</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1750 id=1750 data-nosnippet>1750</a>                }
-<a href=#1751 id=1751 data-nosnippet>1751</a>                ExprKind::Alias(alias, args) =&gt; {
-<a href=#1752 id=1752 data-nosnippet>1752</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
-<a href=#1753 id=1753 data-nosnippet>1753</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
-<a href=#1754 id=1754 data-nosnippet>1754</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
-<a href=#1755 id=1755 data-nosnippet>1755</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1756 id=1756 data-nosnippet>1756</a>                        texts.push(arg_d.text);
-<a href=#1757 id=1757 data-nosnippet>1757</a>                        kidss.push(arg_d.children);
-<a href=#1758 id=1758 data-nosnippet>1758</a>                    }
-<a href=#1759 id=1759 data-nosnippet>1759</a>                    <span class="kw">let </span>text = <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}({:?})"</span>, alias, texts.join(<span class="string">", "</span>));
-<a href=#1760 id=1760 data-nosnippet>1760</a>                    <span class="kw">let </span>children = float_children(kidss);
-<a href=#1761 id=1761 data-nosnippet>1761</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1762 id=1762 data-nosnippet>1762</a>                }
-<a href=#1763 id=1763 data-nosnippet>1763</a>                ExprKind::App(func, <span class="kw">_</span>, args) =&gt; {
-<a href=#1764 id=1764 data-nosnippet>1764</a>                    <span class="kw">let </span>func_d = func.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1765 id=1765 data-nosnippet>1765</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
-<a href=#1766 id=1766 data-nosnippet>1766</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[func_d.children];
-<a href=#1767 id=1767 data-nosnippet>1767</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
-<a href=#1768 id=1768 data-nosnippet>1768</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1769 id=1769 data-nosnippet>1769</a>                        texts.push(arg_d.text);
-<a href=#1770 id=1770 data-nosnippet>1770</a>                        kidss.push(arg_d.children);
-<a href=#1771 id=1771 data-nosnippet>1771</a>                    }
-<a href=#1772 id=1772 data-nosnippet>1772</a>                    <span class="kw">let </span>text = <span class="kw">if </span>func.is_atom() {
-<a href=#1773 id=1773 data-nosnippet>1773</a>                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
-<a href=#1774 id=1774 data-nosnippet>1774</a>                    } <span class="kw">else </span>{
-<a href=#1775 id=1775 data-nosnippet>1775</a>                        <span class="macro">format!</span>(<span class="string">"({})({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
-<a href=#1776 id=1776 data-nosnippet>1776</a>                    };
-<a href=#1777 id=1777 data-nosnippet>1777</a>                    <span class="kw">let </span>children = float_children(kidss);
-<a href=#1778 id=1778 data-nosnippet>1778</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1779 id=1779 data-nosnippet>1779</a>                }
-<a href=#1780 id=1780 data-nosnippet>1780</a>                ExprKind::Abs(lambda) =&gt; lambda.fmt_nested(cx),
-<a href=#1781 id=1781 data-nosnippet>1781</a>                ExprKind::Let(init, body) =&gt; {
-<a href=#1782 id=1782 data-nosnippet>1782</a>                    <span class="comment">// FIXME this is very wrong!
-<a href=#1783 id=1783 data-nosnippet>1783</a>                    </span>nested_with_bound_vars(cx, <span class="string">"let"</span>, body.vars(), <span class="prelude-val">None</span>, |prefix| {
-<a href=#1784 id=1784 data-nosnippet>1784</a>                        <span class="kw">let </span>body = body.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1785 id=1785 data-nosnippet>1785</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{:?} {}{}"</span>, init, prefix, body.text);
-<a href=#1786 id=1786 data-nosnippet>1786</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: body.children, key: <span class="prelude-val">None </span>})
-<a href=#1787 id=1787 data-nosnippet>1787</a>                    })
-<a href=#1788 id=1788 data-nosnippet>1788</a>                }
-<a href=#1789 id=1789 data-nosnippet>1789</a>                ExprKind::BoundedQuant(kind, rng, body) =&gt; {
-<a href=#1790 id=1790 data-nosnippet>1790</a>                    <span class="kw">let </span>left = <span class="kw">match </span>kind {
-<a href=#1791 id=1791 data-nosnippet>1791</a>                        fhir::QuantKind::Forall =&gt; <span class="string">"∀"</span>,
-<a href=#1792 id=1792 data-nosnippet>1792</a>                        fhir::QuantKind::Exists =&gt; <span class="string">"∃"</span>,
-<a href=#1793 id=1793 data-nosnippet>1793</a>                    };
-<a href=#1794 id=1794 data-nosnippet>1794</a>                    <span class="kw">let </span>right = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">" in {}..{}"</span>, rng.start, rng.end));
-<a href=#1795 id=1795 data-nosnippet>1795</a>
-<a href=#1796 id=1796 data-nosnippet>1796</a>                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
-<a href=#1797 id=1797 data-nosnippet>1797</a>                        <span class="kw">let </span>expr_d = body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1798 id=1798 data-nosnippet>1798</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
-<a href=#1799 id=1799 data-nosnippet>1799</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1800 id=1800 data-nosnippet>1800</a>                    })
-<a href=#1801 id=1801 data-nosnippet>1801</a>                }
-<a href=#1802 id=1802 data-nosnippet>1802</a>                ExprKind::ForAll(expr) =&gt; {
-<a href=#1803 id=1803 data-nosnippet>1803</a>                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), <span class="prelude-val">None</span>, |all_str| {
-<a href=#1804 id=1804 data-nosnippet>1804</a>                        <span class="kw">let </span>expr_d = expr.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1805 id=1805 data-nosnippet>1805</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
-<a href=#1806 id=1806 data-nosnippet>1806</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1807 id=1807 data-nosnippet>1807</a>                    })
-<a href=#1808 id=1808 data-nosnippet>1808</a>                }
-<a href=#1809 id=1809 data-nosnippet>1809</a>            }
-<a href=#1810 id=1810 data-nosnippet>1810</a>        }
-<a href=#1811 id=1811 data-nosnippet>1811</a>    }
-<a href=#1812 id=1812 data-nosnippet>1812</a>}</code></pre></div></section></main></body></html>
+<a href=#1610 id=1610 data-nosnippet>1610</a>    <span class="macro">impl_debug_with_default_cx!</span>(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
+<a href=#1611 id=1611 data-nosnippet>1611</a>
+<a href=#1612 id=1612 data-nosnippet>1612</a>    <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Lambda {
+<a href=#1613 id=1613 data-nosnippet>1613</a>        <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+<a href=#1614 id=1614 data-nosnippet>1614</a>            <span class="comment">// TODO: remove redundant vars; see Ty
+<a href=#1615 id=1615 data-nosnippet>1615</a>            </span>nested_with_bound_vars(cx, <span class="string">"λ"</span>, <span class="self">self</span>.body.vars(), <span class="prelude-val">None</span>, |prefix| {
+<a href=#1616 id=1616 data-nosnippet>1616</a>                <span class="kw">let </span>expr_d = <span class="self">self</span>.body.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1617 id=1617 data-nosnippet>1617</a>                <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, prefix, expr_d.text);
+<a href=#1618 id=1618 data-nosnippet>1618</a>                <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1619 id=1619 data-nosnippet>1619</a>            })
+<a href=#1620 id=1620 data-nosnippet>1620</a>        }
+<a href=#1621 id=1621 data-nosnippet>1621</a>    }
+<a href=#1622 id=1622 data-nosnippet>1622</a>
+<a href=#1623 id=1623 data-nosnippet>1623</a>    <span class="kw">pub fn </span>aggregate_nested(
+<a href=#1624 id=1624 data-nosnippet>1624</a>        cx: <span class="kw-2">&amp;</span>PrettyCx,
+<a href=#1625 id=1625 data-nosnippet>1625</a>        ctor: <span class="kw-2">&amp;</span>Ctor,
+<a href=#1626 id=1626 data-nosnippet>1626</a>        flds: <span class="kw-2">&amp;</span>[Expr],
+<a href=#1627 id=1627 data-nosnippet>1627</a>        is_named: bool,
+<a href=#1628 id=1628 data-nosnippet>1628</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+<a href=#1629 id=1629 data-nosnippet>1629</a>        <span class="kw">let </span>def_id = ctor.def_id();
+<a href=#1630 id=1630 data-nosnippet>1630</a>        <span class="kw">let </span><span class="kw-2">mut </span>text =
+<a href=#1631 id=1631 data-nosnippet>1631</a>            <span class="kw">if </span>is_named &amp;&amp; ctor.is_enum() { <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, ctor) } <span class="kw">else </span>{ <span class="string">""</span>.to_string() };
+<a href=#1632 id=1632 data-nosnippet>1632</a>        <span class="kw">if </span>flds.is_empty() {
+<a href=#1633 id=1633 data-nosnippet>1633</a>            <span class="comment">// No fields, no index
+<a href=#1634 id=1634 data-nosnippet>1634</a>            </span><span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
+<a href=#1635 id=1635 data-nosnippet>1635</a>        } <span class="kw">else if </span>flds.len() == <span class="number">1 </span>{
+<a href=#1636 id=1636 data-nosnippet>1636</a>            <span class="comment">// Single field, inline index
+<a href=#1637 id=1637 data-nosnippet>1637</a>            </span>text += <span class="kw-2">&amp;</span><span class="macro">format_cx!</span>(cx, <span class="string">"{:?} "</span>, flds[<span class="number">0</span>].clone());
+<a href=#1638 id=1638 data-nosnippet>1638</a>            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
+<a href=#1639 id=1639 data-nosnippet>1639</a>        } <span class="kw">else </span>{
+<a href=#1640 id=1640 data-nosnippet>1640</a>            <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(def_id) {
+<a href=#1641 id=1641 data-nosnippet>1641</a>                adt_sort_def
+<a href=#1642 id=1642 data-nosnippet>1642</a>                    .variant(ctor.variant_idx())
+<a href=#1643 id=1643 data-nosnippet>1643</a>                    .field_names()
+<a href=#1644 id=1644 data-nosnippet>1644</a>                    .iter()
+<a href=#1645 id=1645 data-nosnippet>1645</a>                    .map(|name| <span class="macro">format!</span>(<span class="string">"{name}"</span>))
+<a href=#1646 id=1646 data-nosnippet>1646</a>                    .collect_vec()
+<a href=#1647 id=1647 data-nosnippet>1647</a>            } <span class="kw">else </span>{
+<a href=#1648 id=1648 data-nosnippet>1648</a>                (<span class="number">0</span>..flds.len()).map(|i| <span class="macro">format!</span>(<span class="string">"arg{i}"</span>)).collect_vec()
+<a href=#1649 id=1649 data-nosnippet>1649</a>            };
+<a href=#1650 id=1650 data-nosnippet>1650</a>            <span class="comment">// Multiple fields, nested index
+<a href=#1651 id=1651 data-nosnippet>1651</a>            </span>text += <span class="string">"{..}"</span>;
+<a href=#1652 id=1652 data-nosnippet>1652</a>            <span class="kw">let </span><span class="kw-2">mut </span>children = <span class="macro">vec!</span>[];
+<a href=#1653 id=1653 data-nosnippet>1653</a>            <span class="kw">for </span>(key, fld) <span class="kw">in </span>iter::zip(keys, flds) {
+<a href=#1654 id=1654 data-nosnippet>1654</a>                <span class="kw">let </span>fld_d = fld.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1655 id=1655 data-nosnippet>1655</a>                children.push(NestedString { key: <span class="prelude-val">Some</span>(key), ..fld_d });
+<a href=#1656 id=1656 data-nosnippet>1656</a>            }
+<a href=#1657 id=1657 data-nosnippet>1657</a>            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">Some</span>(children), key: <span class="prelude-val">None </span>})
+<a href=#1658 id=1658 data-nosnippet>1658</a>        }
+<a href=#1659 id=1659 data-nosnippet>1659</a>    }
+<a href=#1660 id=1660 data-nosnippet>1660</a>
+<a href=#1661 id=1661 data-nosnippet>1661</a>    <span class="kw">impl </span>PrettyNested <span class="kw">for </span>Expr {
+<a href=#1662 id=1662 data-nosnippet>1662</a>        <span class="kw">fn </span>fmt_nested(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx) -&gt; <span class="prelude-ty">Result</span>&lt;NestedString, fmt::Error&gt; {
+<a href=#1663 id=1663 data-nosnippet>1663</a>            <span class="kw">let </span>e = <span class="kw">if </span>cx.simplify_exprs {
+<a href=#1664 id=1664 data-nosnippet>1664</a>                <span class="self">self</span>.simplify(<span class="kw-2">&amp;</span>SnapshotMap::default())
+<a href=#1665 id=1665 data-nosnippet>1665</a>            } <span class="kw">else </span>{
+<a href=#1666 id=1666 data-nosnippet>1666</a>                <span class="self">self</span>.clone()
+<a href=#1667 id=1667 data-nosnippet>1667</a>            };
+<a href=#1668 id=1668 data-nosnippet>1668</a>            <span class="kw">match </span>e.kind() {
+<a href=#1669 id=1669 data-nosnippet>1669</a>                ExprKind::Var(..)
+<a href=#1670 id=1670 data-nosnippet>1670</a>                | ExprKind::Local(..)
+<a href=#1671 id=1671 data-nosnippet>1671</a>                | ExprKind::Constant(..)
+<a href=#1672 id=1672 data-nosnippet>1672</a>                | ExprKind::ConstDefId(..)
+<a href=#1673 id=1673 data-nosnippet>1673</a>                | ExprKind::Hole(..)
+<a href=#1674 id=1674 data-nosnippet>1674</a>                | ExprKind::GlobalFunc(..)
+<a href=#1675 id=1675 data-nosnippet>1675</a>                | ExprKind::InternalFunc(..)
+<a href=#1676 id=1676 data-nosnippet>1676</a>                | ExprKind::KVar(..) =&gt; debug_nested(cx, <span class="kw-2">&amp;</span>e),
+<a href=#1677 id=1677 data-nosnippet>1677</a>
+<a href=#1678 id=1678 data-nosnippet>1678</a>                ExprKind::IfThenElse(p, e1, e2) =&gt; {
+<a href=#1679 id=1679 data-nosnippet>1679</a>                    <span class="kw">let </span>p_d = p.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1680 id=1680 data-nosnippet>1680</a>                    <span class="kw">let </span>e1_d = e1.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1681 id=1681 data-nosnippet>1681</a>                    <span class="kw">let </span>e2_d = e2.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1682 id=1682 data-nosnippet>1682</a>                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"(if {} then {} else {})"</span>, p_d.text, e1_d.text, e2_d.text);
+<a href=#1683 id=1683 data-nosnippet>1683</a>                    <span class="kw">let </span>children = float_children(<span class="macro">vec!</span>[p_d.children, e1_d.children, e2_d.children]);
+<a href=#1684 id=1684 data-nosnippet>1684</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1685 id=1685 data-nosnippet>1685</a>                }
+<a href=#1686 id=1686 data-nosnippet>1686</a>                ExprKind::BinaryOp(op, e1, e2) =&gt; {
+<a href=#1687 id=1687 data-nosnippet>1687</a>                    <span class="kw">let </span>e1_d = e1.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1688 id=1688 data-nosnippet>1688</a>                    <span class="kw">let </span>e2_d = e2.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1689 id=1689 data-nosnippet>1689</a>                    <span class="kw">let </span>e1_text = <span class="kw">if </span>should_parenthesize(op, e1) {
+<a href=#1690 id=1690 data-nosnippet>1690</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, e1_d.text)
+<a href=#1691 id=1691 data-nosnippet>1691</a>                    } <span class="kw">else </span>{
+<a href=#1692 id=1692 data-nosnippet>1692</a>                        e1_d.text
+<a href=#1693 id=1693 data-nosnippet>1693</a>                    };
+<a href=#1694 id=1694 data-nosnippet>1694</a>                    <span class="kw">let </span>e2_text = <span class="kw">if </span>should_parenthesize(op, e2) {
+<a href=#1695 id=1695 data-nosnippet>1695</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, e2_d.text)
+<a href=#1696 id=1696 data-nosnippet>1696</a>                    } <span class="kw">else </span>{
+<a href=#1697 id=1697 data-nosnippet>1697</a>                        e2_d.text
+<a href=#1698 id=1698 data-nosnippet>1698</a>                    };
+<a href=#1699 id=1699 data-nosnippet>1699</a>                    <span class="kw">let </span>op_d = debug_nested(cx, op)<span class="question-mark">?</span>;
+<a href=#1700 id=1700 data-nosnippet>1700</a>                    <span class="kw">let </span>op_text = <span class="kw">if </span><span class="macro">matches!</span>(op, BinOp::Div(<span class="kw">_</span>)) {
+<a href=#1701 id=1701 data-nosnippet>1701</a>                        op_d.text
+<a href=#1702 id=1702 data-nosnippet>1702</a>                    } <span class="kw">else </span>{
+<a href=#1703 id=1703 data-nosnippet>1703</a>                        <span class="macro">format!</span>(<span class="string">" {} "</span>, op_d.text)
+<a href=#1704 id=1704 data-nosnippet>1704</a>                    };
+<a href=#1705 id=1705 data-nosnippet>1705</a>                    <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{e1_text}{op_text}{e2_text}"</span>);
+<a href=#1706 id=1706 data-nosnippet>1706</a>                    <span class="kw">let </span>children = float_children(<span class="macro">vec!</span>[e1_d.children, e2_d.children]);
+<a href=#1707 id=1707 data-nosnippet>1707</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1708 id=1708 data-nosnippet>1708</a>                }
+<a href=#1709 id=1709 data-nosnippet>1709</a>                ExprKind::UnaryOp(op, e) =&gt; {
+<a href=#1710 id=1710 data-nosnippet>1710</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1711 id=1711 data-nosnippet>1711</a>                    <span class="kw">let </span>op_d = debug_nested(cx, op)<span class="question-mark">?</span>;
+<a href=#1712 id=1712 data-nosnippet>1712</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+<a href=#1713 id=1713 data-nosnippet>1713</a>                        <span class="macro">format!</span>(<span class="string">"{}{}"</span>, op_d.text, e_d.text)
+<a href=#1714 id=1714 data-nosnippet>1714</a>                    } <span class="kw">else </span>{
+<a href=#1715 id=1715 data-nosnippet>1715</a>                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, op_d.text, e_d.text)
+<a href=#1716 id=1716 data-nosnippet>1716</a>                    };
+<a href=#1717 id=1717 data-nosnippet>1717</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1718 id=1718 data-nosnippet>1718</a>                }
+<a href=#1719 id=1719 data-nosnippet>1719</a>                ExprKind::FieldProj(e, proj) =&gt; {
+<a href=#1720 id=1720 data-nosnippet>1720</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1721 id=1721 data-nosnippet>1721</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+<a href=#1722 id=1722 data-nosnippet>1722</a>                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
+<a href=#1723 id=1723 data-nosnippet>1723</a>                    } <span class="kw">else </span>{
+<a href=#1724 id=1724 data-nosnippet>1724</a>                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
+<a href=#1725 id=1725 data-nosnippet>1725</a>                    };
+<a href=#1726 id=1726 data-nosnippet>1726</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1727 id=1727 data-nosnippet>1727</a>                }
+<a href=#1728 id=1728 data-nosnippet>1728</a>                ExprKind::Tuple(flds) =&gt; {
+<a href=#1729 id=1729 data-nosnippet>1729</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+<a href=#1730 id=1730 data-nosnippet>1730</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
+<a href=#1731 id=1731 data-nosnippet>1731</a>                    <span class="kw">for </span>e <span class="kw">in </span>flds {
+<a href=#1732 id=1732 data-nosnippet>1732</a>                        <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1733 id=1733 data-nosnippet>1733</a>                        texts.push(e_d.text);
+<a href=#1734 id=1734 data-nosnippet>1734</a>                        kidss.push(e_d.children);
+<a href=#1735 id=1735 data-nosnippet>1735</a>                    }
+<a href=#1736 id=1736 data-nosnippet>1736</a>                    <span class="kw">let </span>text = <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>texts[..] {
+<a href=#1737 id=1737 data-nosnippet>1737</a>                        <span class="macro">format!</span>(<span class="string">"({e},)"</span>)
+<a href=#1738 id=1738 data-nosnippet>1738</a>                    } <span class="kw">else </span>{
+<a href=#1739 id=1739 data-nosnippet>1739</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, texts.join(<span class="string">", "</span>))
+<a href=#1740 id=1740 data-nosnippet>1740</a>                    };
+<a href=#1741 id=1741 data-nosnippet>1741</a>                    <span class="kw">let </span>children = float_children(kidss);
+<a href=#1742 id=1742 data-nosnippet>1742</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1743 id=1743 data-nosnippet>1743</a>                }
+<a href=#1744 id=1744 data-nosnippet>1744</a>                ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">true</span>),
+<a href=#1745 id=1745 data-nosnippet>1745</a>                ExprKind::PathProj(e, field) =&gt; {
+<a href=#1746 id=1746 data-nosnippet>1746</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1747 id=1747 data-nosnippet>1747</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+<a href=#1748 id=1748 data-nosnippet>1748</a>                        <span class="macro">format!</span>(<span class="string">"{}.{:?}"</span>, e_d.text, field)
+<a href=#1749 id=1749 data-nosnippet>1749</a>                    } <span class="kw">else </span>{
+<a href=#1750 id=1750 data-nosnippet>1750</a>                        <span class="macro">format!</span>(<span class="string">"({}).{:?}"</span>, e_d.text, field)
+<a href=#1751 id=1751 data-nosnippet>1751</a>                    };
+<a href=#1752 id=1752 data-nosnippet>1752</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1753 id=1753 data-nosnippet>1753</a>                }
+<a href=#1754 id=1754 data-nosnippet>1754</a>                ExprKind::Alias(alias, args) =&gt; {
+<a href=#1755 id=1755 data-nosnippet>1755</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+<a href=#1756 id=1756 data-nosnippet>1756</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
+<a href=#1757 id=1757 data-nosnippet>1757</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
+<a href=#1758 id=1758 data-nosnippet>1758</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1759 id=1759 data-nosnippet>1759</a>                        texts.push(arg_d.text);
+<a href=#1760 id=1760 data-nosnippet>1760</a>                        kidss.push(arg_d.children);
+<a href=#1761 id=1761 data-nosnippet>1761</a>                    }
+<a href=#1762 id=1762 data-nosnippet>1762</a>                    <span class="kw">let </span>text = <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}({:?})"</span>, alias, texts.join(<span class="string">", "</span>));
+<a href=#1763 id=1763 data-nosnippet>1763</a>                    <span class="kw">let </span>children = float_children(kidss);
+<a href=#1764 id=1764 data-nosnippet>1764</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1765 id=1765 data-nosnippet>1765</a>                }
+<a href=#1766 id=1766 data-nosnippet>1766</a>                ExprKind::App(func, <span class="kw">_</span>, args) =&gt; {
+<a href=#1767 id=1767 data-nosnippet>1767</a>                    <span class="kw">let </span>func_d = func.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1768 id=1768 data-nosnippet>1768</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+<a href=#1769 id=1769 data-nosnippet>1769</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[func_d.children];
+<a href=#1770 id=1770 data-nosnippet>1770</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
+<a href=#1771 id=1771 data-nosnippet>1771</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1772 id=1772 data-nosnippet>1772</a>                        texts.push(arg_d.text);
+<a href=#1773 id=1773 data-nosnippet>1773</a>                        kidss.push(arg_d.children);
+<a href=#1774 id=1774 data-nosnippet>1774</a>                    }
+<a href=#1775 id=1775 data-nosnippet>1775</a>                    <span class="kw">let </span>text = <span class="kw">if </span>func.is_atom() {
+<a href=#1776 id=1776 data-nosnippet>1776</a>                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
+<a href=#1777 id=1777 data-nosnippet>1777</a>                    } <span class="kw">else </span>{
+<a href=#1778 id=1778 data-nosnippet>1778</a>                        <span class="macro">format!</span>(<span class="string">"({})({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
+<a href=#1779 id=1779 data-nosnippet>1779</a>                    };
+<a href=#1780 id=1780 data-nosnippet>1780</a>                    <span class="kw">let </span>children = float_children(kidss);
+<a href=#1781 id=1781 data-nosnippet>1781</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1782 id=1782 data-nosnippet>1782</a>                }
+<a href=#1783 id=1783 data-nosnippet>1783</a>                ExprKind::Abs(lambda) =&gt; lambda.fmt_nested(cx),
+<a href=#1784 id=1784 data-nosnippet>1784</a>                ExprKind::Let(init, body) =&gt; {
+<a href=#1785 id=1785 data-nosnippet>1785</a>                    <span class="comment">// FIXME this is very wrong!
+<a href=#1786 id=1786 data-nosnippet>1786</a>                    </span>nested_with_bound_vars(cx, <span class="string">"let"</span>, body.vars(), <span class="prelude-val">None</span>, |prefix| {
+<a href=#1787 id=1787 data-nosnippet>1787</a>                        <span class="kw">let </span>body = body.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1788 id=1788 data-nosnippet>1788</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{:?} {}{}"</span>, init, prefix, body.text);
+<a href=#1789 id=1789 data-nosnippet>1789</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: body.children, key: <span class="prelude-val">None </span>})
+<a href=#1790 id=1790 data-nosnippet>1790</a>                    })
+<a href=#1791 id=1791 data-nosnippet>1791</a>                }
+<a href=#1792 id=1792 data-nosnippet>1792</a>                ExprKind::BoundedQuant(kind, rng, body) =&gt; {
+<a href=#1793 id=1793 data-nosnippet>1793</a>                    <span class="kw">let </span>left = <span class="kw">match </span>kind {
+<a href=#1794 id=1794 data-nosnippet>1794</a>                        fhir::QuantKind::Forall =&gt; <span class="string">"∀"</span>,
+<a href=#1795 id=1795 data-nosnippet>1795</a>                        fhir::QuantKind::Exists =&gt; <span class="string">"∃"</span>,
+<a href=#1796 id=1796 data-nosnippet>1796</a>                    };
+<a href=#1797 id=1797 data-nosnippet>1797</a>                    <span class="kw">let </span>right = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">" in {}..{}"</span>, rng.start, rng.end));
+<a href=#1798 id=1798 data-nosnippet>1798</a>
+<a href=#1799 id=1799 data-nosnippet>1799</a>                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+<a href=#1800 id=1800 data-nosnippet>1800</a>                        <span class="kw">let </span>expr_d = body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1801 id=1801 data-nosnippet>1801</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
+<a href=#1802 id=1802 data-nosnippet>1802</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1803 id=1803 data-nosnippet>1803</a>                    })
+<a href=#1804 id=1804 data-nosnippet>1804</a>                }
+<a href=#1805 id=1805 data-nosnippet>1805</a>                ExprKind::ForAll(expr) =&gt; {
+<a href=#1806 id=1806 data-nosnippet>1806</a>                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), <span class="prelude-val">None</span>, |all_str| {
+<a href=#1807 id=1807 data-nosnippet>1807</a>                        <span class="kw">let </span>expr_d = expr.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1808 id=1808 data-nosnippet>1808</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
+<a href=#1809 id=1809 data-nosnippet>1809</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1810 id=1810 data-nosnippet>1810</a>                    })
+<a href=#1811 id=1811 data-nosnippet>1811</a>                }
+<a href=#1812 id=1812 data-nosnippet>1812</a>            }
+<a href=#1813 id=1813 data-nosnippet>1813</a>        }
+<a href=#1814 id=1814 data-nosnippet>1814</a>    }
+<a href=#1815 id=1815 data-nosnippet>1815</a>}</code></pre></div></section></main></body></html>
