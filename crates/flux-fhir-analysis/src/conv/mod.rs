@@ -2105,7 +2105,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         }
                     }
                     ExprRes::Variant(variant_def_id) => {
-                        dbg::hyperlink!(tcx, var.span, tcx.def_span(variant_def_id));
+                        dbg::hyperlink!(tcx, var.span, tcx.def_ident_span(variant_def_id));
                         let enum_def_id = self.tcx().parent(variant_def_id);
                         let idx = variant_idx(self.tcx(), variant_def_id);
                         rty::Expr::ctor_enum(enum_def_id, idx)
