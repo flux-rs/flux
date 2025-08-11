@@ -2111,7 +2111,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         rty::Expr::ctor_enum(enum_def_id, idx)
                     }
                     ExprRes::ConstGeneric(def_id) => {
-                        dbg::hyperlink!(tcx, var.span, tcx.def_span(def_id));
+                        dbg::hyperlink!(tcx, var.span, tcx.def_ident_span(def_id));
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)
                     }
