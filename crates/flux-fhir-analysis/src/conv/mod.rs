@@ -2094,7 +2094,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(&var).to_expr(),
                     ExprRes::Const(def_id) => {
-                        dbg::hyperlink!(tcx, var.span, tcx.def_span(def_id));
+                        dbg::hyperlink!(tcx, var.span, tcx.def_ident_span(def_id));
                         if P::HAS_ELABORATED_INFORMATION {
                             rty::Expr::const_def_id(def_id).at(espan)
                         } else {
