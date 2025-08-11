@@ -2094,7 +2094,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 match var.res {
                     ExprRes::Param(..) => env.lookup(&var).to_expr(),
                     ExprRes::Const(def_id) => {
-                        dbg::hyperlink!(tcx, var.span, tcx.def_span(def_id));
+                        dbg::hyperlink!(tcx, var.span, tcx.def_ident_span(def_id));
                         if P::HAS_ELABORATED_INFORMATION {
                             rty::Expr::const_def_id(def_id).at(espan)
                         } else {
@@ -2105,13 +2105,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         }
                     }
                     ExprRes::Variant(variant_def_id) => {
-                        dbg::hyperlink!(tcx, var.span, tcx.def_span(variant_def_id));
+                        dbg::hyperlink!(tcx, var.span, tcx.def_ident_span(variant_def_id));
                         let enum_def_id = self.tcx().parent(variant_def_id);
                         let idx = variant_idx(self.tcx(), variant_def_id);
                         rty::Expr::ctor_enum(enum_def_id, idx)
                     }
                     ExprRes::ConstGeneric(def_id) => {
-                        dbg::hyperlink!(tcx, var.span, tcx.def_span(def_id));
+                        dbg::hyperlink!(tcx, var.span, tcx.def_ident_span(def_id));
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)
                     }
