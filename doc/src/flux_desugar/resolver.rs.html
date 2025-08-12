@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver.rs`."><title>resolver.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-069232aa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.0-nightly (7d82b83ed 2025-08-06)" data-channel="nightly" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/</div>resolver.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver.rs`."><title>resolver.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-069232aa.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.0-nightly (7d82b83ed 2025-08-06)" data-channel="nightly" data-search-js="search-fa3e91e5.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-68b7e25d.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-eebb9057.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-32bb7600.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/</div>resolver.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-4"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>refinement_resolver;
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>flux_common::{
 <a href=#4 id=4 data-nosnippet>4</a>    bug,
@@ -805,179 +805,205 @@
 <a href=#805 id=805 data-nosnippet>805</a>    }
 <a href=#806 id=806 data-nosnippet>806</a>
 <a href=#807 id=807 data-nosnippet>807</a>    <span class="kw">fn </span>resolve_type_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
-<a href=#808 id=808 data-nosnippet>808</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, TypeNS) {
-<a href=#809 id=809 data-nosnippet>809</a>            <span class="self">self</span>.resolver
-<a href=#810 id=810 data-nosnippet>810</a>                .output
-<a href=#811 id=811 data-nosnippet>811</a>                .path_res_map
-<a href=#812 id=812 data-nosnippet>812</a>                .insert(path.node_id, partial_res);
-<a href=#813 id=813 data-nosnippet>813</a>        } <span class="kw">else </span>{
-<a href=#814 id=814 data-nosnippet>814</a>            <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path));
-<a href=#815 id=815 data-nosnippet>815</a>        }
-<a href=#816 id=816 data-nosnippet>816</a>    }
-<a href=#817 id=817 data-nosnippet>817</a>}
-<a href=#818 id=818 data-nosnippet>818</a>
-<a href=#819 id=819 data-nosnippet>819</a><span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>ItemResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-<a href=#820 id=820 data-nosnippet>820</a>    <span class="kw">fn </span>visit_async(<span class="kw-2">&amp;mut </span><span class="self">self</span>, asyncness: <span class="kw-2">&amp;</span>surface::Async) {
-<a href=#821 id=821 data-nosnippet>821</a>        <span class="kw">if let </span>surface::Async::Yes { node_id, span } = asyncness {
-<a href=#822 id=822 data-nosnippet>822</a>            <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, <span class="kw-2">*</span>span);
-<a href=#823 id=823 data-nosnippet>823</a>        }
-<a href=#824 id=824 data-nosnippet>824</a>    }
-<a href=#825 id=825 data-nosnippet>825</a>
-<a href=#826 id=826 data-nosnippet>826</a>    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) {
-<a href=#827 id=827 data-nosnippet>827</a>        <span class="kw">if let </span>surface::TyKind::ImplTrait(node_id, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>ty.kind {
-<a href=#828 id=828 data-nosnippet>828</a>            <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, ty.span);
-<a href=#829 id=829 data-nosnippet>829</a>        }
-<a href=#830 id=830 data-nosnippet>830</a>        surface::visit::walk_ty(<span class="self">self</span>, ty);
-<a href=#831 id=831 data-nosnippet>831</a>    }
-<a href=#832 id=832 data-nosnippet>832</a>
-<a href=#833 id=833 data-nosnippet>833</a>    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
-<a href=#834 id=834 data-nosnippet>834</a>        <span class="self">self</span>.resolve_type_path(path);
-<a href=#835 id=835 data-nosnippet>835</a>        surface::visit::walk_path(<span class="self">self</span>, path);
-<a href=#836 id=836 data-nosnippet>836</a>    }
-<a href=#837 id=837 data-nosnippet>837</a>}
-<a href=#838 id=838 data-nosnippet>838</a>
-<a href=#839 id=839 data-nosnippet>839</a><span class="kw">struct </span>OpaqueTypeCollector&lt;<span class="lifetime">'sess</span>&gt; {
-<a href=#840 id=840 data-nosnippet>840</a>    opaque: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-<a href=#841 id=841 data-nosnippet>841</a>    </span>errors: Errors&lt;<span class="lifetime">'sess</span>&gt;,
-<a href=#842 id=842 data-nosnippet>842</a>}
-<a href=#843 id=843 data-nosnippet>843</a>
-<a href=#844 id=844 data-nosnippet>844</a><span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>&gt; OpaqueTypeCollector&lt;<span class="lifetime">'sess</span>&gt; {
-<a href=#845 id=845 data-nosnippet>845</a>    <span class="kw">fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession) -&gt; <span class="self">Self </span>{
-<a href=#846 id=846 data-nosnippet>846</a>        <span class="self">Self </span>{ opaque: <span class="prelude-val">None</span>, errors: Errors::new(sess) }
-<a href=#847 id=847 data-nosnippet>847</a>    }
-<a href=#848 id=848 data-nosnippet>848</a>
-<a href=#849 id=849 data-nosnippet>849</a>    <span class="kw">fn </span>collect_item(sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession, item: <span class="kw-2">&amp;</span>hir::Item) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
-<a href=#850 id=850 data-nosnippet>850</a>        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(sess);
-<a href=#851 id=851 data-nosnippet>851</a>        hir::intravisit::walk_item(<span class="kw-2">&amp;mut </span>collector, item);
-<a href=#852 id=852 data-nosnippet>852</a>        collector.into_result()
-<a href=#853 id=853 data-nosnippet>853</a>    }
-<a href=#854 id=854 data-nosnippet>854</a>
-<a href=#855 id=855 data-nosnippet>855</a>    <span class="kw">fn </span>collect_impl_item(
-<a href=#856 id=856 data-nosnippet>856</a>        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
-<a href=#857 id=857 data-nosnippet>857</a>        impl_item: <span class="kw-2">&amp;</span>hir::ImplItem,
-<a href=#858 id=858 data-nosnippet>858</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
-<a href=#859 id=859 data-nosnippet>859</a>        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(sess);
-<a href=#860 id=860 data-nosnippet>860</a>        hir::intravisit::walk_impl_item(<span class="kw-2">&amp;mut </span>collector, impl_item);
-<a href=#861 id=861 data-nosnippet>861</a>        collector.into_result()
+<a href=#808 id=808 data-nosnippet>808</a>        <span class="self">self</span>.resolve_path_in(path, TypeNS);
+<a href=#809 id=809 data-nosnippet>809</a>    }
+<a href=#810 id=810 data-nosnippet>810</a>
+<a href=#811 id=811 data-nosnippet>811</a>    <span class="kw">fn </span>resolve_path_in(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path, ns: Namespace) {
+<a href=#812 id=812 data-nosnippet>812</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(partial_res) = <span class="self">self</span>.resolver.resolve_path_with_ribs(<span class="kw-2">&amp;</span>path.segments, ns) {
+<a href=#813 id=813 data-nosnippet>813</a>            <span class="self">self</span>.resolver
+<a href=#814 id=814 data-nosnippet>814</a>                .output
+<a href=#815 id=815 data-nosnippet>815</a>                .path_res_map
+<a href=#816 id=816 data-nosnippet>816</a>                .insert(path.node_id, partial_res);
+<a href=#817 id=817 data-nosnippet>817</a>        } <span class="kw">else </span>{
+<a href=#818 id=818 data-nosnippet>818</a>            <span class="self">self</span>.errors.emit(errors::UnresolvedPath::new(path));
+<a href=#819 id=819 data-nosnippet>819</a>        }
+<a href=#820 id=820 data-nosnippet>820</a>    }
+<a href=#821 id=821 data-nosnippet>821</a>}
+<a href=#822 id=822 data-nosnippet>822</a>
+<a href=#823 id=823 data-nosnippet>823</a><span class="kw">impl </span>surface::visit::Visitor <span class="kw">for </span>ItemResolver&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<a href=#824 id=824 data-nosnippet>824</a>    <span class="kw">fn </span>visit_async(<span class="kw-2">&amp;mut </span><span class="self">self</span>, asyncness: <span class="kw-2">&amp;</span>surface::Async) {
+<a href=#825 id=825 data-nosnippet>825</a>        <span class="kw">if let </span>surface::Async::Yes { node_id, span } = asyncness {
+<a href=#826 id=826 data-nosnippet>826</a>            <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, <span class="kw-2">*</span>span);
+<a href=#827 id=827 data-nosnippet>827</a>        }
+<a href=#828 id=828 data-nosnippet>828</a>    }
+<a href=#829 id=829 data-nosnippet>829</a>
+<a href=#830 id=830 data-nosnippet>830</a>    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span>surface::Ty) {
+<a href=#831 id=831 data-nosnippet>831</a>        <span class="kw">if let </span>surface::TyKind::ImplTrait(node_id, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>ty.kind {
+<a href=#832 id=832 data-nosnippet>832</a>            <span class="self">self</span>.resolve_opaque_impl(<span class="kw-2">*</span>node_id, ty.span);
+<a href=#833 id=833 data-nosnippet>833</a>        }
+<a href=#834 id=834 data-nosnippet>834</a>        surface::visit::walk_ty(<span class="self">self</span>, ty);
+<a href=#835 id=835 data-nosnippet>835</a>    }
+<a href=#836 id=836 data-nosnippet>836</a>
+<a href=#837 id=837 data-nosnippet>837</a>    <span class="kw">fn </span>visit_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, arg: <span class="kw-2">&amp;</span>surface::GenericArg) {
+<a href=#838 id=838 data-nosnippet>838</a>        <span class="kw">if let </span>surface::GenericArgKind::Type(ty) = <span class="kw-2">&amp;</span>arg.kind
+<a href=#839 id=839 data-nosnippet>839</a>            &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(path) = ty.is_potential_const_arg()
+<a href=#840 id=840 data-nosnippet>840</a>        {
+<a href=#841 id=841 data-nosnippet>841</a>            <span class="comment">// We parse const arguments as path types as we cannot distinguish them during
+<a href=#842 id=842 data-nosnippet>842</a>            // parsing. We try to resolve that ambiguity by attempting resolution in both the
+<a href=#843 id=843 data-nosnippet>843</a>            // type and value namespaces. If we resolved the path in the value namespace, we
+<a href=#844 id=844 data-nosnippet>844</a>            // transform it into a generic const argument.
+<a href=#845 id=845 data-nosnippet>845</a>            </span><span class="kw">let </span>check_ns = |ns| {
+<a href=#846 id=846 data-nosnippet>846</a>                <span class="self">self</span>.resolver
+<a href=#847 id=847 data-nosnippet>847</a>                    .resolve_ident_with_ribs(path.last().ident, ns)
+<a href=#848 id=848 data-nosnippet>848</a>                    .is_some()
+<a href=#849 id=849 data-nosnippet>849</a>            };
+<a href=#850 id=850 data-nosnippet>850</a>
+<a href=#851 id=851 data-nosnippet>851</a>            <span class="kw">if </span>!check_ns(TypeNS) &amp;&amp; check_ns(ValueNS) {
+<a href=#852 id=852 data-nosnippet>852</a>                <span class="self">self</span>.resolve_path_in(path, ValueNS);
+<a href=#853 id=853 data-nosnippet>853</a>                <span class="kw">return</span>;
+<a href=#854 id=854 data-nosnippet>854</a>            }
+<a href=#855 id=855 data-nosnippet>855</a>        }
+<a href=#856 id=856 data-nosnippet>856</a>        surface::visit::walk_generic_arg(<span class="self">self</span>, arg);
+<a href=#857 id=857 data-nosnippet>857</a>    }
+<a href=#858 id=858 data-nosnippet>858</a>
+<a href=#859 id=859 data-nosnippet>859</a>    <span class="kw">fn </span>visit_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>surface::Path) {
+<a href=#860 id=860 data-nosnippet>860</a>        <span class="self">self</span>.resolve_type_path(path);
+<a href=#861 id=861 data-nosnippet>861</a>        surface::visit::walk_path(<span class="self">self</span>, path);
 <a href=#862 id=862 data-nosnippet>862</a>    }
-<a href=#863 id=863 data-nosnippet>863</a>
-<a href=#864 id=864 data-nosnippet>864</a>    <span class="kw">fn </span>collect_trait_item(
-<a href=#865 id=865 data-nosnippet>865</a>        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
-<a href=#866 id=866 data-nosnippet>866</a>        trait_item: <span class="kw-2">&amp;</span>hir::TraitItem,
-<a href=#867 id=867 data-nosnippet>867</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
-<a href=#868 id=868 data-nosnippet>868</a>        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(sess);
-<a href=#869 id=869 data-nosnippet>869</a>        hir::intravisit::walk_trait_item(<span class="kw-2">&amp;mut </span>collector, trait_item);
-<a href=#870 id=870 data-nosnippet>870</a>        collector.into_result()
-<a href=#871 id=871 data-nosnippet>871</a>    }
-<a href=#872 id=872 data-nosnippet>872</a>
-<a href=#873 id=873 data-nosnippet>873</a>    <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
-<a href=#874 id=874 data-nosnippet>874</a>        <span class="self">self</span>.errors.into_result()<span class="question-mark">?</span>;
-<a href=#875 id=875 data-nosnippet>875</a>        <span class="prelude-val">Ok</span>(<span class="self">self</span>.opaque)
-<a href=#876 id=876 data-nosnippet>876</a>    }
-<a href=#877 id=877 data-nosnippet>877</a>}
-<a href=#878 id=878 data-nosnippet>878</a>
-<a href=#879 id=879 data-nosnippet>879</a><span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>OpaqueTypeCollector&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#880 id=880 data-nosnippet>880</a>    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Ty&lt;<span class="lifetime">'tcx</span>, AmbigArg&gt;) {
-<a href=#881 id=881 data-nosnippet>881</a>        <span class="kw">if let </span>hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
-<a href=#882 id=882 data-nosnippet>882</a>            <span class="kw">if </span><span class="self">self</span>.opaque.is_some() {
-<a href=#883 id=883 data-nosnippet>883</a>                <span class="self">self</span>.errors.emit(errors::UnsupportedSignature::new(
-<a href=#884 id=884 data-nosnippet>884</a>                    ty.span,
-<a href=#885 id=885 data-nosnippet>885</a>                    <span class="string">"duplicate opaque types in signature"</span>,
-<a href=#886 id=886 data-nosnippet>886</a>                ));
-<a href=#887 id=887 data-nosnippet>887</a>            } <span class="kw">else </span>{
-<a href=#888 id=888 data-nosnippet>888</a>                <span class="self">self</span>.opaque = <span class="prelude-val">Some</span>(opaque_ty.def_id);
-<a href=#889 id=889 data-nosnippet>889</a>            }
-<a href=#890 id=890 data-nosnippet>890</a>        }
-<a href=#891 id=891 data-nosnippet>891</a>        hir::intravisit::walk_ty(<span class="self">self</span>, ty);
-<a href=#892 id=892 data-nosnippet>892</a>    }
-<a href=#893 id=893 data-nosnippet>893</a>}
-<a href=#894 id=894 data-nosnippet>894</a>
-<a href=#895 id=895 data-nosnippet>895</a><span class="kw">fn </span>builtin_types_rib() -&gt; Rib {
-<a href=#896 id=896 data-nosnippet>896</a>    Rib {
-<a href=#897 id=897 data-nosnippet>897</a>        kind: RibKind::Normal,
-<a href=#898 id=898 data-nosnippet>898</a>        bindings: PrimTy::ALL
-<a href=#899 id=899 data-nosnippet>899</a>            .into_iter()
-<a href=#900 id=900 data-nosnippet>900</a>            .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)))
-<a href=#901 id=901 data-nosnippet>901</a>            .collect(),
+<a href=#863 id=863 data-nosnippet>863</a>}
+<a href=#864 id=864 data-nosnippet>864</a>
+<a href=#865 id=865 data-nosnippet>865</a><span class="kw">struct </span>OpaqueTypeCollector&lt;<span class="lifetime">'sess</span>&gt; {
+<a href=#866 id=866 data-nosnippet>866</a>    opaque: <span class="prelude-ty">Option</span>&lt;LocalDefId&gt;, <span class="comment">// TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
+<a href=#867 id=867 data-nosnippet>867</a>    </span>errors: Errors&lt;<span class="lifetime">'sess</span>&gt;,
+<a href=#868 id=868 data-nosnippet>868</a>}
+<a href=#869 id=869 data-nosnippet>869</a>
+<a href=#870 id=870 data-nosnippet>870</a><span class="kw">impl</span>&lt;<span class="lifetime">'sess</span>&gt; OpaqueTypeCollector&lt;<span class="lifetime">'sess</span>&gt; {
+<a href=#871 id=871 data-nosnippet>871</a>    <span class="kw">fn </span>new(sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession) -&gt; <span class="self">Self </span>{
+<a href=#872 id=872 data-nosnippet>872</a>        <span class="self">Self </span>{ opaque: <span class="prelude-val">None</span>, errors: Errors::new(sess) }
+<a href=#873 id=873 data-nosnippet>873</a>    }
+<a href=#874 id=874 data-nosnippet>874</a>
+<a href=#875 id=875 data-nosnippet>875</a>    <span class="kw">fn </span>collect_item(sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession, item: <span class="kw-2">&amp;</span>hir::Item) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
+<a href=#876 id=876 data-nosnippet>876</a>        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(sess);
+<a href=#877 id=877 data-nosnippet>877</a>        hir::intravisit::walk_item(<span class="kw-2">&amp;mut </span>collector, item);
+<a href=#878 id=878 data-nosnippet>878</a>        collector.into_result()
+<a href=#879 id=879 data-nosnippet>879</a>    }
+<a href=#880 id=880 data-nosnippet>880</a>
+<a href=#881 id=881 data-nosnippet>881</a>    <span class="kw">fn </span>collect_impl_item(
+<a href=#882 id=882 data-nosnippet>882</a>        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+<a href=#883 id=883 data-nosnippet>883</a>        impl_item: <span class="kw-2">&amp;</span>hir::ImplItem,
+<a href=#884 id=884 data-nosnippet>884</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
+<a href=#885 id=885 data-nosnippet>885</a>        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(sess);
+<a href=#886 id=886 data-nosnippet>886</a>        hir::intravisit::walk_impl_item(<span class="kw-2">&amp;mut </span>collector, impl_item);
+<a href=#887 id=887 data-nosnippet>887</a>        collector.into_result()
+<a href=#888 id=888 data-nosnippet>888</a>    }
+<a href=#889 id=889 data-nosnippet>889</a>
+<a href=#890 id=890 data-nosnippet>890</a>    <span class="kw">fn </span>collect_trait_item(
+<a href=#891 id=891 data-nosnippet>891</a>        sess: <span class="kw-2">&amp;</span><span class="lifetime">'sess </span>FluxSession,
+<a href=#892 id=892 data-nosnippet>892</a>        trait_item: <span class="kw-2">&amp;</span>hir::TraitItem,
+<a href=#893 id=893 data-nosnippet>893</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="kw">let </span><span class="kw-2">mut </span>collector = <span class="self">Self</span>::new(sess);
+<a href=#895 id=895 data-nosnippet>895</a>        hir::intravisit::walk_trait_item(<span class="kw-2">&amp;mut </span>collector, trait_item);
+<a href=#896 id=896 data-nosnippet>896</a>        collector.into_result()
+<a href=#897 id=897 data-nosnippet>897</a>    }
+<a href=#898 id=898 data-nosnippet>898</a>
+<a href=#899 id=899 data-nosnippet>899</a>    <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;LocalDefId&gt;&gt; {
+<a href=#900 id=900 data-nosnippet>900</a>        <span class="self">self</span>.errors.into_result()<span class="question-mark">?</span>;
+<a href=#901 id=901 data-nosnippet>901</a>        <span class="prelude-val">Ok</span>(<span class="self">self</span>.opaque)
 <a href=#902 id=902 data-nosnippet>902</a>    }
 <a href=#903 id=903 data-nosnippet>903</a>}
 <a href=#904 id=904 data-nosnippet>904</a>
-<a href=#905 id=905 data-nosnippet>905</a><span class="kw">fn </span>mk_crate_mapping(tcx: TyCtxt) -&gt; UnordMap&lt;Symbol, DefId&gt; {
-<a href=#906 id=906 data-nosnippet>906</a>    <span class="kw">let </span><span class="kw-2">mut </span>map = UnordMap::default();
-<a href=#907 id=907 data-nosnippet>907</a>    map.insert(kw::Crate, CRATE_DEF_ID.to_def_id());
-<a href=#908 id=908 data-nosnippet>908</a>    <span class="kw">for </span>cnum <span class="kw">in </span>tcx.crates(()) {
-<a href=#909 id=909 data-nosnippet>909</a>        <span class="kw">let </span>name = tcx.crate_name(<span class="kw-2">*</span>cnum);
-<a href=#910 id=910 data-nosnippet>910</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = tcx.extern_crate(<span class="kw-2">*</span>cnum)
-<a href=#911 id=911 data-nosnippet>911</a>            &amp;&amp; extern_crate.is_direct()
-<a href=#912 id=912 data-nosnippet>912</a>        {
-<a href=#913 id=913 data-nosnippet>913</a>            map.insert(name, cnum.as_def_id());
-<a href=#914 id=914 data-nosnippet>914</a>        }
-<a href=#915 id=915 data-nosnippet>915</a>    }
-<a href=#916 id=916 data-nosnippet>916</a>    map
-<a href=#917 id=917 data-nosnippet>917</a>}
-<a href=#918 id=918 data-nosnippet>918</a>
-<a href=#919 id=919 data-nosnippet>919</a><span class="kw">mod </span>errors {
-<a href=#920 id=920 data-nosnippet>920</a>    <span class="kw">use </span>flux_errors::E0999;
-<a href=#921 id=921 data-nosnippet>921</a>    <span class="kw">use </span>flux_macros::Diagnostic;
-<a href=#922 id=922 data-nosnippet>922</a>    <span class="kw">use </span>flux_syntax::surface;
-<a href=#923 id=923 data-nosnippet>923</a>    <span class="kw">use </span>itertools::Itertools;
-<a href=#924 id=924 data-nosnippet>924</a>    <span class="kw">use </span>rustc_span::Span;
-<a href=#925 id=925 data-nosnippet>925</a>
-<a href=#926 id=926 data-nosnippet>926</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#927 id=927 data-nosnippet>927</a>    #[diag(desugar_unsupported_signature, code = E0999)]
-<a href=#928 id=928 data-nosnippet>928</a>    #[note]
-<a href=#929 id=929 data-nosnippet>929</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#930 id=930 data-nosnippet>930</a>        <span class="attr">#[primary_span]
-<a href=#931 id=931 data-nosnippet>931</a>        </span>span: Span,
-<a href=#932 id=932 data-nosnippet>932</a>        note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
-<a href=#933 id=933 data-nosnippet>933</a>    }
-<a href=#934 id=934 data-nosnippet>934</a>
-<a href=#935 id=935 data-nosnippet>935</a>    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
-<a href=#936 id=936 data-nosnippet>936</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
-<a href=#937 id=937 data-nosnippet>937</a>            <span class="self">Self </span>{ span, note }
-<a href=#938 id=938 data-nosnippet>938</a>        }
-<a href=#939 id=939 data-nosnippet>939</a>    }
-<a href=#940 id=940 data-nosnippet>940</a>
-<a href=#941 id=941 data-nosnippet>941</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#942 id=942 data-nosnippet>942</a>    #[diag(desugar_unresolved_path, code = E0999)]
-<a href=#943 id=943 data-nosnippet>943</a>    </span><span class="kw">pub struct </span>UnresolvedPath {
-<a href=#944 id=944 data-nosnippet>944</a>        <span class="attr">#[primary_span]
-<a href=#945 id=945 data-nosnippet>945</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#946 id=946 data-nosnippet>946</a>        <span class="kw">pub </span>path: String,
-<a href=#947 id=947 data-nosnippet>947</a>    }
-<a href=#948 id=948 data-nosnippet>948</a>
-<a href=#949 id=949 data-nosnippet>949</a>    <span class="kw">impl </span>UnresolvedPath {
-<a href=#950 id=950 data-nosnippet>950</a>        <span class="kw">pub fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="self">Self </span>{
-<a href=#951 id=951 data-nosnippet>951</a>            <span class="self">Self </span>{
-<a href=#952 id=952 data-nosnippet>952</a>                span: path.span,
-<a href=#953 id=953 data-nosnippet>953</a>                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">"::"</span>),
-<a href=#954 id=954 data-nosnippet>954</a>            }
-<a href=#955 id=955 data-nosnippet>955</a>        }
-<a href=#956 id=956 data-nosnippet>956</a>    }
-<a href=#957 id=957 data-nosnippet>957</a>
-<a href=#958 id=958 data-nosnippet>958</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#959 id=959 data-nosnippet>959</a>    #[diag(desugar_unknown_qualifier, code = E0999)]
-<a href=#960 id=960 data-nosnippet>960</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownQualifier {
-<a href=#961 id=961 data-nosnippet>961</a>        <span class="attr">#[primary_span]
-<a href=#962 id=962 data-nosnippet>962</a>        </span>span: Span,
-<a href=#963 id=963 data-nosnippet>963</a>    }
-<a href=#964 id=964 data-nosnippet>964</a>
-<a href=#965 id=965 data-nosnippet>965</a>    <span class="kw">impl </span>UnknownQualifier {
-<a href=#966 id=966 data-nosnippet>966</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-<a href=#967 id=967 data-nosnippet>967</a>            <span class="self">Self </span>{ span }
-<a href=#968 id=968 data-nosnippet>968</a>        }
-<a href=#969 id=969 data-nosnippet>969</a>    }
-<a href=#970 id=970 data-nosnippet>970</a>
-<a href=#971 id=971 data-nosnippet>971</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#972 id=972 data-nosnippet>972</a>    #[diag(desugar_unknown_reveal_definition, code = E0999)]
-<a href=#973 id=973 data-nosnippet>973</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownRevealDefinition {
-<a href=#974 id=974 data-nosnippet>974</a>        <span class="attr">#[primary_span]
-<a href=#975 id=975 data-nosnippet>975</a>        </span>span: Span,
-<a href=#976 id=976 data-nosnippet>976</a>    }
-<a href=#977 id=977 data-nosnippet>977</a>
-<a href=#978 id=978 data-nosnippet>978</a>    <span class="kw">impl </span>UnknownRevealDefinition {
-<a href=#979 id=979 data-nosnippet>979</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
-<a href=#980 id=980 data-nosnippet>980</a>            <span class="self">Self </span>{ span }
+<a href=#905 id=905 data-nosnippet>905</a><span class="kw">impl</span>&lt;<span class="lifetime">'tcx</span>&gt; hir::intravisit::Visitor&lt;<span class="lifetime">'tcx</span>&gt; <span class="kw">for </span>OpaqueTypeCollector&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#906 id=906 data-nosnippet>906</a>    <span class="kw">fn </span>visit_ty(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ty: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>hir::Ty&lt;<span class="lifetime">'tcx</span>, AmbigArg&gt;) {
+<a href=#907 id=907 data-nosnippet>907</a>        <span class="kw">if let </span>hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
+<a href=#908 id=908 data-nosnippet>908</a>            <span class="kw">if </span><span class="self">self</span>.opaque.is_some() {
+<a href=#909 id=909 data-nosnippet>909</a>                <span class="self">self</span>.errors.emit(errors::UnsupportedSignature::new(
+<a href=#910 id=910 data-nosnippet>910</a>                    ty.span,
+<a href=#911 id=911 data-nosnippet>911</a>                    <span class="string">"duplicate opaque types in signature"</span>,
+<a href=#912 id=912 data-nosnippet>912</a>                ));
+<a href=#913 id=913 data-nosnippet>913</a>            } <span class="kw">else </span>{
+<a href=#914 id=914 data-nosnippet>914</a>                <span class="self">self</span>.opaque = <span class="prelude-val">Some</span>(opaque_ty.def_id);
+<a href=#915 id=915 data-nosnippet>915</a>            }
+<a href=#916 id=916 data-nosnippet>916</a>        }
+<a href=#917 id=917 data-nosnippet>917</a>        hir::intravisit::walk_ty(<span class="self">self</span>, ty);
+<a href=#918 id=918 data-nosnippet>918</a>    }
+<a href=#919 id=919 data-nosnippet>919</a>}
+<a href=#920 id=920 data-nosnippet>920</a>
+<a href=#921 id=921 data-nosnippet>921</a><span class="kw">fn </span>builtin_types_rib() -&gt; Rib {
+<a href=#922 id=922 data-nosnippet>922</a>    Rib {
+<a href=#923 id=923 data-nosnippet>923</a>        kind: RibKind::Normal,
+<a href=#924 id=924 data-nosnippet>924</a>        bindings: PrimTy::ALL
+<a href=#925 id=925 data-nosnippet>925</a>            .into_iter()
+<a href=#926 id=926 data-nosnippet>926</a>            .map(|pty| (pty.name(), fhir::Res::PrimTy(pty)))
+<a href=#927 id=927 data-nosnippet>927</a>            .collect(),
+<a href=#928 id=928 data-nosnippet>928</a>    }
+<a href=#929 id=929 data-nosnippet>929</a>}
+<a href=#930 id=930 data-nosnippet>930</a>
+<a href=#931 id=931 data-nosnippet>931</a><span class="kw">fn </span>mk_crate_mapping(tcx: TyCtxt) -&gt; UnordMap&lt;Symbol, DefId&gt; {
+<a href=#932 id=932 data-nosnippet>932</a>    <span class="kw">let </span><span class="kw-2">mut </span>map = UnordMap::default();
+<a href=#933 id=933 data-nosnippet>933</a>    map.insert(kw::Crate, CRATE_DEF_ID.to_def_id());
+<a href=#934 id=934 data-nosnippet>934</a>    <span class="kw">for </span>cnum <span class="kw">in </span>tcx.crates(()) {
+<a href=#935 id=935 data-nosnippet>935</a>        <span class="kw">let </span>name = tcx.crate_name(<span class="kw-2">*</span>cnum);
+<a href=#936 id=936 data-nosnippet>936</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(extern_crate) = tcx.extern_crate(<span class="kw-2">*</span>cnum)
+<a href=#937 id=937 data-nosnippet>937</a>            &amp;&amp; extern_crate.is_direct()
+<a href=#938 id=938 data-nosnippet>938</a>        {
+<a href=#939 id=939 data-nosnippet>939</a>            map.insert(name, cnum.as_def_id());
+<a href=#940 id=940 data-nosnippet>940</a>        }
+<a href=#941 id=941 data-nosnippet>941</a>    }
+<a href=#942 id=942 data-nosnippet>942</a>    map
+<a href=#943 id=943 data-nosnippet>943</a>}
+<a href=#944 id=944 data-nosnippet>944</a>
+<a href=#945 id=945 data-nosnippet>945</a><span class="kw">mod </span>errors {
+<a href=#946 id=946 data-nosnippet>946</a>    <span class="kw">use </span>flux_errors::E0999;
+<a href=#947 id=947 data-nosnippet>947</a>    <span class="kw">use </span>flux_macros::Diagnostic;
+<a href=#948 id=948 data-nosnippet>948</a>    <span class="kw">use </span>flux_syntax::surface;
+<a href=#949 id=949 data-nosnippet>949</a>    <span class="kw">use </span>itertools::Itertools;
+<a href=#950 id=950 data-nosnippet>950</a>    <span class="kw">use </span>rustc_span::Span;
+<a href=#951 id=951 data-nosnippet>951</a>
+<a href=#952 id=952 data-nosnippet>952</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#953 id=953 data-nosnippet>953</a>    #[diag(desugar_unsupported_signature, code = E0999)]
+<a href=#954 id=954 data-nosnippet>954</a>    #[note]
+<a href=#955 id=955 data-nosnippet>955</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#956 id=956 data-nosnippet>956</a>        <span class="attr">#[primary_span]
+<a href=#957 id=957 data-nosnippet>957</a>        </span>span: Span,
+<a href=#958 id=958 data-nosnippet>958</a>        note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+<a href=#959 id=959 data-nosnippet>959</a>    }
+<a href=#960 id=960 data-nosnippet>960</a>
+<a href=#961 id=961 data-nosnippet>961</a>    <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#962 id=962 data-nosnippet>962</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
+<a href=#963 id=963 data-nosnippet>963</a>            <span class="self">Self </span>{ span, note }
+<a href=#964 id=964 data-nosnippet>964</a>        }
+<a href=#965 id=965 data-nosnippet>965</a>    }
+<a href=#966 id=966 data-nosnippet>966</a>
+<a href=#967 id=967 data-nosnippet>967</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#968 id=968 data-nosnippet>968</a>    #[diag(desugar_unresolved_path, code = E0999)]
+<a href=#969 id=969 data-nosnippet>969</a>    </span><span class="kw">pub struct </span>UnresolvedPath {
+<a href=#970 id=970 data-nosnippet>970</a>        <span class="attr">#[primary_span]
+<a href=#971 id=971 data-nosnippet>971</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#972 id=972 data-nosnippet>972</a>        <span class="kw">pub </span>path: String,
+<a href=#973 id=973 data-nosnippet>973</a>    }
+<a href=#974 id=974 data-nosnippet>974</a>
+<a href=#975 id=975 data-nosnippet>975</a>    <span class="kw">impl </span>UnresolvedPath {
+<a href=#976 id=976 data-nosnippet>976</a>        <span class="kw">pub fn </span>new(path: <span class="kw-2">&amp;</span>surface::Path) -&gt; <span class="self">Self </span>{
+<a href=#977 id=977 data-nosnippet>977</a>            <span class="self">Self </span>{
+<a href=#978 id=978 data-nosnippet>978</a>                span: path.span,
+<a href=#979 id=979 data-nosnippet>979</a>                path: path.segments.iter().map(|segment| segment.ident).join(<span class="string">"::"</span>),
+<a href=#980 id=980 data-nosnippet>980</a>            }
 <a href=#981 id=981 data-nosnippet>981</a>        }
 <a href=#982 id=982 data-nosnippet>982</a>    }
-<a href=#983 id=983 data-nosnippet>983</a>}</code></pre></div></section></main></body></html>
+<a href=#983 id=983 data-nosnippet>983</a>
+<a href=#984 id=984 data-nosnippet>984</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#985 id=985 data-nosnippet>985</a>    #[diag(desugar_unknown_qualifier, code = E0999)]
+<a href=#986 id=986 data-nosnippet>986</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownQualifier {
+<a href=#987 id=987 data-nosnippet>987</a>        <span class="attr">#[primary_span]
+<a href=#988 id=988 data-nosnippet>988</a>        </span>span: Span,
+<a href=#989 id=989 data-nosnippet>989</a>    }
+<a href=#990 id=990 data-nosnippet>990</a>
+<a href=#991 id=991 data-nosnippet>991</a>    <span class="kw">impl </span>UnknownQualifier {
+<a href=#992 id=992 data-nosnippet>992</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+<a href=#993 id=993 data-nosnippet>993</a>            <span class="self">Self </span>{ span }
+<a href=#994 id=994 data-nosnippet>994</a>        }
+<a href=#995 id=995 data-nosnippet>995</a>    }
+<a href=#996 id=996 data-nosnippet>996</a>
+<a href=#997 id=997 data-nosnippet>997</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#998 id=998 data-nosnippet>998</a>    #[diag(desugar_unknown_reveal_definition, code = E0999)]
+<a href=#999 id=999 data-nosnippet>999</a>    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnknownRevealDefinition {
+<a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="attr">#[primary_span]
+<a href=#1001 id=1001 data-nosnippet>1001</a>        </span>span: Span,
+<a href=#1002 id=1002 data-nosnippet>1002</a>    }
+<a href=#1003 id=1003 data-nosnippet>1003</a>
+<a href=#1004 id=1004 data-nosnippet>1004</a>    <span class="kw">impl </span>UnknownRevealDefinition {
+<a href=#1005 id=1005 data-nosnippet>1005</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span) -&gt; <span class="self">Self </span>{
+<a href=#1006 id=1006 data-nosnippet>1006</a>            <span class="self">Self </span>{ span }
+<a href=#1007 id=1007 data-nosnippet>1007</a>        }
+<a href=#1008 id=1008 data-nosnippet>1008</a>    }
+<a href=#1009 id=1009 data-nosnippet>1009</a>}</code></pre></div></section></main></body></html>

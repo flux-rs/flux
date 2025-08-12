@@ -186,7 +186,7 @@
 <a href=#186 id=186 data-nosnippet>186</a>    }
 <a href=#187 id=187 data-nosnippet>187</a>
 <a href=#188 id=188 data-nosnippet>188</a>    <span class="kw">pub fn </span>nu() -&gt; Expr {
-<a href=#189 id=189 data-nosnippet>189</a>        Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Annon)
+<a href=#189 id=189 data-nosnippet>189</a>        Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Anon)
 <a href=#190 id=190 data-nosnippet>190</a>    }
 <a href=#191 id=191 data-nosnippet>191</a>
 <a href=#192 id=192 data-nosnippet>192</a>    <span class="kw">pub fn </span>is_nu(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
@@ -560,7 +560,7 @@
 <a href=#560 id=560 data-nosnippet>560</a>
 <a href=#561 id=561 data-nosnippet>561</a>    <span class="kw">pub fn </span>eta_expand_abs(<span class="kw-2">&amp;</span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>BoundVariableKinds, output: Sort) -&gt; Lambda {
 <a href=#562 id=562 data-nosnippet>562</a>        <span class="kw">let </span>args = (<span class="number">0</span>..inputs.len())
-<a href=#563 id=563 data-nosnippet>563</a>            .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
+<a href=#563 id=563 data-nosnippet>563</a>            .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Anon))
 <a href=#564 id=564 data-nosnippet>564</a>            .collect();
 <a href=#565 id=565 data-nosnippet>565</a>        <span class="kw">let </span>body = Expr::app(<span class="self">self</span>, List::empty(), args);
 <a href=#566 id=566 data-nosnippet>566</a>        Lambda::bind_with_vars(body, inputs.clone(), output)

@@ -332,7 +332,7 @@
 <a href=#332 id=332 data-nosnippet>332</a>                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">": {:?}"</span>, sort)<span class="question-mark">?</span>;
 <a href=#333 id=333 data-nosnippet>333</a>                    }
 <a href=#334 id=334 data-nosnippet>334</a>                }
-<a href=#335 id=335 data-nosnippet>335</a>                BoundVariableKind::Refine(sort, mode, BoundReftKind::Annon) =&gt; {
+<a href=#335 id=335 data-nosnippet>335</a>                BoundVariableKind::Refine(sort, mode, BoundReftKind::Anon) =&gt; {
 <a href=#336 id=336 data-nosnippet>336</a>                    <span class="kw">if </span>print_infer_mode {
 <a href=#337 id=337 data-nosnippet>337</a>                        <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{}"</span>, ^mode.prefix_str())<span class="question-mark">?</span>;
 <a href=#338 id=338 data-nosnippet>338</a>                    }
@@ -357,7 +357,7 @@
 <a href=#357 id=357 data-nosnippet>357</a>        f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;,
 <a href=#358 id=358 data-nosnippet>358</a>    ) -&gt; fmt::Result {
 <a href=#359 id=359 data-nosnippet>359</a>        <span class="kw">match </span>breft.kind {
-<a href=#360 id=360 data-nosnippet>360</a>            BoundReftKind::Annon =&gt; {
+<a href=#360 id=360 data-nosnippet>360</a>            BoundReftKind::Anon =&gt; {
 <a href=#361 id=361 data-nosnippet>361</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(name) = <span class="self">self</span>.bvar_env.lookup(debruijn, breft.var) {
 <a href=#362 id=362 data-nosnippet>362</a>                    <span class="macro">w!</span>(<span class="self">self</span>, f, <span class="string">"{name:?}"</span>)
 <a href=#363 id=363 data-nosnippet>363</a>                } <span class="kw">else </span>{
@@ -523,7 +523,7 @@
 <a href=#523 id=523 data-nosnippet>523</a>    ) {
 <a href=#524 id=524 data-nosnippet>524</a>        <span class="kw">let </span><span class="kw-2">mut </span>name_map = UnordMap::default();
 <a href=#525 id=525 data-nosnippet>525</a>        <span class="kw">for </span>(idx, var) <span class="kw">in </span>vars.iter().enumerate() {
-<a href=#526 id=526 data-nosnippet>526</a>            <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Annon) = var {
+<a href=#526 id=526 data-nosnippet>526</a>            <span class="kw">if let </span>BoundVariableKind::Refine(<span class="kw">_</span>, <span class="kw">_</span>, BoundReftKind::Anon) = var {
 <a href=#527 id=527 data-nosnippet>527</a>                name_map.insert(BoundVar::from_usize(idx), <span class="self">self</span>.name_gen.fresh());
 <a href=#528 id=528 data-nosnippet>528</a>            }
 <a href=#529 id=529 data-nosnippet>529</a>        }
