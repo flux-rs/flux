@@ -186,7 +186,7 @@ impl Expr {
     }
 
     pub fn nu() -> Expr {
-        Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Annon)
+        Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Anon)
     }
 
     pub fn is_nu(&self) -> bool {
@@ -560,7 +560,7 @@ impl Expr {
 
     pub fn eta_expand_abs(&self, inputs: &BoundVariableKinds, output: Sort) -> Lambda {
         let args = (0..inputs.len())
-            .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Annon))
+            .map(|idx| Expr::bvar(INNERMOST, BoundVar::from_usize(idx), BoundReftKind::Anon))
             .collect();
         let body = Expr::app(self, List::empty(), args);
         Lambda::bind_with_vars(body, inputs.clone(), output)
