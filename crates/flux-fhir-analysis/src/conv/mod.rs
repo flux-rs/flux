@@ -619,7 +619,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         rty::Expr::bvar(
                             INNERMOST,
                             BoundVar::from_usize(idx),
-                            rty::BoundReftKind::Annon,
+                            rty::BoundReftKind::Anon,
                         )
                     })
                     .collect(),
@@ -1765,7 +1765,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let bty = bty.shift_in_escaping(1);
         let kind = match name {
             Some(name) => BoundReftKind::Named(name),
-            None => BoundReftKind::Annon,
+            None => BoundReftKind::Anon,
         };
         let var = rty::BoundVariableKind::Refine(sort, rty::InferMode::EVar, kind);
         let ctor = rty::Binder::bind_with_vars(
@@ -1973,6 +1973,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Err(self.emit(errors::AmbiguousAssocType { span, name: assoc_name }))?
     }
 
+    #[track_caller]
     fn report_expected_type(
         &self,
         span: Span,
@@ -2527,7 +2528,7 @@ impl Layer {
                 Ok(List::singleton(rty::BoundVariableKind::Refine(
                     rty::Sort::App(ctor, args),
                     rty::InferMode::EVar,
-                    rty::BoundReftKind::Annon,
+                    rty::BoundReftKind::Anon,
                 )))
             }
         }
@@ -2564,7 +2565,7 @@ impl LookupResult<'_> {
                     }
                     LayerKind::Coalesce(def_id) => {
                         let var =
-                            rty::Expr::bvar(*debruijn, BoundVar::ZERO, rty::BoundReftKind::Annon)
+                            rty::Expr::bvar(*debruijn, BoundVar::ZERO, rty::BoundReftKind::Anon)
                                 .at(espan);
                         rty::Expr::field_proj(var, rty::FieldProj::Adt { def_id, field: *index })
                             .at(espan)

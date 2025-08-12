@@ -662,7 +662,7 @@ impl BasicBlockEnvShape {
                     Expr::bvar(
                         INNERMOST,
                         BoundVar::from_usize(bound_sorts.len() - 1),
-                        BoundReftKind::Annon,
+                        BoundReftKind::Anon,
                     )
                 }
             }

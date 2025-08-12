@@ -30,7 +30,7 @@ use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
     FnHeader, OwnerId, ParamName, Safety,
-    def::DefKind,
+    def::{DefKind, Namespace},
     def_id::{DefId, LocalDefId},
 };
 use rustc_index::newtype_index;
@@ -1116,6 +1116,22 @@ impl Res {
         } else {
             false
         }
+    }
+
+    /// Returns `None` if this is `Res::Err`
+    pub fn ns(&self) -> Option<Namespace> {
+        match self {
+            Res::Def(kind, ..) => kind.ns(),
+            Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
+                Some(Namespace::TypeNS)
+            }
+            Res::Err => None,
+        }
+    }
+
+    /// Always returns `true` if `self` is `Res::Err`
+    pub fn matches_ns(&self, ns: Namespace) -> bool {
+        self.ns().is_none_or(|actual_ns| actual_ns == ns)
     }
 }
 

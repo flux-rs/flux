@@ -332,7 +332,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
                         w!(self, f, ": {:?}", sort)?;
                     }
                 }
-                BoundVariableKind::Refine(sort, mode, BoundReftKind::Annon) => {
+                BoundVariableKind::Refine(sort, mode, BoundReftKind::Anon) => {
                     if print_infer_mode {
                         w!(self, f, "{}", ^mode.prefix_str())?;
                     }
@@ -357,7 +357,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match breft.kind {
-            BoundReftKind::Annon => {
+            BoundReftKind::Anon => {
                 if let Some(name) = self.bvar_env.lookup(debruijn, breft.var) {
                     w!(self, f, "{name:?}")
                 } else {
@@ -523,7 +523,7 @@ impl BoundVarEnv {
     ) {
         let mut name_map = UnordMap::default();
         for (idx, var) in vars.iter().enumerate() {
-            if let BoundVariableKind::Refine(_, _, BoundReftKind::Annon) = var {
+            if let BoundVariableKind::Refine(_, _, BoundReftKind::Anon) = var {
                 name_map.insert(BoundVar::from_usize(idx), self.name_gen.fresh());
             }
         }

@@ -277,7 +277,7 @@ impl BoundVariableKind {
 
 impl From<Sort> for BoundVariableKind {
     fn from(sort: Sort) -> Self {
-        Self::Refine(sort, InferMode::EVar, BoundReftKind::Annon)
+        Self::Refine(sort, InferMode::EVar, BoundReftKind::Anon)
     }
 }
 
@@ -285,7 +285,7 @@ pub type BoundVariableKinds = List<BoundVariableKind>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum BoundReftKind {
-    Annon,
+    Anon,
     Named(Symbol),
 }
 

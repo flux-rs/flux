@@ -126,3 +126,18 @@ impl FinalAssocReftWithoutBody {
         Self { span }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_unsupported_const_generic_arg, code = E0999)]
+pub(super) struct UnsupportedConstGenericArg {
+    #[primary_span]
+    #[label]
+    span: Span,
+    res_descr: &'static str,
+}
+
+impl UnsupportedConstGenericArg {
+    pub(super) fn new(span: Span, res_descr: &'static str) -> Self {
+        Self { span, res_descr }
+    }
+}
