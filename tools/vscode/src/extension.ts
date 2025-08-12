@@ -91,14 +91,14 @@ export function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  // Register the detached link provider for Rust files
-  const detachedLinkProvider = new DetachedLinkProvider(infoProvider);
+  const fluxDefinitionProvider = new FluxDefinitionProvider(infoProvider, context);
   context.subscriptions.push(
-    vscode.languages.registerDocumentLinkProvider(
+    vscode.languages.registerDefinitionProvider(
       { scheme: 'file', language: 'rust' },
-      detachedLinkProvider
+      fluxDefinitionProvider
     )
   );
+
 
   // Reload the flux trace information for changedFiles
   const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
@@ -119,7 +119,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   fileWatcher.onDidChange((uri) => {
     console.log(`checker trace changed: ${uri.fsPath}`);
-    infoProvider.loadFluxInfo().then(() => fluxViewProvider.updateView());
+    infoProvider.loadFluxInfo()
+      .then(() => fluxViewProvider.updateView());
   });
 }
 
@@ -180,7 +181,9 @@ async function runCargoFlux(workspacePath: string, file: string, trace: boolean,
 
   let fluxFlags = `-Finclude=${includeValue}`;
   if (trace) {
-    fluxFlags += ` -Fdump-checker-trace`;
+    fluxFlags += ` -Fdump-checker-trace=info`;
+  } else {
+    fluxFlags += ` -Fdump-checker-trace=warn`;
   }
   // console.log(`TRACE: Running command: cargo flux with flags=`, fluxFlags);
 
@@ -267,15 +270,64 @@ enum Position {
   End,
 }
 
-class DetachedLinkProvider implements vscode.DocumentLinkProvider {
-  constructor(private readonly _infoProvider: InfoProvider) {}
+// definitions per line
+type FluxDef  = { fileName: string, line: number, column_start: number; column_end: number; target: vscode.Location };
+// definitions per file, indexed by line number
+type FluxDefs = Map<number, FluxDef[]>
 
-  provideDocumentLinks(
-    document: vscode.TextDocument,
-    token: vscode.CancellationToken
-  ): Promise<vscode.DocumentLink[]> {
-    return parseDetachedLinks(document.fileName);
+function updateFluxDefs(defs: Map<string, FluxDefs>, fluxDef: FluxDef) {
+  if (!defs.has(fluxDef.fileName)) {
+    defs.set(fluxDef.fileName, new Map());
   }
+  let fileDefs = defs.get(fluxDef.fileName)!;
+  if (!fileDefs.has(fluxDef.line)) {
+    fileDefs.set(fluxDef.line, []);
+  }
+  let lineDefs = fileDefs.get(fluxDef.line)!;
+  lineDefs.push(fluxDef);
+}
+
+class FluxDefinitionProvider implements vscode.DefinitionProvider {
+
+  constructor(
+    private readonly _infoProvider: InfoProvider,
+    private readonly _context: vscode.ExtensionContext
+  ) {}
+
+  provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.Definition | vscode.DefinitionLink[]> {
+    const fileName = document.fileName;
+
+    // Convert VS Code 0-based position to 1-based line/column for flux
+    const line = position.line + 1;
+    const column = position.character + 1;
+
+    // Look up the definition using the info provider
+    const fluxDef = this._infoProvider.getDefinition(fileName, line, column);
+
+    if (fluxDef) {
+      // Create the source range for the definition link
+      const originSelectionRange = new vscode.Range(
+        fluxDef.line - 1,  // Convert back to 0-based
+        fluxDef.column_start - 1,  // Convert back to 0-based
+        fluxDef.line - 1,
+        fluxDef.column_end - 1
+      );
+
+      // Create a DefinitionLink with both source and target information
+      const definitionLink: vscode.DefinitionLink = {
+        originSelectionRange: originSelectionRange,
+        targetUri: fluxDef.target.uri,
+        targetRange: fluxDef.target.range,
+        targetSelectionRange: fluxDef.target.range  // Use the same range for selection
+      };
+
+      return [definitionLink];
+    }
+
+    // Return undefined if no definition found
+    return undefined;
+  }
+
 }
 
 class InfoProvider {
@@ -288,6 +340,7 @@ class InfoProvider {
   private _StartMap: Map<string, LineMap> = new Map();
   private _EndMap: Map<string, LineMap> = new Map();
   private _ModifiedAt: Map<string, Date> = new Map();
+  private _definitions: Map<string, FluxDefs> = new Map();
 
   currentFile?: string;
   currentLine: number = 0;
@@ -322,6 +375,17 @@ class InfoProvider {
     const endMap = this.positionMap(fileInfo, Position.End);
     this._StartMap.set(fileName, startMap);
     this._EndMap.set(fileName, endMap);
+  }
+
+  public getDefinition(fileName: string, line: number, column: number): FluxDef | undefined {
+    const fileDefs = this._definitions.get(fileName);
+    if (fileDefs) {
+      const lineDefs = fileDefs.get(line);
+      if (lineDefs) {
+        return lineDefs.find(def => def.column_start <= column && column <= def.column_end);
+      }
+    }
+    return undefined;
   }
 
   public getLineInfo(): LineInfo | "loading" | undefined {
@@ -395,10 +459,12 @@ class InfoProvider {
 
   public async loadFluxInfo() {
     try {
-      const lineInfos = await parseLineInfos();
-
-      lineInfos.forEach((lineInfo, fileName) => {
+      const logInfo = await parseLogInfo();
+      logInfo.lineInfos.forEach((lineInfo, fileName) => {
         this.updateInfo(fileName, lineInfo);
+      });
+      logInfo.definitions.forEach((fluxDefs, fileName) => {
+        this._definitions.set(fileName, fluxDefs);
       });
     } catch (error) {
       vscode.window.showErrorMessage(`Failed to load line info: ${error}`);
@@ -1052,13 +1118,51 @@ async function parseEventsWith<T>(def: T, parser: (events: any[]) => T): Promise
   }
 }
 
-async function parseLineInfos(): Promise<Map<string, LineInfo[]>> {
-  return parseEventsWith(new Map(), parseEvents);
+async function parseLogInfo(): Promise<LogInfo> {
+  let def: LogInfo = { lineInfos: new Map(), definitions: new Map() };
+  try {
+    // Get the workspace folder
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders) {
+      return def;
+    }
+    // Read the file using VS Code's file system API
+    const workspacePath = workspaceFolders[0].uri.fsPath;
+    const logPath = path.join(workspacePath, checkerPath);
+    const events = await readEventsStreaming(logPath);
+
+    events.forEach((event) => {
+
+      // handle line-info events
+      const lineInfo = parseEvent(event);
+      if (lineInfo) {
+        const [fileName, info] = lineInfo;
+        if (!def.lineInfos.has(fileName)) {
+          def.lineInfos.set(fileName, []);
+        }
+        def.lineInfos.get(fileName)?.push(info);
+      }
+
+      // handle definition events
+      const fluxDef = parseFluxDef(event);
+      if (fluxDef) {
+        updateFluxDefs(def.definitions, fluxDef);
+      }
+    });
+
+    return def;
+  } catch (error) {
+    // vscode.window.showErrorMessage(`Failed to read line info: ${error}`);
+    return def;
+  }
 }
 
-function parseDetachedLinks(documentPath: string): Promise<vscode.DocumentLink[]> {
-  return parseEventsWith(new Array(), (events:any[]) => parseDocumentLinks(documentPath, events));
+
+type LogInfo = {
+  lineInfos: Map<string, LineInfo[]>;
+  definitions: Map<string, FluxDefs>;
 }
+
 
 // TODO: add local-info to TypeEnvBind
 type TypeEnvBind = {
@@ -1126,66 +1230,43 @@ function parseEvent(event: any): [string, LineInfo] | undefined {
   return undefined;
 }
 
-type DetachedLink = {src_span: StmtSpan, dst_span: StmtSpan};
-
-function parseDocumentLinks(documentPath: string, events: any[]): vscode.DocumentLink[] {
-  return events
-    .filter(event => event.fields && event.fields.event === "detached_link")
-    .map(event => {
-      try {
+function parseFluxDef(event: any): FluxDef | undefined {
+  if (event.fields && event.fields.event === "hyperlink") {
+    try {
         const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;
         const dstSpan = JSON.parse(event.fields.dst_span) as StmtSpan;
-
-        // Create the source range (0-based indexing for VS Code)
-        const srcRange = new vscode.Range(
-          srcSpan.start_line - 1,
-          srcSpan.start_col - 1,
-          srcSpan.end_line - 1,
-          srcSpan.end_col - 1
-        );
-
         if (!srcSpan.file || !dstSpan.file) {
           console.log(`Invalid detached link: ${event.fields}`);
-          return null; // Skip invalid links
+          return undefined; // Skip invalid links
         }
-        if (srcSpan.file !== documentPath) {
-          console.log(`skipping link: Source span file does not match document path: ${srcSpan.file} !== ${documentPath}`);
-          return null;
-        }
-        // Create the target URI with position fragment
-        // VS Code supports URI fragments like file:///path/to/file.rs#L10,5 to jump to specific line/column
-        const targetUri = vscode.Uri.file(dstSpan.file).with({
-          fragment: `L${dstSpan.start_line},${dstSpan.start_col}`
-        });
+        // console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
+        // Create the target location
+        const targetUri = vscode.Uri.file(dstSpan.file);
+        const targetRange = new vscode.Range(
+          dstSpan.start_line - 1,
+          dstSpan.start_col - 1,
+          dstSpan.end_line - 1,
+          dstSpan.end_col - 1
+        );
+        const targetLocation = new vscode.Location(targetUri, targetRange);
 
-        // Create the document link
-        const documentLink = new vscode.DocumentLink(srcRange, targetUri);
-        documentLink.tooltip = `Jump to detached specification (line ${dstSpan.start_line}:${dstSpan.start_col})`;
-        return documentLink;
-
+        const fluxDef: FluxDef = {
+          fileName: srcSpan.file,
+          line: srcSpan.start_line,
+          column_start: srcSpan.start_col,
+          column_end: srcSpan.end_col,
+          target: targetLocation,
+        };
+        // console.log(`Found flux definition`, fluxDef);
+        return fluxDef;
       } catch (error) {
-        console.log(`Failed to parse detached_link event: ${error}`);
-        return null;
+        console.log(`Failed to parse definition event: ${error}`);
+        return undefined;
       }
-    })
-    .filter(result => result !== null); // as Array<{src_span: StmtSpan, dst_span: StmtSpan}>;
+  }
+  return undefined;
 }
 
-function parseEvents(events: any[]): Map<string, LineInfo[]> {
-  // const events = logString.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
-  const res = new Map();
-  events.forEach((event) => {
-    const eventInfo = parseEvent(event);
-    if (eventInfo) {
-      const [fileName, info] = eventInfo;
-      if (!res.has(fileName)) {
-        res.set(fileName, []);
-      }
-      res.get(fileName)?.push(info);
-    }
-  });
-  return res;
-}
 
 /**********************************************************************************************/
 
@@ -1358,7 +1439,6 @@ function convertRelatedInformation(
       }
     }
   }
-
   return related;
 }
 
@@ -1403,7 +1483,7 @@ export function convertRustcDiagnostic(
     }
 
     // Set source
-    diagnostic.source = 'rustc';
+    diagnostic.source = 'flux';
 
     // Add related information from child messages
     const relatedInfo = convertRelatedInformation(message.children, workspaceRoot);
@@ -1466,12 +1546,15 @@ export function updateDiagnosticsFromRustc(
           const parsed = JSON.parse(line);
           // Only process compiler messages (not build artifacts)
           if (parsed.reason === 'compiler-message' && parsed.message) {
-            rustcDiagnostics.push({
+            const diag = {
               message: parsed.message,
               package_id: parsed.package_id,
               manifest_path: parsed.manifest_path,
               target: parsed.target
-            });
+            };
+            let str = renderRustcDiagnostic(diag, workspaceRoot);
+            // console.log(`Parsed rustc diagnostic:\n ${str}`);
+            rustcDiagnostics.push(diag);
           }
         } catch (parseError) {
           console.warn('Failed to parse rustc output line:', line, parseError);
@@ -1494,4 +1577,120 @@ export function updateDiagnosticsFromRustc(
   } catch (error) {
     console.error('Failed to update diagnostics from rustc output:', error);
   }
+}
+
+export function renderRustcDiagnostic(
+  diagnostic: RustcDiagnostic,
+  workspaceRoot?: string
+): string {
+  const message = diagnostic.message;
+  let output = '';
+
+  // Main diagnostic header
+  const level = message.level.toUpperCase();
+  const code = message.code?.code ? `[${message.code.code}]` : '';
+  output += `${level}${code}: ${message.message}\n`;
+
+  // Helper function to format file path
+  const formatFilePath = (fileName: string): string => {
+    if (workspaceRoot && fileName.startsWith(workspaceRoot)) {
+      return fileName.substring(workspaceRoot.length + 1);
+    }
+    return fileName;
+  };
+
+  // Helper function to render a span with its context
+  const renderSpan = (span: RustcSpan, indent: string = ''): string => {
+    let spanOutput = '';
+
+    if (span.file_name) {
+      const filePath = formatFilePath(span.file_name);
+      spanOutput += `${indent}--> ${filePath}:${span.line_start}:${span.column_start}\n`;
+
+      // Add the source code lines if available
+      if (span.text && span.text.length > 0) {
+        const lineNumWidth = span.line_end.toString().length;
+
+        span.text.forEach((textLine, index) => {
+          const lineNum = span.line_start + index;
+          const lineNumStr = lineNum.toString().padStart(lineNumWidth, ' ');
+
+          spanOutput += `${indent}${lineNumStr} | ${textLine.text}\n`;
+
+          // Add highlighting if this line has highlights
+          if (textLine.highlight_start !== textLine.highlight_end) {
+            const highlightLine = ' '.repeat(lineNumWidth + 3); // padding for line number and " | "
+            const beforeHighlight = ' '.repeat(textLine.highlight_start);
+            const highlightLength = textLine.highlight_end - textLine.highlight_start;
+            const highlight = '^'.repeat(Math.max(1, highlightLength));
+
+            spanOutput += `${indent}${highlightLine}${beforeHighlight}${highlight}`;
+
+            // Add label if available
+            if (span.label) {
+              spanOutput += ` ${span.label}`;
+            }
+            spanOutput += '\n';
+          }
+        });
+      }
+    }
+
+    return spanOutput;
+  };
+
+  // Process primary spans first
+  const primarySpans = message.spans.filter(span => span.is_primary);
+  const secondarySpans = message.spans.filter(span => !span.is_primary);
+
+  // Render primary spans
+  primarySpans.forEach(span => {
+    output += renderSpan(span);
+  });
+
+  // Render secondary spans if any
+  secondarySpans.forEach(span => {
+    output += renderSpan(span, '   ');
+  });
+
+  // Process child messages (notes, helps, etc.)
+  message.children.forEach(child => {
+    output += '\n';
+    const childLevel = child.level === 'note' ? 'note' :
+                     child.level === 'help' ? 'help' : child.level;
+    output += `${childLevel}: ${child.message}\n`;
+
+    // Render child spans
+    child.spans.forEach(span => {
+      if (span.is_primary && span.file_name) {
+        output += renderSpan(span, '   ');
+      }
+    });
+  });
+
+  // Add suggestion if available
+  const suggestionSpans = message.spans.filter(span => span.suggested_replacement);
+  if (suggestionSpans.length > 0) {
+    output += '\nhelp: try this\n';
+    suggestionSpans.forEach(span => {
+      if (span.suggested_replacement) {
+        output += `   ${span.suggested_replacement}\n`;
+      }
+    });
+  }
+
+  // If we have a pre-rendered version, prefer that for ANSI formatting
+  if (message.rendered) {
+    // Strip ANSI codes for pure text output
+    const cleanRendered = message.rendered
+      .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI escape codes
+      .replace(/\r\n/g, '\n') // Normalize line endings
+      .trim();
+
+    if (cleanRendered.length > output.length) {
+      return cleanRendered;
+    }
+  }
+
+  return output.trim();
 }

@@ -1,6 +1,7 @@
 #![feature(if_let_guard)]
 use globset::{Glob, GlobSet, GlobSetBuilder};
 pub use toml::Value;
+use tracing::Level;
 pub mod flags;
 
 use std::{
@@ -14,7 +15,7 @@ use std::{
 use flags::FLAGS;
 use serde::Deserialize;
 
-pub fn dump_checker_trace() -> bool {
+pub fn dump_checker_trace() -> Option<Level> {
     FLAGS.dump_checker_trace
 }
 

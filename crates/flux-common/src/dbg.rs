@@ -101,16 +101,16 @@ pub use crate::_basic_block_start as basic_block_start;
 #[macro_export]
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
-        if config::dump_checker_trace() {
-            let rcx = $infcx.cursor();
-            let ck = $checker;
-            let genv = ck.genv;
-            let local_names = &ck.body.local_names;
-            let local_decls = &ck.body.local_decls;
-            let rcx_json = RefineCtxtTrace::new(genv, rcx);
-            let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
-            let span_json = SpanTrace::new(genv.tcx(), $span);
-            tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
+        if let Some(level) = config::dump_checker_trace() && level <= tracing::Level::INFO {
+          let rcx = $infcx.cursor();
+          let ck = $checker;
+          let genv = ck.genv;
+          let local_names = &ck.body.local_names;
+          let local_decls = &ck.body.local_decls;
+          let rcx_json = RefineCtxtTrace::new(genv, rcx);
+          let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
+          let span_json = SpanTrace::new(genv.tcx(), $span);
+          tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
         }
     }};
 }
@@ -153,14 +153,14 @@ macro_rules! _shape_goto_exit {
 pub use crate::_shape_goto_exit as shape_goto_exit;
 
 #[macro_export]
-macro_rules! _detached_link {
+macro_rules! _hyperlink {
     ($tcx:expr, $src_span:expr, $dst_span:expr) => {{
        let src_json = SpanTrace::new($tcx, $src_span);
        let dst_json = SpanTrace::new($tcx, $dst_span);
-       tracing::info!(event = "detached_link", src_span = ?src_json, dst_span = ?dst_json)
+       tracing::warn!(event = "hyperlink", src_span = ?src_json, dst_span = ?dst_json)
     }};
 }
-pub use crate::_detached_link as detached_link;
+pub use crate::_hyperlink as hyperlink;
 
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);

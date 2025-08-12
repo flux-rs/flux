@@ -1,4 +1,4 @@
-use flux_rs::assert;
+use flux_rs::{assert, attrs::*};
 
 pub fn inc(n: i32) -> i32 {
     n + 1
@@ -23,13 +23,13 @@ pub fn test() {
 
 macro_rules! my_spec_block {
     () => {
-        #[flux::specs {fn watermelon(n:usize) -> usize[n+2];}]
+        #[specs {fn watermelon(n:usize) -> usize[n+2];}]
         const _: usize = 4;
 
-        #[flux::specs {fn inc(n:i32) -> i32[n+1];}]
+        #[specs {fn inc(n:i32) -> i32[n+1];}]
         const _: usize = 4;
 
-        #[flux::specs {fn id(n:i32) -> i32[n];}]
+        #[specs {fn id(n:i32) -> i32[n];}]
         const _: () = ();
     };
 }

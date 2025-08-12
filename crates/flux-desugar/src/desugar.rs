@@ -78,7 +78,8 @@ pub(crate) fn desugar_spec_func<'genv>(
         let params = spec_func.sort_vars.len();
         let sort = cx.desugar_sort(&spec_func.output, None);
         let args = cx.desugar_refine_params(&spec_func.params);
-        fhir::SpecFunc { def_id, params, args, sort, body, hide: spec_func.hide }
+        let ident_span = spec_func.name.span;
+        fhir::SpecFunc { def_id, params, args, sort, body, hide: spec_func.hide, ident_span }
     })
 }
 
@@ -967,7 +968,6 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             .expr_path_res_map
             .get(&path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
-
         fhir::PathExpr {
             segments: self
                 .genv()
@@ -1493,11 +1493,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     // FIXME(nilehmann) we ought to report this error somewhere else
                     return fhir::ExprKind::Err(self.emit(errors::InvalidAliasReft::new(path)));
                 };
-                let alias_reft = fhir::AliasReft {
-                    qself: self.genv().alloc(qself),
-                    path: fpath,
-                    name: name.name,
-                };
+                let alias_reft =
+                    fhir::AliasReft { qself: self.genv().alloc(qself), path: fpath, name: *name };
                 fhir::ExprKind::Alias(alias_reft, args)
             }
             _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span))),
@@ -1519,7 +1516,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             let segments = self
                 .genv()
                 .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident));
-            Some(fhir::PathExpr { segments, res, fhir_id: self.next_fhir_id(), span: path.span })
+            Some(fhir::PathExpr { res, segments, fhir_id: self.next_fhir_id(), span: path.span })
         } else {
             None
         };

@@ -105,7 +105,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     }
                     surface::FluxItem::FuncDef(defn) => {
                         let parent = parent.def_id.to_def_id();
-                        let def_id = FluxDefId::new(parent, defn.name.name);
+                        let name = defn.name.name;
+                        let def_id = FluxDefId::new(parent, name);
                         let kind = if defn.body.is_some() {
                             fhir::SpecFuncKind::Def(def_id)
                         } else {

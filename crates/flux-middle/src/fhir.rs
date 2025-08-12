@@ -939,7 +939,7 @@ impl<'fhir> PolyFuncSort<'fhir> {
 pub struct AliasReft<'fhir> {
     pub qself: &'fhir Ty<'fhir>,
     pub path: Path<'fhir>,
-    pub name: Symbol,
+    pub name: Ident,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1179,6 +1179,7 @@ pub struct SpecFunc<'fhir> {
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
     pub hide: bool,
+    pub ident_span: Span,
 }
 #[derive(Debug)]
 pub struct PrimOpProp<'fhir> {
