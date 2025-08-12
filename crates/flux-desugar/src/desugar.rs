@@ -1136,6 +1136,8 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                         fhir_args.push(fhir::GenericArg::Infer);
                         continue;
                     }
+                    // If the path was resolved in the value namespace then we must create a const
+                    // generic argument
                     if let Some(path) = ty.is_potential_const_arg()
                         && let Some(res) =
                             self.resolver_output().path_res_map[&path.node_id].full_res()

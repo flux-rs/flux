@@ -838,6 +838,10 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
         if let surface::GenericArgKind::Type(ty) = &arg.kind
             && let Some(path) = ty.is_potential_const_arg()
         {
+            // We parse const arguments as path types as we cannot distinguish them during
+            // parsing. We try to resolve that ambiguity by attempting resolution in both the
+            // type and value namespaces. If we resolved the path in the value namespace, we
+            // transform it into a generic const argument.
             let check_ns = |ns| {
                 self.resolver
                     .resolve_ident_with_ribs(path.last().ident, ns)
