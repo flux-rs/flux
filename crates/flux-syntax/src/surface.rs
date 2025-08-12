@@ -503,6 +503,18 @@ impl Ty {
         vis.visit_ty(self);
         vis.is_refined
     }
+
+    pub fn is_potential_const_arg(&self) -> Option<&Path> {
+        if let TyKind::Base(bty) = &self.kind
+            && let BaseTyKind::Path(None, path) = &bty.kind
+            && let [segment] = &path.segments[..]
+            && segment.args.len() == 0
+        {
+            Some(path)
+        } else {
+            None
+        }
+    }
 }
 #[derive(Debug)]
 pub struct BaseTy {

@@ -1973,6 +1973,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Err(self.emit(errors::AmbiguousAssocType { span, name: assoc_name }))?
     }
 
+    #[track_caller]
     fn report_expected_type(
         &self,
         span: Span,

@@ -805,7 +805,11 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {
-        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, TypeNS) {
+        self.resolve_path_in(path, TypeNS);
+    }
+
+    fn resolve_path_in(&mut self, path: &surface::Path, ns: Namespace) {
+        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(&path.segments, ns) {
             self.resolver
                 .output
                 .path_res_map
@@ -828,6 +832,24 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
             self.resolve_opaque_impl(*node_id, ty.span);
         }
         surface::visit::walk_ty(self, ty);
+    }
+
+    fn visit_generic_arg(&mut self, arg: &surface::GenericArg) {
+        if let surface::GenericArgKind::Type(ty) = &arg.kind
+            && let Some(path) = ty.is_potential_const_arg()
+        {
+            let check_ns = |ns| {
+                self.resolver
+                    .resolve_ident_with_ribs(path.last().ident, ns)
+                    .is_some()
+            };
+
+            if !check_ns(TypeNS) && check_ns(ValueNS) {
+                self.resolve_path_in(path, ValueNS);
+                return;
+            }
+        }
+        surface::visit::walk_generic_arg(self, arg);
     }
 
     fn visit_path(&mut self, path: &surface::Path) {

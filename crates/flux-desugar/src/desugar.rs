@@ -28,7 +28,7 @@ use itertools::{Either, Itertools};
 use rustc_data_structures::fx::FxIndexSet;
 use rustc_errors::{Diagnostic, ErrorGuaranteed};
 use rustc_hash::FxHashSet;
-use rustc_hir::{self as hir, OwnerId};
+use rustc_hir::{self as hir, OwnerId, def::Namespace};
 use rustc_span::{
     DUMMY_SP, Span,
     def_id::{DefId, LocalDefId},
@@ -1131,10 +1131,19 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         }
         for arg in args {
             match &arg.kind {
-                surface::GenericArgKind::Type(ty) if matches!(ty.kind, surface::TyKind::Hole) => {
-                    fhir_args.push(fhir::GenericArg::Infer);
-                }
                 surface::GenericArgKind::Type(ty) => {
+                    if matches!(ty.kind, surface::TyKind::Hole) {
+                        fhir_args.push(fhir::GenericArg::Infer);
+                        continue;
+                    }
+                    if let Some(path) = ty.is_potential_const_arg()
+                        && let Some(res) =
+                            self.resolver_output().path_res_map[&path.node_id].full_res()
+                        && res.matches_ns(Namespace::ValueNS)
+                    {
+                        fhir_args.push(self.desugar_const_path_to_const_arg(path, res));
+                        continue;
+                    }
                     let ty = self.desugar_ty(ty);
                     fhir_args.push(fhir::GenericArg::Type(self.genv().alloc(ty)));
                 }
@@ -1147,6 +1156,16 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
         }
         (self.genv().alloc_slice(&fhir_args), self.genv().alloc_slice(&constraints))
+    }
+
+    fn desugar_const_path_to_const_arg(
+        &mut self,
+        path: &surface::Path,
+        res: fhir::Res,
+    ) -> fhir::GenericArg<'genv> {
+        let Res::Def(DefKind::ConstParam, def_id) = res else { todo!() };
+        let kind = fhir::ConstArgKind::Param(def_id);
+        fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
     }
 
     /// This is the mega desugaring function [`surface::Ty`] -> [`fhir::Ty`].
