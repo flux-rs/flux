@@ -53,12 +53,12 @@
 <a href=#53 id=53 data-nosnippet>53</a>
 <a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">for </span>impl_assoc_reft <span class="kw">in </span><span class="kw-2">&amp;</span>impl_assoc_refts.items {
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">let </span>name = impl_assoc_reft.name();
-<a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(trait_assoc_id) = trait_assoc_refts.find(name) {
+<a href=#56 id=56 data-nosnippet>56</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(trait_assoc_reft) = trait_assoc_refts.find(name) {
 <a href=#57 id=57 data-nosnippet>57</a>            check_assoc_reft(
 <a href=#58 id=58 data-nosnippet>58</a>                <span class="kw-2">&amp;mut </span>infcx,
 <a href=#59 id=59 data-nosnippet>59</a>                impl_id,
 <a href=#60 id=60 data-nosnippet>60</a>                <span class="kw-2">&amp;</span>impl_trait_ref,
-<a href=#61 id=61 data-nosnippet>61</a>                trait_assoc_id,
+<a href=#61 id=61 data-nosnippet>61</a>                trait_assoc_reft.def_id(),
 <a href=#62 id=62 data-nosnippet>62</a>                impl_assoc_reft.def_id(),
 <a href=#63 id=63 data-nosnippet>63</a>            )<span class="question-mark">?</span>;
 <a href=#64 id=64 data-nosnippet>64</a>        } <span class="kw">else </span>{

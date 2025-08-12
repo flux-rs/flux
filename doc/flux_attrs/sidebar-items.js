@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"attr":["alias","assoc","constant","extern_spec","generics","ignore","invariant","opaque","opts","qualifiers","refined_by","reflected","reft","reveal","should_fail","sig","spec","trusted","trusted_impl"],"macro":["defs","flux"],"mod":["attr_dummy"]};
+window.SIDEBAR_ITEMS = {"attr":["alias","assoc","constant","extern_spec","generics","ignore","invariant","opaque","opts","qualifiers","refined_by","reflected","reft","reveal","should_fail","sig","spec","specs","trusted","trusted_impl"],"macro":["defs","flux"],"mod":["attr_dummy"]};
