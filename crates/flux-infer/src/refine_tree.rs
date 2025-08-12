@@ -381,6 +381,8 @@ impl Node {
             }
             _ => {}
         }
+        let is_false_asm =
+            matches!(&self.kind, NodeKind::Assumption(pred) if pred.is_trivially_false());
 
         // Then simplify the children
         // (the order matters here because we need to collect assumed preds first)
@@ -398,7 +400,9 @@ impl Node {
             | NodeKind::Root(_)
             | NodeKind::ForAll(..) => {
                 self.children
-                    .extract_if(.., |child| matches!(&child.borrow().kind, NodeKind::True))
+                    .extract_if(.., |child| {
+                        is_false_asm || matches!(&child.borrow().kind, NodeKind::True)
+                    })
                     .for_each(drop);
             }
         }
