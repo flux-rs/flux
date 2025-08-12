@@ -1163,8 +1163,12 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         path: &surface::Path,
         res: fhir::Res,
     ) -> fhir::GenericArg<'genv> {
-        let Res::Def(DefKind::ConstParam, def_id) = res else { todo!() };
-        let kind = fhir::ConstArgKind::Param(def_id);
+        let kind = if let Res::Def(DefKind::ConstParam, def_id) = res {
+            fhir::ConstArgKind::Param(def_id)
+        } else {
+            self.emit(errors::UnsupportedConstGenericArg::new(path.span, res.descr()));
+            fhir::ConstArgKind::Infer
+        };
         fhir::GenericArg::Const(fhir::ConstArg { kind, span: path.span })
     }
 

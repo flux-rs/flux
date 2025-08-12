@@ -37,7 +37,7 @@ desugar_multiple_spreads_in_constructor =
 desugar_unsupported_position =
    expression not allowed in this position
 
-desugar_final_assoc_without_body = 
+desugar_final_assoc_without_body =
     final associated refinements must have a body
 
 # Resolve errors
@@ -76,6 +76,9 @@ desugar_unknown_qualifier =
 desugar_unknown_reveal_definition =
     unknown function definition
 
+desugar_unsupported_const_generic_arg =
+    `{$res_descr}` not supported in this position
+    .label =  help: try using `_` instead
 
 # Lifting Errors
 
