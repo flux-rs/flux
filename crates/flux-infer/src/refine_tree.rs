@@ -375,14 +375,12 @@ impl Node {
     fn eliminate_bot(&mut self, graph: &Graph) {
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred1 = graph.simplify_pred(pred);
-                // println!("TRACE: simplify HEAD {pred:?} => {pred1:?}");
-                self.kind = NodeKind::Head(pred1, *tag);
+                let pred = graph.simplify_pred(pred);
+                self.kind = NodeKind::Head(pred, *tag);
             }
             NodeKind::Assumption(pred) => {
-                let pred1 = graph.simplify_pred(pred);
-                // println!("TRACE: simplify ASSM {pred:?} => {pred1:?}");
-                self.kind = NodeKind::Assumption(pred1);
+                let pred = graph.simplify_pred(pred);
+                self.kind = NodeKind::Assumption(pred);
             }
             _ => {}
         }
@@ -887,14 +885,13 @@ impl Graph {
         }
     }
 
+    // NOTE: There is no need to again propagate_bot() (after the `propagate_top()`)
+    // because propagate_top() does not create any new vertices with in-degree 0.
     pub fn new(node: &Node) -> Self {
         let mut g = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
         g.build(node, &mut vec![]);
-        // println!("TRACE: graph::new (0) ==> {g:#?}");
         g.propagate_bot();
-        // println!("TRACE: graph::new (1) ==> {g:#?}");
         g.propagate_top();
-        // println!("TRACE: graph::new (2) ==> {g:#?}");
         g
     }
 

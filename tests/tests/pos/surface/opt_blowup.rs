@@ -105,13 +105,8 @@ pub fn blah3(n: i32) -> Option<i32> {
 
     Some(res)
 }
-/*
 
-#[spec(fn (k: usize) -> Option<usize{v:k < v}>)]
-pub fn burp(k: usize) -> Option<usize> {
-    if k % 2 == 0 { Some(k + 1) } else { None }
-}
-
+// This should generate a trivial `true` constraint
 #[spec(fn (n:usize{false}, m: usize) -> usize{v:v < m})]
 fn test_false_pre(n:usize, m:usize) -> usize {
     let mut i = n;
@@ -122,70 +117,3 @@ fn test_false_pre(n:usize, m:usize) -> usize {
     }
     res
 }
-
-
-
-
-#[spec(fn (n: usize) -> Option<usize{v:n <= v}>)]
-pub fn blah0(n: usize) -> Option<usize> {
-    let mut res = n;
-
-    Some(res)
-}
-
-#[spec(fn (n: usize) -> Option<usize{v:n < v}>)]
-pub fn blah1(n: usize) -> Option<usize> {
-    let mut res = n;
-
-    let v0 = burp(res)?;
-    res = v0;
-
-    Some(res)
-}
-
-
-
-
-#[spec(fn (n: usize) -> Option<usize{v:n < v}>)]
-pub fn match3(n: usize) -> Option<usize> {
-    let mut res = n;
-    match burp(res) {
-        None => None,
-        Some(v0) => {
-            res = v0;
-            match burp(res) {
-                None => None,
-                Some(v1) => {
-                    res = v1;
-                    match burp(res) {
-                        None => None,
-                        Some(v2) => {
-                            res = v2;
-                            Some(res)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[spec(fn (n: usize) -> Option<usize{v:n < v}>)]
-pub fn blah4(n: usize) -> Option<usize> {
-    let mut res = n;
-
-    let v0 = burp(res)?;
-    res = v0;
-
-    let v1 = burp(res)?;
-    res = v1;
-
-    let v2 = burp(res)?;
-    res = v2;
-
-    let v3 = burp(res)?;
-    res = v3;
-
-    Some(res)
-}
- */
