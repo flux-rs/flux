@@ -120,6 +120,8 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
     let name = match func {
         ThyFunc::BvZeroExtend(_) | ThyFunc::BvSignExtend(_) => return None,
         ThyFunc::StrLen => "str_len",
+        ThyFunc::IntToBv8 => "bv_int_to_bv8",
+        ThyFunc::Bv8ToInt => "bv_bv8_to_int",
         ThyFunc::IntToBv32 => "bv_int_to_bv32",
         ThyFunc::Bv32ToInt => "bv_bv32_to_int",
         ThyFunc::IntToBv64 => "bv_int_to_bv64",
@@ -174,6 +176,20 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
         ThyFunc::StrLen => {
             // str -> int
             rty::PolyFuncSort::new(List::empty(), rty::FuncSort::new(vec![rty::Sort::Str], Int))
+        }
+        ThyFunc::IntToBv8 => {
+            // int -> BitVec<8>
+            rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![rty::Sort::Int], BitVec(BvSize::Fixed(8))),
+            )
+        }
+        ThyFunc::Bv8ToInt => {
+            // BitVec<8> -> int
+            rty::PolyFuncSort::new(
+                List::empty(),
+                rty::FuncSort::new(vec![BitVec(BvSize::Fixed(8))], Int),
+            )
         }
         ThyFunc::IntToBv32 => {
             // int -> BitVec<32>

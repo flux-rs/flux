@@ -5,6 +5,8 @@ use core::{
 
 use flux_attrs::*;
 
+// ----------------------------------------------------------------------------------------------------------
+
 #[derive(Debug, Clone, Copy, Hash)]
 #[opaque]
 #[refined_by(x: bitvec<32>)]
@@ -160,3 +162,163 @@ impl PartialEq for BV32 {
 }
 
 impl Eq for BV32 {}
+
+// ----------------------------------------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, Hash)]
+#[opaque]
+#[refined_by(x: bitvec<8>)]
+pub struct BV8(u8);
+
+#[trusted]
+impl PartialOrd for BV8 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+
+    #[sig(fn(&BV8[@x], &BV8[@y]) -> bool[bv_ule(x, y)])]
+    fn le(&self, other: &Self) -> bool {
+        self.0 <= other.0
+    }
+
+    #[sig(fn(&BV8[@x], &BV8[@y]) -> bool[bv_ult(x, y)])]
+    fn lt(&self, other: &Self) -> bool {
+        self.0 < other.0
+    }
+
+    #[sig(fn(&BV8[@x], &BV8[@y]) -> bool[bv_uge(x, y)])]
+    fn ge(&self, other: &Self) -> bool {
+        self.0 >= other.0
+    }
+
+    #[sig(fn(&BV8[@x], &BV8[@y]) -> bool[bv_ugt(x, y)])]
+    fn gt(&self, other: &Self) -> bool {
+        self.0 > other.0
+    }
+}
+
+#[trusted]
+impl BV8 {
+    #[sig(fn (u8[@val]) -> BV8[bv_int_to_bv8(val)])]
+    pub const fn new(value: u8) -> BV8 {
+        BV8(value)
+    }
+
+    #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_add(x, y)])]
+    pub fn wrapping_add(self, other: BV8) -> BV8 {
+        BV8(self.0.wrapping_add(other.0))
+    }
+}
+
+impl From<u8> for BV8 {
+    #[trusted]
+    #[sig(fn(u8[@val]) -> BV8[bv_int_to_bv8(val)])]
+    fn from(value: u8) -> BV8 {
+        BV8(value)
+    }
+}
+
+impl Into<u8> for BV8 {
+    #[trusted]
+    #[sig(fn(BV8[@val]) -> u8[bv_bv8_to_int(val)])]
+    fn into(self) -> u8 {
+        self.0
+    }
+}
+
+impl Not for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x]) -> BV8[bv_not(x)])]
+    fn not(self) -> BV8 {
+        BV8(!self.0)
+    }
+}
+
+impl BitAnd for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_and(x, y)])]
+    fn bitand(self, rhs: Self) -> BV8 {
+        BV8(self.0 & rhs.0)
+    }
+}
+
+impl BitOr for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_or(x, y)])]
+    fn bitor(self, rhs: Self) -> BV8 {
+        BV8(self.0 | rhs.0)
+    }
+}
+
+impl Shl for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_shl(x, y)])]
+    fn shl(self, rhs: Self) -> BV8 {
+        BV8(self.0 << rhs.0)
+    }
+}
+
+impl Shr for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_lshr(x, y)])]
+    fn shr(self, rhs: Self) -> BV8 {
+        BV8(self.0 >> rhs.0)
+    }
+}
+
+impl Add for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@val1], BV8[@val2]) -> BV8[bv_add(val1, val2)])]
+    fn add(self, rhs: Self) -> BV8 {
+        BV8(self.0 + rhs.0)
+    }
+}
+
+impl Sub for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@val1], BV8[@val2]) -> BV8[bv_sub(val1, val2)])]
+    fn sub(self, rhs: Self) -> BV8 {
+        BV8(self.0.wrapping_add(!rhs.0))
+    }
+}
+
+impl Rem for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@val1], BV8[@val2]) -> BV8[bv_urem(val1, val2)])]
+    fn rem(self, rhs: Self) -> BV8 {
+        BV8(self.0 & rhs.0)
+    }
+}
+
+#[trusted]
+impl PartialEq for BV8 {
+    #[sig(fn(&BV8[@val1], &BV8[@val2]) -> bool[val1 == val2])]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    #[sig(fn(&BV8[@val1], &BV8[@val2]) -> bool[val1 != val2])]
+    fn ne(&self, other: &Self) -> bool {
+        self.0 != other.0
+    }
+}
+
+impl Eq for BV8 {}
