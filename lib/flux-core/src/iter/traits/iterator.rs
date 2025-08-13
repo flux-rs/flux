@@ -16,7 +16,7 @@ defs! {
 trait Iterator {
     #[spec(
         fn(self: &mut Self[@curr_s]) -> Option<Self::Item>[!<Self as Iterator>::done(curr_s)]
-        ensures self: Self{next_s: 
+        ensures self: Self{next_s:
             (!<Self as Iterator>::done(curr_s) => <Self as Iterator>::step(curr_s, next_s)) &&
             (<Self as Iterator>::done(curr_s) => curr_s == next_s)
         }
