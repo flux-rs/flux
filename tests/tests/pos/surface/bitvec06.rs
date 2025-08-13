@@ -10,7 +10,7 @@ pub fn test_to_bv8(x: u8, y: u8) -> u8 {
     result.into()
 }
 
-#[sig(fn (x:BV8{x == 1}) ensures (bv_shl(x, 2) == 4))]
+#[sig(fn (x:BV8{x == 1}) ensures (bv_shl(x, 3) == 8))]
 pub fn test_shl_a(_x: BV8) {}
 
 #[sig(fn (x:BV8{x == 1}) ensures (x << 2 == 4))]
