@@ -375,16 +375,17 @@ impl Node {
     fn eliminate_bot(&mut self, graph: &Graph) {
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
+                // removes TOP kvars
                 let pred = graph.simplify_pred(pred);
                 self.kind = NodeKind::Head(pred, *tag);
             }
             NodeKind::Assumption(pred) => {
+                // sets assumption to false if it has a BOT kvar; removes TOP kvars
                 let pred = graph.simplify_pred(pred);
                 self.kind = NodeKind::Assumption(pred);
             }
             _ => {}
         }
-        // Then simplify the children
         for child in &self.children {
             child.borrow_mut().eliminate_bot(graph);
         }
@@ -901,7 +902,19 @@ struct Graph {
 }
 
 impl Graph {
-    fn simplify_pred(&self, pred: &Expr) -> Expr {
+    pub fn new(node: &Node) -> Self {
+        let mut graph = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
+        // build the graph from the constraint
+        graph.build(node, &mut vec![]);
+        // compute bot kvars (rules BOT-A and BOT-B)
+        graph.propagate_bot();
+        // compute top kvars (rules TOP-A and TOP-B)
+        graph.propagate_top();
+        // return the graph
+        graph
+    }
+
+    pub fn simplify_pred(&self, pred: &Expr) -> Expr {
         let mut preds = vec![];
         for p in pred.flatten_conjs() {
             if let ExprKind::KVar(kvar) = p.kind()
@@ -922,14 +935,6 @@ impl Graph {
             Some(vinfo) => vinfo.label,
             None => None,
         }
-    }
-
-    pub fn new(node: &Node) -> Self {
-        let mut graph = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
-        graph.build(node, &mut vec![]);
-        graph.propagate_bot();
-        graph.propagate_top();
-        graph
     }
 
     fn build(&mut self, node: &Node, ctx: &mut Vec<VertexId>) {
