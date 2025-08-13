@@ -117,6 +117,10 @@ impl RefineTree {
     pub(crate) fn replace_evars(&mut self, evars: &EVarStore) -> Result<(), EVid> {
         self.root.borrow_mut().replace_evars_ref_tree(evars)
     }
+
+    pub(crate) fn num_nontrivial_head_cstrs(&self) -> usize {
+        self.root.borrow().num_nontrivial_head_cstrs()
+    }
 }
 
 /// A cursor into the [refinement tree]. More specifically, a [`Cursor`] represents a path from the
@@ -647,6 +651,17 @@ impl Node {
         for child in &self.children {
             child.borrow().visit_expr(visit_assumed, visit_head);
         }
+    }
+
+    fn num_nontrivial_head_cstrs(&self) -> usize {
+        let mut count = 0;
+        if let NodeKind::Head(e, t) = &self.kind && !e.is_trivially_true() && !e.is_trivially_false() {
+            count += 1;
+        }
+        for child in &self.children {
+            count += child.borrow().num_nontrivial_head_cstrs();
+        }
+        count
     }
 }
 
