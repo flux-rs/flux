@@ -58,9 +58,11 @@ pub mod fixpoint {
     // }
     //
     #[derive(Hash, Clone)]
+    // TODO: need to have separate encodings for local kvars and "global" kvars
+    // (wkvars)
     pub enum KVar {
         Local(String, KVid),
-        Global(KVid),
+        Global(String, String),
     }
 
     impl Identifier for KVar {
@@ -69,8 +71,8 @@ pub mod fixpoint {
                 KVar::Local(local_prefix, kvid) => {
                     write!(f, "k_{}_{}", local_prefix, kvid.as_u32())
                 }
-                KVar::Global(kvid) => {
-                    write!(f, "k{}", kvid.as_u32())
+                KVar::Global(global_prefix, wkvid) => {
+                    write!(f, "wk_{}_{}", kvid)
                 }
             }
         }
@@ -468,6 +470,7 @@ where
                         rty::ExprKind::KVar(kvar) => kvar.kvid,
                         _ => unreachable!("kvars.fresh() should only ever return a kvar"),
                     };
+                    println!("wkvar {:?} has kvid {:?}", wkvar, kvid);
                     wkvar_ctxt.wkvid_to_kvid.insert(*wkvar, kvid);
                     let decl = kvars.get(kvid);
                     // This is important to ensure that the wkvars all have the same `fixpoint::KVid`
