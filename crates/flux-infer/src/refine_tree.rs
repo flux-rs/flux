@@ -877,9 +877,7 @@ impl Graph {
                 preds.push(p.clone());
             }
         }
-        let res = Expr::and_from_iter(preds);
-        // println!("TRACE: simplify_pred {pred:?} => {res:?}");
-        res
+        Expr::and_from_iter(preds)
     }
 
     fn label(&self, kvid: KVid) -> Option<Label> {
@@ -907,7 +905,7 @@ impl Graph {
                 let mut vertices = vec![];
                 expr_vertices(expr, &mut vertices);
                 for rhs in &vertices {
-                    self.insert_edge(&ctx, *rhs)
+                    self.insert_edge(ctx, *rhs);
                 }
             }
             NodeKind::Assumption(expr) => {
@@ -924,7 +922,7 @@ impl Graph {
             self.build(&child.borrow(), ctx);
         }
 
-        ctx.truncate(n) // restore ctx
+        ctx.truncate(n); // restore ctx
     }
 
     fn propagate_bot(&mut self) {
@@ -953,7 +951,7 @@ impl Graph {
                     if let VertexId::KVar(kvid) = vid
                         && vinfo.in_edges.is_empty()
                     {
-                        candidates.push(kvid)
+                        candidates.push(kvid);
                     }
                 });
             }
@@ -988,7 +986,7 @@ impl Graph {
                     if let VertexId::KVar(kvid) = vid
                         && vinfo.out_edges.is_empty()
                     {
-                        candidates.push(kvid)
+                        candidates.push(kvid);
                     }
                 });
             }
