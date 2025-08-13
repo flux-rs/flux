@@ -814,7 +814,46 @@ impl RefineCtxtTrace {
 }
 
 /* ---------------------------------------------------------------------------------------
- BOT-Elimination.
+BOT-Elimination.
+This is an optimization where we build a graph where
+
+V = KVar or CONC
+E = { v1 --i-> v2 if there is a constraint labeled i where v1 appears as ASSM and v2 as HEAD }
+
+A KVar can be solved to
+
+- BOT (false) if it has in-degree 0 (no constraints where it appears as HEAD)
+- TOP (true) if it has out-degree 0 (no constraints where it appears as ASSM)
+
+We compute these sets i.e. a mapping from KVar |-> {BOT, TOP} by repeatedly applying the
+following rules till fixpoint.
+
+[BOT-A]
+If InEdges(v).is_empty() {
+    label(v) = BOT;         // as no values "flow into" (define) v
+}
+
+[BOT-B]
+If Label(v) = BOT, v ---i--> _ {
+    delete all --i-> edges // as assigning v to False trivially satisfies i-constraint
+}
+
+
+[TOP-A]
+If OutEdges(v).is_empty() {
+    label(v) = TOP;        // as no values "flow out" (use) v
+}
+
+[TOP-B]
+If Label(v) = TOP, _ ---i--> v {
+    delete all ---i-> edges // as assigning v to True trivially satisfies i-constraint
+}
+
+The propagate_bot() method implements rules `BOT-A` and `BOT-B`;
+the propagate_top() method implements rules `TOP-A` and `TOP-B`.
+
+Note that there is no need to again propagate_bot() (after the `propagate_top()`)
+because propagate_top() does not create any new vertices with in-degree 0.
 --------------------------------------------------------------------------------------- */
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -885,14 +924,12 @@ impl Graph {
         }
     }
 
-    // NOTE: There is no need to again propagate_bot() (after the `propagate_top()`)
-    // because propagate_top() does not create any new vertices with in-degree 0.
     pub fn new(node: &Node) -> Self {
-        let mut g = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
-        g.build(node, &mut vec![]);
-        g.propagate_bot();
-        g.propagate_top();
-        g
+        let mut graph = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
+        graph.build(node, &mut vec![]);
+        graph.propagate_bot();
+        graph.propagate_top();
+        graph
     }
 
     fn build(&mut self, node: &Node, ctx: &mut Vec<VertexId>) {
@@ -1046,7 +1083,7 @@ impl Graph {
     }
 }
 
-/// Auxiliary function to merge nested conjunctions in a single predicate
+/// helper function to split an `Expr` into its constituent `VertexId`s
 fn expr_vertices(expr: &Expr, vertices: &mut Vec<VertexId>) {
     match expr.kind() {
         ExprKind::BinaryOp(BinOp::And, e1, e2) => {
