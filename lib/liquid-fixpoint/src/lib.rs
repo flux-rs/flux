@@ -308,6 +308,8 @@ pub enum ThyFunc {
     // BIT VECTORS
     BvZeroExtend(u8),
     BvSignExtend(u8),
+    IntToBv8,
+    Bv8ToInt,
     IntToBv32,
     Bv32ToInt,
     IntToBv64,
@@ -356,8 +358,10 @@ pub enum ThyFunc {
 }
 
 impl ThyFunc {
-    pub const ALL: [ThyFunc; 35] = [
+    pub const ALL: [ThyFunc; 37] = [
         ThyFunc::StrLen,
+        ThyFunc::IntToBv8,
+        ThyFunc::Bv8ToInt,
         ThyFunc::IntToBv32,
         ThyFunc::Bv32ToInt,
         ThyFunc::IntToBv64,
@@ -406,6 +410,8 @@ impl fmt::Display for ThyFunc {
             ThyFunc::BvSignExtend(size) => write!(f, "app (_ sign_extend {size})"),
             ThyFunc::IntToBv32 => write!(f, "int_to_bv32"),
             ThyFunc::Bv32ToInt => write!(f, "bv32_to_int"),
+            ThyFunc::IntToBv8 => write!(f, "int_to_bv8"),
+            ThyFunc::Bv8ToInt => write!(f, "bv8_to_int"),
             ThyFunc::IntToBv64 => write!(f, "int_to_bv64"),
             ThyFunc::Bv64ToInt => write!(f, "bv64_to_int"),
             ThyFunc::BvUle => write!(f, "bvule"),
