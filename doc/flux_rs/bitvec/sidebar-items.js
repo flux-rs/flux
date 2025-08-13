@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["BV32"]};
+window.SIDEBAR_ITEMS = {"struct":["BV32","BV8"]};
