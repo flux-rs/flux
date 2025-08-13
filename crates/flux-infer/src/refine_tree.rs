@@ -12,12 +12,13 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
+        BaseTy, BinOp, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
 use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
@@ -60,6 +61,9 @@ impl RefineTree {
         self.root
             .borrow_mut()
             .simplify(genv, &mut SnapshotMap::default());
+        self.root
+            .borrow_mut()
+            .simplify_bot(genv, &mut SnapshotMap::default());
     }
 
     pub(crate) fn into_fixpoint(
@@ -362,6 +366,32 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
+    fn simplify_bot(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+        let graph = Graph::new(self);
+        self.eliminate_bot(&graph);
+        self.simplify(genv, assumed_preds);
+    }
+
+    fn eliminate_bot(&mut self, graph: &Graph) {
+        match &mut self.kind {
+            NodeKind::Head(pred, tag) => {
+                let pred1 = graph.simplify_pred(pred);
+                // println!("TRACE: simplify HEAD {pred:?} => {pred1:?}");
+                self.kind = NodeKind::Head(pred1, *tag);
+            }
+            NodeKind::Assumption(pred) => {
+                let pred1 = graph.simplify_pred(pred);
+                // println!("TRACE: simplify ASSM {pred:?} => {pred1:?}");
+                self.kind = NodeKind::Assumption(pred1);
+            }
+            _ => {}
+        }
+        // Then simplify the children
+        for child in &self.children {
+            child.borrow_mut().eliminate_bot(graph);
+        }
+    }
+
     fn simplify(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
         // First, simplify the node itself
         match &mut self.kind {
@@ -782,5 +812,253 @@ impl RefineCtxtTrace {
             }
         });
         Self { bindings, exprs }
+    }
+}
+
+/* ---------------------------------------------------------------------------------------
+ BOT-Elimination.
+--------------------------------------------------------------------------------------- */
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Label {
+    /// Kvar can be solved to false
+    Bot,
+    /// Kvar can be solved to true
+    Top,
+}
+
+/// Wrapper type for edge IDs, uniquely generated for each "Head"
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct EdgeId(usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum VertexId {
+    /// KVar
+    KVar(KVid),
+    /// Concrete
+    Conc,
+}
+
+#[derive(Debug)]
+struct EdgeInfo {
+    /// assumptions
+    lhs: Vec<VertexId>,
+    /// head
+    rhs: VertexId,
+}
+
+#[derive(Debug)]
+struct VertexInfo {
+    /// incoming edges i.e. constraints where this vertex appears as the head
+    in_edges: FxHashSet<EdgeId>,
+    /// outgoing edges i.e. constraints where this vertex appears as an assumption
+    out_edges: FxHashSet<EdgeId>,
+    /// whether this vertex can be solved to true or false
+    label: Option<Label>,
+}
+
+#[derive(Debug)]
+struct Graph {
+    vertices: FxHashMap<VertexId, VertexInfo>,
+    edges: FxHashMap<EdgeId, EdgeInfo>,
+}
+
+impl Graph {
+    fn simplify_pred(&self, pred: &Expr) -> Expr {
+        let mut preds = vec![];
+        for p in pred.flatten_conjs() {
+            if let ExprKind::KVar(kvar) = p.kind()
+                && let Some(l) = self.label(kvar.kvid)
+            {
+                if l == Label::Bot {
+                    return Expr::ff();
+                }
+            } else {
+                preds.push(p.clone());
+            }
+        }
+        let res = Expr::and_from_iter(preds);
+        // println!("TRACE: simplify_pred {pred:?} => {res:?}");
+        res
+    }
+
+    fn label(&self, kvid: KVid) -> Option<Label> {
+        match self.vertices.get(&VertexId::KVar(kvid)) {
+            Some(vinfo) => vinfo.label,
+            None => None,
+        }
+    }
+
+    pub fn new(node: &Node) -> Self {
+        let mut g = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
+        g.build(node, &mut vec![]);
+        // println!("TRACE: graph::new (0) ==> {g:#?}");
+        g.propagate_bot();
+        // println!("TRACE: graph::new (1) ==> {g:#?}");
+        g.propagate_top();
+        // println!("TRACE: graph::new (2) ==> {g:#?}");
+        g
+    }
+
+    fn build(&mut self, node: &Node, ctx: &mut Vec<VertexId>) {
+        let n = ctx.len();
+        match &node.kind {
+            NodeKind::Head(expr, _) => {
+                let mut vertices = vec![];
+                expr_vertices(expr, &mut vertices);
+                for rhs in &vertices {
+                    self.insert_edge(&ctx, *rhs)
+                }
+            }
+            NodeKind::Assumption(expr) => {
+                let mut vertices = vec![];
+                expr_vertices(expr, &mut vertices);
+                for v in &vertices {
+                    ctx.push(*v);
+                }
+            }
+            _ => {}
+        };
+
+        for child in &node.children {
+            self.build(&child.borrow(), ctx);
+        }
+
+        ctx.truncate(n) // restore ctx
+    }
+
+    fn propagate_bot(&mut self) {
+        // initialize candidates with vertices of in-degree 0
+        let mut candidates: Vec<KVid> = self
+            .vertices
+            .iter()
+            .filter_map(|(vid, vinfo)| {
+                if let VertexId::KVar(kvid) = vid
+                    && vinfo.in_edges.is_empty()
+                {
+                    Some(*kvid)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        // delete out-edges from candidates, until fixpoint
+        while let Some(kvid) = candidates.pop() {
+            let Some(vinfo) = self.vertices.get_mut(&VertexId::KVar(kvid)) else {
+                panic!("missing vinfo for {kvid:?}");
+            };
+            vinfo.label = Some(Label::Bot);
+            for eid in &vinfo.out_edges.clone() {
+                self.delete_edge(*eid, |(vid, vinfo)| {
+                    if let VertexId::KVar(kvid) = vid
+                        && vinfo.in_edges.is_empty()
+                    {
+                        candidates.push(kvid)
+                    }
+                });
+            }
+        }
+    }
+
+    fn propagate_top(&mut self) {
+        // initialize candidates with vertices of out-degree 0
+        let mut candidates: Vec<KVid> = self
+            .vertices
+            .iter()
+            .filter_map(|(vid, vinfo)| {
+                if let VertexId::KVar(kvid) = vid
+                    && vinfo.out_edges.is_empty()
+                {
+                    Some(*kvid)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        // delete in-edges from candidates, until fixpoint
+        while let Some(kvid) = candidates.pop() {
+            let Some(vinfo) = self.vertices.get_mut(&VertexId::KVar(kvid)) else {
+                panic!("missing vinfo for {kvid:?}");
+            };
+            if vinfo.label.is_none() {
+                vinfo.label = Some(Label::Top);
+            }
+            for eid in vinfo.in_edges.clone() {
+                self.delete_edge(eid, |(vid, vinfo)| {
+                    if let VertexId::KVar(kvid) = vid
+                        && vinfo.out_edges.is_empty()
+                    {
+                        candidates.push(kvid)
+                    }
+                });
+            }
+        }
+    }
+
+    fn delete_edge(
+        &mut self,
+        eid: EdgeId,
+        mut candidates: impl FnMut((VertexId, &mut VertexInfo)),
+    ) {
+        let Some(edge_info) = self.edges.remove(&eid) else {
+            panic!("missing edge info for {eid:?}");
+        };
+        for lhs_vid in edge_info.lhs {
+            let Some(lhs_vinfo) = self.vertices.get_mut(&lhs_vid) else {
+                panic!("missing vinfo for {lhs_vid:?}");
+            };
+            lhs_vinfo.out_edges.remove(&eid);
+            candidates((lhs_vid, lhs_vinfo));
+        }
+        let rhs_vid = edge_info.rhs;
+        let Some(rhs_vinfo) = self.vertices.get_mut(&rhs_vid) else {
+            panic!("missing vinfo for {rhs_vid:?}");
+        };
+        rhs_vinfo.in_edges.remove(&eid);
+        candidates((rhs_vid, rhs_vinfo));
+    }
+
+    fn insert_edge(&mut self, lhs: &[VertexId], rhs: VertexId) {
+        let edge_id = EdgeId(self.edges.len());
+
+        // Create edge info
+        let edge_info = EdgeInfo { lhs: lhs.to_vec(), rhs };
+
+        // Insert the edge
+        self.edges.insert(edge_id, edge_info);
+
+        // Update out_edges for all lhs vertices
+        for &lhs_vid in lhs {
+            let lhs_vinfo = self.vertices.entry(lhs_vid).or_insert_with(|| {
+                VertexInfo {
+                    in_edges: FxHashSet::default(),
+                    out_edges: FxHashSet::default(),
+                    label: None,
+                }
+            });
+            lhs_vinfo.out_edges.insert(edge_id);
+        }
+
+        // Update in_edges for rhs vertex
+        let rhs_vinfo = self.vertices.entry(rhs).or_insert_with(|| {
+            VertexInfo {
+                in_edges: FxHashSet::default(),
+                out_edges: FxHashSet::default(),
+                label: None,
+            }
+        });
+        rhs_vinfo.in_edges.insert(edge_id);
+    }
+}
+
+/// Auxiliary function to merge nested conjunctions in a single predicate
+fn expr_vertices(expr: &Expr, vertices: &mut Vec<VertexId>) {
+    match expr.kind() {
+        ExprKind::BinaryOp(BinOp::And, e1, e2) => {
+            expr_vertices(e1, vertices);
+            expr_vertices(e2, vertices);
+        }
+        ExprKind::KVar(kvar) => vertices.push(VertexId::KVar(kvar.kvid)),
+        _ => vertices.push(VertexId::Conc),
     }
 }
