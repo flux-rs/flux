@@ -211,6 +211,11 @@ impl<'a> ProductEtaExpander<'a> {
 pub struct WKVarSolutions {
     /// Each Expr is part of a conjunction of the solution.
     pub solutions: HashMap<rty::WKVid, WKVarSolution>,
+    pub num_nontrivial_head_cstrs: usize,
+    /// Count of all wkvars
+    pub num_wkvars: usize,
+    /// Count of wkvars that could be kvars
+    pub num_internal_wkvars: usize,
 }
 
 /// NOTE: we expect that the binders for `solved_exprs` and `assumed_exprs` are
@@ -413,8 +418,13 @@ impl WKVarSolutionStats {
 }
 
 impl WKVarSolutions {
-    pub fn new() -> Self {
-        Self { solutions: HashMap::new() }
+    pub fn new(num_nontrivial_head_cstrs: usize, num_wkvars: usize, num_internal_wkvars: usize) -> Self {
+        Self {
+               solutions: HashMap::new(),
+               num_nontrivial_head_cstrs,
+               num_wkvars,
+               num_internal_wkvars,
+        }
     }
 
     pub fn write_summary_file(&self, genv: GlobalEnv, path: &std::path::PathBuf) -> std::io::Result<()> {
@@ -448,6 +458,7 @@ impl WKVarSolutions {
 
         let mut writer = csv::Writer::from_path(path.as_path())?;
         let mut total = WKVarSolutionStats::default();
+        let num_fns = stats_by_fn.len();
         stats_by_fn.into_iter().try_for_each(|(fn_name, stats)| {
             total = total.combine(&stats);
             let row = CsvRow {
@@ -464,11 +475,26 @@ impl WKVarSolutions {
             println!("  num actual:  {}", row.num_actual_exprs);
             writer.serialize(row)
         });
-        println!("TOTAL");
-        println!("  num solved:  {}", total.num_solved_exprs);
-        println!("  num assumed: {}", total.num_assumed_exprs);
-        println!("  num removed: {}", total.num_removed_solved_exprs);
-        println!("  num actual:  {}", total.num_actual_exprs);
+        println!("SUMMARY");
+        println!("  num fns:                    {}", num_fns);
+        println!("  num total wkvars:           {}", self.num_wkvars);
+        println!("    num internal wkvars:      {}", self.num_internal_wkvars);
+        println!("    num true wkvars:          {}", self.num_wkvars - self.num_internal_wkvars);
+        println!("  num nontrivial head cstrs:  {}", self.num_nontrivial_head_cstrs);
+        println!("  num solved exprs:           {}", total.num_solved_exprs);
+        println!("  num assumed exprs:          {}", total.num_assumed_exprs);
+        println!("  num removed exprs:          {}", total.num_removed_solved_exprs);
+        println!("  num actual exprs:           {}", total.num_actual_exprs);
+        println!("Copy/pastable entry:");
+        println!("{}", [num_fns,
+                 self.num_wkvars,
+                 self.num_internal_wkvars,
+                 self.num_wkvars - self.num_internal_wkvars,
+                 self.num_nontrivial_head_cstrs,
+                 total.num_solved_exprs,
+                 total.num_assumed_exprs,
+                 total.num_removed_solved_exprs,
+                        total.num_actual_exprs].iter().map(|n| format!("{}", n)).join("\t"));
         let total_row = CsvRow {
             fn_name: "TOTAL".to_string(),
             num_solved_exprs: total.num_solved_exprs,
@@ -477,7 +503,9 @@ impl WKVarSolutions {
             num_actual_exprs: total.num_actual_exprs,
         };
         writer.serialize(total_row)?;
-        writer.flush()
+        writer.flush()?;
+
+        Ok(())
     }
 
 }
@@ -500,16 +528,22 @@ pub fn iterative_solve(
 ) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>)> {
     let mut constraint_lhs_wkvars: FxHashMap<LocalDefId, FxHashSet<rty::WKVid>> = FxHashMap::default();
     let mut constraint_rhs_wkvars: FxHashMap<LocalDefId, FxHashSet<rty::WKVid>> = FxHashMap::default();
+    let mut num_nontrivial_head_cstrs = 0;
     for cstr in &cstrs {
         let id = cstr.def_id.expect_local();
         let (lhs_wkvars, rhs_wkvars) = cstr.refine_tree.wkvars();
+        num_nontrivial_head_cstrs += cstr.refine_tree.num_nontrivial_head_cstrs();
         // println!("all LHS wkvars for {:?}: {:?}", id, lhs_wkvars.iter().collect_vec());
         // println!("all RHS wkvars for {:?}: {:?}", id, rhs_wkvars.iter().collect_vec());
         constraint_rhs_wkvars.insert(id, rhs_wkvars.into_iter().collect());
         constraint_lhs_wkvars.insert(id, lhs_wkvars.into_iter().collect());
     }
+    let lhs_wkvars: FxHashSet<rty::WKVid> = constraint_lhs_wkvars.values().flatten().cloned().collect();
+    let rhs_wkvars: FxHashSet<rty::WKVid> = constraint_rhs_wkvars.values().flatten().cloned().collect();
+    let num_wkvars = lhs_wkvars.union(&rhs_wkvars).count();
+    let num_internal_wkvars = rhs_wkvars.len();
+    let mut solutions = WKVarSolutions::new(num_nontrivial_head_cstrs, num_wkvars, num_internal_wkvars);
     let mut any_wkvar_change = true;
-    let mut solutions = WKVarSolutions::new();
     let mut i = 1;
     let mut all_errors = Vec::new();
     while any_wkvar_change && i <= max_iters {
