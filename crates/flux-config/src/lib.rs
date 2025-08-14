@@ -157,7 +157,7 @@ impl fmt::Display for IncludePattern {
         Ok(())
     }
 }
-/// This specifies which [`DefId`] should be checked. It can be specified via multiple patterns
+/// This specifies which `DefId` should be checked. It can be specified via multiple patterns
 /// of the form `-Finclude=<pattern>` and the `DefId` is checked if it matches *any* of the patterns.
 /// Patterns are checked relative to the current working directory.
 #[derive(Clone, Debug)]
