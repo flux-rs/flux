@@ -64,6 +64,9 @@ impl RefineTree {
         self.root
             .borrow_mut()
             .simplify_bot(genv, &mut SnapshotMap::default());
+        self.root
+            .borrow_mut()
+            .simplify_top(genv, &mut SnapshotMap::default());
     }
 
     pub(crate) fn into_fixpoint(
@@ -366,31 +369,6 @@ impl std::ops::Deref for NodePtr {
 }
 
 impl Node {
-    fn simplify_bot(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
-        let graph = Graph::new(self);
-        self.eliminate_bot(&graph);
-        self.simplify(genv, assumed_preds);
-    }
-
-    fn eliminate_bot(&mut self, graph: &Graph) {
-        match &mut self.kind {
-            NodeKind::Head(pred, tag) => {
-                // removes TOP kvars
-                let pred = graph.simplify_pred(pred);
-                self.kind = NodeKind::Head(pred, *tag);
-            }
-            NodeKind::Assumption(pred) => {
-                // sets assumption to false if it has a BOT kvar; removes TOP kvars
-                let pred = graph.simplify_pred(pred);
-                self.kind = NodeKind::Assumption(pred);
-            }
-            _ => {}
-        }
-        for child in &self.children {
-            child.borrow_mut().eliminate_bot(graph);
-        }
-    }
-
     fn simplify(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
         // First, simplify the node itself
         match &mut self.kind {
@@ -815,129 +793,200 @@ impl RefineCtxtTrace {
 }
 
 /* ---------------------------------------------------------------------------------------
-BOT-Elimination.
-This is an optimization where we build a graph where
+ BOT elimination
 
-V = KVar or CONC
-E = { v1 --i-> v2 if there is a constraint labeled i where v1 appears as ASSM and v2 as HEAD }
+ Build a graph G = (V, E) where
 
-A KVar can be solved to
+     V = KVar or CONC
+     E = { v1 ---> v2 if there is a constraint where v1 appears as ASSM and v2 as HEAD }
 
-- BOT (false) if it has in-degree 0 (no constraints where it appears as HEAD)
-- TOP (true) if it has out-degree 0 (no constraints where it appears as ASSM)
+ let Post*(CONC) = {k | CONC -->* k in G}
 
-We compute these sets i.e. a mapping from KVar |-> {BOT, TOP} by repeatedly applying the
-following rules till fixpoint.
-
-[BOT-A]
-If InEdges(v).is_empty() {
-    label(v) = BOT;         // as no values "flow into" (define) v
-}
-
-[BOT-B]
-If Label(v) = BOT, v ---i--> _ {
-    delete all --i-> edges // as assigning v to False trivially satisfies i-constraint
-}
-
-
-[TOP-A]
-If OutEdges(v).is_empty() {
-    label(v) = TOP;        // as no values "flow out" (use) v
-}
-
-[TOP-B]
-If Label(v) = TOP, _ ---i--> v {
-    delete all ---i-> edges // as assigning v to True trivially satisfies i-constraint
-}
-
-The propagate_bot() method implements rules `BOT-A` and `BOT-B`;
-the propagate_top() method implements rules `TOP-A` and `TOP-B`.
-
-Note that there is no need to again propagate_bot() (after the `propagate_top()`)
-because propagate_top() does not create any new vertices with in-degree 0.
+ forall each k not-in Post*(CONC)
+     set k to FALSE;
+     delete constraints where k appears as ASSM
 --------------------------------------------------------------------------------------- */
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Label {
-    /// Kvar can be solved to false
-    Bot,
-    /// Kvar can be solved to true
-    Top,
-}
+/* ---------------------------------------------------------------------------------------
+ TOP elimination
 
-/// Wrapper type for edge IDs, uniquely generated for each "Head"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct EdgeId(usize);
+ Build a graph G = (V, E) where
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum VertexId {
-    /// KVar
-    KVar(KVid),
-    /// Concrete
-    Conc,
-}
+     V = KVar or CONC
+     E = { v1 ---> v2 if there is a constraint where v1 appears as ASSM and v2 as HEAD }
 
-#[derive(Debug)]
-struct EdgeInfo {
-    /// assumptions
-    lhs: Vec<VertexId>,
-    /// head
-    rhs: VertexId,
-}
+ let Pre*(CONC) = {k | k -->* CONC in G}
 
-#[derive(Debug)]
-struct VertexInfo {
-    /// incoming edges i.e. constraints where this vertex appears as the head
-    in_edges: FxHashSet<EdgeId>,
-    /// outgoing edges i.e. constraints where this vertex appears as an assumption
-    out_edges: FxHashSet<EdgeId>,
-    /// whether this vertex can be solved to true or false
-    label: Option<Label>,
+ forall each k not-in Pre*(CONC)
+     set k to TRUE
+--------------------------------------------------------------------------------------- */
+
+impl Node {
+    /// replace bot-kvars with false
+    fn simplify_bot(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+        let graph = Graph::new(self);
+        let bots = self.bot_kvars(graph);
+        self.simplify_with_assignment(&bots);
+        // prune
+        self.simplify(genv, assumed_preds);
+    }
+
+    /// replace top-kvars with true
+    fn simplify_top(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+        let graph = Graph::new(self);
+        let tops = self.top_kvars(graph);
+        self.simplify_with_assignment(&tops);
+        // prune
+        self.simplify(genv, assumed_preds);
+    }
+
+    /// simplifies assm and head using the TOP/BOT kvar assignment; follow
+    /// with a call to `simplify` to delete constraints with FALSE assm.
+    fn simplify_with_assignment(&mut self, assignment: &Assignment) {
+        match &mut self.kind {
+            NodeKind::Head(pred, tag) => {
+                let pred = assignment.simplify(pred);
+                self.kind = NodeKind::Head(pred, *tag);
+            }
+            NodeKind::Assumption(pred) => {
+                let pred = assignment.simplify(pred);
+                self.kind = NodeKind::Assumption(pred);
+            }
+            _ => {}
+        }
+        for child in &self.children {
+            child.borrow_mut().simplify_with_assignment(assignment);
+        }
+    }
+
+    /// Computes the set of all kvars that can be assigned to Bot (False),
+    /// because they are not (transitively) reachable from any concrete ASSUMPTION.
+    fn bot_kvars(&self, graph: Graph) -> Assignment {
+        // set of BOT kvars (initially, all)
+        let mut assignment = Assignment::new(graph.kvars(), Label::Bot);
+
+        // set of BOT kvars in LHS of each constraint with KVar HEAD
+        let mut bot_assms: FxHashMap<CstrId, FxHashSet<KVid>> = graph
+            .edges
+            .iter()
+            .filter_map(|(cid, info)| {
+                if matches!(info.rhs, VertexId::KVar(_)) {
+                    Some((*cid, info.lhs.clone()))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // set of constraints `cid` whose bot-assms is empty
+        let mut candidates: Vec<CstrId> = bot_assms
+            .iter()
+            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(*cid) } else { None })
+            .collect();
+
+        // while there is a candidate constraint, that has NO BOT kvars in lhs
+        while let Some(cid) = candidates.pop() {
+            if let VertexId::KVar(kvid) = graph.head(cid) {
+                // un-BOT the head kvar
+                assignment.remove(kvid);
+                // remove the head kvar from all (bot) assumptions where it currently occurs
+                for cid in graph.cstrs_with_kvar_in_lhs(&kvid) {
+                    // if cid HEAD is a kvar
+                    if let VertexId::KVar(rhs_kvid) = graph.head(cid) {
+                        let Some(assms) = bot_assms.get_mut(&cid) else {
+                            tracked_span_bug!("missing constraint info for {:?}", cid);
+                        };
+                        assms.remove(&kvid);
+                        if assignment.contains(rhs_kvid) && assms.is_empty() {
+                            candidates.push(cid)
+                        }
+                    };
+                }
+            }
+        }
+
+        assignment
+    }
+
+    /// Computes the set of all kvars that can be assigned to Top (True),
+    /// because they do not (transitively) reach any concrete HEAD.
+    fn top_kvars(&self, graph: Graph) -> Assignment {
+        // initialize
+        let mut assignment = Assignment::new(graph.kvars(), Label::Top);
+
+        // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
+        let mut candidates = vec![];
+        for (_, info) in &graph.edges {
+            if matches!(info.rhs, VertexId::Conc) {
+                for kvid in &info.lhs {
+                    candidates.push(*kvid);
+                }
+            }
+        }
+
+        // set each kvar that transitively reaches a concrete HEAD to NON-BOT
+        while let Some(kvid) = candidates.pop() {
+            // set that kvar to non-top
+            assignment.remove(kvid);
+
+            // for each constraint where kvid appears as head
+            for cid in graph.kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
+                let info = graph
+                    .edges
+                    .get(cid)
+                    .unwrap_or_else(|| tracked_span_bug!("missing constraint info for {:?}", cid));
+                // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
+                for lhs_kvid in &info.lhs {
+                    if assignment.contains(*lhs_kvid) {
+                        candidates.push(*lhs_kvid);
+                    }
+                }
+            }
+        }
+
+        assignment
+    }
 }
 
 #[derive(Debug)]
 struct Graph {
-    vertices: FxHashMap<VertexId, VertexInfo>,
-    edges: FxHashMap<EdgeId, EdgeInfo>,
+    /// description of each constraint
+    edges: FxHashMap<CstrId, CstrInfo>,
+    /// set of edges where kvid appears as ASSM
+    kv_lhs: FxHashMap<KVid, FxHashSet<CstrId>>,
+    /// set of edges where kvid appears as HEAD
+    kv_rhs: FxHashMap<KVid, FxHashSet<CstrId>>,
 }
 
 impl Graph {
-    pub fn new(node: &Node) -> Self {
-        let mut graph = Self { vertices: FxHashMap::default(), edges: FxHashMap::default() };
-        // build the graph from the constraint
+    fn new(node: &Node) -> Self {
+        let mut graph = Self {
+            edges: FxHashMap::default(),
+            kv_lhs: FxHashMap::default(),
+            kv_rhs: FxHashMap::default(),
+        };
         graph.build(node, &mut vec![]);
-        // compute bot kvars (rules BOT-A and BOT-B)
-        graph.propagate_bot();
-        // compute top kvars (rules TOP-A and TOP-B)
-        graph.propagate_top();
-        // return the graph
         graph
     }
 
-    pub fn simplify_pred(&self, pred: &Expr) -> Expr {
-        let mut preds = vec![];
-        for p in pred.flatten_conjs() {
-            if let ExprKind::KVar(kvar) = p.kind()
-                && let Some(l) = self.label(kvar.kvid)
-            {
-                if l == Label::Bot {
-                    return Expr::ff();
-                }
-            } else {
-                preds.push(p.clone());
-            }
-        }
-        Expr::and_from_iter(preds)
+    fn head(&self, cid: CstrId) -> VertexId {
+        let info = self
+            .edges
+            .get(&cid)
+            .unwrap_or_else(|| tracked_span_bug!("missing constraint info for {:?}", cid));
+        info.rhs
     }
 
-    fn label(&self, kvid: KVid) -> Option<Label> {
-        match self.vertices.get(&VertexId::KVar(kvid)) {
-            Some(vinfo) => vinfo.label,
-            None => None,
-        }
+    fn cstrs_with_kvar_in_lhs(&self, kvid: &KVid) -> Vec<CstrId> {
+        self.kv_lhs
+            .get(kvid)
+            .unwrap_or(&FxHashSet::default())
+            .iter()
+            .copied()
+            .collect()
     }
 
-    fn build(&mut self, node: &Node, ctx: &mut Vec<VertexId>) {
+    fn build(&mut self, node: &Node, ctx: &mut Vec<KVid>) {
         let n = ctx.len();
         match &node.kind {
             NodeKind::Head(expr, _) => {
@@ -951,7 +1000,9 @@ impl Graph {
                 let mut vertices = vec![];
                 expr_vertices(expr, &mut vertices);
                 for v in &vertices {
-                    ctx.push(*v);
+                    if let VertexId::KVar(kvid) = v {
+                        ctx.push(*kvid);
+                    }
                 }
             }
             _ => {}
@@ -964,127 +1015,30 @@ impl Graph {
         ctx.truncate(n); // restore ctx
     }
 
-    fn propagate_bot(&mut self) {
-        // initialize candidates with vertices of in-degree 0
-        let mut candidates: Vec<KVid> = self
-            .vertices
-            .iter()
-            .filter_map(|(vid, vinfo)| {
-                if let VertexId::KVar(kvid) = vid
-                    && vinfo.in_edges.is_empty()
-                {
-                    Some(*kvid)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        // delete out-edges from candidates, until fixpoint
-        while let Some(kvid) = candidates.pop() {
-            let Some(vinfo) = self.vertices.get_mut(&VertexId::KVar(kvid)) else {
-                panic!("missing vinfo for {kvid:?}");
-            };
-            vinfo.label = Some(Label::Bot);
-            for eid in &vinfo.out_edges.clone() {
-                self.delete_edge(*eid, |(vid, vinfo)| {
-                    if let VertexId::KVar(kvid) = vid
-                        && vinfo.in_edges.is_empty()
-                    {
-                        candidates.push(kvid);
-                    }
-                });
-            }
-        }
-    }
+    fn insert_edge(&mut self, lhs: &[KVid], rhs: VertexId) {
+        let edge_id = CstrId(self.edges.len());
 
-    fn propagate_top(&mut self) {
-        // initialize candidates with vertices of out-degree 0
-        let mut candidates: Vec<KVid> = self
-            .vertices
-            .iter()
-            .filter_map(|(vid, vinfo)| {
-                if let VertexId::KVar(kvid) = vid
-                    && vinfo.out_edges.is_empty()
-                {
-                    Some(*kvid)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        // delete in-edges from candidates, until fixpoint
-        while let Some(kvid) = candidates.pop() {
-            let Some(vinfo) = self.vertices.get_mut(&VertexId::KVar(kvid)) else {
-                panic!("missing vinfo for {kvid:?}");
-            };
-            if vinfo.label.is_none() {
-                vinfo.label = Some(Label::Top);
-            }
-            for eid in vinfo.in_edges.clone() {
-                self.delete_edge(eid, |(vid, vinfo)| {
-                    if let VertexId::KVar(kvid) = vid
-                        && vinfo.out_edges.is_empty()
-                    {
-                        candidates.push(kvid);
-                    }
-                });
-            }
-        }
-    }
-
-    fn delete_edge(
-        &mut self,
-        eid: EdgeId,
-        mut candidates: impl FnMut((VertexId, &mut VertexInfo)),
-    ) {
-        let Some(edge_info) = self.edges.remove(&eid) else {
-            panic!("missing edge info for {eid:?}");
-        };
-        for lhs_vid in edge_info.lhs {
-            let Some(lhs_vinfo) = self.vertices.get_mut(&lhs_vid) else {
-                panic!("missing vinfo for {lhs_vid:?}");
-            };
-            lhs_vinfo.out_edges.remove(&eid);
-            candidates((lhs_vid, lhs_vinfo));
-        }
-        let rhs_vid = edge_info.rhs;
-        let Some(rhs_vinfo) = self.vertices.get_mut(&rhs_vid) else {
-            panic!("missing vinfo for {rhs_vid:?}");
-        };
-        rhs_vinfo.in_edges.remove(&eid);
-        candidates((rhs_vid, rhs_vinfo));
-    }
-
-    fn insert_edge(&mut self, lhs: &[VertexId], rhs: VertexId) {
-        let edge_id = EdgeId(self.edges.len());
-
-        // Create edge info
-        let edge_info = EdgeInfo { lhs: lhs.to_vec(), rhs };
-
-        // Insert the edge
+        // Create and insert edge
+        let edge_info = CstrInfo { lhs: lhs.iter().cloned().collect(), rhs };
         self.edges.insert(edge_id, edge_info);
 
-        // Update out_edges for all lhs vertices
-        for &lhs_vid in lhs {
-            let lhs_vinfo = self.vertices.entry(lhs_vid).or_insert_with(|| {
-                VertexInfo {
-                    in_edges: FxHashSet::default(),
-                    out_edges: FxHashSet::default(),
-                    label: None,
-                }
-            });
-            lhs_vinfo.out_edges.insert(edge_id);
+        // Add edge_id to kv_lhs for each kvar in lhs
+        for kvid in lhs {
+            self.kv_lhs.entry(*kvid).or_default().insert(edge_id);
         }
+        // Add edge_id to kv_rhs for rhs kvar
+        if let VertexId::KVar(kvid) = rhs {
+            self.kv_rhs.entry(kvid).or_default().insert(edge_id);
+        }
+    }
 
-        // Update in_edges for rhs vertex
-        let rhs_vinfo = self.vertices.entry(rhs).or_insert_with(|| {
-            VertexInfo {
-                in_edges: FxHashSet::default(),
-                out_edges: FxHashSet::default(),
-                label: None,
-            }
-        });
-        rhs_vinfo.in_edges.insert(edge_id);
+    fn kvars(&self) -> impl Iterator<Item = KVid> + '_ {
+        self.kv_lhs
+            .keys()
+            .chain(self.kv_rhs.keys())
+            .copied()
+            .collect::<FxHashSet<_>>()
+            .into_iter()
     }
 }
 
@@ -1097,5 +1051,68 @@ fn expr_vertices(expr: &Expr, vertices: &mut Vec<VertexId>) {
         }
         ExprKind::KVar(kvar) => vertices.push(VertexId::KVar(kvar.kvid)),
         _ => vertices.push(VertexId::Conc),
+    }
+}
+/// Wrapper type for edge IDs, uniquely generated for each "Head"
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct CstrId(usize);
+
+#[derive(Debug)]
+struct CstrInfo {
+    /// assumptions
+    lhs: FxHashSet<KVid>,
+    /// head
+    rhs: VertexId,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum VertexId {
+    /// KVar
+    KVar(KVid),
+    /// Concrete
+    Conc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Label {
+    /// Kvar can be solved to false
+    Bot,
+    /// Kvar can be solved to true
+    Top,
+}
+
+struct Assignment {
+    inner: FxHashMap<KVid, Label>,
+}
+
+impl Assignment {
+    fn new(kvars: impl Iterator<Item = KVid>, label: Label) -> Self {
+        let inner = kvars.map(|kvid| (kvid, label)).collect();
+        Self { inner }
+    }
+
+    fn contains(&self, kvid: KVid) -> bool {
+        self.inner.contains_key(&kvid)
+    }
+
+    fn remove(&mut self, kvid: KVid) {
+        self.inner.remove(&kvid);
+    }
+
+    /// simplifies the given predicate expression by replacing
+    /// kvid assigned to TOP with True, BOT with false.
+    fn simplify(&self, pred: &Expr) -> Expr {
+        let mut preds = vec![];
+        for p in pred.flatten_conjs() {
+            if let ExprKind::KVar(kvar) = p.kind()
+                && let Some(l) = self.inner.get(&kvar.kvid)
+            {
+                if *l == Label::Bot {
+                    return Expr::ff();
+                }
+            } else {
+                preds.push(p.clone());
+            }
+        }
+        Expr::and_from_iter(preds)
     }
 }
