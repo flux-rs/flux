@@ -122,8 +122,7 @@ jobs:
           cd rust
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "git_log<<$EOF" >> $GITHUB_ENV
-          git log --oneline --ancestry-path $prev_toolchain_hash..$last_toolchain_hash | \
-              sed 's#^#https://github.com/rust-lang/rust/commit/#' >> $GITHUB_ENV
+          ../flux/.github/scripts/extract-rust-git-log.sh $prev_toolchain_hash $last_toolchain_hash >> $GITHUB_ENV
           echo "$EOF" >> $GITHUB_ENV
 
       - name: Create pull request on failure
