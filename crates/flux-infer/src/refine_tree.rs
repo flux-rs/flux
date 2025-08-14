@@ -19,6 +19,7 @@ use flux_middle::{
 use itertools::Itertools;
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
@@ -866,22 +867,31 @@ impl Node {
         let mut assignment = Assignment::new(graph.kvars(), Label::Bot);
 
         // set of BOT kvars in LHS of each constraint with KVar HEAD
-        let mut bot_assms: FxHashMap<CstrId, FxHashSet<KVid>> = graph
-            .edges
-            .iter()
-            .filter_map(|(cid, info)| {
-                if matches!(info.rhs, VertexId::KVar(_)) {
-                    Some((*cid, info.lhs.clone()))
+        let mut bot_assms: IndexVec<CstrId, Option<FxHashSet<KVid>>> =
+            graph
+                .edges
+                .iter()
+                .map(|info| {
+                    if matches!(info.rhs, VertexId::KVar(_)) {
+                        Some(info.lhs.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+        // set of constraints `cid` whose bot-assms is empty
+        let mut candidates: Vec<CstrId> = bot_assms
+            .iter_enumerated()
+            .filter_map(|(cid, lhs)| {
+                if let Some(lhs) = lhs
+                    && lhs.is_empty()
+                {
+                    Some(cid)
                 } else {
                     None
                 }
             })
-            .collect();
-
-        // set of constraints `cid` whose bot-assms is empty
-        let mut candidates: Vec<CstrId> = bot_assms
-            .iter()
-            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(*cid) } else { None })
             .collect();
 
         // while there is a candidate constraint, that has NO BOT kvars in lhs
@@ -893,7 +903,7 @@ impl Node {
                 for cid in graph.cstrs_with_kvar_as_assumption(&kvid) {
                     // if cid HEAD is a kvar
                     if let VertexId::KVar(rhs_kvid) = graph.head(cid) {
-                        let Some(assms) = bot_assms.get_mut(&cid) else {
+                        let Some(ref mut assms) = bot_assms[cid] else {
                             tracked_span_bug!("missing constraint info for {:?}", cid);
                         };
                         assms.remove(&kvid);
@@ -916,7 +926,7 @@ impl Node {
 
         // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
         let mut candidates = vec![];
-        for info in graph.edges.values() {
+        for info in &graph.edges {
             if matches!(info.rhs, VertexId::Conc) {
                 for kvid in &info.lhs {
                     candidates.push(*kvid);
@@ -931,10 +941,7 @@ impl Node {
 
             // for each constraint where kvid appears as head
             for cid in graph.kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
-                let info = graph
-                    .edges
-                    .get(cid)
-                    .unwrap_or_else(|| tracked_span_bug!("missing constraint info for {:?}", cid));
+                let info = &graph.edges[*cid];
                 // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
                 for lhs_kvid in &info.lhs {
                     if assignment.contains(*lhs_kvid) {
@@ -951,7 +958,7 @@ impl Node {
 #[derive(Debug)]
 struct Graph {
     /// description of each constraint
-    edges: FxHashMap<CstrId, CstrInfo>,
+    edges: IndexVec<CstrId, CstrInfo>,
     /// set of edges where kvid appears as ASSM
     kv_lhs: FxHashMap<KVid, FxHashSet<CstrId>>,
     /// set of edges where kvid appears as HEAD
@@ -961,19 +968,17 @@ struct Graph {
 impl Graph {
     fn new(node: &Node) -> Self {
         let mut graph = Self {
-            edges: FxHashMap::default(),
+            edges: IndexVec::default(),
             kv_lhs: FxHashMap::default(),
             kv_rhs: FxHashMap::default(),
         };
         graph.build(node, &mut vec![]);
+
         graph
     }
 
     fn head(&self, cid: CstrId) -> VertexId {
-        let info = self
-            .edges
-            .get(&cid)
-            .unwrap_or_else(|| tracked_span_bug!("missing constraint info for {:?}", cid));
+        let info = &self.edges[cid];
         info.rhs
     }
 
@@ -993,7 +998,7 @@ impl Graph {
                 let mut vertices = vec![];
                 expr_vertices(expr, &mut vertices);
                 for rhs in &vertices {
-                    self.insert_edge(ctx, *rhs);
+                    self.insert_edge(ctx, *rhs)
                 }
             }
             NodeKind::Assumption(expr) => {
@@ -1016,11 +1021,9 @@ impl Graph {
     }
 
     fn insert_edge(&mut self, lhs: &[KVid], rhs: VertexId) {
-        let edge_id = CstrId(self.edges.len());
-
         // Create and insert edge
         let edge_info = CstrInfo { lhs: lhs.iter().copied().collect(), rhs };
-        self.edges.insert(edge_id, edge_info);
+        let edge_id = self.edges.push(edge_info);
 
         // Add edge_id to kv_lhs for each kvar in lhs
         for kvid in lhs {
@@ -1053,9 +1056,9 @@ fn expr_vertices(expr: &Expr, vertices: &mut Vec<VertexId>) {
         _ => vertices.push(VertexId::Conc),
     }
 }
-/// Wrapper type for edge IDs, uniquely generated for each "Head"
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct CstrId(usize);
+newtype_index! {
+    struct CstrId {}
+}
 
 #[derive(Debug)]
 struct CstrInfo {
