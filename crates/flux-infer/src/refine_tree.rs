@@ -793,51 +793,20 @@ impl RefineCtxtTrace {
     }
 }
 
-/* ---------------------------------------------------------------------------------------
- BOT elimination
-
- Build a graph G = (V, E) where
-
-     V = KVar or CONC
-     E = { v1 ---> v2 if there is a constraint where v1 appears as ASSM and v2 as HEAD }
-
- let Post*(CONC) = {k | CONC -->* k in G}
-
- forall each k not-in Post*(CONC)
-     set k to FALSE;
-     delete constraints where k appears as ASSM
---------------------------------------------------------------------------------------- */
-
-/* ---------------------------------------------------------------------------------------
- TOP elimination
-
- Build a graph G = (V, E) where
-
-     V = KVar or CONC
-     E = { v1 ---> v2 if there is a constraint where v1 appears as ASSM and v2 as HEAD }
-
- let Pre*(CONC) = {k | k -->* CONC in G}
-
- forall each k not-in Pre*(CONC)
-     set k to TRUE
---------------------------------------------------------------------------------------- */
-
 impl Node {
     /// replace bot-kvars with false
     fn simplify_bot(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
-        let graph = Graph::new(self);
-        let bots = self.bot_kvars(graph);
+        let graph = ConstraintDeps::new(self);
+        let bots = graph.bot_kvars();
         self.simplify_with_assignment(&bots);
-        // prune
         self.simplify(genv, assumed_preds);
     }
 
     /// replace top-kvars with true
     fn simplify_top(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
-        let graph = Graph::new(self);
-        let tops = self.top_kvars(graph);
+        let graph = ConstraintDeps::new(self);
+        let tops = graph.top_kvars();
         self.simplify_with_assignment(&tops);
-        // prune
         self.simplify(genv, assumed_preds);
     }
 
@@ -859,113 +828,19 @@ impl Node {
             child.borrow_mut().simplify_with_assignment(assignment);
         }
     }
-
-    /// Computes the set of all kvars that can be assigned to Bot (False),
-    /// because they are not (transitively) reachable from any concrete ASSUMPTION.
-    fn bot_kvars(&self, graph: Graph) -> Assignment {
-        // set of BOT kvars (initially, all)
-        let mut assignment = Assignment::new(graph.kvars(), Label::Bot);
-
-        // set of BOT kvars in LHS of each constraint with KVar HEAD
-        let mut bot_assms: IndexVec<CstrId, Option<FxHashSet<KVid>>> =
-            graph
-                .edges
-                .iter()
-                .map(|info| {
-                    if matches!(info.rhs, VertexId::KVar(_)) {
-                        Some(info.lhs.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-        // set of constraints `cid` whose bot-assms is empty
-        let mut candidates: Vec<CstrId> = bot_assms
-            .iter_enumerated()
-            .filter_map(|(cid, lhs)| {
-                if let Some(lhs) = lhs
-                    && lhs.is_empty()
-                {
-                    Some(cid)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        // while there is a candidate constraint, that has NO BOT kvars in lhs
-        while let Some(cid) = candidates.pop() {
-            if let VertexId::KVar(kvid) = graph.head(cid) {
-                // un-BOT the head kvar
-                assignment.remove(kvid);
-                // remove the head kvar from all (bot) assumptions where it currently occurs
-                for cid in graph.cstrs_with_kvar_as_assumption(&kvid) {
-                    // if cid HEAD is a kvar
-                    if let VertexId::KVar(rhs_kvid) = graph.head(cid) {
-                        let Some(ref mut assms) = bot_assms[cid] else {
-                            tracked_span_bug!("missing constraint info for {:?}", cid);
-                        };
-                        assms.remove(&kvid);
-                        if assignment.contains(rhs_kvid) && assms.is_empty() {
-                            candidates.push(cid);
-                        }
-                    };
-                }
-            }
-        }
-
-        assignment
-    }
-
-    /// Computes the set of all kvars that can be assigned to Top (True),
-    /// because they do not (transitively) reach any concrete HEAD.
-    fn top_kvars(&self, graph: Graph) -> Assignment {
-        // initialize
-        let mut assignment = Assignment::new(graph.kvars(), Label::Top);
-
-        // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
-        let mut candidates = vec![];
-        for info in &graph.edges {
-            if matches!(info.rhs, VertexId::Conc) {
-                for kvid in &info.lhs {
-                    candidates.push(*kvid);
-                }
-            }
-        }
-
-        // set each kvar that transitively reaches a concrete HEAD to NON-BOT
-        while let Some(kvid) = candidates.pop() {
-            // set that kvar to non-top
-            assignment.remove(kvid);
-
-            // for each constraint where kvid appears as head
-            for cid in graph.kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
-                let info = &graph.edges[*cid];
-                // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
-                for lhs_kvid in &info.lhs {
-                    if assignment.contains(*lhs_kvid) {
-                        candidates.push(*lhs_kvid);
-                    }
-                }
-            }
-        }
-
-        assignment
-    }
 }
 
 #[derive(Debug)]
-struct Graph {
+struct ConstraintDeps {
     /// description of each constraint
-    edges: IndexVec<CstrId, CstrInfo>,
+    edges: IndexVec<ClauseId, ClauseInfo>,
     /// set of edges where kvid appears as ASSM
-    kv_lhs: FxHashMap<KVid, FxHashSet<CstrId>>,
+    kv_lhs: FxHashMap<KVid, FxHashSet<ClauseId>>,
     /// set of edges where kvid appears as HEAD
-    kv_rhs: FxHashMap<KVid, FxHashSet<CstrId>>,
+    kv_rhs: FxHashMap<KVid, FxHashSet<ClauseId>>,
 }
 
-impl Graph {
+impl ConstraintDeps {
     fn new(node: &Node) -> Self {
         let mut graph = Self {
             edges: IndexVec::default(),
@@ -977,12 +852,12 @@ impl Graph {
         graph
     }
 
-    fn head(&self, cid: CstrId) -> VertexId {
+    fn head(&self, cid: ClauseId) -> VertexId {
         let info = &self.edges[cid];
         info.rhs
     }
 
-    fn cstrs_with_kvar_as_assumption(&self, kvid: &KVid) -> Vec<CstrId> {
+    fn cstrs_with_kvar_as_assumption(&self, kvid: &KVid) -> Vec<ClauseId> {
         self.kv_lhs
             .get(kvid)
             .unwrap_or(&FxHashSet::default())
@@ -995,18 +870,14 @@ impl Graph {
         let n = ctx.len();
         match &node.kind {
             NodeKind::Head(expr, _) => {
-                let mut vertices = vec![];
-                expr_vertices(expr, &mut vertices);
-                for rhs in &vertices {
-                    self.insert_edge(ctx, *rhs)
+                for rhs in expr_vertices(expr) {
+                    self.insert_edge(ctx, rhs)
                 }
             }
             NodeKind::Assumption(expr) => {
-                let mut vertices = vec![];
-                expr_vertices(expr, &mut vertices);
-                for v in &vertices {
+                for v in expr_vertices(expr) {
                     if let VertexId::KVar(kvid) = v {
-                        ctx.push(*kvid);
+                        ctx.push(kvid);
                     }
                 }
             }
@@ -1022,7 +893,7 @@ impl Graph {
 
     fn insert_edge(&mut self, lhs: &[KVid], rhs: VertexId) {
         // Create and insert edge
-        let edge_info = CstrInfo { lhs: lhs.iter().copied().collect(), rhs };
+        let edge_info = ClauseInfo { lhs: lhs.iter().copied().collect(), rhs };
         let edge_id = self.edges.push(edge_info);
 
         // Add edge_id to kv_lhs for each kvar in lhs
@@ -1043,25 +914,120 @@ impl Graph {
             .collect::<FxHashSet<_>>()
             .into_iter()
     }
+
+    /// Computes the set of all kvars that can be assigned to Bot (False),
+    /// because they are not (transitively) reachable from any concrete ASSUMPTION.
+    fn bot_kvars(self) -> Assignment {
+        // set of BOT kvars (initially, all)
+        let mut assignment = Assignment::new(self.kvars(), Label::Bot);
+
+        // set of BOT kvars in LHS of each constraint with KVar HEAD
+        let mut bot_assms: IndexVec<ClauseId, Option<FxHashSet<KVid>>> =
+            self.edges
+                .iter()
+                .map(|info| {
+                    if matches!(info.rhs, VertexId::KVar(_)) {
+                        Some(info.lhs.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+        // set of constraints `cid` whose bot-assms is empty
+        let mut candidates: Vec<ClauseId> = bot_assms
+            .iter_enumerated()
+            .filter_map(|(cid, lhs)| {
+                if let Some(lhs) = lhs
+                    && lhs.is_empty()
+                {
+                    Some(cid)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // while there is a candidate constraint, that has NO BOT kvars in lhs
+        while let Some(cid) = candidates.pop() {
+            if let VertexId::KVar(kvid) = self.head(cid) {
+                // un-BOT the head kvar
+                assignment.remove(kvid);
+                // remove the head kvar from all (bot) assumptions where it currently occurs
+                for cid in self.cstrs_with_kvar_as_assumption(&kvid) {
+                    // if cid HEAD is a kvar
+                    if let VertexId::KVar(rhs_kvid) = self.head(cid) {
+                        let Some(ref mut assms) = bot_assms[cid] else {
+                            tracked_span_bug!("missing constraint info for {:?}", cid);
+                        };
+                        assms.remove(&kvid);
+                        if assignment.contains(rhs_kvid) && assms.is_empty() {
+                            candidates.push(cid);
+                        }
+                    };
+                }
+            }
+        }
+
+        assignment
+    }
+
+    /// Computes the set of all kvars that can be assigned to Top (True),
+    /// because they do not (transitively) reach any concrete HEAD.
+    fn top_kvars(self) -> Assignment {
+        // initialize
+        let mut assignment = Assignment::new(self.kvars(), Label::Top);
+
+        // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
+        let mut candidates = vec![];
+        for info in &self.edges {
+            if matches!(info.rhs, VertexId::Conc) {
+                for kvid in &info.lhs {
+                    candidates.push(*kvid);
+                }
+            }
+        }
+
+        // set each kvar that transitively reaches a concrete HEAD to NON-BOT
+        while let Some(kvid) = candidates.pop() {
+            // set that kvar to non-top
+            assignment.remove(kvid);
+
+            // for each constraint where kvid appears as head
+            for cid in self.kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
+                let info = &self.edges[*cid];
+                // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
+                for lhs_kvid in &info.lhs {
+                    if assignment.contains(*lhs_kvid) {
+                        candidates.push(*lhs_kvid);
+                    }
+                }
+            }
+        }
+
+        assignment
+    }
 }
 
 /// helper function to split an `Expr` into its constituent `VertexId`s
-fn expr_vertices(expr: &Expr, vertices: &mut Vec<VertexId>) {
-    match expr.kind() {
-        ExprKind::BinaryOp(BinOp::And, e1, e2) => {
-            expr_vertices(e1, vertices);
-            expr_vertices(e2, vertices);
+fn expr_vertices(expr: &Expr) -> Vec<VertexId> {
+    let mut vertices = Vec::new();
+    expr.visit_conj(&mut |e| {
+        match e.kind() {
+            ExprKind::BinaryOp(BinOp::And, _, _) => {}
+            ExprKind::KVar(kvar) => vertices.push(VertexId::KVar(kvar.kvid)),
+            _ => vertices.push(VertexId::Conc),
         }
-        ExprKind::KVar(kvar) => vertices.push(VertexId::KVar(kvar.kvid)),
-        _ => vertices.push(VertexId::Conc),
-    }
+    });
+    vertices
 }
+
 newtype_index! {
-    struct CstrId {}
+    struct ClauseId {}
 }
 
 #[derive(Debug)]
-struct CstrInfo {
+struct ClauseInfo {
     /// assumptions
     lhs: FxHashSet<KVid>,
     /// head
@@ -1084,21 +1050,22 @@ enum Label {
 }
 
 struct Assignment {
-    inner: FxHashMap<KVid, Label>,
+    vars: FxHashSet<KVid>,
+    label: Label,
 }
 
 impl Assignment {
     fn new(kvars: impl Iterator<Item = KVid>, label: Label) -> Self {
-        let inner = kvars.map(|kvid| (kvid, label)).collect();
-        Self { inner }
+        let vars = kvars.collect();
+        Self { vars, label }
     }
 
     fn contains(&self, kvid: KVid) -> bool {
-        self.inner.contains_key(&kvid)
+        self.vars.contains(&kvid)
     }
 
     fn remove(&mut self, kvid: KVid) {
-        self.inner.remove(&kvid);
+        self.vars.remove(&kvid);
     }
 
     /// simplifies the given predicate expression by replacing
@@ -1107,11 +1074,11 @@ impl Assignment {
         let mut preds = vec![];
         for p in pred.flatten_conjs() {
             if let ExprKind::KVar(kvar) = p.kind()
-                && let Some(l) = self.inner.get(&kvar.kvid)
+                && self.vars.contains(&kvar.kvid)
             {
-                if *l == Label::Bot {
+                if self.label == Label::Bot {
                     return Expr::ff();
-                }
+                } // else, skip pushing `p` into `preds`
             } else {
                 preds.push(p.clone());
             }
