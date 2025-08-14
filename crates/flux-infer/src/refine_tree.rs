@@ -967,6 +967,8 @@ impl ConstraintDeps {
         // initialize
         let mut assignment = Assignment::new(Label::Top);
 
+        let kv_rhs = self.kv_rhs();
+
         // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
         let mut candidates = vec![];
         for info in &self.edges {
@@ -983,7 +985,7 @@ impl ConstraintDeps {
             assignment.remove(kvid);
 
             // for each constraint where kvid appears as head
-            for cid in self.kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
+            for cid in kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
                 let info = &self.edges[*cid];
                 // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
                 for lhs_kvid in &info.lhs {
