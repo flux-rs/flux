@@ -54,9 +54,7 @@ xflags::xflags! {
         /// Generate precompiled libraries
         cmd build-sysroot { }
         /// Build the documentation
-        cmd doc {
-            optional -o,--open
-        }
+        cmd doc { }
     }
 }
 
@@ -214,14 +212,11 @@ fn uninstall(sh: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn doc(args: Doc) -> anyhow::Result<()> {
+fn doc(_args: Doc) -> anyhow::Result<()> {
     Command::new("cargo")
         .args(["doc", "--workspace", "--document-private-items", "--no-deps"])
         .env("RUSTDOCFLAGS", "-Zunstable-options --enable-index-page")
         .run()?;
-    if args.open {
-        opener::open("target/doc/index.html")?;
-    }
     Ok(())
 }
 
