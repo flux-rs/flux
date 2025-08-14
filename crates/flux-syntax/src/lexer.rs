@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt, iter::Peekable};
 
-pub use rustc_ast::token::{Delimiter, Lit, LitKind};
+pub use rustc_ast::token::{Delimiter, IdentIsRaw, Lit, LitKind};
 use rustc_ast::{
     token::InvisibleOrigin,
     tokenstream::{TokenStream, TokenStreamIter, TokenTree},
@@ -39,7 +39,7 @@ pub enum TokenKind {
     FatArrow,
     Literal(Lit),
     /// This is used to represent both keywords and (non-reserved) identifiers
-    Ident(Symbol),
+    Ident(Symbol, IdentIsRaw),
     OpenParen,
     CloseParen,
     OpenBrace,
@@ -122,7 +122,7 @@ impl TokenKind {
             TokenKind::Iff => "<=>",
             TokenKind::FatArrow => "=>",
             TokenKind::Literal(_) => "literal",
-            TokenKind::Ident(_) => "identifier",
+            TokenKind::Ident(..) => "identifier",
             TokenKind::OpenParen => "(",
             TokenKind::OpenBrace => "{",
             TokenKind::OpenBracket => "[",
@@ -141,7 +141,7 @@ impl TokenKind {
     }
 
     pub fn is_keyword(self, kw: Symbol) -> bool {
-        matches!(self, TokenKind::Ident(sym) if sym == kw)
+        matches!(self, TokenKind::Ident(sym, IdentIsRaw::No) if sym == kw)
     }
 
     pub fn is_eof(self) -> bool {
@@ -153,7 +153,7 @@ impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TokenKind::Literal(lit) => write!(f, "{lit}"),
-            TokenKind::Ident(sym) => write!(f, "{sym}"),
+            TokenKind::Ident(sym, _) => write!(f, "{sym}"),
             _ => write!(f, "{}", self.descr()),
         }
     }
@@ -257,8 +257,8 @@ impl<'t> Cursor<'t> {
             rustc_ast::token::Ident(symb, _) if symb == kw::True || symb == kw::False => {
                 TokenKind::Literal(Lit { kind: LitKind::Bool, symbol: symb, suffix: None })
             }
-            rustc_ast::token::Ident(symb, _) => TokenKind::Ident(symb),
-            rustc_ast::token::NtIdent(ident, _) => TokenKind::Ident(ident.name),
+            rustc_ast::token::Ident(symb, is_raw) => TokenKind::Ident(symb, is_raw),
+            rustc_ast::token::NtIdent(ident, is_raw) => TokenKind::Ident(ident.name, is_raw),
             rustc_ast::token::Or => TokenKind::Caret,
             rustc_ast::token::Plus => TokenKind::Plus,
             rustc_ast::token::Slash => TokenKind::Slash,
