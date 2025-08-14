@@ -6,9 +6,6 @@ days_per_iter="${2:-1}"
 
 echo ~/.cargo/bin >> $GITHUB_PATH
 
-git config --global user.email "github-actions[bot]@users.noreply.github.com"
-git config --global user.name "github-actions[bot]"
-
 cd flux
 
 start_toolchain=$(grep ^channel rust-toolchain.toml | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
