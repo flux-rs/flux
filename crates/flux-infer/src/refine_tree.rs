@@ -834,13 +834,11 @@ impl Node {
 struct ConstraintDeps {
     /// description of each constraint
     edges: IndexVec<ClauseId, ClauseInfo>,
-    /// set of edges where kvid appears as HEAD
-    kv_rhs: FxHashMap<KVid, FxHashSet<ClauseId>>,
 }
 
 impl ConstraintDeps {
     fn new(node: &Node) -> Self {
-        let mut graph = Self { edges: IndexVec::default(), kv_rhs: FxHashMap::default() };
+        let mut graph = Self { edges: IndexVec::default() };
         graph.build(node, &mut vec![]);
 
         graph
@@ -876,6 +874,7 @@ impl ConstraintDeps {
         ctx.truncate(n); // restore ctx
     }
 
+    /// set of edges where kvid appears as ASSM
     fn kv_lhs(&self) -> FxHashMap<KVid, FxHashSet<ClauseId>> {
         let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
         for (edge_id, edge_info) in self.edges.iter_enumerated() {
@@ -889,16 +888,16 @@ impl ConstraintDeps {
     fn insert_edge(&mut self, lhs: &[KVid], rhs: VertexId) {
         // Create and insert edge
         let edge_info = ClauseInfo { lhs: lhs.iter().copied().collect(), rhs };
-        let edge_id = self.edges.push(edge_info);
+        self.edges.push(edge_info);
 
         // Add edge_id to kv_lhs for each kvar in lhs
         // for kvid in lhs {
         //     self.kv_lhs.entry(*kvid).or_default().insert(edge_id);
         // }
         // Add edge_id to kv_rhs for rhs kvar
-        if let VertexId::KVar(kvid) = rhs {
-            self.kv_rhs.entry(kvid).or_default().insert(edge_id);
-        }
+        // if let VertexId::KVar(kvid) = rhs {
+        //     self.kv_rhs.entry(kvid).or_default().insert(edge_id);
+        // }
     }
 
     /// Computes the set of all kvars that can be assigned to Bot (False),
@@ -907,7 +906,6 @@ impl ConstraintDeps {
         // set of BOT kvars (initially, all)
         let mut assignment = Assignment::new(Label::Bot);
 
-        // set of edges where kvid appears as ASSM
         let kv_lhs: FxHashMap<KVid, FxHashSet<ClauseId>> = self.kv_lhs();
 
         // set of BOT kvars in LHS of each constraint with KVar HEAD
@@ -961,6 +959,16 @@ impl ConstraintDeps {
         assignment
     }
 
+    /// set of edges where kvid appears as HEAD
+    fn kv_rhs(&self) -> FxHashMap<KVid, FxHashSet<ClauseId>> {
+        let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
+        for (edge_id, edge_info) in self.edges.iter_enumerated() {
+            if let VertexId::KVar(kvid) = edge_info.rhs {
+                res.entry(kvid).or_default().insert(edge_id);
+            }
+        }
+        res
+    }
     /// Computes the set of all kvars that can be assigned to Top (True),
     /// because they do not (transitively) reach any concrete HEAD.
     fn top_kvars(self) -> Assignment {
