@@ -22,7 +22,7 @@ pub struct Flags {
     /// If present switches on query caching and saves the cache in the provided path
     pub cache: Option<PathBuf>,
     pub verbose: bool,
-    /// Compute statistics about number and size of annotations. Dumps file to [`Self.log_dir`]
+    /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
     pub annots: bool,
     /// Print statistics about time taked to analyze each fuction. Also dumps a file with the raw
     /// times for each function.

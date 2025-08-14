@@ -11,7 +11,6 @@ cargo_metadata.workspace = true
 home.workspace = true
 tests.workspace = true
 xflags = "0.3.2"
-xshell = "0.2.7"
 
 [lints]
 workspace = true
