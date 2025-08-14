@@ -906,20 +906,11 @@ impl ConstraintDeps {
         }
     }
 
-    fn kvars(&self) -> impl Iterator<Item = KVid> + '_ {
-        self.kv_lhs
-            .keys()
-            .chain(self.kv_rhs.keys())
-            .copied()
-            .collect::<FxHashSet<_>>()
-            .into_iter()
-    }
-
     /// Computes the set of all kvars that can be assigned to Bot (False),
     /// because they are not (transitively) reachable from any concrete ASSUMPTION.
     fn bot_kvars(self) -> Assignment {
         // set of BOT kvars (initially, all)
-        let mut assignment = Assignment::new(self.kvars(), Label::Bot);
+        let mut assignment = Assignment::new(Label::Bot);
 
         // set of BOT kvars in LHS of each constraint with KVar HEAD
         let mut bot_assms: IndexVec<ClauseId, Option<FxHashSet<KVid>>> =
@@ -961,7 +952,7 @@ impl ConstraintDeps {
                             tracked_span_bug!("missing constraint info for {:?}", cid);
                         };
                         assms.remove(&kvid);
-                        if assignment.contains(rhs_kvid) && assms.is_empty() {
+                        if assignment.has_label(rhs_kvid) && assms.is_empty() {
                             candidates.push(cid);
                         }
                     };
@@ -976,7 +967,7 @@ impl ConstraintDeps {
     /// because they do not (transitively) reach any concrete HEAD.
     fn top_kvars(self) -> Assignment {
         // initialize
-        let mut assignment = Assignment::new(self.kvars(), Label::Top);
+        let mut assignment = Assignment::new(Label::Top);
 
         // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
         let mut candidates = vec![];
@@ -998,7 +989,7 @@ impl ConstraintDeps {
                 let info = &self.edges[*cid];
                 // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
                 for lhs_kvid in &info.lhs {
-                    if assignment.contains(*lhs_kvid) {
+                    if assignment.has_label(*lhs_kvid) {
                         candidates.push(*lhs_kvid);
                     }
                 }
@@ -1050,22 +1041,24 @@ enum Label {
 }
 
 struct Assignment {
+    /// These vars are NOT assigned `label`,
+    /// all other `KVid` implicitly have assignment `label`
     vars: FxHashSet<KVid>,
     label: Label,
 }
 
 impl Assignment {
-    fn new(kvars: impl Iterator<Item = KVid>, label: Label) -> Self {
-        let vars = kvars.collect();
+    fn new(label: Label) -> Self {
+        let vars = FxHashSet::default();
         Self { vars, label }
     }
 
-    fn contains(&self, kvid: KVid) -> bool {
-        self.vars.contains(&kvid)
+    fn has_label(&self, kvid: KVid) -> bool {
+        !self.vars.contains(&kvid)
     }
 
     fn remove(&mut self, kvid: KVid) {
-        self.vars.remove(&kvid);
+        self.vars.insert(kvid);
     }
 
     /// simplifies the given predicate expression by replacing
@@ -1074,7 +1067,7 @@ impl Assignment {
         let mut preds = vec![];
         for p in pred.flatten_conjs() {
             if let ExprKind::KVar(kvar) = p.kind()
-                && self.vars.contains(&kvar.kvid)
+                && self.has_label(kvar.kvid)
             {
                 if self.label == Label::Bot {
                     return Expr::ff();
