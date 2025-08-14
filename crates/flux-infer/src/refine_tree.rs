@@ -853,16 +853,23 @@ impl ConstraintDeps {
         let n = ctx.len();
         match &node.kind {
             NodeKind::Head(expr, _) => {
-                for rhs in expr_vertices(expr) {
-                    self.insert_edge(ctx, rhs)
-                }
+                expr.visit_conj(&mut |e: &Expr| {
+                    let vertex = match e.kind() {
+                        ExprKind::BinaryOp(BinOp::And, _, _) => None,
+                        ExprKind::KVar(kvar) => Some(VertexId::KVar(kvar.kvid)),
+                        _ => Some(VertexId::Conc),
+                    };
+                    if let Some(rhs) = vertex {
+                        self.edges.push(ClauseInfo::new(ctx, rhs));
+                    }
+                });
             }
             NodeKind::Assumption(expr) => {
-                for v in expr_vertices(expr) {
-                    if let VertexId::KVar(kvid) = v {
-                        ctx.push(kvid);
+                expr.visit_conj(&mut |e: &Expr| {
+                    if let ExprKind::KVar(kvar) = e.kind() {
+                        ctx.push(kvar.kvid);
                     }
-                }
+                });
             }
             _ => {}
         };
@@ -875,38 +882,37 @@ impl ConstraintDeps {
     }
 
     /// set of edges where kvid appears as ASSM
-    fn kv_lhs(&self) -> FxHashMap<KVid, FxHashSet<ClauseId>> {
+    fn kv_lhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
         let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
         for (edge_id, edge_info) in self.edges.iter_enumerated() {
             for kvid in &edge_info.lhs {
                 res.entry(*kvid).or_default().insert(edge_id);
             }
         }
-        res
+        res.into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect()))
+            .collect()
     }
 
-    fn insert_edge(&mut self, lhs: &[KVid], rhs: VertexId) {
-        // Create and insert edge
-        let edge_info = ClauseInfo { lhs: lhs.iter().copied().collect(), rhs };
-        self.edges.push(edge_info);
-
-        // Add edge_id to kv_lhs for each kvar in lhs
-        // for kvid in lhs {
-        //     self.kv_lhs.entry(*kvid).or_default().insert(edge_id);
-        // }
-        // Add edge_id to kv_rhs for rhs kvar
-        // if let VertexId::KVar(kvid) = rhs {
-        //     self.kv_rhs.entry(kvid).or_default().insert(edge_id);
-        // }
+    /// set of edges where kvid appears as HEAD
+    fn kv_rhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
+        let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
+        for (edge_id, edge_info) in self.edges.iter_enumerated() {
+            if let VertexId::KVar(kvid) = edge_info.rhs {
+                res.entry(kvid).or_default().insert(edge_id);
+            }
+        }
+        res.into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect()))
+            .collect()
     }
-
     /// Computes the set of all kvars that can be assigned to Bot (False),
     /// because they are not (transitively) reachable from any concrete ASSUMPTION.
     fn bot_kvars(self) -> Assignment {
         // set of BOT kvars (initially, all)
         let mut assignment = Assignment::new(Label::Bot);
 
-        let kv_lhs: FxHashMap<KVid, FxHashSet<ClauseId>> = self.kv_lhs();
+        let kv_lhs = self.kv_lhs();
 
         // set of BOT kvars in LHS of each constraint with KVar HEAD
         let mut bot_assms: IndexVec<ClauseId, Option<FxHashSet<KVid>>> =
@@ -941,7 +947,7 @@ impl ConstraintDeps {
                 // un-BOT the head kvar
                 assignment.remove(kvid);
                 // remove the head kvar from all (bot) assumptions where it currently occurs
-                for cid in kv_lhs.get(&kvid).unwrap_or(&FxHashSet::default()).iter() {
+                for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]).iter() {
                     // if cid HEAD is a kvar
                     if let VertexId::KVar(rhs_kvid) = self.head(*cid) {
                         let Some(ref mut assms) = bot_assms[*cid] else {
@@ -959,16 +965,6 @@ impl ConstraintDeps {
         assignment
     }
 
-    /// set of edges where kvid appears as HEAD
-    fn kv_rhs(&self) -> FxHashMap<KVid, FxHashSet<ClauseId>> {
-        let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
-        for (edge_id, edge_info) in self.edges.iter_enumerated() {
-            if let VertexId::KVar(kvid) = edge_info.rhs {
-                res.entry(kvid).or_default().insert(edge_id);
-            }
-        }
-        res
-    }
     /// Computes the set of all kvars that can be assigned to Top (True),
     /// because they do not (transitively) reach any concrete HEAD.
     fn top_kvars(self) -> Assignment {
@@ -993,7 +989,7 @@ impl ConstraintDeps {
             assignment.remove(kvid);
 
             // for each constraint where kvid appears as head
-            for cid in kv_rhs.get(&kvid).unwrap_or(&FxHashSet::default()) {
+            for cid in kv_rhs.get(&kvid).unwrap_or(&vec![]) {
                 let info = &self.edges[*cid];
                 // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
                 for lhs_kvid in &info.lhs {
@@ -1008,19 +1004,6 @@ impl ConstraintDeps {
     }
 }
 
-/// helper function to split an `Expr` into its constituent `VertexId`s
-fn expr_vertices(expr: &Expr) -> Vec<VertexId> {
-    let mut vertices = Vec::new();
-    expr.visit_conj(&mut |e| {
-        match e.kind() {
-            ExprKind::BinaryOp(BinOp::And, _, _) => {}
-            ExprKind::KVar(kvar) => vertices.push(VertexId::KVar(kvar.kvid)),
-            _ => vertices.push(VertexId::Conc),
-        }
-    });
-    vertices
-}
-
 newtype_index! {
     struct ClauseId {}
 }
@@ -1032,6 +1015,13 @@ struct ClauseInfo {
     /// head
     rhs: VertexId,
 }
+
+impl ClauseInfo {
+    fn new(lhs: &[KVid], rhs: VertexId) -> Self {
+        ClauseInfo { lhs: lhs.iter().copied().collect(), rhs }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum VertexId {
     /// KVar
