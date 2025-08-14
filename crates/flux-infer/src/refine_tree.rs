@@ -890,7 +890,7 @@ impl Node {
                 // un-BOT the head kvar
                 assignment.remove(kvid);
                 // remove the head kvar from all (bot) assumptions where it currently occurs
-                for cid in graph.cstrs_with_kvar_in_lhs(&kvid) {
+                for cid in graph.cstrs_with_kvar_as_assumption(&kvid) {
                     // if cid HEAD is a kvar
                     if let VertexId::KVar(rhs_kvid) = graph.head(cid) {
                         let Some(assms) = bot_assms.get_mut(&cid) else {
@@ -898,7 +898,7 @@ impl Node {
                         };
                         assms.remove(&kvid);
                         if assignment.contains(rhs_kvid) && assms.is_empty() {
-                            candidates.push(cid)
+                            candidates.push(cid);
                         }
                     };
                 }
@@ -916,7 +916,7 @@ impl Node {
 
         // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
         let mut candidates = vec![];
-        for (_, info) in &graph.edges {
+        for info in graph.edges.values() {
             if matches!(info.rhs, VertexId::Conc) {
                 for kvid in &info.lhs {
                     candidates.push(*kvid);
@@ -977,7 +977,7 @@ impl Graph {
         info.rhs
     }
 
-    fn cstrs_with_kvar_in_lhs(&self, kvid: &KVid) -> Vec<CstrId> {
+    fn cstrs_with_kvar_as_assumption(&self, kvid: &KVid) -> Vec<CstrId> {
         self.kv_lhs
             .get(kvid)
             .unwrap_or(&FxHashSet::default())
@@ -1019,7 +1019,7 @@ impl Graph {
         let edge_id = CstrId(self.edges.len());
 
         // Create and insert edge
-        let edge_info = CstrInfo { lhs: lhs.iter().cloned().collect(), rhs };
+        let edge_info = CstrInfo { lhs: lhs.iter().copied().collect(), rhs };
         self.edges.insert(edge_id, edge_info);
 
         // Add edge_id to kv_lhs for each kvar in lhs
