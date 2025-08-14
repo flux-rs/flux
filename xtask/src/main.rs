@@ -381,14 +381,14 @@ fn check_status(st: ExitStatus) -> anyhow::Result<()> {
 fn display_command(cmd: &Command) {
     for var in cmd.get_envs() {
         if let Some(val) = var.1 {
-            eprintln!("$ export {}={}", var.0.to_string_lossy(), val.to_string_lossy());
+            eprintln!("$ export {}={}", var.0.display(), val.display());
         }
     }
 
     let prog = cmd.get_program();
-    eprint!("$ {}", prog.to_string_lossy());
+    eprint!("$ {}", prog.display());
     for arg in cmd.get_args() {
-        eprint!(" {}", arg.to_string_lossy());
+        eprint!(" {}", arg.display());
     }
     eprintln!();
 }
