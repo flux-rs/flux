@@ -508,8 +508,8 @@
 <a href=#508 id=508 data-nosnippet>508</a>        <span class="kw">if let </span>TyKind::Base(bty) = <span class="kw-2">&amp;</span><span class="self">self</span>.kind
 <a href=#509 id=509 data-nosnippet>509</a>            &amp;&amp; <span class="kw">let </span>BaseTyKind::Path(<span class="prelude-val">None</span>, path) = <span class="kw-2">&amp;</span>bty.kind
 <a href=#510 id=510 data-nosnippet>510</a>            &amp;&amp; <span class="kw">let </span>[segment] = <span class="kw-2">&amp;</span>path.segments[..]
-<a href=#511 id=511 data-nosnippet>511</a>            &amp;&amp; segment.args.len() == <span class="number">0
-<a href=#512 id=512 data-nosnippet>512</a>        </span>{
+<a href=#511 id=511 data-nosnippet>511</a>            &amp;&amp; segment.args.is_empty()
+<a href=#512 id=512 data-nosnippet>512</a>        {
 <a href=#513 id=513 data-nosnippet>513</a>            <span class="prelude-val">Some</span>(path)
 <a href=#514 id=514 data-nosnippet>514</a>        } <span class="kw">else </span>{
 <a href=#515 id=515 data-nosnippet>515</a>            <span class="prelude-val">None
