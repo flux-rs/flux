@@ -711,6 +711,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Set))
         } else if segment.name == sym::Map {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Map))
+        } else if segment.name == sym::str {
+            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Str))
         } else {
             None
         }

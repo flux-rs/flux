@@ -406,7 +406,7 @@ fn copy_file<S: AsRef<Path>, D: AsRef<Path>>(src: S, dst: D) -> anyhow::Result<(
             dst = &_tmp;
         }
     }
-    std::fs::copy(&src, dst).map_err(|err| {
+    std::fs::copy(src, dst).map_err(|err| {
         anyhow!("failed to copy `{}` to `{}`: {err}", src.display(), dst.display())
     })?;
 
@@ -479,7 +479,7 @@ impl CommandExt for Command {
 fn remove_path(path: &Path) -> anyhow::Result<()> {
     match path.metadata() {
         Ok(meta) => {
-            if meta.is_dir() { remove_dir_all(&path) } else { fs::remove_file(&path) }
+            if meta.is_dir() { remove_dir_all(path) } else { fs::remove_file(path) }
                 .map_err(|err| anyhow!("failed to remove path `{}`: {err}", path.display()))
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
@@ -505,7 +505,7 @@ fn remove_dir_all(path: &Path) -> io::Result<()> {
 }
 
 fn create_dir(path: &Path) -> anyhow::Result<()> {
-    match fs::create_dir_all(&path) {
+    match fs::create_dir_all(path) {
         Ok(()) => Ok(()),
         Err(err) => Err(anyhow!("failed to create directory `{}`: {err}", path.display())),
     }

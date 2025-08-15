@@ -833,12 +833,14 @@ pub enum PrimSort {
     Real,
     Set,
     Map,
+    Str,
 }
 
 impl PrimSort {
     pub fn name_str(self) -> &'static str {
         match self {
             PrimSort::Int => "int",
+            PrimSort::Str => "str",
             PrimSort::Bool => "bool",
             PrimSort::Char => "char",
             PrimSort::Real => "real",
@@ -850,7 +852,7 @@ impl PrimSort {
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char => 0,
+            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -1610,6 +1612,7 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Int) => write!(f, "int"),
             SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
             SortRes::PrimSort(PrimSort::Char) => write!(f, "char"),
+            SortRes::PrimSort(PrimSort::Str) => write!(f, "str"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
             SortRes::SortParam(n) => write!(f, "@{n}"),
