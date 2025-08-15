@@ -1,5 +1,7 @@
 pub(crate) mod refinement_resolver;
 
+use std::collections::hash_map;
+
 use flux_common::{
     bug,
     result::{ErrorCollector, ResultExt},
@@ -71,6 +73,30 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     current_module: OwnerId,
 }
 
+/// Map to keep track of names defined in a scope
+#[derive(Default)]
+struct DefinitionMap {
+    defined: FxHashMap<Ident, ()>,
+}
+
+impl DefinitionMap {
+    fn define(&mut self, name: Ident) -> std::result::Result<(), errors::DuplicateDefinition> {
+        match self.defined.entry(name) {
+            hash_map::Entry::Occupied(entry) => {
+                Err(errors::DuplicateDefinition {
+                    span: name.span,
+                    previous_definition: entry.key().span,
+                    name,
+                })
+            }
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(());
+                Ok(())
+            }
+        }
+    }
+}
+
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, specs: &'genv Specs) -> Self {
         Self {
@@ -96,8 +122,17 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
     fn define_flux_global_items(&mut self) {
+        // Note that names are defined globally so we check for duplicates globally in the crate.
+        let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
+                // NOTE: This is putting all items in the same namespace. We could have qualifiers
+                // in a different namespace.
+                definitions
+                    .define(item.name())
+                    .emit(&self.genv)
+                    .collect_err(&mut self.err);
+
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
@@ -947,7 +982,7 @@ mod errors {
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use itertools::Itertools;
-    use rustc_span::Span;
+    use rustc_span::{Ident, Span};
 
     #[derive(Diagnostic)]
     #[diag(desugar_unsupported_signature, code = E0999)]
@@ -1005,5 +1040,16 @@ mod errors {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_duplicate_definition, code = E0999)]
+    pub(super) struct DuplicateDefinition {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        #[label(desugar_previous_definition)]
+        pub previous_definition: Span,
+        pub name: Ident,
     }
 }

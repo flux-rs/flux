@@ -3,7 +3,7 @@ mod my_module {
     use flux_rs::*;
 
     defs! {
-        fn is_pos(x: MyStruct) -> bool {
+        fn is_pos_1(x: MyStruct) -> bool {
             x.n > 0
         }
     }
@@ -14,7 +14,7 @@ mod my_module {
         f: i32,
     }
 
-    #[sig(fn(MyStruct{v: is_pos(v)}) -> i32{v: v > 0})]
+    #[sig(fn(MyStruct{v: is_pos_1(v)}) -> i32{v: v > 0})]
     fn test00(x: MyStruct) -> i32 {
         x.f
     }
@@ -25,7 +25,7 @@ const _: () = {
     use flux_rs::*;
 
     defs! {
-        fn is_pos(x: MyStruct) -> bool {
+        fn is_pos_2(x: MyStruct) -> bool {
             x.n > 0
         }
     }
@@ -36,7 +36,7 @@ const _: () = {
         f: i32,
     }
 
-    #[sig(fn(MyStruct{v: is_pos(v)}) -> i32{v: v > 0})]
+    #[sig(fn(MyStruct{v: is_pos_2(v)}) -> i32{v: v > 0})]
     fn test00(x: MyStruct) -> i32 {
         x.f
     }
