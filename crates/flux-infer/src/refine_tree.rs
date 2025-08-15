@@ -12,12 +12,14 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
 use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
@@ -59,7 +61,13 @@ impl RefineTree {
     pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
         self.root
             .borrow_mut()
-            .simplify(genv, &mut SnapshotMap::default());
+            .simplify(genv, &SimplifyPhase::Full, &mut SnapshotMap::default());
+        self.root
+            .borrow_mut()
+            .simplify_bot(genv, &mut SnapshotMap::default());
+        self.root
+            .borrow_mut()
+            .simplify_top(genv, &mut SnapshotMap::default());
     }
 
     pub(crate) fn into_fixpoint(
@@ -361,12 +369,28 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+enum SimplifyPhase {
+    /// Normalize and simplify inner `Expr`
+    Full,
+    /// Only propagate `true` (TOP) and `false` (BOT)
+    Partial,
+}
+
 impl Node {
-    fn simplify(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+    fn simplify(
+        &mut self,
+        genv: GlobalEnv,
+        phase: &SimplifyPhase,
+        assumed_preds: &mut SnapshotMap<Expr, ()>,
+    ) {
         // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(genv).simplify(assumed_preds);
+                let pred = match phase {
+                    SimplifyPhase::Full => pred.normalize(genv).simplify(assumed_preds),
+                    SimplifyPhase::Partial => pred.clone(),
+                };
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -374,19 +398,23 @@ impl Node {
                 }
             }
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(genv).simplify(assumed_preds);
+                if let SimplifyPhase::Full = phase {
+                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                }
                 pred.flatten_conjs().into_iter().for_each(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());
                 });
             }
             _ => {}
         }
+        let is_false_asm =
+            matches!(&self.kind, NodeKind::Assumption(pred) if pred.is_trivially_false());
 
         // Then simplify the children
         // (the order matters here because we need to collect assumed preds first)
         for child in &self.children {
             let current_version = assumed_preds.snapshot();
-            child.borrow_mut().simplify(genv, assumed_preds);
+            child.borrow_mut().simplify(genv, phase, assumed_preds);
             assumed_preds.rollback_to(current_version);
         }
 
@@ -398,7 +426,9 @@ impl Node {
             | NodeKind::Root(_)
             | NodeKind::ForAll(..) => {
                 self.children
-                    .extract_if(.., |child| matches!(&child.borrow().kind, NodeKind::True))
+                    .extract_if(.., |child| {
+                        is_false_asm || matches!(&child.borrow().kind, NodeKind::True)
+                    })
                     .for_each(drop);
             }
         }
@@ -778,5 +808,249 @@ impl RefineCtxtTrace {
             }
         });
         Self { bindings, exprs }
+    }
+}
+
+impl Node {
+    /// replace bot-kvars with false
+    fn simplify_bot(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+        let graph = ConstraintDeps::new(self);
+        let bots = graph.bot_kvars();
+        self.simplify_with_assignment(&bots);
+        self.simplify(genv, &SimplifyPhase::Partial, assumed_preds);
+    }
+
+    /// replace top-kvars with true
+    fn simplify_top(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+        let graph = ConstraintDeps::new(self);
+        let tops = graph.top_kvars();
+        self.simplify_with_assignment(&tops);
+        self.simplify(genv, &SimplifyPhase::Partial, assumed_preds);
+    }
+
+    /// simplifies assm and head using the TOP/BOT kvar assignment; follow
+    /// with a call to `simplify` to delete constraints with FALSE assm.
+    fn simplify_with_assignment(&mut self, assignment: &Assignment) {
+        match &mut self.kind {
+            NodeKind::Head(pred, tag) => {
+                let pred = assignment.simplify(pred);
+                self.kind = NodeKind::Head(pred, *tag);
+            }
+            NodeKind::Assumption(pred) => {
+                let pred = assignment.simplify(pred);
+                self.kind = NodeKind::Assumption(pred);
+            }
+            _ => {}
+        }
+        for child in &self.children {
+            child.borrow_mut().simplify_with_assignment(assignment);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ConstraintDeps {
+    /// assumptions for each clause
+    assumptions: IndexVec<ClauseId, FxHashSet<KVid>>,
+    /// head of each clause
+    heads: IndexVec<ClauseId, Head>,
+}
+
+impl ConstraintDeps {
+    fn new(node: &Node) -> Self {
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
+        graph.build(node, &mut vec![]);
+        graph
+    }
+
+    fn insert_clause(&mut self, assumptions: &[KVid], head: Head) {
+        self.assumptions.push(assumptions.iter().copied().collect());
+        self.heads.push(head);
+    }
+
+    fn build(&mut self, node: &Node, assumptions: &mut Vec<KVid>) {
+        let n = assumptions.len();
+        match &node.kind {
+            NodeKind::Head(expr, _) => {
+                expr.visit_conj(&mut |e: &Expr| {
+                    if let ExprKind::KVar(kvar) = e.kind() {
+                        self.insert_clause(assumptions, Head::KVar(kvar.kvid));
+                    } else {
+                        self.insert_clause(assumptions, Head::Conc);
+                    }
+                });
+            }
+            NodeKind::Assumption(expr) => {
+                expr.visit_conj(&mut |e: &Expr| {
+                    if let ExprKind::KVar(kvar) = e.kind() {
+                        assumptions.push(kvar.kvid);
+                    }
+                });
+            }
+            _ => {}
+        };
+
+        for child in &node.children {
+            self.build(&child.borrow(), assumptions);
+        }
+
+        assumptions.truncate(n); // restore ctx
+    }
+
+    /// set of edges where kvid appears as ASSM
+    fn kv_lhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
+        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+        for (clause_id, kvids) in self.assumptions.iter_enumerated() {
+            for kvid in kvids {
+                res.entry(*kvid).or_default().push(clause_id);
+            }
+        }
+        res
+    }
+
+    /// set of edges where kvid appears as HEAD
+    fn kv_rhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
+        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+        for (clause_id, head) in self.heads.iter_enumerated() {
+            if let Head::KVar(kvid) = head {
+                res.entry(*kvid).or_default().push(clause_id);
+            }
+        }
+        res
+    }
+    /// Computes the set of all kvars that can be assigned to Bot (False),
+    /// because they are not (transitively) reachable from any concrete ASSUMPTION.
+    fn bot_kvars(self) -> Assignment {
+        // set of BOT kvars (initially, all)
+        let mut assignment = Assignment::new(Label::Bot);
+
+        let kv_lhs = self.kv_lhs();
+
+        // set of BOT kvars in LHS of each constraint with KVar HEAD
+        let mut bot_assms: IndexVec<ClauseId, FxHashSet<KVid>> = self.assumptions;
+
+        // set of constraints `cid` whose bot-assms is empty
+        let mut candidates: Vec<ClauseId> = bot_assms
+            .iter_enumerated()
+            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(cid) } else { None })
+            .collect();
+
+        // while there is a candidate constraint, that has NO BOT kvars in lhs
+        while let Some(cid) = candidates.pop() {
+            if let Head::KVar(kvid) = self.heads[cid] {
+                // un-BOT the head kvar
+                assignment.remove(kvid);
+                // remove the head kvar from all (bot) assumptions where it currently occurs
+                for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]) {
+                    // if cid HEAD is a kvar
+                    if let Head::KVar(rhs_kvid) = self.heads[*cid] {
+                        let assms = &mut bot_assms[*cid];
+                        assms.remove(&kvid);
+                        if assignment.has_label(rhs_kvid) && assms.is_empty() {
+                            candidates.push(*cid);
+                        }
+                    };
+                }
+            }
+        }
+
+        assignment
+    }
+
+    /// Computes the set of all kvars that can be assigned to Top (True),
+    /// because they do not (transitively) reach any concrete HEAD.
+    fn top_kvars(self) -> Assignment {
+        // initialize
+        let mut assignment = Assignment::new(Label::Top);
+
+        let kv_rhs = self.kv_rhs();
+
+        // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
+        let mut candidates = vec![];
+        for (cid, head) in self.heads.iter_enumerated() {
+            if matches!(head, Head::Conc) {
+                for kvid in &self.assumptions[cid] {
+                    candidates.push(*kvid);
+                }
+            }
+        }
+
+        // set each kvar that transitively reaches a concrete HEAD to NON-BOT
+        while let Some(kvid) = candidates.pop() {
+            // set that kvar to non-top
+            assignment.remove(kvid);
+
+            // for each constraint where kvid appears as head
+            for cid in kv_rhs.get(&kvid).unwrap_or(&vec![]) {
+                // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
+                for lhs_kvid in &self.assumptions[*cid] {
+                    if assignment.has_label(*lhs_kvid) {
+                        candidates.push(*lhs_kvid);
+                    }
+                }
+            }
+        }
+
+        assignment
+    }
+}
+
+newtype_index! {
+    struct ClauseId {}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Head {
+    /// KVar
+    KVar(KVid),
+    /// Concrete
+    Conc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Label {
+    /// Kvar can be solved to false
+    Bot,
+    /// Kvar can be solved to true
+    Top,
+}
+
+struct Assignment {
+    /// These vars are NOT assigned `label`,
+    /// all other `KVid` implicitly have assignment `label`
+    vars: FxHashSet<KVid>,
+    label: Label,
+}
+
+impl Assignment {
+    fn new(label: Label) -> Self {
+        let vars = FxHashSet::default();
+        Self { vars, label }
+    }
+
+    fn has_label(&self, kvid: KVid) -> bool {
+        !self.vars.contains(&kvid)
+    }
+
+    fn remove(&mut self, kvid: KVid) {
+        self.vars.insert(kvid);
+    }
+
+    /// simplifies the given predicate expression by replacing
+    /// kvid assigned to TOP with True, BOT with false.
+    fn simplify(&self, pred: &Expr) -> Expr {
+        let mut preds = vec![];
+        for p in pred.flatten_conjs() {
+            if let ExprKind::KVar(kvar) = p.kind()
+                && self.has_label(kvar.kvid)
+            {
+                if self.label == Label::Bot {
+                    return Expr::ff();
+                } // else, skip pushing `p` into `preds`
+            } else {
+                preds.push(p.clone());
+            }
+        }
+        Expr::and_from_iter(preds)
     }
 }

@@ -19,6 +19,7 @@ liquid-fixpoint.workspace = true
 pad-adapter.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rustc-hash.workspace = true
 
 [lints]
 workspace = true
