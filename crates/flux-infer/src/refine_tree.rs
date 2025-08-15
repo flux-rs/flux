@@ -930,7 +930,7 @@ impl ConstraintDeps {
                 // un-BOT the head kvar
                 assignment.remove(kvid);
                 // remove the head kvar from all (bot) assumptions where it currently occurs
-                for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]).iter() {
+                for cid in kv_lhs.get(&kvid).map_or(&[], Vec::as_slice) {
                     // if cid HEAD is a kvar
                     if let VertexId::KVar(rhs_kvid) = self.heads[*cid] {
                         let ref mut assms = bot_assms[*cid];
