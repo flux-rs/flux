@@ -8,6 +8,12 @@ struct S {
     f: i32,
 }
 
+#[refined_by(val: T)]
+struct Thing<T> {
+    #[field(T[val])]
+    val: T,
+}
+
 defs! {
     fn foo(s: S<int>) -> int { //~ Error sorts associated with this struct should have no generic arguments but 1 generic argument was supplied
         s.n
@@ -35,5 +41,9 @@ defs! {
 
     fn foo7(x: bool<int>) -> real { //~ Error primitive sort bool expects no generics but found 1
         1
+    }
+
+    fn foo8(s: Thing) -> int { //~ Error sorts associated with this struct should have one generic argument but 0 generic arguments were supplied
+       0
     }
 }
