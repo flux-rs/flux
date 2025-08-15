@@ -937,7 +937,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::SortRes::Adt(def_id) => {
                 let sort_def = self.genv().adt_sort_def_of(def_id)?;
-                if path.args.len() > sort_def.param_count() {
+                if path.args.len() != sort_def.param_count() {
                     let err = errors::IncorrectGenericsOnSort::new(
                         self.genv(),
                         def_id,
