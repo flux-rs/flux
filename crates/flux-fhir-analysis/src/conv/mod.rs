@@ -1609,10 +1609,38 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
+    fn probe_single_bound_for_assoc_reft<I>(
+        &self,
+        all_candidates: impl FnOnce() -> I,
+        assoc_name: Ident,
+    ) -> QueryResult<ty::PolyTraitRef<'tcx>>
+    where
+        I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
+    {
+        let mut matching_candidates = vec![];
+        for candidate in all_candidates() {
+            let found = self
+                .genv()
+                .assoc_refinements_of(candidate.def_id())?
+                .find(assoc_name.name)
+                .is_some();
+            if found {
+                matching_candidates.push(candidate);
+            }
+        }
+
+        let a = 0;
+        match matching_candidates[..] {
+            [] => todo!(),
+            [candidate] => Ok(candidate),
+            _ => todo!(),
+        }
+    }
+
     fn probe_single_bound_for_assoc_item<I>(
         &self,
         all_candidates: impl Fn() -> I,
-        assoc_name: rustc_span::symbol::Ident,
+        assoc_name: Ident,
     ) -> QueryResult<ty::PolyTraitRef<'tcx>>
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
@@ -2448,38 +2476,115 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         fhir_id: FhirId,
         alias: &fhir::AliasReft,
     ) -> QueryResult<rty::AliasReft> {
-        let fhir::Res::Def(DefKind::Trait, trait_id) = alias.path.res else {
-            span_bug!(alias.path.span, "expected trait")
+        let alias_reft = match alias {
+            fhir::AliasReft::Qualified { qself, trait_, name } => {
+                let fhir::Res::Def(DefKind::Trait, trait_id) = trait_.res else {
+                    span_bug!(trait_.span, "expected trait")
+                };
+                let trait_segment = trait_.last_segment();
+
+                let generics = self.genv().generics_of(trait_id)?;
+                let self_ty =
+                    self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv())?, qself)?;
+                let mut generic_args = vec![self_ty];
+                self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
+
+                let Some(assoc_reft) = self.genv().assoc_refinements_of(trait_id)?.find(name.name)
+                else {
+                    return Err(self.emit(errors::InvalidAssocReft::new(
+                        trait_.span,
+                        name.name,
+                        format!("{:?}", trait_),
+                    )))?;
+                };
+
+                let assoc_id = assoc_reft.def_id;
+
+                dbg::hyperlink!(self.genv().tcx(), name.span, assoc_reft.span);
+
+                rty::AliasReft { assoc_id, args: List::from_vec(generic_args) }
+            }
+            fhir::AliasReft::TypeRelative { qself, name } => {
+                self.conv_type_relative_alias_reft(qself, *name)?
+            }
         };
-        let trait_segment = alias.path.last_segment();
-
-        let generics = self.genv().generics_of(trait_id)?;
-        let self_ty =
-            self.conv_ty_to_generic_arg(env, &generics.param_at(0, self.genv())?, alias.qself)?;
-        let mut generic_args = vec![self_ty];
-        self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
-
-        let Some(assoc_reft) = self
-            .genv()
-            .assoc_refinements_of(trait_id)?
-            .find(alias.name.name)
-        else {
-            return Err(self.emit(errors::InvalidAssocReft::new(
-                alias.path.span,
-                alias.name.name,
-                format!("{:?}", alias.path),
-            )))?;
-        };
-
-        let assoc_id = assoc_reft.def_id;
-
-        dbg::hyperlink!(self.genv().tcx(), alias.name.span, assoc_reft.span);
-
-        let alias_reft = rty::AliasReft { assoc_id, args: List::from_vec(generic_args) };
-
         let fsort = alias_reft.fsort(self.genv())?;
         self.0.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
+    }
+
+    fn conv_type_relative_alias_reft(
+        &mut self,
+        qself: &fhir::Ty,
+        assoc_ident: Ident,
+    ) -> QueryResult<rty::AliasReft> {
+        // Check which parts we can share between this and `conv_type_relative_path`
+        let b = 0;
+        let tcx = self.tcx();
+
+        let qself_res = if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
+        let bound = match qself_res {
+            fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
+                let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
+                    // A cycle error occurred most likely (comment copied from rustc)
+                    span_bug!(qself.span, "expected cycle error");
+                };
+
+                self.probe_single_bound_for_assoc_reft(
+                    || {
+                        traits::supertraits(
+                            tcx,
+                            ty::Binder::dummy(trait_ref.instantiate_identity()),
+                        )
+                    },
+                    assoc_ident,
+                )?
+            }
+            fhir::Res::Def(DefKind::TyParam, param_id)
+            | fhir::Res::SelfTyParam { trait_: param_id } => {
+                let param_bounds = type_param_predicates(tcx, param_id);
+                self.probe_single_bound_for_assoc_reft(
+                    || {
+                        transitive_bounds(
+                            tcx,
+                            param_bounds.map(|pred| pred.map_bound(|t| t.trait_ref)),
+                        )
+                    },
+                    assoc_ident,
+                )?
+            }
+            _ => {
+                let a = 0;
+                todo!()
+            }
+        };
+
+        let Some(trait_ref) = bound.no_bound_vars() else {
+            // This is a programmer error and we should gracefully report it. It's triggered
+            // by code like this
+            // ```
+            // trait Super<'a> { type Assoc; }
+            // trait Child: for<'a> Super<'a> {}
+            // fn foo<T: Child>(x: T::Assoc) {}
+            // ```
+            Err(self.emit(
+                query_bug!("associated path with uninferred generic parameters")
+                    .at(assoc_ident.span),
+            ))?
+        };
+
+        let trait_ref = trait_ref
+            .lower(tcx)
+            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
+            .refine(&self.refiner()?)?;
+
+        let assoc_reft = self
+            .genv()
+            .assoc_refinements_of(trait_ref.def_id)?
+            .find(assoc_ident.name)
+            .unwrap();
+
+        Ok(rty::AliasReft { assoc_id: assoc_reft.def_id, args: trait_ref.args })
     }
 
     pub(crate) fn conv_invariants(
@@ -2727,6 +2832,59 @@ fn ty_param_name(genv: GlobalEnv, def_id: DefId) -> Symbol {
         }
         _ => bug!("ty_param_name: {:?} is a {:?} not a type parameter", def_id, def_kind),
     }
+}
+
+fn type_param_predicates<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    param_id: DefId,
+) -> impl Iterator<Item = ty::PolyTraitPredicate<'tcx>> {
+    let parent = if tcx.def_kind(param_id) == DefKind::Trait {
+        // If the param_id is a trait then this is the `Self` parameter and the parent is the trait itself
+        param_id
+    } else {
+        tcx.parent(param_id)
+    };
+    let param_index = tcx
+        .generics_of(parent)
+        .param_def_id_to_index(tcx, param_id)
+        .unwrap();
+    let predicates = tcx.predicates_of(parent).instantiate_identity(tcx);
+    predicates.into_iter().filter_map(move |(clause, _)| {
+        clause
+            .as_trait_clause()
+            .filter(|trait_pred| trait_pred.self_ty().skip_binder().is_param(param_index))
+    })
+}
+
+// Comment this function and the one above
+const A: () = {};
+fn transitive_bounds<'tcx>(
+    tcx: TyCtxt<'tcx>,
+    trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
+) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>> {
+    let mut seen = FxHashSet::default();
+    let mut stack: Vec<_> = trait_refs.collect();
+
+    std::iter::from_fn(move || {
+        while let Some(trait_ref) = stack.pop() {
+            if !seen.insert(tcx.anonymize_bound_vars(trait_ref)) {
+                continue;
+            }
+
+            stack.extend(
+                tcx.explicit_super_predicates_of(trait_ref.def_id())
+                    .iter_identity_copied()
+                    .map(|(clause, _)| clause.instantiate_supertrait(tcx, trait_ref))
+                    .filter_map(|clause| clause.as_trait_clause())
+                    .filter(|clause| clause.polarity() == ty::PredicatePolarity::Positive)
+                    .map(|clause| clause.map_bound(|clause| clause.trait_ref)),
+            );
+
+            return Some(trait_ref);
+        }
+
+        None
+    })
 }
 
 mod errors {
