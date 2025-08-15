@@ -576,18 +576,21 @@ impl Expr {
         }
     }
 
-    pub fn visit_conj<'a>(&'a self, f: &mut impl FnMut(&'a Expr)) {
-        if let ExprKind::BinaryOp(BinOp::And, e1, e2) = self.kind() {
-            e1.visit_conj(f);
-            e2.visit_conj(f);
-        } else {
-            f(self);
+    pub fn visit_conj<'a>(&'a self, mut f: impl FnMut(&'a Expr)) {
+        fn go<'a>(e: &'a Expr, f: &mut impl FnMut(&'a Expr)) {
+            if let ExprKind::BinaryOp(BinOp::And, e1, e2) = e.kind() {
+                go(e1, f);
+                go(e2, f);
+            } else {
+                f(e);
+            }
         }
+        go(self, &mut f)
     }
 
     pub fn flatten_conjs(&self) -> Vec<&Expr> {
         let mut vec = vec![];
-        self.visit_conj(&mut |e| vec.push(e));
+        self.visit_conj(|e| vec.push(e));
         vec
     }
 
