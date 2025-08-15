@@ -61,13 +61,9 @@ impl RefineTree {
     pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
         self.root
             .borrow_mut()
-            .simplify(genv, &SimplifyPhase::Full, &mut SnapshotMap::default());
-        self.root
-            .borrow_mut()
-            .simplify_bot(genv, &mut SnapshotMap::default());
-        self.root
-            .borrow_mut()
-            .simplify_top(genv, &mut SnapshotMap::default());
+            .simplify(SimplifyPhase::Full(genv), &mut SnapshotMap::default());
+        self.root.borrow_mut().simplify_bot();
+        self.root.borrow_mut().simplify_top();
     }
 
     pub(crate) fn into_fixpoint(
@@ -369,26 +365,21 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-enum SimplifyPhase {
+#[derive(Clone, Copy)]
+enum SimplifyPhase<'genv, 'tcx> {
     /// Normalize and simplify inner `Expr`
-    Full,
+    Full(GlobalEnv<'genv, 'tcx>),
     /// Only propagate `true` (TOP) and `false` (BOT)
     Partial,
 }
 
 impl Node {
-    fn simplify(
-        &mut self,
-        genv: GlobalEnv,
-        phase: &SimplifyPhase,
-        assumed_preds: &mut SnapshotMap<Expr, ()>,
-    ) {
+    fn simplify(&mut self, phase: SimplifyPhase, assumed_preds: &mut SnapshotMap<Expr, ()>) {
         // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
                 let pred = match phase {
-                    SimplifyPhase::Full => pred.normalize(genv).simplify(assumed_preds),
+                    SimplifyPhase::Full(genv) => pred.normalize(genv).simplify(assumed_preds),
                     SimplifyPhase::Partial => pred.clone(),
                 };
                 if pred.is_trivially_true() {
@@ -398,10 +389,10 @@ impl Node {
                 }
             }
             NodeKind::Assumption(pred) => {
-                if let SimplifyPhase::Full = phase {
+                if let SimplifyPhase::Full(genv) = phase {
                     *pred = pred.normalize(genv).simplify(assumed_preds);
                 }
-                pred.flatten_conjs().into_iter().for_each(|conjunct| {
+                pred.visit_conj(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());
                 });
             }
@@ -414,7 +405,7 @@ impl Node {
         // (the order matters here because we need to collect assumed preds first)
         for child in &self.children {
             let current_version = assumed_preds.snapshot();
-            child.borrow_mut().simplify(genv, phase, assumed_preds);
+            child.borrow_mut().simplify(phase, assumed_preds);
             assumed_preds.rollback_to(current_version);
         }
 
@@ -813,22 +804,22 @@ impl RefineCtxtTrace {
 
 impl Node {
     /// replace bot-kvars with false
-    fn simplify_bot(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+    fn simplify_bot(&mut self) {
         let graph = ConstraintDeps::new(self);
         let bots = graph.bot_kvars();
         self.simplify_with_assignment(&bots);
-        self.simplify(genv, &SimplifyPhase::Partial, assumed_preds);
+        self.simplify(SimplifyPhase::Partial, &mut SnapshotMap::default());
     }
 
     /// replace top-kvars with true
-    fn simplify_top(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+    fn simplify_top(&mut self) {
         let graph = ConstraintDeps::new(self);
         let tops = graph.top_kvars();
         self.simplify_with_assignment(&tops);
-        self.simplify(genv, &SimplifyPhase::Partial, assumed_preds);
+        self.simplify(SimplifyPhase::Partial, &mut SnapshotMap::default());
     }
 
-    /// simplifies assm and head using the TOP/BOT kvar assignment; follow
+    /// simplifies assumptions and heads using the TOP/BOT kvar assignment; follow
     /// with a call to `simplify` to delete constraints with FALSE assm.
     fn simplify_with_assignment(&mut self, assignment: &Assignment) {
         match &mut self.kind {
@@ -872,7 +863,7 @@ impl ConstraintDeps {
         let n = assumptions.len();
         match &node.kind {
             NodeKind::Head(expr, _) => {
-                expr.visit_conj(&mut |e: &Expr| {
+                expr.visit_conj(|e| {
                     if let ExprKind::KVar(kvar) = e.kind() {
                         self.insert_clause(assumptions, Head::KVar(kvar.kvid));
                     } else {
@@ -881,7 +872,7 @@ impl ConstraintDeps {
                 });
             }
             NodeKind::Assumption(expr) => {
-                expr.visit_conj(&mut |e: &Expr| {
+                expr.visit_conj(|e| {
                     if let ExprKind::KVar(kvar) = e.kind() {
                         assumptions.push(kvar.kvid);
                     }
@@ -918,6 +909,7 @@ impl ConstraintDeps {
         }
         res
     }
+
     /// Computes the set of all kvars that can be assigned to Bot (False),
     /// because they are not (transitively) reachable from any concrete ASSUMPTION.
     fn bot_kvars(self) -> Assignment {
@@ -1003,7 +995,8 @@ newtype_index! {
 enum Head {
     /// KVar
     KVar(KVid),
-    /// Concrete
+    /// A *conc*rete predicate, i.e., an [`Expr`] that's not a kvar. We don't need to know
+    /// the exact expression, only that it's concrete.
     Conc,
 }
 
