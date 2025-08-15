@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["NodeKind"],"fn":["children_to_fixpoint"],"mod":["pretty"],"struct":["Cursor","Marker","Node","NodePtr","ParentsIter","RcxBind","RefineCtxtTrace","RefineTree","Scope","WeakNodePtr"]};
+window.SIDEBAR_ITEMS = {"enum":["Head","Label","NodeKind","SimplifyPhase"],"fn":["children_to_fixpoint"],"mod":["pretty"],"struct":["Assignment","ClauseId","ConstraintDeps","Cursor","Marker","Node","NodePtr","ParentsIter","RcxBind","RefineCtxtTrace","RefineTree","Scope","WeakNodePtr"]};

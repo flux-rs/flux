@@ -796,7 +796,7 @@
 <a href=#796 id=796 data-nosnippet>796</a>    }
 <a href=#797 id=797 data-nosnippet>797</a>
 <a href=#798 id=798 data-nosnippet>798</a>    <span class="kw">pub fn </span>find(<span class="kw-2">&amp;</span><span class="self">self</span>, name: Symbol) -&gt; <span class="prelude-ty">Option</span>&lt;AssocReft&gt; {
-<a href=#799 id=799 data-nosnippet>799</a>        <span class="prelude-val">Some</span>(<span class="self">self</span>.items.into_iter().find(|it| it.name() == name)<span class="question-mark">?</span>.clone())
+<a href=#799 id=799 data-nosnippet>799</a>        <span class="prelude-val">Some</span>(<span class="kw-2">*</span><span class="self">self</span>.items.into_iter().find(|it| it.name() == name)<span class="question-mark">?</span>)
 <a href=#800 id=800 data-nosnippet>800</a>    }
 <a href=#801 id=801 data-nosnippet>801</a>}
 <a href=#802 id=802 data-nosnippet>802</a>
