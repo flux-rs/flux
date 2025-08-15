@@ -796,7 +796,7 @@ impl AssocRefinements {
     }
 
     pub fn find(&self, name: Symbol) -> Option<AssocReft> {
-        Some(self.items.into_iter().find(|it| it.name() == name)?.clone())
+        Some(*self.items.into_iter().find(|it| it.name() == name)?)
     }
 }
 

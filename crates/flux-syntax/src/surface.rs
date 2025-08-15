@@ -508,7 +508,7 @@ impl Ty {
         if let TyKind::Base(bty) = &self.kind
             && let BaseTyKind::Path(None, path) = &bty.kind
             && let [segment] = &path.segments[..]
-            && segment.args.len() == 0
+            && segment.args.is_empty()
         {
             Some(path)
         } else {
