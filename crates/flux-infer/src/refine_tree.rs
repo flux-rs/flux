@@ -833,24 +833,25 @@ impl Node {
 #[derive(Debug)]
 struct ConstraintDeps {
     /// description of each constraint
-    edges: IndexVec<ClauseId, ClauseInfo>,
+    assumptions: IndexVec<ClauseId, FxHashSet<KVid>>,
+    /// head of each constraint
+    heads: IndexVec<ClauseId, VertexId>,
 }
 
 impl ConstraintDeps {
     fn new(node: &Node) -> Self {
-        let mut graph = Self { edges: IndexVec::default() };
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
         graph.build(node, &mut vec![]);
-
         graph
     }
 
-    fn head(&self, cid: ClauseId) -> VertexId {
-        let info = &self.edges[cid];
-        info.rhs
+    fn insert_clause(&mut self, assumptions: &[KVid], head: VertexId) {
+        self.assumptions.push(assumptions.iter().copied().collect());
+        self.heads.push(head);
     }
 
-    fn build(&mut self, node: &Node, ctx: &mut Vec<KVid>) {
-        let n = ctx.len();
+    fn build(&mut self, node: &Node, assumptions: &mut Vec<KVid>) {
+        let n = assumptions.len();
         match &node.kind {
             NodeKind::Head(expr, _) => {
                 expr.visit_conj(&mut |e: &Expr| {
@@ -859,15 +860,15 @@ impl ConstraintDeps {
                         ExprKind::KVar(kvar) => Some(VertexId::KVar(kvar.kvid)),
                         _ => Some(VertexId::Conc),
                     };
-                    if let Some(rhs) = vertex {
-                        self.edges.push(ClauseInfo::new(ctx, rhs));
+                    if let Some(head) = vertex {
+                        self.insert_clause(assumptions, head);
                     }
                 });
             }
             NodeKind::Assumption(expr) => {
                 expr.visit_conj(&mut |e: &Expr| {
                     if let ExprKind::KVar(kvar) = e.kind() {
-                        ctx.push(kvar.kvid);
+                        assumptions.push(kvar.kvid);
                     }
                 });
             }
@@ -875,17 +876,17 @@ impl ConstraintDeps {
         };
 
         for child in &node.children {
-            self.build(&child.borrow(), ctx);
+            self.build(&child.borrow(), assumptions);
         }
 
-        ctx.truncate(n); // restore ctx
+        assumptions.truncate(n); // restore ctx
     }
 
     /// set of edges where kvid appears as ASSM
     fn kv_lhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
         let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
-        for (edge_id, edge_info) in self.edges.iter_enumerated() {
-            for kvid in &edge_info.lhs {
+        for (edge_id, kvids) in self.assumptions.iter_enumerated() {
+            for kvid in kvids {
                 res.entry(*kvid).or_default().insert(edge_id);
             }
         }
@@ -897,9 +898,9 @@ impl ConstraintDeps {
     /// set of edges where kvid appears as HEAD
     fn kv_rhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
         let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
-        for (edge_id, edge_info) in self.edges.iter_enumerated() {
-            if let VertexId::KVar(kvid) = edge_info.rhs {
-                res.entry(kvid).or_default().insert(edge_id);
+        for (edge_id, head) in self.heads.iter_enumerated() {
+            if let VertexId::KVar(kvid) = head {
+                res.entry(*kvid).or_default().insert(edge_id);
             }
         }
         res.into_iter()
@@ -915,44 +916,24 @@ impl ConstraintDeps {
         let kv_lhs = self.kv_lhs();
 
         // set of BOT kvars in LHS of each constraint with KVar HEAD
-        let mut bot_assms: IndexVec<ClauseId, Option<FxHashSet<KVid>>> =
-            self.edges
-                .iter()
-                .map(|info| {
-                    if matches!(info.rhs, VertexId::KVar(_)) {
-                        Some(info.lhs.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+        let mut bot_assms: IndexVec<ClauseId, FxHashSet<KVid>> = self.assumptions;
 
         // set of constraints `cid` whose bot-assms is empty
         let mut candidates: Vec<ClauseId> = bot_assms
             .iter_enumerated()
-            .filter_map(|(cid, lhs)| {
-                if let Some(lhs) = lhs
-                    && lhs.is_empty()
-                {
-                    Some(cid)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(cid) } else { None })
             .collect();
 
         // while there is a candidate constraint, that has NO BOT kvars in lhs
         while let Some(cid) = candidates.pop() {
-            if let VertexId::KVar(kvid) = self.head(cid) {
+            if let VertexId::KVar(kvid) = self.heads[cid] {
                 // un-BOT the head kvar
                 assignment.remove(kvid);
                 // remove the head kvar from all (bot) assumptions where it currently occurs
                 for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]).iter() {
                     // if cid HEAD is a kvar
-                    if let VertexId::KVar(rhs_kvid) = self.head(*cid) {
-                        let Some(ref mut assms) = bot_assms[*cid] else {
-                            tracked_span_bug!("missing constraint info for {:?}", cid);
-                        };
+                    if let VertexId::KVar(rhs_kvid) = self.heads[*cid] {
+                        let ref mut assms = bot_assms[*cid];
                         assms.remove(&kvid);
                         if assignment.has_label(rhs_kvid) && assms.is_empty() {
                             candidates.push(*cid);
@@ -975,9 +956,9 @@ impl ConstraintDeps {
 
         // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
         let mut candidates = vec![];
-        for info in &self.edges {
-            if matches!(info.rhs, VertexId::Conc) {
-                for kvid in &info.lhs {
+        for (cid, head) in self.heads.iter_enumerated() {
+            if matches!(head, VertexId::Conc) {
+                for kvid in &self.assumptions[cid] {
                     candidates.push(*kvid);
                 }
             }
@@ -990,9 +971,8 @@ impl ConstraintDeps {
 
             // for each constraint where kvid appears as head
             for cid in kv_rhs.get(&kvid).unwrap_or(&vec![]) {
-                let info = &self.edges[*cid];
                 // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
-                for lhs_kvid in &info.lhs {
+                for lhs_kvid in &self.assumptions[*cid] {
                     if assignment.has_label(*lhs_kvid) {
                         candidates.push(*lhs_kvid);
                     }
@@ -1006,20 +986,6 @@ impl ConstraintDeps {
 
 newtype_index! {
     struct ClauseId {}
-}
-
-#[derive(Debug)]
-struct ClauseInfo {
-    /// assumptions
-    lhs: FxHashSet<KVid>,
-    /// head
-    rhs: VertexId,
-}
-
-impl ClauseInfo {
-    fn new(lhs: &[KVid], rhs: VertexId) -> Self {
-        ClauseInfo { lhs: lhs.iter().copied().collect(), rhs }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
