@@ -400,11 +400,15 @@ impl Pretty for IdxFmt {
                     buf.write_str(&format_cx!(cx, "{:?}", e))?;
                 }
             }
-            ExprKind::Var(Var::EarlyParam(ep))
-                if cx.earlyparam_env.borrow_mut().as_mut().unwrap().insert(*ep) =>
-            {
-                // FIXME: handle adding # for early params in output position
-                buf.write_str(&format_cx!(cx, "@{:?}", e))?;
+            ExprKind::Var(Var::EarlyParam(ep)) => {
+                if let Some(param) = cx.earlyparam_env.borrow_mut().as_mut()
+                    && param.insert(*ep)
+                {
+                    // FIXME: handle adding # for early params in output position
+                    buf.write_str(&format_cx!(cx, "@{:?}", e))?;
+                } else {
+                    buf.write_str(&format_cx!(cx, "{:?}", e))?;
+                }
             }
             _ => {
                 buf.write_str(&format_cx!(cx, "{:?}", e))?;

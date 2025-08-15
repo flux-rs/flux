@@ -581,7 +581,7 @@ impl Expr {
             e1.visit_conj(f);
             e2.visit_conj(f);
         } else {
-            f(self)
+            f(self);
         }
     }
 

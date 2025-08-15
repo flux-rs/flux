@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, BinOp, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -61,7 +61,7 @@ impl RefineTree {
     pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
         self.root
             .borrow_mut()
-            .simplify(genv, &mut SnapshotMap::default());
+            .simplify(genv, &SimplifyPhase::Full, &mut SnapshotMap::default());
         self.root
             .borrow_mut()
             .simplify_bot(genv, &mut SnapshotMap::default());
@@ -369,12 +369,28 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+enum SimplifyPhase {
+    /// Normalize and simplify inner `Expr`
+    Full,
+    /// Only propagate `true` (TOP) and `false` (BOT)
+    Partial,
+}
+
 impl Node {
-    fn simplify(&mut self, genv: GlobalEnv, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+    fn simplify(
+        &mut self,
+        genv: GlobalEnv,
+        phase: &SimplifyPhase,
+        assumed_preds: &mut SnapshotMap<Expr, ()>,
+    ) {
         // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(genv).simplify(assumed_preds);
+                let pred = match phase {
+                    SimplifyPhase::Full => pred.normalize(genv).simplify(assumed_preds),
+                    SimplifyPhase::Partial => pred.clone(),
+                };
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
@@ -382,7 +398,9 @@ impl Node {
                 }
             }
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(genv).simplify(assumed_preds);
+                if let SimplifyPhase::Full = phase {
+                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                }
                 pred.flatten_conjs().into_iter().for_each(|conjunct| {
                     assumed_preds.insert(conjunct.erase_spans(), ());
                 });
@@ -396,7 +414,7 @@ impl Node {
         // (the order matters here because we need to collect assumed preds first)
         for child in &self.children {
             let current_version = assumed_preds.snapshot();
-            child.borrow_mut().simplify(genv, assumed_preds);
+            child.borrow_mut().simplify(genv, phase, assumed_preds);
             assumed_preds.rollback_to(current_version);
         }
 
@@ -799,7 +817,7 @@ impl Node {
         let graph = ConstraintDeps::new(self);
         let bots = graph.bot_kvars();
         self.simplify_with_assignment(&bots);
-        self.simplify(genv, assumed_preds);
+        self.simplify(genv, &SimplifyPhase::Partial, assumed_preds);
     }
 
     /// replace top-kvars with true
@@ -807,7 +825,7 @@ impl Node {
         let graph = ConstraintDeps::new(self);
         let tops = graph.top_kvars();
         self.simplify_with_assignment(&tops);
-        self.simplify(genv, assumed_preds);
+        self.simplify(genv, &SimplifyPhase::Partial, assumed_preds);
     }
 
     /// simplifies assm and head using the TOP/BOT kvar assignment; follow
@@ -835,7 +853,7 @@ struct ConstraintDeps {
     /// assumptions for each clause
     assumptions: IndexVec<ClauseId, FxHashSet<KVid>>,
     /// head of each clause
-    heads: IndexVec<ClauseId, VertexId>,
+    heads: IndexVec<ClauseId, Head>,
 }
 
 impl ConstraintDeps {
@@ -845,7 +863,7 @@ impl ConstraintDeps {
         graph
     }
 
-    fn insert_clause(&mut self, assumptions: &[KVid], head: VertexId) {
+    fn insert_clause(&mut self, assumptions: &[KVid], head: Head) {
         self.assumptions.push(assumptions.iter().copied().collect());
         self.heads.push(head);
     }
@@ -855,13 +873,10 @@ impl ConstraintDeps {
         match &node.kind {
             NodeKind::Head(expr, _) => {
                 expr.visit_conj(&mut |e: &Expr| {
-                    let vertex = match e.kind() {
-                        ExprKind::BinaryOp(BinOp::And, _, _) => None,
-                        ExprKind::KVar(kvar) => Some(VertexId::KVar(kvar.kvid)),
-                        _ => Some(VertexId::Conc),
-                    };
-                    if let Some(head) = vertex {
-                        self.insert_clause(assumptions, head);
+                    if let ExprKind::KVar(kvar) = e.kind() {
+                        self.insert_clause(assumptions, Head::KVar(kvar.kvid));
+                    } else {
+                        self.insert_clause(assumptions, Head::Conc);
                     }
                 });
             }
@@ -884,28 +899,24 @@ impl ConstraintDeps {
 
     /// set of edges where kvid appears as ASSM
     fn kv_lhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
-        let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
-        for (edge_id, kvids) in self.assumptions.iter_enumerated() {
+        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+        for (clause_id, kvids) in self.assumptions.iter_enumerated() {
             for kvid in kvids {
-                res.entry(*kvid).or_default().insert(edge_id);
+                res.entry(*kvid).or_default().push(clause_id);
             }
         }
-        res.into_iter()
-            .map(|(k, v)| (k, v.into_iter().collect()))
-            .collect()
+        res
     }
 
     /// set of edges where kvid appears as HEAD
     fn kv_rhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
-        let mut res: FxHashMap<KVid, FxHashSet<ClauseId>> = FxHashMap::default();
-        for (edge_id, head) in self.heads.iter_enumerated() {
-            if let VertexId::KVar(kvid) = head {
-                res.entry(*kvid).or_default().insert(edge_id);
+        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+        for (clause_id, head) in self.heads.iter_enumerated() {
+            if let Head::KVar(kvid) = head {
+                res.entry(*kvid).or_default().push(clause_id);
             }
         }
-        res.into_iter()
-            .map(|(k, v)| (k, v.into_iter().collect()))
-            .collect()
+        res
     }
     /// Computes the set of all kvars that can be assigned to Bot (False),
     /// because they are not (transitively) reachable from any concrete ASSUMPTION.
@@ -926,14 +937,14 @@ impl ConstraintDeps {
 
         // while there is a candidate constraint, that has NO BOT kvars in lhs
         while let Some(cid) = candidates.pop() {
-            if let VertexId::KVar(kvid) = self.heads[cid] {
+            if let Head::KVar(kvid) = self.heads[cid] {
                 // un-BOT the head kvar
                 assignment.remove(kvid);
                 // remove the head kvar from all (bot) assumptions where it currently occurs
-                for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]).iter() {
+                for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]) {
                     // if cid HEAD is a kvar
-                    if let VertexId::KVar(rhs_kvid) = self.heads[*cid] {
-                        let ref mut assms = bot_assms[*cid];
+                    if let Head::KVar(rhs_kvid) = self.heads[*cid] {
+                        let assms = &mut bot_assms[*cid];
                         assms.remove(&kvid);
                         if assignment.has_label(rhs_kvid) && assms.is_empty() {
                             candidates.push(*cid);
@@ -957,7 +968,7 @@ impl ConstraintDeps {
         // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
         let mut candidates = vec![];
         for (cid, head) in self.heads.iter_enumerated() {
-            if matches!(head, VertexId::Conc) {
+            if matches!(head, Head::Conc) {
                 for kvid in &self.assumptions[cid] {
                     candidates.push(*kvid);
                 }
@@ -989,7 +1000,7 @@ newtype_index! {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum VertexId {
+enum Head {
     /// KVar
     KVar(KVid),
     /// Concrete
