@@ -323,6 +323,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_trait(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let trait_ = &self.specs.traits[&owner_id.local_id()];
+
+        let mut definitions = DefinitionMap::default();
+        for assoc_reft in &trait_.assoc_refinements {
+            definitions
+                .define(assoc_reft.name)
+                .emit(&self.genv)
+                .collect_err(&mut self.err);
+        }
+
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_trait(trait_);
         })?;
@@ -331,6 +340,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_impl(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let impl_ = &self.specs.impls[&owner_id.local_id()];
+
+        let mut definitions = DefinitionMap::default();
+        for assoc_reft in &impl_.assoc_refinements {
+            definitions
+                .define(assoc_reft.name)
+                .emit(&self.genv)
+                .collect_err(&mut self.err);
+        }
+
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
