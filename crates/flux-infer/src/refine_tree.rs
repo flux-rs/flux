@@ -832,9 +832,9 @@ impl Node {
 
 #[derive(Debug)]
 struct ConstraintDeps {
-    /// description of each constraint
+    /// assumptions for each clause
     assumptions: IndexVec<ClauseId, FxHashSet<KVid>>,
-    /// head of each constraint
+    /// head of each clause
     heads: IndexVec<ClauseId, VertexId>,
 }
 
