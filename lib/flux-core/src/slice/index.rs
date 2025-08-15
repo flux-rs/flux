@@ -29,7 +29,7 @@ impl<T> SliceIndex<[T]> for usize {
 impl<T> SliceIndex<[T]> for ops::Range<usize> {
     #![assoc(
         fn in_bounds(r: ops::Range<int>, len: int) -> bool {
-            r.start <= r.end && r.end < len
+            r.start <= r.end && r.end <= len
         }
     )] //
 }
