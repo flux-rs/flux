@@ -1,7 +1,7 @@
+# Try to update the toolchain by gradually incrementing it. Stops when reaching a day that fails
+# regression tests or when reaching the end toolchain.
+
 name: upgrade-toolchain
-description:
-  Try to update the toolchain by gradual increments. Stops when reaching a day that fails regression
-  tests or when reaching the end toolchain.
 
 on:
   workflow_dispatch:
@@ -41,10 +41,9 @@ jobs:
       - name: Cherry pick changes from open PR
         run: |
           set -eu
-
-          cd flux
           existing_pr=$(gh pr list --base main --head toolchain-upgrade --state open --json number --jq '.[0].number' || true)
           if [ -n "$existing_pr" ]; then
+            cd flux
             git fetch --unshallow origin main toolchain-upgrade
             start=$(git merge-base main origin/toolchain-upgrade)
             end=origin/toolchain-upgrade
@@ -67,11 +66,9 @@ jobs:
           filter: tree:0
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.6.1
+        uses: cda-tum/setup-z3@v1.6.6
         with:
           version: 4.12.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Fixpoint
         uses: ./flux/.github/actions/install-fixpoint
