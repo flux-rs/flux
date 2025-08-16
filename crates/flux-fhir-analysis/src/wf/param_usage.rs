@@ -56,7 +56,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
     /// Insert params that are considered to be value determined to `xi`.
     fn insert_value_determined(&mut self, expr: &fhir::Expr) {
         match expr.kind {
-            fhir::ExprKind::Var(path, _) if let fhir::ExprRes::Param(_, id) = path.res => {
+            fhir::ExprKind::Var(path, _) if let fhir::Res::Param(_, id) = path.res => {
                 self.xi.insert(id, ());
             }
             fhir::ExprKind::Record(fields) => {
@@ -84,7 +84,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
             fhir::ExprKind::UnaryOp(_, e) => self.check_func_params_uses(e, false),
             fhir::ExprKind::App(func, args) => {
                 if !is_top_level_conj
-                    && let fhir::ExprRes::Param(_, id) = func.res
+                    && let fhir::Res::Param(_, id) = func.res
                     && let fhir::InferMode::KVar = self.infcx.infer_mode(id)
                 {
                     self.errors
@@ -101,7 +101,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 }
             }
             fhir::ExprKind::Var(var, _) => {
-                if let fhir::ExprRes::Param(_, id) = var.res
+                if let fhir::Res::Param(_, id) = var.res
                     && let sort @ rty::Sort::Func(_) = self.infcx.param_sort(id)
                 {
                     self.errors.emit(InvalidParamPos::new(var.span, &sort));

@@ -19,7 +19,7 @@ use flux_common::{
 };
 use flux_middle::{
     def_id::MaybeExternId,
-    fhir::{self, ExprRes, FhirId, FluxOwnerId},
+    fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
@@ -1761,7 +1761,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
-            fhir::Res::Err => {
+            fhir::Res::Param(..)
+            | fhir::Res::NumConst(_)
+            | fhir::Res::GlobalFunc(..)
+            | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
@@ -2097,8 +2100,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let expr = match expr.kind {
             fhir::ExprKind::Var(var, _) => {
                 match var.res {
-                    ExprRes::Param(..) => env.lookup(&var).to_expr(),
-                    ExprRes::Const(def_id) => {
+                    fhir::Res::Param(..) => env.lookup(&var).to_expr(),
+                    fhir::Res::Def(DefKind::Const, def_id) => {
                         self.hyperlink(var.span, tcx.def_ident_span(def_id));
                         if P::HAS_ELABORATED_INFORMATION {
                             rty::Expr::const_def_id(def_id).at(espan)
@@ -2109,26 +2112,26 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                             rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
                         }
                     }
-                    ExprRes::VariantCtor(ctor_id) => {
+                    fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
                         let variant_id = self.tcx().parent(ctor_id);
                         let enum_id = self.tcx().parent(variant_id);
                         self.hyperlink(var.span, tcx.def_ident_span(variant_id));
                         let idx = variant_idx(self.tcx(), variant_id);
                         rty::Expr::ctor_enum(enum_id, idx)
                     }
-                    ExprRes::ConstGeneric(def_id) => {
+                    fhir::Res::Def(DefKind::ConstParam, def_id) => {
                         self.hyperlink(var.span, tcx.def_ident_span(def_id));
                         rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
                             .at(espan)
                     }
-                    ExprRes::NumConst(num) => {
+                    fhir::Res::NumConst(num) => {
                         rty::Expr::constant(rty::Constant::from(num)).at(espan)
                     }
-                    ExprRes::GlobalFunc(..) => {
+                    fhir::Res::GlobalFunc(..) => {
                         Err(self.emit(errors::InvalidPosition { span: expr.span }))?
                     }
-                    ExprRes::Adt(..) => {
-                        span_bug!(var.span, "unexpected constructor in var position")
+                    _ => {
+                        span_bug!(var.span, "unexpected resolution `{:?}`", var.res)
                     }
                 }
             }
@@ -2218,7 +2221,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let def_id = if let Some(path) = path {
                     match path.res {
-                        ExprRes::Adt(def_id) => def_id,
+                        fhir::Res::Def(DefKind::Enum | DefKind::Struct, def_id) => def_id,
                         _ => span_bug!(path.span, "unexpected path in constructor"),
                     }
                 } else {
@@ -2327,8 +2330,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
         let span = func.span;
         let expr = match func.res {
-            ExprRes::Param(..) => env.lookup(func).to_expr(),
-            ExprRes::GlobalFunc(kind) => {
+            fhir::Res::Param(..) => env.lookup(func).to_expr(),
+            fhir::Res::GlobalFunc(kind) => {
                 match Self::conv_spec_func(&kind) {
                     Ok(func) => {
                         match func {
