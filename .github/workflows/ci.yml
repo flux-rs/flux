@@ -21,18 +21,12 @@ jobs:
         uses: ./.github/actions/install-fixpoint
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.6.1
+        uses: cda-tum/setup-z3@v1.6.6
         with:
           version: 4.12.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.8.0
-
-      - name: Build
-        run: |
-          cargo build
 
       - name: Run tests
         run: |
@@ -47,11 +41,9 @@ jobs:
         uses: ./.github/actions/install-fixpoint
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.6.1
+        uses: cda-tum/setup-z3@v1.6.6
         with:
           version: 4.12.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install CVC5
         uses: ./.github/actions/install-cvc5
