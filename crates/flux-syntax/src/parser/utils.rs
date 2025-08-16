@@ -3,7 +3,7 @@
 use super::{LAngle, RAngle, lookahead::Peek};
 use crate::{
     ParseCtxt, ParseResult,
-    lexer::{Delimiter, TokenKind},
+    token::{Delimiter, TokenKind},
 };
 
 /// Parses a list of one ore more items separated by the requested token. Parsing continues

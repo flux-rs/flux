@@ -8,12 +8,13 @@ pub mod lexer;
 mod parser;
 pub mod surface;
 pub mod symbols;
-use lexer::{Cursor, TokenKind};
+mod token;
+use lexer::Cursor;
 use rustc_ast::tokenstream::TokenStream;
 use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
 use surface::NodeId;
 
-use crate::{lexer::token, parser::lookahead::Expected};
+use crate::parser::lookahead::Expected;
 
 #[derive(Default)]
 pub struct ParseSess {
@@ -178,7 +179,7 @@ impl<'a> ParseCtxt<'a> {
 
     fn unexpected_token(&mut self, expected: Vec<Expected>) -> ParseError {
         let tok = self.tokens.at(0);
-        let kind = if tok.kind == TokenKind::Eof {
+        let kind = if tok.kind == token::Eof {
             ParseErrorKind::UnexpectedEof
         } else {
             ParseErrorKind::UnexpectedToken { expected }
