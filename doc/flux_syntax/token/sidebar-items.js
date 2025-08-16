@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Delimiter","IdentIsRaw","LitKind","TokenKind"],"struct":["Lit","Token"]};
