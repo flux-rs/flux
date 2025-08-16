@@ -6,7 +6,7 @@
 <a href=#6 id=6 data-nosnippet>6</a>
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use crate</span>::{
 <a href=#8 id=8 data-nosnippet>8</a>    ParseCtxt, ParseError, ParseResult,
-<a href=#9 id=9 data-nosnippet>9</a>    lexer::{Token, TokenKind},
+<a href=#9 id=9 data-nosnippet>9</a>    lexer::{IdentIsRaw, Token, TokenKind},
 <a href=#10 id=10 data-nosnippet>10</a>    surface::BinOp,
 <a href=#11 id=11 data-nosnippet>11</a>    symbols,
 <a href=#12 id=12 data-nosnippet>12</a>};
@@ -64,7 +64,7 @@
 <a href=#64 id=64 data-nosnippet>64</a><span class="kw">impl </span>Peek <span class="kw">for </span>NonReserved {
 <a href=#65 id=65 data-nosnippet>65</a>    <span class="kw">fn </span>matches(<span class="self">self</span>, tok: TokenKind, edition: Edition) -&gt; bool {
 <a href=#66 id=66 data-nosnippet>66</a>        <span class="kw">match </span>tok {
-<a href=#67 id=67 data-nosnippet>67</a>            TokenKind::Ident(sym) =&gt; !symbols::is_reserved(sym, edition),
+<a href=#67 id=67 data-nosnippet>67</a>            TokenKind::Ident(sym, IdentIsRaw::No) =&gt; !symbols::is_reserved(sym, edition),
 <a href=#68 id=68 data-nosnippet>68</a>            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
 <a href=#69 id=69 data-nosnippet>69</a>        }
 <a href=#70 id=70 data-nosnippet>70</a>    }
@@ -128,7 +128,7 @@
 <a href=#128 id=128 data-nosnippet>128</a><span class="doccomment">/// Use a [`Symbol`] to match a [`TokenKind::Ident`] equal to it.
 <a href=#129 id=129 data-nosnippet>129</a></span><span class="kw">impl </span>Peek <span class="kw">for </span>Symbol {
 <a href=#130 id=130 data-nosnippet>130</a>    <span class="kw">fn </span>matches(<span class="self">self</span>, tok: TokenKind, <span class="kw">_</span>: Edition) -&gt; bool {
-<a href=#131 id=131 data-nosnippet>131</a>        <span class="macro">matches!</span>(tok, TokenKind::Ident(sym) <span class="kw">if </span>sym == <span class="self">self</span>)
+<a href=#131 id=131 data-nosnippet>131</a>        <span class="macro">matches!</span>(tok, TokenKind::Ident(sym, IdentIsRaw::No) <span class="kw">if </span>sym == <span class="self">self</span>)
 <a href=#132 id=132 data-nosnippet>132</a>    }
 <a href=#133 id=133 data-nosnippet>133</a>}
 <a href=#134 id=134 data-nosnippet>134</a><span class="kw">impl </span>PeekExpected <span class="kw">for </span>Symbol {

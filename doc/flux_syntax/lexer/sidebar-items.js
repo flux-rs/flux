@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Delimiter","LitKind","TokenKind"],"mod":["token"],"struct":["Cursor","Frame","Lit","Token"]};
+window.SIDEBAR_ITEMS = {"enum":["Delimiter","IdentIsRaw","LitKind","TokenKind"],"mod":["token"],"struct":["Cursor","Frame","Lit","Token"]};

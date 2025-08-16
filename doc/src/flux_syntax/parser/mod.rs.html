@@ -13,7 +13,7 @@
 <a href=#13 id=13 data-nosnippet>13</a>    ParseCtxt, ParseError, ParseResult,
 <a href=#14 id=14 data-nosnippet>14</a>    lexer::{
 <a href=#15 id=15 data-nosnippet>15</a>        Delimiter::<span class="kw-2">*</span>,
-<a href=#16 id=16 data-nosnippet>16</a>        Token,
+<a href=#16 id=16 data-nosnippet>16</a>        IdentIsRaw, Token,
 <a href=#17 id=17 data-nosnippet>17</a>        TokenKind::{<span class="self">self</span>, Caret, Comma},
 <a href=#18 id=18 data-nosnippet>18</a>        token,
 <a href=#19 id=19 data-nosnippet>19</a>    },
@@ -1436,8 +1436,8 @@
 <a href=#1436 id=1436 data-nosnippet>1436</a>}
 <a href=#1437 id=1437 data-nosnippet>1437</a>
 <a href=#1438 id=1438 data-nosnippet>1438</a><span class="kw">fn </span>parse_ident(cx: <span class="kw-2">&amp;mut </span>ParseCtxt) -&gt; ParseResult&lt;Ident&gt; {
-<a href=#1439 id=1439 data-nosnippet>1439</a>    <span class="kw">if let </span>Token { kind: token::Ident(name), lo, hi } = cx.at(<span class="number">0</span>)
-<a href=#1440 id=1440 data-nosnippet>1440</a>        &amp;&amp; !cx.is_reserved(name)
+<a href=#1439 id=1439 data-nosnippet>1439</a>    <span class="kw">if let </span>Token { kind: token::Ident(name, is_raw), lo, hi } = cx.at(<span class="number">0</span>)
+<a href=#1440 id=1440 data-nosnippet>1440</a>        &amp;&amp; (!cx.is_reserved(name) || is_raw == IdentIsRaw::Yes)
 <a href=#1441 id=1441 data-nosnippet>1441</a>    {
 <a href=#1442 id=1442 data-nosnippet>1442</a>        cx.advance();
 <a href=#1443 id=1443 data-nosnippet>1443</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(Ident { name, span: cx.mk_span(lo, hi) });
