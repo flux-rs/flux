@@ -6,7 +6,7 @@ use rustc_span::{Symbol, edition::Edition};
 
 use crate::{
     ParseCtxt, ParseError, ParseResult,
-    lexer::{Token, TokenKind},
+    lexer::{IdentIsRaw, Token, TokenKind},
     surface::BinOp,
     symbols,
 };
@@ -64,7 +64,7 @@ pub(crate) struct NonReserved;
 impl Peek for NonReserved {
     fn matches(self, tok: TokenKind, edition: Edition) -> bool {
         match tok {
-            TokenKind::Ident(sym) => !symbols::is_reserved(sym, edition),
+            TokenKind::Ident(sym, IdentIsRaw::No) => !symbols::is_reserved(sym, edition),
             _ => false,
         }
     }
@@ -128,7 +128,7 @@ impl PeekExpected for LAngle {
 /// Use a [`Symbol`] to match a [`TokenKind::Ident`] equal to it.
 impl Peek for Symbol {
     fn matches(self, tok: TokenKind, _: Edition) -> bool {
-        matches!(tok, TokenKind::Ident(sym) if sym == self)
+        matches!(tok, TokenKind::Ident(sym, IdentIsRaw::No) if sym == self)
     }
 }
 impl PeekExpected for Symbol {

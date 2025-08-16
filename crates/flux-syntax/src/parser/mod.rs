@@ -13,7 +13,7 @@ use crate::{
     ParseCtxt, ParseError, ParseResult,
     lexer::{
         Delimiter::*,
-        Token,
+        IdentIsRaw, Token,
         TokenKind::{self, Caret, Comma},
         token,
     },
@@ -1436,8 +1436,8 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 }
 
 fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
-    if let Token { kind: token::Ident(name), lo, hi } = cx.at(0)
-        && !cx.is_reserved(name)
+    if let Token { kind: token::Ident(name, is_raw), lo, hi } = cx.at(0)
+        && (!cx.is_reserved(name) || is_raw == IdentIsRaw::Yes)
     {
         cx.advance();
         return Ok(Ident { name, span: cx.mk_span(lo, hi) });
