@@ -156,7 +156,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
         // If this is a trait impl compute the impl_id from the trait_ref
         let mut impl_of_trait = None;
-        if let hir::ItemKind::Impl(dummy_impl) = dummy_item.kind {
+        if let hir::ItemKind::Impl(dummy_impl) = &dummy_item.kind {
             impl_of_trait =
                 Some(self.extract_extern_id_from_impl(dummy_item.owner_id, dummy_impl)?);
 
