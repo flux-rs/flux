@@ -1035,11 +1035,14 @@ pub enum Lit {
 pub enum ExprRes<Id = ParamId> {
     Param(ParamKind, Id),
     Const(DefId),
-    /// The constructor of an [adt sort]
+    /// An enum or a struct for which we automatically create an [adt sort]. This can be used to
+    /// construct values of this sort with the `name { ... }` syntax.
     ///
     /// [adt sort]: SortRes::Adt
-    Ctor(DefId),
-    Variant(DefId),
+    Adt(DefId),
+    /// A [`DefKind::Ctor`]. Used for reflected enums. We currently only supports const constructors
+    /// for enum variants.
+    VariantCtor(DefId),
     ConstGeneric(DefId),
     NumConst(i128),
     GlobalFunc(SpecFuncKind),
@@ -1053,8 +1056,8 @@ impl<Id> ExprRes<Id> {
             ExprRes::NumConst(val) => ExprRes::NumConst(val),
             ExprRes::GlobalFunc(kind) => ExprRes::GlobalFunc(kind),
             ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
-            ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
-            ExprRes::Variant(def_id) => ExprRes::Variant(def_id),
+            ExprRes::Adt(def_id) => ExprRes::Adt(def_id),
+            ExprRes::VariantCtor(def_id) => ExprRes::VariantCtor(def_id),
         }
     }
 

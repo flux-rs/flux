@@ -1533,7 +1533,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     ) -> fhir::ExprKind<'genv> {
         let path = if let Some(path) = path {
             let res = self.resolver_output().expr_path_res_map[&path.node_id];
-            if !matches!(res, ExprRes::Ctor(..)) {
+            if !matches!(res, ExprRes::Adt(..)) {
                 return fhir::ExprKind::Err(
                     self.emit(errors::InvalidConstructorPath { span: path.span }),
                 );

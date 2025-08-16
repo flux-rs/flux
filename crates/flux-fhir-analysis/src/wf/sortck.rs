@@ -340,7 +340,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 // first get the sort based on the path - for example S { ... } => S
                 // and we should expect sort to be a struct or enum app
                 let path_def_id = match path.res {
-                    ExprRes::Ctor(def_id) => def_id,
+                    ExprRes::Adt(def_id) => def_id,
                     _ => span_bug!(expr.span, "unexpected path in constructor"),
                 };
                 let sort_def = self
@@ -388,13 +388,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     span_bug!(path.span, "unexpected const")
                 }
             }
-            ExprRes::Variant(def_id) => {
+            ExprRes::VariantCtor(def_id) => {
                 let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? else {
                     span_bug!(path.span, "unexpected variant {def_id:?}")
                 };
                 Ok(sort)
             }
-            ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
+            ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int),
             ExprRes::NumConst(_) => Ok(rty::Sort::Int),
             ExprRes::GlobalFunc(spec_func) => {
                 let fsort = match spec_func {
@@ -414,7 +414,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 };
                 Ok(rty::Sort::Func(fsort))
             }
-            ExprRes::Ctor(_) => {
+            ExprRes::Adt(_) => {
                 span_bug!(path.span, "unexpected constructor in var position")
             }
         }

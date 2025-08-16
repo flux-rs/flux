@@ -2109,11 +2109,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                             rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
                         }
                     }
-                    ExprRes::Variant(variant_def_id) => {
-                        self.hyperlink(var.span, tcx.def_ident_span(variant_def_id));
-                        let enum_def_id = self.tcx().parent(variant_def_id);
-                        let idx = variant_idx(self.tcx(), variant_def_id);
-                        rty::Expr::ctor_enum(enum_def_id, idx)
+                    ExprRes::VariantCtor(ctor_id) => {
+                        let variant_id = self.tcx().parent(ctor_id);
+                        let enum_id = self.tcx().parent(variant_id);
+                        self.hyperlink(var.span, tcx.def_ident_span(variant_id));
+                        let idx = variant_idx(self.tcx(), variant_id);
+                        rty::Expr::ctor_enum(enum_id, idx)
                     }
                     ExprRes::ConstGeneric(def_id) => {
                         self.hyperlink(var.span, tcx.def_ident_span(def_id));
@@ -2126,7 +2127,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     ExprRes::GlobalFunc(..) => {
                         Err(self.emit(errors::InvalidPosition { span: expr.span }))?
                     }
-                    ExprRes::Ctor(..) => {
+                    ExprRes::Adt(..) => {
                         span_bug!(var.span, "unexpected constructor in var position")
                     }
                 }
@@ -2217,7 +2218,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let def_id = if let Some(path) = path {
                     match path.res {
-                        ExprRes::Ctor(def_id) => def_id,
+                        ExprRes::Adt(def_id) => def_id,
                         _ => span_bug!(path.span, "unexpected path in constructor"),
                     }
                 } else {

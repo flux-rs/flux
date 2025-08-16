@@ -21,6 +21,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::{
     self as hir, AmbigArg, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
     def::{
+        CtorOf,
         Namespace::{self, *},
         PerNS,
     },
@@ -49,10 +50,6 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     resolver.into_output()
 }
 
-pub(crate) struct EnumVariants {
-    variants: FxHashMap<Symbol, DefId>,
-}
-
 pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
@@ -66,7 +63,6 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     primop_props: UnordMap<Symbol, FluxDefId>,
-    enum_variants: FxHashMap<DefId, EnumVariants>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
     /// this module.
@@ -115,7 +111,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             func_decls: Default::default(),
             primop_props: Default::default(),
             sort_decls: Default::default(),
-            enum_variants: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
@@ -213,10 +208,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(_, _, enum_def) => {
-                    self.define_enum_variants(&enum_def);
-                    DefKind::Enum
-                }
+                ItemKind::Enum(..) => DefKind::Enum,
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
@@ -253,19 +245,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 rustc_hir::ForeignItemKind::Fn(..) | rustc_hir::ForeignItemKind::Static(..) => {}
             }
         }
-    }
-
-    fn define_enum_variants(&mut self, enum_def: &rustc_hir::EnumDef) {
-        let Some(v0) = enum_def.variants.first() else { return };
-        let enum_def_id = self.genv.tcx().parent(v0.def_id.to_def_id());
-
-        let mut variants = FxHashMap::default();
-        for variant in enum_def.variants {
-            let name = variant.ident.name;
-            variants.insert(name, variant.def_id.to_def_id());
-        }
-        self.enum_variants
-            .insert(enum_def_id, EnumVariants { variants });
     }
 
     fn define_res_in(&mut self, name: Symbol, res: fhir::Res, ns: Namespace) {
@@ -480,6 +459,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 fhir::Res::Def(DefKind::Trait, module_id) => {
                     module = Some(Module::new(ModuleKind::Trait, module_id));
                 }
+                fhir::Res::Def(DefKind::Enum, module_id) => {
+                    module = Some(Module::new(ModuleKind::Enum, module_id));
+                }
                 _ => {
                     return Some(fhir::PartialRes::with_unresolved_segments(
                         base_res,
@@ -531,19 +513,35 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ident: Ident,
         ns: Namespace,
     ) -> Option<fhir::Res> {
+        let tcx = self.genv.tcx();
         match module.kind {
             ModuleKind::Mod => {
                 let module_id = module.def_id;
-                visible_module_children(self.genv.tcx(), module_id, self.current_module.to_def_id())
-                    .find(|child| child.ident == ident)
+                visible_module_children(tcx, module_id, self.current_module.to_def_id())
+                    .find(|child| child.res.matches_ns(ns) && child.ident == ident)
                     .and_then(|child| fhir::Res::try_from(child.res).ok())
             }
             ModuleKind::Trait => {
-                let tcx = self.genv.tcx();
                 let trait_id = module.def_id;
                 tcx.associated_items(trait_id)
                     .find_by_ident_and_namespace(tcx, ident, ns, trait_id)
                     .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
+            }
+            ModuleKind::Enum => {
+                tcx.adt_def(module.def_id)
+                    .variants()
+                    .iter()
+                    .find(|data| data.name == ident.name)
+                    .and_then(|data| {
+                        let (kind, def_id) = match (ns, data.ctor) {
+                            (TypeNS, _) => (DefKind::Variant, data.def_id),
+                            (ValueNS, Some((ctor_kind, ctor_id))) => {
+                                (DefKind::Ctor(CtorOf::Variant, ctor_kind), ctor_id)
+                            }
+                            _ => return None,
+                        };
+                        Some(fhir::Res::Def(kind, def_id))
+                    })
             }
         }
     }
@@ -719,6 +717,7 @@ impl Module {
 enum ModuleKind {
     Mod,
     Trait,
+    Enum,
 }
 
 #[derive(Debug)]
