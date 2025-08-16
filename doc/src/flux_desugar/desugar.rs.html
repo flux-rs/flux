@@ -1533,7 +1533,7 @@
 <a href=#1533 id=1533 data-nosnippet>1533</a>    ) -&gt; fhir::ExprKind&lt;<span class="lifetime">'genv</span>&gt; {
 <a href=#1534 id=1534 data-nosnippet>1534</a>        <span class="kw">let </span>path = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
 <a href=#1535 id=1535 data-nosnippet>1535</a>            <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>path.node_id];
-<a href=#1536 id=1536 data-nosnippet>1536</a>            <span class="kw">if </span>!<span class="macro">matches!</span>(res, ExprRes::Ctor(..)) {
+<a href=#1536 id=1536 data-nosnippet>1536</a>            <span class="kw">if </span>!<span class="macro">matches!</span>(res, ExprRes::Adt(..)) {
 <a href=#1537 id=1537 data-nosnippet>1537</a>                <span class="kw">return </span>fhir::ExprKind::Err(
 <a href=#1538 id=1538 data-nosnippet>1538</a>                    <span class="self">self</span>.emit(errors::InvalidConstructorPath { span: path.span }),
 <a href=#1539 id=1539 data-nosnippet>1539</a>                );

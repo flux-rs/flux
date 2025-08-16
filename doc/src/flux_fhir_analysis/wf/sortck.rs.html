@@ -340,7 +340,7 @@
 <a href=#340 id=340 data-nosnippet>340</a>                // first get the sort based on the path - for example S { ... } =&gt; S
 <a href=#341 id=341 data-nosnippet>341</a>                // and we should expect sort to be a struct or enum app
 <a href=#342 id=342 data-nosnippet>342</a>                </span><span class="kw">let </span>path_def_id = <span class="kw">match </span>path.res {
-<a href=#343 id=343 data-nosnippet>343</a>                    ExprRes::Ctor(def_id) =&gt; def_id,
+<a href=#343 id=343 data-nosnippet>343</a>                    ExprRes::Adt(def_id) =&gt; def_id,
 <a href=#344 id=344 data-nosnippet>344</a>                    <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(expr.span, <span class="string">"unexpected path in constructor"</span>),
 <a href=#345 id=345 data-nosnippet>345</a>                };
 <a href=#346 id=346 data-nosnippet>346</a>                <span class="kw">let </span>sort_def = <span class="self">self
@@ -388,14 +388,14 @@
 <a href=#388 id=388 data-nosnippet>388</a>                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected const"</span>)
 <a href=#389 id=389 data-nosnippet>389</a>                }
 <a href=#390 id=390 data-nosnippet>390</a>            }
-<a href=#391 id=391 data-nosnippet>391</a>            ExprRes::Variant(def_id) =&gt; {
+<a href=#391 id=391 data-nosnippet>391</a>            ExprRes::VariantCtor(def_id) =&gt; {
 <a href=#392 id=392 data-nosnippet>392</a>                <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = <span class="self">self</span>.genv.sort_of_def_id(def_id).emit(<span class="kw-2">&amp;</span><span class="self">self</span>.genv)<span class="question-mark">? </span><span class="kw">else </span>{
 <a href=#393 id=393 data-nosnippet>393</a>                    <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected variant {def_id:?}"</span>)
 <a href=#394 id=394 data-nosnippet>394</a>                };
 <a href=#395 id=395 data-nosnippet>395</a>                <span class="prelude-val">Ok</span>(sort)
 <a href=#396 id=396 data-nosnippet>396</a>            }
-<a href=#397 id=397 data-nosnippet>397</a>            ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int), <span class="comment">// TODO: generalize generic-const sorts
-<a href=#398 id=398 data-nosnippet>398</a>            </span>ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
+<a href=#397 id=397 data-nosnippet>397</a>            ExprRes::ConstGeneric(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
+<a href=#398 id=398 data-nosnippet>398</a>            ExprRes::NumConst(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(rty::Sort::Int),
 <a href=#399 id=399 data-nosnippet>399</a>            ExprRes::GlobalFunc(spec_func) =&gt; {
 <a href=#400 id=400 data-nosnippet>400</a>                <span class="kw">let </span>fsort = <span class="kw">match </span>spec_func {
 <a href=#401 id=401 data-nosnippet>401</a>                    fhir::SpecFuncKind::Def(name) | fhir::SpecFuncKind::Uif(name) =&gt; {
@@ -414,7 +414,7 @@
 <a href=#414 id=414 data-nosnippet>414</a>                };
 <a href=#415 id=415 data-nosnippet>415</a>                <span class="prelude-val">Ok</span>(rty::Sort::Func(fsort))
 <a href=#416 id=416 data-nosnippet>416</a>            }
-<a href=#417 id=417 data-nosnippet>417</a>            ExprRes::Ctor(<span class="kw">_</span>) =&gt; {
+<a href=#417 id=417 data-nosnippet>417</a>            ExprRes::Adt(<span class="kw">_</span>) =&gt; {
 <a href=#418 id=418 data-nosnippet>418</a>                <span class="macro">span_bug!</span>(path.span, <span class="string">"unexpected constructor in var position"</span>)
 <a href=#419 id=419 data-nosnippet>419</a>            }
 <a href=#420 id=420 data-nosnippet>420</a>        }
