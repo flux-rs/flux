@@ -4,7 +4,7 @@ use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
-    fhir::{self, ExprRes},
+    fhir::{self, Res},
 };
 use flux_syntax::{
     surface::{self, Ident, NodeId, visit::Visitor as _},
@@ -17,7 +17,7 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashMap;
 use rustc_hir::def::{
-    CtorKind, CtorOf, DefKind,
+    DefKind,
     Namespace::{TypeNS, ValueNS},
 };
 use rustc_middle::ty::TyCtxt;
@@ -397,7 +397,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     sort_params: FxIndexSet<Symbol>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    path_res_map: FxHashMap<NodeId, ExprRes<NodeId>>,
+    path_res_map: FxHashMap<NodeId, Res<NodeId>>,
     errors: Errors<'genv>,
 }
 
@@ -588,43 +588,29 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
-    fn try_resolve_expr_with_ribs<S: Segment>(
-        &mut self,
-        segments: &[S],
-    ) -> Option<ExprRes<NodeId>> {
+    fn try_resolve_expr_with_ribs<S: Segment>(&mut self, segments: &[S]) -> Option<Res<NodeId>> {
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ValueNS) {
-            return match partial_res.full_res()? {
-                fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
-                fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
-                fhir::Res::Def(DefKind::Ctor(CtorOf::Variant, CtorKind::Const), def_id) => {
-                    Some(ExprRes::VariantCtor(def_id))
-                }
-                _ => None,
-            };
+            return partial_res.full_res().map(|r| r.map_param_id(|p| p));
         }
 
-        let res = self
-            .resolver
+        self.resolver
             .resolve_path_with_ribs(segments, TypeNS)?
-            .full_res()?;
-        match res {
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Adt(def_id)),
-            _ => None,
-        }
+            .full_res()
+            .map(|r| r.map_param_id(|p| p))
     }
 
-    fn try_resolve_param(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
+    fn try_resolve_param(&mut self, ident: Ident) -> Option<Res<NodeId>> {
         let res = self.find(ident)?;
 
         if let fhir::ParamKind::Error = res.kind() {
             self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
         }
-        Some(ExprRes::Param(res.kind(), res.param_id()))
+        Some(Res::Param(res.kind(), res.param_id()))
     }
 
-    fn try_resolve_global_func(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
+    fn try_resolve_global_func(&mut self, ident: Ident) -> Option<Res<NodeId>> {
         let kind = self.resolver.func_decls.get(&ident.name)?;
-        Some(ExprRes::GlobalFunc(*kind))
+        Some(Res::GlobalFunc(*kind))
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
@@ -846,13 +832,13 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
 
 macro_rules! define_resolve_num_const {
     ($($typ:ident),*) => {
-        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<ExprRes<NodeId>> {
+        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<Res<NodeId>> {
             match typ.name.as_str() {
                 $(
                     stringify!($typ) => {
                         match name.name.as_str() {
-                            "MAX" => Some(ExprRes::NumConst($typ::MAX.try_into().unwrap())),
-                            "MIN" => Some(ExprRes::NumConst($typ::MIN.try_into().unwrap())),
+                            "MAX" => Some(Res::NumConst($typ::MAX.try_into().unwrap())),
+                            "MIN" => Some(Res::NumConst($typ::MIN.try_into().unwrap())),
                             _ => None,
                         }
                     },
