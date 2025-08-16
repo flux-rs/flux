@@ -11,12 +11,6 @@ use utils::{
 
 use crate::{
     ParseCtxt, ParseError, ParseResult,
-    lexer::{
-        Delimiter::*,
-        IdentIsRaw, Token,
-        TokenKind::{self, Caret, Comma},
-        token,
-    },
     parser::lookahead::{AnyOf, Expected, PeekExpected},
     surface::{
         self, Async,
@@ -32,6 +26,7 @@ use crate::{
         VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
+    token::{self, Caret, Comma, Delimiter::*, IdentIsRaw, Token, TokenKind},
 };
 
 /// ```text

@@ -6,9 +6,9 @@ use rustc_span::{Symbol, edition::Edition};
 
 use crate::{
     ParseCtxt, ParseError, ParseResult,
-    lexer::{IdentIsRaw, Token, TokenKind},
     surface::BinOp,
     symbols,
+    token::{IdentIsRaw, Token, TokenKind},
 };
 
 /// See [`PeekExpected`]
