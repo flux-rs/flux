@@ -42,6 +42,11 @@ desugar_final_assoc_without_body =
 
 # Resolve errors
 
+desugar_duplicate_definition =
+    the name `{$name}` is defined multiple times
+    .label = `{$name}` redefined here
+    .previous_definition = previous definition of `{$name}`
+
 desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
     .label = already used
