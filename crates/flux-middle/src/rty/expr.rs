@@ -585,7 +585,7 @@ impl Expr {
                 f(e);
             }
         }
-        go(self, &mut f)
+        go(self, &mut f);
     }
 
     pub fn flatten_conjs(&self) -> Vec<&Expr> {

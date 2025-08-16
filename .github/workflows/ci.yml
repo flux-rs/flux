@@ -98,9 +98,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Add clippy
-        run: rustup component add clippy
-
       - name: Rust cache
         uses: Swatinem/rust-cache@v2.8.0
 
