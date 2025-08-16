@@ -17,7 +17,7 @@ use rustc_data_structures::{
 };
 use rustc_hash::FxHashMap;
 use rustc_hir::def::{
-    DefKind,
+    CtorKind, CtorOf, DefKind,
     Namespace::{TypeNS, ValueNS},
 };
 use rustc_middle::ty::TyCtxt;
@@ -544,17 +544,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         None
     }
 
-    fn try_resolve_enum_variant(&mut self, typ: Ident, variant: Ident) -> Option<ExprRes<NodeId>> {
-        if let fhir::Res::Def(_, enum_def_id) =
-            self.resolver.resolve_ident_with_ribs(typ, TypeNS)?
-        {
-            let enum_variants = self.resolver.enum_variants.get(&enum_def_id)?;
-            let variant_def_id = enum_variants.variants.get(&variant.name)?;
-            return Some(ExprRes::Variant(*variant_def_id));
-        }
-        None
-    }
-
     fn resolve_path(&mut self, path: &surface::ExprPath) {
         if let [segment] = &path.segments[..]
             && let Some(res) = self.try_resolve_param(segment.ident)
@@ -569,12 +558,6 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         // TODO(nilehmann) move this to resolve_with_ribs
         if let [typ, name] = &path.segments[..]
             && let Some(res) = resolve_num_const(typ.ident, name.ident)
-        {
-            self.path_res_map.insert(path.node_id, res);
-            return;
-        }
-        if let [typ, name] = &path.segments[..]
-            && let Some(res) = self.try_resolve_enum_variant(typ.ident, name.ident)
         {
             self.path_res_map.insert(path.node_id, res);
             return;
@@ -609,21 +592,23 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         &mut self,
         segments: &[S],
     ) -> Option<ExprRes<NodeId>> {
-        let path = self.resolver.resolve_path_with_ribs(segments, ValueNS);
+        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ValueNS) {
+            return match partial_res.full_res()? {
+                fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
+                fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
+                fhir::Res::Def(DefKind::Ctor(CtorOf::Variant, CtorKind::Const), def_id) => {
+                    Some(ExprRes::VariantCtor(def_id))
+                }
+                _ => None,
+            };
+        }
 
-        let res = match path {
-            Some(r) => r.full_res()?,
-            _ => {
-                self.resolver
-                    .resolve_path_with_ribs(segments, TypeNS)?
-                    .full_res()?
-            }
-        };
+        let res = self
+            .resolver
+            .resolve_path_with_ribs(segments, TypeNS)?
+            .full_res()?;
         match res {
-            fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
-            fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Ctor(def_id)),
-            fhir::Res::Def(DefKind::Variant, def_id) => Some(ExprRes::Variant(def_id)),
+            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Adt(def_id)),
             _ => None,
         }
     }
