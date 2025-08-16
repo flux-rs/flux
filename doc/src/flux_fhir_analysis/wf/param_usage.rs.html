@@ -56,7 +56,7 @@
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="doccomment">/// Insert params that are considered to be value determined to `xi`.
 <a href=#57 id=57 data-nosnippet>57</a>    </span><span class="kw">fn </span>insert_value_determined(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr) {
 <a href=#58 id=58 data-nosnippet>58</a>        <span class="kw">match </span>expr.kind {
-<a href=#59 id=59 data-nosnippet>59</a>            fhir::ExprKind::Var(path, <span class="kw">_</span>) <span class="kw">if let </span>fhir::ExprRes::Param(<span class="kw">_</span>, id) = path.res =&gt; {
+<a href=#59 id=59 data-nosnippet>59</a>            fhir::ExprKind::Var(path, <span class="kw">_</span>) <span class="kw">if let </span>fhir::Res::Param(<span class="kw">_</span>, id) = path.res =&gt; {
 <a href=#60 id=60 data-nosnippet>60</a>                <span class="self">self</span>.xi.insert(id, ());
 <a href=#61 id=61 data-nosnippet>61</a>            }
 <a href=#62 id=62 data-nosnippet>62</a>            fhir::ExprKind::Record(fields) =&gt; {
@@ -84,7 +84,7 @@
 <a href=#84 id=84 data-nosnippet>84</a>            fhir::ExprKind::UnaryOp(<span class="kw">_</span>, e) =&gt; <span class="self">self</span>.check_func_params_uses(e, <span class="bool-val">false</span>),
 <a href=#85 id=85 data-nosnippet>85</a>            fhir::ExprKind::App(func, args) =&gt; {
 <a href=#86 id=86 data-nosnippet>86</a>                <span class="kw">if </span>!is_top_level_conj
-<a href=#87 id=87 data-nosnippet>87</a>                    &amp;&amp; <span class="kw">let </span>fhir::ExprRes::Param(<span class="kw">_</span>, id) = func.res
+<a href=#87 id=87 data-nosnippet>87</a>                    &amp;&amp; <span class="kw">let </span>fhir::Res::Param(<span class="kw">_</span>, id) = func.res
 <a href=#88 id=88 data-nosnippet>88</a>                    &amp;&amp; <span class="kw">let </span>fhir::InferMode::KVar = <span class="self">self</span>.infcx.infer_mode(id)
 <a href=#89 id=89 data-nosnippet>89</a>                {
 <a href=#90 id=90 data-nosnippet>90</a>                    <span class="self">self</span>.errors
@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a>                }
 <a href=#102 id=102 data-nosnippet>102</a>            }
 <a href=#103 id=103 data-nosnippet>103</a>            fhir::ExprKind::Var(var, <span class="kw">_</span>) =&gt; {
-<a href=#104 id=104 data-nosnippet>104</a>                <span class="kw">if let </span>fhir::ExprRes::Param(<span class="kw">_</span>, id) = var.res
+<a href=#104 id=104 data-nosnippet>104</a>                <span class="kw">if let </span>fhir::Res::Param(<span class="kw">_</span>, id) = var.res
 <a href=#105 id=105 data-nosnippet>105</a>                    &amp;&amp; <span class="kw">let </span>sort @ rty::Sort::Func(<span class="kw">_</span>) = <span class="self">self</span>.infcx.param_sort(id)
 <a href=#106 id=106 data-nosnippet>106</a>                {
 <a href=#107 id=107 data-nosnippet>107</a>                    <span class="self">self</span>.errors.emit(InvalidParamPos::new(var.span, <span class="kw-2">&amp;</span>sort));

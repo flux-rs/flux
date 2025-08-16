@@ -14,7 +14,7 @@
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>flux_middle::{
 <a href=#15 id=15 data-nosnippet>15</a>    ResolverOutput,
 <a href=#16 id=16 data-nosnippet>16</a>    def_id::{FluxLocalDefId, MaybeExternId},
-<a href=#17 id=17 data-nosnippet>17</a>    fhir::{<span class="self">self</span>, ExprRes, FhirId, FluxOwnerId, Res},
+<a href=#17 id=17 data-nosnippet>17</a>    fhir::{<span class="self">self</span>, FhirId, FluxOwnerId, ParamId, Res},
 <a href=#18 id=18 data-nosnippet>18</a>    global_env::GlobalEnv,
 <a href=#19 id=19 data-nosnippet>19</a>    try_alloc_slice,
 <a href=#20 id=20 data-nosnippet>20</a>};
@@ -691,7 +691,7 @@
 <a href=#691 id=691 data-nosnippet>691</a>                <span class="kw">let </span>(id, kind) = <span class="self">self</span>.resolve_implicit_param(<span class="kw-2">*</span>node_id).unwrap();
 <a href=#692 id=692 data-nosnippet>692</a>                <span class="kw">let </span>path = fhir::PathExpr {
 <a href=#693 id=693 data-nosnippet>693</a>                    segments: <span class="self">self</span>.genv.alloc_slice(<span class="kw-2">&amp;</span>[<span class="kw-2">*</span>loc]),
-<a href=#694 id=694 data-nosnippet>694</a>                    res: ExprRes::Param(kind, id),
+<a href=#694 id=694 data-nosnippet>694</a>                    res: Res::Param(kind, id),
 <a href=#695 id=695 data-nosnippet>695</a>                    fhir_id: <span class="self">self</span>.next_fhir_id(),
 <a href=#696 id=696 data-nosnippet>696</a>                    span: loc.span,
 <a href=#697 id=697 data-nosnippet>697</a>                };
@@ -979,9 +979,9 @@
 <a href=#979 id=979 data-nosnippet>979</a>    }
 <a href=#980 id=980 data-nosnippet>980</a>
 <a href=#981 id=981 data-nosnippet>981</a>    <span class="attr">#[track_caller]
-<a href=#982 id=982 data-nosnippet>982</a>    </span><span class="kw">fn </span>desugar_loc(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: surface::Ident, node_id: NodeId) -&gt; <span class="prelude-ty">Result</span>&lt;ExprRes&gt; {
+<a href=#982 id=982 data-nosnippet>982</a>    </span><span class="kw">fn </span>desugar_loc(<span class="kw-2">&amp;</span><span class="self">self</span>, ident: surface::Ident, node_id: NodeId) -&gt; <span class="prelude-ty">Result</span>&lt;Res&lt;ParamId&gt;&gt; {
 <a href=#983 id=983 data-nosnippet>983</a>        <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>node_id];
-<a href=#984 id=984 data-nosnippet>984</a>        <span class="kw">if let </span>ExprRes::Param(fhir::ParamKind::Loc, <span class="kw">_</span>) = res {
+<a href=#984 id=984 data-nosnippet>984</a>        <span class="kw">if let </span>Res::Param(fhir::ParamKind::Loc, <span class="kw">_</span>) = res {
 <a href=#985 id=985 data-nosnippet>985</a>            <span class="prelude-val">Ok</span>(res)
 <a href=#986 id=986 data-nosnippet>986</a>        } <span class="kw">else </span>{
 <a href=#987 id=987 data-nosnippet>987</a>            <span class="kw">let </span>span = ident.span;
@@ -1163,7 +1163,7 @@
 <a href=#1163 id=1163 data-nosnippet>1163</a>    <span class="kw">fn </span>desugar_const_path_to_const_arg(
 <a href=#1164 id=1164 data-nosnippet>1164</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#1165 id=1165 data-nosnippet>1165</a>        path: <span class="kw-2">&amp;</span>surface::Path,
-<a href=#1166 id=1166 data-nosnippet>1166</a>        res: fhir::Res,
+<a href=#1166 id=1166 data-nosnippet>1166</a>        res: fhir::Res&lt;!&gt;,
 <a href=#1167 id=1167 data-nosnippet>1167</a>    ) -&gt; fhir::GenericArg&lt;<span class="lifetime">'genv</span>&gt; {
 <a href=#1168 id=1168 data-nosnippet>1168</a>        <span class="kw">let </span>kind = <span class="kw">if let </span>Res::Def(DefKind::ConstParam, def_id) = res {
 <a href=#1169 id=1169 data-nosnippet>1169</a>            fhir::ConstArgKind::Param(def_id)
@@ -1209,7 +1209,7 @@
 <a href=#1209 id=1209 data-nosnippet>1209</a>                };
 <a href=#1210 id=1210 data-nosnippet>1210</a>                <span class="kw">let </span>path = fhir::PathExpr {
 <a href=#1211 id=1211 data-nosnippet>1211</a>                    segments: <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[<span class="kw-2">*</span>bind]),
-<a href=#1212 id=1212 data-nosnippet>1212</a>                    res: ExprRes::Param(kind, id),
+<a href=#1212 id=1212 data-nosnippet>1212</a>                    res: Res::Param(kind, id),
 <a href=#1213 id=1213 data-nosnippet>1213</a>                    fhir_id: <span class="self">self</span>.next_fhir_id(),
 <a href=#1214 id=1214 data-nosnippet>1214</a>                    span: bind.span,
 <a href=#1215 id=1215 data-nosnippet>1215</a>                };
@@ -1426,7 +1426,7 @@
 <a href=#1426 id=1426 data-nosnippet>1426</a>        <span class="kw">let </span>(id, kind) = <span class="self">self</span>.resolve_implicit_param(node_id)<span class="question-mark">?</span>;
 <a href=#1427 id=1427 data-nosnippet>1427</a>        <span class="kw">let </span>path = fhir::PathExpr {
 <a href=#1428 id=1428 data-nosnippet>1428</a>            segments: <span class="self">self</span>.genv().alloc_slice(<span class="kw-2">&amp;</span>[ident]),
-<a href=#1429 id=1429 data-nosnippet>1429</a>            res: ExprRes::Param(kind, id),
+<a href=#1429 id=1429 data-nosnippet>1429</a>            res: Res::Param(kind, id),
 <a href=#1430 id=1430 data-nosnippet>1430</a>            fhir_id: <span class="self">self</span>.next_fhir_id(),
 <a href=#1431 id=1431 data-nosnippet>1431</a>            span: ident.span,
 <a href=#1432 id=1432 data-nosnippet>1432</a>        };
@@ -1533,7 +1533,7 @@
 <a href=#1533 id=1533 data-nosnippet>1533</a>    ) -&gt; fhir::ExprKind&lt;<span class="lifetime">'genv</span>&gt; {
 <a href=#1534 id=1534 data-nosnippet>1534</a>        <span class="kw">let </span>path = <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
 <a href=#1535 id=1535 data-nosnippet>1535</a>            <span class="kw">let </span>res = <span class="self">self</span>.resolver_output().expr_path_res_map[<span class="kw-2">&amp;</span>path.node_id];
-<a href=#1536 id=1536 data-nosnippet>1536</a>            <span class="kw">if </span>!<span class="macro">matches!</span>(res, ExprRes::Adt(..)) {
+<a href=#1536 id=1536 data-nosnippet>1536</a>            <span class="kw">if </span>!<span class="macro">matches!</span>(res, Res::Def(DefKind::Struct | DefKind::Enum, <span class="kw">_</span>)) {
 <a href=#1537 id=1537 data-nosnippet>1537</a>                <span class="kw">return </span>fhir::ExprKind::Err(
 <a href=#1538 id=1538 data-nosnippet>1538</a>                    <span class="self">self</span>.emit(errors::InvalidConstructorPath { span: path.span }),
 <a href=#1539 id=1539 data-nosnippet>1539</a>                );

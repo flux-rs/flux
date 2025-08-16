@@ -419,7 +419,7 @@
 <a href=#419 id=419 data-nosnippet>419</a>    /// [`surface::VariantDef`]. The [`NodeId`]s in the vectors are keys in [`Self::param_res_map`].
 <a href=#420 id=420 data-nosnippet>420</a>    </span><span class="kw">pub </span>implicit_params: UnordMap&lt;NodeId, Vec&lt;(Ident, NodeId)&gt;&gt;,
 <a href=#421 id=421 data-nosnippet>421</a>    <span class="kw">pub </span>sort_path_res_map: UnordMap&lt;NodeId, fhir::SortRes&gt;,
-<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">pub </span>expr_path_res_map: UnordMap&lt;NodeId, fhir::ExprRes&gt;,
+<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">pub </span>expr_path_res_map: UnordMap&lt;NodeId, fhir::Res&lt;fhir::ParamId&gt;&gt;,
 <a href=#423 id=423 data-nosnippet>423</a>    <span class="doccomment">/// The resolved list of local qualifiers per function
 <a href=#424 id=424 data-nosnippet>424</a>    </span><span class="kw">pub </span>qualifier_res_map: UnordMap&lt;OwnerId, Vec&lt;def_id::FluxLocalDefId&gt;&gt;,
 <a href=#425 id=425 data-nosnippet>425</a>    <span class="doccomment">/// The resolved list of local reveals per function
