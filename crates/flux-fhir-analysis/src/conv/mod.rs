@@ -2127,11 +2127,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     fhir::Res::NumConst(num) => {
                         rty::Expr::constant(rty::Constant::from(num)).at(espan)
                     }
-                    fhir::Res::GlobalFunc(..) => {
-                        Err(self.emit(errors::InvalidPosition { span: expr.span }))?
-                    }
                     _ => {
-                        span_bug!(var.span, "unexpected resolution `{:?}`", var.res)
+                        Err(self.emit(errors::InvalidRes {
+                            span: expr.span,
+                            res_descr: var.res.descr(),
+                        }))?
                     }
                 }
             }
@@ -2160,7 +2160,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::ExprKind::App(func, args) => {
                 let sort_args = self.results().node_sort_args(fhir_id);
-                rty::Expr::app(self.conv_func(env, &func), sort_args, self.conv_exprs(env, args)?)
+                rty::Expr::app(self.conv_func(env, &func)?, sort_args, self.conv_exprs(env, args)?)
                     .at(espan)
             }
             fhir::ExprKind::Alias(alias, args) => {
@@ -2327,7 +2327,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
-    fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> rty::Expr {
+    fn conv_func(&self, env: &Env, func: &fhir::PathExpr) -> QueryResult<rty::Expr> {
         let span = func.span;
         let expr = match func.res {
             fhir::Res::Param(..) => env.lookup(func).to_expr(),
@@ -2346,9 +2346,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     Err(func) => rty::Expr::internal_func(func),
                 }
             }
-            _ => span_bug!(func.span, "unexpected path in function position"),
+            _ => {
+                return Err(
+                    self.emit(errors::InvalidRes { span: func.span, res_descr: func.res.descr() })
+                )?;
+            }
         };
-        self.add_coercions(expr, func.fhir_id)
+        Ok(self.add_coercions(expr, func.fhir_id))
     }
 
     fn conv_alias_reft(
@@ -2969,9 +2973,10 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_invalid_position, code = E0999)]
-    pub(super) struct InvalidPosition {
+    #[diag(fhir_analysis_invalid_res, code = E0999)]
+    pub(super) struct InvalidRes {
         #[primary_span]
-        pub(super) span: Span,
+        pub span: Span,
+        pub res_descr: &'static str,
     }
 }

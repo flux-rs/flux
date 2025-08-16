@@ -416,6 +416,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 Ok(rty::Sort::Func(fsort))
             }
             _ => {
+                // This should be caught during conv
                 span_bug!(path.span, "unexpected res `{:?}` in var position", path.res)
             }
         }
