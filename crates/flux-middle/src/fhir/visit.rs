@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::{PrimOpProp, StructKind};
+use crate::fhir::{PrimOpProp, QPathExpr, StructKind};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -538,7 +538,7 @@ pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {
 
 pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
     match expr.kind {
-        ExprKind::Var(path, _) => vis.visit_path_expr(&path),
+        ExprKind::Var(qpath) => walk_qpath_expr(vis, qpath),
         ExprKind::Dot(base, _fld) => {
             vis.visit_expr(base);
         }
@@ -592,5 +592,14 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             vis.visit_expr(body);
         }
         ExprKind::Err(_) => {}
+    }
+}
+
+pub fn walk_qpath_expr<'v, V: Visitor<'v>>(vis: &mut V, qpath: QPathExpr<'v>) {
+    match qpath {
+        QPathExpr::Resolved(path, _param_kind) => {
+            vis.visit_path_expr(&path);
+        }
+        QPathExpr::TypeRelative(qself, _ident) => vis.visit_ty(qself),
     }
 }

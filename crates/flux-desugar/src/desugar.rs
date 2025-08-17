@@ -14,7 +14,7 @@ use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
     def_id::{FluxLocalDefId, MaybeExternId},
-    fhir::{self, FhirId, FluxOwnerId, ParamId, Res},
+    fhir::{self, FhirId, FluxOwnerId, ParamId, QPathExpr, Res},
     global_env::GlobalEnv,
     try_alloc_slice,
 };
@@ -962,26 +962,68 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         self.resolver_output().param_res_map.get(&node_id).copied()
     }
 
-    fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::PathExpr<'genv> {
-        let res = *self
+    fn desugar_epath(&self, path: &surface::ExprPath) -> fhir::QPathExpr<'genv> {
+        let partial_res = *self
             .resolver_output()
             .expr_path_res_map
             .get(&path.node_id)
             .unwrap_or_else(|| span_bug!(path.span, "unresolved expr path"));
-        fhir::PathExpr {
-            segments: self
-                .genv()
-                .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
-            res,
-            fhir_id: self.next_fhir_id(),
-            span: path.span,
+
+        let unresolved_segments = partial_res.unresolved_segments();
+
+        if unresolved_segments == 0 {
+            let path = fhir::PathExpr {
+                segments: self
+                    .genv()
+                    .alloc_slice_fill_iter(path.segments.iter().map(|s| s.ident)),
+                res: partial_res.base_res(),
+                fhir_id: self.next_fhir_id(),
+                span: path.span,
+            };
+            return fhir::QPathExpr::Resolved(path, None);
         }
+
+        let proj_start = path.segments.len() - unresolved_segments;
+        let ty_path = fhir::Path {
+            res: partial_res
+                .base_res()
+                .map_param_id(|_| span_bug!(path.span, "path resolved to refinement parameter")),
+            fhir_id: self.next_fhir_id(),
+            segments: self.genv().alloc_slice_fill_iter(
+                path.segments[..proj_start]
+                    .iter()
+                    .map(|segment| self.desugar_epath_segment(segment)),
+            ),
+            refine: &[],
+            span: path.span,
+        };
+
+        let mut ty = self
+            .genv()
+            .alloc(self.ty_path(fhir::QPath::Resolved(None, ty_path)));
+
+        for (i, segment) in path.segments.iter().enumerate().skip(proj_start) {
+            if i == path.segments.len() - 1 {
+                return fhir::QPathExpr::TypeRelative(ty, segment.ident);
+            }
+
+            let hir_segment = self.desugar_epath_segment(segment);
+            let qpath = fhir::QPath::TypeRelative(ty, self.genv().alloc(hir_segment));
+            ty = self.genv().alloc(self.ty_path(qpath));
+        }
+
+        span_bug!(
+            path.span,
+            "desugar_epath: no final extension segment in {}..{}",
+            proj_start,
+            path.segments.len()
+        );
     }
 
     #[track_caller]
     fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<Res<ParamId>> {
-        let res = self.resolver_output().expr_path_res_map[&node_id];
-        if let Res::Param(fhir::ParamKind::Loc, _) = res {
+        let partial_res = self.resolver_output().expr_path_res_map[&node_id];
+        if let Some(res @ Res::Param(fhir::ParamKind::Loc, _)) = partial_res.full_res() {
             Ok(res)
         } else {
             let span = ident.span;
@@ -1214,7 +1256,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                     span: bind.span,
                 };
                 let idx = fhir::Expr {
-                    kind: fhir::ExprKind::Var(path, None),
+                    kind: fhir::ExprKind::Var(QPathExpr::Resolved(path, None)),
                     span: bind.span,
                     fhir_id: self.next_fhir_id(),
                 };
@@ -1373,6 +1415,19 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         fhir::PathSegment { ident: segment.ident, res, args, constraints }
     }
 
+    fn desugar_epath_segment(
+        &self,
+        segment: &surface::ExprPathSegment,
+    ) -> fhir::PathSegment<'genv> {
+        let res = self
+            .resolver_output()
+            .expr_path_res_map
+            .get(&segment.node_id)
+            .map_or(Res::Err, |r| r.expect_full_res())
+            .map_param_id(|_| bug!("segment resolved to refinement parameter"));
+        fhir::PathSegment { ident: segment.ident, res, args: &[], constraints: &[] }
+    }
+
     fn ty_path(&self, qpath: fhir::QPath<'genv>) -> fhir::Ty<'genv> {
         fhir::Ty {
             span: qpath.span(),
@@ -1431,7 +1486,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             span: ident.span,
         };
         Some(fhir::Expr {
-            kind: fhir::ExprKind::Var(path, Some(kind)),
+            kind: fhir::ExprKind::Var(QPathExpr::Resolved(path, Some(kind))),
             span: ident.span,
             fhir_id: self.next_fhir_id(),
         })
@@ -1439,7 +1494,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
 
     fn desugar_expr(&mut self, expr: &surface::Expr) -> fhir::Expr<'genv> {
         let kind = match &expr.kind {
-            surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path), None),
+            surface::ExprKind::Path(path) => fhir::ExprKind::Var(self.desugar_epath(path)),
             surface::ExprKind::Literal(lit) => self.desugar_lit(expr.span, *lit),
             surface::ExprKind::BinaryOp(op, box [e1, e2]) => {
                 let e1 = self.desugar_expr(e1);
@@ -1503,8 +1558,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let args = self.desugar_exprs(args);
         match &callee.kind {
             surface::ExprKind::Path(path) => {
-                let path = self.desugar_epath(path);
-                fhir::ExprKind::App(path, args)
+                if let QPathExpr::Resolved(path, _) = self.desugar_epath(path) {
+                    fhir::ExprKind::App(path, args)
+                } else {
+                    fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span)))
+                }
             }
             surface::ExprKind::PrimUIF(op) if args.len() == 2 && self.allow_prim_app() => {
                 fhir::ExprKind::PrimApp(*op, &args[0], &args[1])
@@ -1532,8 +1590,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         args: &[surface::ConstructorArg],
     ) -> fhir::ExprKind<'genv> {
         let path = if let Some(path) = path {
-            let res = self.resolver_output().expr_path_res_map[&path.node_id];
-            if !matches!(res, Res::Def(DefKind::Struct | DefKind::Enum, _)) {
+            let Some(res @ Res::Def(DefKind::Struct | DefKind::Enum, _)) =
+                self.resolver_output().expr_path_res_map[&path.node_id].full_res()
+            else {
                 return fhir::ExprKind::Err(
                     self.emit(errors::InvalidConstructorPath { span: path.span }),
                 );

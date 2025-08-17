@@ -737,6 +737,7 @@ pub enum ExprKind {
     Var(Var),
     Local(Local),
     Constant(Constant),
+    /// A rust constant. This can be either `DefKind::Const` or `DefKind::AssocConst`
     ConstDefId(DefId),
     BinaryOp(BinOp, Expr, Expr),
     GlobalFunc(SpecFuncKind),

@@ -6,7 +6,7 @@ use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_infer::projections::NormalizeExt;
 use flux_middle::{
-    fhir::{self, FhirId, FluxOwnerId, visit::Visitor as _},
+    fhir::{self, FhirId, FluxOwnerId, QPathExpr, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -286,7 +286,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_expr(&mut self, expr: &fhir::Expr<'genv>) -> Result<rty::Sort> {
         match expr.kind {
-            fhir::ExprKind::Var(var, _) => Ok(self.synth_path(&var)),
+            fhir::ExprKind::Var(QPathExpr::Resolved(path, _)) => Ok(self.synth_path(&path)),
+            fhir::ExprKind::Var(QPathExpr::TypeRelative(..)) => {
+                Ok(self.synth_type_relative_path(expr))
+            }
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
             fhir::ExprKind::PrimApp(op, e1, e2) => self.synth_prim_app(&op, e1, e2, expr.span),
@@ -379,6 +382,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         self.node_sort
             .get(&path.fhir_id)
             .unwrap_or_else(|| tracked_span_bug!("no sort found for path: `{path:?}`"))
+            .clone()
+    }
+
+    fn synth_type_relative_path(&mut self, expr: &fhir::Expr) -> rty::Sort {
+        self.node_sort
+            .get(&expr.fhir_id)
+            .unwrap_or_else(|| tracked_span_bug!("no sort found for: `{expr:?}`"))
             .clone()
     }
 
@@ -906,7 +916,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 
     fn infer_implicit_params(&mut self, idx: &fhir::Expr, expected: &rty::Sort) {
         match idx.kind {
-            fhir::ExprKind::Var(var, Some(_)) => {
+            fhir::ExprKind::Var(QPathExpr::Resolved(var, Some(_))) => {
                 let (_, id) = var.res.expect_param();
                 let found = self.infcx.param_sort(id);
                 self.infcx.equate(&found, expected);
