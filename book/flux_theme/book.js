@@ -4,8 +4,8 @@ const Range = ace.require("ace/range").Range;
 
 const mode = "flux";
 
-const fluxServerUrl = "https://flux.goto.ucsd.edu";
-// const fluxServerUrl = "http://localhost:3000";
+// const fluxServerUrl = "https://flux.goto.ucsd.edu";
+const fluxServerUrl = "http://localhost:3000";
 
 function pad(size, line_or_null) {
   if (line_or_null) {
@@ -350,6 +350,7 @@ const queryFlux = {
   },
 
   result(code_block, result_block, response) {
+    console.log('TRACE: queryFlux', code_block, result_block, response);
     errors.update(response);
   },
 
