@@ -8,10 +8,6 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
-concurrency:
-  group: ${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
   tests:
     strategy:
@@ -44,15 +40,11 @@ jobs:
       - name: Install fixpoint
         uses: ./.github/actions/install-fixpoint
 
+      # Older versions hang
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.6.6
         with:
-          version: 4.12.1
-
-      - name: Install CVC5
-        uses: ./.github/actions/install-cvc5
-        with:
-          version: 1.2.1
+          version: 4.15.3
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2.8.0
