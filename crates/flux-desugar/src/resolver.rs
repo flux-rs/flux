@@ -121,8 +121,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
-                // NOTE: This is putting all items in the same namespace. We could have qualifiers
-                // in a different namespace.
+                // NOTE: This is putting all items in the same namespace. In principle, we could have
+                // qualifiers in a different namespace.
                 definitions
                     .define(item.name())
                     .emit(&self.genv)
@@ -191,8 +191,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         hir::UseKind::Glob => {
                             let is_prelude = is_prelude_import(self.genv.tcx(), item);
                             for mod_child in self.glob_imports(path) {
-                                if let Some(ns @ (TypeNS | ValueNS)) = mod_child.res.ns()
-                                    && let Ok(res) = fhir::Res::try_from(mod_child.res)
+                                if let Ok(res) = fhir::Res::try_from(mod_child.res)
+                                    && let Some(ns @ (TypeNS | ValueNS)) = res.ns()
                                 {
                                     let name = mod_child.ident.name;
                                     if is_prelude {
@@ -495,14 +495,23 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn glob_imports(
-        &self,
+        &mut self,
         path: &hir::UsePath,
     ) -> impl Iterator<Item = &'tcx ModChild> + use<'tcx> {
-        let res = path.segments.last().unwrap().res;
-
+        // The path for the prelude import is not resolved anymore after <https://github.com/rust-lang/rust/pull/145322>,
+        // so we resolve all paths here. If this ever causes problems, we could use the resolution in the `UsePath` for
+        // non-prelude glob imports.
         let tcx = self.genv.tcx();
         let curr_mod = self.current_module.to_def_id();
-        if let hir::def::Res::Def(DefKind::Mod, module_id) = res { Some(module_id) } else { None }
+        self.resolve_path_with_ribs(path.segments, TypeNS)
+            .and_then(|partial_res| partial_res.full_res())
+            .and_then(|res| {
+                if let fhir::Res::Def(DefKind::Mod, module_id) = res {
+                    Some(module_id)
+                } else {
+                    None
+                }
+            })
             .into_iter()
             .flat_map(move |module_id| visible_module_children(tcx, module_id, curr_mod))
     }
@@ -517,8 +526,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         match module.kind {
             ModuleKind::Mod => {
                 let module_id = module.def_id;
-                visible_module_children(tcx, module_id, self.current_module.to_def_id())
-                    .find(|child| child.res.matches_ns(ns) && child.ident == ident)
+                let current_mod = self.current_module.to_def_id();
+                visible_module_children(tcx, module_id, current_mod)
+                    .find(|child| {
+                        child.res.matches_ns(ns) && tcx.hygienic_eq(ident, child.ident, current_mod)
+                    })
                     .and_then(|child| fhir::Res::try_from(child.res).ok())
             }
             ModuleKind::Trait => {
@@ -702,6 +714,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 }
 
 /// Akin to `rustc_resolve::Module` but specialized to what we support
+#[derive(Debug)]
 struct Module {
     kind: ModuleKind,
     def_id: DefId,
@@ -714,6 +727,7 @@ impl Module {
 }
 
 /// Akin to `rustc_resolve::ModuleKind` but specialized to what we support
+#[derive(Debug)]
 enum ModuleKind {
     Mod,
     Trait,
@@ -767,7 +781,8 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
         .any(|attr| attr.path_matches(&[sym::prelude_import]))
 }
 
-/// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
+/// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
+/// from different sources  (e.g., [`surface::PathSegment`], [`surface::ExprPathSegment`])
 trait Segment: std::fmt::Debug {
     fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
     fn ident(&self) -> Ident;
@@ -799,6 +814,14 @@ impl Segment for Ident {
 
     fn ident(&self) -> Ident {
         *self
+    }
+}
+
+impl Segment for hir::PathSegment<'_> {
+    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+
+    fn ident(&self) -> Ident {
+        self.ident
     }
 }
 
