@@ -17,6 +17,9 @@ on:
         required: false
         type: number
 
+concurrency:
+  group: ${{ github.workflow }}
+
 jobs:
   upgrade:
     runs-on: ubuntu-latest
@@ -59,11 +62,8 @@ jobs:
           path: tock
 
       - name: Checkout rust
-        uses: actions/checkout@v4
-        with:
-          repository: rust-lang/rust
-          path: rust
-          filter: tree:0
+        run: |
+          git clone --filter=tree:0 https://github.com/rust-lang/rust rust
 
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.6.6
@@ -105,7 +105,8 @@ jobs:
           draft: true
           delete-branch: true
           title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
-          body: Update Rust toolchain to nightly-${{ env.last_toolchain }}
+          body: |
+            This is an automated PR to update the Rust toolchain to nightly-${{ env.last_toolchain }}
 
       - name: Get git log for failure
         if: steps.update-loop.outcome == 'failure'
@@ -132,8 +133,10 @@ jobs:
           delete-branch: true
           title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
           body: |
-            Update Rust toolchain to nightly-${{ env.last_toolchain }}
-            Update failed when going from nightly-${{ env.prev_toolchain}} to nightly-${{ env.last_toolchain }}
+            This is an automated PR to update the Rust toolchain to nightly-${{ env.last_toolchain }}
+
+            Update failed when going from nightly-${{ env.prev_toolchain}} to nightly-${{ env.last_toolchain }}.
+            The failed automated run [can be found here.](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             Please review the changes from https://github.com/rust-lang/rust/commit/${{ env.prev_toolchain_hash }} up to https://github.com/rust-lang/rust/commit/${{ env.last_toolchain_hash }}
             <details>
