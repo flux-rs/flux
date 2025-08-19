@@ -73,11 +73,6 @@ jobs:
       - name: Install Fixpoint
         uses: ./flux/.github/actions/install-fixpoint
 
-      - name: Install CVC5
-        uses: ./flux/.github/actions/install-cvc5
-        with:
-          version: 1.2.1
-
       - name: Run update loop
         id: update-loop
         continue-on-error: true
