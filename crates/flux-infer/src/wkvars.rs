@@ -212,10 +212,10 @@ pub struct WKVarSolutions {
     /// Each Expr is part of a conjunction of the solution.
     pub solutions: HashMap<rty::WKVid, WKVarSolution>,
     pub num_nontrivial_head_cstrs: usize,
-    /// Count of all wkvars
-    pub num_wkvars: usize,
-    /// Count of wkvars that could be kvars
-    pub num_internal_wkvars: usize,
+    /// All wkvars
+    pub wkvars: FxHashSet<rty::WKVid>,
+    /// All wkvars that could be kvars
+    pub internal_wkvars: FxHashSet<rty::WKVid>,
 }
 
 /// NOTE: we expect that the binders for `solved_exprs` and `assumed_exprs` are
@@ -418,12 +418,12 @@ impl WKVarSolutionStats {
 }
 
 impl WKVarSolutions {
-    pub fn new(num_nontrivial_head_cstrs: usize, num_wkvars: usize, num_internal_wkvars: usize) -> Self {
+    pub fn new(num_nontrivial_head_cstrs: usize, wkvars: FxHashSet<rty::WKVid>, internal_wkvars: FxHashSet<rty::WKVid>) -> Self {
         Self {
                solutions: HashMap::new(),
                num_nontrivial_head_cstrs,
-               num_wkvars,
-               num_internal_wkvars,
+               wkvars,
+               internal_wkvars,
         }
     }
 
@@ -447,7 +447,16 @@ impl WKVarSolutions {
             num_actual_exprs: usize,
         }
         let mut stats_by_fn: HashMap<String, WKVarSolutionStats> = HashMap::default();
+        let mut num_nontrivial_real_wkvars = 0;
+        let mut num_nontrivial_internal_wkvars = 0;
         self.solutions.iter().for_each(|(wkvid, solution)| {
+            if solution.actual_exprs.len() > 0 {
+                if self.internal_wkvars.contains(&wkvid) {
+                    num_nontrivial_internal_wkvars += 1;
+                } else {
+                    num_nontrivial_real_wkvars += 1;
+                }
+            }
             let wkvar_fn_name = genv.tcx().def_path_str(wkvid.0);
             stats_by_fn.entry(wkvar_fn_name)
                        .and_modify(|stats| {
@@ -475,11 +484,16 @@ impl WKVarSolutions {
             println!("  num actual:  {}", row.num_actual_exprs);
             writer.serialize(row)
         });
+        let num_wkvars = self.wkvars.len();
+        let num_internal_wkvars = self.internal_wkvars.len();
         println!("SUMMARY");
         println!("  num fns:                    {}", num_fns);
-        println!("  num total wkvars:           {}", self.num_wkvars);
-        println!("    num internal wkvars:      {}", self.num_internal_wkvars);
-        println!("    num true wkvars:          {}", self.num_wkvars - self.num_internal_wkvars);
+        println!("  num total wkvars:           {}", num_wkvars);
+        println!("    internal wkvars:          {}", num_internal_wkvars);
+        println!("    real wkvars:              {}", num_wkvars - num_internal_wkvars);
+        println!("  num nontrivial wkvars:      {}", num_nontrivial_real_wkvars + num_nontrivial_internal_wkvars);
+        println!("    internal wkvars:          {}", num_nontrivial_internal_wkvars);
+        println!("    real wkvars:              {}", num_nontrivial_real_wkvars);
         println!("  num nontrivial head cstrs:  {}", self.num_nontrivial_head_cstrs);
         println!("  num solved exprs:           {}", total.num_solved_exprs);
         println!("  num assumed exprs:          {}", total.num_assumed_exprs);
@@ -487,9 +501,12 @@ impl WKVarSolutions {
         println!("  num actual exprs:           {}", total.num_actual_exprs);
         println!("Copy/pastable entry:");
         println!("{}", [num_fns,
-                 self.num_wkvars,
-                 self.num_internal_wkvars,
-                 self.num_wkvars - self.num_internal_wkvars,
+                 num_wkvars,
+                 num_internal_wkvars,
+                 num_wkvars - num_internal_wkvars,
+                 num_nontrivial_real_wkvars + num_nontrivial_internal_wkvars,
+                 num_nontrivial_internal_wkvars,
+                 num_nontrivial_real_wkvars,
                  self.num_nontrivial_head_cstrs,
                  total.num_solved_exprs,
                  total.num_assumed_exprs,
@@ -540,9 +557,8 @@ pub fn iterative_solve(
     }
     let lhs_wkvars: FxHashSet<rty::WKVid> = constraint_lhs_wkvars.values().flatten().cloned().collect();
     let rhs_wkvars: FxHashSet<rty::WKVid> = constraint_rhs_wkvars.values().flatten().cloned().collect();
-    let num_wkvars = lhs_wkvars.union(&rhs_wkvars).count();
-    let num_internal_wkvars = rhs_wkvars.len();
-    let mut solutions = WKVarSolutions::new(num_nontrivial_head_cstrs, num_wkvars, num_internal_wkvars);
+    let wkvars = lhs_wkvars.union(&rhs_wkvars).cloned().collect();
+    let mut solutions = WKVarSolutions::new(num_nontrivial_head_cstrs, wkvars, rhs_wkvars);
     let mut any_wkvar_change = true;
     let mut i = 1;
     let mut all_errors = Vec::new();
