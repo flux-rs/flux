@@ -57,12 +57,10 @@ pub mod fixpoint {
     //     }
     // }
     //
-    #[derive(Hash, Clone)]
-    // TODO: need to have separate encodings for local kvars and "global" kvars
-    // (wkvars)
+    #[derive(Hash, Clone, PartialEq, Eq)]
     pub enum KVar {
         Local(String, KVid),
-        Global(String, String),
+        Global(String, u32),
     }
 
     impl Identifier for KVar {
@@ -72,7 +70,7 @@ pub mod fixpoint {
                     write!(f, "k_{}_{}", local_prefix, kvid.as_u32())
                 }
                 KVar::Global(global_prefix, wkvid) => {
-                    write!(f, "wk_{}_{}", kvid)
+                    write!(f, "wk_{}_{}", global_prefix, wkvid)
                 }
             }
         }
@@ -424,9 +422,8 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
     kvars: KVarGen,
-    /// WKVars that we want to convert to a kvar when sending to fixpoint
-    /// (the rest will be converted to True)
-    wkvar_ctxt: WKVarCtxt,
+    /// KVarDecls for the WKVars we will convert
+    wkvar_decls: FxHashMap<rty::WKVid, KVarDecl>,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
@@ -457,36 +454,35 @@ where
 {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, mut kvars: KVarGen, wkvars_to_convert: Vec<rty::WKVid>) -> Self {
         let def_span = genv.tcx().def_span(def_id);
-        let mut wkvar_ctxt = WKVarCtxt { wkvid_to_kvid: FxHashMap::default() };
+        let mut wkvar_decls = FxHashMap::default();
         let mut scx = SortEncodingCtxt::default();
         let def_name = genv.tcx().def_path_str(def_id);
         let mut kcx = KVarEncodingCtxt::default(def_name);
-        for wkvar@(wkv_def_id, wkv_idx) in &wkvars_to_convert {
+        for wkvid@(wkv_def_id, wkv_idx) in &wkvars_to_convert {
             if let Some(wkvar_map) = genv.weak_kvars_for(*wkv_def_id) {
                 if let Some(wkvar_source) = wkvar_map.get(&wkv_idx.as_u32()) {
+                    // HACK: this is just done to convert wkvars into KVarDecls.
+                    // We won't actually use the kvids from it, so it's fortunate that
+                    // the kvargen isn't what we emit to fixpoint.
                     let first_wkvar = wkvar_source.first().expect("there should be at least one wkvar annotation");
                     let kvar_e = kvars.fresh(&[first_wkvar.vars().clone()], [], KVarEncoding::Single);
                     let kvid = match kvar_e.kind() {
                         rty::ExprKind::KVar(kvar) => kvar.kvid,
                         _ => unreachable!("kvars.fresh() should only ever return a kvar"),
                     };
-                    println!("wkvar {:?} has kvid {:?}", wkvar, kvid);
-                    wkvar_ctxt.wkvid_to_kvid.insert(*wkvar, kvid);
-                    let decl = kvars.get(kvid);
-                    // This is important to ensure that the wkvars all have the same `fixpoint::KVid`
-                    // that is shared across all constraints.
-                    kcx.encode(kvid, decl, &mut scx, FixpointKVarScope::Global);
+                    let decl = kvars.get(kvid).clone();
+                    wkvar_decls.insert(*wkvid, decl);
                 } else {
-                    println!("Missing entry in the global map for a wkvar we want to convert to a kvar: {:?}", wkvar);
+                    println!("Missing entry in the global map for a wkvar we want to convert to a kvar: {:?}", wkvid);
                 }
             } else {
-                println!("Missing entry in the global map for a wkvar we want to convert to a kvar: {:?}", wkvar);
+                println!("Missing entry in the global map for a wkvar we want to convert to a kvar: {:?}", wkvid);
             }
         }
         Self {
             comments: vec![],
             kvars,
-            wkvar_ctxt,
+            wkvar_decls,
             scx,
             genv,
             ecx: ExprEncodingCtxt::new(genv, def_span),
@@ -691,12 +687,9 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
             rty::ExprKind::WKVar(wkvar) => {
-                if let Some(kvid) = self.wkvar_ctxt.wkvid_to_kvid.get(&wkvar.wkvid) {
-                    // If we are meant to treat the wkvar as a kvar, convert it here
-                    // and follow what we do for kvars.
-                    let conv_kvar = self.wkvar_to_kvar(wkvar, *kvid);
+                if self.wkvar_decls.contains_key(&wkvar.wkvid) {
                     let mut bindings = vec![];
-                    let pred = self.kvar_to_fixpoint(&conv_kvar, &mut bindings)?;
+                    let pred = self.wkvar_to_fixpoint(&wkvar, &mut bindings)?;
                     Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
                 } else {
                     // Don't emit anything to fixpoint for this normally.
@@ -777,9 +770,8 @@ where
             }
             rty::ExprKind::WKVar(wkvar) => {
                 blame_analysis.wkvars.push(wkvar.clone());
-                if let Some(kvid) = self.wkvar_ctxt.wkvid_to_kvid.get(&wkvar.wkvid) {
-                    let conv_kvar = self.wkvar_to_kvar(wkvar, *kvid);
-                    preds.push(self.kvar_to_fixpoint(&conv_kvar, bindings)?);
+                if self.wkvar_decls.contains_key(&wkvar.wkvid) {
+                    preds.push(self.wkvar_to_fixpoint(&wkvar, bindings)?);
                 }
             }
             rty::ExprKind::ForAll(_) => {
@@ -834,10 +826,29 @@ where
         kvar: &rty::KVar,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
-        let decl = self.kvars.get(kvar.kvid);
-        let kvars = self.kcx.encode(kvar.kvid, decl, &mut self.scx, FixpointKVarScope::Local);
+        let decl = self.kvars.get(kvar.kvid).clone();
+        self.wkvar_or_kvar_to_fixpoint(&KVidOrWKVid::KVid(kvar.kvid), &decl, &kvar.args, bindings)
+    }
 
-        let all_args = iter::zip(&kvar.args, &decl.sorts)
+    fn wkvar_to_fixpoint(
+        &mut self,
+        wkvar: &rty::WKVar,
+        bindings: &mut Vec<fixpoint::Bind>,
+    ) -> QueryResult<fixpoint::Pred> {
+        let decl = self.wkvar_decls[&wkvar.wkvid].clone();
+        self.wkvar_or_kvar_to_fixpoint(&KVidOrWKVid::WKVid(wkvar.wkvid), &decl, &wkvar.args, bindings)
+    }
+
+    fn wkvar_or_kvar_to_fixpoint(
+        &mut self,
+        id: &KVidOrWKVid,
+        decl: &KVarDecl,
+        args: &List<rty::Expr>,
+        bindings: &mut Vec<fixpoint::Bind>,
+    ) -> QueryResult<fixpoint::Pred> {
+        let kvars = self.kcx.encode(self.genv, id, decl, &mut self.scx);
+
+        let all_args = iter::zip(args, &decl.sorts)
             .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
             .try_collect_vec()?;
 
@@ -902,16 +913,15 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     }
 }
 
-#[derive(Clone, Copy)]
-enum FixpointKVarScope {
-    Local,
-    Global,
-}
-
 struct FixpointKVar {
     sorts: Vec<fixpoint::Sort>,
-    orig: rty::KVid,
-    scope: FixpointKVarScope,
+    orig: KVidOrWKVid,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum KVidOrWKVid {
+    KVid(rty::KVid),
+    WKVid(rty::WKVid),
 }
 
 /// During encoding into fixpoint we generate multiple fixpoint kvars per kvar in flux. A
@@ -923,7 +933,13 @@ struct KVarEncodingCtxt {
     /// List of all kvars that need to be defined in fixpoint
     kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
     /// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s encoding the kvar.
-    map: UnordMap<rty::KVid, Vec<fixpoint::KVar>>,
+    map: UnordMap<KVidOrWKVid, Vec<fixpoint::KVar>>,
+    /// Like kvars but for wkvars. Technically we don't need to populate this
+    /// (we know what it should contain when the KVarEncodingCtxt is
+    /// initialized), but it's easier to just make it parallel to kvars. Has the
+    /// added benefit of not generating decls for wkvars we don't actually use in
+    /// the constraint, which makes debugging slightly easier.
+    wkvars: FxHashMap<fixpoint::KVar, FixpointKVar>,
 }
 
 impl KVarEncodingCtxt {
@@ -940,30 +956,42 @@ impl KVarEncodingCtxt {
             local_prefix: sanitized_prefix,
             kvars: Default::default(),
             map: Default::default(),
+            wkvars: Default::default(),
         }
     }
 
-    fn add_kvar(&mut self, kvar: FixpointKVar) -> fixpoint::KVar {
-        let scope = kvar.scope;
-        let kvid = self.kvars.push(kvar);
-        match scope {
-            FixpointKVarScope::Global => {
-                fixpoint::KVar::Global(kvid)
+    fn add(&mut self, genv: GlobalEnv, id: &KVidOrWKVid, kvar: FixpointKVar) -> fixpoint::KVar {
+        match id {
+            KVidOrWKVid::KVid(kvid) => {
+                let fx_kvid = self.kvars.push(kvar);
+                fixpoint::KVar::Local(self.local_prefix.clone(), fx_kvid)
             }
-            FixpointKVarScope::Local => {
-                fixpoint::KVar::Local(self.local_prefix.clone(), kvid)
+            KVidOrWKVid::WKVid(wkvid) => {
+                let def_name = genv.tcx().def_path_str(wkvid.0).chars().map(|c| {
+                    if c.is_alphanumeric() {
+                        c
+                    } else {
+                        '_'
+                    }
+                }).collect::<String>();
+                let num = wkvid.1;
+                // We don't need anything back from this because these names are
+                // global and uniquely determined by wkvid.
+                let fx_kvar = fixpoint::KVar::Global(def_name, num.as_u32());
+                self.wkvars.insert(fx_kvar.clone(), kvar);
+                fx_kvar
             }
         }
     }
 
     fn encode(
         &mut self,
-        kvid: rty::KVid,
+        genv: GlobalEnv,
+        id: &KVidOrWKVid,
         decl: &KVarDecl,
         scx: &mut SortEncodingCtxt,
-        scope: FixpointKVarScope,
     ) -> &[fixpoint::KVar] {
-        if !self.map.contains_key(&kvid) {
+        if !self.map.contains_key(id) {
             let kvars;
             let all_args = decl
                 .sorts
@@ -974,12 +1002,12 @@ impl KVarEncodingCtxt {
             // See comment in `kvar_to_fixpoint`
             if all_args.is_empty() {
                 let sorts = vec![fixpoint::Sort::Int];
-                let kvar = self.add_kvar(FixpointKVar::new(sorts, kvid, scope));
+                let kvar = self.add(genv, id, FixpointKVar::new(sorts, *id));
                 kvars = vec![kvar];
             } else {
                 kvars = match decl.encoding {
                     KVarEncoding::Single => {
-                        let kvar = self.add_kvar(FixpointKVar::new(all_args, kvid, scope));
+                        let kvar = self.add(genv, id, FixpointKVar::new(all_args, *id));
                         vec![kvar]
                     }
                     KVarEncoding::Conj => {
@@ -987,32 +1015,30 @@ impl KVarEncodingCtxt {
                         (0..n)
                             .map(|i| {
                                 let sorts = all_args[i..].to_vec();
-                                self.add_kvar(FixpointKVar::new(sorts, kvid, scope))
+                                self.add(genv, id, FixpointKVar::new(sorts, *id))
                             })
                             .collect_vec()
                     }
                 };
             }
-            self.map.insert(kvid, kvars);
+            self.map.insert(*id, kvars);
         }
-        self.map.get(&kvid).expect("kvar context map should have an entry")
+        &self.map[id]
     }
 
     fn into_fixpoint(self) -> Vec<fixpoint::KVarDecl> {
-        self.kvars
-            .into_iter_enumerated()
-            .map(|(kvid, kvar)| {
-                let kv = match kvar.scope {
-                    FixpointKVarScope::Local => {
-                        fixpoint::KVar::Local(self.local_prefix.clone(), kvid)
-                    }
-                    FixpointKVarScope::Global => {
-                        fixpoint::KVar::Global(kvid)
-                    }
-                };
-                fixpoint::KVarDecl::new(kv, kvar.sorts, format!("orig: {:?}", kvar.orig))
+        let mut kvars = self.wkvars
+            .into_iter()
+            .map(|(wkvar, wkvar_decl)| {
+                fixpoint::KVarDecl::new(wkvar, wkvar_decl.sorts, format!("orig: {:?}", wkvar_decl.orig))
             })
-            .collect()
+            .collect_vec();
+        for (kvid, kvar) in self.kvars.into_iter_enumerated() {
+            let kv = fixpoint::KVar::Local(self.local_prefix.clone(), kvid);
+            let kv_decl = fixpoint::KVarDecl::new(kv, kvar.sorts, format!("orig: {:?}", kvar.orig));
+            kvars.push(kv_decl);
+        }
+        kvars
     }
 }
 
@@ -1066,8 +1092,8 @@ impl LocalVarEnv {
 }
 
 impl FixpointKVar {
-    fn new(sorts: Vec<fixpoint::Sort>, orig: rty::KVid, scope: FixpointKVarScope) -> Self {
-        Self { sorts, orig, scope }
+    fn new(sorts: Vec<fixpoint::Sort>, orig: KVidOrWKVid) -> Self {
+        Self { sorts, orig }
     }
 }
 
