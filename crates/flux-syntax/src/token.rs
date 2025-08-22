@@ -7,7 +7,7 @@ use rustc_span::{BytePos, Symbol};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum TokenKind {
-    Caret,
+    Or,
     EqEq,
     Eq,
     AndAnd,
@@ -103,7 +103,7 @@ impl TokenKind {
 
     pub fn descr(&self) -> &'static str {
         match self {
-            TokenKind::Caret => "|",
+            TokenKind::Or => "|",
             TokenKind::EqEq => "==",
             TokenKind::Eq => "=",
             TokenKind::AndAnd => "&&",

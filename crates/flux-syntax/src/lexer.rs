@@ -112,7 +112,7 @@ impl<'t> Cursor<'t> {
             }
             rustc_ast::token::Ident(symb, is_raw) => TokenKind::Ident(symb, is_raw),
             rustc_ast::token::NtIdent(ident, is_raw) => TokenKind::Ident(ident.name, is_raw),
-            rustc_ast::token::Or => TokenKind::Caret,
+            rustc_ast::token::Or => TokenKind::Or,
             rustc_ast::token::Plus => TokenKind::Plus,
             rustc_ast::token::Slash => TokenKind::Slash,
             rustc_ast::token::Minus => TokenKind::Minus,
