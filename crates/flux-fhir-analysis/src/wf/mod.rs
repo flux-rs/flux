@@ -157,7 +157,10 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         for (arg, sort) in primop_prop.args.iter().zip(sorts) {
             self.infcx.declare_param(*arg, sort);
         }
-        Ok(())
+        visit_refine_params(
+            |vis| vis.visit_expr(&primop_prop.body),
+            |param| self.declare_param(param),
+        )
     }
 
     /// Recursively traverse `item` and declare all refinement parameters
