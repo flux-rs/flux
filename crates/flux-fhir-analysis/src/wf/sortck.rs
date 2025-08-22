@@ -46,9 +46,11 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
 
 pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
     match op {
-        fhir::BinOp::BitAnd | fhir::BinOp::BitOr | fhir::BinOp::BitShl | fhir::BinOp::BitShr => {
-            Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int))
-        }
+        fhir::BinOp::BitAnd
+        | fhir::BinOp::BitOr
+        | fhir::BinOp::BitXor
+        | fhir::BinOp::BitShl
+        | fhir::BinOp::BitShr => Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int)),
         _ => None,
     }
 }

@@ -448,6 +448,7 @@ pub(crate) fn conv_primop_prop(
     let op = match primop_prop.op {
         fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
         fhir::BinOp::BitOr => rty::BinOp::BitOr,
+        fhir::BinOp::BitXor => rty::BinOp::BitXor,
         fhir::BinOp::BitShl => rty::BinOp::BitShl,
         fhir::BinOp::BitShr => rty::BinOp::BitShr,
         _ => {

@@ -1482,7 +1482,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     /// (b) inside ExprKind::InternalFunc it means int.
     fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
         match op {
-            rty::BinOp::BitAnd | rty::BinOp::BitOr | rty::BinOp::BitShl | rty::BinOp::BitShr => {
+            rty::BinOp::BitAnd
+            | rty::BinOp::BitOr
+            | rty::BinOp::BitXor
+            | rty::BinOp::BitShl
+            | rty::BinOp::BitShr => {
                 let fsort =
                     rty::FuncSort::new(vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int);
                 rty::PolyFuncSort::new(List::empty(), fsort)
