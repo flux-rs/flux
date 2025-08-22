@@ -1259,6 +1259,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::Mod(_) => fixpoint::ThyFunc::BvUrem,
             rty::BinOp::BitAnd => fixpoint::ThyFunc::BvAnd,
             rty::BinOp::BitOr => fixpoint::ThyFunc::BvOr,
+            rty::BinOp::BitXor => fixpoint::ThyFunc::BvXor,
             rty::BinOp::BitShl => fixpoint::ThyFunc::BvShl,
             rty::BinOp::BitShr => fixpoint::ThyFunc::BvLshr,
             _ => span_bug!(self.def_span(), "not a bitvector operation!"),
@@ -1329,6 +1330,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::BinOp::Mod(rty::Sort::BitVec(_))
             | rty::BinOp::BitAnd
             | rty::BinOp::BitOr
+            | rty::BinOp::BitXor
             | rty::BinOp::BitShl
             | rty::BinOp::BitShr => {
                 let bv_func = self.bv_op_to_fixpoint(op);

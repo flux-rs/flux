@@ -1556,6 +1556,7 @@ impl Precedence {
                 Precedence::Compare
             }
             BinOp::BitOr => Precedence::BitOr,
+            BinOp::BitXor => Precedence::BitXor,
             BinOp::BitAnd => Precedence::BitAnd,
             BinOp::BitShl | BinOp::BitShr => Precedence::Shift,
             BinOp::Add | BinOp::Sub => Precedence::Sum,

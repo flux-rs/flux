@@ -237,6 +237,7 @@ impl<'cx> ParseCtxt<'cx> {
             TokenKind::Le => (BinOp::Le, 1),
             TokenKind::Ge => (BinOp::Ge, 1),
             TokenKind::Or => (BinOp::BitOr, 1),
+            TokenKind::Caret => (BinOp::BitXor, 1),
             TokenKind::And => (BinOp::BitAnd, 1),
             TokenKind::LtFollowedByLt => (BinOp::BitShl, 2),
             TokenKind::GtFollowedByGt => (BinOp::BitShr, 2),

@@ -476,6 +476,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             fhir::BinOp::BitAnd
             | fhir::BinOp::BitOr
+            | fhir::BinOp::BitXor
             | fhir::BinOp::BitShl
             | fhir::BinOp::BitShr => {
                 let sort = rty::Sort::BitVec(self.next_bv_size_var());
