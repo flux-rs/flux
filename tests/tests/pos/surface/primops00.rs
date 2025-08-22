@@ -2,11 +2,11 @@ use flux_rs::{assert, attrs::*, defs};
 
 defs! {
     property ShiftByTwo[<<](x, y) {
-       [<<](x, 2) == 4*x
+        [<<](x, 2) == 4*x
     }
 
     property ShiftRightByFour[>>](x, y) {
-       16 * [>>](x, 4) == x
+        16 * [>>](x, 4) == x
     }
 
     property MaskBy[&](x, y) {
