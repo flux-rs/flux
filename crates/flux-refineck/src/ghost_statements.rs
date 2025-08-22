@@ -5,7 +5,7 @@ mod points_to;
 
 use std::{fmt, io, iter};
 
-use flux_common::dbg;
+use flux_common::{bug, dbg};
 use flux_config as config;
 use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
 use flux_rustc_bridge::{
@@ -62,36 +62,38 @@ impl GhostStatements {
     fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
 
-        let mut stmts = Self {
-            at_start: Default::default(),
-            at_location: LocationMap::default(),
-            at_edge: EdgeMap::default(),
-        };
+        bug::track_span(body.span(), || {
+            let mut stmts = Self {
+                at_start: Default::default(),
+                at_location: LocationMap::default(),
+                at_edge: EdgeMap::default(),
+            };
 
-        // We have fn_sig for function items, but not for closures or generators.
-        let fn_sig = if genv.def_kind(def_id) == DefKind::Closure {
-            None
-        } else {
-            Some(genv.fn_sig(def_id)?)
-        };
+            // We have fn_sig for function items, but not for closures or generators.
+            let fn_sig = if genv.def_kind(def_id) == DefKind::Closure {
+                None
+            } else {
+                Some(genv.fn_sig(def_id)?)
+            };
 
-        fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
-        points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
-        stmts.add_unblocks(genv.tcx(), &body);
+            fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
+            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
+            stmts.add_unblocks(genv.tcx(), &body);
 
-        if config::dump_mir() {
-            let mut writer =
-                dbg::writer_for_item(genv.tcx(), def_id.to_def_id(), "ghost.mir").unwrap();
-            stmts.write_mir(genv.tcx(), &body, &mut writer).unwrap();
-        }
-        Ok(stmts)
+            if config::dump_mir() {
+                let mut writer =
+                    dbg::writer_for_item(genv.tcx(), def_id.to_def_id(), "ghost.mir").unwrap();
+                stmts.write_mir(genv.tcx(), &body, &mut writer).unwrap();
+            }
+            Ok(stmts)
+        })
     }
 
     fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
         for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body.borrow_data(bidx);
-                let place = lowering::lower_place(tcx, &borrow.borrowed_place).unwrap();
+                let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
                 GhostStatement::Unblock(place)
             });
             self.at_location.entry(location).or_default().extend(stmts);
@@ -121,7 +123,7 @@ impl GhostStatements {
         }
     }
 
-    fn at(&mut self, point: Point) -> StatementsAt {
+    fn at(&mut self, point: Point) -> StatementsAt<'_> {
         StatementsAt { stmts: self, point }
     }
 
@@ -212,19 +214,19 @@ impl StatementsAt<'_> {
 
 fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = LocalDefId> {
     use rustc_hir as hir;
-    struct ClosureFinder<'hir> {
-        hir: rustc_middle::hir::map::Map<'hir>,
+    struct ClosureFinder<'tcx> {
+        tcx: TyCtxt<'tcx>,
         closures: FxHashSet<LocalDefId>,
     }
 
-    impl<'hir> rustc_hir::intravisit::Visitor<'hir> for ClosureFinder<'hir> {
+    impl<'tcx> rustc_hir::intravisit::Visitor<'tcx> for ClosureFinder<'tcx> {
         type NestedFilter = rustc_middle::hir::nested_filter::OnlyBodies;
 
-        fn nested_visit_map(&mut self) -> Self::Map {
-            self.hir
+        fn maybe_tcx(&mut self) -> Self::MaybeTyCtxt {
+            self.tcx
         }
 
-        fn visit_expr(&mut self, ex: &'hir hir::Expr<'hir>) {
+        fn visit_expr(&mut self, ex: &'tcx hir::Expr<'tcx>) {
             if let hir::ExprKind::Closure(closure) = ex.kind {
                 self.closures.insert(closure.def_id);
             }
@@ -232,9 +234,8 @@ fn all_nested_bodies(tcx: TyCtxt, def_id: LocalDefId) -> impl Iterator<Item = Lo
             hir::intravisit::walk_expr(self, ex);
         }
     }
-    let hir = tcx.hir();
-    let body = hir.body_owned_by(def_id).value;
-    let mut finder = ClosureFinder { hir, closures: FxHashSet::default() };
+    let body = tcx.hir_body_owned_by(def_id).value;
+    let mut finder = ClosureFinder { tcx, closures: FxHashSet::default() };
     hir::intravisit::Visitor::visit_expr(&mut finder, body);
     finder.closures.into_iter().chain(iter::once(def_id))
 }

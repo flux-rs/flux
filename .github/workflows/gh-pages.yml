@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build and Deploy Website
@@ -19,7 +23,7 @@ jobs:
       - run: mdbook build book
 
       - name: Rust Cache
-        uses: Swatinem/rust-cache@v2.2.1
+        uses: Swatinem/rust-cache@v2.8.0
 
       - run: cargo xtask doc && mv target/doc book/book
 

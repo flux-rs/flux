@@ -25,29 +25,6 @@ pub(super) struct InvalidConstructorPath {
 }
 
 #[derive(Diagnostic)]
-#[diag(desugar_invalid_dot_var, code = E0999)]
-pub(super) struct InvalidDotVar {
-    #[primary_span]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_invalid_func_as_var, code = E0999)]
-pub(super) struct InvalidFuncAsVar {
-    #[primary_span]
-    #[label]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
-#[diag(desugar_invalid_func, code = E0999)]
-pub(super) struct InvalidFunc {
-    #[primary_span]
-    #[label]
-    pub(super) span: Span,
-}
-
-#[derive(Diagnostic)]
 #[diag(desugar_invalid_loc, code = E0999)]
 pub(super) struct InvalidLoc {
     #[primary_span]
@@ -97,6 +74,19 @@ impl InvalidVariantRet {
 }
 
 #[derive(Diagnostic)]
+#[diag(desugar_invalid_reflected_variant, code = E0999)]
+pub(super) struct InvalidReflectedVariant {
+    #[primary_span]
+    pub(super) span: Span,
+}
+
+impl InvalidReflectedVariant {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(desugar_multiple_spreads_in_constructor, code = E0999)]
 pub(super) struct MultipleSpreadsInConstructor {
     #[primary_span]
@@ -108,5 +98,46 @@ pub(super) struct MultipleSpreadsInConstructor {
 impl MultipleSpreadsInConstructor {
     pub(super) fn new(span: Span, prev_span: Span) -> Self {
         Self { span, prev_span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_unsupported_position, code = E0999)]
+pub(super) struct UnsupportedPosition {
+    #[primary_span]
+    span: Span,
+}
+
+impl UnsupportedPosition {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_final_assoc_without_body, code = E0999)]
+pub(super) struct FinalAssocReftWithoutBody {
+    #[primary_span]
+    span: Span,
+}
+
+impl FinalAssocReftWithoutBody {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(desugar_unsupported_const_generic_arg, code = E0999)]
+pub(super) struct UnsupportedConstGenericArg {
+    #[primary_span]
+    #[label]
+    span: Span,
+    res_descr: &'static str,
+}
+
+impl UnsupportedConstGenericArg {
+    pub(super) fn new(span: Span, res_descr: &'static str) -> Self {
+        Self { span, res_descr }
     }
 }

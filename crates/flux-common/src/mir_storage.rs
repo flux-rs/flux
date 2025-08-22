@@ -33,7 +33,8 @@ pub unsafe fn store_mir_body<'tcx>(
     body_with_facts: BodyWithBorrowckFacts<'tcx>,
 ) {
     // SAFETY: See the module level comment.
-    let body_with_facts: BodyWithBorrowckFacts<'static> = std::mem::transmute(body_with_facts);
+    let body_with_facts: BodyWithBorrowckFacts<'static> =
+        unsafe { std::mem::transmute(body_with_facts) };
     SHARED_STATE.with(|state| {
         let mut map = state.borrow_mut();
         assert!(map.insert(def_id, body_with_facts).is_none());
@@ -43,17 +44,19 @@ pub unsafe fn store_mir_body<'tcx>(
 /// # Safety
 ///
 /// See the module level comment.
-#[expect(clippy::needless_lifetimes, reason = "we want to be very explicit about lifetimes here")]
 pub unsafe fn retrieve_mir_body<'tcx>(
     _tcx: TyCtxt<'tcx>,
     def_id: LocalDefId,
 ) -> BodyWithBorrowckFacts<'tcx> {
     let body_with_facts: BodyWithBorrowckFacts<'static> = SHARED_STATE.with(|state| {
-        match state.borrow_mut().remove(&def_id) {
+        let mut map = state.borrow_mut();
+        match map.remove(&def_id) {
             Some(body) => body,
-            None => bug!("retrieve_mir_body: panic on {def_id:?}"),
+            None => {
+                bug!("retrieve_mir_body: panic on {def_id:?}")
+            }
         }
     });
     // SAFETY: See the module level comment.
-    std::mem::transmute(body_with_facts)
+    unsafe { std::mem::transmute(body_with_facts) }
 }

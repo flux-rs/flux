@@ -30,16 +30,20 @@
 //!
 //! [existentials]: TyKind::Exists
 //! [constraint predicates]: TyKind::Constr
+use std::fmt::Write;
+
 use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
+use itertools::Itertools;
 use rustc_ast::Mutability;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
-    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
-    BaseTy, Binder, BoundVariableKind, Expr, GenericArg, GenericArgsExt, SubsetTy, Ty, TyCtor,
-    TyKind, TyOrBase,
+    BaseTy, Binder, BoundVariableKind, Expr, FnSig, GenericArg, GenericArgsExt, PolyFnSig,
+    SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
+    fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
+use crate::rty::{ExprKind, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -56,6 +60,7 @@ pub struct Hoister<D> {
     in_strg_refs: bool,
     in_tuples: bool,
     existentials: bool,
+    slices: bool,
 }
 
 pub trait HoisterDelegate {
@@ -74,6 +79,7 @@ impl<D> Hoister<D> {
             in_boxes: false,
             in_downcast: false,
             existentials: true,
+            slices: false,
         }
     }
 
@@ -112,6 +118,11 @@ impl<D> Hoister<D> {
         self
     }
 
+    pub fn hoist_slices(mut self, slices: bool) -> Self {
+        self.slices = slices;
+        self
+    }
+
     pub fn transparent(self) -> Self {
         self.hoist_inside_boxes(true)
             .hoist_inside_downcast(true)
@@ -119,6 +130,7 @@ impl<D> Hoister<D> {
             .hoist_inside_shr_refs(true)
             .hoist_inside_strg_refs(true)
             .hoist_inside_tuples(true)
+            .hoist_slices(true)
     }
 
     pub fn shallow(self) -> Self {
@@ -137,6 +149,20 @@ impl<D: HoisterDelegate> Hoister<D> {
     }
 }
 
+/// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an exi-indexed slice?
+/// We need to do a "transitive" check to deal with cases like `&mut &mut [i32]`
+/// which arise from closures like that in `tests/tests/pos/surface/closure03.rs`.
+fn is_indexed_slice(ty: &Ty) -> bool {
+    let Some(bty) = ty.as_bty_skipping_existentials() else {
+        return false;
+    };
+    match bty {
+        BaseTy::Slice(_) => true,
+        BaseTy::Ref(_, ty, _) => is_indexed_slice(ty),
+        _ => false,
+    }
+}
+
 impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
     fn fold_ty(&mut self, ty: &Ty) -> Ty {
         match ty.kind() {
@@ -152,7 +178,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                         if sort.is_unit() {
                             ty_ctor.replace_bound_reft(&Expr::unit())
                         } else if let Some(def_id) = sort.is_unit_adt() {
-                            ty_ctor.replace_bound_reft(&Expr::unit_adt(def_id))
+                            ty_ctor.replace_bound_reft(&Expr::unit_struct(def_id))
                         } else {
                             self.delegate.hoist_exists(ty_ctor)
                         }
@@ -181,6 +207,9 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
                 ]);
                 BaseTy::Adt(adt_def.clone(), args)
             }
+            BaseTy::Ref(re, ty, mutability) if is_indexed_slice(ty) && self.slices => {
+                BaseTy::Ref(*re, ty.fold_with(self), *mutability)
+            }
             BaseTy::Ref(re, ty, Mutability::Not) if self.in_shr_refs => {
                 BaseTy::Ref(*re, ty.fold_with(self), Mutability::Not)
             }
@@ -200,6 +229,10 @@ pub struct LocalHoister {
 }
 
 impl LocalHoister {
+    pub fn new(vars: Vec<BoundVariableKind>) -> Self {
+        LocalHoister { vars, preds: vec![] }
+    }
+
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
         let vars = List::from_vec(self.vars);
         Binder::bind_with_vars(f(vars.clone(), self.preds), vars)
@@ -218,6 +251,49 @@ impl HoisterDelegate for &mut LocalHoister {
 
     fn hoist_constr(&mut self, pred: Expr) {
         self.preds.push(pred);
+    }
+}
+
+impl PolyFnSig {
+    /// Convert a function signature with existentials to one where they are all
+    /// bound at the top level. Performs a transparent (i.e. not shallow)
+    /// canonicalization.
+    /// The uses the `LocalHoister` machinery to convert a function template _without_
+    /// binders, e.g. `fn ({v.i32 | *}) -> {v.i32|*})`
+    /// into one _with_ input binders, e.g. `forall <a:int>. fn ({i32[a]|*}) -> {v.i32|*}`
+    /// after which the hole-filling machinery can be used to fill in the holes.
+    /// This lets us get "dependent signatures" for closures, where the output
+    /// can refer to the input. e.g. see `tests/pos/surface/closure09.rs`
+    pub fn hoist_input_binders(&self) -> Self {
+        let original_vars = self.vars().to_vec();
+        let fn_sig = self.skip_binder_ref();
+        let mut delegate = LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec() };
+        let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
+
+        let inputs = fn_sig
+            .inputs()
+            .iter()
+            .map(|ty| hoister.hoist(ty))
+            .collect_vec();
+
+        delegate.bind(|_vars, mut preds| {
+            let mut keep_hole = true;
+            preds.retain(|pred| {
+                if let ExprKind::Hole(HoleKind::Pred) = pred.kind() {
+                    std::mem::replace(&mut keep_hole, false)
+                } else {
+                    true
+                }
+            });
+
+            FnSig::new(
+                fn_sig.safety,
+                fn_sig.abi,
+                preds.into(),
+                inputs.into(),
+                fn_sig.output().clone(),
+            )
+        })
     }
 }
 
@@ -271,6 +347,7 @@ impl CanonicalConstrTy {
 ///
 /// [existential]: TyKind::Exists
 /// [constraint]: TyKind::Constr
+#[derive(TypeVisitable)]
 pub enum CanonicalTy {
     /// A type of the form `{T | p}`
     Constr(CanonicalConstrTy),
@@ -333,7 +410,11 @@ mod pretty {
 
     impl Pretty for CanonicalConstrTy {
         fn fmt(&self, cx: &PrettyCx, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            if self.pred().is_trivially_true() {
+                w!(cx, f, "{:?}", &self.ty)
+            } else {
+                w!(cx, f, "{{ {:?} | {:?} }}", &self.ty, &self.pred)
+            }
         }
     }
 
@@ -342,10 +423,41 @@ mod pretty {
             match self {
                 CanonicalTy::Constr(constr) => w!(cx, f, "{:?}", constr),
                 CanonicalTy::Exists(poly_constr) => {
-                    cx.with_bound_vars(poly_constr.vars(), || {
-                        cx.fmt_bound_vars(false, "∃", poly_constr.vars(), ". ", f)?;
-                        w!(cx, f, "{:?}", poly_constr.as_ref().skip_binder())
-                    })
+                    let redundant_bvars = poly_constr.skip_binder_ref().redundant_bvars();
+                    cx.with_bound_vars_removable(
+                        poly_constr.vars(),
+                        redundant_bvars,
+                        None,
+                        |f_body| {
+                            let constr = poly_constr.skip_binder_ref();
+                            if constr.pred().is_trivially_true() {
+                                w!(cx, f_body, "{:?}", &constr.ty)
+                            } else {
+                                w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                            }
+                        },
+                        |(), bound_var_layer, body| {
+                            let vars = poly_constr
+                                .vars()
+                                .into_iter()
+                                .enumerate()
+                                .filter_map(|(idx, var)| {
+                                    let not_removed = !bound_var_layer
+                                        .successfully_removed_vars
+                                        .contains(&BoundVar::from_usize(idx));
+                                    let refine_var = matches!(var, BoundVariableKind::Refine(..));
+                                    if not_removed && refine_var { Some(var.clone()) } else { None }
+                                })
+                                .collect_vec();
+                            if vars.is_empty() {
+                                write!(f, "{}", body)
+                            } else {
+                                let left = "{";
+                                let right = format!(". {} }}", body);
+                                cx.fmt_bound_vars(false, left, &vars, &right, f)
+                            }
+                        },
+                    )
                 }
             }
         }

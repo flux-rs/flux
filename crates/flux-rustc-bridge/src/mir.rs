@@ -5,36 +5,33 @@ use std::fmt;
 use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
-use rustc_ast::Mutability;
-pub use rustc_borrowck::borrow_set::BorrowData;
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowIndex};
+pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
+use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
 use rustc_data_structures::{
     fx::FxIndexMap,
-    graph::{self, dominators::Dominators, DirectedGraph, StartNode},
+    graph::{self, DirectedGraph, StartNode, dominators::Dominators},
     unord::UnordMap,
 };
-use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
-use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
     mir::{self, VarDebugInfoContents},
-    ty::{FloatTy, IntTy, ParamConst, TyCtxt, TypingMode, UintTy},
+    ty::{FloatTy, IntTy, ParamConst, UintTy},
 };
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
-        SourceInfo, SwitchTargets, UnOp, UnwindAction, RETURN_PLACE, START_BLOCK,
+        RETURN_PLACE, RawPtrKind, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
 use rustc_span::{Span, Symbol};
-pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
     def_id_to_string,
-    ty::{region_to_string, Binder, FnSig},
+    ty::{Binder, FnSig, region_to_string},
 };
 
 pub struct Body<'tcx> {
@@ -209,7 +206,7 @@ pub enum Rvalue {
     Use(Operand),
     Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
-    RawPtr(Mutability, Place),
+    RawPtr(RawPtrKind, Place),
     Len(Place),
     Cast(CastKind, Operand, Ty),
     BinaryOp(BinOp, Operand, Operand),
@@ -295,8 +292,14 @@ impl Place {
         Place { local, projection }
     }
 
-    pub fn as_ref(&self) -> PlaceRef {
+    pub fn as_ref(&self) -> PlaceRef<'_> {
         PlaceRef { local: self.local, projection: &self.projection[..] }
+    }
+
+    pub fn deref(&self) -> Self {
+        let mut projection = self.projection.clone();
+        projection.push(PlaceElem::Deref);
+        Place { local: self.local, projection }
     }
 }
 
@@ -463,7 +466,7 @@ impl<'tcx> Body<'tcx> {
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
         self.body_with_facts
             .borrow_set
-            .location_map
+            .location_map()
             .get_index(idx.as_usize())
             .unwrap()
             .1
@@ -476,24 +479,6 @@ impl<'tcx> Body<'tcx> {
     pub fn local_kind(&self, local: Local) -> LocalKind {
         self.body_with_facts.body.local_kind(local)
     }
-}
-
-/// Replicate the [`InferCtxt`] used for mir typeck by generating region variables for every region in
-/// the `RegionInferenceContext`
-///
-/// [`InferCtxt`]: rustc_infer::infer::InferCtxt
-pub(crate) fn replicate_infer_ctxt<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    def_id: LocalDefId,
-    body_with_facts: &BodyWithBorrowckFacts<'tcx>,
-) -> rustc_infer::infer::InferCtxt<'tcx> {
-    let infcx = tcx
-        .infer_ctxt()
-        .build(TypingMode::analysis_in_body(tcx, def_id));
-    for info in &body_with_facts.region_inference_context.var_infos {
-        infcx.next_region_var(info.origin);
-    }
-    infcx
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
@@ -510,10 +495,10 @@ fn mk_fake_predecessors(
     let mut res: IndexVec<BasicBlock, usize> = basic_blocks.iter().map(|_| 0).collect();
 
     for bb in basic_blocks {
-        if let Some(terminator) = &bb.terminator {
-            if let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind {
-                res[imaginary_target] += 1;
-            }
+        if let Some(terminator) = &bb.terminator
+            && let TerminatorKind::FalseEdge { imaginary_target, .. } = terminator.kind
+        {
+            res[imaginary_target] += 1;
         }
     }
     res
@@ -567,10 +552,7 @@ impl fmt::Debug for CallKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CallKind::FnDef { resolved_id, resolved_args, .. } => {
-                let fname = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(*resolved_id);
-                    path.data.iter().join("::")
-                });
+                let fname = rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(*resolved_id));
                 write!(f, "call {fname}")?;
                 if !resolved_args.lowered.is_empty() {
                     write!(f, "<{:?}>", resolved_args.lowered.iter().format(", "))?;
@@ -705,7 +687,7 @@ impl fmt::Debug for Rvalue {
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
                     let variant_name = tcx.adt_def(*def_id).variant(*variant_idx).name;
-                    let fname = tcx.def_path(*def_id).data.iter().join("::");
+                    let fname = tcx.def_path_str(*def_id);
                     (fname, variant_name)
                 });
                 write!(f, "{fname}::{variant_name}")?;
@@ -792,9 +774,9 @@ impl fmt::Debug for Constant {
             Constant::Unit => write!(f, "()"),
             Constant::Str(s) => write!(f, "\"{s:?}\""),
             Constant::Char(c) => write!(f, "\'{c}\'"),
-            Constant::Opaque(ty) => write!(f, "<opaque {:?}>", ty),
-            Constant::Param(p, _) => write!(f, "{:?}", p),
-            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {:?} from {:?}>", ty, def_id),
+            Constant::Opaque(ty) => write!(f, "<opaque {ty:?}>"),
+            Constant::Param(p, _) => write!(f, "{p:?}"),
+            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {ty:?} from {def_id:?}>"),
         }
     }
 }

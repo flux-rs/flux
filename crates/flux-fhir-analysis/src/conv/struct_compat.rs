@@ -8,6 +8,7 @@ use std::{fmt, iter};
 use flux_common::bug;
 use flux_errors::Errors;
 use flux_middle::{
+    def_id::MaybeExternId,
     fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -16,12 +17,11 @@ use flux_middle::{
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine as _, Refiner},
     },
-    MaybeExternId,
 };
 use flux_rustc_bridge::ty::{self, FieldIdx, VariantIdx};
 use rustc_ast::Mutability;
 use rustc_data_structures::unord::UnordMap;
-use rustc_type_ir::{DebruijnIndex, InferConst, INNERMOST};
+use rustc_type_ir::{DebruijnIndex, INNERMOST, InferConst};
 
 pub(crate) fn type_alias(
     genv: GlobalEnv,
@@ -239,7 +239,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         for (i, ensures) in a.ensures.iter().enumerate() {
             if let rty::Ensures::Type(path, ty_a) = ensures {
                 let loc = path.to_loc().unwrap();
-                let ty_b = self.locs.get(&loc).unwrap().clone();
+                let ty_b = self.locs.get(&loc).unwrap().shift_in_escaping(1);
                 self.zip_ty(ty_a, &ty_b)
                     .map_err(|_| FnSigErr::Ensures { i, expected: ty_b })?;
             }
@@ -357,6 +357,9 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                 }
                 self.zip_region(re_a, re_b);
                 Ok(())
+            }
+            (rty::BaseTy::Foreign(def_id_a), rty::BaseTy::Foreign(def_id_b)) => {
+                assert_eq_or_incompatible(def_id_a, def_id_b)
             }
             (rty::BaseTy::Closure(..) | rty::BaseTy::Coroutine(..), _) => {
                 bug!("unexpected type `{a:?}`");
@@ -634,12 +637,12 @@ mod errors {
     use flux_common::span_bug;
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
-    use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+    use flux_middle::{def_id::MaybeExternId, fhir, global_env::GlobalEnv, rty};
     use flux_rustc_bridge::{
-        ty::{FieldIdx, VariantIdx},
         ToRustc,
+        ty::{FieldIdx, VariantIdx},
     };
-    use rustc_span::{Span, DUMMY_SP};
+    use rustc_span::{DUMMY_SP, Span};
 
     #[derive(Diagnostic)]
     #[diag(fhir_analysis_incompatible_refinement, code = E0999)]
@@ -761,7 +764,7 @@ mod errors {
             let adt_def = tcx.adt_def(adt_id);
             let field_def = &adt_def.variant(variant_idx).fields[field_idx];
 
-            let item = genv.map().expect_item(adt_id.local_id()).unwrap();
+            let item = genv.fhir_expect_item(adt_id.local_id()).unwrap();
             let span = match &item.kind {
                 fhir::ItemKind::Enum(enum_def) => {
                     enum_def.variants[variant_idx.as_usize()].fields[field_idx.as_usize()]
@@ -857,7 +860,7 @@ mod errors {
 
             // Get the span of the variant if this is an enum. Structs cannot have produce a field
             // count mismatch.
-            let span = if let Ok(fhir::Node::Item(item)) = genv.map().node(adt_def_id.local_id())
+            let span = if let Ok(fhir::Node::Item(item)) = genv.fhir_node(adt_def_id.local_id())
                 && let fhir::ItemKind::Enum(enum_def) = &item.kind
                 && let Some(variant) = enum_def.variants.get(variant_idx.as_usize())
             {

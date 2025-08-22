@@ -17,28 +17,12 @@ fhir_analysis_arg_count_mismatch =
         *[other] {$expected} arguments
     }, found {$found}
 
-fhir_analysis_early_bound_arg_count_mismatch =
-    this type alias takes {$expected ->
-        [one] {$expected} early bound argument
-        *[other] {$expected} early bound arguments
-    } but {$found ->
-        [one] {$found} was found
-        *[other] {$found} were found
-    }
-    .label = expected {$expected ->
-        [one] {$expected} early bound argument
-        *[other] {$expected} early bound arguments
-    }, found {$found}
-
 fhir_analysis_illegal_binder =
     illegal binder
     .label = binder not allowed in this position
 
 fhir_analysis_duplicated_ensures =
     an ensures clause already exists for `{$loc}`
-
-fhir_analysis_unknown_qualifier =
-    unknown qualifier
 
 fhir_analysis_missing_ensures =
     missing ensures clause for `&strg` reference
@@ -48,6 +32,9 @@ fhir_analysis_invalid_constant =
 
 fhir_analysis_expected_fun =
     expected function, found `{$found}`
+
+fhir_analysis_unsupported_primop =
+    properties for `{$op}` are not yet supported
 
 fhir_analysis_invalid_param_in_func_pos =
     illegal use of refinement parameter
@@ -107,11 +94,15 @@ fhir_analysis_constant_annotation_needed =
     constant annotation required
     .label = help: non-integral constants need a `constant` annotation that specifies their refinement value
 
-
 fhir_analysis_cannot_infer_sort =
     sort annotation needed
     .label = cannot infer sort
     .note = sort must be known at this point
+
+fhir_analysis_invalid_cast =
+    invalid cast from `{$from}` to `{$to}`
+    .label = invalid cast
+    .note = use `allow_uninterpreted_cast` to enable this cast
 
 # Structural Compatibility
 
@@ -177,6 +168,7 @@ fhir_analysis_assoc_type_not_found =
 
 fhir_analysis_ambiguous_assoc_type =
     ambiguous associated type `{$name}`
+    .label = help: use fully-qualified syntax
 
 fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances
@@ -251,6 +243,10 @@ fhir_analysis_generics_on_self_alias =
     type alias Self expects no generics but found {$found}
     .label = found generics on type `Self`
 
+fhir_analysis_fields_on_reflected_enum_variant =
+    reflected enum variants cannot have any fields
+    .label = found fields on reflected enum variant
+
 fhir_analysis_generics_on_opaque_sort =
     user defined opaque sorts have no generics but found {$found}
     .label = found generics on user defined opaque sort
@@ -267,14 +263,35 @@ fhir_analysis_generics_on_ty_param =
 fhir_analysis_generics_on_self_ty =
     generic arguments are not allowed on self type
 
-# Check impl against trait errors
-
-fhir_analysis_incompatible_sort =
-    implemented associated refinement `{$name}` has an incompatible sort for trait
-    .label = expected `{$expected}`, found `{$found}`
+fhir_analysis_generics_on_foreign_ty =
+    generic arguments are not allowed on foreign types
 
 fhir_analysis_invalid_assoc_reft =
     associated refinement `{$name}` is not a member of trait `{$trait_}`
 
-fhir_analysis_missing_assoc_reft =
-    associated refinement `{$name}` is not defined in implementation of trait `{$trait_}`
+fhir_analysis_invalid_bitvector_constant =
+    invalid bit vector literal
+    .label = not a valid `{$sort}` literal
+
+fhir_analysis_refine_arg_mismatch =
+    {$kind} takes {$expected} generic refinement {$expected ->
+        [one] argument
+        *[other] arguments
+    }, but {$found} {$found ->
+        [one] argument was
+        *[other] arguments were
+    } provided
+    .label = expected {$expected} generic refinement {$expected ->
+        [one] argument
+        *[other] arguments
+    }
+
+fhir_analysis_expected_type =
+    expected a type, found {$def_descr} `{$name}`
+
+fhir_analysis_fail_to_match_predicates =
+    cannot determine corresponding unrefined predicate
+    .note = you can only add a refined predicate if an corresponding unrefined one exists
+
+fhir_analysis_invalid_res =
+    {$res_descr} not allowed in this position

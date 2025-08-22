@@ -3,7 +3,15 @@ use flux_common::tracked_span_bug;
 use rustc_hir::def::DefKind;
 use rustc_span::def_id::DefId;
 
-use crate::{global_env::GlobalEnv, queries::QueryResult, query_bug, rty};
+use crate::{
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+    query_bug,
+    rty::{
+        self,
+        fold::{FallibleTypeFolder, TypeFoldable, TypeSuperFoldable as _},
+    },
+};
 
 impl GlobalEnv<'_, '_> {
     pub fn sort_of_self_ty_alias(self, alias_to: DefId) -> QueryResult<Option<rty::Sort>> {
@@ -30,11 +38,7 @@ impl GlobalEnv<'_, '_> {
 
     pub fn sort_of_def_id(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
         let ty = self.tcx().type_of(def_id).no_bound_vars().unwrap();
-        if ty.is_integral() {
-            Ok(Some(rty::Sort::Int))
-        } else {
-            self.sort_of_rust_ty(def_id, ty)
-        }
+        if ty.is_integral() { Ok(Some(rty::Sort::Int)) } else { self.sort_of_rust_ty(def_id, ty) }
     }
 
     pub fn sort_of_rust_ty(
@@ -79,7 +83,7 @@ impl GlobalEnv<'_, '_> {
         Ok(sort)
     }
 
-    pub fn normalize_weak_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
+    pub fn normalize_free_alias_sort(self, alias_ty: &rty::AliasTy) -> QueryResult<rty::Sort> {
         match self.def_kind(alias_ty.def_id) {
             DefKind::Impl { .. } => Ok(self.sort_of_self_ty_alias(alias_ty.def_id)?.unwrap()),
             DefKind::TyAlias => {
@@ -96,6 +100,27 @@ impl GlobalEnv<'_, '_> {
             }
             _ => Err(query_bug!(alias_ty.def_id, "unexpected weak alias `{:?}`", alias_ty.def_id)),
         }
+    }
+
+    pub fn deep_normalize_weak_alias_sorts<T: TypeFoldable>(self, t: &T) -> QueryResult<T> {
+        struct WeakAliasSortNormalizer<'genv, 'tcx> {
+            genv: GlobalEnv<'genv, 'tcx>,
+        }
+
+        impl FallibleTypeFolder for WeakAliasSortNormalizer<'_, '_> {
+            type Error = QueryErr;
+
+            fn try_fold_sort(&mut self, sort: &rty::Sort) -> QueryResult<rty::Sort> {
+                if let rty::Sort::Alias(rty::AliasKind::Free, alias_ty) = sort {
+                    self.genv
+                        .normalize_free_alias_sort(alias_ty)?
+                        .try_fold_with(self)
+                } else {
+                    sort.try_super_fold_with(self)
+                }
+            }
+        }
+        t.try_fold_with(&mut WeakAliasSortNormalizer { genv: self })
     }
 }
 
@@ -119,6 +144,7 @@ impl rty::BaseTy {
             }
             rty::BaseTy::Float(_)
             | rty::BaseTy::RawPtr(..)
+            | rty::BaseTy::RawPtrMetadata(..) // TODO(RJ): This should be `int` for slice?
             | rty::BaseTy::Ref(..)
             | rty::BaseTy::FnPtr(..)
             | rty::BaseTy::FnDef(..)
@@ -127,17 +153,17 @@ impl rty::BaseTy {
             | rty::BaseTy::Closure(..)
             | rty::BaseTy::Coroutine(..)
             | rty::BaseTy::Dynamic(_, _)
-            | rty::BaseTy::Never => rty::Sort::unit(),
+            | rty::BaseTy::Never
+            | rty::BaseTy::Foreign(..) => rty::Sort::unit(),
             rty::BaseTy::Infer(_) => tracked_span_bug!(),
         }
     }
 }
 
 impl rty::AliasReft {
-    pub fn fsort(&self, genv: GlobalEnv) -> QueryResult<Option<rty::FuncSort>> {
-        let Some(fsort) = genv.sort_of_assoc_reft(self.trait_id, self.name)? else {
-            return Ok(None);
-        };
-        Ok(Some(fsort.instantiate(genv.tcx(), &self.args, &[])))
+    pub fn fsort(&self, genv: GlobalEnv) -> QueryResult<rty::FuncSort> {
+        Ok(genv
+            .sort_of_assoc_reft(self.assoc_id)?
+            .instantiate(genv.tcx(), &self.args, &[]))
     }
 }

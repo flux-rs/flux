@@ -7,14 +7,39 @@ use crate::{
 use rustc_span::{Span, Symbol, symbol::Ident};
 use lalrpop_util::ParseError;
 
-
 grammar(cx: &mut ParseCtxt<'_>);
+
+pub YesOrNoWithReason: bool = {
+    <YesOrNo>,
+    <YesOrNo> "," Reason,
+    Reason => true
+}
+
+Reason: Symbol = {
+    <lo:@L> <ident:"ident"> <hi:@R> "=" "literal" =>? {
+        if ident.as_str() == "reason" {
+            Ok(ident)
+        } else {
+            Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        }
+    }
+}
+
+YesOrNo: bool = {
+    <lo:@L> <ident:"ident"> <hi:@R> =>? {
+        match ident.as_str() {
+            "yes" => Ok(true),
+            "no" => Ok(false),
+            _ => Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+        }
+    }
+}
 
 pub Generics: surface::Generics = {
     <lo:@L> <params:Comma<GenericParam>> <hi:@R> => {
         surface::Generics {
             params,
-            predicates: vec![],
+            predicates: None,
             span: cx.map_span(lo, hi),
         }
     }
@@ -25,7 +50,7 @@ GenericsWithAngleBrackets: surface::Generics = {
     <lo:@L> <hi:@R> => {
         surface::Generics {
             params: vec![],
-            predicates: vec![],
+            predicates: None,
             span: cx.map_span(lo, hi),
         }
     }
@@ -175,11 +200,16 @@ BaseSort: surface::BaseSort = {
         };
         surface::BaseSort::Path(path)
     },
+    "<" <qself:Ty> "as" <mut path:Path> ">" "::" <ident:Ident> => {
+        let segment = surface::PathSegment { ident, args: vec![], node_id: cx.next_node_id() };
+        path.segments.push(segment);
+        surface::BaseSort::SortOf(qself, path)
+    }
 }
 
-BitVecWidth: usize = {
+BitVecWidth: u32 = {
     <lo:@L> <lit:Lit> <hi:@R> =>? {
-        if let Ok(width) = lit.symbol.as_str().parse::<usize>() {
+        if let Ok(width) = lit.symbol.as_str().parse::<u32>() {
             Ok(width)
         } else {
             Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
@@ -193,8 +223,10 @@ Sort: surface::Sort = {
     <input:BaseSort> "->" <output:BaseSort>                 => surface::Sort::Func { inputs: vec![input], output }
 }
 
-pub TraitAssocReft: surface::TraitAssocReft = {
-    <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> <hi:@R> => {
+pub TraitAssocRefts: Vec<surface::TraitAssocReft> = TraitAssocReft*;
+
+TraitAssocReft: surface::TraitAssocReft = {
+    <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> ";"? <hi:@R> => {
         surface::TraitAssocReft {
             name,
             params,
@@ -214,7 +246,9 @@ pub TraitAssocReft: surface::TraitAssocReft = {
     },
 }
 
-pub ImplAssocReft: surface::ImplAssocReft = {
+pub ImplAssocRefts: Vec<surface::ImplAssocReft> = ImplAssocReft*;
+
+ImplAssocReft: surface::ImplAssocReft = {
     <lo:@L> "fn" <name:Ident> "(" <params:RefineParams<"!">> ")" "->" <output:BaseSort> "{" <body:Expr> "}" <hi:@R> => {
         surface::ImplAssocReft {
             name,
@@ -246,7 +280,7 @@ pub FnSig: surface::FnSig = {
         } else {
             surface::FnRetTy::Default(cx.map_span(ret_lo, ret_hi))
         };
-        generics.predicates = predicates.unwrap_or_default();
+        generics.predicates = predicates;
         let output = surface::FnOutput {
             returns,
             ensures: ensures.unwrap_or_default(),
@@ -520,16 +554,16 @@ Level10<AllowStruct>: surface::Expr = {
     <lo:@L> <name:ExprPath> "{" <args:Comma<ConstructorArg>> "}" <hi:@L> if AllowStruct == "true" => {
     	surface::Expr {
             kind: surface::ExprKind::Constructor(Some(name), args) ,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi),
-	}
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi),
+    	}
     },
     <lo:@L> "{" <args:Comma<ConstructorArg>> "}" <hi:@L> if AllowStruct == "true" => {
     	surface::Expr {
             kind: surface::ExprKind::Constructor(None, args) ,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi),
-	}
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi),
+    	}
     },
     <lo:@L> "if" <p:Level1<"false">> "{" <e1:Level1<AllowStruct>> "}" <e2:ElseIf> <hi:@R> => {
         surface::Expr {
@@ -572,24 +606,56 @@ Level10<AllowStruct>: surface::Expr = {
             span: cx.map_span(lo, hi),
         }
     },
+    <lo:@L> "forall" <param:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
+      if let surface::LitKind::Integer = i.kind {
+        if let surface::LitKind::Integer = j.kind {
+          if let Ok(start) = i.symbol.as_str().parse::<usize>() {
+            if let Ok(end) = j.symbol.as_str().parse::<usize>() {
+              return Ok(surface::Expr {
+                kind: surface::ExprKind::BoundedQuant(surface::QuantKind::Forall, param, surface::Range {start, end}, Box::new(p)),
+                node_id: cx.next_node_id(),
+                span: cx.map_span(lo, hi),
+              })
+            }
+         }
+      }
+      }
+      Err( ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+    },
+    <lo:@L> "exists" <param:RefineParam<"?">> "in"  <i:Lit>  ".." <j:Lit> "{" <p:Level1<"false">> "}" <hi:@R> =>? {
+      if let surface::LitKind::Integer = i.kind {
+        if let surface::LitKind::Integer = j.kind {
+          if let Ok(start) = i.symbol.as_str().parse::<usize>() {
+            if let Ok(end) = j.symbol.as_str().parse::<usize>() {
+              return Ok(surface::Expr {
+                kind: surface::ExprKind::BoundedQuant(surface::QuantKind::Exists, param, surface::Range {start, end}, Box::new(p)),
+                node_id: cx.next_node_id(),
+                span: cx.map_span(lo, hi),
+              })
+            }
+         }
+      }
+      }
+      Err( ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
+    },
     "(" <Level1<AllowStruct>> ")"
 }
 
 ConstructorArg: surface::ConstructorArg = {
     <lo:@L> <name:Ident> ":" <arg:Level1<"true">> <hi:@L> => {
     	surface::ConstructorArg::FieldExpr(surface::FieldExpr {
-	    ident: name,
-	    expr: arg,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi)
-	})
+    	    ident: name,
+    	    expr: arg,
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi)
+    	})
     },
     <lo:@L> ".." <spread:Level1<"true">> <hi:@L> => {
     	surface::ConstructorArg::Spread(surface::Spread {
-	    expr: spread,
-	    node_id: cx.next_node_id(),
-	    span: cx.map_span(lo, hi)
-	})
+    	    expr: spread,
+    	    node_id: cx.next_node_id(),
+    	    span: cx.map_span(lo, hi)
+    	})
     }
 }
 
@@ -662,10 +728,10 @@ BinOp5: surface::BinOp = {
 }
 
 BinOp6: surface::BinOp = {
-    // TODO(nilehmann) return right shift operator when we support it
-    <lo:@L> ">(?=>)" ">" <hi:@R> =>? {
-        Err(ParseError::User { error: UserParseError::UnexpectedToken(lo, hi) })
-    }
+    "|"  => surface::BinOp::BitOr,
+    "&"  => surface::BinOp::BitAnd,
+    "<<" => surface::BinOp::BitShl,
+    <lo:@L> ">(?=>)" ">" <hi:@R> => surface::BinOp::BitShr,
 }
 
 BinOp7: surface::BinOp = {
@@ -738,6 +804,8 @@ extern {
         "ensures" => Token::Ensures,
         "where" => Token::Where,
         "forall" => Token::Forall,
+        "exists" => Token::Exists,
+        "in" => Token::In,
         "impl" => Token::Impl,
         "qualifier" => Token::Qualifier,
         "sort" => Token::Sort,
@@ -748,6 +816,7 @@ extern {
         "ident"   => Token::Ident(<Symbol>),
         "fn" => Token::Fn,
         "async" => Token::Async,
+        "let" => Token::Let,
         "type" => Token::Type,
         "ref" => Token::Ref,
         "hrn" => Token::Hrn,
@@ -767,6 +836,7 @@ extern {
         "/"  => Token::Slash,
         "!"  => Token::Not,
         "*"  => Token::Star,
+        "<<" => Token::Shl,
         "|"  => Token::Caret,
         "("  => Token::OpenDelim(Delimiter::Parenthesis),
         ")"  => Token::CloseDelim(Delimiter::Parenthesis),

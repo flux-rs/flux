@@ -19,7 +19,7 @@ pub struct VecBorrows<'a, T> {
 impl<T> RVec<T> {
     #[flux::trusted]
     #[flux::sig(fn(self: &mut Self[@len]) -> VecBorrows<T>[|i| 0 <= i && i < len])]
-    pub fn borrows(self: &mut Self) -> VecBorrows<T> {
+    pub fn borrows(self: &mut Self) -> VecBorrows<'_, T> {
         VecBorrows { ptr: self.as_mut_slice().as_mut_ptr(), _marker: std::marker::PhantomData }
     }
 }

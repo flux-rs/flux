@@ -1,0 +1,58 @@
+name: "Install fixpoint"
+description: "Download and install the fixpoint binary"
+runs:
+  using: "composite"
+  steps:
+    - name: Download and install fixpoint
+      if: runner.os != 'Windows'
+      run: |
+        set -e
+        OS=$(uname -s)
+        ARCH=$(uname -m)
+        if [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
+          NAME="fixpoint-x86_64-linux-gnu.tar.gz"
+        elif [ "$OS" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
+          NAME="fixpoint-x86_64-apple-darwin.tar.gz"
+        elif [ "$OS" = "Darwin" ] && { [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; }; then
+          NAME="fixpoint-aarch64-apple-darwin.tar.gz"
+        else
+          echo "Unsupported OS/architecture: $OS/$ARCH" >&2
+          exit 1
+        fi
+
+        URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${NAME}"
+        echo "Downloading from $URL"
+        curl -fsSL --retry 3 -o "$NAME" "$URL"
+
+        echo "Extracting archive"
+        tar -xzf "$NAME"
+        mkdir -p ~/.local/bin
+        cp fixpoint ~/.local/bin/fixpoint
+
+        echo "Cleaning up"
+        rm -f "$NAME"
+
+        echo ~/.local/bin >> $GITHUB_PATH
+      shell: bash
+
+    - name: Download and install fixpoint (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $name = "fixpoint-x86_64-pc-windows.zip"
+        $url = "https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${name}"
+        Write-Host "Downloading from $url"
+        Invoke-WebRequest -Uri $url -OutFile $name
+
+        Write-Host "Extracting archive"
+        Expand-Archive -Path $name -DestinationPath "$env:USERPROFILE\.fixpoint"
+
+        $binPath = "$env:USERPROFILE\.fixpoint"
+        echo "$binPath" >> $env:GITHUB_PATH
+
+        Write-Host "Cleaning up"
+        Remove-Item $name
+
+    - name: Check fixpoint
+      run: which fixpoint
+      shell: bash

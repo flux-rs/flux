@@ -3,35 +3,33 @@
 #![feature(
     associated_type_defaults,
     box_patterns,
-    extract_if,
     if_let_guard,
-    let_chains,
     min_specialization,
     never_type,
     rustc_private,
     unwrap_infallible
 )]
 
+extern crate rustc_abi;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-
 extern crate rustc_hir;
 extern crate rustc_index;
 extern crate rustc_infer;
 extern crate rustc_middle;
 extern crate rustc_mir_dataflow;
 extern crate rustc_span;
-extern crate rustc_target;
 extern crate rustc_type_ir;
 
 mod checker;
+pub mod compare_impl_item;
 mod ghost_statements;
 pub mod invariants;
 mod primops;
 mod queue;
 mod type_env;
 
-use checker::{trait_impl_subtyping, Checker};
+use checker::{Checker, trait_impl_subtyping};
 use flux_common::{dbg, result::ResultExt as _};
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
@@ -39,12 +37,13 @@ use flux_infer::{
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
+    FixpointQueryKind,
+    def_id::MaybeExternId,
     global_env::GlobalEnv,
-    queries::QueryResult,
     rty::{self, ESpan},
-    MaybeExternId,
+    timings,
 };
-use itertools::Itertools;
+use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
@@ -60,24 +59,16 @@ fn report_fixpoint_errors(
 ) -> Result<(), ErrorGuaranteed> {
     #[expect(clippy::collapsible_else_if, reason = "it looks better")]
     if genv.should_fail(local_id) {
-        if errors.is_empty() {
-            report_expected_neg(genv, local_id)
-        } else {
-            Ok(())
-        }
+        if errors.is_empty() { report_expected_neg(genv, local_id) } else { Ok(()) }
     } else {
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            report_errors(genv, errors)
-        }
+        if errors.is_empty() { Ok(()) } else { report_errors(genv, errors) }
     }
 }
 
 pub fn check_fn(
     genv: GlobalEnv,
     cache: &mut FixQueryCache,
-    def_id: MaybeExternId,
+    def_id: LocalDefId,
 ) -> Result<(), ErrorGuaranteed> {
     let span = genv.tcx().def_span(def_id);
 
@@ -89,72 +80,60 @@ pub fn check_fn(
         return Ok(());
     }
 
-    // Make sure we run conversion and report errors even if we skip the function for any of
-    // the reasons below
-    force_conv(genv, def_id).emit(&genv)?;
-
-    // If this is a function wrapping an extern spec its body is irrelevant
-    let Some(local_id) = def_id.as_local() else { return Ok(()) };
-
     // Skip trait methods without body
-    if genv.tcx().hir_node_by_def_id(local_id).body_id().is_none() {
+    if genv.tcx().hir_node_by_def_id(def_id).body_id().is_none() {
         return Ok(());
     }
 
-    let opts = genv.infer_opts(local_id);
+    let opts = genv.infer_opts(def_id);
 
     // FIXME(nilehmann) we should move this check to `compare_impl_item`
-    if let Some(infcx_root) = trait_impl_subtyping(genv, local_id, opts, span)
+    if let Some(infcx_root) = trait_impl_subtyping(genv, def_id, opts, span)
         .with_span(span)
         .map_err(|err| err.emit(genv, def_id))?
     {
         tracing::info!("check_fn::refine-subtyping");
         let errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, "sub.fluxc")
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Impl)
             .emit(&genv)?;
         tracing::info!("check_fn::fixpoint-subtyping");
-        report_fixpoint_errors(genv, local_id, errors)?;
+        report_fixpoint_errors(genv, def_id, errors)?;
     }
 
     // Skip trusted functions
-    if genv.trusted(local_id) {
+    if genv.trusted(def_id) {
         return Ok(());
     }
 
-    dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| {
-        let ghost_stmts = compute_ghost_statements(genv, local_id)
+    timings::time_it(timings::TimingKind::CheckFn(def_id), || -> Result<(), ErrorGuaranteed> {
+        let ghost_stmts = compute_ghost_statements(genv, def_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;
-
+        let mut closures = UnordMap::default();
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
-        let shape_result = Checker::run_in_shape_mode(genv, local_id, &ghost_stmts, opts)
-            .map_err(|err| err.emit(genv, def_id))?;
-        tracing::info!("check_fn::shape");
+        let shape_result =
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts)
+                .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 2: generate refinement tree constraint
-        let infcx_root =
-            Checker::run_in_refine_mode(genv, local_id, &ghost_stmts, shape_result, opts)
-                .map_err(|err| err.emit(genv, def_id))?;
-        tracing::info!("check_fn::refine");
+        let infcx_root = Checker::run_in_refine_mode(
+            genv,
+            def_id,
+            &ghost_stmts,
+            &mut closures,
+            shape_result,
+            opts,
+        )
+        .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 3: invoke fixpoint on the constraint
         let errors = infcx_root
-            .execute_fixpoint_query(cache, def_id, "fluxc")
+            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
             .emit(&genv)?;
-        tracing::info!("check_fn::fixpoint");
-        report_fixpoint_errors(genv, local_id, errors)?;
-        Ok(())
+        report_fixpoint_errors(genv, def_id, errors)
     })?;
 
-    dbg::check_fn_span!(genv.tcx(), local_id).in_scope(|| Ok(()))
-}
-
-fn force_conv(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult {
-    genv.generics_of(def_id)?;
-    genv.refinement_generics_of(def_id)?;
-    genv.predicates_of(def_id)?;
-    genv.fn_sig(def_id)?;
-    Ok(())
+    dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
 }
 
 fn call_error(genv: GlobalEnv, span: Span, dst_span: Option<ESpan>) -> ErrorGuaranteed {
@@ -174,9 +153,8 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
         e = Some(match err.reason {
             ConstrReason::Call
             | ConstrReason::Subtype(SubtypeReason::Input)
-            | ConstrReason::Subtype(SubtypeReason::Requires) => {
-                call_error(genv, span, err.dst_span)
-            }
+            | ConstrReason::Subtype(SubtypeReason::Requires)
+            | ConstrReason::Predicate => call_error(genv, span, err.dst_span),
             ConstrReason::Assign => genv.sess().emit_err(errors::AssignError { span }),
             ConstrReason::Ret
             | ConstrReason::Subtype(SubtypeReason::Output)
@@ -189,15 +167,12 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
                 genv.sess().emit_err(errors::FoldError { span })
             }
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
+            ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
         });
     }
 
-    if let Some(e) = e {
-        Err(e)
-    } else {
-        Ok(())
-    }
+    if let Some(e) = e { Err(e) } else { Ok(()) }
 }
 
 fn report_expected_neg(genv: GlobalEnv, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
@@ -307,6 +282,13 @@ mod errors {
     #[derive(Diagnostic)]
     #[diag(refineck_overflow_error, code = E0999)]
     pub struct OverflowError {
+        #[primary_span]
+        pub span: Span,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_underflow_error, code = E0999)]
+    pub struct UnderflowError {
         #[primary_span]
         pub span: Span,
     }

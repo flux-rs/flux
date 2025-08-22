@@ -7,22 +7,18 @@ use flux_arc_interner::{List, SliceInternable};
 use flux_common::bug;
 use flux_rustc_bridge::{ty, ty::GenericArgsExt as _};
 use itertools::Itertools;
+use rustc_abi::VariantIdx;
 use rustc_hir::{def::DefKind, def_id::DefId};
 use rustc_middle::ty::ParamTy;
-use rustc_target::abi::VariantIdx;
 
-use super::{fold::TypeFoldable, RefineArgsExt};
+use super::{RefineArgsExt, fold::TypeFoldable};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug, rty,
 };
 
-pub fn refine_generics(
-    genv: GlobalEnv,
-    def_id: DefId,
-    generics: &ty::Generics,
-) -> QueryResult<rty::Generics> {
+pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) -> rty::Generics {
     let is_box = if let DefKind::Struct = genv.def_kind(def_id) {
         genv.tcx().adt_def(def_id).is_box()
     } else {
@@ -41,12 +37,12 @@ pub fn refine_generics(
         })
         .collect();
 
-    Ok(rty::Generics {
+    rty::Generics {
         own_params: params,
         parent: generics.parent(),
         parent_count: generics.parent_count(),
         has_self: generics.orig.has_self,
-    })
+    }
 }
 
 pub fn refine_generic_param_def_kind(
@@ -127,8 +123,8 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         variant_idx: VariantIdx,
     ) -> QueryResult<rty::PolyVariant> {
         let adt_def = self.adt_def(adt_def_id)?;
-        let fields = adt_def
-            .variant(variant_idx)
+        let variant_def = adt_def.variant(variant_idx);
+        let fields = variant_def
             .fields
             .iter()
             .map(|fld| {
@@ -136,16 +132,24 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 ty.refine(self)
             })
             .try_collect()?;
+
+        let idx = if adt_def.sort_def().is_struct() {
+            rty::Expr::unit_struct(adt_def_id)
+        } else {
+            rty::Expr::ctor_enum(adt_def_id, variant_idx)
+        };
         let value = rty::VariantSig::new(
             adt_def,
             rty::GenericArg::identity_for_item(self.genv, adt_def_id)?,
             fields,
-            rty::Expr::unit_adt(adt_def_id),
+            idx,
+            List::empty(),
         );
+
         Ok(rty::Binder::bind_with_vars(value, List::empty()))
     }
 
-    fn refine_generic_args(
+    pub fn refine_generic_args(
         &self,
         def_id: DefId,
         args: &ty::GenericArgs,
@@ -196,7 +200,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
         let refine_args = if let ty::AliasKind::Opaque = alias_kind {
             rty::RefineArgs::for_item(self.genv, def_id, |param, _| {
                 let param = param.instantiate(self.genv.tcx(), &args, &[]);
-                rty::Expr::hole(rty::HoleKind::Expr(param.sort))
+                Ok(rty::Expr::hole(rty::HoleKind::Expr(param.sort)))
             })?
         } else {
             List::empty()
@@ -260,6 +264,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
             ty::TyKind::Bool => rty::BaseTy::Bool,
             ty::TyKind::Int(int_ty) => rty::BaseTy::Int(*int_ty),
             ty::TyKind::Uint(uint_ty) => rty::BaseTy::Uint(*uint_ty),
+            ty::TyKind::Foreign(def_id) => rty::BaseTy::Foreign(*def_id),
             ty::TyKind::Str => rty::BaseTy::Str,
             ty::TyKind::Slice(ty) => rty::BaseTy::Slice(ty.refine(self)?),
             ty::TyKind::Char => rty::BaseTy::Char,
@@ -322,6 +327,7 @@ impl<T: Refine> Refine for ty::Binder<T> {
 impl Refine for ty::FnSig {
     type Output = rty::FnSig;
 
+    // TODO(hof2)
     fn refine(&self, refiner: &Refiner) -> QueryResult<rty::FnSig> {
         let inputs = self
             .inputs()
@@ -330,6 +336,11 @@ impl Refine for ty::FnSig {
             .try_collect()?;
         let ret = self.output().refine(refiner)?.shift_in_escaping(1);
         let output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
+        // TODO(hof2) make a hoister to hoist all the stuff out of the inputs,
+        // the hoister will have a list of all the variables it hoisted and the
+        // single hole for the "requires"; then we "fill" the hole with a KVAR
+        // and generate a PolyFnSig with the hoisted variables
+        // see `into_bb_env` in `type_env.rs` for an example.
         Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output))
     }
 }
@@ -375,6 +386,10 @@ impl Refine for ty::ClauseKind {
                     term,
                 };
                 rty::ClauseKind::Projection(pred)
+            }
+            ty::ClauseKind::RegionOutlives(pred) => {
+                let pred = rty::OutlivesPredicate(pred.0, pred.1);
+                rty::ClauseKind::RegionOutlives(pred)
             }
             ty::ClauseKind::TypeOutlives(pred) => {
                 let pred = rty::OutlivesPredicate(pred.0.refine(refiner)?, pred.1);

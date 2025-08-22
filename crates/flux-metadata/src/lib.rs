@@ -12,12 +12,11 @@ extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_session;
 extern crate rustc_span;
-extern crate rustc_type_ir;
 
 mod decoder;
 mod encoder;
 
-use std::{hash::Hash, path::PathBuf};
+use std::{hash::Hash, path::PathBuf, rc::Rc};
 
 use decoder::decode_crate_metadata;
 use derive_where::derive_where;
@@ -25,18 +24,23 @@ use flux_errors::FluxSession;
 use flux_macros::fluent_messages;
 use flux_middle::{
     cstore::{CrateStore, OptResult},
+    def_id::{FluxDefId, FluxId},
+    fhir,
     global_env::GlobalEnv,
     queries::QueryResult,
     rty,
 };
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
-use rustc_hir::{def::DefKind, def_id::LocalDefId};
+use rustc_hir::{
+    def::{CtorKind, DefKind},
+    def_id::{LOCAL_CRATE, LocalDefId},
+};
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
 use rustc_span::{
+    Span,
     def_id::{CrateNum, DefId, DefIndex},
-    Symbol,
 };
 
 pub use crate::encoder::encode_metadata;
@@ -59,7 +63,7 @@ pub struct CrateMetadata {
 }
 
 /// Trait to deal with the fact that `assoc_refinmenents_of` and `assoc_refinements_def` use
-/// `(K, Symbol)` as key;
+/// `FluxId<K>` as key;
 trait Key {
     type KeyIndex;
     fn crate_num(self) -> CrateNum;
@@ -83,19 +87,19 @@ impl Key for DefId {
     }
 }
 
-impl Key for (DefId, Symbol) {
-    type KeyIndex = (DefIndex, Symbol);
+impl Key for FluxDefId {
+    type KeyIndex = FluxId<DefIndex>;
 
     fn crate_num(self) -> CrateNum {
-        self.0.krate
+        self.parent().krate
     }
 
     fn to_index(self) -> Self::KeyIndex {
-        (self.0.index, self.1)
+        self.index()
     }
 
     fn name(self, tcx: TyCtxt) -> String {
-        format!("{}::{}", tcx.def_path_str(self.0), self.1)
+        format!("{}::{}", tcx.def_path_str(self.parent()), self.name())
     }
 }
 
@@ -107,16 +111,19 @@ pub struct Tables<K: Eq + Hash> {
     predicates_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::GenericPredicates>>>,
     item_bounds: UnordMap<K, QueryResult<rty::EarlyBinder<rty::Clauses>>>,
     assoc_refinements_of: UnordMap<K, QueryResult<rty::AssocRefinements>>,
-    assoc_refinements_def: UnordMap<(K, Symbol), QueryResult<rty::EarlyBinder<rty::Lambda>>>,
+    assoc_refinements_def: UnordMap<FluxId<K>, QueryResult<rty::EarlyBinder<rty::Lambda>>>,
     default_assoc_refinements_def:
-        UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
-    sort_of_assoc_reft: UnordMap<(K, Symbol), QueryResult<Option<rty::EarlyBinder<rty::FuncSort>>>>,
+        UnordMap<FluxId<K>, QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>>,
+    sort_of_assoc_reft: UnordMap<FluxId<K>, QueryResult<rty::EarlyBinder<rty::FuncSort>>>,
     fn_sig: UnordMap<K, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     adt_def: UnordMap<K, QueryResult<rty::AdtDef>>,
     constant_info: UnordMap<K, QueryResult<rty::ConstantInfo>>,
     adt_sort_def: UnordMap<K, QueryResult<rty::AdtSortDef>>,
-    variants: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
+    variants_of: UnordMap<K, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     type_of: UnordMap<K, QueryResult<rty::EarlyBinder<rty::TyOrCtor>>>,
+    normalized_defns: Rc<rty::NormalizedDefns>,
+    func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
+    func_span: UnordMap<FluxId<K>, Span>,
 }
 
 impl CStore {
@@ -163,7 +170,7 @@ impl CStore {
         merge_extern_table!(self, tcx, fn_sig, extern_tables);
         merge_extern_table!(self, tcx, adt_def, extern_tables);
         merge_extern_table!(self, tcx, adt_sort_def, extern_tables);
-        merge_extern_table!(self, tcx, variants, extern_tables);
+        merge_extern_table!(self, tcx, variants_of, extern_tables);
         merge_extern_table!(self, tcx, type_of, extern_tables);
     }
 }
@@ -193,11 +200,11 @@ impl CrateStore for CStore {
         get!(self, adt_sort_def, def_id)
     }
 
-    fn variants(
+    fn variants_of(
         &self,
         def_id: DefId,
     ) -> OptResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>> {
-        get!(self, variants, def_id)
+        get!(self, variants_of, def_id)
     }
 
     fn type_of(&self, def_id: DefId) -> OptResult<rty::EarlyBinder<rty::TyOrCtor>> {
@@ -227,29 +234,35 @@ impl CrateStore for CStore {
         get!(self, assoc_refinements_of, def_id)
     }
 
-    fn assoc_refinements_def(
-        &self,
-        key: (DefId, Symbol),
-    ) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
+    fn assoc_refinements_def(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::Lambda>> {
         get!(self, assoc_refinements_def, key)
     }
 
     fn default_assoc_refinements_def(
         &self,
-        key: (DefId, Symbol),
+        key: FluxDefId,
     ) -> OptResult<Option<rty::EarlyBinder<rty::Lambda>>> {
         get!(self, default_assoc_refinements_def, key)
     }
 
-    fn sort_of_assoc_reft(
-        &self,
-        key: (DefId, Symbol),
-    ) -> OptResult<Option<rty::EarlyBinder<rty::FuncSort>>> {
+    fn sort_of_assoc_reft(&self, key: FluxDefId) -> OptResult<rty::EarlyBinder<rty::FuncSort>> {
         get!(self, sort_of_assoc_reft, key)
     }
 
     fn constant_info(&self, key: DefId) -> OptResult<rty::ConstantInfo> {
         get!(self, constant_info, key)
+    }
+
+    fn normalized_defns(&self, krate: CrateNum) -> std::rc::Rc<rty::NormalizedDefns> {
+        self.local_tables[&krate].normalized_defns.clone()
+    }
+
+    fn func_sort(&self, key: FluxDefId) -> Option<rty::PolyFuncSort> {
+        get!(self, func_sort, key)
+    }
+
+    fn func_span(&self, key: FluxDefId) -> Option<Span> {
+        get!(self, func_span, key)
     }
 }
 
@@ -260,13 +273,35 @@ impl CrateMetadata {
             genv,
             genv.iter_local_def_id().map(LocalDefId::to_def_id),
             &mut local_tables,
-            |def_id| def_id.index,
+            DefId::to_index,
+            FluxDefId::to_index,
         );
+        encode_flux_defs(genv, &mut local_tables);
 
         let mut extern_tables = Tables::default();
-        encode_def_ids(genv, genv.iter_extern_def_id(), &mut extern_tables, |def_id| def_id);
+        encode_def_ids(
+            genv,
+            genv.iter_extern_def_id(),
+            &mut extern_tables,
+            |def_id| def_id,
+            |flux_id| flux_id,
+        );
 
         CrateMetadata { local_tables, extern_tables }
+    }
+}
+
+fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
+    tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
+
+    for (def_id, item) in genv.fhir_iter_flux_items() {
+        let fhir::FluxItem::Func(spec_func) = item else { continue };
+        tables
+            .func_sort
+            .insert(def_id.local_def_index(), genv.func_sort(def_id));
+        tables
+            .func_span
+            .insert(def_id.local_def_index(), spec_func.ident_span);
     }
 }
 
@@ -274,11 +309,12 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
     genv: GlobalEnv,
     def_ids: impl IntoIterator<Item = DefId>,
     tables: &mut Tables<K>,
-    mk_key: impl Fn(DefId) -> K,
+    did_to_key: fn(DefId) -> K,
+    assoc_id_to_key: fn(FluxDefId) -> FluxId<K>,
 ) {
     for def_id in def_ids {
         let def_kind = genv.def_kind(def_id);
-        let key = mk_key(def_id);
+        let key = did_to_key(def_id);
 
         match def_kind {
             DefKind::Trait => {
@@ -289,16 +325,15 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .insert(key, genv.refinement_generics_of(def_id));
                 let assocs = genv.assoc_refinements_of(def_id);
                 if let Ok(assocs) = &assocs {
-                    for assoc in &assocs.items {
-                        let key = mk_key(assoc.container_def_id);
-                        tables.default_assoc_refinements_def.insert(
-                            (key, assoc.name),
-                            genv.default_assoc_refinement_def(assoc.container_def_id, assoc.name),
-                        );
-                        tables.sort_of_assoc_reft.insert(
-                            (key, assoc.name),
-                            genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
-                        );
+                    for assoc_reft in &assocs.items {
+                        let def_id = assoc_reft.def_id();
+                        let key = assoc_id_to_key(def_id);
+                        tables
+                            .default_assoc_refinements_def
+                            .insert(key, genv.default_assoc_refinement_body(def_id));
+                        tables
+                            .sort_of_assoc_reft
+                            .insert(key, genv.sort_of_assoc_reft(def_id));
                     }
                 }
                 tables.assoc_refinements_of.insert(key, assocs);
@@ -313,22 +348,21 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 if of_trait {
                     let assocs = genv.assoc_refinements_of(def_id);
                     if let Ok(assocs) = &assocs {
-                        for assoc in &assocs.items {
-                            let key = mk_key(assoc.container_def_id);
-                            tables.assoc_refinements_def.insert(
-                                (key, assoc.name),
-                                genv.assoc_refinement_def(assoc.container_def_id, assoc.name),
-                            );
-                            tables.sort_of_assoc_reft.insert(
-                                (key, assoc.name),
-                                genv.sort_of_assoc_reft(assoc.container_def_id, assoc.name),
-                            );
+                        for assoc_reft in &assocs.items {
+                            let def_id = assoc_reft.def_id();
+                            let key = assoc_id_to_key(def_id);
+                            tables
+                                .assoc_refinements_def
+                                .insert(key, genv.assoc_refinement_body(def_id));
+                            tables
+                                .sort_of_assoc_reft
+                                .insert(key, genv.sort_of_assoc_reft(def_id));
                         }
                     }
                     tables.assoc_refinements_of.insert(key, assocs);
                 }
             }
-            DefKind::Fn | DefKind::AssocFn => {
+            DefKind::Fn | DefKind::AssocFn | DefKind::Ctor(_, CtorKind::Fn) => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));
                 tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables
@@ -346,10 +380,10 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                 tables
                     .adt_sort_def
                     .insert(key, genv.adt_sort_def_of(def_id));
-                tables.variants.insert(key, genv.variants_of(def_id));
+                tables.variants_of.insert(key, genv.variants_of(def_id));
                 tables.type_of.insert(key, genv.type_of(def_id));
             }
-            DefKind::TyAlias { .. } => {
+            DefKind::TyAlias => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));
                 tables.predicates_of.insert(key, genv.predicates_of(def_id));
                 tables
@@ -389,7 +423,7 @@ fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<Pat
 // Tags for encoding Symbol's
 const SYMBOL_STR: u8 = 0;
 const SYMBOL_OFFSET: u8 = 1;
-const SYMBOL_PREINTERNED: u8 = 2;
+const SYMBOL_PREDEFINED: u8 = 2;
 
 mod errors {
     use flux_errors::E0999;

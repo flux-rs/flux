@@ -1,13 +1,13 @@
-#[flux::sig(fn<T as base>(x: T, y: T{x > y}))]
+#[flux::sig(fn(x: T, y: T{x > y}))]
 fn gt<T>(x: T, y: T) {}
 
-#[flux::sig(fn<T as base>(x: T, y: T{x >= y}))]
+#[flux::sig(fn(x: T, y: T{x >= y}))]
 fn ge<T>(x: T, y: T) {}
 
-#[flux::sig(fn<T as base>(x: T, y: T{x < y}))]
+#[flux::sig(fn(x: T, y: T{x < y}))]
 fn lt<T>(x: T, y: T) {}
 
-#[flux::sig(fn<T as base>(x: T, y: T{x <= y}))]
+#[flux::sig(fn(x: T, y: T{x <= y}))]
 fn le<T>(x: T, y: T) {}
 
 #[derive(Clone, Copy)]

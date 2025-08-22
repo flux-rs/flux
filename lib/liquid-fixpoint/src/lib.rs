@@ -1,6 +1,14 @@
 //! This crate implements an interface to the [liquid-fixpoint] binary
 //!
 //! [liquid-fixpoint]: https://github.com/ucsd-progsys/liquid-fixpoint
+#![cfg_attr(feature = "nightly", feature(rustc_private))]
+
+#[cfg(feature = "nightly")]
+extern crate rustc_macros;
+#[cfg(feature = "nightly")]
+extern crate rustc_serialize;
+#[cfg(feature = "nightly")]
+extern crate rustc_span;
 
 mod constraint;
 mod format;
@@ -19,17 +27,16 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use serde::{de, Deserialize, Serialize};
+#[cfg(feature = "nightly")]
+use rustc_macros::{Decodable, Encodable};
+use serde::{Deserialize, Serialize, de};
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone;
     type KVar: Identifier + Hash;
     type Var: Identifier + Hash;
-
-    type Numeral: FixpointFmt + Hash;
     type Decimal: FixpointFmt + Hash;
     type String: FixpointFmt + Hash;
-
     type Tag: fmt::Display + FromStr + Hash;
 }
 
@@ -70,8 +77,7 @@ impl Types for DefaultTypes {
     type KVar = &'static str;
     type Var = &'static str;
     type Tag = String;
-    type Numeral = i128;
-    type Decimal = i128;
+    type Decimal = u32;
     type String = String;
 }
 
@@ -81,13 +87,9 @@ impl Identifier for &str {
     }
 }
 
-impl FixpointFmt for i128 {
+impl FixpointFmt for u32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if *self < 0 {
-            write!(f, "(- {})", self.unsigned_abs())
-        } else {
-            write!(f, "{self}")
-        }
+        write!(f, "{self}")
     }
 }
 
@@ -102,8 +104,6 @@ macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
         type Var = $var:ty;
-
-        type Numeral = $int:ty;
         type Decimal = $real:ty;
         type String = $str:ty;
 
@@ -116,6 +116,7 @@ macro_rules! declare_types {
             pub type Constraint = $crate::Constraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
+            pub type FunDef = $crate::FunDef<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
@@ -125,7 +126,7 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel};
+            pub use $crate::{BinOp, BinRel, ThyFunc};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
@@ -133,7 +134,6 @@ macro_rules! declare_types {
             type KVar = $kvar;
             type Var = $var;
 
-            type Numeral = $int;
             type Decimal = $real;
             type String = $str;
 
@@ -151,11 +151,22 @@ pub struct ConstDecl<T: Types> {
 }
 
 #[derive_where(Hash)]
+pub struct FunDef<T: Types> {
+    pub name: T::Var,
+    pub args: Vec<(T::Var, Sort<T>)>,
+    pub out: Sort<T>,
+    pub body: Expr<T>,
+    #[derive_where(skip)]
+    pub comment: Option<String>,
+}
+
+#[derive_where(Hash)]
 pub struct Task<T: Types> {
     #[derive_where(skip)]
     pub comments: Vec<String>,
     pub constants: Vec<ConstDecl<T>>,
     pub data_decls: Vec<DataDecl<T>>,
+    pub define_funs: Vec<FunDef<T>>,
     pub kvars: Vec<KVarDecl<T>>,
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
@@ -233,7 +244,7 @@ impl<T: Types> Task<T> {
             .arg(format!("--solver={}", self.solver))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()?;
         let mut stdin = None;
         std::mem::swap(&mut stdin, &mut child.stdin);
@@ -243,9 +254,17 @@ impl<T: Types> Task<T> {
         }
         let out = child.wait_with_output()?;
 
-        let result = serde_json::from_slice(&out.stdout)?;
-
-        Ok(result)
+        serde_json::from_slice(&out.stdout).map_err(|err| {
+            // If we fail to parse stdout fixpoint may have outputed something to stderr
+            // so use that for the error instead
+            if !out.stderr.is_empty() {
+                let stderr = std::str::from_utf8(&out.stderr)
+                    .unwrap_or("fixpoint exited with a non-zero return code");
+                io::Error::other(stderr)
+            } else {
+                err.into()
+            }
+        })
     }
 }
 
@@ -277,5 +296,154 @@ impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
             .parse()
             .map_err(|_| de::Error::invalid_value(de::Unexpected::Str(&tag), &"valid tag"))?;
         Ok(Error { id, tag })
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "nightly", derive(Encodable, Decodable))]
+pub enum ThyFunc {
+    // STRINGS
+    StrLen,
+
+    // BIT VECTORS
+    BvZeroExtend(u8),
+    BvSignExtend(u8),
+    IntToBv8,
+    Bv8ToInt,
+    IntToBv32,
+    Bv32ToInt,
+    IntToBv64,
+    Bv64ToInt,
+    BvUle,
+    BvSle,
+    BvUge,
+    BvSge,
+    BvUdiv,
+    BvSdiv,
+    BvSrem,
+    BvUrem,
+    BvLshr,
+    BvAshr,
+    BvAnd,
+    BvOr,
+    BvXor,
+    BvNot,
+    BvAdd,
+    BvNeg,
+    BvSub,
+    BvMul,
+    BvShl,
+    BvUgt,
+    BvSgt,
+    BvUlt,
+    BvSlt,
+
+    // SETS
+    /// Make an empty set
+    SetEmpty,
+    /// Make a singleton set
+    SetSng,
+    /// Set union
+    SetCup,
+    /// Set membership
+    SetMem,
+
+    // MAPS
+    /// Create a map where all keys point to a value
+    MapDefault,
+    /// Select a key in a map
+    MapSelect,
+    /// Store a key value pair in a map
+    MapStore,
+}
+
+impl ThyFunc {
+    pub const ALL: [ThyFunc; 37] = [
+        ThyFunc::StrLen,
+        ThyFunc::IntToBv8,
+        ThyFunc::Bv8ToInt,
+        ThyFunc::IntToBv32,
+        ThyFunc::Bv32ToInt,
+        ThyFunc::IntToBv64,
+        ThyFunc::Bv64ToInt,
+        ThyFunc::BvAdd,
+        ThyFunc::BvNeg,
+        ThyFunc::BvSub,
+        ThyFunc::BvShl,
+        ThyFunc::BvLshr,
+        ThyFunc::BvAshr,
+        ThyFunc::BvMul,
+        ThyFunc::BvUdiv,
+        ThyFunc::BvSdiv,
+        ThyFunc::BvUrem,
+        ThyFunc::BvSrem,
+        ThyFunc::BvAnd,
+        ThyFunc::BvOr,
+        ThyFunc::BvXor,
+        ThyFunc::BvNot,
+        ThyFunc::BvUle,
+        ThyFunc::BvSle,
+        ThyFunc::BvUge,
+        ThyFunc::BvSge,
+        ThyFunc::BvUgt,
+        ThyFunc::BvSgt,
+        ThyFunc::BvUlt,
+        ThyFunc::BvSlt,
+        ThyFunc::SetEmpty,
+        ThyFunc::SetSng,
+        ThyFunc::SetCup,
+        ThyFunc::SetMem,
+        ThyFunc::MapDefault,
+        ThyFunc::MapSelect,
+        ThyFunc::MapStore,
+    ];
+}
+
+impl fmt::Display for ThyFunc {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ThyFunc::StrLen => write!(f, "strLen"),
+            ThyFunc::BvZeroExtend(size) => {
+                // `app` is a hack in liquid-fixpoint used to implement indexed identifiers
+                write!(f, "app (_ zero_extend {size})")
+            }
+            ThyFunc::BvSignExtend(size) => write!(f, "app (_ sign_extend {size})"),
+            ThyFunc::IntToBv32 => write!(f, "int_to_bv32"),
+            ThyFunc::Bv32ToInt => write!(f, "bv32_to_int"),
+            ThyFunc::IntToBv8 => write!(f, "int_to_bv8"),
+            ThyFunc::Bv8ToInt => write!(f, "bv8_to_int"),
+            ThyFunc::IntToBv64 => write!(f, "int_to_bv64"),
+            ThyFunc::Bv64ToInt => write!(f, "bv64_to_int"),
+            ThyFunc::BvUle => write!(f, "bvule"),
+            ThyFunc::BvSle => write!(f, "bvsle"),
+            ThyFunc::BvUge => write!(f, "bvuge"),
+            ThyFunc::BvSge => write!(f, "bvsge"),
+            ThyFunc::BvUdiv => write!(f, "bvudiv"),
+            ThyFunc::BvSdiv => write!(f, "bvsdiv"),
+            ThyFunc::BvUrem => write!(f, "bvurem"),
+            ThyFunc::BvSrem => write!(f, "bvsrem"),
+            ThyFunc::BvLshr => write!(f, "bvlshr"),
+            ThyFunc::BvAshr => write!(f, "bvashr"),
+            ThyFunc::BvAnd => write!(f, "bvand"),
+            ThyFunc::BvOr => write!(f, "bvor"),
+            ThyFunc::BvXor => write!(f, "bvxor"),
+            ThyFunc::BvNot => write!(f, "bvnot"),
+            ThyFunc::BvAdd => write!(f, "bvadd"),
+            ThyFunc::BvNeg => write!(f, "bvneg"),
+            ThyFunc::BvSub => write!(f, "bvsub"),
+            ThyFunc::BvMul => write!(f, "bvmul"),
+            ThyFunc::BvShl => write!(f, "bvshl"),
+            ThyFunc::BvUgt => write!(f, "bvugt"),
+            ThyFunc::BvSgt => write!(f, "bvsgt"),
+            ThyFunc::BvUlt => write!(f, "bvult"),
+            ThyFunc::BvSlt => write!(f, "bvslt"),
+            ThyFunc::SetEmpty => write!(f, "Set_empty"),
+            ThyFunc::SetSng => write!(f, "Set_sng"),
+            ThyFunc::SetCup => write!(f, "Set_cup"),
+            ThyFunc::SetMem => write!(f, "Set_mem"),
+            ThyFunc::MapDefault => write!(f, "Map_default"),
+            ThyFunc::MapSelect => write!(f, "Map_select"),
+            ThyFunc::MapStore => write!(f, "Map_store"),
+        }
     }
 }

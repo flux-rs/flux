@@ -1,11 +1,11 @@
 use std::slice;
 
-pub use flux_arc_interner::{impl_slice_internable, List};
+pub use flux_arc_interner::{List, impl_slice_internable};
 use flux_common::tracked_span_bug;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
-    ty::{BoundRegion, Region},
     ToRustc,
+    ty::{BoundRegion, Region},
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
@@ -14,9 +14,9 @@ use rustc_middle::ty::{BoundRegionKind, TyCtxt};
 use rustc_span::Symbol;
 
 use super::{
+    Expr, GenericArg, InferMode, RefineParam, Sort,
     fold::TypeFoldable,
     subst::{self, BoundVarReplacer, FnMutDelegate},
-    Expr, GenericArg, InferMode, RefineParam, Sort,
 };
 
 #[derive(Clone, Debug, TyEncodable, TyDecodable)]
@@ -55,8 +55,20 @@ impl<T> EarlyBinder<T> {
     }
 }
 
+impl<I: IntoIterator> EarlyBinder<I> {
+    pub fn iter_identity(self) -> impl Iterator<Item = I::Item> {
+        self.0.into_iter()
+    }
+}
+
 impl<T: TypeFoldable> EarlyBinder<T> {
     pub fn instantiate(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
+        self.as_ref().instantiate_ref(tcx, args, refine_args)
+    }
+}
+
+impl<T: TypeFoldable> EarlyBinder<&T> {
+    pub fn instantiate_ref(self, tcx: TyCtxt, args: &[GenericArg], refine_args: &[Expr]) -> T {
         self.0
             .try_fold_with(&mut subst::GenericsSubstFolder::new(
                 subst::GenericArgsDelegate(args, tcx),
@@ -119,6 +131,10 @@ impl<T> Binder<T> {
         Binder { vars: self.vars, value: f(self.value) }
     }
 
+    pub fn map_ref<U>(&self, f: impl FnOnce(&T) -> U) -> Binder<U> {
+        Binder { vars: self.vars.clone(), value: f(&self.value) }
+    }
+
     pub fn try_map<U, E>(self, f: impl FnOnce(T) -> Result<U, E>) -> Result<Binder<U>, E> {
         Ok(Binder { vars: self.vars, value: f(self.value)? })
     }
@@ -129,6 +145,18 @@ impl<T> Binder<T> {
             [BoundVariableKind::Refine(sort, ..)] => sort.clone(),
             _ => tracked_span_bug!("expected single-sorted binder"),
         }
+    }
+
+    pub fn sorts(&self) -> List<Sort> {
+        self.vars
+            .iter()
+            .map(|kind| {
+                let BoundVariableKind::Refine(sort, ..) = kind else {
+                    tracked_span_bug!("unexpected BoundVariable");
+                };
+                sort.clone()
+            })
+            .collect()
     }
 }
 
@@ -156,9 +184,7 @@ where
             |br| *regions.entry(br.var).or_insert_with(|| replace_region(br)),
         );
 
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
+        self.value.fold_with(&mut BoundVarReplacer::new(delegate))
     }
 
     pub fn replace_bound_refts(&self, exprs: &[Expr]) -> T {
@@ -166,9 +192,7 @@ where
             |breft| exprs[breft.var.as_usize()].clone(),
             |br| tracked_span_bug!("unexpected escaping region {br:?}"),
         );
-        self.value
-            .fold_with(&mut BoundVarReplacer::new(delegate))
-            .normalize(&Default::default())
+        self.value.fold_with(&mut BoundVarReplacer::new(delegate))
     }
 
     pub fn replace_bound_reft(&self, expr: &Expr) -> T {
@@ -253,7 +277,7 @@ impl BoundVariableKind {
 
 impl From<Sort> for BoundVariableKind {
     fn from(sort: Sort) -> Self {
-        Self::Refine(sort, InferMode::EVar, BoundReftKind::Annon)
+        Self::Refine(sort, InferMode::EVar, BoundReftKind::Anon)
     }
 }
 
@@ -261,7 +285,7 @@ pub type BoundVariableKinds = List<BoundVariableKind>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
 pub enum BoundReftKind {
-    Annon,
+    Anon,
     Named(Symbol),
 }
 

@@ -11,11 +11,11 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
-    emitter::{stderr_destination, Emitter, HumanEmitter, HumanReadableErrorType},
-    json::JsonEmitter,
-    registry::Registry,
     Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
+    annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
+    emitter::{Emitter, HumanEmitter, HumanReadableErrorType, stderr_destination},
+    json::JsonEmitter,
+    translation::Translator,
 };
 use rustc_session::{
     config::{self, ErrorOutputType},
@@ -65,7 +65,7 @@ impl FluxSession {
     }
 
     pub fn finish_diagnostics(&self) {
-        self.parse_sess.dcx().print_error_count(&Registry::new(&[]));
+        self.parse_sess.dcx().print_error_count();
         self.abort_if_errors();
     }
 
@@ -77,27 +77,22 @@ impl FluxSession {
 fn emitter(
     opts: &config::Options,
     source_map: Arc<SourceMap>,
-    fallback_bundle: LazyFallbackBundle,
+    fallback_fluent_bundle: LazyFallbackBundle,
 ) -> Box<dyn Emitter + sync::DynSend> {
-    let bundle = None;
     let track_diagnostics = opts.unstable_opts.track_diagnostics;
 
+    let translator = Translator { fluent_bundle: None, fallback_fluent_bundle };
     match opts.error_format {
-        ErrorOutputType::HumanReadable(err_type, color_config) => {
-            if let HumanReadableErrorType::AnnotateSnippet = err_type {
-                let emitter = AnnotateSnippetEmitter::new(
-                    Some(source_map),
-                    None,
-                    fallback_bundle,
-                    false,
-                    false,
-                );
+        ErrorOutputType::HumanReadable { kind, color_config } => {
+            if let HumanReadableErrorType::AnnotateSnippet = kind {
+                let emitter =
+                    AnnotateSnippetEmitter::new(Some(source_map), translator, false, false);
                 Box::new(emitter)
             } else {
                 let dst = stderr_destination(color_config);
-                let emitter = HumanEmitter::new(dst, fallback_bundle)
+                let emitter = HumanEmitter::new(dst, translator)
                     .sm(Some(source_map))
-                    .short_message(err_type.short())
+                    .short_message(kind.short())
                     .diagnostic_width(opts.diagnostic_width)
                     .track_diagnostics(track_diagnostics)
                     .terminal_url(opts.unstable_opts.terminal_urls);
@@ -108,14 +103,12 @@ fn emitter(
             Box::new(
                 JsonEmitter::new(
                     Box::new(io::BufWriter::new(io::stderr())),
-                    source_map,
-                    fallback_bundle,
+                    Some(source_map),
+                    translator,
                     pretty,
                     json_rendered,
                     color_config,
                 )
-                .registry(Some(Registry::new(&[])))
-                .fluent_bundle(bundle)
                 .track_diagnostics(track_diagnostics)
                 .diagnostic_width(opts.diagnostic_width)
                 .terminal_url(opts.unstable_opts.terminal_urls),
@@ -153,11 +146,7 @@ impl<'sess> Errors<'sess> {
     }
 
     pub fn into_result(self) -> Result<(), ErrorGuaranteed> {
-        if let Some(err) = self.err.into_inner() {
-            Err(err)
-        } else {
-            Ok(())
-        }
+        if let Some(err) = self.err.into_inner() { Err(err) } else { Ok(()) }
     }
 }
 

@@ -1,13 +1,20 @@
+//! A visitor for types in [`surface`]
+//!
+//! In general there's no specific order except that [refinement parameters] should be
+//! visited in an order that matches their scope. Name resolution relies on this gurantee.
+//!
+//! [`surface`]: crate::surface
+//! [refinement parameters]: crate::surface::RefineParam
 use rustc_span::symbol::Ident;
 
 use super::{
-    AliasReft, Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg,
-    Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput,
-    FnRetTy, FnSig, GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft,
-    Indices, Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc,
-    StructDef, Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
-    WhereBoundPredicate,
+    Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg, Ensures, EnumDef,
+    Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
+    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
+    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
+    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
+use crate::surface::PrimOpProp;
 
 #[macro_export]
 macro_rules! walk_list {
@@ -28,6 +35,10 @@ pub trait Visitor: Sized {
 
     fn visit_defn(&mut self, defn: &SpecFunc) {
         walk_defn(self, defn);
+    }
+
+    fn visit_primop_prop(&mut self, prop: &PrimOpProp) {
+        walk_primop_prop(self, prop);
     }
 
     fn visit_refine_param(&mut self, param: &RefineParam) {
@@ -165,10 +176,6 @@ pub trait Visitor: Sized {
         }
     }
 
-    fn visit_alias_pred(&mut self, alias_pred: &AliasReft) {
-        walk_alias_pred(self, alias_pred);
-    }
-
     fn visit_path_expr(&mut self, qpath: &ExprPath) {
         walk_path_expr(self, qpath);
     }
@@ -196,6 +203,12 @@ pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {
     if let Some(body) = &defn.body {
         vis.visit_expr(body);
     }
+}
+
+pub fn walk_primop_prop<V: Visitor>(vis: &mut V, prop: &PrimOpProp) {
+    vis.visit_ident(prop.name);
+    walk_list!(vis, visit_refine_param, &prop.params);
+    vis.visit_expr(&prop.body);
 }
 
 pub fn walk_refine_param<V: Visitor>(vis: &mut V, param: &RefineParam) {
@@ -256,6 +269,10 @@ pub fn walk_base_sort<V: Visitor>(vis: &mut V, bsort: &BaseSort) {
     match bsort {
         BaseSort::BitVec(_len) => {}
         BaseSort::Path(path) => vis.visit_sort_path(path),
+        BaseSort::SortOf(qself, path) => {
+            vis.visit_ty(qself);
+            vis.visit_path(path);
+        }
     }
 }
 
@@ -311,6 +328,11 @@ pub fn walk_variant<V: Visitor>(vis: &mut V, variant: &VariantDef) {
     }
 }
 
+pub fn walk_fn_trait_ref<V: Visitor>(vis: &mut V, in_arg: &GenericArg, out_arg: &GenericArg) {
+    vis.visit_generic_arg(in_arg);
+    vis.visit_generic_arg(out_arg);
+}
+
 pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     vis.visit_path(&ret.path);
     vis.visit_indices(&ret.indices);
@@ -335,7 +357,9 @@ pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {
 
 pub fn walk_generics<V: Visitor>(vis: &mut V, generics: &Generics) {
     walk_list!(vis, visit_generic_param, &generics.params);
-    walk_list!(vis, visit_where_predicate, &generics.predicates);
+    if let Some(predicates) = &generics.predicates {
+        walk_list!(vis, visit_where_predicate, predicates);
+    }
 }
 
 pub fn walk_fn_input<V: Visitor>(vis: &mut V, arg: &FnInput) {
@@ -475,12 +499,6 @@ pub fn walk_path_segment<V: Visitor>(vis: &mut V, segment: &PathSegment) {
     walk_list!(vis, visit_generic_arg, &segment.args);
 }
 
-pub fn walk_alias_pred<V: Visitor>(vis: &mut V, alias: &AliasReft) {
-    vis.visit_ty(&alias.qself);
-    vis.visit_path(&alias.path);
-    vis.visit_ident(alias.name);
-}
-
 pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
     vis.visit_ident(expr.ident);
     vis.visit_expr(&expr.expr);
@@ -489,26 +507,28 @@ pub fn walk_field_expr<V: Visitor>(vis: &mut V, expr: &FieldExpr) {
 pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
     match &expr.kind {
         ExprKind::Path(qpath) => vis.visit_path_expr(qpath),
-        ExprKind::Dot(qpath, fld) => {
-            vis.visit_path_expr(qpath);
+        ExprKind::Dot(base, fld) => {
+            vis.visit_expr(base);
             vis.visit_ident(*fld);
         }
         ExprKind::Literal(lit) => {
             vis.visit_literal(*lit);
         }
-        ExprKind::BinaryOp(_un_op, box exprs) => {
+        ExprKind::BinaryOp(_bin_op, box exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
-        ExprKind::UnaryOp(_bin_op, e) => {
+        ExprKind::UnaryOp(_un_op, e) => {
             vis.visit_expr(e);
         }
-        ExprKind::App(fun, exprs) => {
-            vis.visit_ident(*fun);
-            walk_list!(vis, visit_expr, exprs);
-        }
-        ExprKind::Alias(alias_pred, args) => {
-            vis.visit_alias_pred(alias_pred);
+        ExprKind::PrimUIF(_) => {}
+        ExprKind::Call(callee, args) => {
+            vis.visit_expr(callee);
             walk_list!(vis, visit_expr, args);
+        }
+        ExprKind::AssocReft(qself, path, name) => {
+            vis.visit_ty(qself);
+            vis.visit_path(path);
+            vis.visit_ident(*name);
         }
         ExprKind::IfThenElse(box exprs) => {
             walk_list!(vis, visit_expr, exprs);
@@ -518,6 +538,19 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
                 vis.visit_path_expr(path);
             }
             walk_list!(vis, visit_constructor_args, exprs);
+        }
+        ExprKind::BoundedQuant(_, i, _, e) => {
+            vis.visit_refine_param(i);
+            vis.visit_expr(e);
+        }
+        ExprKind::Block(decls, body) => {
+            for decl in decls {
+                // the order here is important because the parameter is not in scope
+                // in the initializer
+                vis.visit_expr(&decl.init);
+                vis.visit_refine_param(&decl.param);
+            }
+            vis.visit_expr(body);
         }
     }
 }

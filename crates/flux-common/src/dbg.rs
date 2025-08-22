@@ -5,8 +5,41 @@ use std::{
 };
 
 use flux_config as config;
+use flux_macros::DebugAsJson;
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::Span;
+use serde::Serialize;
+
+#[derive(Serialize, DebugAsJson)]
+pub struct SpanTrace {
+    file: Option<String>,
+    start_line: usize,
+    start_col: usize,
+    end_line: usize,
+    end_col: usize,
+}
+
+impl SpanTrace {
+    fn span_file(tcx: TyCtxt, span: Span) -> Option<String> {
+        let sm = tcx.sess.source_map();
+        let current_dir = &tcx.sess.opts.working_dir;
+        let current_dir = current_dir.local_path()?;
+        if let rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
+            let file_path = file_name.local_path()?;
+            let full_path = current_dir.join(file_path);
+            Some(full_path.display().to_string())
+        } else {
+            None
+        }
+    }
+    pub fn new(tcx: TyCtxt, span: Span) -> Self {
+        let sm = tcx.sess.source_map();
+        let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
+        let file = SpanTrace::span_file(tcx, span);
+        SpanTrace { file, start_line, start_col, end_line, end_col }
+    }
+}
 
 pub fn writer_for_item(
     tcx: TyCtxt,
@@ -33,9 +66,8 @@ pub fn dump_item_info<T: fmt::Debug>(
 #[macro_export]
 macro_rules! _shape_mode_span {
     ($tcx:expr, $def_id:expr) => {{
-        let path = $tcx.def_path(rustc_hir::def_id::DefId::from($def_id));
-        let def_id = path.data.iter().join("::");
-        tracing::info_span!("shape", def_id = def_id.as_str())
+        let path = $tcx.def_path_str(rustc_hir::def_id::DefId::from($def_id));
+        tracing::info_span!("shape", def_id = path.as_str())
     }};
 }
 pub use crate::_shape_mode_span as shape_mode_span;
@@ -43,9 +75,8 @@ pub use crate::_shape_mode_span as shape_mode_span;
 #[macro_export]
 macro_rules! _refine_mode_span {
     ($tcx:expr, $def_id:expr, $bb_envs:expr) => {{
-        let path = $tcx.def_path(rustc_hir::def_id::DefId::from($def_id));
-        let def_id = path.data.iter().join("::");
-        tracing::info_span!("refine", def_id = def_id.as_str(), bb_envs = ?$bb_envs)
+        let path = $tcx.def_path_str(rustc_hir::def_id::DefId::from($def_id));
+        tracing::info_span!("refine", def_id = path.as_str(), bb_envs = ?$bb_envs)
     }};
 }
 pub use crate::_refine_mode_span as refine_mode_span;
@@ -53,9 +84,8 @@ pub use crate::_refine_mode_span as refine_mode_span;
 #[macro_export]
 macro_rules! _check_fn_span {
     ($tcx:expr, $def_id:expr) => {{
-        let path = $tcx.def_path(rustc_hir::def_id::DefId::from($def_id));
-        let def_id = path.data.iter().join("::");
-        tracing::info_span!("check_fn", def_id = def_id.as_str())
+        let path = $tcx.def_path_str(rustc_hir::def_id::DefId::from($def_id));
+        tracing::info_span!("check_fn", def_id = path.as_str())
     }};
 }
 pub use crate::_check_fn_span as check_fn_span;
@@ -71,16 +101,16 @@ pub use crate::_basic_block_start as basic_block_start;
 #[macro_export]
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
-        if config::dump_checker_trace() {
-            let rcx = $infcx.cursor();
-            let ck = $checker;
-            let genv = ck.genv;
-            let local_names = &ck.body.local_names;
-            let local_decls = &ck.body.local_decls;
-            let rcx_json = RefineCtxtTrace::new(genv, rcx);
-            let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
-            let span_json = SpanTrace::new(genv, $span);
-            tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
+        if let Some(level) = config::dump_checker_trace() && level <= tracing::Level::INFO {
+          let rcx = $infcx.cursor();
+          let ck = $checker;
+          let genv = ck.genv;
+          let local_names = &ck.body.local_names;
+          let local_decls = &ck.body.local_decls;
+          let rcx_json = RefineCtxtTrace::new(genv, rcx);
+          let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
+          let span_json = SpanTrace::new(genv.tcx(), $span);
+          tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
         }
     }};
 }
@@ -121,6 +151,16 @@ macro_rules! _shape_goto_exit {
     }};
 }
 pub use crate::_shape_goto_exit as shape_goto_exit;
+
+#[macro_export]
+macro_rules! _hyperlink {
+    ($tcx:expr, $src_span:expr, $dst_span:expr) => {{
+       let src_json = SpanTrace::new($tcx, $src_span);
+       let dst_json = SpanTrace::new($tcx, $dst_span);
+       tracing::warn!(event = "hyperlink", src_span = ?src_json, dst_span = ?dst_json)
+    }};
+}
+pub use crate::_hyperlink as hyperlink;
 
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);

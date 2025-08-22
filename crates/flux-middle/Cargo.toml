@@ -1,8 +1,7 @@
 [package]
 name = "flux-middle"
-version = "0.1.0"
-
 edition.workspace = true
+version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,8 +13,6 @@ flux-errors.workspace = true
 flux-macros.workspace = true
 flux-rustc-bridge.workspace = true
 flux-syntax.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 
 
 liquid-fixpoint.workspace = true
@@ -25,9 +22,11 @@ dashmap.workspace = true
 ena.workspace = true
 hashbrown.workspace = true
 itertools.workspace = true
-toposort-scc.workspace = true
 rustc-hash.workspace = true
-
+serde.workspace = true
+serde_json.workspace = true
+toposort-scc.workspace = true
+tracing = "0.1"
 
 [package.metadata.rust-analyzer]
 rustc_private = true

@@ -4,12 +4,23 @@ use derive_where::derive_where;
 
 use crate::{DefaultTypes, Types};
 
-pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 11]> =
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 13]> =
     LazyLock::new(|| {
         // -----
         // UNARY
         // -----
-
+        // (qualif EqTrue ((v bool)) (v))
+        let eqtrue = Qualifier {
+            args: vec![("v", Sort::Bool)],
+            body: Expr::Var("v"),
+            name: String::from("EqTrue"),
+        };
+        // (qualif EqFalse ((v bool)) (!v))
+        let eqfalse = Qualifier {
+            args: vec![("v", Sort::Bool)],
+            body: Expr::Neg(Box::new(Expr::Var("v"))),
+            name: String::from("EqFalse"),
+        };
         // (qualif EqZero ((v int)) (v == 0))
         let eqzero = Qualifier {
             args: vec![("v", Sort::Int)],
@@ -97,7 +108,7 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 11]> =
             name: String::from("Le1"),
         };
 
-        [eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+        [eqtrue, eqfalse, eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
     });
 
 #[derive_where(Hash)]
@@ -122,6 +133,10 @@ impl<T: Types> Constraint<T> {
             .into_iter()
             .rev()
             .fold(c, |c, bind| Constraint::ForAll(bind, Box::new(c)))
+    }
+
+    pub fn conj(mut cstrs: Vec<Self>) -> Self {
+        if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
     }
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
@@ -161,7 +176,7 @@ pub enum Sort<T: Types> {
     Real,
     Str,
     BitVec(Box<Sort<T>>),
-    BvSize(usize),
+    BvSize(u32),
     Var(usize),
     Func(Box<[Self; 2]>),
     Abs(usize, Box<Self>),
@@ -213,6 +228,10 @@ pub enum Pred<T: Types> {
 impl<T: Types> Pred<T> {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
 
+    pub fn and(mut preds: Vec<Self>) -> Self {
+        if preds.len() == 1 { preds.remove(0) } else { Self::And(preds) }
+    }
+
     pub fn is_trivially_true(&self) -> bool {
         match self {
             Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
@@ -252,30 +271,42 @@ pub enum Expr<T: Types> {
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
-    And(Vec<Expr<T>>),
-    Or(Vec<Expr<T>>),
+    And(Vec<Self>),
+    Or(Vec<Self>),
     Not(Box<Self>),
-    Imp(Box<[Expr<T>; 2]>),
-    Iff(Box<[Expr<T>; 2]>),
+    Imp(Box<[Self; 2]>),
+    Iff(Box<[Self; 2]>),
     Atom(BinRel, Box<[Self; 2]>),
+    Let(T::Var, Box<[Self; 2]>),
+}
+
+impl<T: Types> From<Constant<T>> for Expr<T> {
+    fn from(v: Constant<T>) -> Self {
+        Self::Constant(v)
+    }
 }
 
 impl<T: Types> Expr<T> {
-    pub const fn int(val: T::Numeral) -> Expr<T> {
+    pub const fn int(val: u128) -> Expr<T> {
         Expr::Constant(Constant::Numeral(val))
     }
 
     pub fn eq(self, other: Self) -> Self {
         Expr::Atom(BinRel::Eq, Box::new([self, other]))
     }
+
+    pub fn and(mut exprs: Vec<Self>) -> Self {
+        if exprs.len() == 1 { exprs.remove(0) } else { Self::And(exprs) }
+    }
 }
 
 #[derive_where(Hash)]
 pub enum Constant<T: Types> {
-    Numeral(T::Numeral),
+    Numeral(u128),
     Decimal(T::Decimal),
     Boolean(bool),
     String(T::String),
+    BitVec(u128, u32),
 }
 
 #[derive_where(Hash)]

@@ -1,0 +1,39 @@
+name: "Install CVC5"
+description: "Download and install the CVC5 binary for Linux x86_64, macOS x86_64, and macOS arm64."
+inputs:
+  version:
+    description: "CVC5 version to install (e.g., 1.2.1)"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Download and install CVC5
+      run: |
+        set -e
+        VERSION="cvc5-${{ inputs.version }}"
+        OS=$(uname -s)
+        ARCH=$(uname -m)
+        if [ "$OS" = "Linux" ] && [ "$ARCH" = "x86_64" ]; then
+          ZIP="cvc5-Linux-x86_64-static.zip"
+          URL="https://github.com/cvc5/cvc5/releases/download/$VERSION/$ZIP"
+          DIR="cvc5-Linux-x86_64-static"
+        elif [ "$OS" = "Darwin" ] && [ "$ARCH" = "x86_64" ]; then
+          ZIP="cvc5-macos-x86_64-static.zip"
+          URL="https://github.com/cvc5/cvc5/releases/download/$VERSION/$ZIP"
+          DIR="cvc5-macos-x86_64-static"
+        elif [ "$OS" = "Darwin" ] && { [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; }; then
+          ZIP="cvc5-macos-arm64-static.zip"
+          URL="https://github.com/cvc5/cvc5/releases/download/$VERSION/$ZIP"
+          DIR="cvc5-macos-arm64-static"
+        else
+          echo "Unsupported OS/architecture: $OS/$ARCH" >&2
+          exit 1
+        fi
+        mkdir -p ~/.local/bin
+        echo ~/.local/bin >> $GITHUB_PATH
+        curl -fsSL --retry 3 -o "$ZIP" "$URL"
+        unzip "$ZIP"
+        cp "$DIR/bin/cvc5" ~/.local/bin/
+        rm -rf "$DIR" "$ZIP"
+        cvc5 --version
+      shell: bash

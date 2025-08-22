@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, path::Path};
 
 use flux_config as config;
 use rustc_hash::FxHashMap;
@@ -31,26 +31,22 @@ impl<R> QueryCache<R> {
 
     pub fn lookup(&self, key: &String, constr_hash: u64) -> Option<&R> {
         let val = self.entries.get(key)?;
-        if val.constr_hash == constr_hash {
-            Some(&val.result)
-        } else {
-            None
-        }
+        if val.constr_hash == constr_hash { Some(&val.result) } else { None }
     }
 
-    fn path() -> Result<PathBuf, std::io::Error> {
-        if config::is_cache_enabled() {
-            let path = config::cache_path();
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-                return Ok(path);
-            }
+    fn path() -> Result<&'static Path, std::io::Error> {
+        if let Some(path) = config::cache_path()
+            && let Some(parent) = path.parent()
+        {
+            std::fs::create_dir_all(parent)?;
+            return Ok(path);
         }
+
         Err(Self::no_cache_err())
     }
 
     fn no_cache_err() -> std::io::Error {
-        std::io::Error::new(std::io::ErrorKind::Other, "cache not enabled")
+        std::io::Error::other("cache not enabled")
     }
 }
 
@@ -64,12 +60,12 @@ impl<R: std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned> QueryC
 
     pub fn load() -> Self {
         let path = Self::path();
-        if let Ok(path) = path {
-            if let Ok(file) = File::open(path) {
-                let entries = serde_json::from_reader(file);
-                if let Ok(entries) = entries {
-                    return QueryCache { entries };
-                }
+        if let Ok(path) = path
+            && let Ok(file) = File::open(path)
+        {
+            let entries = serde_json::from_reader(file);
+            if let Ok(entries) = entries {
+                return QueryCache { entries };
             }
         }
         Self::default()

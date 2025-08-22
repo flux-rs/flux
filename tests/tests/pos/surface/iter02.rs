@@ -1,14 +1,10 @@
 #![allow(unused)]
+#![feature(allocator_api)]
+
 use std::{iter::Enumerate, slice::Iter};
 
-#[path = "../../lib/option.rs"]
-mod option;
-
-#[path = "../../lib/slice.rs"]
-mod slice;
-
-#[path = "../../lib/iter.rs"]
-mod iter;
+extern crate flux_alloc;
+extern crate flux_core;
 
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}
@@ -53,6 +49,13 @@ pub fn test_enumer2(slice: &[usize]) {
 pub fn test_enumer3(slice: &[usize]) {
     let mut e = slice.iter().enumerate();
     while let Some((idx, _)) = e.next() {
+        assert(idx < slice.len())
+    }
+}
+
+#[flux::sig(fn(&[usize][@n]) )]
+pub fn test_enumer4(slice: &[usize]) {
+    for (idx, _) in slice.iter().enumerate() {
         assert(idx < slice.len())
     }
 }

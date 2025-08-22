@@ -5,7 +5,6 @@
 #![feature(rustc_private, box_patterns, associated_type_defaults, never_type)]
 
 extern crate rustc_abi;
-extern crate rustc_ast;
 extern crate rustc_borrowck;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
@@ -16,7 +15,6 @@ extern crate rustc_macros;
 extern crate rustc_middle;
 extern crate rustc_serialize;
 extern crate rustc_span;
-extern crate rustc_target;
 extern crate rustc_trait_selection;
 extern crate rustc_type_ir;
 

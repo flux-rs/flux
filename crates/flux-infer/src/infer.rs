@@ -1,21 +1,24 @@
 use std::{cell::RefCell, fmt, iter};
 
-use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_dbg_assert_eq};
-use flux_config::{self as config, InferOpts};
+use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
+use flux_config::{self as config, InferOpts, OverflowMode};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_middle::{
+    FixpointQueryKind,
+    def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, canonicalize::Hoister, fold::TypeFoldable, AliasKind, AliasTy, BaseTy, Binder,
-        BoundVariableKinds, CoroutineObligPredicate, ESpan, EVid, EarlyBinder, Expr, ExprKind,
-        GenericArg, GenericArgs, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path,
-        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
+        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
+        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
+        Region, Sort, Ty, TyCtor, TyKind, Var,
+        canonicalize::{Hoister, HoisterDelegate},
+        fold::TypeFoldable,
     },
-    MaybeExternId,
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_macros::extension;
 use rustc_middle::{
@@ -27,7 +30,8 @@ use rustc_span::Span;
 use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
-    refine_tree::{AssumeInvariants, Cursor, Marker, RefineTree, Scope, Unpacker},
+    projections::NormalizeExt as _,
+    refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -64,11 +68,13 @@ pub enum ConstrReason {
     Ret,
     Fold,
     FoldLocal,
+    Predicate,
     Assert(&'static str),
     Div,
     Rem,
     Goto(BasicBlock),
     Overflow,
+    Underflow,
     Subtype(SubtypeReason),
     Other,
 }
@@ -80,60 +86,86 @@ pub struct InferCtxtRoot<'genv, 'tcx> {
     opts: InferOpts,
 }
 
-pub struct InferCtxtRootBuilder<'genv, 'tcx> {
+pub struct InferCtxtRootBuilder<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     opts: InferOpts,
-    root_id: DefId,
-    generic_args: Option<GenericArgs>,
+    params: Vec<(Var, Sort)>,
+    infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
     dummy_kvars: bool,
 }
 
 #[extension(pub trait GlobalEnvExt<'genv, 'tcx>)]
 impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
-    fn infcx_root(self, root_id: DefId, opts: InferOpts) -> InferCtxtRootBuilder<'genv, 'tcx> {
-        InferCtxtRootBuilder { genv: self, root_id, opts, generic_args: None, dummy_kvars: false }
+    fn infcx_root<'a>(
+        self,
+        infcx: &'a rustc_infer::infer::InferCtxt<'tcx>,
+        opts: InferOpts,
+    ) -> InferCtxtRootBuilder<'a, 'genv, 'tcx> {
+        InferCtxtRootBuilder { genv: self, infcx, params: vec![], opts, dummy_kvars: false }
     }
 }
 
-impl<'genv, 'tcx> InferCtxtRootBuilder<'genv, 'tcx> {
+impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
     pub fn with_dummy_kvars(mut self) -> Self {
         self.dummy_kvars = true;
         self
     }
 
-    pub fn with_generic_args(mut self, generic_args: &GenericArgs) -> Self {
-        self.generic_args = Some(generic_args.clone());
-        self
+    pub fn with_const_generics(mut self, def_id: DefId) -> QueryResult<Self> {
+        self.params.extend(
+            self.genv
+                .generics_of(def_id)?
+                .const_params(self.genv)?
+                .into_iter()
+                .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort)),
+        );
+        Ok(self)
+    }
+
+    pub fn with_refinement_generics(
+        mut self,
+        def_id: DefId,
+        args: &[GenericArg],
+    ) -> QueryResult<Self> {
+        for (index, param) in self
+            .genv
+            .refinement_generics_of(def_id)?
+            .iter_own_params()
+            .enumerate()
+        {
+            let param = param.instantiate(self.genv.tcx(), args, &[]);
+            let sort = param.sort.normalize_sorts(def_id, self.genv, self.infcx)?;
+
+            let var =
+                Var::EarlyParam(rty::EarlyReftParam { index: index as u32, name: param.name });
+            self.params.push((var, sort));
+        }
+        Ok(self)
+    }
+
+    pub fn identity_for_item(mut self, def_id: DefId) -> QueryResult<Self> {
+        self = self.with_const_generics(def_id)?;
+        let offset = self.params.len();
+        self.genv.refinement_generics_of(def_id)?.fill_item(
+            self.genv,
+            &mut self.params,
+            &mut |param, index| {
+                let index = (index - offset) as u32;
+                let param = param.instantiate_identity();
+                let sort = param.sort.normalize_sorts(def_id, self.genv, self.infcx)?;
+
+                let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
+                Ok((var, sort))
+            },
+        )?;
+        Ok(self)
     }
 
     pub fn build(self) -> QueryResult<InferCtxtRoot<'genv, 'tcx>> {
-        let genv = self.genv;
-        let mut params = genv
-            .generics_of(self.root_id)?
-            .const_params(genv)?
-            .into_iter()
-            .map(|(pcst, sort)| (Var::ConstGeneric(pcst), sort))
-            .collect_vec();
-        let offset = params.len();
-        self.genv.refinement_generics_of(self.root_id)?.fill_item(
-            self.genv,
-            &mut params,
-            &mut |param, index| {
-                let index = (index - offset) as u32;
-                let param = if let Some(args) = &self.generic_args {
-                    param.instantiate(genv.tcx(), args, &[])
-                } else {
-                    param.instantiate_identity()
-                };
-                let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
-                (var, param.sort)
-            },
-        )?;
-
         Ok(InferCtxtRoot {
             genv: self.genv,
             inner: RefCell::new(InferCtxtInner::new(self.dummy_kvars)),
-            refine_tree: RefineTree::new(params),
+            refine_tree: RefineTree::new(self.params),
             opts: self.opts,
         })
     }
@@ -169,11 +201,13 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         self,
         cache: &mut FixQueryCache,
         def_id: MaybeExternId,
-        ext: &'static str,
+        kind: FixpointQueryKind,
     ) -> QueryResult<Vec<Tag>> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
+
+        let ext = kind.ext();
 
         let mut refine_tree = self.refine_tree;
 
@@ -182,9 +216,9 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), ext, &refine_tree).unwrap();
         }
-        refine_tree.simplify(self.genv.spec_func_defns()?);
+        refine_tree.simplify(self.genv);
         if config::dump_constraint() {
-            let simp_ext = format!("simp.{}", ext);
+            let simp_ext = format!("simp.{ext}");
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), simp_ext, &refine_tree)
                 .unwrap();
         }
@@ -197,7 +231,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, cstr, self.opts.scrape_quals, backend)
+        fcx.check(cache, cstr, kind, self.opts.scrape_quals, backend)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
@@ -209,7 +243,7 @@ pub struct InferCtxt<'infcx, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub region_infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     pub def_id: DefId,
-    pub check_overflow: bool,
+    pub check_overflow: OverflowMode,
     cursor: Cursor<'infcx>,
     inner: &'infcx RefCell<InferCtxtInner>,
 }
@@ -237,7 +271,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     ) -> InferResult<List<Expr>> {
         Ok(RefineArgs::for_item(self.genv, callee_def_id, |param, _| {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
-            self.fresh_infer_var(&param.sort, param.mode)
+            Ok(self.fresh_infer_var(&param.sort, param.mode))
         })?)
     }
 
@@ -273,6 +307,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
                 self.fresh_evar()
             }
         }
+    }
+
+    /// Generate a fresh kvar in the _given_ [`Scope`] (similar method in [`InferCtxtRoot`]).
+    pub fn fresh_kvar_in_scope(
+        &self,
+        binders: &[BoundVariableKinds],
+        scope: &Scope,
+        encoding: KVarEncoding,
+    ) -> Expr {
+        let inner = &mut *self.inner.borrow_mut();
+        inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
     /// Generate a fresh kvar in the current scope. See [`KVarGen::fresh`].
@@ -372,15 +417,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn move_to(&mut self, marker: &Marker, clear_children: bool) -> InferCtxt<'_, 'genv, 'tcx> {
-        InferCtxt { cursor: self.cursor.move_to(marker, clear_children).unwrap(), ..*self }
+        InferCtxt {
+            cursor: self
+                .cursor
+                .move_to(marker, clear_children)
+                .unwrap_or_else(|| tracked_span_bug!()),
+            ..*self
+        }
     }
 
     pub fn branch(&mut self) -> InferCtxt<'_, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
-    }
-
-    pub fn define_vars(&mut self, sort: &Sort) -> Expr {
-        self.cursor.define_vars(sort)
     }
 
     pub fn define_var(&mut self, sort: &Sort) -> Name {
@@ -403,20 +450,40 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.cursor.marker()
     }
 
-    pub fn hoister(&mut self, assume_invariants: bool) -> Hoister<Unpacker<'_, 'infcx>> {
-        self.cursor.hoister(if assume_invariants {
-            AssumeInvariants::yes(self.check_overflow)
-        } else {
-            AssumeInvariants::No
-        })
+    pub fn hoister(
+        &mut self,
+        assume_invariants: bool,
+    ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
-        self.cursor.assume_invariants(ty, self.check_overflow);
+        self.cursor
+            .assume_invariants(self.genv.tcx(), ty, self.check_overflow);
     }
 
     fn check_impl(&mut self, pred1: impl Into<Expr>, pred2: impl Into<Expr>, tag: Tag) {
         self.cursor.check_impl(pred1, pred2, tag);
+    }
+}
+
+pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
+    infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
+    assume_invariants: bool,
+}
+
+impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
+    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
+        let ty =
+            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        if self.assume_invariants {
+            self.infcx.assume_invariants(&ty);
+        }
+        ty
+    }
+
+    fn hoist_constr(&mut self, pred: Expr) {
+        self.infcx.assume_pred(pred);
     }
 }
 
@@ -451,16 +518,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(
-                        self.infcx.genv,
-                        self.infcx.region_infcx,
-                        self.infcx.def_id,
-                    )?;
-                let term = projection_pred.term.to_ty().normalize_projections(
-                    self.infcx.genv,
-                    self.infcx.region_infcx,
-                    self.infcx.def_id,
-                )?;
+                    .normalize_projections(self)?;
+                let term = projection_pred.term.to_ty().normalize_projections(self)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 self.subtyping(&impl_elem, &term, reason)?;
@@ -499,6 +558,19 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         Ok(sub.obligations)
     }
 
+    pub fn subtyping_generic_args(
+        &mut self,
+        variance: Variance,
+        a: &GenericArg,
+        b: &GenericArg,
+        reason: ConstrReason,
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
+        let mut env = DummyEnv;
+        let mut sub = Sub::new(&mut env, reason, self.span);
+        sub.generic_args(self.infcx, variance, a, b)?;
+        Ok(sub.obligations)
+    }
+
     // FIXME(nilehmann) this is similar to `Checker::check_call`, but since is used from
     // `place_ty::fold` we cannot use that directly. We should try to unify them, because
     // there are a couple of things missing here (e.g., checking clauses on the struct definition).
@@ -520,6 +592,11 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             // Check arguments
             for (actual, formal) in iter::zip(fields, variant.fields()) {
                 this.subtyping(actual, formal, reason)?;
+            }
+
+            // Check requires predicates
+            for require in &variant.requires {
+                this.check_pred(require, ConstrReason::Fold);
             }
 
             Ok(variant.ret())
@@ -640,8 +717,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
 
     fn tys(&mut self, infcx: &mut InferCtxt, a: &Ty, b: &Ty) -> InferResult {
         let infcx = &mut infcx.branch();
-
-        // infcx.push_trace(TypeTrace::tys(a, b));
+        // infcx.cursor.push_trace(TypeTrace::tys(a, b));
 
         // We *fully* unpack the lhs before continuing to be able to prove goals like this
         // ∃a. (i32[a], ∃b. {i32[b] | a > b})} <: ∃a,b. ({i32[a] | b < a}, i32[b])
@@ -787,8 +863,20 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             }
             (BaseTy::Slice(ty_a), BaseTy::Slice(ty_b)) => self.tys(infcx, ty_a, ty_b),
             (BaseTy::Ref(_, ty_a, Mutability::Mut), BaseTy::Ref(_, ty_b, Mutability::Mut)) => {
-                self.tys(infcx, ty_a, ty_b)?;
-                self.tys(infcx, ty_b, ty_a)
+                if ty_a.is_slice()
+                    && let TyKind::Indexed(_, idx_a) = ty_a.kind()
+                    && let TyKind::Exists(bty_b) = ty_b.kind()
+                {
+                    // For `&mut [T1][e] <: &mut ∃v[T2][v]`, we can hoist out the existential on the right because we know
+                    // the index is immutable. This means we have to prove `&mut [T1][e] <: ∃v. &mut [T2][v]`
+                    // This will in turn require proving `&mut [T1][e1] <: &mut [T2][?v]` for a fresh evar `?v`.
+                    // We know the evar will solve to `e`, so subtyping simplifies to the bellow.
+                    self.tys(infcx, ty_a, ty_b)?;
+                    self.tys(infcx, &bty_b.replace_bound_reft(idx_a), ty_a)
+                } else {
+                    self.tys(infcx, ty_a, ty_b)?;
+                    self.tys(infcx, ty_b, ty_a)
+                }
             }
             (BaseTy::Ref(_, ty_a, Mutability::Not), BaseTy::Ref(_, ty_b, Mutability::Not)) => {
                 self.tys(infcx, ty_a, ty_b)
@@ -812,11 +900,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 BaseTy::Alias(AliasKind::Projection, alias_ty_a),
                 BaseTy::Alias(AliasKind::Projection, alias_ty_b),
             ) => {
-                debug_assert_eq!(alias_ty_a, alias_ty_b);
+                tracked_span_dbg_assert_eq!(alias_ty_a, alias_ty_b);
                 Ok(())
             }
             (BaseTy::Array(ty_a, len_a), BaseTy::Array(ty_b, len_b)) => {
-                debug_assert_eq!(len_a, len_b);
+                tracked_span_dbg_assert_eq!(len_a, len_b);
                 self.tys(infcx, ty_a, ty_b)
             }
             (BaseTy::Param(param_a), BaseTy::Param(param_b)) => {
@@ -826,7 +914,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             (BaseTy::Bool, BaseTy::Bool)
             | (BaseTy::Str, BaseTy::Str)
             | (BaseTy::Char, BaseTy::Char)
-            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _)) => Ok(()),
+            | (BaseTy::RawPtr(_, _), BaseTy::RawPtr(_, _))
+            | (BaseTy::RawPtrMetadata(_), BaseTy::RawPtrMetadata(_)) => Ok(()),
             (BaseTy::Dynamic(preds_a, _), BaseTy::Dynamic(preds_b, _)) => {
                 tracked_span_assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
@@ -839,9 +928,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::FnPtr(sig_a), BaseTy::FnPtr(sig_b)) => {
-                tracked_span_assert_eq!(sig_a, sig_b);
+                tracked_span_assert_eq!(sig_a.erase_regions(), sig_b.erase_regions());
                 Ok(())
             }
+            (BaseTy::Never, BaseTy::Never) => Ok(()),
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
@@ -856,7 +946,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let (ty_a, ty_b) = match (a, b) {
             (GenericArg::Ty(ty_a), GenericArg::Ty(ty_b)) => (ty_a.clone(), ty_b.clone()),
             (GenericArg::Base(ctor_a), GenericArg::Base(ctor_b)) => {
-                debug_assert_eq!(ctor_a.sort(), ctor_b.sort());
+                tracked_span_dbg_assert_eq!(ctor_a.sort(), ctor_b.sort());
                 (ctor_a.to_ty(), ctor_b.to_ty())
             }
             (GenericArg::Lifetime(_), GenericArg::Lifetime(_)) => return Ok(()),
@@ -881,24 +971,50 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         if a == b {
             return;
         }
-
         match (a.kind(), b.kind()) {
-            (ExprKind::Aggregate(kind_a, flds_a), ExprKind::Aggregate(kind_b, flds_b)) => {
-                debug_assert_eq!(kind_a, kind_b);
+            (
+                ExprKind::Ctor(Ctor::Struct(did_a), flds_a),
+                ExprKind::Ctor(Ctor::Struct(did_b), flds_b),
+            ) => {
+                debug_assert_eq!(did_a, did_b);
                 for (a, b) in iter::zip(flds_a, flds_b) {
                     self.idxs_eq(infcx, a, b);
                 }
             }
-            (_, ExprKind::Aggregate(kind_b, flds_b)) => {
+            (ExprKind::Tuple(flds_a), ExprKind::Tuple(flds_b)) => {
+                for (a, b) in iter::zip(flds_a, flds_b) {
+                    self.idxs_eq(infcx, a, b);
+                }
+            }
+            (_, ExprKind::Tuple(flds_b)) => {
                 for (f, b) in flds_b.iter().enumerate() {
-                    let a = a.proj_and_reduce(kind_b.to_proj(f as u32));
+                    let proj = FieldProj::Tuple { arity: flds_b.len(), field: f as u32 };
+                    let a = a.proj_and_reduce(proj);
                     self.idxs_eq(infcx, &a, b);
                 }
             }
-            (ExprKind::Aggregate(kind_a, flds_a), _) => {
+
+            (_, ExprKind::Ctor(Ctor::Struct(def_id), flds_b)) => {
+                for (f, b) in flds_b.iter().enumerate() {
+                    let proj = FieldProj::Adt { def_id: *def_id, field: f as u32 };
+                    let a = a.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, &a, b);
+                }
+            }
+
+            (ExprKind::Tuple(flds_a), _) => {
                 infcx.unify_exprs(a, b);
                 for (f, a) in flds_a.iter().enumerate() {
-                    let b = b.proj_and_reduce(kind_a.to_proj(f as u32));
+                    let proj = FieldProj::Tuple { arity: flds_a.len(), field: f as u32 };
+                    let b = b.proj_and_reduce(proj);
+                    self.idxs_eq(infcx, a, &b);
+                }
+            }
+            (ExprKind::Ctor(Ctor::Struct(def_id), flds_a), _) => {
+                infcx.unify_exprs(a, b);
+                for (f, a) in flds_a.iter().enumerate() {
+                    let proj = FieldProj::Adt { def_id: *def_id, field: f as u32 };
+                    let b = b.proj_and_reduce(proj);
                     self.idxs_eq(infcx, a, &b);
                 }
             }
@@ -929,7 +1045,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let vars = a
             .vars()
             .iter()
-            .map(|kind| infcx.define_vars(kind.expect_sort()))
+            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
             .collect_vec();
         let body_a = a.apply(&vars);
         let body_b = b.apply(&vars);
@@ -958,11 +1074,14 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 &alias_ty.refine_args,
             );
             for clause in &bounds {
+                if !clause.kind().vars().is_empty() {
+                    Err(query_bug!("handle_opaque_types: clause with bound vars: `{clause:?}`"))?;
+                }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
                         .to_ty()
-                        .normalize_projections(infcx.genv, infcx.region_infcx, infcx.def_id)?;
+                        .normalize_projections(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }
@@ -999,7 +1118,6 @@ fn mk_coroutine_obligations(
 #[derive(Debug)]
 pub enum InferErr {
     UnsolvedEvar(EVid),
-    OpaqueStruct(DefId),
     Query(QueryErr),
 }
 

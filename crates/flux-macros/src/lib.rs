@@ -1,8 +1,9 @@
-#![feature(proc_macro_diagnostic, never_type, proc_macro_span, let_chains, if_let_guard)]
+#![feature(proc_macro_diagnostic, never_type, proc_macro_span, if_let_guard, track_path)]
 
 mod diagnostics;
 mod fold;
 mod primops;
+mod symbols;
 
 use quote::quote;
 use synstructure::decl_derive;
@@ -78,4 +79,9 @@ fn debug_as_json(s: synstructure::Structure<'_>) -> proc_macro2::TokenStream {
             }
         }
     })
+}
+
+#[proc_macro]
+pub fn symbols(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    symbols::symbols(input.into()).into()
 }

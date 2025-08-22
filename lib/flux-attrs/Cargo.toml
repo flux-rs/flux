@@ -1,13 +1,13 @@
 [package]
 name = "flux-attrs"
 version = "0.1.0"
-
 edition.workspace = true
 
+[lib]
+proc-macro = true
+
 [dependencies]
-proc-macro2 = "1"
-quote = "1"
-syn = { version = "2", features = ["full", "extra-traits", "visit-mut"] }
+flux-attrs-impl = { path = "../flux-attrs-impl", version = "0.1.0" }
 
 [lints]
 workspace = true

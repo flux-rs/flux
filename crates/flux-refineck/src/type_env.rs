@@ -2,7 +2,11 @@ mod place_ty;
 
 use std::{iter, ops::ControlFlow};
 
-use flux_common::{bug, dbg::debug_assert_eq3, tracked_span_bug, tracked_span_dbg_assert_eq};
+use flux_common::{
+    bug,
+    dbg::{SpanTrace, debug_assert_eq3},
+    tracked_span_bug, tracked_span_dbg_assert_eq,
+};
 use flux_infer::{
     fixpoint_encoding::KVarEncoding,
     infer::{ConstrReason, InferCtxt, InferCtxtAt, InferCtxtRoot, InferResult},
@@ -10,25 +14,25 @@ use flux_infer::{
 };
 use flux_macros::DebugAsJson;
 use flux_middle::{
+    PlaceExt as _,
     global_env::GlobalEnv,
     pretty::{PrettyCx, PrettyNested},
     queries::QueryResult,
     rty::{
+        BaseTy, Binder, BoundReftKind, Ctor, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
+        INNERMOST, Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty,
+        TyKind, VariantIdx,
         canonicalize::{Hoister, LocalHoister},
         fold::{FallibleTypeFolder, TypeFoldable, TypeVisitable, TypeVisitor},
         region_matching::{rty_match_regions, ty_match_regions},
-        BaseTy, Binder, BoundReftKind, Ensures, Expr, ExprKind, FnSig, GenericArg, HoleKind,
-        Lambda, List, Loc, Mutability, Path, PtrKind, Region, SortCtor, SubsetTy, Ty, TyKind,
-        VariantIdx, INNERMOST,
     },
-    PlaceExt as _,
 };
 use flux_rustc_bridge::{
     self,
     mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
-use itertools::{izip, Itertools};
+use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_middle::{mir::RETURN_PLACE, ty::TyCtxt};
@@ -110,15 +114,16 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxtAt,
         place: &Place,
     ) -> InferResult<Ty> {
-        Ok(self.bindings.lookup_unfolding(infcx, place)?.ty)
+        let span = infcx.span;
+        Ok(self.bindings.lookup_unfolding(infcx, place, span)?.ty)
     }
 
     pub(crate) fn get(&self, path: &Path) -> Ty {
         self.bindings.get(path)
     }
 
-    pub fn update_path(&mut self, path: &Path, new_ty: Ty) {
-        self.bindings.lookup(path).update(new_ty);
+    pub fn update_path(&mut self, path: &Path, new_ty: Ty, span: Span) {
+        self.bindings.lookup(path, span).update(new_ty);
     }
 
     /// When checking a borrow in the right hand side of an assignment `x = &'?n p`, we use the
@@ -131,7 +136,8 @@ impl<'a> TypeEnv<'a> {
         mutbl: Mutability,
         place: &Place,
     ) -> InferResult<Ty> {
-        let result = self.bindings.lookup_unfolding(infcx, place)?;
+        let span = infcx.span;
+        let result = self.bindings.lookup_unfolding(infcx, place, span)?;
         if result.is_strg && mutbl == Mutability::Mut {
             Ok(Ty::ptr(PtrKind::Mut(re), result.path()))
         } else {
@@ -149,7 +155,7 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxtAt,
         place: &Place,
     ) -> InferResult {
-        let lookup = self.bindings.lookup(place);
+        let lookup = self.bindings.lookup(place, infcx.span);
         let TyKind::Ptr(PtrKind::Mut(re), path) = lookup.ty.kind() else {
             tracked_span_bug!("ptr_to_borrow called on non mutable pointer type")
         };
@@ -157,7 +163,7 @@ impl<'a> TypeEnv<'a> {
         let ref_ty =
             self.ptr_to_ref(infcx, ConstrReason::Other, *re, path, PtrToRefBound::Infer)?;
 
-        self.bindings.lookup(place).update(ref_ty);
+        self.bindings.lookup(place, infcx.span).update(ref_ty);
 
         Ok(())
     }
@@ -194,7 +200,7 @@ impl<'a> TypeEnv<'a> {
         bound: PtrToRefBound,
     ) -> InferResult<Ty> {
         // ℓ: t1
-        let t1 = self.bindings.lookup(path).fold(infcx)?;
+        let t1 = self.bindings.lookup(path, infcx.span).fold(infcx)?;
 
         // t1 <: t2
         let t2 = match bound {
@@ -215,7 +221,9 @@ impl<'a> TypeEnv<'a> {
         };
 
         // ℓ: †t2
-        self.bindings.lookup(path).block_with(t2.clone());
+        self.bindings
+            .lookup(path, infcx.span)
+            .block_with(t2.clone());
 
         Ok(Ty::mk_ref(re, t2, Mutability::Mut))
     }
@@ -247,7 +255,8 @@ impl<'a> TypeEnv<'a> {
     ) -> InferResult {
         let rustc_ty = place.ty(infcx.genv, self.local_decls)?.ty;
         let new_ty = ty_match_regions(&new_ty, &rustc_ty);
-        let result = self.bindings.lookup_unfolding(infcx, place)?;
+        let span = infcx.span;
+        let result = self.bindings.lookup_unfolding(infcx, place, span)?;
         if result.is_strg {
             result.update(new_ty);
         } else if !place.behind_raw_ptr(infcx.genv, self.local_decls)? {
@@ -257,7 +266,8 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn move_place(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult<Ty> {
-        let result = self.bindings.lookup_unfolding(infcx, place)?;
+        let span = infcx.span;
+        let result = self.bindings.lookup_unfolding(infcx, place, span)?;
         if result.is_strg {
             let uninit = Ty::uninit();
             Ok(result.update(uninit))
@@ -303,7 +313,8 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn fold(&mut self, infcx: &mut InferCtxtAt, place: &Place) -> InferResult {
-        self.bindings.lookup(place).fold(infcx)?;
+        let span = infcx.span;
+        self.bindings.lookup(place, span).fold(infcx)?;
         Ok(())
     }
 
@@ -338,8 +349,13 @@ impl<'a> TypeEnv<'a> {
         }
     }
 
-    pub(crate) fn unfold(&mut self, infcx: &mut InferCtxt, place: &Place) -> InferResult {
-        self.bindings.unfold(infcx, place)
+    pub(crate) fn unfold(
+        &mut self,
+        infcx: &mut InferCtxt,
+        place: &Place,
+        span: Span,
+    ) -> InferResult {
+        self.bindings.unfold(infcx, place, span)
     }
 
     pub(crate) fn downcast(
@@ -349,10 +365,11 @@ impl<'a> TypeEnv<'a> {
         variant_idx: VariantIdx,
     ) -> InferResult {
         let mut down_place = place.clone();
+        let span = infcx.span;
         down_place
             .projection
             .push(PlaceElem::Downcast(None, variant_idx));
-        self.bindings.unfold(infcx, &down_place)?;
+        self.bindings.unfold(infcx, &down_place, span)?;
         Ok(())
     }
 
@@ -360,13 +377,18 @@ impl<'a> TypeEnv<'a> {
         self.bindings.fmap_mut(|ty| infcx.fully_resolve_evars(ty));
     }
 
-    pub(crate) fn assume_ensures(&mut self, infcx: &mut InferCtxt, ensures: &[Ensures]) {
+    pub(crate) fn assume_ensures(
+        &mut self,
+        infcx: &mut InferCtxt,
+        ensures: &[Ensures],
+        span: Span,
+    ) {
         for ensure in ensures {
             match ensure {
                 Ensures::Type(path, updated_ty) => {
                     let updated_ty = infcx.unpack(updated_ty);
                     infcx.assume_invariants(&updated_ty);
-                    self.update_path(path, updated_ty);
+                    self.update_path(path, updated_ty, span);
                 }
                 Ensures::Pred(e) => infcx.assume_pred(e),
             }
@@ -496,15 +518,20 @@ impl BasicBlockEnvShape {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::RawPtr(_, _)
+            | BaseTy::RawPtrMetadata(_)
             | BaseTy::Char
             | BaseTy::Never
             | BaseTy::Closure(..)
             | BaseTy::Dynamic(..)
             | BaseTy::Alias(..)
             | BaseTy::FnPtr(..)
+            | BaseTy::Foreign(..)
             | BaseTy::Coroutine(..) => {
-                assert!(!scope.has_free_vars(bty));
-                bty.clone()
+                if scope.has_free_vars(bty) {
+                    tracked_span_bug!("unexpected type with free vars")
+                } else {
+                    bty.clone()
+                }
             }
             BaseTy::Infer(..) => {
                 tracked_span_bug!("unexpected infer type")
@@ -524,14 +551,14 @@ impl BasicBlockEnvShape {
         }
     }
 
-    fn update(&mut self, path: &Path, ty: Ty) {
-        self.bindings.lookup(path).update(ty);
+    fn update(&mut self, path: &Path, ty: Ty, span: Span) {
+        self.bindings.lookup(path, span).update(ty);
     }
 
     /// join(self, genv, other) consumes the bindings in other, to "update"
     /// `self` in place, and returns `true` if there was an actual change
     /// or `false` indicating no change (i.e., a fixpoint was reached).
-    pub(crate) fn join(&mut self, other: TypeEnv) -> bool {
+    pub(crate) fn join(&mut self, other: TypeEnv, span: Span) -> bool {
         let paths = self.bindings.paths();
 
         // Join types
@@ -541,7 +568,7 @@ impl BasicBlockEnvShape {
             let ty2 = other.bindings.get(path);
             let ty = self.join_ty(&ty1, &ty2);
             modified |= ty1 != ty;
-            self.update(path, ty);
+            self.update(path, ty, span);
         }
 
         modified
@@ -596,7 +623,7 @@ impl BasicBlockEnvShape {
 
     fn join_idx(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
         match (e1.kind(), e2.kind(), sort) {
-            (ExprKind::Aggregate(_, es1), ExprKind::Aggregate(_, es2), Sort::Tuple(sorts)) => {
+            (ExprKind::Tuple(es1), ExprKind::Tuple(es2), Sort::Tuple(sorts)) => {
                 debug_assert_eq3!(es1.len(), es2.len(), sorts.len());
                 Expr::tuple(
                     izip!(es1, es2, sorts)
@@ -605,14 +632,14 @@ impl BasicBlockEnvShape {
                 )
             }
             (
-                ExprKind::Aggregate(_, flds1),
-                ExprKind::Aggregate(_, flds2),
+                ExprKind::Ctor(Ctor::Struct(_), flds1),
+                ExprKind::Ctor(Ctor::Struct(_), flds2),
                 Sort::App(SortCtor::Adt(sort_def), args),
             ) => {
-                let sorts = sort_def.field_sorts(args);
+                let sorts = sort_def.struct_variant().field_sorts(args);
                 debug_assert_eq3!(flds1.len(), flds2.len(), sorts.len());
 
-                Expr::adt(
+                Expr::ctor_struct(
                     sort_def.did(),
                     izip!(flds1, flds2, &sorts)
                         .map(|(f1, f2, sort)| self.join_idx(f1, f2, sort, bound_sorts))
@@ -635,7 +662,7 @@ impl BasicBlockEnvShape {
                     Expr::bvar(
                         INNERMOST,
                         BoundVar::from_usize(bound_sorts.len() - 1),
-                        BoundReftKind::Annon,
+                        BoundReftKind::Anon,
                     )
                 }
             }
@@ -645,7 +672,7 @@ impl BasicBlockEnvShape {
     fn join_bty(&self, bty1: &BaseTy, bty2: &BaseTy) -> BaseTy {
         match (bty1, bty2) {
             (BaseTy::Adt(def1, args1), BaseTy::Adt(def2, args2)) => {
-                debug_assert_eq!(def1.did(), def2.did());
+                tracked_span_dbg_assert_eq!(def1.did(), def2.did());
                 let args = iter::zip(args1, args2)
                     .map(|(arg1, arg2)| self.join_generic_arg(arg1, arg2))
                     .collect();
@@ -658,13 +685,13 @@ impl BasicBlockEnvShape {
                 BaseTy::Tuple(fields)
             }
             (BaseTy::Alias(kind1, alias_ty1), BaseTy::Alias(kind2, alias_ty2)) => {
-                debug_assert_eq!(kind1, kind2);
-                debug_assert_eq!(alias_ty1, alias_ty2);
+                tracked_span_dbg_assert_eq!(kind1, kind2);
+                tracked_span_dbg_assert_eq!(alias_ty1, alias_ty2);
                 BaseTy::Alias(*kind1, alias_ty1.clone())
             }
             (BaseTy::Ref(r1, ty1, mutbl1), BaseTy::Ref(r2, ty2, mutbl2)) => {
-                debug_assert_eq!(r1, r2);
-                debug_assert_eq!(mutbl1, mutbl2);
+                tracked_span_dbg_assert_eq!(r1, r2);
+                tracked_span_dbg_assert_eq!(mutbl1, mutbl2);
                 BaseTy::Ref(*r1, self.join_ty(ty1, ty2), *mutbl1)
             }
             (BaseTy::Array(ty1, len1), BaseTy::Array(ty2, len2)) => {
@@ -728,8 +755,11 @@ impl BasicBlockEnvShape {
                     .into_iter()
                     .filter(|pred| !matches!(pred.kind(), ExprKind::Hole(HoleKind::Pred)))
                     .collect_vec();
-                let kvar =
-                    infcx.fresh_kvar_in_scope(&[vars.clone()], &self.scope, KVarEncoding::Conj);
+                let kvar = infcx.fresh_kvar_in_scope(
+                    std::slice::from_ref(&vars),
+                    &self.scope,
+                    KVarEncoding::Conj,
+                );
                 constrs.push(kvar);
 
                 // Replace remaining holes by fresh kvars
@@ -775,7 +805,7 @@ impl BasicBlockEnv {
     ) -> TypeEnv<'a> {
         let data = self
             .data
-            .replace_bound_refts_with(|sort, _, _| infcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
         for constr in &data.constrs {
             infcx.assume_pred(constr);
         }
@@ -877,7 +907,7 @@ fn loc_info(loc: &Loc) -> LocInfo {
 fn loc_name(local_names: &UnordMap<Local, Symbol>, loc: &Loc) -> Option<String> {
     if let Loc::Local(local) = loc {
         let name = local_names.get(local)?;
-        return Some(format!("{}", name));
+        return Some(format!("{name}"));
     }
     None
 }
@@ -890,7 +920,7 @@ fn loc_span(
     if let Loc::Local(local) = loc {
         return local_decls
             .get(*local)
-            .map(|local_decl| SpanTrace::new(genv, local_decl.source_info.span));
+            .map(|local_decl| SpanTrace::new(genv.tcx(), local_decl.source_info.span));
     }
     None
 }
@@ -918,36 +948,5 @@ impl TypeEnvTrace {
             });
 
         TypeEnvTrace(bindings)
-    }
-}
-
-#[derive(Serialize, DebugAsJson)]
-pub struct SpanTrace {
-    file: Option<String>,
-    start_line: usize,
-    start_col: usize,
-    end_line: usize,
-    end_col: usize,
-}
-
-impl SpanTrace {
-    fn span_file(tcx: TyCtxt, span: Span) -> Option<String> {
-        let sm = tcx.sess.source_map();
-        let current_dir = &tcx.sess.opts.working_dir;
-        let current_dir = current_dir.local_path()?;
-        if let rustc_span::FileName::Real(file_name) = sm.span_to_filename(span) {
-            let file_path = file_name.local_path()?;
-            let full_path = current_dir.join(file_path);
-            Some(full_path.display().to_string())
-        } else {
-            None
-        }
-    }
-    pub fn new(genv: GlobalEnv, span: Span) -> Self {
-        let tcx = genv.tcx();
-        let sm = tcx.sess.source_map();
-        let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
-        let file = SpanTrace::span_file(tcx, span);
-        SpanTrace { file, start_line, start_col, end_line, end_col }
     }
 }

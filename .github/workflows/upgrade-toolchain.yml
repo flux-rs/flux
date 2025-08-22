@@ -1,0 +1,142 @@
+# Try to update the toolchain by gradually incrementing it. Stops when reaching a day that fails
+# regression tests or when reaching the end toolchain.
+
+name: upgrade-toolchain
+
+on:
+  workflow_dispatch:
+    inputs:
+      end_toolchain:
+        description:
+          "The last toolchain to consider (format: YYYY-MM-DD). If not specified, use the latest
+          available toolchain in rustup"
+        required: false
+        type: string
+      days_per_step:
+        description: "Number of days to increment per iteration (default: 1)"
+        required: false
+        type: number
+
+concurrency:
+  group: ${{ github.workflow }}
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    env:
+      prev_toolchain: ""
+      last_toolchain: ""
+      prev_toolchain_hash: ""
+      last_toolchain_hash: ""
+      git_log: ""
+    steps:
+      - name: Checkout flux
+        uses: actions/checkout@v4
+        with:
+          path: flux
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Cherry pick changes from open PR
+        run: |
+          set -eu
+          cd flux
+          existing_pr=$(gh pr list --base main --head toolchain-upgrade --state open --json number --jq '.[0].number' || true)
+          if [ -n "$existing_pr" ]; then
+            git fetch --unshallow origin main toolchain-upgrade
+            start=$(git merge-base main origin/toolchain-upgrade)
+            end=origin/toolchain-upgrade
+            git cherry-pick $start..$end
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout vtock
+        uses: actions/checkout@v4
+        with:
+          repository: PLSysSec/tock
+          path: tock
+
+      - name: Checkout rust
+        run: |
+          git clone --filter=tree:0 https://github.com/rust-lang/rust rust
+
+      - name: Install Z3
+        uses: cda-tum/setup-z3@v1.6.6
+        with:
+          version: 4.15.3
+
+      - name: Install Fixpoint
+        uses: ./flux/.github/actions/install-fixpoint
+
+      - name: Run update loop
+        id: update-loop
+        continue-on-error: true
+        run: |
+          days_per_step="${{ github.event.inputs.days_per_step }}"
+          if [ -z "$days_per_step" ]; then
+            days_per_step=1
+          fi
+          bash flux/.github/scripts/try-upgrade-toolchain.sh "${{ github.event.inputs.end_toolchain }}" "$days_per_step"
+
+      - run: |
+          cd flux
+          last_toolchain=$(grep ^channel rust-toolchain.toml | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
+          prev_toolchain=$(git show HEAD^:rust-toolchain.toml | grep ^channel | sed 's/.*nightly-\([0-9\-]*\)"/\1/')
+
+          echo "prev_toolchain=$prev_toolchain" >> $GITHUB_ENV
+          echo "last_toolchain=$last_toolchain" >> $GITHUB_ENV
+
+      - name: Create pull request on success
+        if: steps.update-loop.outcome == 'success'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: flux
+          branch: toolchain-upgrade
+          draft: true
+          delete-branch: true
+          title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
+          body: |
+            This is an automated PR to update the Rust toolchain to nightly-${{ env.last_toolchain }}
+
+      - name: Get git log for failure
+        if: steps.update-loop.outcome == 'failure'
+        run: |
+          prev_toolchain_hash=$(curl https://static.rust-lang.org/dist/$prev_toolchain/channel-rust-nightly-git-commit-hash.txt)
+          last_toolchain_hash=$(curl https://static.rust-lang.org/dist/$last_toolchain/channel-rust-nightly-git-commit-hash.txt)
+
+          echo "prev_toolchain_hash=$prev_toolchain_hash" >> $GITHUB_ENV
+          echo "last_toolchain_hash=$last_toolchain_hash" >> $GITHUB_ENV
+
+          cd rust
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "git_log<<$EOF" >> $GITHUB_ENV
+          ../flux/.github/scripts/extract-rust-git-log.sh $prev_toolchain_hash $last_toolchain_hash >> $GITHUB_ENV
+          echo "$EOF" >> $GITHUB_ENV
+
+      - name: Create pull request on failure
+        if: steps.update-loop.outcome == 'failure'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: flux
+          branch: toolchain-upgrade
+          draft: true
+          delete-branch: true
+          title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
+          body: |
+            This is an automated PR to update the Rust toolchain to nightly-${{ env.last_toolchain }}
+
+            Update failed when going from nightly-${{ env.prev_toolchain}} to nightly-${{ env.last_toolchain }}.
+            The failed automated run [can be found here.](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            Please review the changes from https://github.com/rust-lang/rust/commit/${{ env.prev_toolchain_hash }} up to https://github.com/rust-lang/rust/commit/${{ env.last_toolchain_hash }}
+            <details>
+            <summary>Log for this commit range</summary>
+
+            ${{ env.git_log }}
+
+            </details>

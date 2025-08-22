@@ -1,14 +1,7 @@
 #![allow(unused)]
 use std::{iter::Enumerate, slice::Iter};
 
-#[path = "../../lib/option.rs"]
-mod option;
-
-#[path = "../../lib/slice.rs"]
-mod slice;
-
-#[path = "../../lib/iter.rs"]
-mod iter;
+extern crate flux_core;
 
 #[flux::sig(fn(bool[true]))]
 pub fn assert(_b: bool) {}

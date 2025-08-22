@@ -112,7 +112,7 @@ where
 /// Note that a substitution for refinement parameters (a list of expressions) must always be
 /// specified, while the behavior of other generics parameters (types, lifetimes and consts) can be
 /// configured with [`GenericsSubstDelegate`].
-pub(crate) struct GenericsSubstFolder<'a, D> {
+pub struct GenericsSubstFolder<'a, D> {
     current_index: DebruijnIndex,
     delegate: D,
     refinement_args: &'a [Expr],
@@ -243,7 +243,7 @@ where
 }
 
 impl<'a, D> GenericsSubstFolder<'a, D> {
-    pub(crate) fn new(delegate: D, refine: &'a [Expr]) -> Self {
+    pub fn new(delegate: D, refine: &'a [Expr]) -> Self {
         Self { current_index: INNERMOST, delegate, refinement_args: refine }
     }
 }
@@ -296,11 +296,7 @@ impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D>
     }
 
     fn try_fold_region(&mut self, re: &Region) -> Result<Region, D::Error> {
-        if let ReEarlyParam(ebr) = *re {
-            Ok(self.delegate.region_for_param(ebr))
-        } else {
-            Ok(*re)
-        }
+        if let ReEarlyParam(ebr) = *re { Ok(self.delegate.region_for_param(ebr)) } else { Ok(*re) }
     }
 
     fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, D::Error> {

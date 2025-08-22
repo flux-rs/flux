@@ -3,9 +3,9 @@ use std::fmt::{self, Write};
 use itertools::Itertools;
 
 use crate::{
-    constraint::DEFAULT_QUALIFIERS, BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor,
-    DataDecl, DataField, Expr, FixpointFmt, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor,
-    Task, Types,
+    BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    constraint::DEFAULT_QUALIFIERS,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -45,6 +45,10 @@ impl<T: Types> fmt::Display for Task<T> {
 
         for cinfo in &self.constants {
             writeln!(f, "{cinfo}")?;
+        }
+
+        for fun_decl in &self.define_funs {
+            writeln!(f, "{fun_decl}")?;
         }
 
         for kvar in &self.kvars {
@@ -314,6 +318,12 @@ impl<T: Types> fmt::Display for Expr<T> {
                 let [e1, e2] = &**exprs;
                 write!(f, "({rel} {e1} {e2})")
             }
+            Expr::Let(name, exprs) => {
+                // Fixpoint only support one binder per let expressions, but it parses a singleton
+                // list of binders to be forward-compatible
+                let [e1, e2] = &**exprs;
+                write!(f, "(let (({} {e1})) {e2})", name.display())
+            }
         }
     }
 }
@@ -321,10 +331,17 @@ impl<T: Types> fmt::Display for Expr<T> {
 impl<T: Types> fmt::Display for Constant<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Numeral(i) => write!(f, "{}", i.display()),
+            Constant::Numeral(i) => write!(f, "{i}"),
             Constant::Decimal(r) => write!(f, "{}", r.display()),
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
+            Constant::BitVec(i, sz) => {
+                if sz.is_multiple_of(4) {
+                    write!(f, "(lit \"#x{i:00$x}\" (BitVec Size{sz}))", (sz / 4) as usize)
+                } else {
+                    write!(f, "(lit \"#b{i:00$x}\" (BitVec Size{sz}))", *sz as usize)
+                }
+            }
         }
     }
 }
@@ -340,6 +357,25 @@ impl<T: Types> fmt::Display for Qualifier<T> {
             }),
             self.body
         )
+    }
+}
+
+impl<T: Types> fmt::Display for FunDef<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "(define_fun {} ({}) {} ({}))",
+            self.name.display(),
+            self.args.iter().format_with(" ", |(name, sort), f| {
+                f(&format_args!("({} {sort})", name.display()))
+            }),
+            self.out,
+            self.body
+        )?;
+        if let Some(comment) = &self.comment {
+            write!(f, "  ;; {comment}")?;
+        }
+        Ok(())
     }
 }
 

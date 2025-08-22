@@ -8,3 +8,15 @@ struct S {
 enum E {
     A(i32), //~ ERROR missing variant
 }
+
+flux_rs::defs! {
+    fn test00() -> bool {
+        true <=> false <=> true //~ ERROR syntax error
+    }
+}
+
+flux_rs::defs! {
+    fn test01() -> bool {
+        0 < 1 < 2 //~ ERROR syntax error
+    }
+}

@@ -11,8 +11,8 @@ use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
     traits::{ImplSource, ObligationCause},
     ty::{
-        self as rustc_ty, adjustment as rustc_adjustment, GenericArgKind, ParamConst, ParamEnv,
-        TyCtxt, TypingMode, ValTree,
+        self as rustc_ty, GenericArgKind, ParamConst, ParamEnv, TyCtxt, TypingMode,
+        adjustment as rustc_adjustment,
     },
 };
 use rustc_span::{Span, Symbol};
@@ -20,9 +20,9 @@ use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
     mir::{
-        replicate_infer_ctxt, AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs,
-        CastKind, Constant, LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem,
-        PointerCast, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
+        AggregateKind, AssertKind, BasicBlockData, BinOp, Body, CallArgs, CastKind, Constant,
+        LocalDecl, NonDivergingIntrinsic, NullOp, Operand, Place, PlaceElem, PointerCast, Rvalue,
+        Statement, StatementKind, Terminator, TerminatorKind,
     },
     ty::{
         AdtDef, AdtDefData, AliasKind, Binder, BoundRegion, BoundVariableKind, Clause, ClauseKind,
@@ -34,7 +34,10 @@ use super::{
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
     mir::CallKind,
-    ty::{AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region},
+    ty::{
+        AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
+        RegionOutlivesPredicate,
+    },
 };
 
 pub trait Lower<'tcx> {
@@ -77,7 +80,7 @@ impl UnsupportedErr {
         UnsupportedErr { descr: reason.descr, span: None }
     }
 
-    fn with_span(mut self, span: Span) -> Self {
+    pub fn with_span(mut self, span: Span) -> Self {
         self.span = Some(span);
         self
     }
@@ -89,7 +92,7 @@ fn trait_ref_impl_id<'tcx>(
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    // let trait_ref = tcx.erase_regions(trait_ref);
+    let trait_ref = tcx.erase_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
@@ -104,7 +107,10 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
     let param_env = tcx.param_env(def_id);
-    let infcx = tcx.infer_ctxt().build(TypingMode::non_body_analysis());
+    let infcx = tcx
+        .infer_ctxt()
+        .with_next_trait_solver(true)
+        .build(TypingMode::non_body_analysis());
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
 
@@ -115,8 +121,8 @@ fn resolve_call_query<'tcx>(
     callee_id: DefId,
     args: rustc_middle::ty::GenericArgsRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let trait_id = tcx.trait_of_item(callee_id)?;
-    let trait_ref = rustc_ty::TraitRef::from_method(tcx, trait_id, args);
+    let trait_id = tcx.trait_of_assoc(callee_id)?;
+    let trait_ref = rustc_ty::TraitRef::from_assoc(tcx, trait_id, args);
     let (impl_def_id, impl_args) = trait_ref_impl_id(tcx, selcx, param_env, trait_ref)?;
     let impl_args = args.rebase_onto(tcx, trait_id, impl_args);
     let assoc_id = tcx.impl_item_implementor_ids(impl_def_id).get(&callee_id)?;
@@ -125,13 +131,23 @@ fn resolve_call_query<'tcx>(
 }
 
 impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
+    // We used to call `replicate_infer_ctxt` to compute the `infcx`
+    // which replicated the [`InferCtxt`] used for mir typeck
+    // by generating region variables for every region the body.
+    // HOWEVER,the rustc folks hid access to the region-variables
+    // so instead we have to take care to call `tcx.erase_regions(..)`
+    // before using the `infcx` or `SelectionContext` to do any queries
+    // (eg. see `get_impl_id_of_alias_reft` in projections.rs)
     pub fn lower_mir_body(
         tcx: TyCtxt<'tcx>,
         sess: &'sess FluxSession,
         def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
     ) -> Result<Body<'tcx>, ErrorGuaranteed> {
-        let infcx = replicate_infer_ctxt(tcx, def_id, &body_with_facts);
+        let infcx = tcx
+            .infer_ctxt()
+            .with_next_trait_solver(true)
+            .build(TypingMode::analysis_in_body(tcx, def_id));
         let param_env = tcx.param_env(body_with_facts.body.source.def_id());
         let selcx = SelectionContext::new(&infcx);
         let mut lower =
@@ -261,7 +277,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             | rustc_mir::StatementKind::Deinit(_)
             | rustc_mir::StatementKind::AscribeUserType(..)
             | rustc_mir::StatementKind::Coverage(_)
-            | rustc_mir::StatementKind::ConstEvalCounter => {
+            | rustc_mir::StatementKind::ConstEvalCounter
+            | rustc_mir::StatementKind::BackwardIncompatibleDropHint { .. } => {
                 return Err(errors::UnsupportedMir::from(stmt)).emit(self.sess);
             }
         };
@@ -435,8 +452,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::Ref(region, bk, p) => {
                 Ok(Rvalue::Ref(region.lower(self.tcx)?, *bk, lower_place(self.tcx, p)?))
             }
-            rustc_mir::Rvalue::RawPtr(mutbl, place) => {
-                Ok(Rvalue::RawPtr(*mutbl, lower_place(self.tcx, place)?))
+            rustc_mir::Rvalue::RawPtr(kind, place) => {
+                Ok(Rvalue::RawPtr(*kind, lower_place(self.tcx, place)?))
             }
             rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(self.tcx, place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
@@ -471,7 +488,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::ShallowInitBox(op, ty) => {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, ty.lower(self.tcx)?))
             }
-            rustc_mir::Rvalue::ThreadLocalRef(_) | rustc_mir::Rvalue::CopyForDeref(_) => {
+            rustc_mir::Rvalue::ThreadLocalRef(_)
+            | rustc_mir::Rvalue::CopyForDeref(_)
+            | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
             }
         }
@@ -493,7 +512,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Some(crate::mir::PointerCast::ReifyFnPointer)
             }
             rustc_adjustment::PointerCoercion::UnsafeFnPointer
-            | rustc_adjustment::PointerCoercion::DynStar
             | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
         }
     }
@@ -590,7 +608,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         match null_op {
             rustc_mir::NullOp::SizeOf => Ok(NullOp::SizeOf),
             rustc_mir::NullOp::AlignOf => Ok(NullOp::AlignOf),
-            rustc_mir::NullOp::OffsetOf(_) | rustc_mir::NullOp::UbChecks => {
+            rustc_mir::NullOp::OffsetOf(_)
+            | rustc_mir::NullOp::UbChecks
+            | rustc_mir::NullOp::ContractChecks => {
                 Err(UnsupportedReason::new(format!("unsupported nullary op `{null_op:?}`")))
             }
         }
@@ -609,7 +629,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         constant: &rustc_mir::ConstOperand<'tcx>,
     ) -> Result<Constant, UnsupportedReason> {
         use rustc_middle::ty::TyKind;
-        use rustc_mir::{interpret::Scalar, Const};
+        use rustc_mir::{Const, interpret::Scalar};
         let tcx = self.tcx;
         let const_ = constant.const_;
         let ty = constant.ty();
@@ -629,8 +649,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             }
             (Const::Ty(ty, c), _) => {
                 match c.kind() {
-                    rustc_ty::ConstKind::Value(ty, rustc_ty::ValTree::Leaf(scalar)) => {
-                        self.scalar_int_to_constant(scalar, ty)
+                    rustc_ty::ConstKind::Value(value) => {
+                        match &*value.valtree {
+                            rustc_ty::ValTreeKind::Leaf(scalar_int) => {
+                                self.scalar_int_to_constant(*scalar_int, value.ty)
+                            }
+                            rustc_ty::ValTreeKind::Branch(_) => None,
+                        }
                     }
                     rustc_ty::ConstKind::Param(param_const) => {
                         let ty = ty.lower(tcx)?;
@@ -648,15 +673,16 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                     }
                     // HACK(RJ) see tests/tests/pos/surface/const09.rs
                     // The const has `args` which makes it unevaluated...
+                    let typing_env = self.selcx.infcx.typing_env(self.param_env);
                     let const_ = constant
                         .const_
-                        .eval(tcx, ParamEnv::empty(), rustc_span::DUMMY_SP)
+                        .eval(tcx, typing_env, rustc_span::DUMMY_SP)
                         .map(|val| Const::Val(val, constant.const_.ty()))
                         .unwrap_or(constant.const_);
-                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_ {
-                        if let Some(constant) = self.scalar_int_to_constant(scalar, ty) {
-                            return Ok(constant);
-                        }
+                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_
+                        && let Some(constant) = self.scalar_int_to_constant(scalar, ty)
+                    {
+                        return Ok(constant);
                     }
                 }
                 Some(Constant::Opaque(ty.lower(tcx)?))
@@ -771,9 +797,9 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
     type R = crate::ty::ValTree;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
-        match self {
-            ValTree::Leaf(scalar_int) => crate::ty::ValTree::Leaf(scalar_int),
-            ValTree::Branch(trees) => {
+        match &*self {
+            rustc_ty::ValTreeKind::Leaf(scalar_int) => crate::ty::ValTree::Leaf(*scalar_int),
+            rustc_ty::ValTreeKind::Branch(trees) => {
                 let trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
                 crate::ty::ValTree::Branch(trees)
             }
@@ -789,8 +815,8 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Param(param_const) => {
                 ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
             }
-            rustc_type_ir::ConstKind::Value(ty, v) => {
-                ConstKind::Value(ty.lower(tcx)?, v.lower(tcx))
+            rustc_type_ir::ConstKind::Value(value) => {
+                ConstKind::Value(value.ty.lower(tcx)?, value.valtree.lower(tcx))
             }
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
@@ -883,6 +909,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
 
                 Ok(Ty::mk_dynamic(exi_preds, region))
             }
+            rustc_ty::Foreign(def_id) => Ok(Ty::mk_foreign(*def_id)),
             _ => Err(UnsupportedReason::new(format!("unsupported type `{self:?}`"))),
         }
     }
@@ -981,7 +1008,7 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::GenericArg<'tcx> {
     type R = Result<GenericArg, UnsupportedReason>;
 
     fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
-        match self.unpack() {
+        match self.kind() {
             GenericArgKind::Type(ty) => Ok(GenericArg::Ty(ty.lower(tcx)?)),
             GenericArgKind::Lifetime(region) => Ok(GenericArg::Lifetime(region.lower(tcx)?)),
             GenericArgKind::Const(c) => Ok(GenericArg::Const(c.lower(tcx)?)),
@@ -1091,6 +1118,9 @@ impl<'tcx> Lower<'tcx> for rustc_ty::ClauseKind<'tcx> {
                 let term = term.lower(tcx)?;
                 ClauseKind::Projection(ProjectionPredicate { projection_ty, term })
             }
+            rustc_ty::ClauseKind::RegionOutlives(outlives) => {
+                ClauseKind::RegionOutlives(outlives.lower(tcx)?)
+            }
             rustc_ty::ClauseKind::TypeOutlives(outlives) => {
                 ClauseKind::TypeOutlives(outlives.lower(tcx)?)
             }
@@ -1129,7 +1159,17 @@ impl<'tcx> Lower<'tcx> for rustc_ty::TypeOutlivesPredicate<'tcx> {
     }
 }
 
+impl<'tcx> Lower<'tcx> for rustc_ty::RegionOutlivesPredicate<'tcx> {
+    type R = Result<RegionOutlivesPredicate, UnsupportedReason>;
+
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
+        Ok(OutlivesPredicate(self.0.lower(tcx)?, self.1.lower(tcx)?))
+    }
+}
+
 mod errors {
+    use std::path::PathBuf;
+
     use flux_errors::E0999;
     use flux_macros::Diagnostic;
     use rustc_middle::mir as rustc_mir;
@@ -1166,7 +1206,7 @@ mod errors {
     }
 
     impl rustc_errors::IntoDiagArg for UnsupportedReason {
-        fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+        fn into_diag_arg(self, _path: &mut Option<PathBuf>) -> rustc_errors::DiagArgValue {
             rustc_errors::DiagArgValue::Str(std::borrow::Cow::Owned(self.descr))
         }
     }

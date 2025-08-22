@@ -13,7 +13,6 @@
 //! The name fhir is borrowed (pun intended) from rustc's hir to refer to something a bit lower
 //! than the surface syntax.
 
-pub mod lift;
 pub mod visit;
 
 use std::{borrow::Cow, fmt};
@@ -23,24 +22,24 @@ use flux_rustc_bridge::def_id_to_string;
 use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
 use itertools::Itertools;
+use rustc_abi;
+pub use rustc_abi::VariantIdx;
 use rustc_ast::TraitObjectSyntax;
 use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
 pub use rustc_hir::PrimTy;
 use rustc_hir::{
-    def::DefKind,
-    def_id::{DefId, LocalDefId},
     FnHeader, OwnerId, ParamName, Safety,
+    def::{DefKind, Namespace},
+    def_id::{DefId, LocalDefId},
 };
 use rustc_index::newtype_index;
-use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable};
 pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
-use rustc_span::{symbol::Ident, Span, Symbol};
-pub use rustc_target::abi::VariantIdx;
-use rustc_target::spec::abi;
+use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
-use crate::MaybeExternId;
+use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
 /// A boolean-like enum used to mark whether a piece of code is ignored.
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -60,11 +59,7 @@ impl Ignored {
 
 impl From<bool> for Ignored {
     fn from(value: bool) -> Self {
-        if value {
-            Ignored::Yes
-        } else {
-            Ignored::No
-        }
+        if value { Ignored::Yes } else { Ignored::No }
     }
 }
 
@@ -86,11 +81,7 @@ impl Trusted {
 
 impl From<bool> for Trusted {
     fn from(value: bool) -> Self {
-        if value {
-            Trusted::Yes
-        } else {
-            Trusted::No
-        }
+        if value { Trusted::Yes } else { Trusted::No }
     }
 }
 
@@ -98,7 +89,7 @@ impl From<bool> for Trusted {
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],
     pub refinement_params: &'fhir [RefineParam<'fhir>],
-    pub predicates: &'fhir [WhereBoundPredicate<'fhir>],
+    pub predicates: Option<&'fhir [WhereBoundPredicate<'fhir>]>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -117,7 +108,7 @@ pub enum GenericParamKind<'fhir> {
 
 #[derive(Debug)]
 pub struct Qualifier<'fhir> {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
     pub expr: Expr<'fhir>,
     pub global: bool,
@@ -129,7 +120,10 @@ pub enum Node<'fhir> {
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
     OpaqueTy(&'fhir OpaqueTy<'fhir>),
+    ForeignItem(&'fhir ForeignItem<'fhir>),
+    Ctor,
     AnonConst,
+    Expr,
 }
 
 impl<'fhir> Node<'fhir> {
@@ -138,17 +132,16 @@ impl<'fhir> Node<'fhir> {
             Node::Item(item) => Some(OwnerNode::Item(item)),
             Node::TraitItem(trait_item) => Some(OwnerNode::TraitItem(trait_item)),
             Node::ImplItem(impl_item) => Some(OwnerNode::ImplItem(impl_item)),
+            Node::ForeignItem(foreign_item) => Some(OwnerNode::ForeignItem(foreign_item)),
             Node::OpaqueTy(_) => None,
             Node::AnonConst => None,
+            Node::Expr => None,
+            Node::Ctor => None,
         }
     }
 
     pub fn expect_opaque_ty(&self) -> &'fhir OpaqueTy<'fhir> {
-        if let Node::OpaqueTy(opaque_ty) = &self {
-            opaque_ty
-        } else {
-            bug!("expected opaque type")
-        }
+        if let Node::OpaqueTy(opaque_ty) = &self { opaque_ty } else { bug!("expected opaque type") }
     }
 }
 
@@ -157,6 +150,7 @@ pub enum OwnerNode<'fhir> {
     Item(&'fhir Item<'fhir>),
     TraitItem(&'fhir TraitItem<'fhir>),
     ImplItem(&'fhir ImplItem<'fhir>),
+    ForeignItem(&'fhir ForeignItem<'fhir>),
 }
 
 impl<'fhir> OwnerNode<'fhir> {
@@ -164,7 +158,10 @@ impl<'fhir> OwnerNode<'fhir> {
         match self {
             OwnerNode::Item(Item { kind: ItemKind::Fn(fn_sig, ..), .. })
             | OwnerNode::TraitItem(TraitItem { kind: TraitItemKind::Fn(fn_sig), .. })
-            | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. }) => Some(fn_sig),
+            | OwnerNode::ImplItem(ImplItem { kind: ImplItemKind::Fn(fn_sig), .. })
+            | OwnerNode::ForeignItem(ForeignItem {
+                kind: ForeignItemKind::Fn(fn_sig, ..), ..
+            }) => Some(fn_sig),
             _ => None,
         }
     }
@@ -174,6 +171,11 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(item) => &item.generics,
             OwnerNode::TraitItem(trait_item) => &trait_item.generics,
             OwnerNode::ImplItem(impl_item) => &impl_item.generics,
+            OwnerNode::ForeignItem(foreign_item) => {
+                match foreign_item.kind {
+                    ForeignItemKind::Fn(_, generics) => generics,
+                }
+            }
         }
     }
 
@@ -182,6 +184,7 @@ impl<'fhir> OwnerNode<'fhir> {
             OwnerNode::Item(item) => item.owner_id,
             OwnerNode::TraitItem(trait_item) => trait_item.owner_id,
             OwnerNode::ImplItem(impl_item) => impl_item.owner_id,
+            OwnerNode::ForeignItem(foreign_item) => foreign_item.owner_id,
         }
     }
 }
@@ -195,11 +198,7 @@ pub struct Item<'fhir> {
 
 impl<'fhir> Item<'fhir> {
     pub fn expect_enum(&self) -> &EnumDef<'fhir> {
-        if let ItemKind::Enum(enum_def) = &self.kind {
-            enum_def
-        } else {
-            bug!("expected enum")
-        }
+        if let ItemKind::Enum(enum_def) = &self.kind { enum_def } else { bug!("expected enum") }
     }
 
     pub fn expect_struct(&self) -> &StructDef<'fhir> {
@@ -219,19 +218,11 @@ impl<'fhir> Item<'fhir> {
     }
 
     pub fn expect_impl(&self) -> &Impl<'fhir> {
-        if let ItemKind::Impl(impl_) = &self.kind {
-            impl_
-        } else {
-            bug!("expected impl")
-        }
+        if let ItemKind::Impl(impl_) = &self.kind { impl_ } else { bug!("expected impl") }
     }
 
     pub fn expect_trait(&self) -> &Trait<'fhir> {
-        if let ItemKind::Trait(trait_) = &self.kind {
-            trait_
-        } else {
-            bug!("expected trait")
-        }
+        if let ItemKind::Trait(trait_) = &self.kind { trait_ } else { bug!("expected trait") }
     }
 }
 
@@ -239,7 +230,7 @@ impl<'fhir> Item<'fhir> {
 pub enum ItemKind<'fhir> {
     Enum(EnumDef<'fhir>),
     Struct(StructDef<'fhir>),
-    TyAlias(TyAlias<'fhir>),
+    TyAlias(&'fhir TyAlias<'fhir>),
     Trait(Trait<'fhir>),
     Impl(Impl<'fhir>),
     Fn(FnSig<'fhir>),
@@ -274,19 +265,34 @@ pub enum ImplItemKind<'fhir> {
     Type,
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum FluxItem<'fhir> {
-    Qualifier(Qualifier<'fhir>),
-    Func(SpecFunc<'fhir>),
+    Qualifier(&'fhir Qualifier<'fhir>),
+    Func(&'fhir SpecFunc<'fhir>),
+    PrimOpProp(&'fhir PrimOpProp<'fhir>),
 }
 
 impl FluxItem<'_> {
-    pub fn name(&self) -> Symbol {
+    pub fn def_id(self) -> FluxLocalDefId {
         match self {
-            FluxItem::Qualifier(qual) => qual.name,
-            FluxItem::Func(func) => func.name,
+            FluxItem::Qualifier(qualifier) => qualifier.def_id,
+            FluxItem::Func(func) => func.def_id,
+            FluxItem::PrimOpProp(prop) => prop.def_id,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct ForeignItem<'fhir> {
+    pub ident: Ident,
+    pub kind: ForeignItemKind<'fhir>,
+    pub owner_id: MaybeExternId<OwnerId>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum ForeignItemKind<'fhir> {
+    Fn(FnSig<'fhir>, &'fhir Generics<'fhir>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -315,6 +321,8 @@ pub enum GenericBound<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct PolyTraitRef<'fhir> {
     pub bound_generic_params: &'fhir [GenericParam<'fhir>],
+    /// To represent binders for closures i.e. in Fn* traits; see tests/pos/surface/closure{07,08,09,10}.rs
+    pub refine_params: &'fhir [RefineParam<'fhir>],
     pub modifiers: TraitBoundModifier,
     pub trait_ref: Path<'fhir>,
     pub span: Span,
@@ -346,6 +354,7 @@ pub struct TraitAssocReft<'fhir> {
     pub output: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
     pub span: Span,
+    pub final_: bool,
 }
 
 #[derive(Debug)]
@@ -384,7 +393,7 @@ pub type Arena = bumpalo::Bump;
 /// We should eventually get rid of this or change its name.
 #[derive(Default)]
 pub struct FluxItems<'fhir> {
-    pub items: FxHashMap<Symbol, FluxItem<'fhir>>,
+    pub items: FxIndexMap<FluxLocalDefId, FluxItem<'fhir>>,
 }
 
 impl FluxItems<'_> {
@@ -398,15 +407,13 @@ pub struct TyAlias<'fhir> {
     pub index: Option<RefineParam<'fhir>>,
     pub ty: Ty<'fhir>,
     pub span: Span,
-    /// Whether this alias was [lifted] from a `hir` alias
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_type_alias
+    /// Whether this alias was lifted from a `hir` alias
     pub lifted: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructDef<'fhir> {
-    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub refinement: &'fhir RefinementKind<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub kind: StructKind<'fhir>,
     pub invariants: &'fhir [Expr<'fhir>],
@@ -421,15 +428,27 @@ pub enum StructKind<'fhir> {
 #[derive(Debug, Clone, Copy)]
 pub struct FieldDef<'fhir> {
     pub ty: Ty<'fhir>,
-    /// Whether this field was [lifted] from a `hir` field
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_field_def
+    /// Whether this field was lifted from a `hir` field
     pub lifted: bool,
 }
 
 #[derive(Debug)]
+pub enum RefinementKind<'fhir> {
+    /// User specified indices (e.g. length, elems, etc.)
+    Refined(RefinedBy<'fhir>),
+    /// Singleton refinements e.g. `State[On]`, `State[Off]`
+    Reflected,
+}
+
+impl RefinementKind<'_> {
+    pub fn is_reflected(&self) -> bool {
+        matches!(self, RefinementKind::Reflected)
+    }
+}
+
+#[derive(Debug)]
 pub struct EnumDef<'fhir> {
-    pub refined_by: &'fhir RefinedBy<'fhir>,
+    pub refinement: &'fhir RefinementKind<'fhir>,
     pub params: &'fhir [RefineParam<'fhir>],
     pub variants: &'fhir [VariantDef<'fhir>],
     pub invariants: &'fhir [Expr<'fhir>],
@@ -442,9 +461,7 @@ pub struct VariantDef<'fhir> {
     pub fields: &'fhir [FieldDef<'fhir>],
     pub ret: VariantRet<'fhir>,
     pub span: Span,
-    /// Whether this variant was [lifted] from a hir variant
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_enum_variant
+    /// Whether this variant was lifted from a hir variant
     pub lifted: bool,
 }
 
@@ -460,9 +477,7 @@ pub struct FnDecl<'fhir> {
     pub inputs: &'fhir [Ty<'fhir>],
     pub output: FnOutput<'fhir>,
     pub span: Span,
-    /// Whether the sig was [lifted] from a hir signature
-    ///
-    /// [lifted]: lift::LiftCtxt::lift_fn_decl
+    /// Whether the sig was lifted from a hir signature
     pub lifted: bool,
 }
 
@@ -478,7 +493,9 @@ pub struct Requires<'fhir> {
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
     //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [Ident],
+    pub qualifiers: &'fhir [FluxLocalDefId],
+    //// List of reveals for this function
+    pub reveals: &'fhir [FluxDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
@@ -529,14 +546,15 @@ pub enum TyKind<'fhir> {
     TraitObject(&'fhir [PolyTraitRef<'fhir>], Lifetime, TraitObjectSyntax),
     Never,
     Infer,
+    Err(ErrorGuaranteed),
 }
 
 pub struct BareFnTy<'fhir> {
     pub safety: Safety,
-    pub abi: abi::Abi,
+    pub abi: rustc_abi::ExternAbi,
     pub generic_params: &'fhir [GenericParam<'fhir>],
     pub decl: &'fhir FnDecl<'fhir>,
-    pub param_names: &'fhir [Ident],
+    pub param_idents: &'fhir [Option<Ident>],
 }
 
 #[derive(Clone, Copy)]
@@ -555,18 +573,10 @@ pub enum Lifetime {
     Resolved(ResolvedArg),
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum FluxLocalDefId {
-    /// An item without a corresponding Rust definition, e.g., a qualifier or an uninterpreted function
-    Flux(Symbol),
-    /// An item with a corresponding Rust definition, e.g., struct, enum, or function.
-    Rust(LocalDefId),
-}
-
 /// Owner version of [`FluxLocalDefId`]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, Encodable, Decodable)]
 pub enum FluxOwnerId {
-    Flux(Symbol),
+    Flux(FluxLocalDefId),
     Rust(OwnerId),
 }
 
@@ -624,6 +634,7 @@ impl<'fhir> BaseTy<'fhir> {
 pub enum BaseTyKind<'fhir> {
     Path(QPath<'fhir>),
     Slice(&'fhir Ty<'fhir>),
+    Err(ErrorGuaranteed),
 }
 
 #[derive(Clone, Copy)]
@@ -671,15 +682,12 @@ pub enum GenericArg<'fhir> {
     Lifetime(Lifetime),
     Type(&'fhir Ty<'fhir>),
     Const(ConstArg),
+    Infer,
 }
 
 impl<'fhir> GenericArg<'fhir> {
     pub fn expect_type(&self) -> &'fhir Ty<'fhir> {
-        if let GenericArg::Type(ty) = self {
-            ty
-        } else {
-            bug!("expected `GenericArg::Type`")
-        }
+        if let GenericArg::Type(ty) = self { ty } else { bug!("expected `GenericArg::Type`") }
     }
 }
 
@@ -696,19 +704,38 @@ pub enum ConstArgKind {
     Infer,
 }
 
+/// The resolution of a path
+///
+/// The enum contains a subset of the variants in [`rustc_hir::def::Res`] plus some extra variants
+/// for extra resolutions found in refinements.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum Res {
+pub enum Res<Id = !> {
+    /// See [`rustc_hir::def::Res::Def`]
     Def(DefKind, DefId),
+    /// See [`rustc_hir::def::Res::PrimTy`]
     PrimTy(PrimTy),
-    SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
-    SelfTyParam { trait_: DefId },
+    /// See [`rustc_hir::def::Res::SelfTyAlias`]
+    SelfTyAlias {
+        alias_to: DefId,
+        is_trait_impl: bool,
+    },
+    /// See [`rustc_hir::def::Res::SelfTyParam`]
+    SelfTyParam {
+        trait_: DefId,
+    },
+    /// A refinement parameter, e.g., declared with `@n` syntax
+    Param(ParamKind, Id),
+    /// A refinement function defined with `defs!`
+    GlobalFunc(SpecFuncKind),
+    /// A hack used to resolve `u32::MAX` ans similar.
+    NumConst(i128),
     Err,
 }
 
 /// See [`rustc_hir::def::PartialRes`]
 #[derive(Copy, Clone, Debug)]
 pub struct PartialRes {
-    base_res: Res,
+    base_res: Res<!>,
     unresolved_segments: usize,
 }
 
@@ -741,7 +768,7 @@ impl PartialRes {
     }
 
     pub fn is_box(&self, tcx: TyCtxt) -> bool {
-        self.full_res().map_or(false, |res| res.is_box(tcx))
+        self.full_res().is_some_and(|res| res.is_box(tcx))
     }
 }
 
@@ -821,16 +848,20 @@ impl InferMode {
 pub enum PrimSort {
     Int,
     Bool,
+    Char,
     Real,
     Set,
     Map,
+    Str,
 }
 
 impl PrimSort {
     pub fn name_str(self) -> &'static str {
         match self {
             PrimSort::Int => "int",
+            PrimSort::Str => "str",
             PrimSort::Bool => "bool",
+            PrimSort::Char => "char",
             PrimSort::Real => "real",
             PrimSort::Set => "Set",
             PrimSort::Map => "Map",
@@ -840,9 +871,7 @@ impl PrimSort {
     /// Number of generics expected by this primitive sort
     pub fn generics(self) -> usize {
         match self {
-            PrimSort::Int => 0,
-            PrimSort::Bool => 0,
-            PrimSort::Real => 0,
+            PrimSort::Int | PrimSort::Bool | PrimSort::Real | PrimSort::Char | PrimSort::Str => 0,
             PrimSort::Set => 1,
             PrimSort::Map => 2,
         }
@@ -888,11 +917,15 @@ pub enum Sort<'fhir> {
     /// The sort of a location parameter introduced with the `x: &strg T` syntax.
     Loc,
     /// A bit vector with the given width.
-    BitVec(usize),
+    BitVec(u32),
     /// A polymorphic sort function.
     Func(PolyFuncSort<'fhir>),
+    /// The sort associated with a base type. This is normalized into a concrete sort during
+    /// conversion
+    SortOf(BaseTy<'fhir>),
     /// A sort that needs to be inferred.
     Infer,
+    Err(ErrorGuaranteed),
 }
 
 /// See [`flux_syntax::surface::SortPath`]
@@ -927,7 +960,7 @@ impl<'fhir> PolyFuncSort<'fhir> {
 pub struct AliasReft<'fhir> {
     pub qself: &'fhir Ty<'fhir>,
     pub path: Path<'fhir>,
-    pub name: Symbol,
+    pub name: Ident,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -952,25 +985,48 @@ pub struct Expr<'fhir> {
     pub span: Span,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
+pub enum QuantKind {
+    Forall,
+    Exists,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Encodable, Decodable)]
+pub struct Range {
+    pub start: usize,
+    pub end: usize,
+}
+
 #[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
     Var(PathExpr<'fhir>, Option<ParamKind>),
-    Dot(PathExpr<'fhir>, Ident),
+    Dot(&'fhir Expr<'fhir>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     UnaryOp(UnOp, &'fhir Expr<'fhir>),
     App(PathExpr<'fhir>, &'fhir [Expr<'fhir>]),
+    /// UIF application representing a primitive operation, e.g. `[<<](x, y)`
+    PrimApp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Alias(AliasReft<'fhir>, &'fhir [Expr<'fhir>]),
     IfThenElse(&'fhir Expr<'fhir>, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
+    BoundedQuant(QuantKind, RefineParam<'fhir>, Range, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
+    Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
+    Err(ErrorGuaranteed),
+}
+
+#[derive(Clone, Copy)]
+pub struct LetDecl<'fhir> {
+    pub param: RefineParam<'fhir>,
+    pub init: Expr<'fhir>,
 }
 
 impl Expr<'_> {
     pub fn is_colon_param(&self) -> Option<ParamId> {
         if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
-            && let ExprRes::Param(kind, id) = path.res
+            && let Res::Param(kind, id) = path.res
         {
             debug_assert_eq!(kind, ParamKind::Colon);
             Some(id)
@@ -981,52 +1037,23 @@ impl Expr<'_> {
 }
 
 #[derive(Clone, Copy)]
+pub enum NumLitKind {
+    Int,
+    Real,
+}
+
+#[derive(Clone, Copy)]
 pub enum Lit {
-    Int(i128),
-    Real(i128),
+    Int(u128, Option<NumLitKind>),
     Bool(bool),
     Str(Symbol),
     Char(char),
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum ExprRes<Id = ParamId> {
-    Param(ParamKind, Id),
-    Const(DefId),
-    /// The constructor of an [adt sort]
-    ///
-    /// [adt sort]: SortRes::Adt
-    Ctor(DefId),
-    ConstGeneric(DefId),
-    NumConst(i128),
-    GlobalFunc(SpecFuncKind, Symbol),
-}
-
-impl<Id> ExprRes<Id> {
-    pub fn map_param_id<R>(self, f: impl FnOnce(Id) -> R) -> ExprRes<R> {
-        match self {
-            ExprRes::Param(kind, param_id) => ExprRes::Param(kind, f(param_id)),
-            ExprRes::Const(def_id) => ExprRes::Const(def_id),
-            ExprRes::NumConst(val) => ExprRes::NumConst(val),
-            ExprRes::GlobalFunc(kind, name) => ExprRes::GlobalFunc(kind, name),
-            ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
-            ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
-        }
-    }
-
-    pub fn expect_param(self) -> (ParamKind, Id) {
-        if let ExprRes::Param(kind, id) = self {
-            (kind, id)
-        } else {
-            bug!("expected param")
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct PathExpr<'fhir> {
     pub segments: &'fhir [Ident],
-    pub res: ExprRes,
+    pub res: Res<ParamId>,
     pub fhir_id: FhirId,
     pub span: Span,
 }
@@ -1047,21 +1074,6 @@ impl PolyTraitRef<'_> {
     }
 }
 
-impl From<FluxOwnerId> for FluxLocalDefId {
-    fn from(flux_id: FluxOwnerId) -> Self {
-        match flux_id {
-            FluxOwnerId::Flux(sym) => FluxLocalDefId::Flux(sym),
-            FluxOwnerId::Rust(owner_id) => FluxLocalDefId::Rust(owner_id.def_id),
-        }
-    }
-}
-
-impl From<LocalDefId> for FluxLocalDefId {
-    fn from(def_id: LocalDefId) -> Self {
-        FluxLocalDefId::Rust(def_id)
-    }
-}
-
 impl From<OwnerId> for FluxOwnerId {
     fn from(owner_id: OwnerId) -> Self {
         FluxOwnerId::Rust(owner_id)
@@ -1077,12 +1089,15 @@ impl<'fhir> Ty<'fhir> {
     }
 }
 
-impl Res {
+impl<Id> Res<Id> {
     pub fn descr(&self) -> &'static str {
         match self {
             Res::PrimTy(_) => "builtin type",
             Res::Def(kind, def_id) => kind.descr(*def_id),
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
+            Res::Param(..) => "refinement parameter",
+            Res::GlobalFunc(..) => "refinement function",
+            Res::NumConst(_) => "numeric constant",
             Res::Err => "unresolved item",
         }
     }
@@ -1094,12 +1109,48 @@ impl Res {
             false
         }
     }
+
+    /// Returns `None` if this is `Res::Err`
+    pub fn ns(&self) -> Option<Namespace> {
+        match self {
+            Res::Def(kind, ..) => kind.ns(),
+            Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
+                Some(Namespace::TypeNS)
+            }
+            Res::Param(..) | Res::GlobalFunc(..) | Res::NumConst(..) => Some(Namespace::ValueNS),
+            Res::Err => None,
+        }
+    }
+
+    /// Always returns `true` if `self` is `Res::Err`
+    pub fn matches_ns(&self, ns: Namespace) -> bool {
+        self.ns().is_none_or(|actual_ns| actual_ns == ns)
+    }
+
+    pub fn map_param_id<R>(self, f: impl FnOnce(Id) -> R) -> Res<R> {
+        match self {
+            Res::Param(kind, param_id) => Res::Param(kind, f(param_id)),
+            Res::Def(def_kind, def_id) => Res::Def(def_kind, def_id),
+            Res::PrimTy(prim_ty) => Res::PrimTy(prim_ty),
+            Res::SelfTyAlias { alias_to, is_trait_impl } => {
+                Res::SelfTyAlias { alias_to, is_trait_impl }
+            }
+            Res::SelfTyParam { trait_ } => Res::SelfTyParam { trait_ },
+            Res::GlobalFunc(spec_func_kind) => Res::GlobalFunc(spec_func_kind),
+            Res::NumConst(val) => Res::NumConst(val),
+            Res::Err => Res::Err,
+        }
+    }
+
+    pub fn expect_param(self) -> (ParamKind, Id) {
+        if let Res::Param(kind, id) = self { (kind, id) } else { bug!("expected param") }
+    }
 }
 
-impl<Id> TryFrom<rustc_hir::def::Res<Id>> for Res {
+impl<Id1, Id2> TryFrom<rustc_hir::def::Res<Id1>> for Res<Id2> {
     type Error = ();
 
-    fn try_from(res: rustc_hir::def::Res<Id>) -> Result<Self, Self::Error> {
+    fn try_from(res: rustc_hir::def::Res<Id1>) -> Result<Self, Self::Error> {
         match res {
             rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
             rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),
@@ -1140,31 +1191,52 @@ pub struct RefinedBy<'fhir> {
     /// we implicitly create a data sort of the form `forall #0. { keys: Set<#0> }`, where `#0` is a
     /// *sort variable*.
     ///
-    /// The [`FxIndexSet`] is used to track a mapping between sort varriables and their corresponding
+    /// This [`FxIndexSet`] is used to track a mapping between sort variables and their corresponding
     /// type parameter. The [`DefId`] is the id of the type parameter and its index in the set is the
     /// position of the sort variable.
     pub sort_params: FxIndexSet<DefId>,
-    /// Fields indexed by their name and in the same order they appear in the definition.
+    /// Fields indexed by their name in the same order they appear in the `#[refined_by(..)]` annotation.
     pub fields: FxIndexMap<Symbol, Sort<'fhir>>,
 }
 
 #[derive(Debug)]
 pub struct SpecFunc<'fhir> {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub params: usize,
     pub args: &'fhir [RefineParam<'fhir>],
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
+    pub hide: bool,
+    pub ident_span: Span,
+}
+#[derive(Debug)]
+pub struct PrimOpProp<'fhir> {
+    pub def_id: FluxLocalDefId,
+    pub op: BinOp,
+    pub args: &'fhir [RefineParam<'fhir>],
+    pub body: Expr<'fhir>,
+    pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, TyEncodable, TyDecodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SpecFuncKind {
-    /// Theory symbols "interpreted" by the SMT solver: `Symbol` is Fixpoint's name for the operation e.g. `set_cup` for flux's `set_union`
-    Thy(Symbol),
+    /// Theory symbols *interpreted* by the SMT solver
+    Thy(liquid_fixpoint::ThyFunc),
     /// User-defined uninterpreted functions with no definition
-    Uif,
+    Uif(FluxDefId),
     /// User-defined functions with a body definition
-    Def,
+    Def(FluxDefId),
+    /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
+    Cast,
+}
+
+impl SpecFuncKind {
+    pub fn def_id(&self) -> Option<FluxDefId> {
+        match self {
+            SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) => Some(*flux_id),
+            _ => None,
+        }
+    }
 }
 
 impl<'fhir> Generics<'fhir> {
@@ -1173,10 +1245,6 @@ impl<'fhir> Generics<'fhir> {
             .iter()
             .find(|p| p.def_id.local_id() == def_id)
             .unwrap()
-    }
-
-    pub fn trivial() -> Self {
-        Generics { params: &[], refinement_params: &[], predicates: &[] }
     }
 }
 
@@ -1197,23 +1265,23 @@ impl<'fhir> From<PolyFuncSort<'fhir>> for Sort<'fhir> {
 }
 
 impl FuncSort<'_> {
-    pub fn inputs(&self) -> &[Sort] {
+    pub fn inputs(&self) -> &[Sort<'_>] {
         &self.inputs_and_output[..self.inputs_and_output.len() - 1]
     }
 
-    pub fn output(&self) -> &Sort {
+    pub fn output(&self) -> &Sort<'_> {
         &self.inputs_and_output[self.inputs_and_output.len() - 1]
     }
 }
 
 impl rustc_errors::IntoDiagArg for Ty<'_> {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
 impl rustc_errors::IntoDiagArg for Path<'_> {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
@@ -1323,6 +1391,7 @@ impl fmt::Debug for Ty<'_> {
             TyKind::TraitObject(poly_traits, _lft, _syntax) => {
                 write!(f, "dyn {poly_traits:?}")
             }
+            TyKind::Err(_) => write!(f, "err"),
         }
     }
 }
@@ -1362,7 +1431,7 @@ impl fmt::Debug for ConstArgKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstArgKind::Lit(n) => write!(f, "{n}"),
-            ConstArgKind::Param(p) => write!(f, "{:?}", p),
+            ConstArgKind::Param(p) => write!(f, "{p:?}"),
             ConstArgKind::Infer => write!(f, "_"),
         }
     }
@@ -1373,6 +1442,7 @@ impl fmt::Debug for BaseTy<'_> {
         match &self.kind {
             BaseTyKind::Path(qpath) => write!(f, "{qpath:?}"),
             BaseTyKind::Slice(ty) => write!(f, "[{ty:?}]"),
+            BaseTyKind::Err(_) => write!(f, "err"),
         }
     }
 }
@@ -1418,6 +1488,7 @@ impl fmt::Debug for GenericArg<'_> {
             GenericArg::Type(ty) => write!(f, "{ty:?}"),
             GenericArg::Lifetime(lft) => write!(f, "{lft:?}"),
             GenericArg::Const(cst) => write!(f, "{cst:?}"),
+            GenericArg::Infer => write!(f, "_"),
         }
     }
 }
@@ -1438,11 +1509,21 @@ impl fmt::Debug for AliasReft<'_> {
     }
 }
 
+impl fmt::Debug for QuantKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QuantKind::Forall => write!(f, "∀"),
+            QuantKind::Exists => write!(f, "∃"),
+        }
+    }
+}
+
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.kind {
+        match self.kind {
             ExprKind::Var(x, ..) => write!(f, "{x:?}"),
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
+            ExprKind::PrimApp(op, e1, e2) => write!(f, "[{op:?}]({e1:?}, {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),
             ExprKind::Literal(lit) => write!(f, "{lit:?}"),
             ExprKind::App(uf, es) => write!(f, "{uf:?}({:?})", es.iter().format(", ")),
@@ -1478,6 +1559,16 @@ impl fmt::Debug for Expr<'_> {
                     write!(f, "{{ {:?} }}", exprs.iter().format(", "))
                 }
             }
+            ExprKind::BoundedQuant(kind, refine_param, rng, expr) => {
+                write!(f, "{kind:?} {refine_param:?} in {}.. {} {{ {expr:?} }}", rng.start, rng.end)
+            }
+            ExprKind::Err(_) => write!(f, "err"),
+            ExprKind::Block(decls, body) => {
+                for decl in decls {
+                    write!(f, "let {:?} = {:?};", decl.param, decl.init)?;
+                }
+                write!(f, "{body:?}")
+            }
         }
     }
 }
@@ -1491,8 +1582,8 @@ impl fmt::Debug for PathExpr<'_> {
 impl fmt::Debug for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Lit::Int(i) => write!(f, "{i}"),
-            Lit::Real(r) => write!(f, "{r}real"),
+            Lit::Int(i, Some(NumLitKind::Real)) => write!(f, "{i}real"),
+            Lit::Int(i, _) => write!(f, "{i}"),
             Lit::Bool(b) => write!(f, "{b}"),
             Lit::Str(s) => write!(f, "\"{s:?}\""),
             Lit::Char(c) => write!(f, "\'{c}\'"),
@@ -1507,7 +1598,9 @@ impl fmt::Debug for Sort<'_> {
             Sort::BitVec(w) => write!(f, "bitvec({w})"),
             Sort::Loc => write!(f, "loc"),
             Sort::Func(fsort) => write!(f, "{fsort:?}"),
+            Sort::SortOf(bty) => write!(f, "<{bty:?}>::sort"),
             Sort::Infer => write!(f, "_"),
+            Sort::Err(_) => write!(f, "err"),
         }
     }
 }
@@ -1528,9 +1621,11 @@ impl fmt::Debug for SortRes {
             SortRes::PrimSort(PrimSort::Bool) => write!(f, "bool"),
             SortRes::PrimSort(PrimSort::Int) => write!(f, "int"),
             SortRes::PrimSort(PrimSort::Real) => write!(f, "real"),
+            SortRes::PrimSort(PrimSort::Char) => write!(f, "char"),
+            SortRes::PrimSort(PrimSort::Str) => write!(f, "str"),
             SortRes::PrimSort(PrimSort::Set) => write!(f, "Set"),
             SortRes::PrimSort(PrimSort::Map) => write!(f, "Map"),
-            SortRes::SortParam(n) => write!(f, "@{}", n),
+            SortRes::SortParam(n) => write!(f, "@{n}"),
             SortRes::TyParam(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
             SortRes::SelfParam { trait_id } => {
                 write!(f, "{}::Self::sort", def_id_to_string(*trait_id))

@@ -1,23 +1,23 @@
 use std::{collections::hash_map::Entry, fmt, iter};
 
-use flux_common::{tracked_span_assert_eq, tracked_span_bug};
+use flux_common::{tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_middle::{
-    def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty, PlaceExt as _,
+    PlaceExt as _, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty,
 };
 use flux_rustc_bridge::{
     mir::{
-        BasicBlock, Body, BorrowKind, FieldIdx, Local, Location, NonDivergingIntrinsic, Operand,
-        Place, PlaceElem, PlaceRef, Rvalue, Statement, StatementKind, Terminator, TerminatorKind,
-        VariantIdx, FIRST_VARIANT,
+        BasicBlock, Body, BorrowKind, FIRST_VARIANT, FieldIdx, Local, Location,
+        NonDivergingIntrinsic, Operand, Place, PlaceElem, PlaceRef, Rvalue, Statement,
+        StatementKind, Terminator, TerminatorKind, UnOp, VariantIdx,
     },
     ty::{AdtDef, GenericArgs, GenericArgsExt as _, List, Mutability, Ty, TyKind},
 };
-use itertools::{repeat_n, Itertools};
+use itertools::{Itertools, repeat_n};
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
-use rustc_index::{bit_set::BitSet, Idx, IndexVec};
-use rustc_middle::mir::START_BLOCK;
+use rustc_index::{Idx, IndexVec, bit_set::DenseBitSet};
+use rustc_middle::mir::{FakeReadCause, START_BLOCK};
 
 use super::{GhostStatements, StatementsAt};
 use crate::{
@@ -102,9 +102,9 @@ impl Env {
         Ok(modified)
     }
 
-    fn collect_fold_unfolds_at_goto(&self, other: &Env, stmts: &mut StatementsAt) {
+    fn collect_fold_unfolds_at_goto(&self, target: &Env, stmts: &mut StatementsAt) {
         for (local, node) in self.map.iter_enumerated() {
-            node.collect_fold_unfolds(&other.map[local], &mut Place::new(local, vec![]), stmts);
+            node.collect_fold_unfolds(&target.map[local], &mut Place::new(local, vec![]), stmts);
         }
     }
 
@@ -121,7 +121,7 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     body: &'a Body<'tcx>,
     bb_envs: &'a mut FxHashMap<BasicBlock, Env>,
-    visited: BitSet<BasicBlock>,
+    visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'a>,
     discriminants: UnordMap<Place, Place>,
     point: Point,
@@ -129,7 +129,7 @@ struct FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
 }
 
 trait Mode: Sized {
-    const NAME: &'static str;
+    const _NAME: &'static str;
 
     fn projection(
         analysis: &mut FoldUnfoldAnalysis<Self>,
@@ -166,7 +166,7 @@ enum ProjResult<'a> {
 }
 
 impl Mode for Infer {
-    const NAME: &'static str = "infer";
+    const _NAME: &'static str = "infer";
 
     fn projection(
         analysis: &mut FoldUnfoldAnalysis<Self>,
@@ -196,7 +196,7 @@ impl Mode for Infer {
 }
 
 impl Mode for Elaboration<'_> {
-    const NAME: &'static str = "elaboration";
+    const _NAME: &'static str = "elaboration";
 
     fn projection(
         analysis: &mut FoldUnfoldAnalysis<Self>,
@@ -293,8 +293,19 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
 
     fn statement(&mut self, stmt: &Statement, env: &mut Env) -> QueryResult {
         match &stmt.kind {
+            StatementKind::FakeRead(box (FakeReadCause::ForIndex, place)) => {
+                M::projection(self, env, place)?;
+            }
             StatementKind::Assign(place, rvalue) => {
                 match rvalue {
+                    Rvalue::Len(place) => {
+                        M::projection(self, env, place)?;
+                    }
+                    Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
+                    | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
+                        let deref_place = place.deref();
+                        M::projection(self, env, &deref_place)?;
+                    }
                     Rvalue::Use(op)
                     | Rvalue::Cast(_, op, _)
                     | Rvalue::UnaryOp(_, op)
@@ -319,9 +330,7 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
                             self.operand(arg, env)?;
                         }
                     }
-                    Rvalue::Len(place) => {
-                        M::projection(self, env, place)?;
-                    }
+
                     Rvalue::Discriminant(discr) => {
                         M::projection(self, env, discr)?;
                         self.discriminants.insert(place.clone(), discr.clone());
@@ -469,7 +478,7 @@ impl<'a, 'genv, 'tcx, M> FoldUnfoldAnalysis<'a, 'genv, 'tcx, M> {
             bb_envs,
             discriminants: Default::default(),
             point: Point::FunEntry,
-            visited: BitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
             queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
             mode,
         }
@@ -674,8 +683,14 @@ impl PlaceNode {
         Ok((modified1, modified2))
     }
 
-    fn collect_fold_unfolds(&self, other: &PlaceNode, place: &mut Place, stmts: &mut StatementsAt) {
-        let (fields1, fields2) = match (self, other) {
+    /// Collect necessary fold/unfold operations such that `self` is unfolded at the same level than `target`
+    fn collect_fold_unfolds(
+        &self,
+        target: &PlaceNode,
+        place: &mut Place,
+        stmts: &mut StatementsAt,
+    ) {
+        let (fields1, fields2) = match (self, target) {
             (PlaceNode::Deref(_, node1), PlaceNode::Deref(_, node2)) => {
                 place.projection.push(PlaceElem::Deref);
                 node1.collect_fold_unfolds(node2, place, stmts);
@@ -691,23 +706,20 @@ impl PlaceNode {
                 PlaceNode::Downcast(adt1, .., idx1, fields1),
                 PlaceNode::Downcast(adt2, .., idx2, fields2),
             ) => {
-                debug_assert_eq!(adt1.did(), adt2.did());
-                if idx1 == idx2 {
-                    (fields1, fields2)
-                } else {
-                    tracked_span_bug!();
-                }
+                tracked_span_dbg_assert_eq!(adt1.did(), adt2.did());
+                tracked_span_dbg_assert_eq!(idx1, idx2);
+                (fields1, fields2)
             }
             (PlaceNode::Ty(_), PlaceNode::Ty(_)) => return,
             (PlaceNode::Ty(_), _) => {
-                other.collect_unfolds(place, stmts);
+                target.collect_unfolds(place, stmts);
                 return;
             }
             (_, PlaceNode::Ty(_)) => {
                 stmts.insert(GhostStatement::Fold(place.clone()));
                 return;
             }
-            _ => tracked_span_bug!("{self:?} {other:?}"),
+            _ => tracked_span_bug!("{self:?} {target:?}"),
         };
         for (i, (node1, node2)) in iter::zip(fields1, fields2).enumerate() {
             place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
@@ -716,43 +728,40 @@ impl PlaceNode {
         }
     }
 
-    fn collect_unfolds(&self, place: &mut Place, stmts: &mut StatementsAt) -> bool {
-        let fields = match self {
-            PlaceNode::Ty(_) => {
-                return true;
-            }
+    fn collect_unfolds(&self, place: &mut Place, stmts: &mut StatementsAt) {
+        match self {
+            PlaceNode::Ty(_) => {}
             PlaceNode::Deref(_, node) => {
-                place.projection.push(PlaceElem::Deref);
-                node.collect_unfolds(place, stmts);
-                place.projection.pop();
-                return false;
-            }
-            PlaceNode::Downcast(adt, _, idx, fields) => {
-                if adt.is_enum() {
-                    place.projection.push(PlaceElem::Downcast(None, *idx));
+                if node.is_ty() {
+                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                } else {
+                    place.projection.push(PlaceElem::Deref);
+                    node.collect_unfolds(place, stmts);
+                    place.projection.pop();
                 }
-                fields
             }
-            PlaceNode::Closure(_, _, fields)
-            | PlaceNode::Generator(_, _, fields)
-            | PlaceNode::Tuple(_, fields) => fields,
-        };
-        let mut all_leaves = true;
-        for (i, node) in fields.iter().enumerate() {
-            place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
-            all_leaves &= node.collect_unfolds(place, stmts);
-            place.projection.pop();
+            PlaceNode::Downcast(.., fields)
+            | PlaceNode::Closure(.., fields)
+            | PlaceNode::Generator(.., fields)
+            | PlaceNode::Tuple(.., fields) => {
+                let all_leaves = fields.iter().all(PlaceNode::is_ty);
+                if all_leaves {
+                    stmts.insert(GhostStatement::Unfold(place.clone()));
+                } else {
+                    if let Some(idx) = self.enum_variant() {
+                        place.projection.push(PlaceElem::Downcast(None, idx));
+                    }
+                    for (i, node) in fields.iter().enumerate() {
+                        place.projection.push(PlaceElem::Field(FieldIdx::new(i)));
+                        node.collect_unfolds(place, stmts);
+                        place.projection.pop();
+                    }
+                    if self.enum_variant().is_some() {
+                        place.projection.pop();
+                    }
+                }
+            }
         }
-        if all_leaves {
-            stmts.insert(GhostStatement::Unfold(place.clone()));
-        }
-        if let PlaceNode::Downcast(adt, ..) = self
-            && adt.is_enum()
-        {
-            place.projection.pop();
-        }
-
-        true
     }
 
     fn collect_folds_at_ret(&self, place: &mut Place, stmts: &mut StatementsAt) {
@@ -788,6 +797,24 @@ impl PlaceNode {
         {
             place.projection.pop();
         }
+    }
+
+    fn enum_variant(&self) -> Option<VariantIdx> {
+        if let PlaceNode::Downcast(adt, _, idx, _) = self
+            && adt.is_enum()
+        {
+            Some(*idx)
+        } else {
+            None
+        }
+    }
+
+    /// Returns `true` if the place node is [`Ty`].
+    ///
+    /// [`Ty`]: PlaceNode::Ty
+    #[must_use]
+    fn is_ty(&self) -> bool {
+        matches!(self, Self::Ty(..))
     }
 }
 

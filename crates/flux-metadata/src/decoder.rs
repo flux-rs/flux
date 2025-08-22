@@ -11,17 +11,16 @@ use rustc_data_structures::sync::HashMapExt;
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     implement_ty_decoder,
-    ty::{self, TyCtxt},
+    ty::{self, TyCtxt, codec::TyDecoder},
 };
-use rustc_serialize::{opaque::MemDecoder, Decodable, Decoder as _};
+use rustc_serialize::{Decodable, Decoder as _, opaque::MemDecoder};
 use rustc_session::StableCrateId;
 use rustc_span::{
+    BytePos, ByteSymbol, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
-    BytePos, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
 };
-use rustc_type_ir::TyDecoder;
 
-use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREINTERNED, SYMBOL_STR};
+use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR};
 
 struct DecodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -112,21 +111,23 @@ impl SpanDecoder for DecodeContext<'_, '_> {
                     Symbol::intern(s)
                 })
             }
-            SYMBOL_PREINTERNED => {
+            SYMBOL_PREDEFINED => {
                 let symbol_index = self.read_u32();
-                Symbol::new_from_decoded(symbol_index)
+                Symbol::new(symbol_index)
             }
             _ => unreachable!(),
         }
     }
+
+    fn decode_byte_symbol(&mut self) -> ByteSymbol {
+        ByteSymbol::intern(self.read_byte_str())
+    }
 }
 
-impl<'tcx> TyDecoder for DecodeContext<'_, 'tcx> {
-    type I = TyCtxt<'tcx>;
-
+impl<'tcx> TyDecoder<'tcx> for DecodeContext<'_, 'tcx> {
     const CLEAR_CROSS_CRATE: bool = true;
 
-    fn interner(&self) -> Self::I {
+    fn interner(&self) -> TyCtxt<'tcx> {
         self.tcx
     }
 

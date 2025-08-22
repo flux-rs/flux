@@ -1,13 +1,12 @@
 pub mod visit;
-
-use std::fmt;
+use std::{borrow::Cow, fmt, ops::Range};
 
 pub use rustc_ast::{
-    token::{Lit, LitKind},
     Mutability,
+    token::{Lit, LitKind},
 };
-pub use rustc_span::symbol::Ident;
-use rustc_span::Span;
+pub use rustc_span::{Span, symbol::Ident};
+use rustc_span::{Symbol, symbol::sym};
 
 use crate::surface::visit::Visitor;
 
@@ -28,10 +27,22 @@ pub struct SortDecl {
 }
 
 #[derive(Debug)]
-pub enum Item {
+pub enum FluxItem {
     Qualifier(Qualifier),
     FuncDef(SpecFunc),
     SortDecl(SortDecl),
+    PrimOpProp(PrimOpProp),
+}
+
+impl FluxItem {
+    pub fn name(&self) -> Ident {
+        match self {
+            FluxItem::Qualifier(qualifier) => qualifier.name,
+            FluxItem::FuncDef(spec_func) => spec_func.name,
+            FluxItem::SortDecl(sort_decl) => sort_decl.name,
+            FluxItem::PrimOpProp(primop_prop) => primop_prop.name,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -53,26 +64,38 @@ pub struct SpecFunc {
     pub output: Sort,
     /// Body of the function. If not present this definition corresponds to an uninterpreted function.
     pub body: Option<Expr>,
+    /// Is this function "hidden" i.e. to be considered
+    /// as uninterpreted by default (only makes sense if `body` is_some ...)
+    /// as otherwise it is *always* uninterpreted.
+    pub hide: bool,
+}
+
+/// A (currently global) *primop property*; see tests/tests/pos/surface/
+#[derive(Debug)]
+pub struct PrimOpProp {
+    /// The name of the property
+    pub name: Ident,
+    /// The binop it is attached to
+    pub op: BinOp,
+    /// The sort _at_ which the primop is defined,
+    /// The binders for the inputs of the primop; the output sort is always `Bool`
+    pub params: RefineParams,
+    /// The actual definition of the property
+    pub body: Expr,
+    pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct Generics {
     pub params: Vec<GenericParam>,
-    pub predicates: Vec<WhereBoundPredicate>,
+    pub predicates: Option<Vec<WhereBoundPredicate>>,
     pub span: Span,
 }
 
 #[derive(Debug)]
 pub struct GenericParam {
     pub name: Ident,
-    pub kind: GenericParamKind,
     pub node_id: NodeId,
-}
-
-#[derive(Debug)]
-pub enum GenericParamKind {
-    Type,
-    Base,
 }
 
 #[derive(Debug)]
@@ -87,6 +110,64 @@ pub struct TyAlias {
 }
 
 #[derive(Debug)]
+pub struct DetachedSpecs {
+    pub items: Vec<Item>,
+}
+
+#[derive(Debug)]
+pub struct DetachedTraitImpl {
+    pub trait_: ExprPath,
+    pub items: Vec<Item<FnSpec>>,
+    pub refts: Vec<ImplAssocReft>,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub struct DetachedTrait {
+    pub items: Vec<Item<FnSpec>>,
+    pub refts: Vec<TraitAssocReft>,
+}
+
+#[derive(Debug)]
+pub struct DetachedInherentImpl {
+    pub items: Vec<Item<FnSpec>>,
+    pub span: Span,
+}
+
+impl DetachedInherentImpl {
+    pub fn extend(&mut self, other: DetachedInherentImpl) {
+        self.items.extend(other.items);
+    }
+}
+
+#[derive(Debug)]
+pub struct Item<K = ItemKind> {
+    pub path: ExprPath,
+    pub kind: K,
+}
+
+impl Item<ItemKind> {
+    pub fn span(&self) -> Span {
+        match &self.kind {
+            ItemKind::InherentImpl(impl_) => impl_.span,
+            ItemKind::TraitImpl(trait_impl) => trait_impl.span,
+            _ => self.path.span,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ItemKind {
+    FnSig(FnSpec),
+    Mod(DetachedSpecs),
+    Struct(StructDef),
+    Enum(EnumDef),
+    InherentImpl(DetachedInherentImpl),
+    TraitImpl(DetachedTraitImpl),
+    Trait(DetachedTrait),
+}
+
+#[derive(Debug)]
 pub struct ConstantInfo {
     pub expr: Option<Expr>,
 }
@@ -98,13 +179,20 @@ pub struct StructDef {
     pub fields: Vec<Option<Ty>>,
     pub opaque: bool,
     pub invariants: Vec<Expr>,
-    pub node_id: NodeId,
 }
 
 impl StructDef {
     /// Whether the struct contains any path that needs to be resolved.
     pub fn needs_resolving(&self) -> bool {
         self.fields.iter().any(Option::is_some)
+    }
+
+    /// Is a non-trivial StructDef
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.opaque
+            || self.fields.iter().any(Option::is_some)
     }
 }
 
@@ -114,7 +202,7 @@ pub struct EnumDef {
     pub refined_by: Option<RefineParams>,
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
-    pub node_id: NodeId,
+    pub reflected: bool,
 }
 
 impl EnumDef {
@@ -122,10 +210,18 @@ impl EnumDef {
     pub fn needs_resolving(&self) -> bool {
         self.variants.iter().any(Option::is_some)
     }
+
+    pub fn is_nontrivial(&self) -> bool {
+        self.refined_by.is_some()
+            || !self.invariants.is_empty()
+            || self.reflected
+            || self.variants.iter().any(Option::is_some)
+    }
 }
 
 #[derive(Debug)]
 pub struct VariantDef {
+    pub ident: Option<Ident>,
     pub fields: Vec<Ty>,
     pub ret: Option<VariantRet>,
     pub node_id: NodeId,
@@ -144,6 +240,11 @@ pub type RefineParams = Vec<RefineParam>;
 
 #[derive(Debug, Default)]
 pub struct QualNames {
+    pub names: Vec<Ident>,
+}
+
+#[derive(Debug, Default)]
+pub struct RevealNames {
     pub names: Vec<Ident>,
 }
 
@@ -176,7 +277,8 @@ pub enum Sort {
 #[derive(Debug)]
 pub enum BaseSort {
     /// a bitvector sort, e.g., bitvec<32>
-    BitVec(usize),
+    BitVec(u32),
+    SortOf(Box<Ty>, Path),
     Path(SortPath),
 }
 
@@ -196,6 +298,12 @@ pub struct Impl {
     pub assoc_refinements: Vec<ImplAssocReft>,
 }
 
+impl Impl {
+    pub fn is_nontrivial(&self) -> bool {
+        self.generics.is_some() || !self.assoc_refinements.is_empty()
+    }
+}
+
 #[derive(Debug)]
 pub struct ImplAssocReft {
     pub name: Ident,
@@ -205,11 +313,17 @@ pub struct ImplAssocReft {
     pub span: Span,
 }
 
+#[derive(Debug)]
 pub struct Trait {
     pub generics: Option<Generics>,
     pub assoc_refinements: Vec<TraitAssocReft>,
 }
 
+impl Trait {
+    pub fn is_nontrivial(&self) -> bool {
+        self.generics.is_some() || !self.assoc_refinements.is_empty()
+    }
+}
 #[derive(Debug)]
 pub struct TraitAssocReft {
     pub name: Ident,
@@ -217,12 +331,15 @@ pub struct TraitAssocReft {
     pub output: BaseSort,
     pub body: Option<Expr>,
     pub span: Span,
+    pub final_: bool,
 }
 
 #[derive(Debug)]
 pub struct FnSpec {
     pub fn_sig: Option<FnSig>,
     pub qual_names: Option<QualNames>,
+    pub reveal_names: Option<RevealNames>,
+    pub trusted: bool,
 }
 
 #[derive(Debug)]
@@ -268,7 +385,7 @@ pub enum Ensures {
 #[derive(Debug)]
 pub enum FnRetTy {
     Default(Span),
-    Ty(Ty),
+    Ty(Box<Ty>),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -289,6 +406,23 @@ pub type GenericBounds = Vec<TraitRef>;
 #[derive(Debug)]
 pub struct TraitRef {
     pub path: Path,
+    pub node_id: NodeId,
+}
+
+impl TraitRef {
+    fn is_fn_trait_name(name: Symbol) -> bool {
+        name == sym::FnOnce || name == sym::FnMut || name == sym::Fn
+    }
+
+    pub fn as_fn_trait_ref(&self) -> Option<(&GenericArg, &GenericArg)> {
+        if let [segment] = self.path.segments.as_slice()
+            && Self::is_fn_trait_name(segment.ident.name)
+            && let [in_arg, out_arg] = segment.args.as_slice()
+        {
+            return Some((in_arg, out_arg));
+        }
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -307,14 +441,6 @@ pub struct Ty {
     pub kind: TyKind,
     pub node_id: NodeId,
     pub span: Span,
-}
-
-/// `<qself as path>::name`
-#[derive(Debug)]
-pub struct AliasReft {
-    pub qself: Box<Ty>,
-    pub path: Path,
-    pub name: Ident,
 }
 
 #[derive(Debug)]
@@ -377,6 +503,18 @@ impl Ty {
         vis.visit_ty(self);
         vis.is_refined
     }
+
+    pub fn is_potential_const_arg(&self) -> Option<&Path> {
+        if let TyKind::Base(bty) = &self.kind
+            && let BaseTyKind::Path(None, path) = &bty.kind
+            && let [segment] = &path.segments[..]
+            && segment.args.is_empty()
+        {
+            Some(path)
+        } else {
+            None
+        }
+    }
 }
 #[derive(Debug)]
 pub struct BaseTy {
@@ -420,6 +558,48 @@ pub enum RefineArg {
 pub enum BindKind {
     At,
     Pound,
+}
+
+#[derive(Debug)]
+pub enum Attr {
+    /// A `#[trusted]` attribute
+    Trusted,
+    /// A `#[hide]` attribute
+    Hide,
+    /// A `#[reft]` attribute
+    Reft,
+    /// A `#[invariant]` attribute
+    Invariant(Expr),
+    /// A `#[refined_by]` attribute
+    RefinedBy(RefineParams),
+}
+
+pub struct Attrs(pub Vec<Attr>);
+
+impl Attrs {
+    pub fn is_reft(&self) -> bool {
+        self.0.iter().any(|attr| matches!(attr, Attr::Reft))
+    }
+
+    pub fn is_trusted(&self) -> bool {
+        self.0.iter().any(|attr| matches!(attr, Attr::Trusted))
+    }
+
+    pub fn refined_by(&mut self) -> Option<RefineParams> {
+        let pos = self
+            .0
+            .iter()
+            .position(|x| matches!(x, Attr::RefinedBy(_)))?;
+        if let Attr::RefinedBy(params) = self.0.remove(pos) { Some(params) } else { None }
+    }
+
+    pub fn invariant(&mut self) -> Option<Expr> {
+        let pos = self
+            .0
+            .iter()
+            .position(|x| matches!(x, Attr::Invariant(_)))?;
+        if let Attr::Invariant(exp) = self.0.remove(pos) { Some(exp) } else { None }
+    }
 }
 
 #[derive(Debug)]
@@ -486,16 +666,33 @@ pub struct Expr {
 }
 
 #[derive(Debug)]
+pub enum QuantKind {
+    Forall,
+    Exists,
+}
+
+#[derive(Debug)]
 pub enum ExprKind {
     Path(ExprPath),
-    Dot(ExprPath, Ident),
+    Dot(Box<Expr>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, Box<[Expr; 2]>),
     UnaryOp(UnOp, Box<Expr>),
-    App(Ident, Vec<Expr>),
-    Alias(AliasReft, Vec<Expr>),
+    Call(Box<Expr>, Vec<Expr>),
+    /// A UIF representing a PrimOp expression, e.g. `[<<](x, y)`
+    PrimUIF(BinOp),
+    /// `<qself as path>::name`
+    AssocReft(Box<Ty>, Path, Ident),
     IfThenElse(Box<[Expr; 3]>),
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
+    BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
+    Block(Vec<LetDecl>, Box<Expr>),
+}
+
+#[derive(Debug)]
+pub struct LetDecl {
+    pub param: RefineParam,
+    pub init: Expr,
 }
 
 /// A [`Path`] but for refinement expressions
@@ -511,8 +708,7 @@ pub struct ExprPathSegment {
     pub ident: Ident,
     pub node_id: NodeId,
 }
-
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub enum BinOp {
     Iff,
     Imp,
@@ -529,6 +725,10 @@ pub enum BinOp {
     Mul,
     Div,
     Mod,
+    BitAnd,
+    BitOr,
+    BitShl,
+    BitShr,
 }
 
 impl fmt::Debug for BinOp {
@@ -549,7 +749,17 @@ impl fmt::Debug for BinOp {
             BinOp::Mod => write!(f, "mod"),
             BinOp::Mul => write!(f, "*"),
             BinOp::Div => write!(f, "/"),
+            BinOp::BitAnd => write!(f, "&"),
+            BinOp::BitOr => write!(f, "|"),
+            BinOp::BitShl => write!(f, "<<"),
+            BinOp::BitShr => write!(f, ">>"),
         }
+    }
+}
+
+impl rustc_errors::IntoDiagArg for BinOp {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
+        rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 

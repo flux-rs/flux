@@ -12,7 +12,7 @@ pub trait IterExt: Iterator {
         self.collect()
     }
 
-    fn collect_errors<T, E, C>(self, collector: &mut C) -> CollectErrors<Self, C>
+    fn collect_errors<T, E, C>(self, collector: &mut C) -> CollectErrors<'_, Self, C>
     where
         Self: Iterator<Item = Result<T, E>> + Sized,
         C: ErrorCollector<E>,
@@ -50,7 +50,7 @@ pub trait IterExt: Iterator {
         }
     }
 
-    fn map_take_while<F, R>(&mut self, f: F) -> MapTakeWhile<Self, F>
+    fn map_take_while<F, R>(&mut self, f: F) -> MapTakeWhile<'_, Self, F>
     where
         Self: Clone,
         F: FnMut(&Self::Item) -> Option<R>,

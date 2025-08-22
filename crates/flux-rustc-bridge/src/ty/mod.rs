@@ -5,23 +5,23 @@ mod subst;
 use std::fmt;
 
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
 use itertools::Itertools;
-use rustc_hir::{def_id::DefId, Safety};
+use rustc_abi;
+pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
+use rustc_hir::{Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec};
-use rustc_macros::{extension, TyDecodable, TyEncodable};
+use rustc_macros::{TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
         BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
-        ParamTy, RegionVid, ScalarInt, UintTy,
+        LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
 };
-use rustc_span::{symbol::kw, Symbol};
-pub use rustc_target::abi::{FieldIdx, VariantIdx, FIRST_VARIANT};
-use rustc_target::spec::abi;
+use rustc_span::Symbol;
 pub use rustc_type_ir::InferConst;
 
 use self::subst::Subst;
@@ -92,6 +92,7 @@ pub struct Clause {
 pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
 }
@@ -100,6 +101,7 @@ pub enum ClauseKind {
 pub struct OutlivesPredicate<T>(pub T, pub Region);
 
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
+pub type RegionOutlivesPredicate = OutlivesPredicate<Region>;
 
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub struct TraitPredicate {
@@ -128,11 +130,32 @@ pub struct ProjectionPredicate {
 #[derive(Clone, Hash, PartialEq, Eq, TyEncodable, TyDecodable)]
 pub struct FnSig {
     pub safety: Safety,
-    pub abi: abi::Abi,
+    pub abi: rustc_abi::ExternAbi,
     pub(crate) inputs_and_output: List<Ty>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
+
+impl PolyFnSig {
+    pub fn unpack_closure_sig(&self) -> Self {
+        let vars = self.vars().clone();
+        let fn_sig = self.skip_binder_ref();
+        let [input] = &fn_sig.inputs() else {
+            bug!("closure signature should have at least two values");
+        };
+        let fn_sig = FnSig {
+            safety: fn_sig.safety,
+            abi: fn_sig.abi,
+            inputs_and_output: input
+                .tuple_fields()
+                .iter()
+                .cloned()
+                .chain([fn_sig.output().clone()])
+                .collect(),
+        };
+        Binder::bind_with_vars(fn_sig, vars)
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct Ty(Interned<TyS>);
@@ -207,6 +230,7 @@ pub enum TyKind {
     Alias(AliasKind, AliasTy),
     RawPtr(Ty, Mutability),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
+    Foreign(DefId),
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -241,7 +265,7 @@ pub struct AliasTy {
 pub enum AliasKind {
     Projection,
     Opaque,
-    Weak,
+    Free,
 }
 
 impl<'tcx> ToRustc<'tcx> for AliasKind {
@@ -252,7 +276,7 @@ impl<'tcx> ToRustc<'tcx> for AliasKind {
         match self {
             AliasKind::Opaque => ty::AliasTyKind::Opaque,
             AliasKind::Projection => ty::AliasTyKind::Projection,
-            AliasKind::Weak => ty::AliasTyKind::Weak,
+            AliasKind::Free => ty::AliasTyKind::Free,
         }
     }
 }
@@ -287,12 +311,10 @@ impl<'tcx> ToRustc<'tcx> for ValTree {
 
     fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
         match self {
-            ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::Leaf(*scalar),
+            ValTree::Leaf(scalar) => rustc_middle::ty::ValTree::from_scalar_int(tcx, *scalar),
             ValTree::Branch(trees) => {
-                let trees = tcx
-                    .arena
-                    .alloc_from_iter(trees.iter().map(|tree| tree.to_rustc(tcx)));
-                rustc_middle::ty::ValTree::Branch(trees)
+                let trees = trees.iter().map(|tree| tree.to_rustc(tcx));
+                rustc_middle::ty::ValTree::from_branches(tcx, trees)
             }
         }
     }
@@ -305,7 +327,8 @@ impl<'tcx> ToRustc<'tcx> for Const {
         let kind = match &self.kind {
             ConstKind::Param(param_const) => rustc_ty::ConstKind::Param(*param_const),
             ConstKind::Value(ty, val) => {
-                rustc_ty::ConstKind::Value(ty.to_rustc(tcx), val.to_rustc(tcx))
+                let val = rustc_ty::Value { ty: ty.to_rustc(tcx), valtree: val.to_rustc(tcx) };
+                rustc_ty::ConstKind::Value(val)
             }
             ConstKind::Infer(infer_const) => rustc_ty::ConstKind::Infer(*infer_const),
             ConstKind::Unevaluated(uneval_const) => {
@@ -383,10 +406,10 @@ pub struct ClosureArgsParts<'a, T> {
 #[derive(Debug)]
 pub struct CoroutineArgsParts<'a> {
     pub parent_args: &'a [GenericArg],
+    pub kind_ty: &'a Ty,
     pub resume_ty: &'a Ty,
     pub yield_ty: &'a Ty,
     pub return_ty: &'a Ty,
-    pub witness: &'a Ty,
     pub tupled_upvars_ty: &'a Ty,
 }
 
@@ -411,18 +434,12 @@ impl<'tcx> ToRustc<'tcx> for Region {
             Region::ReEarlyParam(epr) => rustc_middle::ty::Region::new_early_param(tcx, epr),
             Region::ReStatic => tcx.lifetimes.re_static,
             Region::ReVar(rvid) => rustc_middle::ty::Region::new_var(tcx, rvid),
-            Region::ReLateParam(LateParamRegion { scope, bound_region }) => {
-                rustc_middle::ty::Region::new_late_param(tcx, scope, bound_region)
+            Region::ReLateParam(LateParamRegion { scope, kind }) => {
+                rustc_middle::ty::Region::new_late_param(tcx, scope, kind)
             }
             Region::ReErased => tcx.lifetimes.re_erased,
         }
     }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-pub struct LateParamRegion {
-    pub scope: DefId,
-    pub bound_region: BoundRegionKind,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable)]
@@ -567,15 +584,15 @@ impl CoroutineArgs {
         self.split().resume_ty
     }
 
-    fn split(&self) -> CoroutineArgsParts {
+    fn split(&self) -> CoroutineArgsParts<'_> {
         match &self.args[..] {
-            [ref parent_args @ .., resume_ty, yield_ty, return_ty, witness, tupled_upvars_ty] => {
+            [parent_args @ .., kind_ty, resume_ty, yield_ty, return_ty, tupled_upvars_ty] => {
                 CoroutineArgsParts {
                     parent_args,
+                    kind_ty: kind_ty.expect_type(),
                     resume_ty: resume_ty.expect_type(),
                     yield_ty: yield_ty.expect_type(),
                     return_ty: return_ty.expect_type(),
-                    witness: witness.expect_type(),
                     tupled_upvars_ty: tupled_upvars_ty.expect_type(),
                 }
             }
@@ -593,7 +610,7 @@ impl ClosureArgs {
         self.tupled_upvars_ty().tuple_fields()
     }
 
-    pub fn split(&self) -> ClosureArgsParts<GenericArg> {
+    pub fn split(&self) -> ClosureArgsParts<'_, GenericArg> {
         match &self.args[..] {
             [parent_args @ .., closure_kind_ty, closure_sig_as_fn_ptr_ty, tupled_upvars_ty] => {
                 ClosureArgsParts {
@@ -605,6 +622,14 @@ impl ClosureArgs {
             }
             _ => bug!("closure args missing synthetics"),
         }
+    }
+
+    pub fn sig_as_fn_ptr_ty(&self) -> &Ty {
+        self.split().closure_sig_as_fn_ptr_ty.expect_type()
+    }
+
+    pub fn kind_ty(&self) -> &Ty {
+        self.split().closure_kind_ty.expect_type()
     }
 }
 
@@ -785,6 +810,10 @@ impl Ty {
         TyKind::Char.intern()
     }
 
+    pub fn mk_foreign(def_id: DefId) -> Ty {
+        TyKind::Foreign(def_id).intern()
+    }
+
     pub fn deref(&self) -> Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),
@@ -894,6 +923,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Str => tcx.types.str_,
             TyKind::Char => tcx.types.char,
             TyKind::Never => tcx.types.never,
+            TyKind::Foreign(def_id) => rustc_ty::Ty::new_foreign(tcx, *def_id),
             TyKind::Float(float_ty) => rustc_ty::Ty::new_float(tcx, *float_ty),
             TyKind::Int(int_ty) => rustc_ty::Ty::new_int(tcx, *int_ty),
             TyKind::Uint(uint_ty) => rustc_ty::Ty::new_uint(tcx, *uint_ty),
@@ -1020,10 +1050,7 @@ impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind() {
             TyKind::Adt(adt_def, args) => {
-                let adt_name = rustc_middle::ty::tls::with(|tcx| {
-                    let path = tcx.def_path(adt_def.did());
-                    path.data.iter().join("::")
-                });
+                let adt_name = rustc_middle::ty::tls::with(|tcx| tcx.def_path_str(adt_def.did()));
                 write!(f, "{adt_name}")?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;
@@ -1096,6 +1123,9 @@ impl fmt::Debug for Ty {
             TyKind::Dynamic(preds, r) => {
                 write!(f, "dyn {:?} + {r:?}", preds.iter().format(", "))
             }
+            TyKind::Foreign(def_id) => {
+                write!(f, "Foreign {def_id:?}")
+            }
         }
     }
 }
@@ -1122,17 +1152,14 @@ impl fmt::Debug for Const {
 
 pub fn region_to_string(region: Region) -> String {
     match region {
-        Region::ReBound(_, region) => {
+        Region::ReBound(debruijn, region) => {
             match region.kind {
-                BoundRegionKind::BrAnon => "'<annon>".to_string(),
-                BoundRegionKind::BrNamed(_, sym) => {
-                    if sym == kw::UnderscoreLifetime {
-                        format!("{sym}{:?}", region.var)
-                    } else {
-                        format!("{sym}")
-                    }
+                BoundRegionKind::Anon => "'<annon>".to_string(),
+                BoundRegionKind::Named(_) => {
+                    format!("{debruijn:?}{region:?}")
                 }
-                BoundRegionKind::BrEnv => "'<env>".to_string(),
+                BoundRegionKind::ClosureEnv => "'<env>".to_string(),
+                BoundRegionKind::NamedAnon(sym) => format!("{sym}"),
             }
         }
         Region::ReEarlyParam(region) => region.name.to_string(),

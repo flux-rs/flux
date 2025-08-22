@@ -10,7 +10,6 @@ pub struct RSet<T> {
 
 // TODO: (RJ) I get some odd error with `T as spl` / cannot refine if I just remove this annotation!
 // error: internal compiler error: crates/flux-middle/src/rty/subst.rs:353:30: expected base type for generic parameter, found `∃int. { i32[^0#0] | * }`
-#[flux::generics(T as base)]
 impl<T> RSet<T> {
     #[flux::trusted]
     #[flux::sig(fn() -> RSet<T>[set_empty(0)])]
@@ -38,7 +37,7 @@ impl<T> RSet<T> {
     }
 
     #[flux::trusted]
-    pub fn iter(self: &Self) -> std::collections::hash_set::Iter<T> {
+    pub fn iter(self: &Self) -> std::collections::hash_set::Iter<'_, T> {
         self.inner.iter()
     }
 }

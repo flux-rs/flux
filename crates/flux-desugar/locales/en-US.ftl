@@ -10,19 +10,8 @@ desugar_int_too_large =
 desugar_unexpected_literal =
     unexpected literal
 
-desugar_invalid_dot_var =
-    unsupported field access in refinement
-
 desugar_invalid_constructor_path =
     invalid use of path in constructor
-
-desugar_invalid_func_as_var =
-    invalid use of function
-    .label = function not supported in this position
-
-desugar_invalid_func =
-    invalid name in function position
-    .label = expected a function or parameter
 
 desugar_invalid_loc =
     expected an `&strg` parameter
@@ -38,11 +27,25 @@ desugar_unresolved_generic_param =
 desugar_invalid_variant_ret =
     invalid variant return type
 
-desugar_multiple_spreads_in_constructor = 
+desugar_invalid_reflected_variant =
+    reflected types cannot have refinement annotations
+
+desugar_multiple_spreads_in_constructor =
     multiple spreads found in constructor
     .help = previous spread found here. consider removing it
 
+desugar_unsupported_position =
+   expression not allowed in this position
+
+desugar_final_assoc_without_body =
+    final associated refinements must have a body
+
 # Resolve errors
+
+desugar_duplicate_definition =
+    the name `{$name}` is defined multiple times
+    .label = `{$name}` redefined here
+    .previous_definition = previous definition of `{$name}`
 
 desugar_duplicate_param =
     the name `{$name}` is already used as a parameter
@@ -55,7 +58,6 @@ desugar_unsupported_signature =
 
 desugar_unresolved_path =
     cannot resolve `{$path}`
-    .help = flux can only resolve a path if it is present in the definition being refined
 
 desugar_unresolved_var =
     cannot find value `{$var}` in this scope
@@ -72,3 +74,20 @@ desugar_invalid_unrefined_param =
 desugar_illegal_binder =
     illegal binder
     .label = `{$kind}` binder not allowed in this position
+
+desugar_unknown_qualifier =
+    unknown qualifier
+
+desugar_unknown_reveal_definition =
+    unknown function definition
+
+desugar_unsupported_const_generic_arg =
+    `{$res_descr}` not supported in this position
+    .label =  help: try using `_` instead
+
+# Lifting Errors
+
+desugar_unsupported_hir =
+    refinement of unsupported {$def_kind}
+    .label = this {$def_kind} contains unsupported features
+    .note = {$note}

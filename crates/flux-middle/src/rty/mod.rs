@@ -4,63 +4,67 @@
 //!
 //! * Types in this module use debruijn indices to represent local binders.
 //! * Data structures are interned so they can be cheaply cloned.
-
 mod binder;
 pub mod canonicalize;
 mod expr;
 pub mod fold;
-pub(crate) mod normalize;
+pub mod normalize;
 mod pretty;
-pub mod projections;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;
-use std::{borrow::Cow, cmp::Ordering, hash::Hash, sync::LazyLock};
+use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
+pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 pub use expr::{
-    AggregateKind, AliasReft, BinOp, BoundReft, Constant, ESpan, EVid, EarlyReftParam, Expr,
-    ExprKind, FieldProj, HoleKind, KVar, KVid, Lambda, Loc, Name, Path, Real, UnOp, Var,
+    AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
+    ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
+    SpecFuncKind, UnOp, Var,
 };
 pub use flux_arc_interner::List;
-use flux_arc_interner::{impl_internable, impl_slice_internable, Interned};
+use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
 use flux_common::{bug, tracked_span_assert_eq, tracked_span_bug};
+use flux_config::OverflowMode;
 use flux_macros::{TypeFoldable, TypeVisitable};
 pub use flux_rustc_bridge::ty::{
     AliasKind, BoundRegion, BoundRegionKind, BoundVar, Const, ConstKind, ConstVid, DebruijnIndex,
-    EarlyParamRegion, LateParamRegion, OutlivesPredicate,
+    EarlyParamRegion, LateParamRegion, LateParamRegionKind,
     Region::{self, *},
     RegionVid,
 };
 use flux_rustc_bridge::{
-    mir::Place,
-    ty::{self, VariantDef},
     ToRustc,
+    mir::{Place, RawPtrKind},
+    ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::SpecFuncDefns;
+pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
-use rustc_data_structures::{fx::FxIndexMap, unord::UnordMap};
-use rustc_hir::{def_id::DefId, LangItem, Safety};
-use rustc_index::{newtype_index, IndexSlice};
-use rustc_macros::{extension, Decodable, Encodable, TyDecodable, TyEncodable};
+use rustc_abi;
+pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
+use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::UnordMap};
+use rustc_hir::{LangItem, Safety, def_id::DefId};
+use rustc_index::{IndexSlice, IndexVec, newtype_index};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
 use rustc_middle::ty::TyCtxt;
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
 };
-use rustc_span::{sym, symbol::kw, Symbol};
-pub use rustc_target::abi::{VariantIdx, FIRST_VARIANT};
-use rustc_target::spec::abi;
-pub use rustc_type_ir::{TyVid, INNERMOST};
-pub use SortInfer::*;
+use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
+use rustc_type_ir::Upcast as _;
+pub use rustc_type_ir::{INNERMOST, TyVid};
 
 use self::fold::TypeFoldable;
 pub use crate::fhir::InferMode;
 use crate::{
-    fhir::{self, FhirId, FluxOwnerId, SpecFuncKind},
+    LocalDefId,
+    def_id::{FluxDefId, FluxLocalDefId},
+    fhir::{self, FhirId, FluxOwnerId},
     global_env::GlobalEnv,
-    queries::QueryResult,
+    pretty::{Pretty, PrettyCx},
+    queries::{QueryErr, QueryResult},
     rty::subst::SortSubst,
 };
 
@@ -69,16 +73,7 @@ use crate::{
 pub struct AdtSortDef(Interned<AdtSortDefData>);
 
 #[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
-struct AdtSortDefData {
-    /// [`DefId`] of the struct, enum or type aliases this data sort is associated to
-    def_id: DefId,
-    /// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
-    ///
-    /// See [`fhir::RefinedBy::sort_params`] for more details. This is a version of that but using
-    /// [`ParamTy`] instead of [`DefId`].
-    ///
-    /// The length of this list corresponds to the number of sort variables bound by this definition.
-    params: Vec<ParamTy>,
+pub struct AdtSortVariant {
     /// The list of field names as declared in the `#[flux::refined_by(...)]` annotation
     field_names: Vec<Symbol>,
     /// The sort of each of the fields. Note that these can contain [sort variables]. Methods used
@@ -88,48 +83,105 @@ struct AdtSortDefData {
     sorts: List<Sort>,
 }
 
-impl AdtSortDef {
-    pub fn new(def_id: DefId, params: Vec<ParamTy>, fields: Vec<(Symbol, Sort)>) -> Self {
+impl AdtSortVariant {
+    pub fn new(fields: Vec<(Symbol, Sort)>) -> Self {
         let (field_names, sorts) = fields.into_iter().unzip();
-        Self(Interned::new(AdtSortDefData {
-            def_id,
-            params,
-            field_names,
-            sorts: List::from_vec(sorts),
-        }))
+        AdtSortVariant { field_names, sorts: List::from_vec(sorts) }
+    }
+
+    pub fn fields(&self) -> usize {
+        self.sorts.len()
+    }
+
+    pub fn field_names(&self) -> &Vec<Symbol> {
+        &self.field_names
+    }
+
+    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
+        std::iter::zip(&self.field_names, &self.sorts.fold_with(&mut SortSubst::new(args)))
+            .map(|(name, sort)| (*name, sort.clone()))
+            .collect()
+    }
+
+    pub fn field_by_name(
+        &self,
+        def_id: DefId,
+        args: &[Sort],
+        name: Symbol,
+    ) -> Option<(FieldProj, Sort)> {
+        let idx = self.field_names.iter().position(|it| name == *it)?;
+        let proj = FieldProj::Adt { def_id, field: idx as u32 };
+        let sort = self.sorts[idx].fold_with(&mut SortSubst::new(args));
+        Some((proj, sort))
+    }
+
+    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
+        self.sorts.fold_with(&mut SortSubst::new(args))
+    }
+
+    pub fn projections(&self, def_id: DefId) -> impl Iterator<Item = FieldProj> {
+        (0..self.fields()).map(move |i| FieldProj::Adt { def_id, field: i as u32 })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
+struct AdtSortDefData {
+    /// [`DefId`] of the struct or enum this data sort is associated to.
+    def_id: DefId,
+    /// The list of the type parameters used in the `#[flux::refined_by(..)]` annotation.
+    ///
+    /// See [`fhir::RefinedBy::sort_params`] for more details. This is a version of that but using
+    /// [`ParamTy`] instead of [`DefId`].
+    ///
+    /// The length of this list corresponds to the number of sort variables bound by this definition.
+    params: Vec<ParamTy>,
+    /// A vec of variants of the ADT;
+    /// - a `struct` sort -- used for types with a `refined_by` has a single variant;
+    /// - a `reflected` sort -- used for `reflected` enums have multiple variants
+    variants: IndexVec<VariantIdx, AdtSortVariant>,
+    is_reflected: bool,
+    is_struct: bool,
+}
+
+impl AdtSortDef {
+    pub fn new(
+        def_id: DefId,
+        params: Vec<ParamTy>,
+        variants: IndexVec<VariantIdx, AdtSortVariant>,
+        is_reflected: bool,
+        is_struct: bool,
+    ) -> Self {
+        Self(Interned::new(AdtSortDefData { def_id, params, variants, is_reflected, is_struct }))
     }
 
     pub fn did(&self) -> DefId {
         self.0.def_id
     }
 
-    pub fn fields(&self) -> usize {
-        self.0.sorts.len()
+    pub fn variant(&self, idx: VariantIdx) -> &AdtSortVariant {
+        &self.0.variants[idx]
     }
 
-    pub fn projections(&self) -> impl Iterator<Item = FieldProj> + '_ {
-        (0..self.fields()).map(|i| FieldProj::Adt { def_id: self.did(), field: i as u32 })
+    pub fn variants(&self) -> &IndexSlice<VariantIdx, AdtSortVariant> {
+        &self.0.variants
     }
 
-    pub fn field_names(&self) -> &Vec<Symbol> {
-        &self.0.field_names
+    pub fn opt_struct_variant(&self) -> Option<&AdtSortVariant> {
+        if self.is_struct() { Some(self.struct_variant()) } else { None }
     }
 
-    pub fn sort_by_field_name(&self, args: &[Sort]) -> FxIndexMap<Symbol, Sort> {
-        std::iter::zip(&self.0.field_names, &self.0.sorts.fold_with(&mut SortSubst::new(args)))
-            .map(|(name, sort)| (*name, sort.clone()))
-            .collect()
+    #[track_caller]
+    pub fn struct_variant(&self) -> &AdtSortVariant {
+        tracked_span_assert_eq!(self.0.is_struct, true);
+        &self.0.variants[FIRST_VARIANT]
     }
 
-    pub fn field_by_name(&self, args: &[Sort], name: Symbol) -> Option<(FieldProj, Sort)> {
-        let idx = self.0.field_names.iter().position(|it| name == *it)?;
-        let proj = FieldProj::Adt { def_id: self.did(), field: idx as u32 };
-        let sort = self.0.sorts[idx].fold_with(&mut SortSubst::new(args));
-        Some((proj, sort))
+    pub fn is_reflected(&self) -> bool {
+        self.0.is_reflected
     }
 
-    pub fn field_sorts(&self, args: &[Sort]) -> List<Sort> {
-        self.0.sorts.fold_with(&mut SortSubst::new(args))
+    pub fn is_struct(&self) -> bool {
+        self.0.is_struct
     }
 
     pub fn to_sort(&self, args: &[GenericArg]) -> Sort {
@@ -307,14 +359,13 @@ impl Clause {
             {
                 fn_trait_clauses.push((kind, trait_clause));
             } else if let Some(proj_clause) = clause.as_projection_clause()
-                && genv.is_fn_once_output(proj_clause.projection_def_id())
+                && genv.is_fn_output(proj_clause.projection_def_id())
             {
                 fn_trait_output_clauses.push(proj_clause);
             } else {
                 rest.push(clause.clone());
             }
         }
-
         let fn_trait_clauses = fn_trait_clauses
             .into_iter()
             .map(|(kind, fn_trait_clause)| {
@@ -340,6 +391,14 @@ impl Clause {
     }
 }
 
+impl<'tcx> ToRustc<'tcx> for Clause {
+    type T = rustc_middle::ty::Clause<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        self.kind.to_rustc(tcx).upcast(tcx)
+    }
+}
+
 impl From<Binder<ClauseKind>> for Clause {
     fn from(kind: Binder<ClauseKind>) -> Self {
         Clause { kind }
@@ -354,11 +413,51 @@ pub type Clauses = List<Clause>;
 pub enum ClauseKind {
     Trait(TraitPredicate),
     Projection(ProjectionPredicate),
+    RegionOutlives(RegionOutlivesPredicate),
     TypeOutlives(TypeOutlivesPredicate),
     ConstArgHasType(Const, Ty),
 }
 
+impl<'tcx> ToRustc<'tcx> for ClauseKind {
+    type T = rustc_middle::ty::ClauseKind<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        match self {
+            ClauseKind::Trait(trait_predicate) => {
+                rustc_middle::ty::ClauseKind::Trait(trait_predicate.to_rustc(tcx))
+            }
+            ClauseKind::Projection(projection_predicate) => {
+                rustc_middle::ty::ClauseKind::Projection(projection_predicate.to_rustc(tcx))
+            }
+            ClauseKind::RegionOutlives(outlives_predicate) => {
+                rustc_middle::ty::ClauseKind::RegionOutlives(outlives_predicate.to_rustc(tcx))
+            }
+            ClauseKind::TypeOutlives(outlives_predicate) => {
+                rustc_middle::ty::ClauseKind::TypeOutlives(outlives_predicate.to_rustc(tcx))
+            }
+            ClauseKind::ConstArgHasType(constant, ty) => {
+                rustc_middle::ty::ClauseKind::ConstArgHasType(
+                    constant.to_rustc(tcx),
+                    ty.to_rustc(tcx),
+                )
+            }
+        }
+    }
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug, TyEncodable, TyDecodable)]
+pub struct OutlivesPredicate<T>(pub T, pub Region);
+
 pub type TypeOutlivesPredicate = OutlivesPredicate<Ty>;
+pub type RegionOutlivesPredicate = OutlivesPredicate<Region>;
+
+impl<'tcx, V: ToRustc<'tcx>> ToRustc<'tcx> for OutlivesPredicate<V> {
+    type T = rustc_middle::ty::OutlivesPredicate<'tcx, V::T>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::OutlivesPredicate(self.0.to_rustc(tcx), self.1.to_rustc(tcx))
+    }
+}
 
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
@@ -370,6 +469,17 @@ pub struct TraitPredicate {
 impl TraitPredicate {
     fn self_ty(&self) -> SubsetTyCtor {
         self.trait_ref.self_ty()
+    }
+}
+
+impl<'tcx> ToRustc<'tcx> for TraitPredicate {
+    type T = rustc_middle::ty::TraitPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::TraitPredicate {
+            polarity: rustc_middle::ty::PredicatePolarity::Positive,
+            trait_ref: self.trait_ref.to_rustc(tcx),
+        }
     }
 }
 
@@ -509,16 +619,41 @@ pub struct ProjectionPredicate {
     pub term: SubsetTyCtor,
 }
 
+impl Pretty for ProjectionPredicate {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "ProjectionPredicate << projection_ty = {:?}, term = {:?} >>",
+            self.projection_ty, self.term
+        )
+    }
+}
+
 impl ProjectionPredicate {
     pub fn self_ty(&self) -> SubsetTyCtor {
         self.projection_ty.self_ty().clone()
     }
 }
 
+impl<'tcx> ToRustc<'tcx> for ProjectionPredicate {
+    type T = rustc_middle::ty::ProjectionPredicate<'tcx>;
+
+    fn to_rustc(&self, tcx: TyCtxt<'tcx>) -> Self::T {
+        rustc_middle::ty::ProjectionPredicate {
+            projection_term: rustc_middle::ty::AliasTerm::new_from_args(
+                tcx,
+                self.projection_ty.def_id,
+                self.projection_ty.args.to_rustc(tcx),
+            ),
+            term: self.term.as_bty_skipping_binder().to_rustc(tcx).into(),
+        }
+    }
+}
+
 pub type PolyProjectionPredicate = Binder<ProjectionPredicate>;
 
 impl PolyProjectionPredicate {
-    fn projection_def_id(&self) -> DefId {
+    pub fn projection_def_id(&self) -> DefId {
         self.skip_binder_ref().projection_ty.def_id
     }
 
@@ -537,63 +672,75 @@ pub struct FnTraitPredicate {
     pub kind: ClosureKind,
 }
 
+impl Pretty for FnTraitPredicate {
+    fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "self = {:?}, args = {:?}, output = {:?}, kind = {}",
+            self.self_ty, self.tupled_args, self.output, self.kind
+        )
+    }
+}
+
 impl FnTraitPredicate {
-    pub fn fndef_poly_sig(&self) -> PolyFnSig {
+    pub fn fndef_sig(&self) -> FnSig {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
-
-        let fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::Rust,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
-
-        PolyFnSig::bind_with_vars(fn_sig, List::empty())
+        let ret = self.output.clone().shift_in_escaping(1);
+        let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
+        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output)
     }
+}
 
-    pub fn to_closure_sig(
-        &self,
-        closure_id: DefId,
-        tys: List<Ty>,
-        args: &flux_rustc_bridge::ty::GenericArgs,
-    ) -> PolyFnSig {
-        let mut vars = vec![];
+pub fn to_closure_sig(
+    tcx: TyCtxt,
+    closure_id: LocalDefId,
+    tys: &[Ty],
+    args: &flux_rustc_bridge::ty::GenericArgs,
+    poly_sig: &PolyFnSig,
+) -> PolyFnSig {
+    let closure_args = args.as_closure();
+    let kind_ty = closure_args.kind_ty().to_rustc(tcx);
+    let Some(kind) = kind_ty.to_opt_closure_kind() else {
+        bug!("to_closure_sig: expected closure kind, found {kind_ty:?}");
+    };
 
-        let closure_ty = Ty::closure(closure_id, tys, args);
-        let env_ty = match self.kind {
-            ClosureKind::Fn => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
-            }
-            ClosureKind::FnMut => {
-                vars.push(BoundVariableKind::Region(BoundRegionKind::BrEnv));
-                let br = BoundRegion {
-                    var: BoundVar::from_usize(vars.len() - 1),
-                    kind: BoundRegionKind::BrEnv,
-                };
-                Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
-            }
-            ClosureKind::FnOnce => closure_ty,
-        };
-        let inputs = std::iter::once(env_ty)
-            .chain(self.tupled_args.expect_tuple().iter().cloned())
-            .collect();
+    let mut vars = poly_sig.vars().clone().to_vec();
+    let fn_sig = poly_sig.clone().skip_binder();
+    let closure_ty = Ty::closure(closure_id.into(), tys, args);
+    let env_ty = match kind {
+        ClosureKind::Fn => {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            let br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - 1),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Not)
+        }
+        ClosureKind::FnMut => {
+            vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
+            let br = BoundRegion {
+                var: BoundVar::from_usize(vars.len() - 1),
+                kind: BoundRegionKind::ClosureEnv,
+            };
+            Ty::mk_ref(ReBound(INNERMOST, br), closure_ty, Mutability::Mut)
+        }
+        ClosureKind::FnOnce => closure_ty,
+    };
 
-        let fn_sig = FnSig::new(
-            Safety::Safe,
-            abi::Abi::RustCall,
-            List::empty(),
-            inputs,
-            Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty()),
-        );
+    let inputs = std::iter::once(env_ty)
+        .chain(fn_sig.inputs().iter().cloned())
+        .collect::<Vec<_>>();
+    let output = fn_sig.output().clone();
 
-        PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
-    }
+    let fn_sig = crate::rty::FnSig::new(
+        fn_sig.safety,
+        fn_sig.abi,
+        fn_sig.requires.clone(), // crate::rty::List::empty(),
+        inputs.into(),
+        output,
+    );
+
+    PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
 #[derive(
@@ -606,9 +753,31 @@ pub struct CoroutineObligPredicate {
     pub output: Ty,
 }
 
-#[derive(Debug, Clone, Encodable, Decodable)]
+#[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
+pub struct AssocReft {
+    pub def_id: FluxDefId,
+    // NOTE: Field is used to denote final associated generic refinements on Traits
+    pub final_: bool,
+    pub span: Span,
+}
+
+impl AssocReft {
+    pub fn new(def_id: FluxDefId, final_: bool, span: Span) -> Self {
+        Self { def_id, final_, span }
+    }
+
+    pub fn name(&self) -> Symbol {
+        self.def_id.name()
+    }
+
+    pub fn def_id(&self) -> FluxDefId {
+        self.def_id
+    }
+}
+
+#[derive(Clone, Encodable, Decodable)]
 pub struct AssocRefinements {
-    pub items: List<AssocRefinement>,
+    pub items: List<AssocReft>,
 }
 
 impl Default for AssocRefinements {
@@ -618,16 +787,17 @@ impl Default for AssocRefinements {
 }
 
 impl AssocRefinements {
-    pub fn find(&self, name: Symbol) -> Option<&AssocRefinement> {
-        self.items.iter().find(|it| it.name == name)
+    pub fn get(&self, assoc_id: FluxDefId) -> AssocReft {
+        *self
+            .items
+            .into_iter()
+            .find(|it| it.def_id == assoc_id)
+            .unwrap_or_else(|| bug!("caller should guarantee existence of associated refinement"))
     }
-}
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Encodable, Decodable)]
-pub struct AssocRefinement {
-    /// [`DefId`] of the container, i.e., the impl block or trait.
-    pub container_def_id: DefId,
-    pub name: Symbol,
+    pub fn find(&self, name: Symbol) -> Option<AssocReft> {
+        Some(*self.items.into_iter().find(|it| it.name() == name)?)
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -639,9 +809,10 @@ pub enum SortCtor {
 }
 
 newtype_index! {
-    /// [ParamSort] is used for polymorphic sorts (Set, Map etc.) and [bit-vector size parameters].
-    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]; i.e. should be <
-    /// than the number of params.
+    /// [`ParamSort`] is used for polymorphic sorts (`Set`, `Map`, etc.) and [bit-vector size parameters].
+    /// They should occur "bound" under a [`PolyFuncSort`] or an [`AdtSortDef`]. We assume there's a
+    /// single binder and a [`ParamSort`] represents a variable as an index into the list of variables
+    /// bound by that binder, i.e., the representation doesnt't support higher-ranked sorts.
     ///
     /// [bit-vector size parameters]: BvSize::Param
     #[debug_format = "?{}s"]
@@ -687,6 +858,7 @@ newtype_index! {
 pub enum NumVarValue {
     Real,
     Int,
+    BitVec(BvSize),
 }
 
 impl NumVarValue {
@@ -694,6 +866,7 @@ impl NumVarValue {
         match self {
             NumVarValue::Real => Sort::Real,
             NumVarValue::Int => Sort::Int,
+            NumVarValue::BitVec(size) => Sort::BitVec(size),
         }
     }
 }
@@ -773,6 +946,17 @@ pub enum Sort {
     Err,
 }
 
+pub enum CastKind {
+    /// Identity cast, which is erasable (e.g. int -> int, char -> int)
+    Identity,
+    /// From bool to int
+    BoolToInt,
+    /// Casts to unit index, (e.g. int -> float)
+    IntoUnit,
+    /// Uninterpreted casts, only allowed with explicit flag
+    Uninterpreted,
+}
+
 impl Sort {
     pub fn tuple(sorts: impl Into<List<Sort>>) -> Self {
         Sort::Tuple(sorts.into())
@@ -788,11 +972,7 @@ impl Sort {
 
     #[track_caller]
     pub fn expect_func(&self) -> &PolyFuncSort {
-        if let Sort::Func(sort) = self {
-            sort
-        } else {
-            bug!("expected `Sort::Func`")
-        }
+        if let Sort::Func(sort) = self { sort } else { bug!("expected `Sort::Func`") }
     }
 
     pub fn is_loc(&self) -> bool {
@@ -805,7 +985,8 @@ impl Sort {
 
     pub fn is_unit_adt(&self) -> Option<DefId> {
         if let Sort::App(SortCtor::Adt(sort_def), _) = self
-            && sort_def.fields() == 0
+            && let Some(variant) = sort_def.opt_struct_variant()
+            && variant.fields() == 0
         {
             Some(sort_def.did())
         } else {
@@ -830,6 +1011,20 @@ impl Sort {
         matches!(self, Self::Int | Self::Real)
     }
 
+    pub fn cast_kind(self: &Sort, to: &Sort) -> CastKind {
+        if self == to
+            || (matches!(self, Sort::Char | Sort::Int) && matches!(to, Sort::Char | Sort::Int))
+        {
+            CastKind::Identity
+        } else if matches!(self, Sort::Bool) && matches!(to, Sort::Int) {
+            CastKind::BoolToInt
+        } else if to.is_unit() {
+            CastKind::IntoUnit
+        } else {
+            CastKind::Uninterpreted
+        }
+    }
+
     pub fn walk(&self, mut f: impl FnMut(&Sort, &[FieldProj])) {
         fn go(sort: &Sort, f: &mut impl FnMut(&Sort, &[FieldProj]), proj: &mut Vec<FieldProj>) {
             match sort {
@@ -840,8 +1035,9 @@ impl Sort {
                         proj.pop();
                     }
                 }
-                Sort::App(SortCtor::Adt(sort_def), args) => {
-                    for (i, sort) in sort_def.field_sorts(args).iter().enumerate() {
+                Sort::App(SortCtor::Adt(sort_def), args) if sort_def.is_struct() => {
+                    let field_sorts = sort_def.struct_variant().field_sorts(args);
+                    for (i, sort) in field_sorts.iter().enumerate() {
                         proj.push(FieldProj::Adt { def_id: sort_def.did(), field: i as u32 });
                         go(sort, f, proj);
                         proj.pop();
@@ -862,7 +1058,7 @@ impl Sort {
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub enum BvSize {
     /// A fixed size
-    Fixed(usize),
+    Fixed(u32),
     /// A size that has been parameterized, e.g., bound under a [`PolyFuncSort`]
     Param(ParamSort),
     /// A size that needs to be inferred. Used during sort checking to instantiate bit-vector
@@ -871,13 +1067,13 @@ pub enum BvSize {
 }
 
 impl rustc_errors::IntoDiagArg for Sort {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
 
 impl rustc_errors::IntoDiagArg for FuncSort {
-    fn into_diag_arg(self) -> rustc_errors::DiagArgValue {
+    fn into_diag_arg(self, _path: &mut Option<std::path::PathBuf>) -> rustc_errors::DiagArgValue {
         rustc_errors::DiagArgValue::Str(Cow::Owned(format!("{self:?}")))
     }
 }
@@ -993,6 +1189,61 @@ pub enum Opaqueness<T> {
     Transparent(T),
 }
 
+impl<T> Opaqueness<T> {
+    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Opaqueness<S> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(f(value)),
+        }
+    }
+
+    pub fn as_ref(&self) -> Opaqueness<&T> {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value),
+        }
+    }
+
+    pub fn as_deref(&self) -> Opaqueness<&T::Target>
+    where
+        T: std::ops::Deref,
+    {
+        match self {
+            Opaqueness::Opaque => Opaqueness::Opaque,
+            Opaqueness::Transparent(value) => Opaqueness::Transparent(value.deref()),
+        }
+    }
+
+    pub fn ok_or_else<E>(self, err: impl FnOnce() -> E) -> Result<T, E> {
+        match self {
+            Opaqueness::Transparent(v) => Ok(v),
+            Opaqueness::Opaque => Err(err()),
+        }
+    }
+
+    #[track_caller]
+    pub fn expect(self, msg: &str) -> T {
+        match self {
+            Opaqueness::Transparent(val) => val,
+            Opaqueness::Opaque => bug!("{}", msg),
+        }
+    }
+
+    pub fn ok_or_query_err(self, struct_id: DefId) -> Result<T, QueryErr> {
+        self.ok_or_else(|| QueryErr::OpaqueStruct { struct_id })
+    }
+}
+
+impl<T, E> Opaqueness<Result<T, E>> {
+    pub fn transpose(self) -> Result<Opaqueness<T>, E> {
+        match self {
+            Opaqueness::Transparent(Ok(x)) => Ok(Opaqueness::Transparent(x)),
+            Opaqueness::Transparent(Err(e)) => Err(e),
+            Opaqueness::Opaque => Ok(Opaqueness::Opaque),
+        }
+    }
+}
+
 pub static INT_TYS: [IntTy; 6] =
     [IntTy::Isize, IntTy::I8, IntTy::I16, IntTy::I32, IntTy::I64, IntTy::I128];
 pub static UINT_TYS: [UintTy; 6] =
@@ -1032,6 +1283,7 @@ pub struct VariantSig {
     pub args: GenericArgs,
     pub fields: List<Ty>,
     pub idx: Expr,
+    pub requires: List<Expr>,
 }
 
 pub type PolyFnSig = Binder<FnSig>;
@@ -1039,7 +1291,7 @@ pub type PolyFnSig = Binder<FnSig>;
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable)]
 pub struct FnSig {
     pub safety: Safety,
-    pub abi: abi::Abi,
+    pub abi: rustc_abi::ExternAbi,
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
@@ -1061,21 +1313,24 @@ pub enum Ensures {
 
 #[derive(Debug, TypeVisitable, TypeFoldable)]
 pub struct Qualifier {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
     pub global: bool,
 }
 
-pub struct SpecFunc {
-    pub name: Symbol,
-    pub expr: Binder<Expr>,
+/// A `PrimOpProp` is a single property for a primitive operation which
+/// can be conjoined to get the definition of the [`PrimRel`] for that
+/// primitive operation.
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct PrimOpProp {
+    pub def_id: FluxLocalDefId,
+    pub op: BinOp,
+    pub body: Binder<Expr>,
 }
 
-#[derive(Debug, Clone)]
-pub struct SpecFuncDecl {
-    pub name: Symbol,
-    pub sort: PolyFuncSort,
-    pub kind: SpecFuncKind,
+#[derive(Debug, TypeVisitable, TypeFoldable)]
+pub struct PrimRel {
+    pub body: Binder<Expr>,
 }
 
 pub type TyCtor = Binder<Ty>;
@@ -1083,13 +1338,15 @@ pub type TyCtor = Binder<Ty>;
 impl TyCtor {
     pub fn to_ty(&self) -> Ty {
         match &self.vars()[..] {
-            [] => return self.skip_binder_ref().shift_out_escaping(1),
+            [] => {
+                return self.skip_binder_ref().shift_out_escaping(1);
+            }
             [BoundVariableKind::Refine(sort, ..)] => {
                 if sort.is_unit() {
                     return self.replace_bound_reft(&Expr::unit());
                 }
                 if let Some(def_id) = sort.is_unit_adt() {
-                    return self.replace_bound_reft(&Expr::unit_adt(def_id));
+                    return self.replace_bound_reft(&Expr::unit_struct(def_id));
                 }
             }
             _ => {}
@@ -1208,17 +1465,17 @@ impl Ty {
     }
 
     pub fn mk_box(genv: GlobalEnv, deref_ty: Ty, alloc_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
         let adt_def = genv.adt_def(def_id)?;
 
         let args = List::from_arr([GenericArg::Ty(deref_ty), GenericArg::Ty(alloc_ty)]);
 
         let bty = BaseTy::adt(adt_def, args);
-        Ok(Ty::indexed(bty, Expr::unit_adt(def_id)))
+        Ok(Ty::indexed(bty, Expr::unit_struct(def_id)))
     }
 
     pub fn mk_box_with_default_alloc(genv: GlobalEnv, deref_ty: Ty) -> QueryResult<Ty> {
-        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, None);
+        let def_id = genv.tcx().require_lang_item(LangItem::OwnedBox, DUMMY_SP);
 
         let generics = genv.generics_of(def_id)?;
         let alloc_ty = genv
@@ -1354,7 +1611,7 @@ impl Ty {
     }
 
     #[track_caller]
-    pub(crate) fn expect_tuple(&self) -> &[Ty] {
+    pub fn expect_tuple(&self) -> &[Ty] {
         if let TyKind::Indexed(BaseTy::Tuple(tys), _) = self.kind() {
             tys
         } else {
@@ -1433,6 +1690,7 @@ pub enum BaseTy {
     Adt(AdtDef, GenericArgs),
     Float(FloatTy),
     RawPtr(Ty, Mutability),
+    RawPtrMetadata(Ty),
     Ref(Region, Ty, Mutability),
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
@@ -1445,6 +1703,7 @@ pub enum BaseTy {
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
     Infer(TyVid),
+    Foreign(DefId),
 }
 
 impl BaseTy {
@@ -1585,14 +1844,21 @@ impl BaseTy {
         }
     }
 
-    pub fn invariants(&self, overflow_checking: bool) -> &[Invariant] {
-        match self {
-            BaseTy::Adt(adt_def, _) => adt_def.invariants(),
-            BaseTy::Uint(uint_ty) => uint_invariants(*uint_ty, overflow_checking),
-            BaseTy::Int(int_ty) => int_invariants(*int_ty, overflow_checking),
-            BaseTy::Slice(_) => slice_invariants(overflow_checking),
-            _ => &[],
-        }
+    pub fn invariants(
+        &self,
+        tcx: TyCtxt,
+        overflow_mode: OverflowMode,
+    ) -> impl Iterator<Item = Invariant> {
+        let (invariants, args) = match self {
+            BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder(), &args[..]),
+            BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode), &[][..]),
+            BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode), &[][..]),
+            BaseTy::Slice(_) => (slice_invariants(overflow_mode), &[][..]),
+            _ => (&[][..], &[][..]),
+        };
+        invariants
+            .iter()
+            .map(move |inv| EarlyBinder(inv).instantiate_ref(tcx, args, &[]))
     }
 
     pub fn to_ty(&self) -> Ty {
@@ -1702,6 +1968,14 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 // ty::Ty::new_generator(*tcx, *def_id, args, mov)
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
+            BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
+            BaseTy::RawPtrMetadata(ty) => {
+                ty::Ty::new_ptr(
+                    tcx,
+                    ty.to_rustc(tcx),
+                    RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy(),
+                )
+            }
         }
     }
 }
@@ -1754,13 +2028,16 @@ pub type RefineArgs = List<Expr>;
 impl RefineArgs {
     fn identity_for_item(genv: GlobalEnv, def_id: DefId) -> QueryResult<RefineArgs> {
         Self::for_item(genv, def_id, |param, index| {
-            Expr::var(Var::EarlyParam(EarlyReftParam { index: index as u32, name: param.name() }))
+            Ok(Expr::var(Var::EarlyParam(EarlyReftParam {
+                index: index as u32,
+                name: param.name(),
+            })))
         })
     }
 
     fn for_item<F>(genv: GlobalEnv, def_id: DefId, mut mk: F) -> QueryResult<RefineArgs>
     where
-        F: FnMut(EarlyBinder<RefineParam>, usize) -> Expr,
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<Expr>,
     {
         let reft_generics = genv.refinement_generics_of(def_id)?;
         let count = reft_generics.count();
@@ -1788,7 +2065,7 @@ impl SubsetTyCtor {
         if sort.is_unit() {
             self.replace_bound_reft(&Expr::unit()).to_ty()
         } else if let Some(def_id) = sort.is_unit_adt() {
-            self.replace_bound_reft(&Expr::unit_adt(def_id)).to_ty()
+            self.replace_bound_reft(&Expr::unit_struct(def_id)).to_ty()
         } else {
             Ty::exists(self.as_ref().map(SubsetTy::to_ty))
         }
@@ -1803,7 +2080,7 @@ impl SubsetTyCtor {
 /// [`BaseTy`], `e` a refinement index, and `p` a predicate.
 ///
 /// These are mainly found under a [`Binder`] with a single variable of the base type's sort. This
-/// can be interpreted as a type constructor or an existial type. For example, under a binder with a
+/// can be interpreted as a type constructor or an existential type. For example, under a binder with a
 /// variable `v` of sort `int`, we can interpret `{i32[v] | v > 0}` as:
 /// - A lambda `λv:int. {i32[v] | v > 0}` that "constructs" types when applied to ints, or
 /// - An existential type `∃v:int. {i32[v] | v > 0}`.
@@ -1818,7 +2095,7 @@ impl SubsetTyCtor {
 /// interpreted as type constructors. They have two key properties that makes them suitable
 /// for this:
 ///
-/// 1. **Syntacitc Restriction**: Subset types are syntactically restricted, making it easier to
+/// 1. **Syntactic Restriction**: Subset types are syntactically restricted, making it easier to
 ///    relate them structurally (e.g., for subtyping). For instance, given two types `S<λv. T1>` and
 ///    `S<λ. T2>`, if `T1` and `T2` are subset types, we know they match structurally (at least
 ///    shallowly). In particularly, the syntactic restriction rules out complex types like
@@ -1870,7 +2147,7 @@ impl SubsetTy {
 
     pub fn strengthen(&self, pred: impl Into<Expr>) -> Self {
         let this = self.clone();
-        let pred = Expr::and(this.pred, pred).simplify();
+        let pred = Expr::and(this.pred, pred).simplify(&SnapshotMap::default());
         Self { bty: this.bty, idx: this.idx, pred }
     }
 
@@ -1978,7 +2255,7 @@ impl GenericArg {
         }
         for param in &generics.own_params {
             let kind = mk_kind(param, args);
-            tracked_span_assert_eq!(param.index as usize, args.len()); // "{args:#?}, {generics:#?}");
+            tracked_span_assert_eq!(param.index as usize, args.len());
             args.push(kind);
         }
         Ok(())
@@ -2128,7 +2405,7 @@ impl CoroutineObligPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::bind_with_vars(
-            FnSig::new(Safety::Safe, abi::Abi::RustCall, List::empty(), inputs, output),
+            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output),
             List::from(vars),
         )
     }
@@ -2203,14 +2480,14 @@ impl EarlyBinder<RefinementGenerics> {
 
     pub fn fill_item<F, R>(&self, genv: GlobalEnv, vec: &mut Vec<R>, mk: &mut F) -> QueryResult
     where
-        F: FnMut(EarlyBinder<RefineParam>, usize) -> R,
+        F: FnMut(EarlyBinder<RefineParam>, usize) -> QueryResult<R>,
     {
         if let Some(def_id) = self.parent() {
             genv.refinement_generics_of(def_id)?
                 .fill_item(genv, vec, mk)?;
         }
         for param in self.iter_own_params() {
-            vec.push(mk(param, vec.len()));
+            vec.push(mk(param, vec.len())?);
         }
         Ok(())
     }
@@ -2236,8 +2513,14 @@ impl EarlyBinder<FuncSort> {
 }
 
 impl VariantSig {
-    pub fn new(adt_def: AdtDef, args: GenericArgs, fields: List<Ty>, idx: Expr) -> Self {
-        VariantSig { adt_def, args, fields, idx }
+    pub fn new(
+        adt_def: AdtDef,
+        args: GenericArgs,
+        fields: List<Ty>,
+        idx: Expr,
+        requires: List<Expr>,
+    ) -> Self {
+        VariantSig { adt_def, args, fields, idx, requires }
     }
 
     pub fn fields(&self) -> &[Ty] {
@@ -2246,14 +2529,15 @@ impl VariantSig {
 
     pub fn ret(&self) -> Ty {
         let bty = BaseTy::Adt(self.adt_def.clone(), self.args.clone());
-        Ty::indexed(bty, self.idx.clone())
+        let idx = self.idx.clone();
+        Ty::indexed(bty, idx)
     }
 }
 
 impl FnSig {
     pub fn new(
         safety: Safety,
-        abi: abi::Abi,
+        abi: rustc_abi::ExternAbi,
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
@@ -2348,8 +2632,8 @@ impl AdtDef {
         self.0.rustc.variant(idx)
     }
 
-    pub fn invariants(&self) -> &[Invariant] {
-        &self.0.invariants
+    pub fn invariants(&self) -> EarlyBinder<&[Invariant]> {
+        EarlyBinder(&self.0.invariants)
     }
 
     pub fn discriminants(&self) -> impl Iterator<Item = (VariantIdx, u128)> + '_ {
@@ -2358,57 +2642,6 @@ impl AdtDef {
 
     pub fn is_opaque(&self) -> bool {
         self.0.opaque
-    }
-}
-
-impl<T> Opaqueness<T> {
-    pub fn map<S>(self, f: impl FnOnce(T) -> S) -> Opaqueness<S> {
-        match self {
-            Opaqueness::Opaque => Opaqueness::Opaque,
-            Opaqueness::Transparent(value) => Opaqueness::Transparent(f(value)),
-        }
-    }
-
-    pub fn as_ref(&self) -> Opaqueness<&T> {
-        match self {
-            Opaqueness::Opaque => Opaqueness::Opaque,
-            Opaqueness::Transparent(value) => Opaqueness::Transparent(value),
-        }
-    }
-
-    pub fn as_deref(&self) -> Opaqueness<&T::Target>
-    where
-        T: std::ops::Deref,
-    {
-        match self {
-            Opaqueness::Opaque => Opaqueness::Opaque,
-            Opaqueness::Transparent(value) => Opaqueness::Transparent(value.deref()),
-        }
-    }
-
-    pub fn ok_or_else<E>(self, err: impl FnOnce() -> E) -> Result<T, E> {
-        match self {
-            Opaqueness::Transparent(v) => Ok(v),
-            Opaqueness::Opaque => Err(err()),
-        }
-    }
-
-    #[track_caller]
-    pub fn expect(self, msg: &str) -> T {
-        match self {
-            Opaqueness::Transparent(val) => val,
-            Opaqueness::Opaque => bug!("{}", msg),
-        }
-    }
-}
-
-impl<T, E> Opaqueness<Result<T, E>> {
-    pub fn transpose(self) -> Result<Opaqueness<T>, E> {
-        match self {
-            Opaqueness::Transparent(Ok(x)) => Ok(Opaqueness::Transparent(x)),
-            Opaqueness::Transparent(Err(e)) => Err(e),
-            Opaqueness::Opaque => Ok(Opaqueness::Opaque),
-        }
     }
 }
 
@@ -2424,8 +2657,13 @@ impl EarlyBinder<PolyVariant> {
                     None => variant.fields.clone(),
                     Some(i) => List::singleton(variant.fields[i.index()].clone()),
                 };
-                let requires = List::empty();
-                FnSig::new(Safety::Safe, abi::Abi::Rust, requires, inputs, output)
+                FnSig::new(
+                    Safety::Safe,
+                    rustc_abi::ExternAbi::Rust,
+                    variant.requires.clone(),
+                    inputs,
+                    output,
+                )
             })
         })
     }
@@ -2438,7 +2676,7 @@ impl TyKind {
 }
 
 /// returns the same invariants as for `usize` which is the length of a slice
-fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
+fn slice_invariants(overflow_mode: OverflowMode) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
@@ -2455,14 +2693,14 @@ fn slice_invariants(overflow_checking: bool) -> &'static [Invariant] {
             },
         ]
     });
-    if overflow_checking {
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
         &*OVERFLOW
     } else {
         &*DEFAULT
     }
 }
 
-fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invariant] {
+fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
     static DEFAULT: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
         [Invariant { pred: Binder::bind_with_sort(Expr::ge(Expr::nu(), Expr::zero()), Sort::Int) }]
     });
@@ -2486,14 +2724,14 @@ fn uint_invariants(uint_ty: UintTy, overflow_checking: bool) -> &'static [Invari
             })
             .collect()
     });
-    if overflow_checking {
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
         &OVERFLOW[&uint_ty]
     } else {
         &*DEFAULT
     }
 }
 
-fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant] {
+fn int_invariants(int_ty: IntTy, overflow_mode: OverflowMode) -> &'static [Invariant] {
     static DEFAULT: [Invariant; 0] = [];
 
     static OVERFLOW: LazyLock<UnordMap<IntTy, [Invariant; 2]>> = LazyLock::new(|| {
@@ -2518,7 +2756,7 @@ fn int_invariants(int_ty: IntTy, overflow_checking: bool) -> &'static [Invariant
             })
             .collect()
     });
-    if overflow_checking {
+    if matches!(overflow_mode, OverflowMode::Strict | OverflowMode::Lazy) {
         &OVERFLOW[&int_ty]
     } else {
         &DEFAULT
@@ -2532,6 +2770,7 @@ impl_slice_internable!(
     Ensures,
     InferMode,
     Sort,
+    SortArg,
     GenericParamDef,
     TraitRef,
     Binder<ExistentialPredicate>,
@@ -2539,8 +2778,9 @@ impl_slice_internable!(
     PolyVariant,
     Invariant,
     RefineParam,
-    AssocRefinement,
+    FluxDefId,
     SortParamKind,
+    AssocReft
 );
 
 #[macro_export]
@@ -2568,6 +2808,14 @@ macro_rules! _Bool {
 pub use crate::_Bool as Bool;
 
 #[macro_export]
+macro_rules! _Char {
+    ($idxs:pat) => {
+        TyKind::Indexed(BaseTy::Char, $idxs)
+    };
+}
+pub use crate::_Char as Char;
+
+#[macro_export]
 macro_rules! _Ref {
     ($($pats:pat),+ $(,)?) => {
         $crate::rty::TyKind::Indexed($crate::rty::BaseTy::Ref($($pats),+), _)
@@ -2577,7 +2825,8 @@ pub use crate::_Ref as Ref;
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
-    bin_rel_sorts: ItemLocalMap<Sort>,
+    bin_op_sorts: ItemLocalMap<Sort>,
+    fn_app_sorts: ItemLocalMap<List<SortArg>>,
     coercions: ItemLocalMap<Vec<Coercion>>,
     field_projs: ItemLocalMap<FieldProj>,
     node_sorts: ItemLocalMap<Sort>,
@@ -2607,51 +2856,60 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
-            bin_rel_sorts: ItemLocalMap::default(),
+            bin_op_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             field_projs: ItemLocalMap::default(),
             node_sorts: ItemLocalMap::default(),
             record_ctors: ItemLocalMap::default(),
+            fn_app_sorts: ItemLocalMap::default(),
         }
     }
 
-    pub fn bin_rel_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
-        LocalTableInContextMut { owner: self.owner, data: &mut self.bin_rel_sorts }
+    pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.bin_op_sorts }
     }
 
-    pub fn bin_rel_sorts(&self) -> LocalTableInContext<Sort> {
-        LocalTableInContext { owner: self.owner, data: &self.bin_rel_sorts }
+    pub fn fn_app_sorts_mut(&mut self) -> LocalTableInContextMut<'_, List<SortArg>> {
+        LocalTableInContextMut { owner: self.owner, data: &mut self.fn_app_sorts }
     }
 
-    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<Vec<Coercion>> {
+    pub fn fn_app_sorts(&self) -> LocalTableInContext<'_, List<SortArg>> {
+        LocalTableInContext { owner: self.owner, data: &self.fn_app_sorts }
+    }
+
+    pub fn bin_op_sorts(&self) -> LocalTableInContext<'_, Sort> {
+        LocalTableInContext { owner: self.owner, data: &self.bin_op_sorts }
+    }
+
+    pub fn coercions_mut(&mut self) -> LocalTableInContextMut<'_, Vec<Coercion>> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.coercions }
     }
 
-    pub fn coercions(&self) -> LocalTableInContext<Vec<Coercion>> {
+    pub fn coercions(&self) -> LocalTableInContext<'_, Vec<Coercion>> {
         LocalTableInContext { owner: self.owner, data: &self.coercions }
     }
 
-    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<FieldProj> {
+    pub fn field_projs_mut(&mut self) -> LocalTableInContextMut<'_, FieldProj> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.field_projs }
     }
 
-    pub fn field_projs(&self) -> LocalTableInContext<FieldProj> {
+    pub fn field_projs(&self) -> LocalTableInContext<'_, FieldProj> {
         LocalTableInContext { owner: self.owner, data: &self.field_projs }
     }
 
-    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<Sort> {
+    pub fn node_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.node_sorts }
     }
 
-    pub fn node_sorts(&self) -> LocalTableInContext<Sort> {
+    pub fn node_sorts(&self) -> LocalTableInContext<'_, Sort> {
         LocalTableInContext { owner: self.owner, data: &self.node_sorts }
     }
 
-    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<DefId> {
+    pub fn record_ctors_mut(&mut self) -> LocalTableInContextMut<'_, DefId> {
         LocalTableInContextMut { owner: self.owner, data: &mut self.record_ctors }
     }
 
-    pub fn record_ctors(&self) -> LocalTableInContext<DefId> {
+    pub fn record_ctors(&self) -> LocalTableInContext<'_, DefId> {
         LocalTableInContext { owner: self.owner, data: &self.record_ctors }
     }
 }

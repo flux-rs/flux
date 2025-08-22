@@ -27,6 +27,14 @@ impl BigInt {
     pub const ZERO: BigInt = BigInt { sign: Sign::NonNegative, val: 0 };
     pub const ONE: BigInt = BigInt { sign: Sign::NonNegative, val: 1 };
 
+    pub fn is_negative(&self) -> bool {
+        matches!(self.sign, Sign::Negative)
+    }
+
+    pub fn abs(&self) -> u128 {
+        self.val
+    }
+
     /// Given the bit width of a signed integer type, produces the minimum integer for
     /// that type, i.e., -2^(bit_width - 1).
     pub fn int_min(bit_width: u32) -> BigInt {
@@ -79,15 +87,6 @@ impl From<i32> for BigInt {
 impl From<u32> for BigInt {
     fn from(val: u32) -> Self {
         BigInt { sign: Sign::NonNegative, val: val as u128 }
-    }
-}
-
-impl liquid_fixpoint::FixpointFmt for BigInt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.sign {
-            Sign::NonNegative => write!(f, "{}", self.val),
-            Sign::Negative => write!(f, "(- {})", self.val),
-        }
     }
 }
 

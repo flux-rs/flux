@@ -5,23 +5,27 @@ use std::{
 };
 
 use flux_common::{index::IndexVec, iter::IterExt, tracked_span_bug};
+use flux_config::OverflowMode;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     global_env::GlobalEnv,
-    pretty::{format_cx, PrettyCx, PrettyNested},
+    pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        canonicalize::{Hoister, HoisterDelegate},
+        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
-        BaseTy, EVid, Expr, Name, Sort, SpecFuncDefns, Ty, TyCtor, TyKind, Var,
     },
 };
 use itertools::Itertools;
+use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_index::newtype_index;
+use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
 use crate::{
     evars::EVarStore,
-    fixpoint_encoding::{fixpoint, FixpointCtxt},
+    fixpoint_encoding::{FixpointCtxt, fixpoint},
     infer::{Tag, TypeTrace},
 };
 
@@ -54,8 +58,12 @@ impl RefineTree {
         RefineTree { root }
     }
 
-    pub(crate) fn simplify(&mut self, defns: &SpecFuncDefns) {
-        self.root.borrow_mut().simplify(defns);
+    pub(crate) fn simplify(&mut self, genv: GlobalEnv) {
+        self.root
+            .borrow_mut()
+            .simplify(SimplifyPhase::Full(genv), &mut SnapshotMap::default());
+        self.root.borrow_mut().simplify_bot();
+        self.root.borrow_mut().simplify_top();
     }
 
     pub(crate) fn into_fixpoint(
@@ -69,7 +77,7 @@ impl RefineTree {
             .unwrap_or(fixpoint::Constraint::TRUE))
     }
 
-    pub(crate) fn cursor_at_root(&mut self) -> Cursor {
+    pub(crate) fn cursor_at_root(&mut self) -> Cursor<'_> {
         Cursor { ptr: NodePtr(Rc::clone(&self.root)), tree: self }
     }
 
@@ -87,13 +95,13 @@ pub struct Cursor<'a> {
     ptr: NodePtr,
 }
 
-impl<'a> Cursor<'a> {
+impl Cursor<'_> {
     /// Moves the cursor to the specified [marker]. If `clear_children` is `true`, all children of
     /// the node are removed after moving the cursor, invalidating any markers pointing to a node
     /// within those children.
     ///
     /// [marker]: Marker
-    pub(crate) fn move_to(&mut self, marker: &Marker, clear_children: bool) -> Option<Cursor> {
+    pub(crate) fn move_to(&mut self, marker: &Marker, clear_children: bool) -> Option<Cursor<'_>> {
         let ptr = marker.ptr.upgrade()?;
         if clear_children {
             ptr.borrow_mut().children.clear();
@@ -108,7 +116,7 @@ impl<'a> Cursor<'a> {
     }
 
     #[must_use]
-    pub(crate) fn branch(&mut self) -> Cursor {
+    pub(crate) fn branch(&mut self) -> Cursor<'_> {
         Cursor { tree: self.tree, ptr: NodePtr::clone(&self.ptr) }
     }
 
@@ -128,21 +136,6 @@ impl<'a> Cursor<'a> {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
         self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
         fresh
-    }
-
-    /// Given a [`sort`] that may contain aggregate sorts ([tuple] or [adt]), it destructs the sort
-    /// recursively, generating multiple fresh variables and returning an "eta-expanded" expression
-    /// of fresh variables. This is in contrast to generating a single fresh variable of aggregate
-    /// sort.
-    ///
-    /// For example, given the sort `(int, (bool, int))` it returns `(a0, (a1, a2))` for fresh variables
-    /// `a0: int`, `a1: bool`, and `a2: int`.
-    ///
-    /// [`sort`]: Sort
-    /// [tuple]: Sort::Tuple
-    /// [adt]: flux_middle::rty::SortCtor::Adt
-    pub(crate) fn define_vars(&mut self, sort: &Sort) -> Expr {
-        Expr::fold_sort(sort, |sort| Expr::fvar(self.define_var(sort)))
     }
 
     /// Pushes an [assumption] and moves the cursor into the new node.
@@ -172,19 +165,18 @@ impl<'a> Cursor<'a> {
             .push_node(NodeKind::Head(pred2.into(), tag));
     }
 
-    pub(crate) fn hoister(
+    pub(crate) fn assume_invariants(
         &mut self,
-        assume_invariants: AssumeInvariants,
-    ) -> Hoister<Unpacker<'_, 'a>> {
-        Hoister::with_delegate(Unpacker { cursor: self, assume_invariants }).transparent()
-    }
-
-    pub(crate) fn assume_invariants(&mut self, ty: &Ty, overflow_checking: bool) {
-        struct Visitor<'a, 'b> {
+        tcx: TyCtxt,
+        ty: &Ty,
+        overflow_checking: OverflowMode,
+    ) {
+        struct Visitor<'a, 'b, 'tcx> {
+            tcx: TyCtxt<'tcx>,
             cursor: &'a mut Cursor<'b>,
-            overflow_checking: bool,
+            overflow_mode: OverflowMode,
         }
-        impl TypeVisitor for Visitor<'_, '_> {
+        impl TypeVisitor for Visitor<'_, '_, '_> {
             fn visit_bty(&mut self, bty: &BaseTy) -> ControlFlow<!> {
                 match bty {
                     BaseTy::Adt(adt_def, substs) if adt_def.is_box() => substs.visit_with(self),
@@ -198,7 +190,7 @@ impl<'a> Cursor<'a> {
                 if let TyKind::Indexed(bty, idx) = ty.kind()
                     && !idx.has_escaping_bvars()
                 {
-                    for invariant in bty.invariants(self.overflow_checking) {
+                    for invariant in bty.invariants(self.tcx, self.overflow_mode) {
                         let invariant = invariant.apply(idx);
                         self.cursor.assume_pred(&invariant);
                     }
@@ -206,7 +198,7 @@ impl<'a> Cursor<'a> {
                 ty.super_visit_with(self)
             }
         }
-        ty.visit_with(&mut Visitor { cursor: self, overflow_checking });
+        let _ = ty.visit_with(&mut Visitor { tcx, cursor: self, overflow_mode: overflow_checking });
     }
 }
 
@@ -357,36 +349,6 @@ enum NodeKind {
     Trace(TypeTrace),
 }
 
-pub(crate) enum AssumeInvariants {
-    Yes { check_overflow: bool },
-    No,
-}
-
-impl AssumeInvariants {
-    pub(crate) fn yes(check_overflow: bool) -> Self {
-        Self::Yes { check_overflow }
-    }
-}
-
-pub struct Unpacker<'a, 'b> {
-    cursor: &'a mut Cursor<'b>,
-    assume_invariants: AssumeInvariants,
-}
-
-impl HoisterDelegate for Unpacker<'_, '_> {
-    fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty = ty_ctor.replace_bound_refts_with(|sort, _, _| self.cursor.define_vars(sort));
-        if let AssumeInvariants::Yes { check_overflow } = self.assume_invariants {
-            self.cursor.assume_invariants(&ty, check_overflow);
-        }
-        ty
-    }
-
-    fn hoist_constr(&mut self, pred: Expr) {
-        self.cursor.assume_pred(pred);
-    }
-}
-
 impl std::ops::Index<Name> for Scope {
     type Output = Sort;
 
@@ -403,34 +365,61 @@ impl std::ops::Deref for NodePtr {
     }
 }
 
-impl Node {
-    fn simplify(&mut self, defns: &SpecFuncDefns) {
-        for child in &self.children {
-            child.borrow_mut().simplify(defns);
-        }
+#[derive(Clone, Copy)]
+enum SimplifyPhase<'genv, 'tcx> {
+    /// Normalize and simplify inner `Expr`
+    Full(GlobalEnv<'genv, 'tcx>),
+    /// Only propagate `true` (TOP) and `false` (BOT)
+    Partial,
+}
 
+impl Node {
+    fn simplify(&mut self, phase: SimplifyPhase, assumed_preds: &mut SnapshotMap<Expr, ()>) {
+        // First, simplify the node itself
         match &mut self.kind {
             NodeKind::Head(pred, tag) => {
-                let pred = pred.normalize(defns).simplify();
+                let pred = match phase {
+                    SimplifyPhase::Full(genv) => pred.normalize(genv).simplify(assumed_preds),
+                    SimplifyPhase::Partial => pred.clone(),
+                };
                 if pred.is_trivially_true() {
                     self.kind = NodeKind::True;
                 } else {
                     self.kind = NodeKind::Head(pred, *tag);
                 }
             }
-            NodeKind::True => {}
             NodeKind::Assumption(pred) => {
-                *pred = pred.normalize(defns).simplify();
-                self.children
-                    .extract_if(|child| {
-                        matches!(child.borrow().kind, NodeKind::True)
-                            || matches!(&child.borrow().kind, NodeKind::Head(head, _) if head == pred)
-                    })
-                    .for_each(drop);
+                if let SimplifyPhase::Full(genv) = phase {
+                    *pred = pred.normalize(genv).simplify(assumed_preds);
+                }
+                pred.visit_conj(|conjunct| {
+                    assumed_preds.insert(conjunct.erase_spans(), ());
+                });
             }
-            NodeKind::Trace(_) | NodeKind::Root(_) | NodeKind::ForAll(..) => {
+            _ => {}
+        }
+        let is_false_asm =
+            matches!(&self.kind, NodeKind::Assumption(pred) if pred.is_trivially_false());
+
+        // Then simplify the children
+        // (the order matters here because we need to collect assumed preds first)
+        for child in &self.children {
+            let current_version = assumed_preds.snapshot();
+            child.borrow_mut().simplify(phase, assumed_preds);
+            assumed_preds.rollback_to(current_version);
+        }
+
+        // Then remove any unnecessary children
+        match &mut self.kind {
+            NodeKind::Head(..) | NodeKind::True => {}
+            NodeKind::Assumption(_)
+            | NodeKind::Trace(_)
+            | NodeKind::Root(_)
+            | NodeKind::ForAll(..) => {
                 self.children
-                    .extract_if(|child| matches!(&child.borrow().kind, NodeKind::True))
+                    .extract_if(.., |child| {
+                        is_false_asm || matches!(&child.borrow().kind, NodeKind::True)
+                    })
                     .for_each(drop);
             }
         }
@@ -502,18 +491,16 @@ impl Node {
                 })?
             }
             NodeKind::Assumption(pred) => {
-                let (bindings, pred) = cx.assumption_to_fixpoint(pred)?;
+                let (mut bindings, pred) = cx.assumption_to_fixpoint(pred)?;
                 let Some(cstr) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
-                Some(fixpoint::Constraint::ForAll(
-                    fixpoint::Bind {
-                        name: fixpoint::Var::Underscore,
-                        sort: fixpoint::Sort::Int,
-                        pred,
-                    },
-                    Box::new(fixpoint::Constraint::foralls(bindings, cstr)),
-                ))
+                bindings.push(fixpoint::Bind {
+                    name: fixpoint::Var::Underscore,
+                    sort: fixpoint::Sort::Int,
+                    pred,
+                });
+                Some(fixpoint::Constraint::foralls(bindings, cstr))
             }
             NodeKind::Head(pred, tag) => {
                 Some(cx.head_to_fixpoint(pred, |span| tag.with_dst(span))?)
@@ -667,12 +654,16 @@ mod pretty {
                     } else {
                         (vec![pred.clone()], node.children.clone())
                     };
-                    let guard = Expr::and_from_iter(preds).simplify();
+                    let guard = Expr::and_from_iter(preds).simplify(&SnapshotMap::default());
                     w!(cx, f, "{:?} =>", parens!(guard, !guard.is_atom()))?;
                     fmt_children(&children, cx, f)
                 }
                 NodeKind::Head(pred, tag) => {
-                    let pred = if cx.simplify_exprs { pred.simplify() } else { pred.clone() };
+                    let pred = if cx.simplify_exprs {
+                        pred.simplify(&SnapshotMap::default())
+                    } else {
+                        pred.clone()
+                    };
                     w!(cx, f, "{:?}", parens!(pred, !pred.is_atom()))?;
                     if cx.tags {
                         w!(cx, f, " ~ {:?}", tag)?;
@@ -713,7 +704,7 @@ mod pretty {
                     NodeKind::Root(bindings) => {
                         // We reverse here because is reversed again at the end
                         for (name, sort) in bindings.iter().rev() {
-                            elements.push(format_cx!(cx, "{:?} {:?}", ^name, sort));
+                            elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
                     }
                     NodeKind::ForAll(name, sort) => {
@@ -759,7 +750,7 @@ mod pretty {
     );
 }
 
-/// A very explicit representation of [`RefineCtxt`] for debugging/tracing/serialization ONLY.
+/// An explicit representation of a path in the [`RefineTree`] used for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
 pub struct RefineCtxtTrace {
     bindings: Vec<RcxBind>,
@@ -789,7 +780,9 @@ impl RefineCtxtTrace {
                     };
                     bindings.push(bind);
                 }
-                NodeKind::Assumption(e) if !e.simplify().is_trivially_true() => {
+                NodeKind::Assumption(e)
+                    if !e.simplify(&SnapshotMap::default()).is_trivially_true() =>
+                {
                     let e = e.nested_string(cx);
                     exprs.push(e);
                 }
@@ -806,5 +799,251 @@ impl RefineCtxtTrace {
             }
         });
         Self { bindings, exprs }
+    }
+}
+
+impl Node {
+    /// replace bot-kvars with false
+    fn simplify_bot(&mut self) {
+        let graph = ConstraintDeps::new(self);
+        let bots = graph.bot_kvars();
+        self.simplify_with_assignment(&bots);
+        self.simplify(SimplifyPhase::Partial, &mut SnapshotMap::default());
+    }
+
+    /// replace top-kvars with true
+    fn simplify_top(&mut self) {
+        let graph = ConstraintDeps::new(self);
+        let tops = graph.top_kvars();
+        self.simplify_with_assignment(&tops);
+        self.simplify(SimplifyPhase::Partial, &mut SnapshotMap::default());
+    }
+
+    /// simplifies assumptions and heads using the TOP/BOT kvar assignment; follow
+    /// with a call to `simplify` to delete constraints with FALSE assm.
+    fn simplify_with_assignment(&mut self, assignment: &Assignment) {
+        match &mut self.kind {
+            NodeKind::Head(pred, tag) => {
+                let pred = assignment.simplify(pred);
+                self.kind = NodeKind::Head(pred, *tag);
+            }
+            NodeKind::Assumption(pred) => {
+                let pred = assignment.simplify(pred);
+                self.kind = NodeKind::Assumption(pred);
+            }
+            _ => {}
+        }
+        for child in &self.children {
+            child.borrow_mut().simplify_with_assignment(assignment);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ConstraintDeps {
+    /// assumptions for each clause
+    assumptions: IndexVec<ClauseId, FxHashSet<KVid>>,
+    /// head of each clause
+    heads: IndexVec<ClauseId, Head>,
+}
+
+impl ConstraintDeps {
+    fn new(node: &Node) -> Self {
+        let mut graph = Self { assumptions: IndexVec::default(), heads: IndexVec::default() };
+        graph.build(node, &mut vec![]);
+        graph
+    }
+
+    fn insert_clause(&mut self, assumptions: &[KVid], head: Head) {
+        self.assumptions.push(assumptions.iter().copied().collect());
+        self.heads.push(head);
+    }
+
+    fn build(&mut self, node: &Node, assumptions: &mut Vec<KVid>) {
+        let n = assumptions.len();
+        match &node.kind {
+            NodeKind::Head(expr, _) => {
+                expr.visit_conj(|e| {
+                    if let ExprKind::KVar(kvar) = e.kind() {
+                        self.insert_clause(assumptions, Head::KVar(kvar.kvid));
+                    } else {
+                        self.insert_clause(assumptions, Head::Conc);
+                    }
+                });
+            }
+            NodeKind::Assumption(expr) => {
+                expr.visit_conj(|e| {
+                    if let ExprKind::KVar(kvar) = e.kind() {
+                        assumptions.push(kvar.kvid);
+                    }
+                });
+            }
+            _ => {}
+        };
+
+        for child in &node.children {
+            self.build(&child.borrow(), assumptions);
+        }
+
+        assumptions.truncate(n); // restore ctx
+    }
+
+    /// set of edges where kvid appears as ASSM
+    fn kv_lhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
+        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+        for (clause_id, kvids) in self.assumptions.iter_enumerated() {
+            for kvid in kvids {
+                res.entry(*kvid).or_default().push(clause_id);
+            }
+        }
+        res
+    }
+
+    /// set of edges where kvid appears as HEAD
+    fn kv_rhs(&self) -> FxHashMap<KVid, Vec<ClauseId>> {
+        let mut res: FxHashMap<KVid, Vec<ClauseId>> = FxHashMap::default();
+        for (clause_id, head) in self.heads.iter_enumerated() {
+            if let Head::KVar(kvid) = head {
+                res.entry(*kvid).or_default().push(clause_id);
+            }
+        }
+        res
+    }
+
+    /// Computes the set of all kvars that can be assigned to Bot (False),
+    /// because they are not (transitively) reachable from any concrete ASSUMPTION.
+    fn bot_kvars(self) -> Assignment {
+        // set of BOT kvars (initially, all)
+        let mut assignment = Assignment::new(Label::Bot);
+
+        let kv_lhs = self.kv_lhs();
+
+        // set of BOT kvars in LHS of each constraint with KVar HEAD
+        let mut bot_assms: IndexVec<ClauseId, FxHashSet<KVid>> = self.assumptions;
+
+        // set of constraints `cid` whose bot-assms is empty
+        let mut candidates: Vec<ClauseId> = bot_assms
+            .iter_enumerated()
+            .filter_map(|(cid, lhs)| if lhs.is_empty() { Some(cid) } else { None })
+            .collect();
+
+        // while there is a candidate constraint, that has NO BOT kvars in lhs
+        while let Some(cid) = candidates.pop() {
+            if let Head::KVar(kvid) = self.heads[cid] {
+                // un-BOT the head kvar
+                assignment.remove(kvid);
+                // remove the head kvar from all (bot) assumptions where it currently occurs
+                for cid in kv_lhs.get(&kvid).unwrap_or(&vec![]) {
+                    // if cid HEAD is a kvar
+                    if let Head::KVar(rhs_kvid) = self.heads[*cid] {
+                        let assms = &mut bot_assms[*cid];
+                        assms.remove(&kvid);
+                        if assignment.has_label(rhs_kvid) && assms.is_empty() {
+                            candidates.push(*cid);
+                        }
+                    };
+                }
+            }
+        }
+
+        assignment
+    }
+
+    /// Computes the set of all kvars that can be assigned to Top (True),
+    /// because they do not (transitively) reach any concrete HEAD.
+    fn top_kvars(self) -> Assignment {
+        // initialize
+        let mut assignment = Assignment::new(Label::Top);
+
+        let kv_rhs = self.kv_rhs();
+
+        // set of kvar {k | cid in graph.edges, c.rhs is concrete, k in c.lhs }
+        let mut candidates = vec![];
+        for (cid, head) in self.heads.iter_enumerated() {
+            if matches!(head, Head::Conc) {
+                for kvid in &self.assumptions[cid] {
+                    candidates.push(*kvid);
+                }
+            }
+        }
+
+        // set each kvar that transitively reaches a concrete HEAD to NON-BOT
+        while let Some(kvid) = candidates.pop() {
+            // set that kvar to non-top
+            assignment.remove(kvid);
+
+            // for each constraint where kvid appears as head
+            for cid in kv_rhs.get(&kvid).unwrap_or(&vec![]) {
+                // add kvars in lhs to candidates (if they have not already been solved to non-BOT)
+                for lhs_kvid in &self.assumptions[*cid] {
+                    if assignment.has_label(*lhs_kvid) {
+                        candidates.push(*lhs_kvid);
+                    }
+                }
+            }
+        }
+
+        assignment
+    }
+}
+
+newtype_index! {
+    struct ClauseId {}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Head {
+    /// KVar
+    KVar(KVid),
+    /// A *conc*rete predicate, i.e., an [`Expr`] that's not a kvar. We don't need to know
+    /// the exact expression, only that it's concrete.
+    Conc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Label {
+    /// Kvar can be solved to false
+    Bot,
+    /// Kvar can be solved to true
+    Top,
+}
+
+struct Assignment {
+    /// These vars are NOT assigned `label`,
+    /// all other `KVid` implicitly have assignment `label`
+    vars: FxHashSet<KVid>,
+    label: Label,
+}
+
+impl Assignment {
+    fn new(label: Label) -> Self {
+        let vars = FxHashSet::default();
+        Self { vars, label }
+    }
+
+    fn has_label(&self, kvid: KVid) -> bool {
+        !self.vars.contains(&kvid)
+    }
+
+    fn remove(&mut self, kvid: KVid) {
+        self.vars.insert(kvid);
+    }
+
+    /// simplifies the given predicate expression by replacing
+    /// kvid assigned to TOP with True, BOT with false.
+    fn simplify(&self, pred: &Expr) -> Expr {
+        let mut preds = vec![];
+        for p in pred.flatten_conjs() {
+            if let ExprKind::KVar(kvar) = p.kind()
+                && self.has_label(kvar.kvid)
+            {
+                if self.label == Label::Bot {
+                    return Expr::ff();
+                } // else, skip pushing `p` into `preds`
+            } else {
+                preds.push(p.clone());
+            }
+        }
+        Expr::and_from_iter(preds)
     }
 }

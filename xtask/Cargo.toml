@@ -1,18 +1,16 @@
 [package]
-edition = "2021"
 name = "xtask"
 version = "0.1.0"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tests.workspace = true
+anyhow.workspace = true
+cargo_metadata.workspace = true
 home.workspace = true
-
-anyhow = "1.0.79"
-opener = "0.6.1"
+tests.workspace = true
 xflags = "0.3.2"
-xshell = "0.2.5"
 
 [lints]
 workspace = true

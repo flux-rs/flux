@@ -5,10 +5,12 @@ use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
 };
-use flux_middle::{fhir, global_env::GlobalEnv, rty, MaybeExternId};
+use flux_middle::{
+    FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
+};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
-use rustc_span::{Span, DUMMY_SP};
+use rustc_span::{DUMMY_SP, Span};
 
 pub fn check_invariants(
     genv: GlobalEnv,
@@ -28,7 +30,7 @@ pub fn check_invariants(
     let opts = genv.infer_opts(def_id.local_id());
     adt_def
         .invariants()
-        .iter()
+        .iter_identity()
         .enumerate()
         .try_for_each_exhaust(|(idx, invariant)| {
             let span = invariants[idx].span;
@@ -46,38 +48,42 @@ fn check_invariant(
     opts: InferOpts,
 ) -> Result<(), ErrorGuaranteed> {
     let resolved_id = def_id.resolved_id();
-    let mut infcx_root = genv.infcx_root(resolved_id, opts).build().emit(&genv)?;
 
     let region_infercx = genv
         .tcx()
         .infer_ctxt()
+        .with_next_trait_solver(true)
         .build(TypingMode::non_body_analysis());
+
+    let mut infcx_root = try_query(|| {
+        genv.infcx_root(&region_infercx, opts)
+            .identity_for_item(resolved_id)?
+            .build()
+    })
+    .emit(&genv)?;
+
     for variant_idx in adt_def.variants().indices() {
         let mut rcx = infcx_root.infcx(resolved_id, &region_infercx);
 
-        let variant = genv
+        let variant_sig = genv
             .variant_sig(adt_def.did(), variant_idx)
             .emit(&genv)?
             .expect("cannot check opaque structs")
             .instantiate_identity()
-            .replace_bound_refts_with(|sort, _, _| rcx.define_vars(sort));
+            .replace_bound_refts_with(|sort, _, _| rty::Expr::fvar(rcx.define_var(sort)));
 
-        for ty in variant.fields() {
+        for ty in variant_sig.fields() {
             let ty = rcx.unpack(ty);
             rcx.assume_invariants(&ty);
         }
-        let pred = invariant.apply(&variant.idx);
+        let pred = invariant.apply(&variant_sig.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
     let errors = infcx_root
-        .execute_fixpoint_query(cache, def_id, "fluxc")
+        .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
         .emit(&genv)?;
 
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(genv.sess().emit_err(errors::Invalid { span }))
-    }
+    if errors.is_empty() { Ok(()) } else { Err(genv.sess().emit_err(errors::Invalid { span })) }
 }
 
 mod errors {

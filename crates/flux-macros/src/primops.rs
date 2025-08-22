@@ -4,11 +4,11 @@ use itertools::Itertools;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    braced, bracketed, parenthesized,
+    Ident, Lifetime, Token, braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    token, Ident, Lifetime, Token,
+    token,
 };
 
 macro_rules! unwrap_result {
@@ -95,7 +95,7 @@ impl Renderer {
             }
         }
 
-        let lbl = syn::Lifetime::new(&format!("'lbl{}", i), Span::call_site());
+        let lbl = syn::Lifetime::new(&format!("'lbl{i}"), Span::call_site());
 
         Self { lbl, rule, metavars }
     }
@@ -155,6 +155,10 @@ impl Renderer {
             Output::Exists(bty, pred) => {
                 let bty = self.bty_arg_or_prim(bty)?;
                 quote!(rty::Ty::exists_with_constr( #bty, #pred))
+            }
+            Output::Constr(bty, idx, pred) => {
+                let bty = self.bty_arg_or_prim(bty)?;
+                quote!(rty::Ty::constr(#pred, rty::Ty::indexed( #bty, #idx)))
             }
         };
         Ok(out)
@@ -300,25 +304,39 @@ enum Output {
     Base(syn::Ident),
     Indexed(syn::Ident, TokenStream),
     Exists(syn::Ident, TokenStream),
+    Constr(syn::Ident, TokenStream, TokenStream),
 }
 
 impl Parse for Output {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let bty: syn::Ident = input.parse()?;
-        if input.peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            Ok(Output::Indexed(bty, content.parse()?))
-        } else if input.peek(token::Brace) {
+        if input.peek(token::Brace) {
             let content;
             braced!(content in input);
-            let _: syn::Ident = content.parse()?;
-            let _: Token![:] = content.parse()?;
-            Ok(Output::Exists(bty, content.parse()?))
+            let bty = content.parse()?;
+            let idx = parse_index(&content)?;
+            let _: Token![|] = content.parse()?;
+            Ok(Output::Constr(bty, idx, content.parse()?))
         } else {
-            Ok(Output::Base(bty))
+            let bty: syn::Ident = input.parse()?;
+            if input.peek(token::Bracket) {
+                Ok(Output::Indexed(bty, parse_index(input)?))
+            } else if input.peek(token::Brace) {
+                let content;
+                braced!(content in input);
+                let _: syn::Ident = content.parse()?;
+                let _: Token![:] = content.parse()?;
+                Ok(Output::Exists(bty, content.parse()?))
+            } else {
+                Ok(Output::Base(bty))
+            }
         }
     }
+}
+
+fn parse_index(input: ParseStream) -> syn::Result<TokenStream> {
+    let content;
+    bracketed!(content in input);
+    content.parse()
 }
 
 struct Requires {
@@ -368,11 +386,11 @@ impl Parse for Guard {
 }
 
 fn mk_idx_arg(i: usize) -> Ident {
-    Ident::new(&format!("idx{}", i), Span::call_site())
+    Ident::new(&format!("idx{i}"), Span::call_site())
 }
 
 fn mk_bty_arg(i: usize) -> Ident {
-    Ident::new(&format!("bty{}", i), Span::call_site())
+    Ident::new(&format!("bty{i}"), Span::call_site())
 }
 
 fn is_primitive_type<T>(s: &T) -> bool

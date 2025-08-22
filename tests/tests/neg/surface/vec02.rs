@@ -2,8 +2,8 @@
 
 use std::ops::Index;
 
-#[path = "../../lib/vec.rs"]
-mod vec;
+extern crate flux_alloc;
+extern crate flux_core;
 
 // ---------------------------------------------------------------------------------------
 

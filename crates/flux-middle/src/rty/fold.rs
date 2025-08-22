@@ -1,25 +1,23 @@
 //! This modules follows the implementation of folding in rustc. For more information read the
-//! documentation in [`rustc_middle::ty::fold`].
+//! documentation in `rustc_type_ir::fold`.
 
 use std::ops::ControlFlow;
 
 use flux_arc_interner::{Internable, List};
 use flux_common::bug;
 use itertools::Itertools;
+use rustc_data_structures::fx::FxHashMap;
 use rustc_hash::FxHashSet;
-use rustc_hir::def_id::DefId;
-use rustc_type_ir::{DebruijnIndex, INNERMOST};
+use rustc_type_ir::{BoundVar, DebruijnIndex, INNERMOST};
 
 use super::{
-    normalize::{Normalizer, SpecFuncDefns},
-    projections, BaseTy, Binder, BoundVariableKinds, Const, EVid, Ensures, Expr, ExprKind,
+    BaseTy, Binder, BoundVariableKinds, Const, EVid, EarlyReftParam, Ensures, Expr, ExprKind,
     GenericArg, Name, OutlivesPredicate, PolyFuncSort, PtrKind, ReBound, ReErased, Region, Sort,
-    SubsetTy, Ty, TyKind,
+    SubsetTy, Ty, TyKind, TyOrBase, normalize::Normalizer,
 };
 use crate::{
     global_env::GlobalEnv,
-    queries::QueryResult,
-    rty::{expr::HoleKind, Var, VariantSig},
+    rty::{BoundReft, Var, VariantSig, expr::HoleKind},
 };
 
 pub trait TypeVisitor: Sized {
@@ -183,7 +181,7 @@ pub trait TypeVisitable: Sized {
 
             fn visit_binder<T: TypeVisitable>(&mut self, t: &Binder<T>) -> ControlFlow<()> {
                 self.outer_index.shift_in(1);
-                t.super_visit_with(self);
+                t.super_visit_with(self)?;
                 self.outer_index.shift_out(1);
                 ControlFlow::Continue(())
             }
@@ -221,8 +219,122 @@ pub trait TypeVisitable: Sized {
         }
 
         let mut collector = CollectFreeVars(FxHashSet::default());
-        self.visit_with(&mut collector);
+        let _ = self.visit_with(&mut collector);
         collector.0
+    }
+
+    fn early_params(&self) -> FxHashSet<EarlyReftParam> {
+        struct CollectEarlyParams(FxHashSet<EarlyReftParam>);
+
+        impl TypeVisitor for CollectEarlyParams {
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::EarlyParam(param)) = e.kind() {
+                    self.0.insert(*param);
+                }
+                e.super_visit_with(self)
+            }
+        }
+
+        let mut collector = CollectEarlyParams(FxHashSet::default());
+        let _ = self.visit_with(&mut collector);
+        collector.0
+    }
+
+    /// Gives the indices of the provided bvars which:
+    ///   1. Only occur a single time.
+    ///   2. In their occurrence, are either
+    ///      a. The direct argument in an index (e.g. `exists b0. usize[b0]`)
+    ///      b. The direct argument of a constructor in an index (e.g.
+    ///      `exists b0. Vec<usize>[{len: b0}]`)
+    ///
+    /// This is to be used for "re-sugaring" existentials into surface syntax
+    /// that doesn't use existentials.
+    ///
+    /// For 2b., we do need to be careful to ensure that if a constructor has
+    /// multiple arguments, they _all_ are redundant bvars, e.g. as in
+    ///
+    ///     exists b0, b1. RMat<f32>[{rows: b0, cols: b1}]
+    ///
+    /// which may be rewritten as `RMat<f32>`,
+    /// versus the (unlikely) edge case
+    ///
+    ///     exists b0. RMat<f32>[{rows: b0, cols: b0}]
+    ///
+    /// for which the existential is now necessary.
+    ///
+    /// NOTE: this only applies to refinement bvars.
+    fn redundant_bvars(&self) -> FxHashSet<BoundVar> {
+        struct RedundantBVarFinder {
+            current_index: DebruijnIndex,
+            total_bvar_occurrences: FxHashMap<BoundVar, usize>,
+            bvars_appearing_in_index: FxHashSet<BoundVar>,
+        }
+
+        impl TypeVisitor for RedundantBVarFinder {
+            // Here we count all times we see a bvar
+            fn visit_expr(&mut self, e: &Expr) -> ControlFlow<Self::BreakTy> {
+                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) = e.kind()
+                    && debruijn == &self.current_index
+                {
+                    self.total_bvar_occurrences
+                        .entry(*var)
+                        .and_modify(|count| {
+                            *count += 1;
+                        })
+                        .or_insert(1);
+                }
+                e.super_visit_with(self)
+            }
+
+            fn visit_ty(&mut self, ty: &Ty) -> ControlFlow<Self::BreakTy> {
+                // Here we check for bvars specifically as the direct arguments
+                // to an index or as the direct arguments to a Ctor in an index.
+                if let TyKind::Indexed(_bty, expr) = ty.kind() {
+                    match expr.kind() {
+                        ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) => {
+                            if debruijn == &self.current_index {
+                                self.bvars_appearing_in_index.insert(*var);
+                            }
+                        }
+                        ExprKind::Ctor(_ctor, exprs) => {
+                            exprs.iter().for_each(|expr| {
+                                if let ExprKind::Var(Var::Bound(debruijn, BoundReft { var, .. })) =
+                                    expr.kind()
+                                    && debruijn == &self.current_index
+                                {
+                                    self.bvars_appearing_in_index.insert(*var);
+                                }
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+                ty.super_visit_with(self)
+            }
+
+            fn visit_binder<T: TypeVisitable>(
+                &mut self,
+                t: &Binder<T>,
+            ) -> ControlFlow<Self::BreakTy> {
+                self.current_index.shift_in(1);
+                t.super_visit_with(self)?;
+                self.current_index.shift_out(1);
+                ControlFlow::Continue(())
+            }
+        }
+
+        let mut finder = RedundantBVarFinder {
+            current_index: INNERMOST,
+            total_bvar_occurrences: FxHashMap::default(),
+            bvars_appearing_in_index: FxHashSet::default(),
+        };
+        let _ = self.visit_with(&mut finder);
+
+        finder
+            .bvars_appearing_in_index
+            .into_iter()
+            .filter(|var_index| finder.total_bvar_occurrences.get(var_index) == Some(&1))
+            .collect()
     }
 }
 
@@ -237,19 +349,9 @@ pub trait TypeFoldable: TypeVisitable {
         self.try_fold_with(folder).into_ok()
     }
 
-    fn normalize_projections<'tcx>(
-        &self,
-        genv: GlobalEnv<'_, 'tcx>,
-        infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-        callsite_def_id: DefId,
-    ) -> QueryResult<Self> {
-        let mut normalizer = projections::Normalizer::new(genv, infcx, callsite_def_id)?;
-        self.erase_regions().try_fold_with(&mut normalizer)
-    }
-
     /// Normalize expressions by applying beta reductions for tuples and lambda abstractions.
-    fn normalize(&self, defns: &SpecFuncDefns) -> Self {
-        self.fold_with(&mut Normalizer::new(defns))
+    fn normalize(&self, genv: GlobalEnv) -> Self {
+        self.fold_with(&mut Normalizer::new(genv, None))
     }
 
     /// Replaces all [holes] with the result of calling a closure. The closure takes a list with
@@ -317,20 +419,14 @@ pub trait TypeFoldable: TypeVisitable {
 
             fn try_fold_expr(&mut self, expr: &Expr) -> Result<Expr, Self::Error> {
                 if let ExprKind::Var(Var::EVar(evid)) = expr.kind() {
-                    if let Some(sol) = (self.0)(*evid) {
-                        Ok(sol.clone())
-                    } else {
-                        Err(*evid)
-                    }
+                    if let Some(sol) = (self.0)(*evid) { Ok(sol.clone()) } else { Err(*evid) }
                 } else {
                     expr.try_super_fold_with(self)
                 }
             }
         }
 
-        Ok(self
-            .try_fold_with(&mut Folder(f))?
-            .normalize(&Default::default()))
+        self.try_fold_with(&mut Folder(f))
     }
 
     fn shift_in_escaping(&self, amount: u32) -> Self {
@@ -556,9 +652,7 @@ where
 
 impl TypeVisitable for VariantSig {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        self.fields
-            .iter()
-            .try_for_each(|ty| ty.visit_with(visitor))?;
+        self.fields.visit_with(visitor)?;
         self.idx.visit_with(visitor)
     }
 }
@@ -568,7 +662,8 @@ impl TypeFoldable for VariantSig {
         let args = self.args.try_fold_with(folder)?;
         let fields = self.fields.try_fold_with(folder)?;
         let idx = self.idx.try_fold_with(folder)?;
-        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx))
+        let requires = self.requires.try_fold_with(folder)?;
+        Ok(VariantSig::new(self.adt_def.clone(), args, fields, idx, requires))
     }
 }
 
@@ -605,6 +700,15 @@ impl TypeFoldable for Ensures {
             Ensures::Pred(e) => Ensures::Pred(e.try_fold_with(folder)?),
         };
         Ok(c)
+    }
+}
+
+impl TypeVisitable for super::TyOrBase {
+    fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
+        match self {
+            Self::Ty(ty) => ty.visit_with(visitor),
+            Self::Base(bty) => bty.visit_with(visitor),
+        }
     }
 }
 
@@ -747,6 +851,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::FnDef(_, args) => args.visit_with(visitor),
             BaseTy::Slice(ty) => ty.visit_with(visitor),
             BaseTy::RawPtr(ty, _) => ty.visit_with(visitor),
+            BaseTy::RawPtrMetadata(ty) => ty.visit_with(visitor),
             BaseTy::Ref(_, ty, _) => ty.visit_with(visitor),
             BaseTy::FnPtr(poly_fn_sig) => poly_fn_sig.visit_with(visitor),
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
@@ -763,9 +868,10 @@ impl TypeSuperVisitable for BaseTy {
             | BaseTy::Float(_)
             | BaseTy::Str
             | BaseTy::Char
-            | BaseTy::Closure(_, _, _)
+            | BaseTy::Closure(..)
             | BaseTy::Never
             | BaseTy::Infer(_)
+            | BaseTy::Foreign(_)
             | BaseTy::Param(_) => ControlFlow::Continue(()),
         }
     }
@@ -782,8 +888,10 @@ impl TypeSuperFoldable for BaseTy {
         let bty = match self {
             BaseTy::Adt(adt_def, args) => BaseTy::adt(adt_def.clone(), args.try_fold_with(folder)?),
             BaseTy::FnDef(def_id, args) => BaseTy::fn_def(*def_id, args.try_fold_with(folder)?),
+            BaseTy::Foreign(def_id) => BaseTy::Foreign(*def_id),
             BaseTy::Slice(ty) => BaseTy::Slice(ty.try_fold_with(folder)?),
             BaseTy::RawPtr(ty, mu) => BaseTy::RawPtr(ty.try_fold_with(folder)?, *mu),
+            BaseTy::RawPtrMetadata(ty) => BaseTy::RawPtrMetadata(ty.try_fold_with(folder)?),
             BaseTy::Ref(re, ty, mutbl) => {
                 BaseTy::Ref(re.try_fold_with(folder)?, ty.try_fold_with(folder)?, *mutbl)
             }
@@ -825,6 +933,14 @@ impl TypeVisitable for SubsetTy {
         self.bty.visit_with(visitor)?;
         self.idx.visit_with(visitor)?;
         self.pred.visit_with(visitor)
+    }
+}
+impl TypeFoldable for TyOrBase {
+    fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
+        match self {
+            Self::Ty(ty) => Ok(Self::Ty(ty.try_fold_with(folder)?)),
+            Self::Base(bty) => Ok(Self::Base(bty.try_fold_with(folder)?)),
+        }
     }
 }
 
@@ -881,12 +997,14 @@ impl TypeSuperVisitable for Expr {
                 e1.visit_with(visitor)?;
                 e2.visit_with(visitor)
             }
-            ExprKind::Aggregate(_, flds) => flds.visit_with(visitor),
+            ExprKind::Tuple(flds) => flds.visit_with(visitor),
+            ExprKind::Ctor(_, flds) => flds.visit_with(visitor),
             ExprKind::FieldProj(e, _) | ExprKind::PathProj(e, _) | ExprKind::UnaryOp(_, e) => {
                 e.visit_with(visitor)
             }
-            ExprKind::App(func, arg) => {
+            ExprKind::App(func, sorts, arg) => {
                 func.visit_with(visitor)?;
+                sorts.visit_with(visitor)?;
                 arg.visit_with(visitor)
             }
             ExprKind::IfThenElse(p, e1, e2) => {
@@ -900,12 +1018,18 @@ impl TypeSuperVisitable for Expr {
                 args.visit_with(visitor)
             }
             ExprKind::Abs(body) => body.visit_with(visitor),
+            ExprKind::BoundedQuant(_, _, body) => body.visit_with(visitor),
             ExprKind::ForAll(expr) => expr.visit_with(visitor),
+            ExprKind::Let(init, body) => {
+                init.visit_with(visitor)?;
+                body.visit_with(visitor)
+            }
             ExprKind::Constant(_)
             | ExprKind::Hole(_)
             | ExprKind::Local(_)
             | ExprKind::GlobalFunc(..)
-            | ExprKind::ConstDefId(_, _) => ControlFlow::Continue(()),
+            | ExprKind::InternalFunc(..)
+            | ExprKind::ConstDefId(_) => ControlFlow::Continue(()),
         }
     }
 }
@@ -923,7 +1047,7 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Var(var) => Expr::var(*var),
             ExprKind::Local(local) => Expr::local(*local),
             ExprKind::Constant(c) => Expr::constant(*c),
-            ExprKind::ConstDefId(did, info) => Expr::const_def_id(*did, info.clone()),
+            ExprKind::ConstDefId(did) => Expr::const_def_id(*did),
             ExprKind::BinaryOp(op, e1, e2) => {
                 Expr::binary_op(
                     op.try_fold_with(folder)?,
@@ -933,13 +1057,15 @@ impl TypeSuperFoldable for Expr {
             }
             ExprKind::UnaryOp(op, e) => Expr::unary_op(*op, e.try_fold_with(folder)?),
             ExprKind::FieldProj(e, proj) => Expr::field_proj(e.try_fold_with(folder)?, *proj),
-            ExprKind::Aggregate(kind, flds) => {
-                let flds = flds.iter().map(|e| e.try_fold_with(folder)).try_collect()?;
-                Expr::aggregate(*kind, flds)
-            }
+            ExprKind::Tuple(flds) => Expr::tuple(flds.try_fold_with(folder)?),
+            ExprKind::Ctor(ctor, flds) => Expr::ctor(*ctor, flds.try_fold_with(folder)?),
             ExprKind::PathProj(e, field) => Expr::path_proj(e.try_fold_with(folder)?, *field),
-            ExprKind::App(func, arg) => {
-                Expr::app(func.try_fold_with(folder)?, arg.try_fold_with(folder)?)
+            ExprKind::App(func, sorts, arg) => {
+                Expr::app(
+                    func.try_fold_with(folder)?,
+                    sorts.try_fold_with(folder)?,
+                    arg.try_fold_with(folder)?,
+                )
             }
             ExprKind::IfThenElse(p, e1, e2) => {
                 Expr::ite(
@@ -951,13 +1077,18 @@ impl TypeSuperFoldable for Expr {
             ExprKind::Hole(kind) => Expr::hole(kind.try_fold_with(folder)?),
             ExprKind::KVar(kvar) => Expr::kvar(kvar.try_fold_with(folder)?),
             ExprKind::Abs(lam) => Expr::abs(lam.try_fold_with(folder)?),
-            ExprKind::GlobalFunc(func, kind) => Expr::global_func(*func, *kind),
+            ExprKind::BoundedQuant(kind, rng, body) => {
+                Expr::bounded_quant(*kind, *rng, body.try_fold_with(folder)?)
+            }
+            ExprKind::GlobalFunc(kind) => Expr::global_func(kind.clone()),
+            ExprKind::InternalFunc(kind) => Expr::internal_func(kind.clone()),
             ExprKind::Alias(alias, args) => {
-                let alias = alias.try_fold_with(folder)?;
-                let args = args.try_fold_with(folder)?;
-                Expr::alias(alias, args)
+                Expr::alias(alias.try_fold_with(folder)?, args.try_fold_with(folder)?)
             }
             ExprKind::ForAll(expr) => Expr::forall(expr.try_fold_with(folder)?),
+            ExprKind::Let(init, body) => {
+                Expr::let_(init.try_fold_with(folder)?, body.try_fold_with(folder)?)
+            }
         };
         Ok(expr.at_opt(span))
     }
@@ -1021,16 +1152,19 @@ macro_rules! TrivialTypeTraversalImpls {
 
 // For things that don't carry any arena-allocated data (and are copy...), just add them to this list.
 TrivialTypeTraversalImpls! {
+    (),
     bool,
     usize,
     crate::fhir::InferMode,
     crate::rty::BoundReftKind,
     crate::rty::BvSize,
     crate::rty::KVid,
+    crate::def_id::FluxDefId,
+    crate::def_id::FluxLocalDefId,
     rustc_span::Symbol,
     rustc_hir::def_id::DefId,
     rustc_hir::Safety,
-    rustc_target::spec::abi::Abi,
+    rustc_abi::ExternAbi,
     rustc_type_ir::ClosureKind,
     flux_rustc_bridge::ty::BoundRegionKind,
 }

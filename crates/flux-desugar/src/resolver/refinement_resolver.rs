@@ -3,11 +3,12 @@ use std::ops::ControlFlow;
 use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
-    fhir::{self, ExprRes},
     ResolverOutput,
+    fhir::{self, Res},
 };
 use flux_syntax::{
-    surface::{self, visit::Visitor as _, Ident, NodeId},
+    surface::{self, Ident, NodeId, visit::Visitor as _},
+    symbols::sym,
     walk_list,
 };
 use rustc_data_structures::{
@@ -20,7 +21,7 @@ use rustc_hir::def::{
     Namespace::{TypeNS, ValueNS},
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{sym, ErrorGuaranteed, Symbol};
+use rustc_span::{ErrorGuaranteed, Symbol};
 
 use super::{CrateResolver, Segment};
 
@@ -32,6 +33,7 @@ pub(crate) enum ScopeKind {
     FnOutput,
     Variant,
     Misc,
+    FnTraitInput,
 }
 
 impl ScopeKind {
@@ -67,10 +69,10 @@ pub(crate) trait ScopedVisitor: Sized {
     fn on_generic_param(&mut self, _param: &surface::GenericParam) {}
     fn on_refine_param(&mut self, _param: &surface::RefineParam) {}
     fn on_enum_variant(&mut self, _variant: &surface::VariantDef) {}
+    fn on_fn_trait_input(&mut self, _in_arg: &surface::GenericArg, _node_id: NodeId) {}
     fn on_fn_sig(&mut self, _fn_sig: &surface::FnSig) {}
     fn on_fn_output(&mut self, _output: &surface::FnOutput) {}
     fn on_loc(&mut self, _loc: Ident, _node_id: NodeId) {}
-    fn on_func(&mut self, _func: Ident, _node_id: NodeId) {}
     fn on_path(&mut self, _path: &surface::ExprPath) {}
     fn on_base_sort(&mut self, _sort: &surface::BaseSort) {}
 }
@@ -79,7 +81,8 @@ pub(crate) struct ScopedVisitorWrapper<V>(V);
 
 impl<V: ScopedVisitor> ScopedVisitorWrapper<V> {
     fn with_scope(&mut self, kind: ScopeKind, f: impl FnOnce(&mut Self)) {
-        if let ControlFlow::Continue(_) = self.0.enter_scope(kind) {
+        let scope = self.0.enter_scope(kind);
+        if let ControlFlow::Continue(_) = scope {
             f(self);
             self.0.exit_scope();
         }
@@ -124,6 +127,12 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
+    fn visit_primop_prop(&mut self, prop: &surface::PrimOpProp) {
+        self.with_scope(ScopeKind::Misc, |this| {
+            surface::visit::walk_primop_prop(this, prop);
+        });
+    }
+
     fn visit_generic_param(&mut self, param: &surface::GenericParam) {
         self.on_generic_param(param);
         surface::visit::walk_generic_param(self, param);
@@ -159,9 +168,34 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
+    fn visit_trait_ref(&mut self, trait_ref: &surface::TraitRef) {
+        match trait_ref.as_fn_trait_ref() {
+            Some((in_arg, out_arg)) => {
+                self.with_scope(ScopeKind::FnTraitInput, |this| {
+                    this.on_fn_trait_input(in_arg, trait_ref.node_id);
+                    surface::visit::walk_generic_arg(this, in_arg);
+                    this.with_scope(ScopeKind::Misc, |this| {
+                        surface::visit::walk_generic_arg(this, out_arg);
+                    });
+                });
+            }
+            None => {
+                self.with_scope(ScopeKind::Misc, |this| {
+                    surface::visit::walk_trait_ref(this, trait_ref);
+                });
+            }
+        }
+    }
+
     fn visit_variant_ret(&mut self, ret: &surface::VariantRet) {
         self.with_scope(ScopeKind::Misc, |this| {
             surface::visit::walk_variant_ret(this, ret);
+        });
+    }
+
+    fn visit_generics(&mut self, generics: &surface::Generics) {
+        self.with_scope(ScopeKind::Misc, |this| {
+            surface::visit::walk_generics(this, generics);
         });
     }
 
@@ -287,13 +321,6 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         }
     }
 
-    fn visit_expr(&mut self, expr: &surface::Expr) {
-        if let surface::ExprKind::App(func, _) = &expr.kind {
-            self.on_func(*func, expr.node_id);
-        }
-        surface::visit::walk_expr(self, expr);
-    }
-
     fn visit_path_expr(&mut self, path: &surface::ExprPath) {
         self.on_path(path);
     }
@@ -339,11 +366,7 @@ impl ScopedVisitor for ImplicitParamCollector<'_, '_> {
     }
 
     fn enter_scope(&mut self, kind: ScopeKind) -> ControlFlow<()> {
-        if self.kind == kind {
-            ControlFlow::Continue(())
-        } else {
-            ControlFlow::Break(())
-        }
+        if self.kind == kind { ControlFlow::Continue(()) } else { ControlFlow::Break(()) }
     }
 
     fn on_implicit_param(&mut self, ident: Ident, param: fhir::ParamKind, node_id: NodeId) {
@@ -374,7 +397,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     sort_params: FxIndexSet<Symbol>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    path_res_map: FxHashMap<NodeId, ExprRes<NodeId>>,
+    path_res_map: FxHashMap<NodeId, Res<NodeId>>,
     errors: Errors<'genv>,
 }
 
@@ -402,6 +425,13 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         defn: &surface::SpecFunc,
     ) -> Result {
         Self::for_flux_item(resolver, &defn.sort_vars).run(|r| r.visit_defn(defn))
+    }
+
+    pub(crate) fn resolve_primop_prop(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        prop: &surface::PrimOpProp,
+    ) -> Result {
+        Self::for_flux_item(resolver, &[]).run(|r| r.visit_primop_prop(prop))
     }
 
     pub(crate) fn resolve_fn_sig(
@@ -538,6 +568,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
+
         self.errors.emit(errors::UnresolvedVar::from_path(path));
     }
 
@@ -557,37 +588,29 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
-    fn try_resolve_expr_with_ribs<S: Segment>(
-        &mut self,
-        segments: &[S],
-    ) -> Option<ExprRes<NodeId>> {
-        let res = match self.resolver.resolve_path_with_ribs(segments, ValueNS) {
-            Some(r) => r.full_res()?,
-            _ => {
-                self.resolver
-                    .resolve_path_with_ribs(segments, TypeNS)?
-                    .full_res()?
-            }
-        };
-        match res {
-            fhir::Res::Def(DefKind::ConstParam, def_id) => Some(ExprRes::ConstGeneric(def_id)),
-            fhir::Res::Def(DefKind::Const, def_id) => Some(ExprRes::Const(def_id)),
-            fhir::Res::Def(DefKind::Struct | DefKind::Enum, def_id) => Some(ExprRes::Ctor(def_id)),
-            _ => None,
+    fn try_resolve_expr_with_ribs<S: Segment>(&mut self, segments: &[S]) -> Option<Res<NodeId>> {
+        if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ValueNS) {
+            return partial_res.full_res().map(|r| r.map_param_id(|p| p));
         }
+
+        self.resolver
+            .resolve_path_with_ribs(segments, TypeNS)?
+            .full_res()
+            .map(|r| r.map_param_id(|p| p))
     }
 
-    fn try_resolve_param(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
+    fn try_resolve_param(&mut self, ident: Ident) -> Option<Res<NodeId>> {
         let res = self.find(ident)?;
+
         if let fhir::ParamKind::Error = res.kind() {
             self.errors.emit(errors::InvalidUnrefinedParam::new(ident));
         }
-        Some(ExprRes::Param(res.kind(), res.param_id()))
+        Some(Res::Param(res.kind(), res.param_id()))
     }
 
-    fn try_resolve_global_func(&mut self, ident: Ident) -> Option<ExprRes<NodeId>> {
+    fn try_resolve_global_func(&mut self, ident: Ident) -> Option<Res<NodeId>> {
         let kind = self.resolver.func_decls.get(&ident.name)?;
-        Some(ExprRes::GlobalFunc(*kind, ident.name))
+        Some(Res::GlobalFunc(*kind))
     }
 
     fn resolve_sort_path(&mut self, path: &surface::SortPath) {
@@ -647,16 +670,20 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
         let [segment] = &path.segments[..] else { return None };
-        if segment.name == SORTS.int {
+        if segment.name == sym::int {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Int))
         } else if segment.name == sym::bool {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Bool))
-        } else if segment.name == SORTS.real {
+        } else if segment.name == sym::char {
+            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Char))
+        } else if segment.name == sym::real {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Real))
-        } else if segment.name == SORTS.set {
+        } else if segment.name == sym::Set {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Set))
-        } else if segment.name == SORTS.map {
+        } else if segment.name == sym::Map {
             Some(fhir::SortRes::PrimSort(fhir::PrimSort::Map))
+        } else if segment.name == sym::str {
+            Some(fhir::SortRes::PrimSort(fhir::PrimSort::Str))
         } else {
             None
         }
@@ -732,6 +759,18 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         self.scopes.pop();
     }
 
+    fn on_fn_trait_input(&mut self, in_arg: &surface::GenericArg, trait_node_id: NodeId) {
+        let params = ImplicitParamCollector::new(
+            self.resolver.genv.tcx(),
+            &self.resolver.output.path_res_map,
+            ScopeKind::FnTraitInput,
+        )
+        .run(|vis| vis.visit_generic_arg(in_arg));
+        for (ident, kind, node_id) in params {
+            self.define_param(ident, kind, node_id, Some(trait_node_id));
+        }
+    }
+
     fn on_enum_variant(&mut self, variant: &surface::VariantDef) {
         let params = ImplicitParamCollector::new(
             self.resolver.genv.tcx(),
@@ -772,10 +811,6 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         self.define_param(param.ident, fhir::ParamKind::Explicit(param.mode), param.node_id, None);
     }
 
-    fn on_func(&mut self, func: Ident, node_id: NodeId) {
-        self.resolve_ident(func, node_id);
-    }
-
     fn on_loc(&mut self, loc: Ident, node_id: NodeId) {
         self.resolve_ident(loc, node_id);
     }
@@ -790,19 +825,20 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
                 self.resolve_sort_path(path);
             }
             surface::BaseSort::BitVec(_) => {}
+            surface::BaseSort::SortOf(..) => {}
         }
     }
 }
 
 macro_rules! define_resolve_num_const {
     ($($typ:ident),*) => {
-        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<ExprRes<NodeId>> {
+        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<Res<NodeId>> {
             match typ.name.as_str() {
                 $(
                     stringify!($typ) => {
                         match name.name.as_str() {
-                            "MAX" => Some(ExprRes::NumConst($typ::MAX.try_into().unwrap())),
-                            "MIN" => Some(ExprRes::NumConst($typ::MIN.try_into().unwrap())),
+                            "MAX" => Some(Res::NumConst($typ::MAX.try_into().unwrap())),
+                            "MIN" => Some(Res::NumConst($typ::MIN.try_into().unwrap())),
                             _ => None,
                         }
                     },
@@ -814,22 +850,6 @@ macro_rules! define_resolve_num_const {
 }
 
 define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
-
-pub(crate) struct Sorts {
-    pub int: Symbol,
-    pub real: Symbol,
-    pub set: Symbol,
-    pub map: Symbol,
-}
-
-pub(crate) static SORTS: std::sync::LazyLock<Sorts> = std::sync::LazyLock::new(|| {
-    Sorts {
-        int: Symbol::intern("int"),
-        real: Symbol::intern("real"),
-        set: Symbol::intern("Set"),
-        map: Symbol::intern("Map"),
-    }
-});
 
 struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
     scopes: Vec<ScopeKind>,
@@ -874,7 +894,10 @@ impl ScopedVisitor for IllegalBinderVisitor<'_, '_, '_> {
         let (allowed, bind_kind) = match param_kind {
             fhir::ParamKind::At => {
                 (
-                    matches!(scope_kind, ScopeKind::FnInput | ScopeKind::Variant),
+                    matches!(
+                        scope_kind,
+                        ScopeKind::FnInput | ScopeKind::FnTraitInput | ScopeKind::Variant
+                    ),
                     surface::BindKind::At,
                 )
             }
@@ -898,7 +921,7 @@ mod errors {
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use itertools::Itertools;
-    use rustc_span::{symbol::Ident, Span, Symbol};
+    use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
     #[diag(desugar_duplicate_param, code = E0999)]

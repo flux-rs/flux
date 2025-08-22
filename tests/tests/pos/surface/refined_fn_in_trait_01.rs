@@ -1,4 +1,3 @@
-#[flux::generics(Self as base)]
 pub trait MyTrait {
     #[flux::sig(fn[hrn p: Self -> bool](&Self{v: p(v)}) -> Self{v: p(v)})]
     fn foo1(&self) -> Self;
@@ -19,7 +18,7 @@ impl MyTrait for i32 {
     }
 }
 
-#[flux::sig(fn<T as base>[hrn q: T -> bool](&T{v:q(v)}) -> T{v: q(v)})]
+#[flux::sig(fn[hrn q: T -> bool](&T{v:q(v)}) -> T{v: q(v)})]
 pub fn bar1<T: MyTrait>(x: &T) -> T {
     x.foo1()
 }

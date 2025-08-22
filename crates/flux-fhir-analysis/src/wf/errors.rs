@@ -1,7 +1,7 @@
 use flux_errors::E0999;
 use flux_macros::Diagnostic;
 use flux_middle::{fhir, rty};
-use rustc_span::{symbol::Ident, Span, Symbol};
+use rustc_span::{Span, Symbol, symbol::Ident};
 
 #[derive(Diagnostic)]
 #[diag(fhir_analysis_sort_mismatch, code = E0999)]
@@ -37,22 +37,6 @@ impl ArgCountMismatch {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_early_bound_arg_count_mismatch, code = E0999)]
-pub(super) struct EarlyBoundArgCountMismatch {
-    #[primary_span]
-    #[label]
-    span: Span,
-    expected: usize,
-    found: usize,
-}
-
-impl EarlyBoundArgCountMismatch {
-    pub(super) fn new(span: Span, expected: usize, found: usize) -> Self {
-        Self { span, expected, found }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_duplicated_ensures, code = E0999)]
 pub(super) struct DuplicatedEnsures {
     #[primary_span]
@@ -67,19 +51,6 @@ impl DuplicatedEnsures {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_unknown_qualifier, code = E0999)]
-pub(super) struct UnknownQualifier {
-    #[primary_span]
-    span: Span,
-}
-
-impl UnknownQualifier {
-    pub(super) fn new(span: Span) -> UnknownQualifier {
-        Self { span }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_missing_ensures, code = E0999)]
 pub(super) struct MissingEnsures {
     #[primary_span]
@@ -89,6 +60,20 @@ pub(super) struct MissingEnsures {
 impl MissingEnsures {
     pub(super) fn new(loc: &fhir::PathExpr) -> MissingEnsures {
         Self { span: loc.span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_unsupported_primop, code = E0999)]
+pub(super) struct UnsupportedPrimOp {
+    #[primary_span]
+    span: Span,
+    op: fhir::BinOp,
+}
+
+impl UnsupportedPrimOp {
+    pub(super) fn new(span: Span, op: fhir::BinOp) -> Self {
+        Self { span, op }
     }
 }
 
@@ -288,5 +273,22 @@ pub(super) struct CannotInferSort {
 impl CannotInferSort {
     pub(super) fn new(span: Span) -> Self {
         Self { span }
+    }
+}
+
+#[derive(Diagnostic)]
+#[diag(fhir_analysis_invalid_cast, code = E0999)]
+#[note]
+pub(super) struct InvalidCast {
+    #[primary_span]
+    #[label]
+    span: Span,
+    from: String,
+    to: String,
+}
+
+impl InvalidCast {
+    pub(super) fn new(span: Span, from: &rty::Sort, to: &rty::Sort) -> Self {
+        Self { span, from: format!("{from:?}"), to: format!("{to:?}") }
     }
 }

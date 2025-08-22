@@ -2,7 +2,7 @@
 // Checks for unsigned integer underflow
 #[flux::sig(fn(a: u32, b: u32) -> u32{v: v == a - b})]
 pub fn uint_sub(a: u32, b: u32) -> u32 {
-    a - b //~ ERROR overflow
+    a - b //~ ERROR underflow
 }
 
 // Bitwise BinOps

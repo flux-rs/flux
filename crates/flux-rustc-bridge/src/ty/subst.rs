@@ -51,6 +51,7 @@ impl Subst for Ty {
             TyKind::Param(param_ty) => args[param_ty.index as usize].expect_type().clone(),
             TyKind::FnPtr(fn_sig) => Ty::mk_fn_ptr(fn_sig.subst(args)),
             TyKind::Dynamic(exi_preds, re) => Ty::mk_dynamic(exi_preds.subst(args), *re),
+            TyKind::Foreign(def_id) => Ty::mk_foreign(*def_id),
             TyKind::Bool
             | TyKind::Uint(_)
             | TyKind::Str

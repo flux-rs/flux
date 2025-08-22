@@ -1,12 +1,13 @@
 use super::{
     AliasReft, AssocItemConstraint, AssocItemConstraintKind, BaseTy, BaseTyKind, Ensures, EnumDef,
-    Expr, ExprKind, FieldDef, FieldExpr, FnDecl, FnOutput, FnSig, FuncSort, GenericArg,
-    GenericBound, Generics, Impl, ImplAssocReft, ImplItem, ImplItemKind, Item, ItemKind, Lifetime,
-    Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment, PolyFuncSort, PolyTraitRef, QPath,
-    RefineParam, Requires, Sort, SortPath, StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty,
-    TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    Expr, ExprKind, FieldDef, FieldExpr, FluxItem, FnDecl, FnOutput, FnSig, ForeignItem,
+    ForeignItemKind, FuncSort, GenericArg, GenericBound, Generics, Impl, ImplAssocReft, ImplItem,
+    ImplItemKind, Item, ItemKind, Lifetime, Lit, OpaqueTy, OwnerNode, Path, PathExpr, PathSegment,
+    PolyFuncSort, PolyTraitRef, QPath, Qualifier, RefineParam, Requires, Sort, SortPath, SpecFunc,
+    StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
+    VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::StructKind;
+use crate::fhir::{PrimOpProp, StructKind};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -21,6 +22,22 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor<'v>: Sized {
+    fn visit_flux_item(&mut self, item: &FluxItem<'v>) {
+        walk_flux_item(self, item);
+    }
+
+    fn visit_qualifier(&mut self, qualifier: &Qualifier<'v>) {
+        walk_qualifier(self, qualifier);
+    }
+
+    fn visit_func(&mut self, func: &SpecFunc<'v>) {
+        walk_func(self, func);
+    }
+
+    fn visit_primop_prop(&mut self, prop: &PrimOpProp<'v>) {
+        walk_primop_prop(self, prop);
+    }
+
     fn visit_node(&mut self, node: &OwnerNode<'v>) {
         walk_node(self, node);
     }
@@ -35,6 +52,10 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_impl_item(&mut self, impl_item: &ImplItem<'v>) {
         walk_impl_item(self, impl_item);
+    }
+
+    fn visit_foreign_item(&mut self, foreign_item: &ForeignItem<'v>) {
+        walk_foreign_item(self, foreign_item);
     }
 
     fn visit_generics(&mut self, generics: &Generics<'v>) {
@@ -180,6 +201,38 @@ pub trait Visitor<'v>: Sized {
     fn visit_path_expr(&mut self, _path: &PathExpr<'v>) {}
 }
 
+fn walk_func<'v, V: Visitor<'v>>(vis: &mut V, func: &SpecFunc<'v>) {
+    walk_list!(vis, visit_refine_param, func.args);
+    vis.visit_sort(&func.sort);
+    if let Some(body) = &func.body {
+        vis.visit_expr(body);
+    }
+}
+
+fn walk_primop_prop<'v, V: Visitor<'v>>(vis: &mut V, prop: &PrimOpProp<'v>) {
+    walk_list!(vis, visit_refine_param, prop.args);
+    vis.visit_expr(&prop.body);
+}
+
+fn walk_qualifier<'v, V: Visitor<'v>>(vis: &mut V, qualifier: &Qualifier<'v>) {
+    walk_list!(vis, visit_refine_param, qualifier.args);
+    vis.visit_expr(&qualifier.expr);
+}
+
+fn walk_flux_item<'v, V: Visitor<'v>>(vis: &mut V, item: &FluxItem<'v>) {
+    match item {
+        FluxItem::Qualifier(qualifier) => {
+            vis.visit_qualifier(qualifier);
+        }
+        FluxItem::Func(func) => {
+            vis.visit_func(func);
+        }
+        FluxItem::PrimOpProp(prop) => {
+            vis.visit_primop_prop(prop);
+        }
+    }
+}
+
 pub fn walk_impl<'v, V: Visitor<'v>>(vis: &mut V, impl_: &Impl<'v>) {
     walk_list!(vis, visit_impl_assoc_reft, impl_.assoc_refinements);
 }
@@ -233,6 +286,7 @@ pub fn walk_generic_bound<'v, V: Visitor<'v>>(vis: &mut V, bound: &GenericBound<
 }
 
 pub fn walk_poly_trait_ref<'v, V: Visitor<'v>>(vis: &mut V, trait_ref: &PolyTraitRef<'v>) {
+    walk_list!(vis, visit_refine_param, trait_ref.refine_params);
     vis.visit_path(&trait_ref.trait_ref);
 }
 
@@ -241,6 +295,7 @@ pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &OwnerNode<'v>) {
         OwnerNode::Item(item) => vis.visit_item(item),
         OwnerNode::TraitItem(trait_item) => vis.visit_trait_item(trait_item),
         OwnerNode::ImplItem(impl_item) => vis.visit_impl_item(impl_item),
+        OwnerNode::ForeignItem(foreign_item) => vis.visit_foreign_item(foreign_item),
     }
 }
 
@@ -281,6 +336,15 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
     }
 }
 
+pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignItem<'v>) {
+    match &impl_item.kind {
+        ForeignItemKind::Fn(fn_sig, generics) => {
+            vis.visit_generics(generics);
+            vis.visit_fn_sig(fn_sig);
+        }
+    }
+}
+
 pub fn walk_trait_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &TraitAssocReft<'v>) {
     walk_list!(vis, visit_refine_param, assoc_reft.params);
     vis.visit_sort(&assoc_reft.output);
@@ -297,7 +361,9 @@ pub fn walk_impl_assoc_reft<'v, V: Visitor<'v>>(vis: &mut V, assoc_reft: &ImplAs
 
 pub fn walk_generics<'v, V: Visitor<'v>>(vis: &mut V, generics: &Generics<'v>) {
     walk_list!(vis, visit_refine_param, generics.refinement_params);
-    walk_list!(vis, visit_where_predicate, generics.predicates);
+    if let Some(predicates) = generics.predicates {
+        walk_list!(vis, visit_where_predicate, predicates);
+    }
 }
 
 pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBoundPredicate<'v>) {
@@ -346,7 +412,7 @@ pub fn walk_generic_arg<'v, V: Visitor<'v>>(vis: &mut V, arg: &GenericArg<'v>) {
     match arg {
         GenericArg::Lifetime(lft) => vis.visit_lifetime(lft),
         GenericArg::Type(ty) => vis.visit_ty(ty),
-        GenericArg::Const(_cst) => {}
+        GenericArg::Const(_) | GenericArg::Infer => {}
     }
 }
 
@@ -391,7 +457,7 @@ pub fn walk_ty<'v, V: Visitor<'v>>(vis: &mut V, ty: &Ty<'v>) {
             walk_list!(vis, visit_poly_trait_ref, poly_traits);
             vis.visit_lifetime(&lft);
         }
-        TyKind::Never | TyKind::Infer => {}
+        TyKind::Never | TyKind::Infer | TyKind::Err(_) => {}
     }
 }
 
@@ -399,6 +465,7 @@ pub fn walk_bty<'v, V: Visitor<'v>>(vis: &mut V, bty: &BaseTy<'v>) {
     match &bty.kind {
         BaseTyKind::Path(path) => vis.visit_qpath(path),
         BaseTyKind::Slice(ty) => vis.visit_ty(ty),
+        BaseTyKind::Err(_) => {}
     }
 }
 
@@ -442,7 +509,8 @@ pub fn walk_sort<'v, V: Visitor<'v>>(vis: &mut V, sort: &Sort<'v>) {
     match sort {
         Sort::Path(path) => vis.visit_sort_path(path),
         Sort::Func(func) => vis.visit_poly_func_sort(func),
-        Sort::Loc | Sort::BitVec(_) | Sort::Infer => {}
+        Sort::SortOf(bty) => vis.visit_bty(bty),
+        Sort::Loc | Sort::BitVec(_) | Sort::Infer | Sort::Err(_) => {}
     }
 }
 
@@ -471,11 +539,15 @@ pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {
 pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
     match expr.kind {
         ExprKind::Var(path, _) => vis.visit_path_expr(&path),
-        ExprKind::Dot(path, _fld) => {
-            vis.visit_path_expr(&path);
+        ExprKind::Dot(base, _fld) => {
+            vis.visit_expr(base);
         }
         ExprKind::Literal(lit) => vis.visit_literal(&lit),
         ExprKind::BinaryOp(_op, e1, e2) => {
+            vis.visit_expr(e1);
+            vis.visit_expr(e2);
+        }
+        ExprKind::PrimApp(_op, e1, e2) => {
             vis.visit_expr(e1);
             vis.visit_expr(e2);
         }
@@ -508,5 +580,17 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
                 vis.visit_expr(&s.expr);
             }
         }
+        ExprKind::BoundedQuant(_, param, _, expr) => {
+            vis.visit_refine_param(&param);
+            vis.visit_expr(expr);
+        }
+        ExprKind::Block(decls, body) => {
+            for decl in decls {
+                vis.visit_expr(&decl.init);
+                vis.visit_refine_param(&decl.param);
+            }
+            vis.visit_expr(body);
+        }
+        ExprKind::Err(_) => {}
     }
 }

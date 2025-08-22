@@ -1,6 +1,11 @@
-use std::{env, ffi::OsString, fs, path::PathBuf};
+use std::{
+    env,
+    ffi::OsString,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
@@ -14,9 +19,11 @@ pub const EXIT_ERR: i32 = -1;
 
 pub const FLUX_SYSROOT: &str = "FLUX_SYSROOT";
 
+const FLUX_DRIVER: &str = "FLUX_DRIVER";
+
 /// The path of the flux sysroot lib containing precompiled libraries and the flux driver.
-pub fn sysroot_dir() -> PathBuf {
-    env::var(FLUX_SYSROOT).map_or_else(|_| default_sysroot_dir(), PathBuf::from)
+pub fn flux_sysroot_dir() -> PathBuf {
+    env::var_os(FLUX_SYSROOT).map_or_else(default_flux_sysroot_dir, PathBuf::from)
 }
 
 #[derive(Deserialize)]
@@ -30,49 +37,45 @@ pub struct ToolchainSpec {
 }
 
 /// Return the default sysroot
-fn default_sysroot_dir() -> PathBuf {
+fn default_flux_sysroot_dir() -> PathBuf {
     home::home_dir()
         .expect("Couldn't find home directory")
         .join(".flux")
 }
 
-pub fn get_flux_driver_path() -> Result<PathBuf> {
-    let mut path = sysroot_dir().join("flux-driver");
-    if cfg!(target_os = "windows") {
-        path.set_extension("exe");
-    }
+pub fn get_flux_driver_path(sysroot: &Path) -> Result<PathBuf> {
+    let path = if let Some(path) = env::var_os(FLUX_DRIVER) {
+        PathBuf::from(path)
+    } else {
+        let mut path = sysroot.join("flux-driver");
+        if cfg!(target_os = "windows") {
+            path.set_extension("exe");
+        }
+        path
+    };
     if !path.is_file() {
-        return Err(anyhow!("flux executable {:?} does not exist or is not a file", path));
+        return Err(anyhow!("path to flux-driver {:?} does not exist or is not a file", path));
     }
     Ok(path)
 }
 
 pub fn get_rust_toolchain() -> Result<String> {
-    let toolchain_str = include_str!("../../../rust-toolchain");
+    let toolchain_str = include_str!("../../../rust-toolchain.toml");
     let toolchain_file: ToolchainToml = toml::from_str(toolchain_str)?;
     Ok(toolchain_file.toolchain.channel)
 }
 
+pub fn get_rust_sysroot(toolchain: &str) -> Result<PathBuf> {
+    let out = Command::new("rustc")
+        .arg(format!("+{toolchain}"))
+        .args(["--print", "sysroot"])
+        .output()?;
+    bytes_to_pathbuf(out.stdout)
+}
+
 /// Path from where to load the rustc-driver library from
-pub fn get_rustc_driver_lib_path(rust_toolchain: &str) -> Result<PathBuf> {
-    let toolchains_path = home::rustup_home()?.join("toolchains");
-    if toolchains_path.is_dir() {
-        let entries = fs::read_dir(toolchains_path)?;
-        for entry in entries {
-            let toolchain_entry = entry?;
-            let file_name = toolchain_entry.file_name().into_string().map_err(|name| {
-                anyhow!("Could not convert Rustup toolchain file name: {:?}", name)
-            })?;
-            if file_name.starts_with(rust_toolchain) {
-                return toolchain_entry
-                    .path()
-                    .join("lib")
-                    .canonicalize()
-                    .map_err(anyhow::Error::from);
-            }
-        }
-    }
-    Err(anyhow!("Could not read Rustup toolchains folder"))
+pub fn get_rust_lib_path(sysroot: &Path) -> PathBuf {
+    if cfg!(windows) { sysroot.join("bin") } else { sysroot.join("lib") }
 }
 
 /// Prepends the path so that it's the first checked.
@@ -84,4 +87,8 @@ pub fn prepend_path_to_env_var(var_name: &str, new_path: PathBuf) -> Result<OsSt
     };
     paths.insert(0, new_path);
     env::join_paths(paths).map_err(anyhow::Error::from)
+}
+
+fn bytes_to_pathbuf(input: Vec<u8>) -> Result<PathBuf> {
+    Ok(PathBuf::from(String::from_utf8(input)?.trim()))
 }
