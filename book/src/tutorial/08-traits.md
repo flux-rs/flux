@@ -17,7 +17,7 @@ fn assert(b: bool) {
 ```
 
 One of Rust's most appealing features is its **trait** system which lets us decouple
-**descriptions** of particular operations that a type should support, from their actual
+*descriptions* of particular operations that a type should support, from their actual
 *implementations*. This mechanism lets us to write *generic* code that works for all
 the particular implementations of the trait interface.
 
@@ -42,11 +42,78 @@ In this chapter, lets learn how traits pose some interesting challenges
 for formal verification, and how Flux solves these challenges using
 a technique called **associated refinements**.
 
+## First things First
+
+To limber up before we get to traits, lets
+write a function to return (a reference to)
+the first element of a slice.
+
+```rust, editable
+fn get_first_slice(container: &[A]) -> &A
+{
+    container[0]
+}
+```
+
+The method `get_first_slice` works just
+fine if you call it on _non-empty_ slices,
+but will panic at run-time if you try it on
+an empty one
+
+```rust
+fn test_first_slice() {
+    let s0: &[i32] = &[10, 20, 30];
+    let v0 = get_first_slice(s0);
+    println!("get_first {s0} ==> {v0}");
+
+    let s1: &[char] = &['a', 'b', 'c'];
+    let v1 = get_first_slice(s1);
+    println!("get_first {s1} ==> {v1}");
+
+    let s2: &[bool] = &[];
+    let v2 = get_first_slice(s2);
+    println!("get_first {s2} ==> {v2}");
+}
+```
+
+### Catching Panics at Compile Time
+
+You might recall from this [previous chapter](06-consts.html#refined-compile-time-safety)
+that Flux tracks the sizes of arrays and slices.
+
+If you click the check button, you will see that flux
+disapproves of `get_first_slice`, intoning
+
+```
+error[E0999]: assertion might fail: possible out of bounds access
+
+   |
+14 |    container[0];
+   |    ^^^^^^^^^^^^
+```
+
+### Specifying Non-Empty Slices
+
+**EXERCISE** Can you write a flux `spec` for
+`get_first_slice` that says that the function
+should  _only_ be called with _non-empty_ slices?
+The spec should look something like the below,
+except the `...` should be a constraint over `len`.
+
+```
+#[spec(fn (container: &[A]{len: ...}) -> &A)]
+```
+
+When you are done, you should see no warnings in
+`get_first_slice` but you will get an error in
+`test_first_slice`, precisely at the location
+where we call it with an empty slice.
+
 ## A Trait to `Index` Values
 
-To get to the essence of the challenge that traits pose for formal verification,
-lets write our own little `Index` trait. (The real ones in the standard library
-have a few more moving parts that unnecessarily complicate the exposition.)
+Next, lets write our own little trait to `Index`
+different kinds of containers [^1].
+
 
 ```rust, editable
 pub trait Index<Idx> {
@@ -64,37 +131,33 @@ type used as the actual index. To *implement* the trait, we must specify
 3. The `Output`: an *associated type* that describes what the `index` method returns, and finally,
 4. The `index` method itself, which takes a reference to `self` and an `index` of type `Idx`, and returns a reference to the `Output`.
 
-We can now write functions that work over *any* type that implements `Index`.
-For instance, the `get_first` method will let use borrow the first (i.e. `0`th)
-element of any `container` that implements `Index<usize>`. (Lets ignore the
-`#[trusted]` for now, it just tells flux to quietly accept this code without
-protest.)
+### A Generic, Reusable `get_first`
 
+We can now write functions that work over *any* type that implements the `Index` trait.
+For instance, we can generalize the `get_first_slice` method --- which only
+worked on slices --- to the `get_first` method will let use borrow the first
+(i.e. `0`th, sigh) element of any `container` that implements `Index<usize>`.
 
 ```rust, editable
-#[trusted]
-fn get_first<A, T: Index<usize, Output = A>>(container: &T) -> &A {
+fn get_first<A, T>(container: &T) -> &A
+  where T: ?Sized + Index<usize, Output = A>
+{
     container.index(0)
 }
 ```
 
-## Indexing Slices with `usize`
+### Indexing Slices with `usize`
 
-To *use* the `trait`, we must actually *implement* it for some particular type.
-For example, lets write an implementation to `index` a slice by a `usize` value:
+To use the `trait`, we must actually *implement* it
+for particular types of interest. Lets implement a
+method to `index` a slice by a `usize` value:
 
 ```rust, editable
-// #[assoc(fn valid(me: Vec, index: int) -> bool { index < me.len })]
+#[trusted]
 impl <A> Index<usize> for [A] {
 
     type Output = A;
 
-    // #[spec(fn(&Self[@me], index:usize{<Vec<A> as Index<usize>>::valid(me, index)}) -> &Self::Output)]
-    // fn index(&self, index: usize) -> &Self::Output {
-    //     &self[index]
-    // }
-
-    // #[spec(fn(&Self[@n], index:usize{<[A] as Index<usize>>::valid(n, index)}) -> &Self::Output)]
     fn index(&self, index: usize) -> &Self::Output {
         &self[index]
     }
@@ -108,47 +171,101 @@ The above code describes an implementation where the
 - `Output` returned by `index()` is a (reference to) `A`; and
 - `index()` is just a wrapper around the standard library's implementation.
 
-## Problem: Yikes `index` is unsafe!
+(Lets ignore the `#[trusted]` for now: it just tells flux to accept this code
+without protesting about `self[index]` triggering an out-of-bounds error.)
 
-Oh dear, the "indirection" through `index` has introduced a problem!
+### Running `get_first`
 
-<!-- ```rust, editable
-fn test_slice() {
-    let empty_slice: &[i32] = &[];
-    let x0 = empty_slice[0];       // rejected by flux
-    let x0 = empty_slice.index(0); // accepted by flux!
+Sweet! Now that we have a concrete implementation for `Index`
+we should be able to _test_ it
 
-    // let nonempty_slice: &[i32] = &[1, 2, 3];
-    // let x = s.index(1);
-    // assert_eq!(*x, 2);
+```rust
+fn test_first() {
+    let s0: &[i32] = &[10, 20, 30];
+    let v0 = get_first(s0);
+    println!("get_first {s0} ==> {v0}");
+
+    let s1: &[char] = &['a', 'b', 'c'];
+    let v1 = get_first(s1);
+    println!("get_first {s1} ==> {v1}");
+
+    let s2: &[bool] = &[];
+    let v2 = get_first(s2);
+    println!("get_first {s2} ==> {v2}");
 }
 ```
- -->
+
+Huh?!
+
+Of course, the last one will panic.
+
+But why didn't flux _warn_ us about it, like it did with `test_first_slice`.
+
+### Yikes `get_first` is unsafe!
+
+When we *directly* access a slice as in `get_first_slice`,
+(or, if you did the exercise, `test_first_slice`) flux complains
+about the potential (in this case, certain!) out of bounds access.
+
+But the *indirection* through `get_first` (and `index`) has
+has laundered the out of bounds access, tricking
+flux into unsoundly missing the run-time error!
+
+We're in a bit of a pickle.
+
+The `Index` trait _giveth_ the ability to write *generic*
+code like `get_first`, but apparently _taketh away_ the
+ability to *catch panics* at compile-time.
+
+Surely, there is a way to use traits without giving up
+on compile-time verification...
+
+### The Challenge: How to Specify _Safe_ Indexing, Generically
+
+Clearly we _should not_ call `get_first` with empty slices.
+
+The method `get_first` wants to access the `0`-th element
+of the container, and will crash at run-time if the `0`th element
+does not exist, as is the case with an empty slice.
+
+But the puzzle is this: how do we specify
+**"the `0`-th element exists"** for any
+generic `container` that implements `Index`?
+
+## Associated Refinements
+
+- valid
+- trait
+- get_first
+- impl
+
+## Other Clients
+
+- Vec/usize [ EX ]
+
+- Str/Range
+
+- Vec/Range [ EX ]
+
 
 ```rust, editable
 fn canary() {
     assert(10 > 20);
 }
 ```
-
+<!--
 
 
 ```rust, editable
-#[flux::specs {
-  trait Index<Idx> {
-    #[reft]
-    fn valid(me: Self, index: Idx) -> bool { true };
+// #[flux::specs {
+//   trait Index<Idx> {
+//     #[reft]
+//     fn valid(me: Self, index: Idx) -> bool { true }
 
-    fn index(&Self[@me], index:Idx{<Self as Index<Idx>>::valid(me, index)}) -> &Self::Output;
-  }}]
-const _: () = ();
+//     fn index(&Self[@me], index:Idx{<Self as Index<Idx>>::valid(me, index)}) -> &Self::Output;
+//   }}]
+// const _: () = ();
 ```
-
-```
-## Challenge: How to Specify _Safe_ Indexing
-
-### `trait` is too *high*
-### `impl` is too *low*
 
 ## Solution: Associated Refinements
 
@@ -158,6 +275,22 @@ const _: () = ();
 
 ## Examples
 
+
+Perhaps we shouldn't have been so *trusting* of the `index`
+implementation above. Indeed, go ahead and _remove_ the line
+`#[trusted]` attribute and hit the check button. When you
+do so, flux will immediately wag its finger
+
+```
+error[E0999]: assertion might fail: possible out of bounds access
+
+   |
+25 |        &self[index]
+   |         ^^^^^^^^^^^
+```
+
+Indeed, flux finds that implementation of `.index()` rather sketchy
+because it cannot prove that `index` is within the bounds of `self`.
 
 // `Vec` with `usize` -------------------------------------------------------------------------
 
@@ -236,4 +369,6 @@ fn test_str() {
     let sub = cat.index(0..6); // OK
     let sub = cat.index(0..19); // Error
 }
-```
+``` -->
+
+[^1]: The "real" ones in the standard library have a few more moving parts that would needlessly complicate our explanation of the interaction between traits and formal verification.

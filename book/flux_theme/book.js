@@ -485,7 +485,7 @@ function playground_text(playground, hidden = true) {
   }
 
   function run_rust_code(code_block) {
-    console.log("TRACE: run_rust_code");
+    console.log("TRACE: run_rust_code", code_block);
     var result_block = code_block.querySelector(".result");
     if (!result_block) {
       result_block = document.createElement("code");
@@ -509,6 +509,7 @@ function playground_text(playground, hidden = true) {
       edition: edition,
       crateType: "rlib",
     };
+    console.log('TRACE: query code', text);
 
     if (text.indexOf("#![feature") !== -1) {
       params.version = "nightly";
