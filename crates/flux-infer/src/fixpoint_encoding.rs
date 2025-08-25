@@ -19,7 +19,10 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx, fold::TypeVisitable},
+    rty::{
+        self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx,
+        fold::TypeVisitable,
+    },
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
@@ -36,9 +39,7 @@ use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::projections::structurally_normalize_expr;
-
-use crate::refine_tree::BlameAnalysis;
+use crate::{projections::structurally_normalize_expr, refine_tree::BlameAnalysis};
 
 pub mod fixpoint {
     use std::fmt;
@@ -667,7 +668,9 @@ where
         let mut preds = vec![];
 
         self.assumption_to_fixpoint_aux(pred, &mut bindings, &mut preds, blame_analysis)?;
-        blame_analysis.assumed_preds.extend(pred.flatten_conjs().into_iter().cloned());
+        blame_analysis
+            .assumed_preds
+            .extend(pred.flatten_conjs().into_iter().cloned());
         Ok((bindings, fixpoint::Pred::and(preds)))
     }
 
