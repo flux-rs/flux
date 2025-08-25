@@ -3139,7 +3139,7 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
     where
         I: IntoIterator<Item = (&'a Expr, &'b Expr)>,
     {
-        let mut curr_map = antiunifier_map.clone();
+        let curr_map = antiunifier_map.clone();
         for (e, o) in subexprs {
             match antiunify_helper(e, o, antiunifier_map) {
                 ControlFlow::Break(()) => {

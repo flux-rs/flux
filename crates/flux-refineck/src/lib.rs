@@ -597,7 +597,7 @@ fn find_solution_candidates(blame_ctx: &BlameCtxt) -> Vec<rty::Expr> {
         let conjs = au_map.into_iter().map(|(e1, e2)| rty::Expr::eq(e1, e2));
         candidates.push(rty::Expr::and_from_iter(conjs));
     }
-    return candidates;
+    candidates
 }
 
 #[derive(Debug, Clone)]
