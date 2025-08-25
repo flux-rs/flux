@@ -3170,7 +3170,7 @@ pub fn anti_unify(expr: &Expr, other: &Expr) -> FxHashMap<Expr, Expr> {
             (Alias(e_alias, es), Alias(o_alias, os)) if e_alias == o_alias => {
                 try_antiunify_subexprs(antiunifier_map, expr, other, std::iter::zip(es, os))
             }
-            (App(e_f, es), App(o_f, os)) => {
+            (App(e_f, _esorts, es), App(o_f, _osorts, os)) => {
                 try_antiunify_subexprs(antiunifier_map, expr, other, [(e_f, o_f)].into_iter().chain(std::iter::zip(es, os)))
             }
             // Notable exceptions to things we try to antiunify:
