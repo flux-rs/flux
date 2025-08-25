@@ -424,6 +424,8 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvars: KVarGen,
     /// KVarDecls for the WKVars we will convert
     wkvar_decls: FxHashMap<rty::WKVid, KVarDecl>,
+    /// All of the binder variables the wkvar is under
+    wkvar_vars: FxHashMap<rty::WKVid, rty::BoundVariableKinds>,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
@@ -454,6 +456,7 @@ where
 {
     pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, mut kvars: KVarGen, wkvars_to_convert: Vec<rty::WKVid>) -> Self {
         let def_span = genv.tcx().def_span(def_id);
+        let mut wkvar_vars = FxHashMap::default();
         let mut wkvar_decls = FxHashMap::default();
         let mut scx = SortEncodingCtxt::default();
         let def_name = genv.tcx().def_path_str(def_id);
@@ -465,7 +468,10 @@ where
                     // We won't actually use the kvids from it, so it's fortunate that
                     // the kvargen isn't what we emit to fixpoint.
                     let first_wkvar = wkvar_source.first().expect("there should be at least one wkvar annotation");
+                    wkvar_vars.insert(*wkvid, first_wkvar.vars().clone());
+                    // println!("wkvar {:?} has sorts {:?}", wkvid, first_wkvar.vars());
                     let kvar_e = kvars.fresh(&[first_wkvar.vars().clone()], [], KVarEncoding::Single);
+                    // println!("conv wkvar {:?}", kvar_e);
                     let kvid = match kvar_e.kind() {
                         rty::ExprKind::KVar(kvar) => kvar.kvid,
                         _ => unreachable!("kvars.fresh() should only ever return a kvar"),
@@ -483,6 +489,7 @@ where
             comments: vec![],
             kvars,
             wkvar_decls,
+            wkvar_vars,
             scx,
             genv,
             ecx: ExprEncodingCtxt::new(genv, def_span),
@@ -836,7 +843,27 @@ where
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.wkvar_decls[&wkvar.wkvid].clone();
-        self.wkvar_or_kvar_to_fixpoint(&KVidOrWKVid::WKVid(wkvar.wkvid), &decl, &wkvar.args, bindings)
+        let vars = &self.wkvar_vars[&wkvar.wkvid];
+        let eta_expanded_args = iter::zip(&wkvar.args, vars).flat_map(|(arg, var)| {
+            match var {
+                rty::BoundVariableKind::Refine(sort, _, _) => {
+                    let mut expanded_args = vec![];
+                    sort.walk(|sort, proj| {
+                        if !matches!(sort, rty::Sort::Loc) {
+                            expanded_args.push(rty::Expr::field_projs(arg, proj));
+                        }
+                    });
+                    expanded_args
+                }
+                rty::BoundVariableKind::Region(..) => {
+                    vec![arg.clone()]
+                }
+            }
+        }).collect();
+        // Get the original sort from the genv, then call sort.walk in order to
+        // expand the arguments at the right position (see fresh_inner).
+        // self.genv.weak_kvars_for(&wkvar.wkvid).unwrap().
+        self.wkvar_or_kvar_to_fixpoint(&KVidOrWKVid::WKVid(wkvar.wkvid), &decl, &eta_expanded_args, bindings)
     }
 
     fn wkvar_or_kvar_to_fixpoint(
@@ -848,6 +875,7 @@ where
     ) -> QueryResult<fixpoint::Pred> {
         let kvars = self.kcx.encode(self.genv, id, decl, &mut self.scx);
 
+        println!("converting {:?}:\n args: {:?}\n sorts: {:?}", id, args, decl.sorts);
         let all_args = iter::zip(args, &decl.sorts)
             .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
             .try_collect_vec()?;
