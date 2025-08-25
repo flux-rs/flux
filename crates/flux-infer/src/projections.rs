@@ -31,7 +31,7 @@ use rustc_type_ir::TypeVisitableExt;
 use crate::{
     fixpoint_encoding::KVarEncoding,
     infer::{InferCtxtAt, InferResult},
-    refine_tree::{BinderOriginator, BinderProvenance, Scope}
+    refine_tree::{BinderOriginator, BinderProvenance, Scope},
 };
 
 pub trait NormalizeExt: TypeFoldable {
