@@ -52,11 +52,11 @@ use flux_middle::{
     },
     timings,
 };
+use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::{Diag, ErrorGuaranteed};
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::{FileNameDisplayPreference, Span, source_map::SourceMap};
-use itertools::Itertools;
 use serde::{Serialize, Serializer, ser::SerializeSeq};
 
 use crate::{checker::errors::ResultExt as _, ghost_statements::compute_ghost_statements};
