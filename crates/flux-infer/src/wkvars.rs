@@ -74,10 +74,7 @@ impl WKVarInstantiator<'_> {
         let mut args_to_param = HashMap::new();
         std::iter::zip(
             wkvar.args.iter().map(|arg| arg.erase_spans()),
-            wkvar
-                .params
-                .iter()
-                .map(|param| rty::Expr::var(*param)),
+            wkvar.params.iter().map(|param| rty::Expr::var(*param)),
         )
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);

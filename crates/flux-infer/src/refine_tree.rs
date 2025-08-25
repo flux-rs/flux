@@ -17,12 +17,10 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::snapshot_map::SnapshotMap;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{fx::{FxHashMap, FxHashSet}, snapshot_map::SnapshotMap};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_hir::def_id::DefId;
-use rustc_data_structures::fx::FxHashSet;
 use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
@@ -392,7 +390,11 @@ pub struct BlameAnalysis {
 }
 impl BlameAnalysis {
     fn new() -> Self {
-        Self { binder_deps: HashMap::new(), wkvars: Vec::new(), assumed_preds: FxHashSet::default() }
+        Self {
+            binder_deps: HashMap::new(),
+            wkvars: Vec::new(),
+            assumed_preds: FxHashSet::default(),
+        }
     }
 }
 
