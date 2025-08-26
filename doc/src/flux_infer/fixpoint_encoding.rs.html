@@ -1259,480 +1259,486 @@
 <a href=#1259 id=1259 data-nosnippet>1259</a>            rty::BinOp::Mod(<span class="kw">_</span>) =&gt; fixpoint::ThyFunc::BvUrem,
 <a href=#1260 id=1260 data-nosnippet>1260</a>            rty::BinOp::BitAnd =&gt; fixpoint::ThyFunc::BvAnd,
 <a href=#1261 id=1261 data-nosnippet>1261</a>            rty::BinOp::BitOr =&gt; fixpoint::ThyFunc::BvOr,
-<a href=#1262 id=1262 data-nosnippet>1262</a>            rty::BinOp::BitShl =&gt; fixpoint::ThyFunc::BvShl,
-<a href=#1263 id=1263 data-nosnippet>1263</a>            rty::BinOp::BitShr =&gt; fixpoint::ThyFunc::BvLshr,
-<a href=#1264 id=1264 data-nosnippet>1264</a>            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span(), <span class="string">"not a bitvector operation!"</span>),
-<a href=#1265 id=1265 data-nosnippet>1265</a>        };
-<a href=#1266 id=1266 data-nosnippet>1266</a>        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
-<a href=#1267 id=1267 data-nosnippet>1267</a>    }
-<a href=#1268 id=1268 data-nosnippet>1268</a>
-<a href=#1269 id=1269 data-nosnippet>1269</a>    <span class="kw">fn </span>bin_op_to_fixpoint(
-<a href=#1270 id=1270 data-nosnippet>1270</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1271 id=1271 data-nosnippet>1271</a>        op: <span class="kw-2">&amp;</span>rty::BinOp,
-<a href=#1272 id=1272 data-nosnippet>1272</a>        e1: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1273 id=1273 data-nosnippet>1273</a>        e2: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1274 id=1274 data-nosnippet>1274</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1275 id=1275 data-nosnippet>1275</a>    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
-<a href=#1276 id=1276 data-nosnippet>1276</a>        <span class="kw">let </span>op = <span class="kw">match </span>op {
-<a href=#1277 id=1277 data-nosnippet>1277</a>            rty::BinOp::Eq =&gt; {
-<a href=#1278 id=1278 data-nosnippet>1278</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Atom(
-<a href=#1279 id=1279 data-nosnippet>1279</a>                    fixpoint::BinRel::Eq,
-<a href=#1280 id=1280 data-nosnippet>1280</a>                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
-<a href=#1281 id=1281 data-nosnippet>1281</a>                ));
-<a href=#1282 id=1282 data-nosnippet>1282</a>            }
-<a href=#1283 id=1283 data-nosnippet>1283</a>            rty::BinOp::Ne =&gt; {
-<a href=#1284 id=1284 data-nosnippet>1284</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Atom(
-<a href=#1285 id=1285 data-nosnippet>1285</a>                    fixpoint::BinRel::Ne,
-<a href=#1286 id=1286 data-nosnippet>1286</a>                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
-<a href=#1287 id=1287 data-nosnippet>1287</a>                ));
-<a href=#1288 id=1288 data-nosnippet>1288</a>            }
-<a href=#1289 id=1289 data-nosnippet>1289</a>            rty::BinOp::Gt(sort) =&gt; {
-<a href=#1290 id=1290 data-nosnippet>1290</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, scx);
-<a href=#1291 id=1291 data-nosnippet>1291</a>            }
-<a href=#1292 id=1292 data-nosnippet>1292</a>            rty::BinOp::Ge(sort) =&gt; {
-<a href=#1293 id=1293 data-nosnippet>1293</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Ge, e1, e2, scx);
-<a href=#1294 id=1294 data-nosnippet>1294</a>            }
-<a href=#1295 id=1295 data-nosnippet>1295</a>            rty::BinOp::Lt(sort) =&gt; {
-<a href=#1296 id=1296 data-nosnippet>1296</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Lt, e1, e2, scx);
-<a href=#1297 id=1297 data-nosnippet>1297</a>            }
-<a href=#1298 id=1298 data-nosnippet>1298</a>            rty::BinOp::Le(sort) =&gt; {
-<a href=#1299 id=1299 data-nosnippet>1299</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, scx);
-<a href=#1300 id=1300 data-nosnippet>1300</a>            }
-<a href=#1301 id=1301 data-nosnippet>1301</a>            rty::BinOp::And =&gt; {
-<a href=#1302 id=1302 data-nosnippet>1302</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::And(<span class="macro">vec!</span>[
-<a href=#1303 id=1303 data-nosnippet>1303</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
-<a href=#1304 id=1304 data-nosnippet>1304</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
-<a href=#1305 id=1305 data-nosnippet>1305</a>                ]));
-<a href=#1306 id=1306 data-nosnippet>1306</a>            }
-<a href=#1307 id=1307 data-nosnippet>1307</a>            rty::BinOp::Or =&gt; {
-<a href=#1308 id=1308 data-nosnippet>1308</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Or(<span class="macro">vec!</span>[
-<a href=#1309 id=1309 data-nosnippet>1309</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
-<a href=#1310 id=1310 data-nosnippet>1310</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
-<a href=#1311 id=1311 data-nosnippet>1311</a>                ]));
-<a href=#1312 id=1312 data-nosnippet>1312</a>            }
-<a href=#1313 id=1313 data-nosnippet>1313</a>            rty::BinOp::Imp =&gt; {
-<a href=#1314 id=1314 data-nosnippet>1314</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Imp(Box::new([
-<a href=#1315 id=1315 data-nosnippet>1315</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
-<a href=#1316 id=1316 data-nosnippet>1316</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
-<a href=#1317 id=1317 data-nosnippet>1317</a>                ])));
-<a href=#1318 id=1318 data-nosnippet>1318</a>            }
-<a href=#1319 id=1319 data-nosnippet>1319</a>            rty::BinOp::Iff =&gt; {
-<a href=#1320 id=1320 data-nosnippet>1320</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Iff(Box::new([
-<a href=#1321 id=1321 data-nosnippet>1321</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
-<a href=#1322 id=1322 data-nosnippet>1322</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
-<a href=#1323 id=1323 data-nosnippet>1323</a>                ])));
-<a href=#1324 id=1324 data-nosnippet>1324</a>            }
-<a href=#1325 id=1325 data-nosnippet>1325</a>            rty::BinOp::Add(rty::Sort::BitVec(<span class="kw">_</span>))
-<a href=#1326 id=1326 data-nosnippet>1326</a>            | rty::BinOp::Sub(rty::Sort::BitVec(<span class="kw">_</span>))
-<a href=#1327 id=1327 data-nosnippet>1327</a>            | rty::BinOp::Mul(rty::Sort::BitVec(<span class="kw">_</span>))
-<a href=#1328 id=1328 data-nosnippet>1328</a>            | rty::BinOp::Div(rty::Sort::BitVec(<span class="kw">_</span>))
-<a href=#1329 id=1329 data-nosnippet>1329</a>            | rty::BinOp::Mod(rty::Sort::BitVec(<span class="kw">_</span>))
-<a href=#1330 id=1330 data-nosnippet>1330</a>            | rty::BinOp::BitAnd
-<a href=#1331 id=1331 data-nosnippet>1331</a>            | rty::BinOp::BitOr
-<a href=#1332 id=1332 data-nosnippet>1332</a>            | rty::BinOp::BitShl
-<a href=#1333 id=1333 data-nosnippet>1333</a>            | rty::BinOp::BitShr =&gt; {
-<a href=#1334 id=1334 data-nosnippet>1334</a>                <span class="kw">let </span>bv_func = <span class="self">self</span>.bv_op_to_fixpoint(op);
-<a href=#1335 id=1335 data-nosnippet>1335</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::App(
-<a href=#1336 id=1336 data-nosnippet>1336</a>                    Box::new(bv_func),
-<a href=#1337 id=1337 data-nosnippet>1337</a>                    <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>],
-<a href=#1338 id=1338 data-nosnippet>1338</a>                ));
-<a href=#1339 id=1339 data-nosnippet>1339</a>            }
-<a href=#1340 id=1340 data-nosnippet>1340</a>            rty::BinOp::Add(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Add,
-<a href=#1341 id=1341 data-nosnippet>1341</a>            rty::BinOp::Sub(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Sub,
-<a href=#1342 id=1342 data-nosnippet>1342</a>            rty::BinOp::Mul(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Mul,
-<a href=#1343 id=1343 data-nosnippet>1343</a>            rty::BinOp::Div(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Div,
-<a href=#1344 id=1344 data-nosnippet>1344</a>            rty::BinOp::Mod(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Mod,
-<a href=#1345 id=1345 data-nosnippet>1345</a>        };
-<a href=#1346 id=1346 data-nosnippet>1346</a>        <span class="prelude-val">Ok</span>(fixpoint::Expr::BinaryOp(
-<a href=#1347 id=1347 data-nosnippet>1347</a>            op,
-<a href=#1348 id=1348 data-nosnippet>1348</a>            Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
-<a href=#1349 id=1349 data-nosnippet>1349</a>        ))
-<a href=#1350 id=1350 data-nosnippet>1350</a>    }
-<a href=#1351 id=1351 data-nosnippet>1351</a>
-<a href=#1352 id=1352 data-nosnippet>1352</a>    <span class="doccomment">/// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
-<a href=#1353 id=1353 data-nosnippet>1353</a>    /// For "leaf" expressions, we encode them as an interpreted relation if the sort supports it,
-<a href=#1354 id=1354 data-nosnippet>1354</a>    /// otherwise we use an uninterpreted function. For example, consider the following relation
-<a href=#1355 id=1355 data-nosnippet>1355</a>    /// between two tuples of sort `(int, int -&gt; int)`
-<a href=#1356 id=1356 data-nosnippet>1356</a>    /// ```text
-<a href=#1357 id=1357 data-nosnippet>1357</a>    /// (0, λv. v + 1) &lt;= (1, λv. v + 1)
-<a href=#1358 id=1358 data-nosnippet>1358</a>    /// ```
-<a href=#1359 id=1359 data-nosnippet>1359</a>    /// The encoding in fixpoint will be
-<a href=#1360 id=1360 data-nosnippet>1360</a>    ///
-<a href=#1361 id=1361 data-nosnippet>1361</a>    /// ```text
-<a href=#1362 id=1362 data-nosnippet>1362</a>    /// 0 &lt;= 1 &amp;&amp; (le (λv. v + 1) (λv. v + 1))
-<a href=#1363 id=1363 data-nosnippet>1363</a>    /// ```
-<a href=#1364 id=1364 data-nosnippet>1364</a>    /// Where `&lt;=` is the (interpreted) less than or equal relation between integers and `le` is
-<a href=#1365 id=1365 data-nosnippet>1365</a>    /// an uninterpreted relation between ([the encoding] of) lambdas.
-<a href=#1366 id=1366 data-nosnippet>1366</a>    ///
-<a href=#1367 id=1367 data-nosnippet>1367</a>    /// [the encoding]: Self::define_const_for_lambda
-<a href=#1368 id=1368 data-nosnippet>1368</a>    </span><span class="kw">fn </span>bin_rel_to_fixpoint(
-<a href=#1369 id=1369 data-nosnippet>1369</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1370 id=1370 data-nosnippet>1370</a>        sort: <span class="kw-2">&amp;</span>rty::Sort,
-<a href=#1371 id=1371 data-nosnippet>1371</a>        rel: fixpoint::BinRel,
-<a href=#1372 id=1372 data-nosnippet>1372</a>        e1: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1373 id=1373 data-nosnippet>1373</a>        e2: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1374 id=1374 data-nosnippet>1374</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1375 id=1375 data-nosnippet>1375</a>    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
-<a href=#1376 id=1376 data-nosnippet>1376</a>        <span class="kw">let </span>e = <span class="kw">match </span>sort {
-<a href=#1377 id=1377 data-nosnippet>1377</a>            rty::Sort::Int | rty::Sort::Real | rty::Sort::Char =&gt; {
-<a href=#1378 id=1378 data-nosnippet>1378</a>                fixpoint::Expr::Atom(
-<a href=#1379 id=1379 data-nosnippet>1379</a>                    rel,
-<a href=#1380 id=1380 data-nosnippet>1380</a>                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
-<a href=#1381 id=1381 data-nosnippet>1381</a>                )
-<a href=#1382 id=1382 data-nosnippet>1382</a>            }
-<a href=#1383 id=1383 data-nosnippet>1383</a>            rty::Sort::BitVec(<span class="kw">_</span>) =&gt; {
-<a href=#1384 id=1384 data-nosnippet>1384</a>                <span class="kw">let </span>e1 = <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>;
-<a href=#1385 id=1385 data-nosnippet>1385</a>                <span class="kw">let </span>e2 = <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>;
-<a href=#1386 id=1386 data-nosnippet>1386</a>                <span class="kw">let </span>rel = <span class="self">self</span>.bv_rel_to_fixpoint(<span class="kw-2">&amp;</span>rel);
-<a href=#1387 id=1387 data-nosnippet>1387</a>                fixpoint::Expr::App(Box::new(rel), <span class="macro">vec!</span>[e1, e2])
-<a href=#1388 id=1388 data-nosnippet>1388</a>            }
-<a href=#1389 id=1389 data-nosnippet>1389</a>            rty::Sort::Tuple(sorts) =&gt; {
-<a href=#1390 id=1390 data-nosnippet>1390</a>                <span class="kw">let </span>arity = sorts.len();
-<a href=#1391 id=1391 data-nosnippet>1391</a>                <span class="self">self</span>.apply_bin_rel_rec(sorts, rel, e1, e2, scx, |field| {
-<a href=#1392 id=1392 data-nosnippet>1392</a>                    rty::FieldProj::Tuple { arity, field }
-<a href=#1393 id=1393 data-nosnippet>1393</a>                })<span class="question-mark">?
-<a href=#1394 id=1394 data-nosnippet>1394</a>            </span>}
-<a href=#1395 id=1395 data-nosnippet>1395</a>            rty::Sort::App(rty::SortCtor::Adt(sort_def), args)
-<a href=#1396 id=1396 data-nosnippet>1396</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(variant) = sort_def.opt_struct_variant() =&gt;
-<a href=#1397 id=1397 data-nosnippet>1397</a>            {
-<a href=#1398 id=1398 data-nosnippet>1398</a>                <span class="kw">let </span>def_id = sort_def.did();
-<a href=#1399 id=1399 data-nosnippet>1399</a>                <span class="kw">let </span>sorts = variant.field_sorts(args);
-<a href=#1400 id=1400 data-nosnippet>1400</a>                <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, scx, |field| {
-<a href=#1401 id=1401 data-nosnippet>1401</a>                    rty::FieldProj::Adt { def_id, field }
-<a href=#1402 id=1402 data-nosnippet>1402</a>                })<span class="question-mark">?
-<a href=#1403 id=1403 data-nosnippet>1403</a>            </span>}
-<a href=#1404 id=1404 data-nosnippet>1404</a>            <span class="kw">_ </span>=&gt; {
-<a href=#1405 id=1405 data-nosnippet>1405</a>                <span class="kw">let </span>rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));
-<a href=#1406 id=1406 data-nosnippet>1406</a>                fixpoint::Expr::App(
-<a href=#1407 id=1407 data-nosnippet>1407</a>                    Box::new(rel),
-<a href=#1408 id=1408 data-nosnippet>1408</a>                    <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>],
-<a href=#1409 id=1409 data-nosnippet>1409</a>                )
-<a href=#1410 id=1410 data-nosnippet>1410</a>            }
-<a href=#1411 id=1411 data-nosnippet>1411</a>        };
-<a href=#1412 id=1412 data-nosnippet>1412</a>        <span class="prelude-val">Ok</span>(e)
-<a href=#1413 id=1413 data-nosnippet>1413</a>    }
-<a href=#1414 id=1414 data-nosnippet>1414</a>
-<a href=#1415 id=1415 data-nosnippet>1415</a>    <span class="doccomment">/// Apply binary relation recursively over aggregate expressions
-<a href=#1416 id=1416 data-nosnippet>1416</a>    </span><span class="kw">fn </span>apply_bin_rel_rec(
-<a href=#1417 id=1417 data-nosnippet>1417</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1418 id=1418 data-nosnippet>1418</a>        sorts: <span class="kw-2">&amp;</span>[rty::Sort],
-<a href=#1419 id=1419 data-nosnippet>1419</a>        rel: fixpoint::BinRel,
-<a href=#1420 id=1420 data-nosnippet>1420</a>        e1: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1421 id=1421 data-nosnippet>1421</a>        e2: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1422 id=1422 data-nosnippet>1422</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1423 id=1423 data-nosnippet>1423</a>        mk_proj: <span class="kw">impl </span>Fn(u32) -&gt; rty::FieldProj,
-<a href=#1424 id=1424 data-nosnippet>1424</a>    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
-<a href=#1425 id=1425 data-nosnippet>1425</a>        <span class="prelude-val">Ok</span>(fixpoint::Expr::and(
-<a href=#1426 id=1426 data-nosnippet>1426</a>            sorts
-<a href=#1427 id=1427 data-nosnippet>1427</a>                .iter()
-<a href=#1428 id=1428 data-nosnippet>1428</a>                .enumerate()
-<a href=#1429 id=1429 data-nosnippet>1429</a>                .map(|(idx, s)| {
-<a href=#1430 id=1430 data-nosnippet>1430</a>                    <span class="kw">let </span>proj = mk_proj(idx <span class="kw">as </span>u32);
-<a href=#1431 id=1431 data-nosnippet>1431</a>                    <span class="kw">let </span>e1 = e1.proj_and_reduce(proj);
-<a href=#1432 id=1432 data-nosnippet>1432</a>                    <span class="kw">let </span>e2 = e2.proj_and_reduce(proj);
-<a href=#1433 id=1433 data-nosnippet>1433</a>                    <span class="self">self</span>.bin_rel_to_fixpoint(s, rel, <span class="kw-2">&amp;</span>e1, <span class="kw-2">&amp;</span>e2, scx)
-<a href=#1434 id=1434 data-nosnippet>1434</a>                })
-<a href=#1435 id=1435 data-nosnippet>1435</a>                .try_collect()<span class="question-mark">?</span>,
-<a href=#1436 id=1436 data-nosnippet>1436</a>        ))
-<a href=#1437 id=1437 data-nosnippet>1437</a>    }
-<a href=#1438 id=1438 data-nosnippet>1438</a>
-<a href=#1439 id=1439 data-nosnippet>1439</a>    <span class="kw">fn </span>imm(
-<a href=#1440 id=1440 data-nosnippet>1440</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1441 id=1441 data-nosnippet>1441</a>        arg: <span class="kw-2">&amp;</span>rty::Expr,
-<a href=#1442 id=1442 data-nosnippet>1442</a>        sort: <span class="kw-2">&amp;</span>rty::Sort,
-<a href=#1443 id=1443 data-nosnippet>1443</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1444 id=1444 data-nosnippet>1444</a>        bindings: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::Bind&gt;,
-<a href=#1445 id=1445 data-nosnippet>1445</a>    ) -&gt; QueryResult&lt;fixpoint::Var&gt; {
-<a href=#1446 id=1446 data-nosnippet>1446</a>        <span class="kw">let </span>arg = <span class="self">self</span>.expr_to_fixpoint(arg, scx)<span class="question-mark">?</span>;
-<a href=#1447 id=1447 data-nosnippet>1447</a>        <span class="comment">// Check if it's a variable after encoding, in case the encoding produced a variable from a
-<a href=#1448 id=1448 data-nosnippet>1448</a>        // non-variable.
-<a href=#1449 id=1449 data-nosnippet>1449</a>        </span><span class="kw">if let </span>fixpoint::Expr::Var(var) = arg {
-<a href=#1450 id=1450 data-nosnippet>1450</a>            <span class="prelude-val">Ok</span>(var)
-<a href=#1451 id=1451 data-nosnippet>1451</a>        } <span class="kw">else </span>{
-<a href=#1452 id=1452 data-nosnippet>1452</a>            <span class="kw">let </span>fresh = <span class="self">self</span>.local_var_env.fresh_name();
-<a href=#1453 id=1453 data-nosnippet>1453</a>            <span class="kw">let </span>pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), arg);
-<a href=#1454 id=1454 data-nosnippet>1454</a>            bindings.push(fixpoint::Bind {
-<a href=#1455 id=1455 data-nosnippet>1455</a>                name: fresh.into(),
-<a href=#1456 id=1456 data-nosnippet>1456</a>                sort: scx.sort_to_fixpoint(sort),
-<a href=#1457 id=1457 data-nosnippet>1457</a>                pred: fixpoint::Pred::Expr(pred),
-<a href=#1458 id=1458 data-nosnippet>1458</a>            });
-<a href=#1459 id=1459 data-nosnippet>1459</a>            <span class="prelude-val">Ok</span>(fresh.into())
-<a href=#1460 id=1460 data-nosnippet>1460</a>        }
-<a href=#1461 id=1461 data-nosnippet>1461</a>    }
-<a href=#1462 id=1462 data-nosnippet>1462</a>
-<a href=#1463 id=1463 data-nosnippet>1463</a>    <span class="doccomment">/// Declare that the `def_id` of a Flux function definition needs to be encoded and assigns
-<a href=#1464 id=1464 data-nosnippet>1464</a>    /// a name to it if it hasn't yet been declared. The encoding of the function body happens
-<a href=#1465 id=1465 data-nosnippet>1465</a>    /// in [`Self::define_funs`].
-<a href=#1466 id=1466 data-nosnippet>1466</a>    </span><span class="kw">fn </span>declare_fun(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: FluxDefId) -&gt; fixpoint::Var {
-<a href=#1467 id=1467 data-nosnippet>1467</a>        <span class="kw-2">*</span><span class="self">self</span>.fun_def_map.entry(def_id).or_insert_with(|| {
-<a href=#1468 id=1468 data-nosnippet>1468</a>            <span class="kw">let </span>id = <span class="self">self</span>.global_var_gen.fresh();
-<a href=#1469 id=1469 data-nosnippet>1469</a>            fixpoint::Var::Global(id, <span class="prelude-val">Some</span>(def_id.name()))
-<a href=#1470 id=1470 data-nosnippet>1470</a>        })
-<a href=#1471 id=1471 data-nosnippet>1471</a>    }
-<a href=#1472 id=1472 data-nosnippet>1472</a>
-<a href=#1473 id=1473 data-nosnippet>1473</a>    <span class="doccomment">/// The logic below is a bit "duplicated" with the `[`prim_op_sort`] in sortck.rs;
-<a href=#1474 id=1474 data-nosnippet>1474</a>    /// They are not exactly the same because this is on rty and the other one on fhir.
-<a href=#1475 id=1475 data-nosnippet>1475</a>    /// We should make sure these two remain in sync.
-<a href=#1476 id=1476 data-nosnippet>1476</a>    ///
-<a href=#1477 id=1477 data-nosnippet>1477</a>    /// (NOTE:PrimOpSort) We are somewhat "overloading" the BinOps: as we are using them
-<a href=#1478 id=1478 data-nosnippet>1478</a>    /// for (a) interpreted operations on bit vectors AND (b) uninterpreted functions on integers.
-<a href=#1479 id=1479 data-nosnippet>1479</a>    /// So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means bit vectors, but
-<a href=#1480 id=1480 data-nosnippet>1480</a>    /// (b) inside ExprKind::InternalFunc it means int.
-<a href=#1481 id=1481 data-nosnippet>1481</a>    </span><span class="kw">fn </span>prim_op_sort(op: <span class="kw-2">&amp;</span>rty::BinOp, span: Span) -&gt; rty::PolyFuncSort {
-<a href=#1482 id=1482 data-nosnippet>1482</a>        <span class="kw">match </span>op {
-<a href=#1483 id=1483 data-nosnippet>1483</a>            rty::BinOp::BitAnd | rty::BinOp::BitOr | rty::BinOp::BitShl | rty::BinOp::BitShr =&gt; {
-<a href=#1484 id=1484 data-nosnippet>1484</a>                <span class="kw">let </span>fsort =
-<a href=#1485 id=1485 data-nosnippet>1485</a>                    rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int, rty::Sort::Int], rty::Sort::Int);
-<a href=#1486 id=1486 data-nosnippet>1486</a>                rty::PolyFuncSort::new(List::empty(), fsort)
-<a href=#1487 id=1487 data-nosnippet>1487</a>            }
-<a href=#1488 id=1488 data-nosnippet>1488</a>            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(span, <span class="string">"unexpected prim op: {op:?} in `prim_op_sort`"</span>),
-<a href=#1489 id=1489 data-nosnippet>1489</a>        }
-<a href=#1490 id=1490 data-nosnippet>1490</a>    }
-<a href=#1491 id=1491 data-nosnippet>1491</a>
-<a href=#1492 id=1492 data-nosnippet>1492</a>    <span class="kw">fn </span>define_const_for_cast(
-<a href=#1493 id=1493 data-nosnippet>1493</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1494 id=1494 data-nosnippet>1494</a>        from: <span class="kw-2">&amp;</span>rty::Sort,
-<a href=#1495 id=1495 data-nosnippet>1495</a>        to: <span class="kw-2">&amp;</span>rty::Sort,
-<a href=#1496 id=1496 data-nosnippet>1496</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1497 id=1497 data-nosnippet>1497</a>    ) -&gt; fixpoint::Var {
-<a href=#1498 id=1498 data-nosnippet>1498</a>        <span class="kw">let </span>key = ConstKey::Cast(from.clone(), to.clone());
-<a href=#1499 id=1499 data-nosnippet>1499</a>        <span class="self">self</span>.const_map
-<a href=#1500 id=1500 data-nosnippet>1500</a>            .entry(key)
-<a href=#1501 id=1501 data-nosnippet>1501</a>            .or_insert_with(|| {
-<a href=#1502 id=1502 data-nosnippet>1502</a>                <span class="kw">let </span>fsort = rty::FuncSort::new(<span class="macro">vec!</span>[from.clone()], to.clone());
-<a href=#1503 id=1503 data-nosnippet>1503</a>                <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
-<a href=#1504 id=1504 data-nosnippet>1504</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
-<a href=#1505 id=1505 data-nosnippet>1505</a>                fixpoint::ConstDecl {
-<a href=#1506 id=1506 data-nosnippet>1506</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
-<a href=#1507 id=1507 data-nosnippet>1507</a>                    sort,
-<a href=#1508 id=1508 data-nosnippet>1508</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"cast uif: ({from:?}) -&gt; {to:?}"</span>)),
-<a href=#1509 id=1509 data-nosnippet>1509</a>                }
-<a href=#1510 id=1510 data-nosnippet>1510</a>            })
-<a href=#1511 id=1511 data-nosnippet>1511</a>            .name
-<a href=#1512 id=1512 data-nosnippet>1512</a>    }
-<a href=#1513 id=1513 data-nosnippet>1513</a>
-<a href=#1514 id=1514 data-nosnippet>1514</a>    <span class="kw">fn </span>define_const_for_prim_op(
-<a href=#1515 id=1515 data-nosnippet>1515</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1516 id=1516 data-nosnippet>1516</a>        op: <span class="kw-2">&amp;</span>rty::BinOp,
-<a href=#1517 id=1517 data-nosnippet>1517</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1518 id=1518 data-nosnippet>1518</a>    ) -&gt; fixpoint::Var {
-<a href=#1519 id=1519 data-nosnippet>1519</a>        <span class="kw">let </span>key = ConstKey::PrimOp(op.clone());
-<a href=#1520 id=1520 data-nosnippet>1520</a>        <span class="kw">let </span>span = <span class="self">self</span>.def_span();
-<a href=#1521 id=1521 data-nosnippet>1521</a>        <span class="self">self</span>.const_map
-<a href=#1522 id=1522 data-nosnippet>1522</a>            .entry(key)
-<a href=#1523 id=1523 data-nosnippet>1523</a>            .or_insert_with(|| {
-<a href=#1524 id=1524 data-nosnippet>1524</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span><span class="self">Self</span>::prim_op_sort(op, span));
-<a href=#1525 id=1525 data-nosnippet>1525</a>                fixpoint::ConstDecl {
-<a href=#1526 id=1526 data-nosnippet>1526</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
-<a href=#1527 id=1527 data-nosnippet>1527</a>                    sort,
-<a href=#1528 id=1528 data-nosnippet>1528</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"prim op uif: {op:?}"</span>)),
-<a href=#1529 id=1529 data-nosnippet>1529</a>                }
-<a href=#1530 id=1530 data-nosnippet>1530</a>            })
-<a href=#1531 id=1531 data-nosnippet>1531</a>            .name
-<a href=#1532 id=1532 data-nosnippet>1532</a>    }
-<a href=#1533 id=1533 data-nosnippet>1533</a>
-<a href=#1534 id=1534 data-nosnippet>1534</a>    <span class="kw">fn </span>define_const_for_uif(
-<a href=#1535 id=1535 data-nosnippet>1535</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1536 id=1536 data-nosnippet>1536</a>        def_id: FluxDefId,
-<a href=#1537 id=1537 data-nosnippet>1537</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1538 id=1538 data-nosnippet>1538</a>    ) -&gt; fixpoint::Var {
-<a href=#1539 id=1539 data-nosnippet>1539</a>        <span class="kw">let </span>key = ConstKey::Uif(def_id);
-<a href=#1540 id=1540 data-nosnippet>1540</a>        <span class="self">self</span>.const_map
-<a href=#1541 id=1541 data-nosnippet>1541</a>            .entry(key)
-<a href=#1542 id=1542 data-nosnippet>1542</a>            .or_insert_with(|| {
-<a href=#1543 id=1543 data-nosnippet>1543</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.func_sort(def_id));
-<a href=#1544 id=1544 data-nosnippet>1544</a>                fixpoint::ConstDecl {
-<a href=#1545 id=1545 data-nosnippet>1545</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">Some</span>(def_id.name())),
-<a href=#1546 id=1546 data-nosnippet>1546</a>                    sort,
-<a href=#1547 id=1547 data-nosnippet>1547</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"uif: {def_id:?}"</span>)),
-<a href=#1548 id=1548 data-nosnippet>1548</a>                }
-<a href=#1549 id=1549 data-nosnippet>1549</a>            })
-<a href=#1550 id=1550 data-nosnippet>1550</a>            .name
-<a href=#1551 id=1551 data-nosnippet>1551</a>    }
-<a href=#1552 id=1552 data-nosnippet>1552</a>
-<a href=#1553 id=1553 data-nosnippet>1553</a>    <span class="kw">fn </span>define_const_for_rust_const(
-<a href=#1554 id=1554 data-nosnippet>1554</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1555 id=1555 data-nosnippet>1555</a>        def_id: DefId,
-<a href=#1556 id=1556 data-nosnippet>1556</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1557 id=1557 data-nosnippet>1557</a>    ) -&gt; fixpoint::Var {
-<a href=#1558 id=1558 data-nosnippet>1558</a>        <span class="kw">let </span>key = ConstKey::RustConst(def_id);
-<a href=#1559 id=1559 data-nosnippet>1559</a>        <span class="self">self</span>.const_map
-<a href=#1560 id=1560 data-nosnippet>1560</a>            .entry(key)
-<a href=#1561 id=1561 data-nosnippet>1561</a>            .or_insert_with(|| {
-<a href=#1562 id=1562 data-nosnippet>1562</a>                <span class="kw">let </span>sort = <span class="self">self</span>.genv.sort_of_def_id(def_id).unwrap().unwrap();
-<a href=#1563 id=1563 data-nosnippet>1563</a>                fixpoint::ConstDecl {
-<a href=#1564 id=1564 data-nosnippet>1564</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
-<a href=#1565 id=1565 data-nosnippet>1565</a>                    sort: scx.sort_to_fixpoint(<span class="kw-2">&amp;</span>sort),
-<a href=#1566 id=1566 data-nosnippet>1566</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"rust const: {}"</span>, def_id_to_string(def_id))),
-<a href=#1567 id=1567 data-nosnippet>1567</a>                }
-<a href=#1568 id=1568 data-nosnippet>1568</a>            })
-<a href=#1569 id=1569 data-nosnippet>1569</a>            .name
-<a href=#1570 id=1570 data-nosnippet>1570</a>    }
-<a href=#1571 id=1571 data-nosnippet>1571</a>
-<a href=#1572 id=1572 data-nosnippet>1572</a>    <span class="doccomment">/// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
-<a href=#1573 id=1573 data-nosnippet>1573</a>    /// to the const_map if necessary
-<a href=#1574 id=1574 data-nosnippet>1574</a>    </span><span class="kw">fn </span>define_const_for_alias_reft(
-<a href=#1575 id=1575 data-nosnippet>1575</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1576 id=1576 data-nosnippet>1576</a>        alias_reft: <span class="kw-2">&amp;</span>rty::AliasReft,
-<a href=#1577 id=1577 data-nosnippet>1577</a>        fsort: rty::FuncSort,
-<a href=#1578 id=1578 data-nosnippet>1578</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1579 id=1579 data-nosnippet>1579</a>    ) -&gt; fixpoint::Var {
-<a href=#1580 id=1580 data-nosnippet>1580</a>        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
-<a href=#1581 id=1581 data-nosnippet>1581</a>        <span class="kw">let </span>args = alias_reft
-<a href=#1582 id=1582 data-nosnippet>1582</a>            .args
-<a href=#1583 id=1583 data-nosnippet>1583</a>            .to_rustc(tcx)
-<a href=#1584 id=1584 data-nosnippet>1584</a>            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
-<a href=#1585 id=1585 data-nosnippet>1585</a>        <span class="kw">let </span>key = ConstKey::Alias(alias_reft.assoc_id, args);
-<a href=#1586 id=1586 data-nosnippet>1586</a>        <span class="self">self</span>.const_map
-<a href=#1587 id=1587 data-nosnippet>1587</a>            .entry(key)
-<a href=#1588 id=1588 data-nosnippet>1588</a>            .or_insert_with(|| {
-<a href=#1589 id=1589 data-nosnippet>1589</a>                <span class="kw">let </span>comment = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"alias reft: {alias_reft:?}"</span>));
-<a href=#1590 id=1590 data-nosnippet>1590</a>                <span class="kw">let </span>name = fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>);
-<a href=#1591 id=1591 data-nosnippet>1591</a>                <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
-<a href=#1592 id=1592 data-nosnippet>1592</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
-<a href=#1593 id=1593 data-nosnippet>1593</a>                fixpoint::ConstDecl { name, comment, sort }
-<a href=#1594 id=1594 data-nosnippet>1594</a>            })
-<a href=#1595 id=1595 data-nosnippet>1595</a>            .name
-<a href=#1596 id=1596 data-nosnippet>1596</a>    }
-<a href=#1597 id=1597 data-nosnippet>1597</a>
-<a href=#1598 id=1598 data-nosnippet>1598</a>    <span class="doccomment">/// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
-<a href=#1599 id=1599 data-nosnippet>1599</a>    /// with the same constant.
-<a href=#1600 id=1600 data-nosnippet>1600</a>    </span><span class="kw">fn </span>define_const_for_lambda(
-<a href=#1601 id=1601 data-nosnippet>1601</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1602 id=1602 data-nosnippet>1602</a>        lam: <span class="kw-2">&amp;</span>rty::Lambda,
-<a href=#1603 id=1603 data-nosnippet>1603</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1604 id=1604 data-nosnippet>1604</a>    ) -&gt; fixpoint::Var {
-<a href=#1605 id=1605 data-nosnippet>1605</a>        <span class="kw">let </span>key = ConstKey::Lambda(lam.clone());
-<a href=#1606 id=1606 data-nosnippet>1606</a>        <span class="self">self</span>.const_map
-<a href=#1607 id=1607 data-nosnippet>1607</a>            .entry(key)
-<a href=#1608 id=1608 data-nosnippet>1608</a>            .or_insert_with(|| {
-<a href=#1609 id=1609 data-nosnippet>1609</a>                <span class="kw">let </span>comment = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"lambda: {lam:?}"</span>));
-<a href=#1610 id=1610 data-nosnippet>1610</a>                <span class="kw">let </span>name = fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>);
-<a href=#1611 id=1611 data-nosnippet>1611</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.fsort().to_poly());
-<a href=#1612 id=1612 data-nosnippet>1612</a>                fixpoint::ConstDecl { name, comment, sort }
-<a href=#1613 id=1613 data-nosnippet>1613</a>            })
-<a href=#1614 id=1614 data-nosnippet>1614</a>            .name
-<a href=#1615 id=1615 data-nosnippet>1615</a>    }
-<a href=#1616 id=1616 data-nosnippet>1616</a>
-<a href=#1617 id=1617 data-nosnippet>1617</a>    <span class="kw">fn </span>assume_const_values(
-<a href=#1618 id=1618 data-nosnippet>1618</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1619 id=1619 data-nosnippet>1619</a>        <span class="kw-2">mut </span>constraint: fixpoint::Constraint,
-<a href=#1620 id=1620 data-nosnippet>1620</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1621 id=1621 data-nosnippet>1621</a>    ) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
-<a href=#1622 id=1622 data-nosnippet>1622</a>        <span class="comment">// Encoding the value for a constant could in theory define more constants for which
-<a href=#1623 id=1623 data-nosnippet>1623</a>        // we need to assume values, so we iterate until there are no more constants.
-<a href=#1624 id=1624 data-nosnippet>1624</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>idx = <span class="number">0</span>;
-<a href=#1625 id=1625 data-nosnippet>1625</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>((key, const_)) = <span class="self">self</span>.const_map.get_index(idx) {
-<a href=#1626 id=1626 data-nosnippet>1626</a>            idx += <span class="number">1</span>;
-<a href=#1627 id=1627 data-nosnippet>1627</a>
-<a href=#1628 id=1628 data-nosnippet>1628</a>            <span class="kw">let </span>ConstKey::RustConst(def_id) = key <span class="kw">else </span>{ <span class="kw">continue </span>};
-<a href=#1629 id=1629 data-nosnippet>1629</a>            <span class="kw">let </span>info = <span class="self">self</span>.genv.constant_info(def_id)<span class="question-mark">?</span>;
-<a href=#1630 id=1630 data-nosnippet>1630</a>            <span class="kw">match </span>info {
-<a href=#1631 id=1631 data-nosnippet>1631</a>                rty::ConstantInfo::Uninterpreted =&gt; {}
-<a href=#1632 id=1632 data-nosnippet>1632</a>                rty::ConstantInfo::Interpreted(val, <span class="kw">_</span>) =&gt; {
-<a href=#1633 id=1633 data-nosnippet>1633</a>                    <span class="kw">let </span>e1 = fixpoint::Expr::Var(const_.name);
-<a href=#1634 id=1634 data-nosnippet>1634</a>                    <span class="kw">let </span>e2 = <span class="self">self</span>.expr_to_fixpoint(<span class="kw-2">&amp;</span>val, scx)<span class="question-mark">?</span>;
-<a href=#1635 id=1635 data-nosnippet>1635</a>                    <span class="kw">let </span>pred = fixpoint::Pred::Expr(e1.eq(e2));
-<a href=#1636 id=1636 data-nosnippet>1636</a>                    constraint = fixpoint::Constraint::ForAll(
-<a href=#1637 id=1637 data-nosnippet>1637</a>                        fixpoint::Bind {
-<a href=#1638 id=1638 data-nosnippet>1638</a>                            name: fixpoint::Var::Underscore,
-<a href=#1639 id=1639 data-nosnippet>1639</a>                            sort: fixpoint::Sort::Int,
-<a href=#1640 id=1640 data-nosnippet>1640</a>                            pred,
-<a href=#1641 id=1641 data-nosnippet>1641</a>                        },
-<a href=#1642 id=1642 data-nosnippet>1642</a>                        Box::new(constraint),
-<a href=#1643 id=1643 data-nosnippet>1643</a>                    );
-<a href=#1644 id=1644 data-nosnippet>1644</a>                }
-<a href=#1645 id=1645 data-nosnippet>1645</a>            }
-<a href=#1646 id=1646 data-nosnippet>1646</a>        }
-<a href=#1647 id=1647 data-nosnippet>1647</a>        <span class="prelude-val">Ok</span>(constraint)
-<a href=#1648 id=1648 data-nosnippet>1648</a>    }
-<a href=#1649 id=1649 data-nosnippet>1649</a>
-<a href=#1650 id=1650 data-nosnippet>1650</a>    <span class="kw">fn </span>qualifiers_for(
-<a href=#1651 id=1651 data-nosnippet>1651</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1652 id=1652 data-nosnippet>1652</a>        def_id: LocalDefId,
-<a href=#1653 id=1653 data-nosnippet>1653</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1654 id=1654 data-nosnippet>1654</a>    ) -&gt; QueryResult&lt;Vec&lt;fixpoint::Qualifier&gt;&gt; {
-<a href=#1655 id=1655 data-nosnippet>1655</a>        <span class="self">self</span>.genv
-<a href=#1656 id=1656 data-nosnippet>1656</a>            .qualifiers_for(def_id)<span class="question-mark">?
-<a href=#1657 id=1657 data-nosnippet>1657</a>            </span>.map(|qual| <span class="self">self</span>.qualifier_to_fixpoint(qual, scx))
-<a href=#1658 id=1658 data-nosnippet>1658</a>            .try_collect()
-<a href=#1659 id=1659 data-nosnippet>1659</a>    }
-<a href=#1660 id=1660 data-nosnippet>1660</a>
-<a href=#1661 id=1661 data-nosnippet>1661</a>    <span class="kw">fn </span>define_funs(
-<a href=#1662 id=1662 data-nosnippet>1662</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1663 id=1663 data-nosnippet>1663</a>        def_id: MaybeExternId,
-<a href=#1664 id=1664 data-nosnippet>1664</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1665 id=1665 data-nosnippet>1665</a>    ) -&gt; QueryResult&lt;(Vec&lt;fixpoint::FunDef&gt;, Vec&lt;fixpoint::ConstDecl&gt;)&gt; {
-<a href=#1666 id=1666 data-nosnippet>1666</a>        <span class="kw">let </span>reveals: UnordSet&lt;FluxDefId&gt; = <span class="self">self</span>.genv.reveals_for(def_id.local_id())<span class="question-mark">?</span>.collect();
-<a href=#1667 id=1667 data-nosnippet>1667</a>        <span class="kw">let </span><span class="kw-2">mut </span>consts = <span class="macro">vec!</span>[];
-<a href=#1668 id=1668 data-nosnippet>1668</a>        <span class="kw">let </span><span class="kw-2">mut </span>defs = <span class="macro">vec!</span>[];
-<a href=#1669 id=1669 data-nosnippet>1669</a>
-<a href=#1670 id=1670 data-nosnippet>1670</a>        <span class="comment">// We iterate until encoding the body of functions doesn't require any more functions
-<a href=#1671 id=1671 data-nosnippet>1671</a>        // to be encoded.
-<a href=#1672 id=1672 data-nosnippet>1672</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>idx = <span class="number">0</span>;
-<a href=#1673 id=1673 data-nosnippet>1673</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>((<span class="kw-2">&amp;</span>did, <span class="kw-2">&amp;</span>name)) = <span class="self">self</span>.fun_def_map.get_index(idx) {
-<a href=#1674 id=1674 data-nosnippet>1674</a>            idx += <span class="number">1</span>;
+<a href=#1262 id=1262 data-nosnippet>1262</a>            rty::BinOp::BitXor =&gt; fixpoint::ThyFunc::BvXor,
+<a href=#1263 id=1263 data-nosnippet>1263</a>            rty::BinOp::BitShl =&gt; fixpoint::ThyFunc::BvShl,
+<a href=#1264 id=1264 data-nosnippet>1264</a>            rty::BinOp::BitShr =&gt; fixpoint::ThyFunc::BvLshr,
+<a href=#1265 id=1265 data-nosnippet>1265</a>            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(<span class="self">self</span>.def_span(), <span class="string">"not a bitvector operation!"</span>),
+<a href=#1266 id=1266 data-nosnippet>1266</a>        };
+<a href=#1267 id=1267 data-nosnippet>1267</a>        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
+<a href=#1268 id=1268 data-nosnippet>1268</a>    }
+<a href=#1269 id=1269 data-nosnippet>1269</a>
+<a href=#1270 id=1270 data-nosnippet>1270</a>    <span class="kw">fn </span>bin_op_to_fixpoint(
+<a href=#1271 id=1271 data-nosnippet>1271</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1272 id=1272 data-nosnippet>1272</a>        op: <span class="kw-2">&amp;</span>rty::BinOp,
+<a href=#1273 id=1273 data-nosnippet>1273</a>        e1: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1274 id=1274 data-nosnippet>1274</a>        e2: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1275 id=1275 data-nosnippet>1275</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1276 id=1276 data-nosnippet>1276</a>    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
+<a href=#1277 id=1277 data-nosnippet>1277</a>        <span class="kw">let </span>op = <span class="kw">match </span>op {
+<a href=#1278 id=1278 data-nosnippet>1278</a>            rty::BinOp::Eq =&gt; {
+<a href=#1279 id=1279 data-nosnippet>1279</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Atom(
+<a href=#1280 id=1280 data-nosnippet>1280</a>                    fixpoint::BinRel::Eq,
+<a href=#1281 id=1281 data-nosnippet>1281</a>                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
+<a href=#1282 id=1282 data-nosnippet>1282</a>                ));
+<a href=#1283 id=1283 data-nosnippet>1283</a>            }
+<a href=#1284 id=1284 data-nosnippet>1284</a>            rty::BinOp::Ne =&gt; {
+<a href=#1285 id=1285 data-nosnippet>1285</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Atom(
+<a href=#1286 id=1286 data-nosnippet>1286</a>                    fixpoint::BinRel::Ne,
+<a href=#1287 id=1287 data-nosnippet>1287</a>                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
+<a href=#1288 id=1288 data-nosnippet>1288</a>                ));
+<a href=#1289 id=1289 data-nosnippet>1289</a>            }
+<a href=#1290 id=1290 data-nosnippet>1290</a>            rty::BinOp::Gt(sort) =&gt; {
+<a href=#1291 id=1291 data-nosnippet>1291</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Gt, e1, e2, scx);
+<a href=#1292 id=1292 data-nosnippet>1292</a>            }
+<a href=#1293 id=1293 data-nosnippet>1293</a>            rty::BinOp::Ge(sort) =&gt; {
+<a href=#1294 id=1294 data-nosnippet>1294</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Ge, e1, e2, scx);
+<a href=#1295 id=1295 data-nosnippet>1295</a>            }
+<a href=#1296 id=1296 data-nosnippet>1296</a>            rty::BinOp::Lt(sort) =&gt; {
+<a href=#1297 id=1297 data-nosnippet>1297</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Lt, e1, e2, scx);
+<a href=#1298 id=1298 data-nosnippet>1298</a>            }
+<a href=#1299 id=1299 data-nosnippet>1299</a>            rty::BinOp::Le(sort) =&gt; {
+<a href=#1300 id=1300 data-nosnippet>1300</a>                <span class="kw">return </span><span class="self">self</span>.bin_rel_to_fixpoint(sort, fixpoint::BinRel::Le, e1, e2, scx);
+<a href=#1301 id=1301 data-nosnippet>1301</a>            }
+<a href=#1302 id=1302 data-nosnippet>1302</a>            rty::BinOp::And =&gt; {
+<a href=#1303 id=1303 data-nosnippet>1303</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::And(<span class="macro">vec!</span>[
+<a href=#1304 id=1304 data-nosnippet>1304</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
+<a href=#1305 id=1305 data-nosnippet>1305</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
+<a href=#1306 id=1306 data-nosnippet>1306</a>                ]));
+<a href=#1307 id=1307 data-nosnippet>1307</a>            }
+<a href=#1308 id=1308 data-nosnippet>1308</a>            rty::BinOp::Or =&gt; {
+<a href=#1309 id=1309 data-nosnippet>1309</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Or(<span class="macro">vec!</span>[
+<a href=#1310 id=1310 data-nosnippet>1310</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
+<a href=#1311 id=1311 data-nosnippet>1311</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
+<a href=#1312 id=1312 data-nosnippet>1312</a>                ]));
+<a href=#1313 id=1313 data-nosnippet>1313</a>            }
+<a href=#1314 id=1314 data-nosnippet>1314</a>            rty::BinOp::Imp =&gt; {
+<a href=#1315 id=1315 data-nosnippet>1315</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Imp(Box::new([
+<a href=#1316 id=1316 data-nosnippet>1316</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
+<a href=#1317 id=1317 data-nosnippet>1317</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
+<a href=#1318 id=1318 data-nosnippet>1318</a>                ])));
+<a href=#1319 id=1319 data-nosnippet>1319</a>            }
+<a href=#1320 id=1320 data-nosnippet>1320</a>            rty::BinOp::Iff =&gt; {
+<a href=#1321 id=1321 data-nosnippet>1321</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::Iff(Box::new([
+<a href=#1322 id=1322 data-nosnippet>1322</a>                    <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>,
+<a href=#1323 id=1323 data-nosnippet>1323</a>                    <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>,
+<a href=#1324 id=1324 data-nosnippet>1324</a>                ])));
+<a href=#1325 id=1325 data-nosnippet>1325</a>            }
+<a href=#1326 id=1326 data-nosnippet>1326</a>            rty::BinOp::Add(rty::Sort::BitVec(<span class="kw">_</span>))
+<a href=#1327 id=1327 data-nosnippet>1327</a>            | rty::BinOp::Sub(rty::Sort::BitVec(<span class="kw">_</span>))
+<a href=#1328 id=1328 data-nosnippet>1328</a>            | rty::BinOp::Mul(rty::Sort::BitVec(<span class="kw">_</span>))
+<a href=#1329 id=1329 data-nosnippet>1329</a>            | rty::BinOp::Div(rty::Sort::BitVec(<span class="kw">_</span>))
+<a href=#1330 id=1330 data-nosnippet>1330</a>            | rty::BinOp::Mod(rty::Sort::BitVec(<span class="kw">_</span>))
+<a href=#1331 id=1331 data-nosnippet>1331</a>            | rty::BinOp::BitAnd
+<a href=#1332 id=1332 data-nosnippet>1332</a>            | rty::BinOp::BitOr
+<a href=#1333 id=1333 data-nosnippet>1333</a>            | rty::BinOp::BitXor
+<a href=#1334 id=1334 data-nosnippet>1334</a>            | rty::BinOp::BitShl
+<a href=#1335 id=1335 data-nosnippet>1335</a>            | rty::BinOp::BitShr =&gt; {
+<a href=#1336 id=1336 data-nosnippet>1336</a>                <span class="kw">let </span>bv_func = <span class="self">self</span>.bv_op_to_fixpoint(op);
+<a href=#1337 id=1337 data-nosnippet>1337</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(fixpoint::Expr::App(
+<a href=#1338 id=1338 data-nosnippet>1338</a>                    Box::new(bv_func),
+<a href=#1339 id=1339 data-nosnippet>1339</a>                    <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>],
+<a href=#1340 id=1340 data-nosnippet>1340</a>                ));
+<a href=#1341 id=1341 data-nosnippet>1341</a>            }
+<a href=#1342 id=1342 data-nosnippet>1342</a>            rty::BinOp::Add(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Add,
+<a href=#1343 id=1343 data-nosnippet>1343</a>            rty::BinOp::Sub(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Sub,
+<a href=#1344 id=1344 data-nosnippet>1344</a>            rty::BinOp::Mul(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Mul,
+<a href=#1345 id=1345 data-nosnippet>1345</a>            rty::BinOp::Div(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Div,
+<a href=#1346 id=1346 data-nosnippet>1346</a>            rty::BinOp::Mod(<span class="kw">_</span>) =&gt; fixpoint::BinOp::Mod,
+<a href=#1347 id=1347 data-nosnippet>1347</a>        };
+<a href=#1348 id=1348 data-nosnippet>1348</a>        <span class="prelude-val">Ok</span>(fixpoint::Expr::BinaryOp(
+<a href=#1349 id=1349 data-nosnippet>1349</a>            op,
+<a href=#1350 id=1350 data-nosnippet>1350</a>            Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
+<a href=#1351 id=1351 data-nosnippet>1351</a>        ))
+<a href=#1352 id=1352 data-nosnippet>1352</a>    }
+<a href=#1353 id=1353 data-nosnippet>1353</a>
+<a href=#1354 id=1354 data-nosnippet>1354</a>    <span class="doccomment">/// A binary relation is encoded as a structurally recursive relation between aggregate sorts.
+<a href=#1355 id=1355 data-nosnippet>1355</a>    /// For "leaf" expressions, we encode them as an interpreted relation if the sort supports it,
+<a href=#1356 id=1356 data-nosnippet>1356</a>    /// otherwise we use an uninterpreted function. For example, consider the following relation
+<a href=#1357 id=1357 data-nosnippet>1357</a>    /// between two tuples of sort `(int, int -&gt; int)`
+<a href=#1358 id=1358 data-nosnippet>1358</a>    /// ```text
+<a href=#1359 id=1359 data-nosnippet>1359</a>    /// (0, λv. v + 1) &lt;= (1, λv. v + 1)
+<a href=#1360 id=1360 data-nosnippet>1360</a>    /// ```
+<a href=#1361 id=1361 data-nosnippet>1361</a>    /// The encoding in fixpoint will be
+<a href=#1362 id=1362 data-nosnippet>1362</a>    ///
+<a href=#1363 id=1363 data-nosnippet>1363</a>    /// ```text
+<a href=#1364 id=1364 data-nosnippet>1364</a>    /// 0 &lt;= 1 &amp;&amp; (le (λv. v + 1) (λv. v + 1))
+<a href=#1365 id=1365 data-nosnippet>1365</a>    /// ```
+<a href=#1366 id=1366 data-nosnippet>1366</a>    /// Where `&lt;=` is the (interpreted) less than or equal relation between integers and `le` is
+<a href=#1367 id=1367 data-nosnippet>1367</a>    /// an uninterpreted relation between ([the encoding] of) lambdas.
+<a href=#1368 id=1368 data-nosnippet>1368</a>    ///
+<a href=#1369 id=1369 data-nosnippet>1369</a>    /// [the encoding]: Self::define_const_for_lambda
+<a href=#1370 id=1370 data-nosnippet>1370</a>    </span><span class="kw">fn </span>bin_rel_to_fixpoint(
+<a href=#1371 id=1371 data-nosnippet>1371</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1372 id=1372 data-nosnippet>1372</a>        sort: <span class="kw-2">&amp;</span>rty::Sort,
+<a href=#1373 id=1373 data-nosnippet>1373</a>        rel: fixpoint::BinRel,
+<a href=#1374 id=1374 data-nosnippet>1374</a>        e1: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1375 id=1375 data-nosnippet>1375</a>        e2: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1376 id=1376 data-nosnippet>1376</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1377 id=1377 data-nosnippet>1377</a>    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
+<a href=#1378 id=1378 data-nosnippet>1378</a>        <span class="kw">let </span>e = <span class="kw">match </span>sort {
+<a href=#1379 id=1379 data-nosnippet>1379</a>            rty::Sort::Int | rty::Sort::Real | rty::Sort::Char =&gt; {
+<a href=#1380 id=1380 data-nosnippet>1380</a>                fixpoint::Expr::Atom(
+<a href=#1381 id=1381 data-nosnippet>1381</a>                    rel,
+<a href=#1382 id=1382 data-nosnippet>1382</a>                    Box::new([<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>]),
+<a href=#1383 id=1383 data-nosnippet>1383</a>                )
+<a href=#1384 id=1384 data-nosnippet>1384</a>            }
+<a href=#1385 id=1385 data-nosnippet>1385</a>            rty::Sort::BitVec(<span class="kw">_</span>) =&gt; {
+<a href=#1386 id=1386 data-nosnippet>1386</a>                <span class="kw">let </span>e1 = <span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>;
+<a href=#1387 id=1387 data-nosnippet>1387</a>                <span class="kw">let </span>e2 = <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>;
+<a href=#1388 id=1388 data-nosnippet>1388</a>                <span class="kw">let </span>rel = <span class="self">self</span>.bv_rel_to_fixpoint(<span class="kw-2">&amp;</span>rel);
+<a href=#1389 id=1389 data-nosnippet>1389</a>                fixpoint::Expr::App(Box::new(rel), <span class="macro">vec!</span>[e1, e2])
+<a href=#1390 id=1390 data-nosnippet>1390</a>            }
+<a href=#1391 id=1391 data-nosnippet>1391</a>            rty::Sort::Tuple(sorts) =&gt; {
+<a href=#1392 id=1392 data-nosnippet>1392</a>                <span class="kw">let </span>arity = sorts.len();
+<a href=#1393 id=1393 data-nosnippet>1393</a>                <span class="self">self</span>.apply_bin_rel_rec(sorts, rel, e1, e2, scx, |field| {
+<a href=#1394 id=1394 data-nosnippet>1394</a>                    rty::FieldProj::Tuple { arity, field }
+<a href=#1395 id=1395 data-nosnippet>1395</a>                })<span class="question-mark">?
+<a href=#1396 id=1396 data-nosnippet>1396</a>            </span>}
+<a href=#1397 id=1397 data-nosnippet>1397</a>            rty::Sort::App(rty::SortCtor::Adt(sort_def), args)
+<a href=#1398 id=1398 data-nosnippet>1398</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(variant) = sort_def.opt_struct_variant() =&gt;
+<a href=#1399 id=1399 data-nosnippet>1399</a>            {
+<a href=#1400 id=1400 data-nosnippet>1400</a>                <span class="kw">let </span>def_id = sort_def.did();
+<a href=#1401 id=1401 data-nosnippet>1401</a>                <span class="kw">let </span>sorts = variant.field_sorts(args);
+<a href=#1402 id=1402 data-nosnippet>1402</a>                <span class="self">self</span>.apply_bin_rel_rec(<span class="kw-2">&amp;</span>sorts, rel, e1, e2, scx, |field| {
+<a href=#1403 id=1403 data-nosnippet>1403</a>                    rty::FieldProj::Adt { def_id, field }
+<a href=#1404 id=1404 data-nosnippet>1404</a>                })<span class="question-mark">?
+<a href=#1405 id=1405 data-nosnippet>1405</a>            </span>}
+<a href=#1406 id=1406 data-nosnippet>1406</a>            <span class="kw">_ </span>=&gt; {
+<a href=#1407 id=1407 data-nosnippet>1407</a>                <span class="kw">let </span>rel = fixpoint::Expr::Var(fixpoint::Var::UIFRel(rel));
+<a href=#1408 id=1408 data-nosnippet>1408</a>                fixpoint::Expr::App(
+<a href=#1409 id=1409 data-nosnippet>1409</a>                    Box::new(rel),
+<a href=#1410 id=1410 data-nosnippet>1410</a>                    <span class="macro">vec!</span>[<span class="self">self</span>.expr_to_fixpoint(e1, scx)<span class="question-mark">?</span>, <span class="self">self</span>.expr_to_fixpoint(e2, scx)<span class="question-mark">?</span>],
+<a href=#1411 id=1411 data-nosnippet>1411</a>                )
+<a href=#1412 id=1412 data-nosnippet>1412</a>            }
+<a href=#1413 id=1413 data-nosnippet>1413</a>        };
+<a href=#1414 id=1414 data-nosnippet>1414</a>        <span class="prelude-val">Ok</span>(e)
+<a href=#1415 id=1415 data-nosnippet>1415</a>    }
+<a href=#1416 id=1416 data-nosnippet>1416</a>
+<a href=#1417 id=1417 data-nosnippet>1417</a>    <span class="doccomment">/// Apply binary relation recursively over aggregate expressions
+<a href=#1418 id=1418 data-nosnippet>1418</a>    </span><span class="kw">fn </span>apply_bin_rel_rec(
+<a href=#1419 id=1419 data-nosnippet>1419</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1420 id=1420 data-nosnippet>1420</a>        sorts: <span class="kw-2">&amp;</span>[rty::Sort],
+<a href=#1421 id=1421 data-nosnippet>1421</a>        rel: fixpoint::BinRel,
+<a href=#1422 id=1422 data-nosnippet>1422</a>        e1: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1423 id=1423 data-nosnippet>1423</a>        e2: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1424 id=1424 data-nosnippet>1424</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1425 id=1425 data-nosnippet>1425</a>        mk_proj: <span class="kw">impl </span>Fn(u32) -&gt; rty::FieldProj,
+<a href=#1426 id=1426 data-nosnippet>1426</a>    ) -&gt; QueryResult&lt;fixpoint::Expr&gt; {
+<a href=#1427 id=1427 data-nosnippet>1427</a>        <span class="prelude-val">Ok</span>(fixpoint::Expr::and(
+<a href=#1428 id=1428 data-nosnippet>1428</a>            sorts
+<a href=#1429 id=1429 data-nosnippet>1429</a>                .iter()
+<a href=#1430 id=1430 data-nosnippet>1430</a>                .enumerate()
+<a href=#1431 id=1431 data-nosnippet>1431</a>                .map(|(idx, s)| {
+<a href=#1432 id=1432 data-nosnippet>1432</a>                    <span class="kw">let </span>proj = mk_proj(idx <span class="kw">as </span>u32);
+<a href=#1433 id=1433 data-nosnippet>1433</a>                    <span class="kw">let </span>e1 = e1.proj_and_reduce(proj);
+<a href=#1434 id=1434 data-nosnippet>1434</a>                    <span class="kw">let </span>e2 = e2.proj_and_reduce(proj);
+<a href=#1435 id=1435 data-nosnippet>1435</a>                    <span class="self">self</span>.bin_rel_to_fixpoint(s, rel, <span class="kw-2">&amp;</span>e1, <span class="kw-2">&amp;</span>e2, scx)
+<a href=#1436 id=1436 data-nosnippet>1436</a>                })
+<a href=#1437 id=1437 data-nosnippet>1437</a>                .try_collect()<span class="question-mark">?</span>,
+<a href=#1438 id=1438 data-nosnippet>1438</a>        ))
+<a href=#1439 id=1439 data-nosnippet>1439</a>    }
+<a href=#1440 id=1440 data-nosnippet>1440</a>
+<a href=#1441 id=1441 data-nosnippet>1441</a>    <span class="kw">fn </span>imm(
+<a href=#1442 id=1442 data-nosnippet>1442</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1443 id=1443 data-nosnippet>1443</a>        arg: <span class="kw-2">&amp;</span>rty::Expr,
+<a href=#1444 id=1444 data-nosnippet>1444</a>        sort: <span class="kw-2">&amp;</span>rty::Sort,
+<a href=#1445 id=1445 data-nosnippet>1445</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1446 id=1446 data-nosnippet>1446</a>        bindings: <span class="kw-2">&amp;mut </span>Vec&lt;fixpoint::Bind&gt;,
+<a href=#1447 id=1447 data-nosnippet>1447</a>    ) -&gt; QueryResult&lt;fixpoint::Var&gt; {
+<a href=#1448 id=1448 data-nosnippet>1448</a>        <span class="kw">let </span>arg = <span class="self">self</span>.expr_to_fixpoint(arg, scx)<span class="question-mark">?</span>;
+<a href=#1449 id=1449 data-nosnippet>1449</a>        <span class="comment">// Check if it's a variable after encoding, in case the encoding produced a variable from a
+<a href=#1450 id=1450 data-nosnippet>1450</a>        // non-variable.
+<a href=#1451 id=1451 data-nosnippet>1451</a>        </span><span class="kw">if let </span>fixpoint::Expr::Var(var) = arg {
+<a href=#1452 id=1452 data-nosnippet>1452</a>            <span class="prelude-val">Ok</span>(var)
+<a href=#1453 id=1453 data-nosnippet>1453</a>        } <span class="kw">else </span>{
+<a href=#1454 id=1454 data-nosnippet>1454</a>            <span class="kw">let </span>fresh = <span class="self">self</span>.local_var_env.fresh_name();
+<a href=#1455 id=1455 data-nosnippet>1455</a>            <span class="kw">let </span>pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), arg);
+<a href=#1456 id=1456 data-nosnippet>1456</a>            bindings.push(fixpoint::Bind {
+<a href=#1457 id=1457 data-nosnippet>1457</a>                name: fresh.into(),
+<a href=#1458 id=1458 data-nosnippet>1458</a>                sort: scx.sort_to_fixpoint(sort),
+<a href=#1459 id=1459 data-nosnippet>1459</a>                pred: fixpoint::Pred::Expr(pred),
+<a href=#1460 id=1460 data-nosnippet>1460</a>            });
+<a href=#1461 id=1461 data-nosnippet>1461</a>            <span class="prelude-val">Ok</span>(fresh.into())
+<a href=#1462 id=1462 data-nosnippet>1462</a>        }
+<a href=#1463 id=1463 data-nosnippet>1463</a>    }
+<a href=#1464 id=1464 data-nosnippet>1464</a>
+<a href=#1465 id=1465 data-nosnippet>1465</a>    <span class="doccomment">/// Declare that the `def_id` of a Flux function definition needs to be encoded and assigns
+<a href=#1466 id=1466 data-nosnippet>1466</a>    /// a name to it if it hasn't yet been declared. The encoding of the function body happens
+<a href=#1467 id=1467 data-nosnippet>1467</a>    /// in [`Self::define_funs`].
+<a href=#1468 id=1468 data-nosnippet>1468</a>    </span><span class="kw">fn </span>declare_fun(<span class="kw-2">&amp;mut </span><span class="self">self</span>, def_id: FluxDefId) -&gt; fixpoint::Var {
+<a href=#1469 id=1469 data-nosnippet>1469</a>        <span class="kw-2">*</span><span class="self">self</span>.fun_def_map.entry(def_id).or_insert_with(|| {
+<a href=#1470 id=1470 data-nosnippet>1470</a>            <span class="kw">let </span>id = <span class="self">self</span>.global_var_gen.fresh();
+<a href=#1471 id=1471 data-nosnippet>1471</a>            fixpoint::Var::Global(id, <span class="prelude-val">Some</span>(def_id.name()))
+<a href=#1472 id=1472 data-nosnippet>1472</a>        })
+<a href=#1473 id=1473 data-nosnippet>1473</a>    }
+<a href=#1474 id=1474 data-nosnippet>1474</a>
+<a href=#1475 id=1475 data-nosnippet>1475</a>    <span class="doccomment">/// The logic below is a bit "duplicated" with the `[`prim_op_sort`] in sortck.rs;
+<a href=#1476 id=1476 data-nosnippet>1476</a>    /// They are not exactly the same because this is on rty and the other one on fhir.
+<a href=#1477 id=1477 data-nosnippet>1477</a>    /// We should make sure these two remain in sync.
+<a href=#1478 id=1478 data-nosnippet>1478</a>    ///
+<a href=#1479 id=1479 data-nosnippet>1479</a>    /// (NOTE:PrimOpSort) We are somewhat "overloading" the BinOps: as we are using them
+<a href=#1480 id=1480 data-nosnippet>1480</a>    /// for (a) interpreted operations on bit vectors AND (b) uninterpreted functions on integers.
+<a href=#1481 id=1481 data-nosnippet>1481</a>    /// So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means bit vectors, but
+<a href=#1482 id=1482 data-nosnippet>1482</a>    /// (b) inside ExprKind::InternalFunc it means int.
+<a href=#1483 id=1483 data-nosnippet>1483</a>    </span><span class="kw">fn </span>prim_op_sort(op: <span class="kw-2">&amp;</span>rty::BinOp, span: Span) -&gt; rty::PolyFuncSort {
+<a href=#1484 id=1484 data-nosnippet>1484</a>        <span class="kw">match </span>op {
+<a href=#1485 id=1485 data-nosnippet>1485</a>            rty::BinOp::BitAnd
+<a href=#1486 id=1486 data-nosnippet>1486</a>            | rty::BinOp::BitOr
+<a href=#1487 id=1487 data-nosnippet>1487</a>            | rty::BinOp::BitXor
+<a href=#1488 id=1488 data-nosnippet>1488</a>            | rty::BinOp::BitShl
+<a href=#1489 id=1489 data-nosnippet>1489</a>            | rty::BinOp::BitShr =&gt; {
+<a href=#1490 id=1490 data-nosnippet>1490</a>                <span class="kw">let </span>fsort =
+<a href=#1491 id=1491 data-nosnippet>1491</a>                    rty::FuncSort::new(<span class="macro">vec!</span>[rty::Sort::Int, rty::Sort::Int], rty::Sort::Int);
+<a href=#1492 id=1492 data-nosnippet>1492</a>                rty::PolyFuncSort::new(List::empty(), fsort)
+<a href=#1493 id=1493 data-nosnippet>1493</a>            }
+<a href=#1494 id=1494 data-nosnippet>1494</a>            <span class="kw">_ </span>=&gt; <span class="macro">span_bug!</span>(span, <span class="string">"unexpected prim op: {op:?} in `prim_op_sort`"</span>),
+<a href=#1495 id=1495 data-nosnippet>1495</a>        }
+<a href=#1496 id=1496 data-nosnippet>1496</a>    }
+<a href=#1497 id=1497 data-nosnippet>1497</a>
+<a href=#1498 id=1498 data-nosnippet>1498</a>    <span class="kw">fn </span>define_const_for_cast(
+<a href=#1499 id=1499 data-nosnippet>1499</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1500 id=1500 data-nosnippet>1500</a>        from: <span class="kw-2">&amp;</span>rty::Sort,
+<a href=#1501 id=1501 data-nosnippet>1501</a>        to: <span class="kw-2">&amp;</span>rty::Sort,
+<a href=#1502 id=1502 data-nosnippet>1502</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1503 id=1503 data-nosnippet>1503</a>    ) -&gt; fixpoint::Var {
+<a href=#1504 id=1504 data-nosnippet>1504</a>        <span class="kw">let </span>key = ConstKey::Cast(from.clone(), to.clone());
+<a href=#1505 id=1505 data-nosnippet>1505</a>        <span class="self">self</span>.const_map
+<a href=#1506 id=1506 data-nosnippet>1506</a>            .entry(key)
+<a href=#1507 id=1507 data-nosnippet>1507</a>            .or_insert_with(|| {
+<a href=#1508 id=1508 data-nosnippet>1508</a>                <span class="kw">let </span>fsort = rty::FuncSort::new(<span class="macro">vec!</span>[from.clone()], to.clone());
+<a href=#1509 id=1509 data-nosnippet>1509</a>                <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+<a href=#1510 id=1510 data-nosnippet>1510</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
+<a href=#1511 id=1511 data-nosnippet>1511</a>                fixpoint::ConstDecl {
+<a href=#1512 id=1512 data-nosnippet>1512</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
+<a href=#1513 id=1513 data-nosnippet>1513</a>                    sort,
+<a href=#1514 id=1514 data-nosnippet>1514</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"cast uif: ({from:?}) -&gt; {to:?}"</span>)),
+<a href=#1515 id=1515 data-nosnippet>1515</a>                }
+<a href=#1516 id=1516 data-nosnippet>1516</a>            })
+<a href=#1517 id=1517 data-nosnippet>1517</a>            .name
+<a href=#1518 id=1518 data-nosnippet>1518</a>    }
+<a href=#1519 id=1519 data-nosnippet>1519</a>
+<a href=#1520 id=1520 data-nosnippet>1520</a>    <span class="kw">fn </span>define_const_for_prim_op(
+<a href=#1521 id=1521 data-nosnippet>1521</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1522 id=1522 data-nosnippet>1522</a>        op: <span class="kw-2">&amp;</span>rty::BinOp,
+<a href=#1523 id=1523 data-nosnippet>1523</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1524 id=1524 data-nosnippet>1524</a>    ) -&gt; fixpoint::Var {
+<a href=#1525 id=1525 data-nosnippet>1525</a>        <span class="kw">let </span>key = ConstKey::PrimOp(op.clone());
+<a href=#1526 id=1526 data-nosnippet>1526</a>        <span class="kw">let </span>span = <span class="self">self</span>.def_span();
+<a href=#1527 id=1527 data-nosnippet>1527</a>        <span class="self">self</span>.const_map
+<a href=#1528 id=1528 data-nosnippet>1528</a>            .entry(key)
+<a href=#1529 id=1529 data-nosnippet>1529</a>            .or_insert_with(|| {
+<a href=#1530 id=1530 data-nosnippet>1530</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span><span class="self">Self</span>::prim_op_sort(op, span));
+<a href=#1531 id=1531 data-nosnippet>1531</a>                fixpoint::ConstDecl {
+<a href=#1532 id=1532 data-nosnippet>1532</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
+<a href=#1533 id=1533 data-nosnippet>1533</a>                    sort,
+<a href=#1534 id=1534 data-nosnippet>1534</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"prim op uif: {op:?}"</span>)),
+<a href=#1535 id=1535 data-nosnippet>1535</a>                }
+<a href=#1536 id=1536 data-nosnippet>1536</a>            })
+<a href=#1537 id=1537 data-nosnippet>1537</a>            .name
+<a href=#1538 id=1538 data-nosnippet>1538</a>    }
+<a href=#1539 id=1539 data-nosnippet>1539</a>
+<a href=#1540 id=1540 data-nosnippet>1540</a>    <span class="kw">fn </span>define_const_for_uif(
+<a href=#1541 id=1541 data-nosnippet>1541</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1542 id=1542 data-nosnippet>1542</a>        def_id: FluxDefId,
+<a href=#1543 id=1543 data-nosnippet>1543</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1544 id=1544 data-nosnippet>1544</a>    ) -&gt; fixpoint::Var {
+<a href=#1545 id=1545 data-nosnippet>1545</a>        <span class="kw">let </span>key = ConstKey::Uif(def_id);
+<a href=#1546 id=1546 data-nosnippet>1546</a>        <span class="self">self</span>.const_map
+<a href=#1547 id=1547 data-nosnippet>1547</a>            .entry(key)
+<a href=#1548 id=1548 data-nosnippet>1548</a>            .or_insert_with(|| {
+<a href=#1549 id=1549 data-nosnippet>1549</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.func_sort(def_id));
+<a href=#1550 id=1550 data-nosnippet>1550</a>                fixpoint::ConstDecl {
+<a href=#1551 id=1551 data-nosnippet>1551</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">Some</span>(def_id.name())),
+<a href=#1552 id=1552 data-nosnippet>1552</a>                    sort,
+<a href=#1553 id=1553 data-nosnippet>1553</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"uif: {def_id:?}"</span>)),
+<a href=#1554 id=1554 data-nosnippet>1554</a>                }
+<a href=#1555 id=1555 data-nosnippet>1555</a>            })
+<a href=#1556 id=1556 data-nosnippet>1556</a>            .name
+<a href=#1557 id=1557 data-nosnippet>1557</a>    }
+<a href=#1558 id=1558 data-nosnippet>1558</a>
+<a href=#1559 id=1559 data-nosnippet>1559</a>    <span class="kw">fn </span>define_const_for_rust_const(
+<a href=#1560 id=1560 data-nosnippet>1560</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1561 id=1561 data-nosnippet>1561</a>        def_id: DefId,
+<a href=#1562 id=1562 data-nosnippet>1562</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1563 id=1563 data-nosnippet>1563</a>    ) -&gt; fixpoint::Var {
+<a href=#1564 id=1564 data-nosnippet>1564</a>        <span class="kw">let </span>key = ConstKey::RustConst(def_id);
+<a href=#1565 id=1565 data-nosnippet>1565</a>        <span class="self">self</span>.const_map
+<a href=#1566 id=1566 data-nosnippet>1566</a>            .entry(key)
+<a href=#1567 id=1567 data-nosnippet>1567</a>            .or_insert_with(|| {
+<a href=#1568 id=1568 data-nosnippet>1568</a>                <span class="kw">let </span>sort = <span class="self">self</span>.genv.sort_of_def_id(def_id).unwrap().unwrap();
+<a href=#1569 id=1569 data-nosnippet>1569</a>                fixpoint::ConstDecl {
+<a href=#1570 id=1570 data-nosnippet>1570</a>                    name: fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>),
+<a href=#1571 id=1571 data-nosnippet>1571</a>                    sort: scx.sort_to_fixpoint(<span class="kw-2">&amp;</span>sort),
+<a href=#1572 id=1572 data-nosnippet>1572</a>                    comment: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"rust const: {}"</span>, def_id_to_string(def_id))),
+<a href=#1573 id=1573 data-nosnippet>1573</a>                }
+<a href=#1574 id=1574 data-nosnippet>1574</a>            })
+<a href=#1575 id=1575 data-nosnippet>1575</a>            .name
+<a href=#1576 id=1576 data-nosnippet>1576</a>    }
+<a href=#1577 id=1577 data-nosnippet>1577</a>
+<a href=#1578 id=1578 data-nosnippet>1578</a>    <span class="doccomment">/// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
+<a href=#1579 id=1579 data-nosnippet>1579</a>    /// to the const_map if necessary
+<a href=#1580 id=1580 data-nosnippet>1580</a>    </span><span class="kw">fn </span>define_const_for_alias_reft(
+<a href=#1581 id=1581 data-nosnippet>1581</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1582 id=1582 data-nosnippet>1582</a>        alias_reft: <span class="kw-2">&amp;</span>rty::AliasReft,
+<a href=#1583 id=1583 data-nosnippet>1583</a>        fsort: rty::FuncSort,
+<a href=#1584 id=1584 data-nosnippet>1584</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1585 id=1585 data-nosnippet>1585</a>    ) -&gt; fixpoint::Var {
+<a href=#1586 id=1586 data-nosnippet>1586</a>        <span class="kw">let </span>tcx = <span class="self">self</span>.genv.tcx();
+<a href=#1587 id=1587 data-nosnippet>1587</a>        <span class="kw">let </span>args = alias_reft
+<a href=#1588 id=1588 data-nosnippet>1588</a>            .args
+<a href=#1589 id=1589 data-nosnippet>1589</a>            .to_rustc(tcx)
+<a href=#1590 id=1590 data-nosnippet>1590</a>            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
+<a href=#1591 id=1591 data-nosnippet>1591</a>        <span class="kw">let </span>key = ConstKey::Alias(alias_reft.assoc_id, args);
+<a href=#1592 id=1592 data-nosnippet>1592</a>        <span class="self">self</span>.const_map
+<a href=#1593 id=1593 data-nosnippet>1593</a>            .entry(key)
+<a href=#1594 id=1594 data-nosnippet>1594</a>            .or_insert_with(|| {
+<a href=#1595 id=1595 data-nosnippet>1595</a>                <span class="kw">let </span>comment = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"alias reft: {alias_reft:?}"</span>));
+<a href=#1596 id=1596 data-nosnippet>1596</a>                <span class="kw">let </span>name = fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>);
+<a href=#1597 id=1597 data-nosnippet>1597</a>                <span class="kw">let </span>fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+<a href=#1598 id=1598 data-nosnippet>1598</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>fsort);
+<a href=#1599 id=1599 data-nosnippet>1599</a>                fixpoint::ConstDecl { name, comment, sort }
+<a href=#1600 id=1600 data-nosnippet>1600</a>            })
+<a href=#1601 id=1601 data-nosnippet>1601</a>            .name
+<a href=#1602 id=1602 data-nosnippet>1602</a>    }
+<a href=#1603 id=1603 data-nosnippet>1603</a>
+<a href=#1604 id=1604 data-nosnippet>1604</a>    <span class="doccomment">/// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
+<a href=#1605 id=1605 data-nosnippet>1605</a>    /// with the same constant.
+<a href=#1606 id=1606 data-nosnippet>1606</a>    </span><span class="kw">fn </span>define_const_for_lambda(
+<a href=#1607 id=1607 data-nosnippet>1607</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1608 id=1608 data-nosnippet>1608</a>        lam: <span class="kw-2">&amp;</span>rty::Lambda,
+<a href=#1609 id=1609 data-nosnippet>1609</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1610 id=1610 data-nosnippet>1610</a>    ) -&gt; fixpoint::Var {
+<a href=#1611 id=1611 data-nosnippet>1611</a>        <span class="kw">let </span>key = ConstKey::Lambda(lam.clone());
+<a href=#1612 id=1612 data-nosnippet>1612</a>        <span class="self">self</span>.const_map
+<a href=#1613 id=1613 data-nosnippet>1613</a>            .entry(key)
+<a href=#1614 id=1614 data-nosnippet>1614</a>            .or_insert_with(|| {
+<a href=#1615 id=1615 data-nosnippet>1615</a>                <span class="kw">let </span>comment = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"lambda: {lam:?}"</span>));
+<a href=#1616 id=1616 data-nosnippet>1616</a>                <span class="kw">let </span>name = fixpoint::Var::Global(<span class="self">self</span>.global_var_gen.fresh(), <span class="prelude-val">None</span>);
+<a href=#1617 id=1617 data-nosnippet>1617</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span>lam.fsort().to_poly());
+<a href=#1618 id=1618 data-nosnippet>1618</a>                fixpoint::ConstDecl { name, comment, sort }
+<a href=#1619 id=1619 data-nosnippet>1619</a>            })
+<a href=#1620 id=1620 data-nosnippet>1620</a>            .name
+<a href=#1621 id=1621 data-nosnippet>1621</a>    }
+<a href=#1622 id=1622 data-nosnippet>1622</a>
+<a href=#1623 id=1623 data-nosnippet>1623</a>    <span class="kw">fn </span>assume_const_values(
+<a href=#1624 id=1624 data-nosnippet>1624</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1625 id=1625 data-nosnippet>1625</a>        <span class="kw-2">mut </span>constraint: fixpoint::Constraint,
+<a href=#1626 id=1626 data-nosnippet>1626</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1627 id=1627 data-nosnippet>1627</a>    ) -&gt; QueryResult&lt;fixpoint::Constraint&gt; {
+<a href=#1628 id=1628 data-nosnippet>1628</a>        <span class="comment">// Encoding the value for a constant could in theory define more constants for which
+<a href=#1629 id=1629 data-nosnippet>1629</a>        // we need to assume values, so we iterate until there are no more constants.
+<a href=#1630 id=1630 data-nosnippet>1630</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>idx = <span class="number">0</span>;
+<a href=#1631 id=1631 data-nosnippet>1631</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>((key, const_)) = <span class="self">self</span>.const_map.get_index(idx) {
+<a href=#1632 id=1632 data-nosnippet>1632</a>            idx += <span class="number">1</span>;
+<a href=#1633 id=1633 data-nosnippet>1633</a>
+<a href=#1634 id=1634 data-nosnippet>1634</a>            <span class="kw">let </span>ConstKey::RustConst(def_id) = key <span class="kw">else </span>{ <span class="kw">continue </span>};
+<a href=#1635 id=1635 data-nosnippet>1635</a>            <span class="kw">let </span>info = <span class="self">self</span>.genv.constant_info(def_id)<span class="question-mark">?</span>;
+<a href=#1636 id=1636 data-nosnippet>1636</a>            <span class="kw">match </span>info {
+<a href=#1637 id=1637 data-nosnippet>1637</a>                rty::ConstantInfo::Uninterpreted =&gt; {}
+<a href=#1638 id=1638 data-nosnippet>1638</a>                rty::ConstantInfo::Interpreted(val, <span class="kw">_</span>) =&gt; {
+<a href=#1639 id=1639 data-nosnippet>1639</a>                    <span class="kw">let </span>e1 = fixpoint::Expr::Var(const_.name);
+<a href=#1640 id=1640 data-nosnippet>1640</a>                    <span class="kw">let </span>e2 = <span class="self">self</span>.expr_to_fixpoint(<span class="kw-2">&amp;</span>val, scx)<span class="question-mark">?</span>;
+<a href=#1641 id=1641 data-nosnippet>1641</a>                    <span class="kw">let </span>pred = fixpoint::Pred::Expr(e1.eq(e2));
+<a href=#1642 id=1642 data-nosnippet>1642</a>                    constraint = fixpoint::Constraint::ForAll(
+<a href=#1643 id=1643 data-nosnippet>1643</a>                        fixpoint::Bind {
+<a href=#1644 id=1644 data-nosnippet>1644</a>                            name: fixpoint::Var::Underscore,
+<a href=#1645 id=1645 data-nosnippet>1645</a>                            sort: fixpoint::Sort::Int,
+<a href=#1646 id=1646 data-nosnippet>1646</a>                            pred,
+<a href=#1647 id=1647 data-nosnippet>1647</a>                        },
+<a href=#1648 id=1648 data-nosnippet>1648</a>                        Box::new(constraint),
+<a href=#1649 id=1649 data-nosnippet>1649</a>                    );
+<a href=#1650 id=1650 data-nosnippet>1650</a>                }
+<a href=#1651 id=1651 data-nosnippet>1651</a>            }
+<a href=#1652 id=1652 data-nosnippet>1652</a>        }
+<a href=#1653 id=1653 data-nosnippet>1653</a>        <span class="prelude-val">Ok</span>(constraint)
+<a href=#1654 id=1654 data-nosnippet>1654</a>    }
+<a href=#1655 id=1655 data-nosnippet>1655</a>
+<a href=#1656 id=1656 data-nosnippet>1656</a>    <span class="kw">fn </span>qualifiers_for(
+<a href=#1657 id=1657 data-nosnippet>1657</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1658 id=1658 data-nosnippet>1658</a>        def_id: LocalDefId,
+<a href=#1659 id=1659 data-nosnippet>1659</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1660 id=1660 data-nosnippet>1660</a>    ) -&gt; QueryResult&lt;Vec&lt;fixpoint::Qualifier&gt;&gt; {
+<a href=#1661 id=1661 data-nosnippet>1661</a>        <span class="self">self</span>.genv
+<a href=#1662 id=1662 data-nosnippet>1662</a>            .qualifiers_for(def_id)<span class="question-mark">?
+<a href=#1663 id=1663 data-nosnippet>1663</a>            </span>.map(|qual| <span class="self">self</span>.qualifier_to_fixpoint(qual, scx))
+<a href=#1664 id=1664 data-nosnippet>1664</a>            .try_collect()
+<a href=#1665 id=1665 data-nosnippet>1665</a>    }
+<a href=#1666 id=1666 data-nosnippet>1666</a>
+<a href=#1667 id=1667 data-nosnippet>1667</a>    <span class="kw">fn </span>define_funs(
+<a href=#1668 id=1668 data-nosnippet>1668</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1669 id=1669 data-nosnippet>1669</a>        def_id: MaybeExternId,
+<a href=#1670 id=1670 data-nosnippet>1670</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1671 id=1671 data-nosnippet>1671</a>    ) -&gt; QueryResult&lt;(Vec&lt;fixpoint::FunDef&gt;, Vec&lt;fixpoint::ConstDecl&gt;)&gt; {
+<a href=#1672 id=1672 data-nosnippet>1672</a>        <span class="kw">let </span>reveals: UnordSet&lt;FluxDefId&gt; = <span class="self">self</span>.genv.reveals_for(def_id.local_id())<span class="question-mark">?</span>.collect();
+<a href=#1673 id=1673 data-nosnippet>1673</a>        <span class="kw">let </span><span class="kw-2">mut </span>consts = <span class="macro">vec!</span>[];
+<a href=#1674 id=1674 data-nosnippet>1674</a>        <span class="kw">let </span><span class="kw-2">mut </span>defs = <span class="macro">vec!</span>[];
 <a href=#1675 id=1675 data-nosnippet>1675</a>
-<a href=#1676 id=1676 data-nosnippet>1676</a>            <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"flux def: {did:?}"</span>);
-<a href=#1677 id=1677 data-nosnippet>1677</a>            <span class="kw">let </span>info = <span class="self">self</span>.genv.normalized_info(did);
-<a href=#1678 id=1678 data-nosnippet>1678</a>            <span class="kw">let </span>revealed = reveals.contains(<span class="kw-2">&amp;</span>did);
-<a href=#1679 id=1679 data-nosnippet>1679</a>            <span class="kw">if </span>info.hide &amp;&amp; !revealed {
-<a href=#1680 id=1680 data-nosnippet>1680</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.func_sort(did));
-<a href=#1681 id=1681 data-nosnippet>1681</a>                consts.push(fixpoint::ConstDecl { name, sort, comment: <span class="prelude-val">Some</span>(comment) });
-<a href=#1682 id=1682 data-nosnippet>1682</a>            } <span class="kw">else </span>{
-<a href=#1683 id=1683 data-nosnippet>1683</a>                <span class="kw">let </span>out = scx.sort_to_fixpoint(<span class="self">self</span>.genv.func_sort(did).expect_mono().output());
-<a href=#1684 id=1684 data-nosnippet>1684</a>                <span class="kw">let </span>(args, body) = <span class="self">self</span>.body_to_fixpoint(<span class="kw-2">&amp;</span>info.body, scx)<span class="question-mark">?</span>;
-<a href=#1685 id=1685 data-nosnippet>1685</a>                <span class="kw">let </span>fun_def = fixpoint::FunDef { name, args, body, out, comment: <span class="prelude-val">Some</span>(comment) };
-<a href=#1686 id=1686 data-nosnippet>1686</a>                defs.push((info.rank, fun_def));
-<a href=#1687 id=1687 data-nosnippet>1687</a>            };
-<a href=#1688 id=1688 data-nosnippet>1688</a>        }
-<a href=#1689 id=1689 data-nosnippet>1689</a>
-<a href=#1690 id=1690 data-nosnippet>1690</a>        <span class="comment">// we sort by rank so the definitions go out without any forward dependencies.
-<a href=#1691 id=1691 data-nosnippet>1691</a>        </span><span class="kw">let </span>defs = defs
-<a href=#1692 id=1692 data-nosnippet>1692</a>            .into_iter()
-<a href=#1693 id=1693 data-nosnippet>1693</a>            .sorted_by_key(|(rank, <span class="kw">_</span>)| <span class="kw-2">*</span>rank)
-<a href=#1694 id=1694 data-nosnippet>1694</a>            .map(|(<span class="kw">_</span>, def)| def)
-<a href=#1695 id=1695 data-nosnippet>1695</a>            .collect();
-<a href=#1696 id=1696 data-nosnippet>1696</a>
-<a href=#1697 id=1697 data-nosnippet>1697</a>        <span class="prelude-val">Ok</span>((defs, consts))
-<a href=#1698 id=1698 data-nosnippet>1698</a>    }
-<a href=#1699 id=1699 data-nosnippet>1699</a>
-<a href=#1700 id=1700 data-nosnippet>1700</a>    <span class="kw">fn </span>body_to_fixpoint(
-<a href=#1701 id=1701 data-nosnippet>1701</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1702 id=1702 data-nosnippet>1702</a>        body: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::Expr&gt;,
-<a href=#1703 id=1703 data-nosnippet>1703</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1704 id=1704 data-nosnippet>1704</a>    ) -&gt; QueryResult&lt;(Vec&lt;(fixpoint::Var, fixpoint::Sort)&gt;, fixpoint::Expr)&gt; {
-<a href=#1705 id=1705 data-nosnippet>1705</a>        <span class="self">self</span>.local_var_env
-<a href=#1706 id=1706 data-nosnippet>1706</a>            .push_layer_with_fresh_names(body.vars().len());
-<a href=#1707 id=1707 data-nosnippet>1707</a>
-<a href=#1708 id=1708 data-nosnippet>1708</a>        <span class="kw">let </span>expr = <span class="self">self</span>.expr_to_fixpoint(body.as_ref().skip_binder(), scx)<span class="question-mark">?</span>;
-<a href=#1709 id=1709 data-nosnippet>1709</a>
-<a href=#1710 id=1710 data-nosnippet>1710</a>        <span class="kw">let </span>args: Vec&lt;(fixpoint::Var, fixpoint::Sort)&gt; =
-<a href=#1711 id=1711 data-nosnippet>1711</a>            iter::zip(<span class="self">self</span>.local_var_env.pop_layer(), body.vars())
-<a href=#1712 id=1712 data-nosnippet>1712</a>                .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
-<a href=#1713 id=1713 data-nosnippet>1713</a>                .collect();
-<a href=#1714 id=1714 data-nosnippet>1714</a>
-<a href=#1715 id=1715 data-nosnippet>1715</a>        <span class="prelude-val">Ok</span>((args, expr))
-<a href=#1716 id=1716 data-nosnippet>1716</a>    }
-<a href=#1717 id=1717 data-nosnippet>1717</a>
-<a href=#1718 id=1718 data-nosnippet>1718</a>    <span class="kw">fn </span>qualifier_to_fixpoint(
-<a href=#1719 id=1719 data-nosnippet>1719</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#1720 id=1720 data-nosnippet>1720</a>        qualifier: <span class="kw-2">&amp;</span>rty::Qualifier,
-<a href=#1721 id=1721 data-nosnippet>1721</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
-<a href=#1722 id=1722 data-nosnippet>1722</a>    ) -&gt; QueryResult&lt;fixpoint::Qualifier&gt; {
-<a href=#1723 id=1723 data-nosnippet>1723</a>        <span class="kw">let </span>(args, body) = <span class="self">self</span>.body_to_fixpoint(<span class="kw-2">&amp;</span>qualifier.body, scx)<span class="question-mark">?</span>;
-<a href=#1724 id=1724 data-nosnippet>1724</a>        <span class="kw">let </span>name = qualifier.def_id.name().to_string();
-<a href=#1725 id=1725 data-nosnippet>1725</a>        <span class="prelude-val">Ok</span>(fixpoint::Qualifier { name, args, body })
-<a href=#1726 id=1726 data-nosnippet>1726</a>    }
-<a href=#1727 id=1727 data-nosnippet>1727</a>}
-<a href=#1728 id=1728 data-nosnippet>1728</a>
-<a href=#1729 id=1729 data-nosnippet>1729</a><span class="kw">fn </span>mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -&gt; fixpoint::Constraint {
-<a href=#1730 id=1730 data-nosnippet>1730</a>    fixpoint::Constraint::ForAll(
-<a href=#1731 id=1731 data-nosnippet>1731</a>        fixpoint::Bind {
-<a href=#1732 id=1732 data-nosnippet>1732</a>            name: fixpoint::Var::Underscore,
-<a href=#1733 id=1733 data-nosnippet>1733</a>            sort: fixpoint::Sort::Int,
-<a href=#1734 id=1734 data-nosnippet>1734</a>            pred: assumption,
-<a href=#1735 id=1735 data-nosnippet>1735</a>        },
-<a href=#1736 id=1736 data-nosnippet>1736</a>        Box::new(cstr),
-<a href=#1737 id=1737 data-nosnippet>1737</a>    )
-<a href=#1738 id=1738 data-nosnippet>1738</a>}</code></pre></div></section></main></body></html>
+<a href=#1676 id=1676 data-nosnippet>1676</a>        <span class="comment">// We iterate until encoding the body of functions doesn't require any more functions
+<a href=#1677 id=1677 data-nosnippet>1677</a>        // to be encoded.
+<a href=#1678 id=1678 data-nosnippet>1678</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>idx = <span class="number">0</span>;
+<a href=#1679 id=1679 data-nosnippet>1679</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>((<span class="kw-2">&amp;</span>did, <span class="kw-2">&amp;</span>name)) = <span class="self">self</span>.fun_def_map.get_index(idx) {
+<a href=#1680 id=1680 data-nosnippet>1680</a>            idx += <span class="number">1</span>;
+<a href=#1681 id=1681 data-nosnippet>1681</a>
+<a href=#1682 id=1682 data-nosnippet>1682</a>            <span class="kw">let </span>comment = <span class="macro">format!</span>(<span class="string">"flux def: {did:?}"</span>);
+<a href=#1683 id=1683 data-nosnippet>1683</a>            <span class="kw">let </span>info = <span class="self">self</span>.genv.normalized_info(did);
+<a href=#1684 id=1684 data-nosnippet>1684</a>            <span class="kw">let </span>revealed = reveals.contains(<span class="kw-2">&amp;</span>did);
+<a href=#1685 id=1685 data-nosnippet>1685</a>            <span class="kw">if </span>info.hide &amp;&amp; !revealed {
+<a href=#1686 id=1686 data-nosnippet>1686</a>                <span class="kw">let </span>sort = scx.func_sort_to_fixpoint(<span class="kw-2">&amp;</span><span class="self">self</span>.genv.func_sort(did));
+<a href=#1687 id=1687 data-nosnippet>1687</a>                consts.push(fixpoint::ConstDecl { name, sort, comment: <span class="prelude-val">Some</span>(comment) });
+<a href=#1688 id=1688 data-nosnippet>1688</a>            } <span class="kw">else </span>{
+<a href=#1689 id=1689 data-nosnippet>1689</a>                <span class="kw">let </span>out = scx.sort_to_fixpoint(<span class="self">self</span>.genv.func_sort(did).expect_mono().output());
+<a href=#1690 id=1690 data-nosnippet>1690</a>                <span class="kw">let </span>(args, body) = <span class="self">self</span>.body_to_fixpoint(<span class="kw-2">&amp;</span>info.body, scx)<span class="question-mark">?</span>;
+<a href=#1691 id=1691 data-nosnippet>1691</a>                <span class="kw">let </span>fun_def = fixpoint::FunDef { name, args, body, out, comment: <span class="prelude-val">Some</span>(comment) };
+<a href=#1692 id=1692 data-nosnippet>1692</a>                defs.push((info.rank, fun_def));
+<a href=#1693 id=1693 data-nosnippet>1693</a>            };
+<a href=#1694 id=1694 data-nosnippet>1694</a>        }
+<a href=#1695 id=1695 data-nosnippet>1695</a>
+<a href=#1696 id=1696 data-nosnippet>1696</a>        <span class="comment">// we sort by rank so the definitions go out without any forward dependencies.
+<a href=#1697 id=1697 data-nosnippet>1697</a>        </span><span class="kw">let </span>defs = defs
+<a href=#1698 id=1698 data-nosnippet>1698</a>            .into_iter()
+<a href=#1699 id=1699 data-nosnippet>1699</a>            .sorted_by_key(|(rank, <span class="kw">_</span>)| <span class="kw-2">*</span>rank)
+<a href=#1700 id=1700 data-nosnippet>1700</a>            .map(|(<span class="kw">_</span>, def)| def)
+<a href=#1701 id=1701 data-nosnippet>1701</a>            .collect();
+<a href=#1702 id=1702 data-nosnippet>1702</a>
+<a href=#1703 id=1703 data-nosnippet>1703</a>        <span class="prelude-val">Ok</span>((defs, consts))
+<a href=#1704 id=1704 data-nosnippet>1704</a>    }
+<a href=#1705 id=1705 data-nosnippet>1705</a>
+<a href=#1706 id=1706 data-nosnippet>1706</a>    <span class="kw">fn </span>body_to_fixpoint(
+<a href=#1707 id=1707 data-nosnippet>1707</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1708 id=1708 data-nosnippet>1708</a>        body: <span class="kw-2">&amp;</span>rty::Binder&lt;rty::Expr&gt;,
+<a href=#1709 id=1709 data-nosnippet>1709</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1710 id=1710 data-nosnippet>1710</a>    ) -&gt; QueryResult&lt;(Vec&lt;(fixpoint::Var, fixpoint::Sort)&gt;, fixpoint::Expr)&gt; {
+<a href=#1711 id=1711 data-nosnippet>1711</a>        <span class="self">self</span>.local_var_env
+<a href=#1712 id=1712 data-nosnippet>1712</a>            .push_layer_with_fresh_names(body.vars().len());
+<a href=#1713 id=1713 data-nosnippet>1713</a>
+<a href=#1714 id=1714 data-nosnippet>1714</a>        <span class="kw">let </span>expr = <span class="self">self</span>.expr_to_fixpoint(body.as_ref().skip_binder(), scx)<span class="question-mark">?</span>;
+<a href=#1715 id=1715 data-nosnippet>1715</a>
+<a href=#1716 id=1716 data-nosnippet>1716</a>        <span class="kw">let </span>args: Vec&lt;(fixpoint::Var, fixpoint::Sort)&gt; =
+<a href=#1717 id=1717 data-nosnippet>1717</a>            iter::zip(<span class="self">self</span>.local_var_env.pop_layer(), body.vars())
+<a href=#1718 id=1718 data-nosnippet>1718</a>                .map(|(name, var)| (name.into(), scx.sort_to_fixpoint(var.expect_sort())))
+<a href=#1719 id=1719 data-nosnippet>1719</a>                .collect();
+<a href=#1720 id=1720 data-nosnippet>1720</a>
+<a href=#1721 id=1721 data-nosnippet>1721</a>        <span class="prelude-val">Ok</span>((args, expr))
+<a href=#1722 id=1722 data-nosnippet>1722</a>    }
+<a href=#1723 id=1723 data-nosnippet>1723</a>
+<a href=#1724 id=1724 data-nosnippet>1724</a>    <span class="kw">fn </span>qualifier_to_fixpoint(
+<a href=#1725 id=1725 data-nosnippet>1725</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#1726 id=1726 data-nosnippet>1726</a>        qualifier: <span class="kw-2">&amp;</span>rty::Qualifier,
+<a href=#1727 id=1727 data-nosnippet>1727</a>        scx: <span class="kw-2">&amp;mut </span>SortEncodingCtxt,
+<a href=#1728 id=1728 data-nosnippet>1728</a>    ) -&gt; QueryResult&lt;fixpoint::Qualifier&gt; {
+<a href=#1729 id=1729 data-nosnippet>1729</a>        <span class="kw">let </span>(args, body) = <span class="self">self</span>.body_to_fixpoint(<span class="kw-2">&amp;</span>qualifier.body, scx)<span class="question-mark">?</span>;
+<a href=#1730 id=1730 data-nosnippet>1730</a>        <span class="kw">let </span>name = qualifier.def_id.name().to_string();
+<a href=#1731 id=1731 data-nosnippet>1731</a>        <span class="prelude-val">Ok</span>(fixpoint::Qualifier { name, args, body })
+<a href=#1732 id=1732 data-nosnippet>1732</a>    }
+<a href=#1733 id=1733 data-nosnippet>1733</a>}
+<a href=#1734 id=1734 data-nosnippet>1734</a>
+<a href=#1735 id=1735 data-nosnippet>1735</a><span class="kw">fn </span>mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -&gt; fixpoint::Constraint {
+<a href=#1736 id=1736 data-nosnippet>1736</a>    fixpoint::Constraint::ForAll(
+<a href=#1737 id=1737 data-nosnippet>1737</a>        fixpoint::Bind {
+<a href=#1738 id=1738 data-nosnippet>1738</a>            name: fixpoint::Var::Underscore,
+<a href=#1739 id=1739 data-nosnippet>1739</a>            sort: fixpoint::Sort::Int,
+<a href=#1740 id=1740 data-nosnippet>1740</a>            pred: assumption,
+<a href=#1741 id=1741 data-nosnippet>1741</a>        },
+<a href=#1742 id=1742 data-nosnippet>1742</a>        Box::new(cstr),
+<a href=#1743 id=1743 data-nosnippet>1743</a>    )
+<a href=#1744 id=1744 data-nosnippet>1744</a>}</code></pre></div></section></main></body></html>

@@ -442,7 +442,7 @@
 <a href=#442 id=442 data-nosnippet>442</a><span class="doccomment">/// `a ^ b`
 <a href=#443 id=443 data-nosnippet>443</a></span><span class="kw">fn </span>mk_bit_xor_rules() -&gt; RuleMatcher&lt;<span class="number">2</span>&gt; {
 <a href=#444 id=444 data-nosnippet>444</a>    <span class="macro">primop_rules!</span> {
-<a href=#445 id=445 data-nosnippet>445</a>        <span class="kw">fn</span>(a: T, b: T) -&gt; T
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="kw">fn</span>(a: T, b: T) -&gt; { T[E::prim_val(rty::BinOp::BitXor, a, b)] | E::prim_rel(rty::BinOp::BitXor, a, b) }
 <a href=#446 id=446 data-nosnippet>446</a>        <span class="kw">if </span>T.is_integral()
 <a href=#447 id=447 data-nosnippet>447</a>    }
 <a href=#448 id=448 data-nosnippet>448</a>}

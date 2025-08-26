@@ -5642,15 +5642,19 @@ or lemmas. See <code>tests/tests/pos/surface/primops00.rs</code> for an example.
 
 defs! {
     property ShiftByTwo[&lt;&lt;](x, y) {
-       [&lt;&lt;](x, 2) == 4*x
+        [&lt;&lt;](x, 2) == 4*x
     }
 
     property ShiftRightByFour[&gt;&gt;](x, y) {
-       16 * [&gt;&gt;](x, 4) == x
+        16 * [&gt;&gt;](x, 4) == x
     }
 
     property MaskBy[&amp;](x, y) {
         [&amp;](x, y) &lt;= y
+    }
+
+    property XorSelfInverse[^](x, y) {
+        x == y =&gt; [^](x, y) == 0
     }
 }
 
@@ -5686,6 +5690,11 @@ static POW10: [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 pub fn test4(n: usize) -&gt; i32 {
     POW10[n &amp; 7]
+}
+
+#[spec(fn(x: usize) -&gt; usize[0])]
+pub fn test5(x: usize) -&gt; usize {
+    x ^ x
 }</code></pre>
 <h2 id="casting-sorts"><a class="header" href="#casting-sorts">Casting Sorts</a></h2>
 <p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
