@@ -2,15 +2,19 @@ use flux_rs::{assert, attrs::*, defs};
 
 defs! {
     property ShiftByTwo[<<](x, y) {
-       [<<](x, 2) == 4*x
+        [<<](x, 2) == 4*x
     }
 
     property ShiftRightByFour[>>](x, y) {
-       16 * [>>](x, 4) == x
+        16 * [>>](x, 4) == x
     }
 
     property MaskBy[&](x, y) {
         [&](x, y) <= y
+    }
+
+    property XorSelfInverse[^](x, y) {
+        x == y => [^](x, y) == 0
     }
 }
 
@@ -46,4 +50,9 @@ static POW10: [i32; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 pub fn test4(n: usize) -> i32 {
     POW10[n & 7]
+}
+
+#[spec(fn(x: usize) -> usize[0])]
+pub fn test5(x: usize) -> usize {
+    x ^ x
 }
