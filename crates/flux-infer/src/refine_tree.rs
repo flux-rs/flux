@@ -17,8 +17,7 @@ use flux_middle::{
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::{fx::FxHashSet, snapshot_map::SnapshotMap};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_data_structures::{fx::{FxHashMap, FxHashSet}, snapshot_map::SnapshotMap};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_hir::def_id::DefId;
