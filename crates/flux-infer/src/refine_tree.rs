@@ -13,14 +13,18 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        self, fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor}, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var
+        self, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
 use itertools::Itertools;
-use rustc_data_structures::{fx::{FxHashMap, FxHashSet}, snapshot_map::SnapshotMap};
+use rustc_data_structures::{
+    fx::{FxHashMap, FxHashSet},
+    snapshot_map::SnapshotMap,
+};
+use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
-use rustc_hir::def_id::DefId;
 use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
