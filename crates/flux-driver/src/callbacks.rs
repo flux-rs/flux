@@ -5,8 +5,7 @@ use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
-    refine_tree,
-    wkvars::{Constraints, WKVarSubst},
+    wkvars::Constraints,
 };
 use flux_metadata::CStore;
 use flux_middle::{
@@ -14,12 +13,7 @@ use flux_middle::{
     def_id::MaybeExternId,
     fhir,
     global_env::GlobalEnv,
-    pretty,
     queries::{Providers, QueryResult},
-    rty::{
-        self,
-        fold::{TypeFolder, TypeVisitable},
-    },
     timings,
 };
 use flux_refineck::{self as refineck, report_fixpoint_errors};
@@ -164,7 +158,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         //     println!(" fn_sig: {}", format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig)));
         // }
         // println!("Total solved: {}, total assumed: {}, total removed: {}, total wkvars: {}", total_solved, total_assumed, total_removed, total_wkvars);
-        if let Some((local_id, _)) = errors.last().clone() {
+        if let Some((local_id, _)) = errors.last() {
             let local_id = *local_id;
             let errs = errors
                 .into_iter()
