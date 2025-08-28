@@ -22,7 +22,9 @@ use crate::{
         Generics, Ident, ImplAssocReft, Indices, Item, ItemKind, LetDecl, LitKind, Mutability,
         ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
-        Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate, WeakKvar, },
+        Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef,
+        VariantRet, WeakKvar, WhereBoundPredicate,
+    },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
 };
@@ -202,7 +204,13 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Item<F
         .ident
         .ok_or(ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span })?;
     let path = ident_path(cx, ident);
-    let fn_spec = FnSpec { fn_sig: Some(fn_sig), qual_names: None, reveal_names: None, trusted, weak_kvars: vec![], };
+    let fn_spec = FnSpec {
+        fn_sig: Some(fn_sig),
+        qual_names: None,
+        reveal_names: None,
+        trusted,
+        weak_kvars: vec![],
+    };
     Ok(Item { path, kind: fn_spec })
 }
 

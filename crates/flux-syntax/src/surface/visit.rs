@@ -14,8 +14,7 @@ use super::{
     PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
     TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
 };
-use crate::surface::PrimOpProp;
-use crate::surface::WeakKvar;
+use crate::surface::{PrimOpProp, WeakKvar};
 
 #[macro_export]
 macro_rules! walk_list {
