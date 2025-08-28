@@ -16,9 +16,13 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    rty::{self, fold::{TypeFolder, TypeVisitable}},
+    rty::{
+        self,
+        fold::{TypeFolder, TypeVisitable},
+    },
+    Specs,
     pretty,
-Specs,
+    timings,
 };
 use flux_refineck::{self as refineck, report_fixpoint_errors};
 use itertools::Itertools;
@@ -114,16 +118,22 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("-----------------------");
         println!("Starting solution loop.");
 
-        let (solution, errors) = match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100)
-        {
-            Ok((solution, errors)) => (solution, errors),
-            Err(e) => panic!("Encountered error {:?}", e),
-        };
+        let (solution, errors) =
+            match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100) {
+                Ok((solution, errors)) => (solution, errors),
+                Err(e) => panic!("Encountered error {:?}", e),
+            };
 
         println!("Solution loop finished.");
         let crate_name = genv.tcx().crate_name(LOCAL_CRATE);
-        solution.write_summary_file(genv, &config::log_dir().join(format!("{}-wkvar-solve-summary.csv", crate_name)));
-        solution.write_stats_file(genv, &config::log_dir().join(format!("{}-wkvar-solve-stats.csv", crate_name)));
+        solution.write_summary_file(
+            genv,
+            &config::log_dir().join(format!("{}-wkvar-solve-summary.csv", crate_name)),
+        );
+        solution.write_stats_file(
+            genv,
+            &config::log_dir().join(format!("{}-wkvar-solve-stats.csv", crate_name)),
+        );
         // println!("Solutions:");
         // let mut total_solved = 0;
         // let mut total_assumed = 0;

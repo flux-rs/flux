@@ -674,7 +674,11 @@ impl Expr {
         struct BoundReftKindEraser;
         impl TypeFolder for BoundReftKindEraser {
             fn fold_expr(&mut self, expr: &Expr) -> Expr {
-                if let ExprKind::Var(Var::Bound(db_index, BoundReft { var, kind: BoundReftKind::Named(_) })) = expr.kind() {
+                if let ExprKind::Var(Var::Bound(
+                    db_index,
+                    BoundReft { var, kind: BoundReftKind::Named(_) },
+                )) = expr.kind()
+                {
                     Expr::bvar(*db_index, *var, BoundReftKind::Anon)
                 } else {
                     expr.super_fold_with(self)

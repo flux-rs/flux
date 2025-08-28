@@ -13,10 +13,12 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        self, fold::{
-        FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable,
-        TypeVisitor,
-    }, ExprKind, KVid, BaseTy, EVid, Expr, Name, Sort, Ty, TyKind, Var, },
+        self, BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        fold::{
+            FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperVisitable, TypeVisitable,
+            TypeVisitor,
+        },
+    },
 };
 use itertools::Itertools;
 use rustc_data_structures::{
@@ -27,7 +29,6 @@ use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol};
-
 use serde::Serialize;
 
 use crate::{
@@ -83,19 +84,22 @@ impl RefineTree {
     pub(crate) fn wkvars(&self) -> (HashSet<rty::WKVid>, HashSet<rty::WKVid>) {
         let mut lhs_wkvars = HashSet::default();
         let mut rhs_wkvars = HashSet::default();
-        self.root.borrow().visit_expr(&mut |assumed| {
-            assumed.flatten_conjs().into_iter().for_each(|conj| {
-                if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
-                    lhs_wkvars.insert(wkvar.wkvid);
-                }
-            })
-        }, &mut |head| {
-            head.flatten_conjs().into_iter().for_each(|conj| {
-                if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
-                    rhs_wkvars.insert(wkvar.wkvid);
-                }
-            })
-        });
+        self.root.borrow().visit_expr(
+            &mut |assumed| {
+                assumed.flatten_conjs().into_iter().for_each(|conj| {
+                    if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                        lhs_wkvars.insert(wkvar.wkvid);
+                    }
+                })
+            },
+            &mut |head| {
+                head.flatten_conjs().into_iter().for_each(|conj| {
+                    if let rty::ExprKind::WKVar(wkvar) = conj.kind() {
+                        rhs_wkvars.insert(wkvar.wkvid);
+                    }
+                })
+            },
+        );
         (lhs_wkvars, rhs_wkvars)
     }
 
@@ -636,7 +640,11 @@ impl Node {
         matches!(self.kind, NodeKind::Head(..))
     }
 
-    fn visit_expr(&self, visit_assumed: &mut impl FnMut(&Expr), visit_head: &mut impl FnMut(&Expr)) {
+    fn visit_expr(
+        &self,
+        visit_assumed: &mut impl FnMut(&Expr),
+        visit_head: &mut impl FnMut(&Expr),
+    ) {
         match &self.kind {
             NodeKind::Assumption(expr) => {
                 visit_assumed(&expr);
@@ -655,7 +663,10 @@ impl Node {
 
     fn num_nontrivial_head_cstrs(&self) -> usize {
         let mut count = 0;
-        if let NodeKind::Head(e, t) = &self.kind && !e.is_trivially_true() && !e.is_trivially_false() {
+        if let NodeKind::Head(e, t) = &self.kind
+            && !e.is_trivially_true()
+            && !e.is_trivially_false()
+        {
             count += 1;
         }
         for child in &self.children {

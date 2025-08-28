@@ -585,7 +585,7 @@ fn variants_of(
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-     match genv.fhir_node(def_id.local_id())? {
+    match genv.fhir_node(def_id.local_id())? {
         fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
         | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
         | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })

@@ -307,9 +307,7 @@ impl Pretty for IdxFmt {
                 if let Some(var_fields) = fields
                     .iter()
                     .map(|field| {
-                        if let ExprKind::Var(var) =
-                            field.value.kind()
-                        {
+                        if let ExprKind::Var(var) = field.value.kind() {
                             Some(var.clone())
                         } else {
                             None
@@ -319,7 +317,7 @@ impl Pretty for IdxFmt {
                 {
                     // If they are all meant to be removed, we can elide the entire index.
                     if var_fields.iter().all(|var| {
-                        if let Var::Bound(debruijn, BoundReft {var, ..}) = var {
+                        if let Var::Bound(debruijn, BoundReft { var, .. }) = var {
                             cx.bvar_env
                                 .should_remove_var(*debruijn, *var)
                                 .unwrap_or(false)
@@ -328,14 +326,12 @@ impl Pretty for IdxFmt {
                         }
                     }) {
                         var_fields.iter().for_each(|var| {
-                            let Var::Bound(debruijn, BoundReft {var, ..}) = var
-                            else {
+                            let Var::Bound(debruijn, BoundReft { var, .. }) = var else {
                                 // We just checked that all of the vars are bound
                                 // and meant to be removed
                                 unreachable!();
                             };
                             cx.bvar_env.mark_var_as_removed(*debruijn, *var);
-
                         });
                         // We write nothing here: we can erase the index
                         // If we can't remove all of the vars, we can still elide the
@@ -346,24 +342,30 @@ impl Pretty for IdxFmt {
                         let mut fields = var_fields.into_iter().map(|var_e| {
                             match var_e {
                                 Var::Bound(debruijn, BoundReft { var, .. })
-                                if let Some((seen, layer_type)) =
-                                    cx.bvar_env.check_if_seen_fn_root_bvar(debruijn, var)
-                                    && !seen => {
-                                        match layer_type {
-                                            FnRootLayerType::FnArgs => {
-                                                format_cx!(cx, "@{:?}", var_e)
-                                            }
-                                            FnRootLayerType::FnRet => {
-                                                format_cx!(cx, "#{:?}", var_e)
-                                            }
+                                    if let Some((seen, layer_type)) =
+                                        cx.bvar_env.check_if_seen_fn_root_bvar(debruijn, var)
+                                        && !seen =>
+                                {
+                                    match layer_type {
+                                        FnRootLayerType::FnArgs => {
+                                            format_cx!(cx, "@{:?}", var_e)
                                         }
+                                        FnRootLayerType::FnRet => {
+                                            format_cx!(cx, "#{:?}", var_e)
+                                        }
+                                    }
                                 }
                                 Var::EarlyParam(ep)
-                                    if cx.earlyparam_env.borrow_mut().as_mut().unwrap().insert(ep) =>
+                                    if cx
+                                        .earlyparam_env
+                                        .borrow_mut()
+                                        .as_mut()
+                                        .unwrap()
+                                        .insert(ep) =>
                                 {
                                     format_cx!(cx, "@{:?}", var_e)
                                 }
-                                _ => format_cx!(cx, "{:?}", var_e)
+                                _ => format_cx!(cx, "{:?}", var_e),
                             }
                         });
                         buf.write_str(&fields.join(", "))?;

@@ -232,7 +232,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::ExprKind::BoundedQuant(..)
             | fhir::ExprKind::Block(..)
             | fhir::ExprKind::WeakKvar(..)
-            | fhir::ExprKind::Constructor(..)| fhir::ExprKind::PrimApp(..) => {
+            | fhir::ExprKind::Constructor(..)
+            | fhir::ExprKind::PrimApp(..) => {
                 let found = self.synth_expr(expr)?;
                 let found = self.resolve_vars_if_possible(&found);
                 let expected = self.resolve_vars_if_possible(expected);
