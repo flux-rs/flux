@@ -356,10 +356,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let weak_kvars = attrs.weak_kvars().unwrap_or_default();
 
         Ok(self
-        .specs
-        .fn_sigs
-        .entry(owner_id)
-        .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted, weak_kvars }))
+            .specs
+            .fn_sigs
+            .entry(owner_id)
+            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted, weak_kvars }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
