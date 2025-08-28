@@ -499,7 +499,7 @@ fn add_fn_fix_diagnostic<'a>(
     let fixed_fn_sig_snippet = format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
     match genv.resolve_id(wkvid.0) {
         ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
-            if let Ok(fn_sig) = genv.map().fhir_expect_fn_sig(local_id) {
+            if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
                 diag.span_suggestion(fn_sig.decl.span,
                                      format!("try adding the refinement {:?}", solution),
                                      fixed_fn_sig_snippet,

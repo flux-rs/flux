@@ -663,7 +663,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn fhir_expect_fn_sig(self, def_id: LocalDefId) -> QueryResult<&'genv fhir::FnSig<'genv>> {
-        match self.node(def_id)? {
+        match self.fhir_node(def_id)? {
             fhir::Node::Item(fhir::Item {
                 kind: fhir::ItemKind::Fn(fn_sig),
                 ..
