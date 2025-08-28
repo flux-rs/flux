@@ -396,7 +396,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     )));
                 }
                 for (arg, expected) in iter::zip(args, &inputs) {
-                    let found = self.synth_path(&arg)?;
+                    let found = self.synth_path(arg)?;
                     let found = self.resolve_vars_if_possible(&found);
                     let expected = self.resolve_vars_if_possible(expected);
                     if !self.is_coercible(&found, &expected, expr.fhir_id) {

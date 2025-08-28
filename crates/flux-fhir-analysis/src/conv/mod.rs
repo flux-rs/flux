@@ -694,7 +694,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             env.push_layer(Layer::list(self.results(), 0, wk.params));
             let e = self.conv_expr(&mut env, solution)?;
             let vars = env.pop_layer().into_bound_vars(self.genv())?;
-            solutions.push(rty::Binder::bind_with_vars(e, vars))
+            solutions.push(rty::Binder::bind_with_vars(e, vars));
         }
         Ok(solutions)
     }

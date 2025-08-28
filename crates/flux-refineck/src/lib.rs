@@ -37,7 +37,7 @@ use flux_config as config;
 use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
-    refine_tree::{self, BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
+    refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
     wkvars::{Constraints, WKVarInstantiator, WKVarSubst, find_solution_candidates},
 };
 use flux_macros::fluent_messages;
@@ -519,7 +519,7 @@ fn add_fn_fix_diagnostic<'a>(
                     .sess
                     .source_map()
                     .span_to_snippet(fn_first_line)
-                    .expect(&format!("No snippet for span {:?}", fn_first_line));
+                    .unwrap_or_else(|_| panic!("No snippet for span {:?}", fn_first_line));
                 let prefix_spaces = &fn_first_line_snippet[..fn_first_line_snippet
                     .find(|c: char| !c.is_whitespace())
                     .unwrap_or(fn_first_line_snippet.len())];
@@ -551,7 +551,7 @@ fn fn_first_line<'a>(genv: GlobalEnv<'a, '_>, def_id: DefId) -> Span {
         .sess
         .source_map()
         .lookup_line(span.lo())
-        .expect(&format!("span for {:?} doesn't have a first line", def_id));
+        .unwrap_or_else(|_| panic!("span for {:?} doesn't have a first line", def_id));
     let first_line_range = first_line.sf.line_bounds(first_line.line);
     Span::new(first_line_range.start, first_line_range.end, span.ctxt(), None)
 }

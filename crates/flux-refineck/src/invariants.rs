@@ -4,7 +4,7 @@ use flux_errors::ErrorGuaranteed;
 use flux_infer::{
     fixpoint_encoding::FixQueryCache,
     infer::{ConstrReason, GlobalEnvExt, Tag},
-    refine_tree::{self, BinderOriginator, BinderProvenance},
+    refine_tree::{BinderOriginator, BinderProvenance},
     wkvars::Constraints,
 };
 use flux_middle::{

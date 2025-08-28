@@ -308,7 +308,7 @@ impl Pretty for IdxFmt {
                     .iter()
                     .map(|field| {
                         if let ExprKind::Var(var) = field.value.kind() {
-                            Some(var.clone())
+                            Some(*var)
                         } else {
                             None
                         }
