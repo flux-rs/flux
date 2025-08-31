@@ -424,11 +424,15 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_fn_sig(&mut self, sig: &fhir::FnSig<'genv>) {
-        for wk in sig.weak_kvars {
-            self.infcx.declare_weak_kvar(wk);
-        }
+        // for wk in sig.weak_kvars {
+        //     self.infcx.declare_weak_kvar(wk);
+        // }
         fhir::visit::walk_fn_sig(self, sig);
         self.check_output_locs(sig.decl);
+    }
+
+    fn declare_weak_kvar(&mut self, wk: &fhir::WeakKvar<'genv>) {
+        self.infcx.declare_weak_kvar(wk);
     }
 
     fn visit_weak_kvar(&mut self, wk: &fhir::WeakKvar<'genv>) {
