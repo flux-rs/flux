@@ -124,11 +124,11 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         solution.write_summary_file(
             genv,
             &config::log_dir().join(format!("{}-wkvar-solve-summary.csv", crate_name)),
-        );
+        ).unwrap();
         solution.write_stats_file(
             genv,
             &config::log_dir().join(format!("{}-wkvar-solve-stats.csv", crate_name)),
-        );
+        ).unwrap();
         // println!("Solutions:");
         // let mut total_solved = 0;
         // let mut total_assumed = 0;
