@@ -255,6 +255,24 @@ fn canary() {
 ```
 <!--
 
+PLDI 2023
+https://dl.acm.org/doi/pdf/10.1145/3591283
+
+ICFP 2023
+https://dl.acm.org/doi/pdf/10.1145/3607845
+
+POPL 2024
+https://dl.acm.org/doi/pdf/10.1145/3632912
+
+SOSP 2024
+https://ranjitjhala.github.io/static/icarus-sosp24.pdf
+
+ICSE 2025
+https://ranjitjhala.github.io/static/icse25-neurosymbolic-refinement-inference.pdf
+
+SOSP 2025
+https://ranjitjhala.github.io/static/sosp25-ticktock.pdf
+
 
 ```rust, editable
 // #[flux::specs {
