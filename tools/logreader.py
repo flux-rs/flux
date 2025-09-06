@@ -50,8 +50,10 @@ def main() -> None:
     bb_envs: Dict[str, Any] = {}
     for line in open(args.file):
         event = json.loads(line)
-        def_id = event['span']['def_id']
-        mode = event['span']['name']
+        def_id = event.get('span', {}).get('def_id')
+        mode = event.get('span', {}).get('name')
+        if not def_id or not mode:
+            continue
         events_by_def_id_and_mode[def_id][mode].append(event)
         if bb_envs.get(def_id) is None:
             bb_envs[def_id] = event['span'].get('bb_envs')
