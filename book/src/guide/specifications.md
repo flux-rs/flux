@@ -748,7 +748,7 @@ Here are two examples:
 ### Options
 
 ```rust,noplayground
-{{#include ../../../tests/tests/lib/option.rs}}
+{{#include ../../../lib/flux-core/src/option.rs}}
 ```
 
 ```rust,noplayground
@@ -758,7 +758,7 @@ Here are two examples:
 ### Vec
 
 ```rust,noplayground
-{{#include ../../../tests/tests/lib/option.rs}}
+{{#include ../../../lib/flux-alloc/src/vec/mod.rs}}
 ```
 
 ### Extern Structs
@@ -887,7 +887,7 @@ To see how `flux` handles `for i in 0..n` style loops:
 ```
 
 ```rust,noplayground
-{{#include ../../../tests/tests/lib/iter.rs}}
+{{#include ../../../lib/flux-core/src/iter/mod.rs}}
 ```
 
 ```rust,noplayground
@@ -975,7 +975,7 @@ i.e. as an attribute of the function, for example, because you don't want to mod
 You can do this using the "detached" `spec` as illustrated by the following
 
 ```rust,noplayground
-{{#include ../../../tests/tests/neg/surface/detached00.rs}}
+{{#include ../../../tests/tests/neg/detached/detach00.rs}}
 ```
 
 ## Include Patterns

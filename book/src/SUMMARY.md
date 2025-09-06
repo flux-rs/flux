@@ -15,7 +15,7 @@
 - [Consts](tutorial/06-consts.md)
 - [Externs](tutorial/07-externs.md)
 - [Traits](tutorial/08-traits.md)
-- [Case Study: Sparse Matrices]()
+- [Case Study: Sparse Matrices](tutorial/09-sparse.md)
 - [Case Study: Normal Forms]()
 - [Case Study: Neural Networks]()
 - [Case Study: Maps & Interpreters]()
