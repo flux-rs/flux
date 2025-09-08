@@ -442,7 +442,7 @@ fn mk_bit_or_rules() -> RuleMatcher<2> {
 /// `a ^ b`
 fn mk_bit_xor_rules() -> RuleMatcher<2> {
     primop_rules! {
-        fn(a: T, b: T) -> T
+        fn(a: T, b: T) -> { T[E::prim_val(rty::BinOp::BitXor, a, b)] | E::prim_rel(rty::BinOp::BitXor, a, b) }
         if T.is_integral()
     }
 }

@@ -33,3 +33,9 @@ pub fn test_and_a(_x: BV8) {}
 
 #[sig(fn (x:BV8{x == 6}) ensures (x & 3 == 2))]
 pub fn test_and_b(_x: BV8) {}
+
+#[sig(fn (x:BV8{x == 6}) ensures (bv_xor(x, 3) == 5))]
+pub fn test_xor_a(_x: BV8) {}
+
+#[sig(fn (x:BV8{x == 6}) ensures (x ^ 3 == 5))]
+pub fn test_xor_b(_x: BV8) {}

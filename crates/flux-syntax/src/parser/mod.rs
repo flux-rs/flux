@@ -11,12 +11,6 @@ use utils::{
 
 use crate::{
     ParseCtxt, ParseError, ParseResult,
-    lexer::{
-        Delimiter::*,
-        Token,
-        TokenKind::{self, Caret, Comma},
-        token,
-    },
     parser::lookahead::{AnyOf, Expected, PeekExpected},
     surface::{
         self, Async,
@@ -32,6 +26,7 @@ use crate::{
         VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
+    token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
 };
 
 /// ```text
@@ -821,7 +816,7 @@ pub(crate) fn parse_type(cx: &mut ParseCtxt) -> ParseResult<Ty> {
             } else {
                 // { ⟨ty⟩ | ⟨block_expr⟩ }
                 let ty = parse_type(cx)?;
-                cx.expect(token::Caret)?;
+                cx.expect(token::Or)?;
                 let pred = parse_block_expr(cx)?;
                 Ok(TyKind::Constr(pred, Box::new(ty)))
             }
@@ -890,7 +885,7 @@ fn parse_general_exists(cx: &mut ParseCtxt) -> ParseResult<TyKind> {
     let params = sep1(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Maybe))?;
     cx.expect(token::Dot)?;
     let ty = parse_type(cx)?;
-    let pred = if cx.advance_if(token::Caret) { Some(parse_block_expr(cx)?) } else { None };
+    let pred = if cx.advance_if(token::Or) { Some(parse_block_expr(cx)?) } else { None };
     Ok(TyKind::GeneralExists { params, ty: Box::new(ty), pred })
 }
 
@@ -1069,10 +1064,10 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let bind = parse_ident(cx)?;
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
-    } else if cx.advance_if(Caret) {
+    } else if cx.advance_if(Or) {
         let params =
-            punctuated_until(cx, Comma, Caret, |cx| parse_refine_param(cx, RequireSort::Maybe))?;
-        cx.expect(Caret)?;
+            punctuated_until(cx, Comma, Or, |cx| parse_refine_param(cx, RequireSort::Maybe))?;
+        cx.expect(Or)?;
         let body = parse_expr(cx, true)?;
         let hi = cx.hi();
         RefineArg::Abs(params, body, cx.mk_span(lo, hi), cx.next_node_id())
@@ -1437,8 +1432,8 @@ fn parse_lit(cx: &mut ParseCtxt) -> ParseResult<Expr> {
 }
 
 fn parse_ident(cx: &mut ParseCtxt) -> ParseResult<Ident> {
-    if let Token { kind: token::Ident(name), lo, hi } = cx.at(0)
-        && !cx.is_reserved(name)
+    if let Token { kind: token::Ident(name, is_raw), lo, hi } = cx.at(0)
+        && (!cx.is_reserved(name) || is_raw == IdentIsRaw::Yes)
     {
         cx.advance();
         return Ok(Ident { name, span: cx.mk_span(lo, hi) });
@@ -1562,6 +1557,7 @@ impl Precedence {
                 Precedence::Compare
             }
             BinOp::BitOr => Precedence::BitOr,
+            BinOp::BitXor => Precedence::BitXor,
             BinOp::BitAnd => Precedence::BitAnd,
             BinOp::BitShl | BinOp::BitShr => Precedence::Shift,
             BinOp::Add | BinOp::Sub => Precedence::Sum,

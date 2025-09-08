@@ -585,7 +585,7 @@ impl Expr {
                 f(e);
             }
         }
-        go(self, &mut f)
+        go(self, &mut f);
     }
 
     pub fn flatten_conjs(&self) -> Vec<&Expr> {
@@ -661,6 +661,7 @@ pub enum BinOp {
     Mod(Sort),
     BitAnd,
     BitOr,
+    BitXor,
     BitShl,
     BitShr,
 }
@@ -1268,7 +1269,9 @@ pub(crate) mod pretty {
                 | BinOp::Le(_) => Precedence::Cmp,
                 BinOp::Add(_) | BinOp::Sub(_) => Precedence::AddSub,
                 BinOp::Mul(_) | BinOp::Div(_) | BinOp::Mod(_) => Precedence::MulDiv,
-                BinOp::BitAnd | BinOp::BitOr | BinOp::BitShl | BinOp::BitShr => Precedence::Bitvec,
+                BinOp::BitAnd | BinOp::BitOr | BinOp::BitShl | BinOp::BitShr | BinOp::BitXor => {
+                    Precedence::Bitvec
+                }
             }
         }
     }
@@ -1596,6 +1599,7 @@ pub(crate) mod pretty {
                 BinOp::Mod(_) => w!(cx, f, "mod"),
                 BinOp::BitAnd => w!(cx, f, "&"),
                 BinOp::BitOr => w!(cx, f, "|"),
+                BinOp::BitXor => w!(cx, f, "^"),
                 BinOp::BitShl => w!(cx, f, "<<"),
                 BinOp::BitShr => w!(cx, f, ">>"),
             }

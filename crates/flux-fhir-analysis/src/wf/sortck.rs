@@ -7,7 +7,7 @@ use flux_errors::{ErrorGuaranteed, Errors};
 use flux_infer::projections::NormalizeExt;
 use flux_middle::{
     THEORY_FUNCS,
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, visit::Visitor as _},
+    fhir::{self, FhirId, FluxOwnerId, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
     rty::{
@@ -19,6 +19,7 @@ use itertools::{Itertools, izip};
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashMap;
+use rustc_hir::def::DefKind;
 use rustc_middle::ty::TypingMode;
 use rustc_span::{Span, def_id::DefId, symbol::Ident};
 
@@ -45,9 +46,11 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
 
 pub fn prim_op_sort(op: &fhir::BinOp) -> Option<(Vec<rty::Sort>, rty::Sort)> {
     match op {
-        fhir::BinOp::BitAnd | fhir::BinOp::BitOr | fhir::BinOp::BitShl | fhir::BinOp::BitShr => {
-            Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int))
-        }
+        fhir::BinOp::BitAnd
+        | fhir::BinOp::BitOr
+        | fhir::BinOp::BitXor
+        | fhir::BinOp::BitShl
+        | fhir::BinOp::BitShr => Some((vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int)),
         _ => None,
     }
 }
@@ -340,7 +343,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 // first get the sort based on the path - for example S { ... } => S
                 // and we should expect sort to be a struct or enum app
                 let path_def_id = match path.res {
-                    ExprRes::Ctor(def_id) => def_id,
+                    fhir::Res::Def(DefKind::Enum | DefKind::Struct, def_id) => def_id,
                     _ => span_bug!(expr.span, "unexpected path in constructor"),
                 };
                 let sort_def = self
@@ -375,8 +378,8 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
         match path.res {
-            ExprRes::Param(_, id) => Ok(self.param_sort(id)),
-            ExprRes::Const(def_id) => {
+            fhir::Res::Param(_, id) => Ok(self.param_sort(id)),
+            fhir::Res::Def(DefKind::Const, def_id) => {
                 if let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? {
                     let info = self.genv.constant_info(def_id).emit(&self.genv)?;
                     // non-integral constant
@@ -388,15 +391,15 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     span_bug!(path.span, "unexpected const")
                 }
             }
-            ExprRes::Variant(def_id) => {
+            fhir::Res::Def(DefKind::Ctor(..), def_id) => {
                 let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? else {
                     span_bug!(path.span, "unexpected variant {def_id:?}")
                 };
                 Ok(sort)
             }
-            ExprRes::ConstGeneric(_) => Ok(rty::Sort::Int), // TODO: generalize generic-const sorts
-            ExprRes::NumConst(_) => Ok(rty::Sort::Int),
-            ExprRes::GlobalFunc(spec_func) => {
+            fhir::Res::Def(DefKind::ConstParam, _) => Ok(rty::Sort::Int),
+            fhir::Res::NumConst(_) => Ok(rty::Sort::Int),
+            fhir::Res::GlobalFunc(spec_func) => {
                 let fsort = match spec_func {
                     fhir::SpecFuncKind::Def(name) | fhir::SpecFuncKind::Uif(name) => {
                         self.genv.func_sort(name)
@@ -414,8 +417,9 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 };
                 Ok(rty::Sort::Func(fsort))
             }
-            ExprRes::Ctor(_) => {
-                span_bug!(path.span, "unexpected constructor in var position")
+            _ => {
+                // This should be caught during conv
+                span_bug!(path.span, "unexpected res `{:?}` in var position", path.res)
             }
         }
     }
@@ -474,6 +478,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             }
             fhir::BinOp::BitAnd
             | fhir::BinOp::BitOr
+            | fhir::BinOp::BitXor
             | fhir::BinOp::BitShl
             | fhir::BinOp::BitShr => {
                 let sort = rty::Sort::BitVec(self.next_bv_size_var());
@@ -862,7 +867,7 @@ impl<'genv> InferCtxt<'genv, '_> {
                 res.push(sort_arg);
             }
             if let fhir::ExprKind::App(callee, _) = node.kind
-                && matches!(callee.res, ExprRes::GlobalFunc(fhir::SpecFuncKind::Cast))
+                && matches!(callee.res, fhir::Res::GlobalFunc(fhir::SpecFuncKind::Cast))
             {
                 let [rty::SortArg::Sort(from), rty::SortArg::Sort(to)] = &res[..] else {
                     span_bug!(node.span, "invalid sort args!")

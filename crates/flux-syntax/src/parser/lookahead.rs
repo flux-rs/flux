@@ -6,9 +6,9 @@ use rustc_span::{Symbol, edition::Edition};
 
 use crate::{
     ParseCtxt, ParseError, ParseResult,
-    lexer::{Token, TokenKind},
     surface::BinOp,
     symbols,
+    token::{IdentIsRaw, Token, TokenKind},
 };
 
 /// See [`PeekExpected`]
@@ -64,7 +64,7 @@ pub(crate) struct NonReserved;
 impl Peek for NonReserved {
     fn matches(self, tok: TokenKind, edition: Edition) -> bool {
         match tok {
-            TokenKind::Ident(sym) => !symbols::is_reserved(sym, edition),
+            TokenKind::Ident(sym, IdentIsRaw::No) => !symbols::is_reserved(sym, edition),
             _ => false,
         }
     }
@@ -128,7 +128,7 @@ impl PeekExpected for LAngle {
 /// Use a [`Symbol`] to match a [`TokenKind::Ident`] equal to it.
 impl Peek for Symbol {
     fn matches(self, tok: TokenKind, _: Edition) -> bool {
-        matches!(tok, TokenKind::Ident(sym) if sym == self)
+        matches!(tok, TokenKind::Ident(sym, IdentIsRaw::No) if sym == self)
     }
 }
 impl PeekExpected for Symbol {
@@ -236,7 +236,8 @@ impl<'cx> ParseCtxt<'cx> {
             TokenKind::Gt => (BinOp::Gt, 1),
             TokenKind::Le => (BinOp::Le, 1),
             TokenKind::Ge => (BinOp::Ge, 1),
-            TokenKind::Caret => (BinOp::BitOr, 1),
+            TokenKind::Or => (BinOp::BitOr, 1),
+            TokenKind::Caret => (BinOp::BitXor, 1),
             TokenKind::And => (BinOp::BitAnd, 1),
             TokenKind::LtFollowedByLt => (BinOp::BitShl, 2),
             TokenKind::GtFollowedByGt => (BinOp::BitShr, 2),

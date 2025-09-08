@@ -1,5 +1,7 @@
 pub(crate) mod refinement_resolver;
 
+use std::collections::hash_map;
+
 use flux_common::{
     bug,
     result::{ErrorCollector, ResultExt},
@@ -19,6 +21,7 @@ use rustc_hash::FxHashMap;
 use rustc_hir::{
     self as hir, AmbigArg, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
     def::{
+        CtorOf,
         Namespace::{self, *},
         PerNS,
     },
@@ -47,10 +50,6 @@ fn try_resolve_crate(genv: GlobalEnv) -> Result<ResolverOutput> {
     resolver.into_output()
 }
 
-pub(crate) struct EnumVariants {
-    variants: FxHashMap<Symbol, DefId>,
-}
-
 pub(crate) struct CrateResolver<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     specs: &'genv Specs,
@@ -64,11 +63,34 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
     sort_decls: UnordMap<Symbol, fhir::SortDecl>,
     primop_props: UnordMap<Symbol, FluxDefId>,
-    enum_variants: FxHashMap<DefId, EnumVariants>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
     /// this module.
     current_module: OwnerId,
+}
+
+/// Map to keep track of names defined in a scope
+#[derive(Default)]
+struct DefinitionMap {
+    defined: FxHashMap<Ident, ()>,
+}
+
+impl DefinitionMap {
+    fn define(&mut self, name: Ident) -> std::result::Result<(), errors::DuplicateDefinition> {
+        match self.defined.entry(name) {
+            hash_map::Entry::Occupied(entry) => {
+                Err(errors::DuplicateDefinition {
+                    span: name.span,
+                    previous_definition: entry.key().span,
+                    name,
+                })
+            }
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(());
+                Ok(())
+            }
+        }
+    }
 }
 
 impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
@@ -89,15 +111,23 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             func_decls: Default::default(),
             primop_props: Default::default(),
             sort_decls: Default::default(),
-            enum_variants: Default::default(),
             current_module: CRATE_OWNER_ID,
         }
     }
 
     #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
     fn define_flux_global_items(&mut self) {
+        // Note that names are defined globally so we check for duplicates globally in the crate.
+        let mut definitions = DefinitionMap::default();
         for (parent, items) in &self.specs.flux_items_by_parent {
             for item in items {
+                // NOTE: This is putting all items in the same namespace. In principle, we could have
+                // qualifiers in a different namespace.
+                definitions
+                    .define(item.name())
+                    .emit(&self.genv)
+                    .collect_err(&mut self.err);
+
                 match item {
                     surface::FluxItem::Qualifier(qual) => {
                         let def_id = FluxLocalDefId::new(parent.def_id, qual.name.name);
@@ -161,8 +191,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         hir::UseKind::Glob => {
                             let is_prelude = is_prelude_import(self.genv.tcx(), item);
                             for mod_child in self.glob_imports(path) {
-                                if let Some(ns @ (TypeNS | ValueNS)) = mod_child.res.ns()
-                                    && let Ok(res) = fhir::Res::try_from(mod_child.res)
+                                if let Ok(res) = fhir::Res::try_from(mod_child.res)
+                                    && let Some(ns @ (TypeNS | ValueNS)) = res.ns()
                                 {
                                     let name = mod_child.ident.name;
                                     if is_prelude {
@@ -178,10 +208,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     continue;
                 }
                 ItemKind::TyAlias(..) => DefKind::TyAlias,
-                ItemKind::Enum(_, _, enum_def) => {
-                    self.define_enum_variants(&enum_def);
-                    DefKind::Enum
-                }
+                ItemKind::Enum(..) => DefKind::Enum,
                 ItemKind::Struct(..) => DefKind::Struct,
                 ItemKind::Trait(..) => DefKind::Trait,
                 ItemKind::Mod(..) => DefKind::Mod,
@@ -218,19 +245,6 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 rustc_hir::ForeignItemKind::Fn(..) | rustc_hir::ForeignItemKind::Static(..) => {}
             }
         }
-    }
-
-    fn define_enum_variants(&mut self, enum_def: &rustc_hir::EnumDef) {
-        let Some(v0) = enum_def.variants.first() else { return };
-        let enum_def_id = self.genv.tcx().parent(v0.def_id.to_def_id());
-
-        let mut variants = FxHashMap::default();
-        for variant in enum_def.variants {
-            let name = variant.ident.name;
-            variants.insert(name, variant.def_id.to_def_id());
-        }
-        self.enum_variants
-            .insert(enum_def_id, EnumVariants { variants });
     }
 
     fn define_res_in(&mut self, name: Symbol, res: fhir::Res, ns: Namespace) {
@@ -288,6 +302,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_trait(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let trait_ = &self.specs.traits[&owner_id.local_id()];
+
+        let mut definitions = DefinitionMap::default();
+        for assoc_reft in &trait_.assoc_refinements {
+            definitions
+                .define(assoc_reft.name)
+                .emit(&self.genv)
+                .collect_err(&mut self.err);
+        }
+
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_trait(trait_);
         })?;
@@ -296,6 +319,15 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_impl(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let impl_ = &self.specs.impls[&owner_id.local_id()];
+
+        let mut definitions = DefinitionMap::default();
+        for assoc_reft in &impl_.assoc_refinements {
+            definitions
+                .define(assoc_reft.name)
+                .emit(&self.genv)
+                .collect_err(&mut self.err);
+        }
+
         ItemResolver::run(self, owner_id, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
@@ -427,6 +459,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 fhir::Res::Def(DefKind::Trait, module_id) => {
                     module = Some(Module::new(ModuleKind::Trait, module_id));
                 }
+                fhir::Res::Def(DefKind::Enum, module_id) => {
+                    module = Some(Module::new(ModuleKind::Enum, module_id));
+                }
                 _ => {
                     return Some(fhir::PartialRes::with_unresolved_segments(
                         base_res,
@@ -460,14 +495,23 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     }
 
     fn glob_imports(
-        &self,
+        &mut self,
         path: &hir::UsePath,
     ) -> impl Iterator<Item = &'tcx ModChild> + use<'tcx> {
-        let res = path.segments.last().unwrap().res;
-
+        // The path for the prelude import is not resolved anymore after <https://github.com/rust-lang/rust/pull/145322>,
+        // so we resolve all paths here. If this ever causes problems, we could use the resolution in the `UsePath` for
+        // non-prelude glob imports.
         let tcx = self.genv.tcx();
         let curr_mod = self.current_module.to_def_id();
-        if let hir::def::Res::Def(DefKind::Mod, module_id) = res { Some(module_id) } else { None }
+        self.resolve_path_with_ribs(path.segments, TypeNS)
+            .and_then(|partial_res| partial_res.full_res())
+            .and_then(|res| {
+                if let fhir::Res::Def(DefKind::Mod, module_id) = res {
+                    Some(module_id)
+                } else {
+                    None
+                }
+            })
             .into_iter()
             .flat_map(move |module_id| visible_module_children(tcx, module_id, curr_mod))
     }
@@ -478,19 +522,38 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         ident: Ident,
         ns: Namespace,
     ) -> Option<fhir::Res> {
+        let tcx = self.genv.tcx();
         match module.kind {
             ModuleKind::Mod => {
                 let module_id = module.def_id;
-                visible_module_children(self.genv.tcx(), module_id, self.current_module.to_def_id())
-                    .find(|child| child.ident == ident)
+                let current_mod = self.current_module.to_def_id();
+                visible_module_children(tcx, module_id, current_mod)
+                    .find(|child| {
+                        child.res.matches_ns(ns) && tcx.hygienic_eq(ident, child.ident, current_mod)
+                    })
                     .and_then(|child| fhir::Res::try_from(child.res).ok())
             }
             ModuleKind::Trait => {
-                let tcx = self.genv.tcx();
                 let trait_id = module.def_id;
                 tcx.associated_items(trait_id)
                     .find_by_ident_and_namespace(tcx, ident, ns, trait_id)
                     .map(|assoc| fhir::Res::Def(assoc.kind.as_def_kind(), assoc.def_id))
+            }
+            ModuleKind::Enum => {
+                tcx.adt_def(module.def_id)
+                    .variants()
+                    .iter()
+                    .find(|data| data.name == ident.name)
+                    .and_then(|data| {
+                        let (kind, def_id) = match (ns, data.ctor) {
+                            (TypeNS, _) => (DefKind::Variant, data.def_id),
+                            (ValueNS, Some((ctor_kind, ctor_id))) => {
+                                (DefKind::Ctor(CtorOf::Variant, ctor_kind), ctor_id)
+                            }
+                            _ => return None,
+                        };
+                        Some(fhir::Res::Def(kind, def_id))
+                    })
             }
         }
     }
@@ -651,6 +714,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 }
 
 /// Akin to `rustc_resolve::Module` but specialized to what we support
+#[derive(Debug)]
 struct Module {
     kind: ModuleKind,
     def_id: DefId,
@@ -663,9 +727,11 @@ impl Module {
 }
 
 /// Akin to `rustc_resolve::ModuleKind` but specialized to what we support
+#[derive(Debug)]
 enum ModuleKind {
     Mod,
     Trait,
+    Enum,
 }
 
 #[derive(Debug)]
@@ -715,7 +781,8 @@ fn is_prelude_import(tcx: TyCtxt, item: &hir::Item) -> bool {
         .any(|attr| attr.path_matches(&[sym::prelude_import]))
 }
 
-/// Abstraction over [`surface::PathSegment`] and [`surface::ExprPathSegment`]
+/// Abstraction over a "segment" so we can use [`CrateResolver::resolve_path_with_ribs`] with paths
+/// from different sources  (e.g., [`surface::PathSegment`], [`surface::ExprPathSegment`])
 trait Segment: std::fmt::Debug {
     fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res);
     fn ident(&self) -> Ident;
@@ -747,6 +814,14 @@ impl Segment for Ident {
 
     fn ident(&self) -> Ident {
         *self
+    }
+}
+
+impl Segment for hir::PathSegment<'_> {
+    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+
+    fn ident(&self) -> Ident {
+        self.ident
     }
 }
 
@@ -947,7 +1022,7 @@ mod errors {
     use flux_macros::Diagnostic;
     use flux_syntax::surface;
     use itertools::Itertools;
-    use rustc_span::Span;
+    use rustc_span::{Ident, Span};
 
     #[derive(Diagnostic)]
     #[diag(desugar_unsupported_signature, code = E0999)]
@@ -1005,5 +1080,16 @@ mod errors {
         pub(super) fn new(span: Span) -> Self {
             Self { span }
         }
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(desugar_duplicate_definition, code = E0999)]
+    pub(super) struct DuplicateDefinition {
+        #[primary_span]
+        #[label]
+        pub span: Span,
+        #[label(desugar_previous_definition)]
+        pub previous_definition: Span,
+        pub name: Ident,
     }
 }

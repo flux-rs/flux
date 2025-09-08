@@ -704,19 +704,38 @@ pub enum ConstArgKind {
     Infer,
 }
 
+/// The resolution of a path
+///
+/// The enum contains a subset of the variants in [`rustc_hir::def::Res`] plus some extra variants
+/// for extra resolutions found in refinements.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
-pub enum Res {
+pub enum Res<Id = !> {
+    /// See [`rustc_hir::def::Res::Def`]
     Def(DefKind, DefId),
+    /// See [`rustc_hir::def::Res::PrimTy`]
     PrimTy(PrimTy),
-    SelfTyAlias { alias_to: DefId, is_trait_impl: bool },
-    SelfTyParam { trait_: DefId },
+    /// See [`rustc_hir::def::Res::SelfTyAlias`]
+    SelfTyAlias {
+        alias_to: DefId,
+        is_trait_impl: bool,
+    },
+    /// See [`rustc_hir::def::Res::SelfTyParam`]
+    SelfTyParam {
+        trait_: DefId,
+    },
+    /// A refinement parameter, e.g., declared with `@n` syntax
+    Param(ParamKind, Id),
+    /// A refinement function defined with `defs!`
+    GlobalFunc(SpecFuncKind),
+    /// A hack used to resolve `u32::MAX` ans similar.
+    NumConst(i128),
     Err,
 }
 
 /// See [`rustc_hir::def::PartialRes`]
 #[derive(Copy, Clone, Debug)]
 pub struct PartialRes {
-    base_res: Res,
+    base_res: Res<!>,
     unresolved_segments: usize,
 }
 
@@ -1007,7 +1026,7 @@ pub struct LetDecl<'fhir> {
 impl Expr<'_> {
     pub fn is_colon_param(&self) -> Option<ParamId> {
         if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
-            && let ExprRes::Param(kind, id) = path.res
+            && let Res::Param(kind, id) = path.res
         {
             debug_assert_eq!(kind, ParamKind::Colon);
             Some(id)
@@ -1031,42 +1050,10 @@ pub enum Lit {
     Char(char),
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum ExprRes<Id = ParamId> {
-    Param(ParamKind, Id),
-    Const(DefId),
-    /// The constructor of an [adt sort]
-    ///
-    /// [adt sort]: SortRes::Adt
-    Ctor(DefId),
-    Variant(DefId),
-    ConstGeneric(DefId),
-    NumConst(i128),
-    GlobalFunc(SpecFuncKind),
-}
-
-impl<Id> ExprRes<Id> {
-    pub fn map_param_id<R>(self, f: impl FnOnce(Id) -> R) -> ExprRes<R> {
-        match self {
-            ExprRes::Param(kind, param_id) => ExprRes::Param(kind, f(param_id)),
-            ExprRes::Const(def_id) => ExprRes::Const(def_id),
-            ExprRes::NumConst(val) => ExprRes::NumConst(val),
-            ExprRes::GlobalFunc(kind) => ExprRes::GlobalFunc(kind),
-            ExprRes::ConstGeneric(def_id) => ExprRes::ConstGeneric(def_id),
-            ExprRes::Ctor(def_id) => ExprRes::Ctor(def_id),
-            ExprRes::Variant(def_id) => ExprRes::Variant(def_id),
-        }
-    }
-
-    pub fn expect_param(self) -> (ParamKind, Id) {
-        if let ExprRes::Param(kind, id) = self { (kind, id) } else { bug!("expected param") }
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct PathExpr<'fhir> {
     pub segments: &'fhir [Ident],
-    pub res: ExprRes,
+    pub res: Res<ParamId>,
     pub fhir_id: FhirId,
     pub span: Span,
 }
@@ -1102,12 +1089,15 @@ impl<'fhir> Ty<'fhir> {
     }
 }
 
-impl Res {
+impl<Id> Res<Id> {
     pub fn descr(&self) -> &'static str {
         match self {
             Res::PrimTy(_) => "builtin type",
             Res::Def(kind, def_id) => kind.descr(*def_id),
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
+            Res::Param(..) => "refinement parameter",
+            Res::GlobalFunc(..) => "refinement function",
+            Res::NumConst(_) => "numeric constant",
             Res::Err => "unresolved item",
         }
     }
@@ -1127,6 +1117,7 @@ impl Res {
             Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
                 Some(Namespace::TypeNS)
             }
+            Res::Param(..) | Res::GlobalFunc(..) | Res::NumConst(..) => Some(Namespace::ValueNS),
             Res::Err => None,
         }
     }
@@ -1135,12 +1126,31 @@ impl Res {
     pub fn matches_ns(&self, ns: Namespace) -> bool {
         self.ns().is_none_or(|actual_ns| actual_ns == ns)
     }
+
+    pub fn map_param_id<R>(self, f: impl FnOnce(Id) -> R) -> Res<R> {
+        match self {
+            Res::Param(kind, param_id) => Res::Param(kind, f(param_id)),
+            Res::Def(def_kind, def_id) => Res::Def(def_kind, def_id),
+            Res::PrimTy(prim_ty) => Res::PrimTy(prim_ty),
+            Res::SelfTyAlias { alias_to, is_trait_impl } => {
+                Res::SelfTyAlias { alias_to, is_trait_impl }
+            }
+            Res::SelfTyParam { trait_ } => Res::SelfTyParam { trait_ },
+            Res::GlobalFunc(spec_func_kind) => Res::GlobalFunc(spec_func_kind),
+            Res::NumConst(val) => Res::NumConst(val),
+            Res::Err => Res::Err,
+        }
+    }
+
+    pub fn expect_param(self) -> (ParamKind, Id) {
+        if let Res::Param(kind, id) = self { (kind, id) } else { bug!("expected param") }
+    }
 }
 
-impl<Id> TryFrom<rustc_hir::def::Res<Id>> for Res {
+impl<Id1, Id2> TryFrom<rustc_hir::def::Res<Id1>> for Res<Id2> {
     type Error = ();
 
-    fn try_from(res: rustc_hir::def::Res<Id>) -> Result<Self, Self::Error> {
+    fn try_from(res: rustc_hir::def::Res<Id1>) -> Result<Self, Self::Error> {
         match res {
             rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
             rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),

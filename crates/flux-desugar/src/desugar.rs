@@ -14,7 +14,7 @@ use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
     def_id::{FluxLocalDefId, MaybeExternId},
-    fhir::{self, ExprRes, FhirId, FluxOwnerId, Res},
+    fhir::{self, FhirId, FluxOwnerId, ParamId, Res},
     global_env::GlobalEnv,
     try_alloc_slice,
 };
@@ -691,7 +691,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 let (id, kind) = self.resolve_implicit_param(*node_id).unwrap();
                 let path = fhir::PathExpr {
                     segments: self.genv.alloc_slice(&[*loc]),
-                    res: ExprRes::Param(kind, id),
+                    res: Res::Param(kind, id),
                     fhir_id: self.next_fhir_id(),
                     span: loc.span,
                 };
@@ -979,9 +979,9 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     }
 
     #[track_caller]
-    fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<ExprRes> {
+    fn desugar_loc(&self, ident: surface::Ident, node_id: NodeId) -> Result<Res<ParamId>> {
         let res = self.resolver_output().expr_path_res_map[&node_id];
-        if let ExprRes::Param(fhir::ParamKind::Loc, _) = res {
+        if let Res::Param(fhir::ParamKind::Loc, _) = res {
             Ok(res)
         } else {
             let span = ident.span;
@@ -1163,7 +1163,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     fn desugar_const_path_to_const_arg(
         &mut self,
         path: &surface::Path,
-        res: fhir::Res,
+        res: fhir::Res<!>,
     ) -> fhir::GenericArg<'genv> {
         let kind = if let Res::Def(DefKind::ConstParam, def_id) = res {
             fhir::ConstArgKind::Param(def_id)
@@ -1209,7 +1209,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 };
                 let path = fhir::PathExpr {
                     segments: self.genv().alloc_slice(&[*bind]),
-                    res: ExprRes::Param(kind, id),
+                    res: Res::Param(kind, id),
                     fhir_id: self.next_fhir_id(),
                     span: bind.span,
                 };
@@ -1426,7 +1426,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let (id, kind) = self.resolve_implicit_param(node_id)?;
         let path = fhir::PathExpr {
             segments: self.genv().alloc_slice(&[ident]),
-            res: ExprRes::Param(kind, id),
+            res: Res::Param(kind, id),
             fhir_id: self.next_fhir_id(),
             span: ident.span,
         };
@@ -1533,7 +1533,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     ) -> fhir::ExprKind<'genv> {
         let path = if let Some(path) = path {
             let res = self.resolver_output().expr_path_res_map[&path.node_id];
-            if !matches!(res, ExprRes::Ctor(..)) {
+            if !matches!(res, Res::Def(DefKind::Struct | DefKind::Enum, _)) {
                 return fhir::ExprKind::Err(
                     self.emit(errors::InvalidConstructorPath { span: path.span }),
                 );

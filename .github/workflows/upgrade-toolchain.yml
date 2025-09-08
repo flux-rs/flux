@@ -1,7 +1,7 @@
+# Try to update the toolchain by gradually incrementing it. Stops when reaching a day that fails
+# regression tests or when reaching the end toolchain.
+
 name: upgrade-toolchain
-description:
-  Try to update the toolchain by gradual increments. Stops when reaching a day that fails regression
-  tests or when reaching the end toolchain.
 
 on:
   workflow_dispatch:
@@ -16,6 +16,9 @@ on:
         description: "Number of days to increment per iteration (default: 1)"
         required: false
         type: number
+
+concurrency:
+  group: ${{ github.workflow }}
 
 jobs:
   upgrade:
@@ -41,7 +44,6 @@ jobs:
       - name: Cherry pick changes from open PR
         run: |
           set -eu
-
           cd flux
           existing_pr=$(gh pr list --base main --head toolchain-upgrade --state open --json number --jq '.[0].number' || true)
           if [ -n "$existing_pr" ]; then
@@ -60,26 +62,16 @@ jobs:
           path: tock
 
       - name: Checkout rust
-        uses: actions/checkout@v4
-        with:
-          repository: rust-lang/rust
-          path: rust
-          filter: tree:0
+        run: |
+          git clone --filter=tree:0 https://github.com/rust-lang/rust rust
 
       - name: Install Z3
-        uses: cda-tum/setup-z3@v1.6.1
+        uses: cda-tum/setup-z3@v1.6.6
         with:
-          version: 4.12.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version: 4.15.3
 
       - name: Install Fixpoint
         uses: ./flux/.github/actions/install-fixpoint
-
-      - name: Install CVC5
-        uses: ./flux/.github/actions/install-cvc5
-        with:
-          version: 1.2.1
 
       - name: Run update loop
         id: update-loop
@@ -108,7 +100,8 @@ jobs:
           draft: true
           delete-branch: true
           title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
-          body: Update Rust toolchain to nightly-${{ env.last_toolchain }}
+          body: |
+            This is an automated PR to update the Rust toolchain to nightly-${{ env.last_toolchain }}
 
       - name: Get git log for failure
         if: steps.update-loop.outcome == 'failure'
@@ -135,8 +128,10 @@ jobs:
           delete-branch: true
           title: "Toolchain upgrade to nightly-${{ env.last_toolchain }}"
           body: |
-            Update Rust toolchain to nightly-${{ env.last_toolchain }}
-            Update failed when going from nightly-${{ env.prev_toolchain}} to nightly-${{ env.last_toolchain }}
+            This is an automated PR to update the Rust toolchain to nightly-${{ env.last_toolchain }}
+
+            Update failed when going from nightly-${{ env.prev_toolchain}} to nightly-${{ env.last_toolchain }}.
+            The failed automated run [can be found here.](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
             Please review the changes from https://github.com/rust-lang/rust/commit/${{ env.prev_toolchain_hash }} up to https://github.com/rust-lang/rust/commit/${{ env.last_toolchain_hash }}
             <details>
