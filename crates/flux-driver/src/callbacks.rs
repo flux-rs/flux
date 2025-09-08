@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use flux_common::{bug, cache::QueryCache, dbg, iter::IterExt, result::ResultExt};
+use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
@@ -315,17 +315,6 @@ fn mir_borrowck<'tcx>(
         ConsumerOptions::RegionInferenceContext,
     );
     for (def_id, body_with_facts) in bodies_with_facts {
-        if config::dump_mir() {
-            rustc_middle::mir::pretty::write_mir_fn(
-                tcx,
-                &body_with_facts.body,
-                &mut |_, _| Ok(()),
-                &mut dbg::writer_for_item(tcx, def_id.to_def_id(), "mir").unwrap(),
-                rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
-            )
-            .unwrap();
-        }
-
         // SAFETY: This is safe because we are feeding in the same `tcx` that is
         // going to be used as a witness when pulling out the data.
         unsafe {

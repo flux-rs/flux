@@ -3,10 +3,9 @@
 mod fold_unfold;
 mod points_to;
 
-use std::{fmt, io, iter};
+use std::{fmt, iter};
 
-use flux_common::{bug, dbg};
-use flux_config as config;
+use flux_common::bug;
 use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
 use flux_rustc_bridge::{
     lowering,
@@ -80,11 +79,8 @@ impl GhostStatements {
             points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             stmts.add_unblocks(genv.tcx(), &body);
 
-            if config::dump_mir() {
-                let mut writer =
-                    dbg::writer_for_item(genv.tcx(), def_id.to_def_id(), "ghost.mir").unwrap();
-                stmts.write_mir(genv.tcx(), &body, &mut writer).unwrap();
-            }
+            stmts.dump_ghost_mir(genv.tcx(), &body);
+
             Ok(stmts)
         })
     }
@@ -143,48 +139,41 @@ impl GhostStatements {
         }
     }
 
-    pub(crate) fn write_mir<'tcx, W: io::Write>(
-        &self,
-        tcx: TyCtxt<'tcx>,
-        body: &Body<'tcx>,
-        w: &mut W,
-    ) -> io::Result<()> {
-        use rustc_middle::mir::PassWhere;
-        rustc_middle::mir::pretty::write_mir_fn(
-            tcx,
-            body.inner(),
-            &mut |pass, w| {
-                match pass {
-                    PassWhere::BeforeBlock(bb) if bb == START_BLOCK => {
-                        for stmt in &self.at_start {
-                            writeln!(w, "    {stmt:?};")?;
-                        }
-                    }
-                    PassWhere::BeforeLocation(location) => {
-                        for stmt in self.statements_at(Point::BeforeLocation(location)) {
-                            writeln!(w, "        {stmt:?};")?;
-                        }
-                    }
-                    PassWhere::AfterTerminator(bb) => {
-                        if let Some(map) = self.at_edge.get(&bb) {
-                            writeln!(w)?;
-                            for (target, stmts) in map {
-                                write!(w, "        -> {target:?} {{")?;
-                                for stmt in stmts {
-                                    write!(w, "\n            {stmt:?};")?;
-                                }
-                                write!(w, "\n        }}")?;
+    pub(crate) fn dump_ghost_mir<'tcx>(&self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
+        use rustc_middle::mir::{PassWhere, pretty::MirDumper};
+        if let Some(dumper) = MirDumper::new(tcx, "ghost", body.inner()) {
+            dumper
+                .set_extra_data(&mut |pass, w| {
+                    match pass {
+                        PassWhere::BeforeBlock(bb) if bb == START_BLOCK => {
+                            for stmt in &self.at_start {
+                                writeln!(w, "    {stmt:?};")?;
                             }
-                            writeln!(w)?;
                         }
+                        PassWhere::BeforeLocation(location) => {
+                            for stmt in self.statements_at(Point::BeforeLocation(location)) {
+                                writeln!(w, "        {stmt:?};")?;
+                            }
+                        }
+                        PassWhere::AfterTerminator(bb) => {
+                            if let Some(map) = self.at_edge.get(&bb) {
+                                writeln!(w)?;
+                                for (target, stmts) in map {
+                                    write!(w, "        -> {target:?} {{")?;
+                                    for stmt in stmts {
+                                        write!(w, "\n            {stmt:?};")?;
+                                    }
+                                    write!(w, "\n        }}")?;
+                                }
+                                writeln!(w)?;
+                            }
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                }
-                Ok(())
-            },
-            w,
-            rustc_middle::mir::pretty::PrettyPrintMirOptions::from_cli(tcx),
-        )
+                    Ok(())
+                })
+                .dump_mir(body.inner());
+        }
     }
 }
 
