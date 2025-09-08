@@ -2782,7 +2782,40 @@ pub fn test(x: &amp;i32) -&gt; &amp;[i32] {
     from_ref(x)
 }</code></pre>
 <h3 id="options"><a class="header" href="#options">Options</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/option.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_attrs::*;
+
+#[extern_spec]
+#[refined_by(is_some: bool)]
+enum Option&lt;T&gt; {
+    #[variant(Option&lt;T&gt;[false])]
+    None,
+    #[variant((T) -&gt; Option&lt;T&gt;[true])]
+    Some(T),
+}
+
+#[extern_spec]
+impl&lt;T&gt; Option&lt;T&gt; {
+    #[sig(fn(&amp;Self[@b]) -&gt; bool[b])]
+    const fn is_some(&amp;self) -&gt; bool;
+
+    #[sig(fn(&amp;Self[@b]) -&gt; bool[!b])]
+    const fn is_none(&amp;self) -&gt; bool;
+
+    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    const fn unwrap(self) -&gt; T;
+
+    #[sig(fn(&amp;Self[@b]) -&gt; Option&lt;&amp;T&gt;[b])]
+    fn as_ref(&amp;self) -&gt; Option&lt;&amp;T&gt;;
+
+    #[sig(fn(&amp;mut Self[@b]) -&gt; Option&lt;&amp;mut T&gt;[b])]
+    fn as_mut(&amp;mut self) -&gt; Option&lt;&amp;mut T&gt;;
+
+    #[sig(fn(&amp;Self[@b]) -&gt; &amp;[T][if b { 1 } else { 0 }])]
+    fn as_slice(&amp;self) -&gt; &amp;[T];
+
+    #[sig(fn(&amp;mut Self[@b]) -&gt; &amp;mut [T][if b { 1 } else { 0 }])]
+    fn as_mut_slice(&amp;mut self) -&gt; &amp;mut [T];
+}</code></pre>
 <pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*};
 
 extern crate flux_core;
@@ -2837,7 +2870,65 @@ pub fn test_safe_div() {
     assert(res == 21);
 }</code></pre>
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/option.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use std::{
+    alloc::{Allocator, Global},
+    ops::{Index, IndexMut},
+    slice::SliceIndex,
+};
+
+use flux_attrs::*;
+
+//---------------------------------------------------------------------------------------
+#[extern_spec]
+#[refined_by(len: int)]
+#[invariant(0 &lt;= len)]
+struct Vec&lt;T, A: Allocator = Global&gt;;
+
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;T&gt; Vec&lt;T&gt; {
+    #[flux::sig(fn() -&gt; Vec&lt;T&gt;[0])]
+    fn new() -&gt; Vec&lt;T&gt;;
+}
+
+#[extern_spec]
+impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
+
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
+    fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
+
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
+}
+
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
+    #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
+    fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
+}
+
+#[extern_spec]
+#[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
 <pre><code class="language-rust noplayground">use flux_rs::extern_spec;
@@ -3336,7 +3427,10 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
 impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/iter.rs}}</code></pre>
+<pre><code class="language-rust noplayground">mod adapters;
+#[cfg(flux)]
+mod range;
+mod traits;</code></pre>
 <pre><code class="language-rust noplayground">#![allow(unused)]
 #![feature(allocator_api)]
 
@@ -3659,7 +3753,21 @@ pub fn test_digit(x: char) {
 <p>Sometimes you may want to write specs for functions etc. but not <em>directly</em> attached to the function
 i.e. as an attribute of the function, for example, because you don't want to modify the original source file.</p>
 <p>You can do this using the "detached" <code>spec</code> as illustrated by the following</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/detached00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::specs {
+
+   fn inc(n:i32) -&gt; i32{v: n &lt; v};
+
+   fn id(n:i32) -&gt; i32[n];
+
+}]
+
+pub fn inc(n: i32) -&gt; i32 {
+    n - 1 //~ ERROR refinement type
+}
+
+pub fn id(n: i32) -&gt; i32 {
+    n
+}</code></pre>
 <h2 id="include-patterns"><a class="header" href="#include-patterns">Include Patterns</a></h2>
 <p>You can include patterns to restrict <code>flux</code> to only check a subset of a codebase.
 A <code>def_id</code> is checked if it matches any of the patterns.</p>
@@ -3674,7 +3782,7 @@ A <code>def_id</code> is checked if it matches any of the patterns.</p>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../tutorial/07-externs.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../tutorial/08-traits.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
@@ -3688,7 +3796,7 @@ A <code>def_id</code> is checked if it matches any of the patterns.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../tutorial/07-externs.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../tutorial/08-traits.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 

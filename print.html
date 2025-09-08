@@ -2253,6 +2253,399 @@ the actual code for the library is not available to verify; if
 it was, you could of course actually <em>guarantee</em> that the library
 correctly implements those specifications. <a href="#fr-assumption-1">↩</a></p>
 </li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="traits-and-associated-refinements"><a class="header" href="#traits-and-associated-refinements">Traits and Associated Refinements</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable">#![allow(unused)]
+extern crate flux_rs;
+extern crate flux_core;
+extern crate flux_alloc;
+use flux_rs::{attrs::*, extern_spec};
+use std::ops::Range;</code></pre></pre>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">#[spec(fn (bool[true]))]
+fn assert(b: bool) {
+    if !b {
+        panic!("assertion failed");
+    }
+}</code></pre></pre>
+<p>One of Rust's most appealing features is its <strong>trait</strong> system which lets us decouple
+<strong>descriptions</strong> of particular operations that a type should support, from their actual
+<strong>implementations</strong>, to enable <em>generic</em> code that works across all implementations of
+an interface.</p>
+<p>Traits are ubiquitous in Rust code. For example,</p>
+<ul>
+<li>
+<p>an <em>addition</em> <code>x + y</code> is internally represented as <code>x.add(y)</code>
+where <code>x</code> and <code>y</code> can be values that implement the <code>Add</code> trait,
+allowing for a uniform way to write <code>+</code> that works across
+all compatible types;</p>
+</li>
+<li>
+<p>an <em>indexing</em> operation <code>x[i]</code> is internally represented as <code>x.index(i)</code>
+where <code>x</code> can be any value that implements the <code>Index</code> trait, and <code>i</code>
+a compatible "key", which allows for a standard way to lookup
+containers at a particular value;</p>
+</li>
+<li>
+<p>an <em>iteration</em> <code>for x in e { ... }</code> becomes <code>while let Some(x) = e.next() { ... }</code>,
+where the <code>e</code> can be any value that implements the <code>Iterator</code> trait,
+allowing for an elegant and uniform way to iterate over different kinds
+of ranges and collections.</p>
+</li>
+</ul>
+<p>In this chapter, lets learn how traits pose some interesting
+puzzles for formal verification, and how Flux resolves these
+challenges with <strong>associated refinements</strong>.</p>
+<h2 id="first-things-first"><a class="header" href="#first-things-first">First things First</a></h2>
+<p>To limber up before we get to traits, lets
+write a function to return (a reference to)
+the first element of a slice.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn get_first_slice&lt;A&gt;(container: &amp;[A]) -&gt; &amp;A
+{
+    &amp;container[0]
+}</code></pre></pre>
+<p>The method <code>get_first_slice</code> works just
+fine if you call it on <em>non-empty</em> slices,
+but will panic at run-time if you try it on
+an empty one</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_first_slice() {
+    let s0: &amp;[i32] = &amp;[10, 20, 30];
+    let v0 = get_first_slice(s0);
+    println!("get_first_slice {s0:?} ==&gt; {v0}");
+
+    let s1: &amp;[char] = &amp;['a', 'b', 'c'];
+    let v1 = get_first_slice(s1);
+    println!("get_first_slice {s1:?} ==&gt; {v1}");
+
+    let s2: &amp;[bool] = &amp;[];
+    let v2 = get_first_slice(s2);
+    println!("get_first_slice {s2:?} ==&gt; {v2}");
+}</code></pre></pre>
+<h3 id="catching-panics-at-compile-time"><a class="header" href="#catching-panics-at-compile-time">Catching Panics at Compile Time</a></h3>
+<p>You might recall from <a href="tutorial/06-consts.html#refined-compile-time-safety">this previous chapter</a>
+that Flux tracks the sizes of arrays and slices.</p>
+<p>If you click the check button, you will see that flux
+disapproves of <code>get_first_slice</code></p>
+<pre><code>error[E0999]: assertion might fail: possible out of bounds access
+
+   |
+13 |    &amp;container[0];
+   |    ^^^^^^^^^^^^
+</code></pre>
+<h3 id="specifying-non-empty-slices"><a class="header" href="#specifying-non-empty-slices">Specifying Non-Empty Slices</a></h3>
+<p><strong>EXERCISE</strong> Can you go back and add a flux <code>spec</code> for <code>get_first_slice</code> that says that the function
+should  <em>only</em> be called with <em>non-empty</em> slices? The spec should look something like the below, except
+the <code>...</code> should be a constraint over <code>size</code>.</p>
+<pre><code>#[spec(fn (container: &amp;[A]{size: ...}) -&gt; &amp;A)]
+</code></pre>
+<p>When you are done, you should see no warnings in <code>get_first_slice</code> but you will get an error in
+<code>test_first_slice</code>, precisely at the location where we call it with an empty slice, which you
+can fix by commenting out or removing the last call...</p>
+<h2 id="a-trait-to-index-values"><a class="header" href="#a-trait-to-index-values">A Trait to <code>Index</code> Values</a></h2>
+<p>Next, lets write our own little trait to index different kinds of containers <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">pub trait IndexV1&lt;Idx&gt; {
+    type Output:?Sized;
+
+    fn index(&amp;self, index: Idx) -&gt; &amp;Self::Output;
+}</code></pre></pre>
+<p>The above snippet defines a <code>trait</code> called <code>IndexV1</code> that is parameterized by <code>Idx</code>: the
+type used as the actual index. To <em>implement</em> the trait, we must specify</p>
+<ol>
+<li>The <code>Self</code> type for the container itself (e.g. a slice, a vector, hash-map, a string, <em>etc.</em>),</li>
+<li>The <code>Idx</code> type used as the index (e.g. a <code>usize</code> or <code>String</code> key, or <code>Range&lt;usize&gt;</code>, <em>etc</em>), and</li>
+<li>The <code>Output</code>: an <em>associated type</em> that describes what the <code>index</code> method returns, and finally,</li>
+<li>The <code>index</code> method itself, which takes a reference to <code>self</code> and an <code>index</code> of type <code>Idx</code>, and returns a reference to the <code>Output</code>.</li>
+</ol>
+<h3 id="a-generic-reusable-get_firstv1"><a class="header" href="#a-generic-reusable-get_firstv1">A Generic, Reusable <code>get_firstV1</code></a></h3>
+<p>We can now write functions that work over <em>any</em> type that implements the <code>Index</code> trait.
+For instance, we can generalize the <code>get_first_slice</code> method, which only worked on slices,
+to the <code>get_firstV1</code> method will let use borrow the <code>0</code>th element of <em>any</em> <code>container</code> that
+implements <code>Index&lt;usize&gt;</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn get_firstV1&lt;A, T&gt;(container: &amp;T) -&gt; &amp;A
+  where
+    T: ?Sized + IndexV1&lt;usize, Output = A&gt;
+{
+    container.index(0)
+}</code></pre></pre>
+<h3 id="indexing-slices-with-usize"><a class="header" href="#indexing-slices-with-usize">Indexing Slices with <code>usize</code></a></h3>
+<p>To use the <code>trait</code>, we must actually <em>implement</em> it for particular types of interest.</p>
+<p>Lets implement a method to <code>index</code> a slice by a <code>usize</code> value:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl &lt;A&gt; IndexV1&lt;usize&gt; for [A] {
+
+    type Output = A;
+
+    fn index(&amp;self, index: usize) -&gt; &amp;Self::Output {
+        &amp;self[index]
+    }
+}</code></pre></pre>
+<p>The above code describes an implementation where the</p>
+<ul>
+<li><code>Self</code> type of the <em>container</em> is a slice <code>[A]</code>;</li>
+<li><code>Idx</code> type of the <em>index</em> is <code>usize</code>;</li>
+<li><code>Output</code> returned by <code>index()</code> is a (reference to) <code>A</code>; and</li>
+<li><code>index()</code> is just a wrapper around the standard library's implementation.</li>
+</ul>
+<p>Lets ignore the <code>#[trusted]</code> for now: it just tells flux to accept this code
+without protesting about <code>self[index]</code> triggering an out-of-bounds error.</p>
+<h3 id="testing-get_firstv1"><a class="header" href="#testing-get_firstv1">Testing <code>get_firstV1</code></a></h3>
+<p>Sweet! Now that we have a concrete implementation for <code>Index</code>
+we should be able to <em>test</em> it</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_firstV1() {
+    let s0: &amp;[i32] = &amp;[10, 20, 30];
+    let v0 = get_firstV1(s0);
+    println!("get_firstV1 {s0:?} ==&gt; {v0}");
+
+    let s1: &amp;[char] = &amp;['a', 'b', 'c'];
+    let v1 = get_firstV1(s1);
+    println!("get_firstV1 {s1:?} ==&gt; {v1}");
+
+    let s2: &amp;[bool] = &amp;[];
+    let v2 = get_firstV1(s2);
+    println!("get_firstV1 {s2:?} ==&gt; {v2}");
+}</code></pre></pre>
+<p>Click the run button. Huh?! No warnings??</p>
+<p>Of course, the last one <em>will</em> panic.</p>
+<p>But why didn't flux <em>warn</em> us about it, like it did with <code>test_first_slice</code>.</p>
+<h3 id="yikes-get_firstv1-is-unsafe"><a class="header" href="#yikes-get_firstv1-is-unsafe">Yikes <code>get_firstV1</code> is unsafe!</a></h3>
+<p>When we <em>directly</em> access a slice as in <code>get_first_slice</code>,
+or <code>test_first_slice</code>, flux complains about the potential,
+in this case, <em>certain</em>, out of bounds access.</p>
+<p>But the <em>indirection</em> through <code>get_firstV1</code> (and <code>index</code>) has
+has laundered the out of bounds access, tricking
+flux into unsoundly missing the run-time error!</p>
+<p>We're in a bit of a pickle.</p>
+<p>The <code>Index</code> trait <em>giveth</em> the ability to write <em>generic</em>
+code like <code>get_firstV1</code>, but apparently <em>taketh away</em> the
+ability to <em>catch panics</em> at compile-time.</p>
+<p>Surely, there is a way to use traits without giving up
+on compile-time verification...</p>
+<h3 id="the-challenge-how-to-specify-safe-indexing-generically"><a class="header" href="#the-challenge-how-to-specify-safe-indexing-generically">The Challenge: How to Specify <em>Safe</em> Indexing, Generically</a></h3>
+<p>Clearly we <em>should not</em> call <code>get_firstV1</code> with empty slices.</p>
+<p>The method <code>get_firstV1</code> wants to access the <code>0</code>-th element
+of the container, and will crash at run-time if the <code>0</code>th element
+does not exist, as is the case with an empty slice.</p>
+<p>But the puzzle is this: how do we specify
+<strong>"the <code>0</code>-th element exists"</strong> for <em>any</em>
+generic <code>container</code> that implements <code>Index</code>?</p>
+<h2 id="associated-refinements"><a class="header" href="#associated-refinements">Associated Refinements</a></h2>
+<p>Flux's solution to this puzzle is to borrow a page from Rust's own playbook.</p>
+<p>Lets revisit the definition of the <code>Index</code> trait:</p>
+<pre><code>pub trait IndexV1&lt;Idx&gt; {
+    type Output:?Sized;
+    fn index(&amp;self, index: Idx) -&gt; &amp;Self::Output;
+}
+</code></pre>
+<p>In the above, <code>Output</code> is an <strong>associated type</strong> for the <code>Index</code> trait that
+specifies what the <code>index</code> method returns. For instance, in our implementation
+of <code>Index&lt;usize&gt;</code> for slices <code>[A]</code>, the <code>Output</code> is <code>A</code>.
+Inspired this idea, Flux extends traits with the ability to specify
+<strong>associated refinements</strong> that can <em>describe</em> the values accepted
+and returned by the trait's methods.</p>
+<h3 id="valid-indexes"><a class="header" href="#valid-indexes">Valid Indexes</a></h3>
+<p>Thus, we can extend the trait with an associated refinement
+that specifies when an index is <code>valid</code> for a container.
+Lets do so by defining the <code>Index</code> trait as:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reft(fn valid(me: Self, index: Idx) -&gt; bool)]
+pub trait Index&lt;Idx:?Sized&gt; {
+    type Output:?Sized;
+
+    #[spec(fn(&amp;Self[@me], idx:Idx{&lt;Self as Index&lt;Idx&gt;&gt;::valid(me, idx)}) -&gt; &amp;Self::Output)]
+    fn index(&amp;self, idx: Idx) -&gt; &amp;Self::Output;
+}</code></pre></pre>
+<p>There are <em>two</em> new things in our new version of <code>Index</code>.</p>
+<p><strong>1. Declaration</strong>
+First, the <code>reft</code> attribute declares<sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup> the <em>associated refinement</em>:
+a refinement level function named <code>valid</code>, that</p>
+<ul>
+<li><em>takes</em> as inputs, the <code>Self</code> type of the container and the <code>Idx</code> type of the index, and</li>
+<li><em>returns</em> a <code>bool</code> which indicates if the <code>index</code> is valid for the container.</li>
+</ul>
+<p><strong>2. Use</strong>
+Next, the <code>spec</code> attribute refines the <code>index</code> method to say that it should only be
+passed an <code>idx</code> that is <em>valid</em> for the <code>me</code> container, where <code>valid</code> is the associated
+refinement declared above. The notation <code>&lt;Self as Index&lt;Idx&gt;&gt;::valid(me, idx)</code> is a
+(sadly, verbose!) way to refer to the <code>valid</code> function associated with the particular
+implementation of the <code>Index</code> trait for the <code>Self</code> type.</p>
+<h3 id="a-safe-and-generic-reusable-get_first"><a class="header" href="#a-safe-and-generic-reusable-get_first">A Safe (and Generic, Reusable) <code>get_first</code></a></h3>
+<p>We can now write functions that work over <em>any</em> type that implements the <code>Index</code> trait,
+but where flux will guarantee that <code>index</code> is safe to call. For example, lets revisit
+the <code>get_first</code> method that returns the 0th element of a container.</p>
+<pre><pre class="playground"><code class="language-rust  editable">// #[spec(fn (&amp;T{container:&lt;T as Index&lt;usize&gt;&gt;::valid(container, 0)}) -&gt; &amp;A)]
+fn get_first&lt;A, T&gt;(container: &amp;T) -&gt; &amp;A
+  where T: ?Sized + Index&lt;usize, Output = A&gt;
+{
+    container.index(0)
+}</code></pre></pre>
+<p>Aha, now flux complains that the above is <em>unsafe</em> because we don't know that <code>container</code>
+is <em>actually</em> <code>valid</code> for the index <code>0</code>. To make it safe, we must add (uncomment!) the
+flux specification in the line above. This spec says that <code>get_first</code> can only be called
+with a <code>container</code> that is <code>valid</code> for the index <code>0</code>.</p>
+<h3 id="indexing-slices-with-usize-1"><a class="header" href="#indexing-slices-with-usize-1">Indexing Slices with <code>usize</code></a></h3>
+<p>Lets now revisit that implementation of for slices using <code>usize</code> indexes.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(size: int, index: int) -&gt; bool { index &lt; size })]
+impl &lt;A&gt; Index&lt;usize&gt; for [A] {
+
+    type Output = A;
+
+    #[spec(fn(&amp;Self[@me], idx:usize{&lt;[A] as Index&lt;usize&gt;&gt;::valid(me, idx)}) -&gt; &amp;Self::Output)]
+    fn index(&amp;self, index: usize) -&gt; &amp;Self::Output {
+        &amp;self[index]
+    }
+}</code></pre></pre>
+<p>As with the trait definition, there are two new things in our implementation of <code>Index</code> for slices.</p>
+<p><strong>1. Implementation</strong>
+First, we provide a concrete implementation of the <em>associated refinement</em> <code>valid</code>.
+Recall that in flux, slices <code>[A]</code> are <a href="tutorial/./06-consts.html#refined-compile-time-safety">represented by their size</a> at the refinement level.
+Hence, the implementation of <code>valid</code> takes as parameters the <code>size</code>
+of the slice and the <code>index</code>, and returns <code>true</code> exactly if
+the <code>index</code> is less than the <code>size</code>.</p>
+<p><strong>2. Use</strong>
+As with the trait method, the actual implementation of the <code>index</code>
+method has been refined to say that it should only be passed an
+<code>idx</code> that is <em>valid</em> for <code>me</code> at the specified <code>idx</code>.<sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup></p>
+<h3 id="testing-get_first"><a class="header" href="#testing-get_first">Testing <code>get_first</code></a></h3>
+<p>Now, lets revisit our clients for <code>get_first</code> using the new <code>Index</code> trait.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_first() {
+    let s0: &amp;[i32] = &amp;[10, 20, 30];
+    let v0 = get_first(s0);
+    println!("get_first {s0:?} ==&gt; {v0}");
+
+    let s1: &amp;[char] = &amp;['a', 'b', 'c'];
+    let v1 = get_first(s1);
+    println!("get_first {s1:?} ==&gt; {v1}");
+
+    let s2: &amp;[bool] = &amp;[];
+    let v2 = get_first(s2);
+    println!("get_first {s2:?} ==&gt; {v2}");
+}</code></pre></pre>
+<p><em>Hooray!</em> Now, when you click the check button, flux will complain about the
+last call to <code>get_first</code> because the slice <code>s2</code> is <em>not</em> <code>valid</code> for the index <code>0</code>!
+To do so, flux <em>specialized</em> the specification of <code>get_first</code> (which required
+<code>container</code> to be <code>valid</code> for <code>0</code>) with the actual <em>definition</em> of <code>valid</code> for
+slices (which requires that <code>0 &lt; size</code>) and the actual <code>size</code> for <code>s2</code> (which is <code>0</code>).
+As <code>0 &lt; 0</code> is false, flux rejects the code at compile time.</p>
+<h2 id="indexing-strings-with-ranges"><a class="header" href="#indexing-strings-with-ranges">Indexing Strings with Ranges</a></h2>
+<p>The whole point of the <code>Index</code> trait is be able to <code>index</code> <em>different kinds</em> of
+containers. Lets see how to implement <code>Index</code> for <code>str</code> using <code>Range&lt;usize&gt;</code> indexes,
+which return sub-slices of the string.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: str, index: Range) -&gt; bool {
+    index.start &lt;= index.end &amp;&amp; index.end &lt;= str_len(me)
+})]
+impl Index&lt;Range&lt;usize&gt;&gt; for str  {
+
+    type Output = str;
+
+    #[spec(fn(&amp;Self[@me], idx:Range&lt;usize&gt;{&lt;str as Index&lt;Range&lt;usize&gt;&gt;&gt;::valid(me, idx)}) -&gt; &amp;Self::Output)]
+    fn index(&amp;self, idx: Range&lt;usize&gt;) -&gt; &amp;Self::Output {
+        &amp;self[idx.start..idx.end]
+    }
+}</code></pre></pre>
+<p>The implementation above, implements <code>Index&lt;Range&lt;usize&gt;&gt;</code> for <code>str</code> by</p>
+<ol>
+<li>
+<p><strong>Defining</strong> the associated refinement <code>valid</code> to say that a <code>Range</code> is valid for a string
+if the <code>start</code> of the range is less than or equal to the <code>end</code>, and the <code>end</code> is
+less than or equal to the length of the string (which we get using the built-in
+<code>str_len</code> function);</p>
+</li>
+<li>
+<p><strong>Refining</strong> the specification of the <code>index</code> method to say that it should only be
+passed an <code>index</code> that is valid for the string <code>me</code>; and the given <code>idx</code>.</p>
+</li>
+</ol>
+<p>Now when we run flux on clients of this implementation,
+we can see that the first call is a valid sub-slice, but the
+second is <em>not</em> and hence, is rejected by flux.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_str() {
+    let cat = "caterpillar";
+    let sub = cat.index(0..6); // OK
+    let sub = cat.index(0..19); // Error
+}</code></pre></pre>
+<p>Flux produces the error pinpointing the problem:</p>
+<pre><code>error[E0999]: refinement type error
+   |
+89 |     let sub = cat.index(0..19); // Error
+   |               ^^^^^^^^^^^^^^^^ a precondition cannot be proved
+   |
+note: this is the condition that cannot be proved
+   |
+74 |     index.start &lt;= index.end &amp;&amp; index.end &lt;= str_len(me)
+   |                                 ^^^^^^^^^^^^^^^^^^^^^^^^
+</code></pre>
+<p><strong>EXERCISE</strong> Can you modify the code above so that the second call to <code>index</code>
+is accepted by flux?</p>
+<h2 id="indexing-vectors-with-usize"><a class="header" href="#indexing-vectors-with-usize">Indexing Vectors with <code>usize</code></a></h2>
+<p><strong>EXERCISE</strong> Let's implement the <code>Index</code> trait for <code>Vec</code> using <code>usize</code> indexes.
+The definition of <code>valid</code> is too permissive, can you modify it so that flux accepts
+the below <code>impl</code>?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: std::vec::Vec, index: int) -&gt; bool { true })]
+impl &lt;A:Copy&gt; Index&lt;usize&gt; for Vec&lt;A&gt; {
+    type Output = A;
+
+    #[spec(fn(&amp;Self[@me], index:usize{&lt;std::vec::Vec&lt;A&gt; as Index&lt;usize&gt;&gt;::valid(me, index)}) -&gt; &amp;Self::Output)]
+    fn index(&amp;self, index: usize) -&gt; &amp;Self::Output {
+        &amp;self[index]
+    }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong> Let's write a client that uses the <code>index</code> on <code>Vec</code>
+to compute a dot-product for two <code>Vec&lt;f64&gt;</code>. Can you fix the <code>spec</code>
+for <code>dot_vec</code> so flux accepts it?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn (xs: &amp;std::vec::Vec&lt;f64&gt;, ys: &amp;std::vec::Vec&lt;f64&gt;) -&gt; f64)]
+fn dot_vec(xs: &amp;Vec&lt;f64&gt;, ys: &amp;Vec&lt;f64&gt;) -&gt; f64 {
+    let mut res = 0.0;
+    for i in 0..xs.len() {
+        res += xs.index(i) * ys.index(i);
+    }
+    res
+}</code></pre></pre>
+<h2 id="indexing-vectors-with-ranges"><a class="header" href="#indexing-vectors-with-ranges">Indexing Vectors with Ranges</a></h2>
+<p><strong>EXERCISE</strong> Finally, lets extract <em>sub-slices</em> from vectors using <code>Range&lt;usize&gt;</code> indexes.
+Why does flux reject the below <code>impl</code>? Can you edit the code so flux accepts it?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: std::vec::Vec, idx: Range&lt;int&gt;) -&gt; bool {
+    true
+  })]
+impl &lt;A&gt; Index&lt;Range&lt;usize&gt;&gt; for Vec&lt;A&gt; {
+
+    type Output = [A];
+
+    #[spec(fn(&amp;Self[@me], idx:Range&lt;usize&gt;{&lt;std::vec::Vec&lt;A&gt; as Index&lt;Range&lt;usize&gt;&gt;&gt;::valid(me, idx)}) -&gt; &amp;Self::Output)]
+    fn index(&amp;self, idx: Range&lt;usize&gt;) -&gt; &amp;Self::Output {
+        &amp;self[idx.start..idx.end]
+    }
+}</code></pre></pre>
+<h2 id="conclusion"><a class="header" href="#conclusion">Conclusion</a></h2>
+<p>In this chapter, we saw how traits can be extended with <strong>associated refinements</strong>
+which let us <em>declare</em> refinements on the inputs and outputs of trait methods
+(e.g. <code>valid</code> indexes) that are then <em>implemented</em>  by each implementation of
+the trait (e.g. the index is less than the slice size).</p>
+<p>Associated refinements turn out to be an extremely useful mechanism, for example,
+they let us specify properties of commonly used operations like
+<a href="tutorial/spec-index">indexing</a> and <a href="tutorial/spec-iterator">iteration</a>, and more
+advanced properties like the semantics of sql queries <sup class="footnote-reference" id="fr-4-1"><a href="#footnote-4">4</a></sup> and
+the behavior of memory allocators <sup class="footnote-reference" id="fr-5-1"><a href="#footnote-5">5</a></sup>.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>The "real" ones in the standard library have a few more moving parts that would needlessly complicate our explanation of the interaction between traits and formal verification. <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p><code>valid</code> function is just a declaration: we do not specify an actual <em>body</em>
+as those will be filled in by the implementors of the trait. We could specify a
+<em>default</em> body for <code>valid</code> e.g. which always returns <code>true</code>, which can be
+<em>over-ridden</em> i.e. redefined by implementations, but we must be careful
+about what we choose as the default. <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p>By the way, it seems a little silly to <em>repeat</em> the spec for <code>index</code> doesn't it?
+To be sound, Flux checks that the implementation needs to be a <a href="https://en.wikipedia.org/wiki/Covariance_and_contravariance_(computer_science)">subtype of the trait method</a>.
+We could for example, accept <em>more</em> inputs and produce <em>fewer</em> outputs.
+But in this case, it is simply a version of the trait specification, specialized
+to the particular <code>Self</code> and <code>Idx</code> types of the implementation. <a href="#fr-3-1">↩</a></p>
+</li>
+<li id="footnote-4">
+<p>See section 6.2 of this <a href="https://ranjitjhala.github.io/static/popl25-generic-refinements.pdf">POPL 2025 paper</a> for more details. <a href="#fr-4-1">↩</a></p>
+</li>
+<li id="footnote-5">
+<p>See this <a href="https://ranjitjhala.github.io/static/sosp25-ticktock.pdf">SOSP 2025 paper</a> for more details. <a href="#fr-5-1">↩</a></p>
+</li>
 </ol><div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specifications-1"><a class="header" href="#flux-specifications-1">Flux Specifications</a></h1>
 <p>One day, this will be an actual user's guide, but for now,
 it is a WIP guide to writing specifications in <code>flux</code>, as
@@ -4860,7 +5253,40 @@ pub fn test(x: &amp;i32) -&gt; &amp;[i32] {
     from_ref(x)
 }</code></pre>
 <h3 id="options"><a class="header" href="#options">Options</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/option.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use flux_attrs::*;
+
+#[extern_spec]
+#[refined_by(is_some: bool)]
+enum Option&lt;T&gt; {
+    #[variant(Option&lt;T&gt;[false])]
+    None,
+    #[variant((T) -&gt; Option&lt;T&gt;[true])]
+    Some(T),
+}
+
+#[extern_spec]
+impl&lt;T&gt; Option&lt;T&gt; {
+    #[sig(fn(&amp;Self[@b]) -&gt; bool[b])]
+    const fn is_some(&amp;self) -&gt; bool;
+
+    #[sig(fn(&amp;Self[@b]) -&gt; bool[!b])]
+    const fn is_none(&amp;self) -&gt; bool;
+
+    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    const fn unwrap(self) -&gt; T;
+
+    #[sig(fn(&amp;Self[@b]) -&gt; Option&lt;&amp;T&gt;[b])]
+    fn as_ref(&amp;self) -&gt; Option&lt;&amp;T&gt;;
+
+    #[sig(fn(&amp;mut Self[@b]) -&gt; Option&lt;&amp;mut T&gt;[b])]
+    fn as_mut(&amp;mut self) -&gt; Option&lt;&amp;mut T&gt;;
+
+    #[sig(fn(&amp;Self[@b]) -&gt; &amp;[T][if b { 1 } else { 0 }])]
+    fn as_slice(&amp;self) -&gt; &amp;[T];
+
+    #[sig(fn(&amp;mut Self[@b]) -&gt; &amp;mut [T][if b { 1 } else { 0 }])]
+    fn as_mut_slice(&amp;mut self) -&gt; &amp;mut [T];
+}</code></pre>
 <pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*};
 
 extern crate flux_core;
@@ -4915,7 +5341,65 @@ pub fn test_safe_div() {
     assert(res == 21);
 }</code></pre>
 <h3 id="vec"><a class="header" href="#vec">Vec</a></h3>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/option.rs}}</code></pre>
+<pre><code class="language-rust noplayground">use std::{
+    alloc::{Allocator, Global},
+    ops::{Index, IndexMut},
+    slice::SliceIndex,
+};
+
+use flux_attrs::*;
+
+//---------------------------------------------------------------------------------------
+#[extern_spec]
+#[refined_by(len: int)]
+#[invariant(0 &lt;= len)]
+struct Vec&lt;T, A: Allocator = Global&gt;;
+
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;T&gt; Vec&lt;T&gt; {
+    #[flux::sig(fn() -&gt; Vec&lt;T&gt;[0])]
+    fn new() -&gt; Vec&lt;T&gt;;
+}
+
+#[extern_spec]
+impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
+    fn push(v: &amp;mut Vec&lt;T, A&gt;, value: T);
+
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
+    fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
+
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
+}
+
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; Index&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;Vec&lt;T, A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index(z: &amp;Vec&lt;T, A&gt;, index: I) -&gt; &amp;&lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+#[extern_spec]
+impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&lt;T, A&gt; {
+    #[spec(fn(&amp;mut Vec&lt;T,A&gt;[@len], {I[@idx] | &lt;I as SliceIndex&lt;[T]&gt;&gt;::in_bounds(idx, len)}) -&gt; _)]
+    fn index_mut(z: &amp;mut Vec&lt;T, A&gt;, index: I) -&gt; &amp;mut &lt;I as SliceIndex&lt;[T]&gt;&gt;::Output;
+}
+
+//---------------------------------------------------------------------------------------
+
+#[extern_spec]
+impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
+    #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
+    fn into_iter(v: &amp;'a Vec&lt;T, A&gt;) -&gt; &lt;&amp;'a Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter;
+}
+
+#[extern_spec]
+#[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
+impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
 <h3 id="extern-structs"><a class="header" href="#extern-structs">Extern Structs</a></h3>
 <p>Here is an example of refining an extern struct</p>
 <pre><code class="language-rust noplayground">use flux_rs::extern_spec;
@@ -5241,7 +5725,7 @@ fn test(len: i32) {
         assert(del &lt;= len)
     }
 }</code></pre>
-<h2 id="associated-refinements"><a class="header" href="#associated-refinements">Associated Refinements</a></h2>
+<h2 id="associated-refinements-1"><a class="header" href="#associated-refinements-1">Associated Refinements</a></h2>
 <h3 id="basic"><a class="header" href="#basic">Basic</a></h3>
 <pre><code class="language-rust noplayground">#![allow(dead_code)]
 
@@ -5414,7 +5898,10 @@ impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
 #[extern_spec]
 #[assoc(fn with_size(self: Self, n:int) -&gt; bool { self.len == n })]
 impl&lt;T&gt; FromIterator&lt;T&gt; for Vec&lt;T&gt; {}</code></pre>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/lib/iter.rs}}</code></pre>
+<pre><code class="language-rust noplayground">mod adapters;
+#[cfg(flux)]
+mod range;
+mod traits;</code></pre>
 <pre><code class="language-rust noplayground">#![allow(unused)]
 #![feature(allocator_api)]
 
@@ -5737,7 +6224,21 @@ pub fn test_digit(x: char) {
 <p>Sometimes you may want to write specs for functions etc. but not <em>directly</em> attached to the function
 i.e. as an attribute of the function, for example, because you don't want to modify the original source file.</p>
 <p>You can do this using the "detached" <code>spec</code> as illustrated by the following</p>
-<pre><code class="language-rust noplayground">{{#include ../../../tests/tests/neg/surface/detached00.rs}}</code></pre>
+<pre><code class="language-rust noplayground">#![flux::specs {
+
+   fn inc(n:i32) -&gt; i32{v: n &lt; v};
+
+   fn id(n:i32) -&gt; i32[n];
+
+}]
+
+pub fn inc(n: i32) -&gt; i32 {
+    n - 1 //~ ERROR refinement type
+}
+
+pub fn id(n: i32) -&gt; i32 {
+    n
+}</code></pre>
 <h2 id="include-patterns"><a class="header" href="#include-patterns">Include Patterns</a></h2>
 <p>You can include patterns to restrict <code>flux</code> to only check a subset of a codebase.
 A <code>def_id</code> is checked if it matches any of the patterns.</p>
