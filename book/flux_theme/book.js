@@ -1226,7 +1226,7 @@ function playground_text(playground, hidden = true) {
 
           item.addEventListener("click", function() {
             console.log("Selected unsafe playground:", index);
-            
+
             // Scroll to the selected playground
             var playgrounds = Array.from(document.querySelectorAll(".playground"));
             if (playgrounds[index]) {
@@ -1236,7 +1236,7 @@ function playground_text(playground, hidden = true) {
                 inline: "nearest"
               });
             }
-            
+
             dropdown.style.display = "none";
           });
 
