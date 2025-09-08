@@ -938,7 +938,7 @@
 <a href=#938 id=938 data-nosnippet>938</a>            }
 <a href=#939 id=939 data-nosnippet>939</a>            fhir::SortRes::Adt(def_id) =&gt; {
 <a href=#940 id=940 data-nosnippet>940</a>                <span class="kw">let </span>sort_def = <span class="self">self</span>.genv().adt_sort_def_of(def_id)<span class="question-mark">?</span>;
-<a href=#941 id=941 data-nosnippet>941</a>                <span class="kw">if </span>path.args.len() &gt; sort_def.param_count() {
+<a href=#941 id=941 data-nosnippet>941</a>                <span class="kw">if </span>path.args.len() != sort_def.param_count() {
 <a href=#942 id=942 data-nosnippet>942</a>                    <span class="kw">let </span>err = errors::IncorrectGenericsOnSort::new(
 <a href=#943 id=943 data-nosnippet>943</a>                        <span class="self">self</span>.genv(),
 <a href=#944 id=944 data-nosnippet>944</a>                        def_id,
