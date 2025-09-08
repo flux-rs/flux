@@ -6,22 +6,6 @@ extern crate flux_rs;
 use flux_rs::attrs::*;
 ```
 
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
-<br>
 
 
 

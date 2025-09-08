@@ -291,6 +291,12 @@ const errors = {
         code_block.append(result_block);
       }
 
+      if (result.trim() === "") {
+        code_block.classList.remove("unsafe");
+      } else {
+        code_block.classList.add("unsafe");
+      }
+
       if (result.trim() === "" || this.noDisplay) {
         result_block.style.display = "none";
         result_block.innerText = "Safe";
