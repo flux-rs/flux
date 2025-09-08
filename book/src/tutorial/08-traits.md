@@ -4,6 +4,7 @@
 #![allow(unused)]
 extern crate flux_rs;
 extern crate flux_core;
+extern crate flux_alloc;
 use flux_rs::{attrs::*, extern_spec};
 use std::ops::Range;
 ```
@@ -428,27 +429,28 @@ is accepted by flux?
 ## Indexing Vectors with `usize`
 
 **EXERCISE** Let's implement the `Index` trait for `Vec` using `usize` indexes.
-Can you work out why flux rejects the below `impl`? Can you modify
-the implementation so that flux accepts it?
+The definition of `valid` is too permissive, can you modify it so that flux accepts
+the below `impl`?
 
 
 ```rust, editable
-#[assoc(fn valid(me: Vec, index: int) -> bool { true })]
+#[assoc(fn valid(me: std::vec::Vec, index: int) -> bool { true })]
 impl <A:Copy> Index<usize> for Vec<A> {
     type Output = A;
 
-    #[spec(fn(&Self[@me], index:usize{<Vec<A> as Index<usize>>::valid(me, index)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], index:usize{<std::vec::Vec<A> as Index<usize>>::valid(me, index)}) -> &Self::Output)]
     fn index(&self, index: usize) -> &Self::Output {
         &self[index]
     }
 }
 ```
 
-**EXERCISE** Let's write a client that uses the `index` on `Vec` to compute a dot-product for two `Vec<f64>`. Why does flux reject the definition of `dot_vec` below? Can you fix the `spec`
-so that flux accepts it?
+**EXERCISE** Let's write a client that uses the `index` on `Vec`
+to compute a dot-product for two `Vec<f64>`. Can you fix the `spec`
+for `dot_vec` so flux accepts it?
 
 ```rust, editable
-#[spec(fn (xs: &Vec<f64>, ys: &Vec<f64>) -> f64)]
+#[spec(fn (xs: &std::vec::Vec<f64>, ys: &std::vec::Vec<f64>) -> f64)]
 fn dot_vec(xs: &Vec<f64>, ys: &Vec<f64>) -> f64 {
     let mut res = 0.0;
     for i in 0..xs.len() {
@@ -460,22 +462,37 @@ fn dot_vec(xs: &Vec<f64>, ys: &Vec<f64>) -> f64 {
 
 ## Indexing Vectors with Ranges
 
-**EXERCISE** Finally, lets see if we extract sub-slices from vectors using `Range<usize>` indexes. Why does flux reject the below `impl`? Can you edit the code so flux accepts it?
+**EXERCISE** Finally, lets extract _sub-slices_ from vectors using `Range<usize>` indexes.
+Why does flux reject the below `impl`? Can you edit the code so flux accepts it?
 
 ```rust, editable
-#[assoc(fn valid(me: Vec, idx: Range<int>) -> bool {
+#[assoc(fn valid(me: std::vec::Vec, idx: Range<int>) -> bool {
     true
   })]
 impl <A> Index<Range<usize>> for Vec<A> {
 
     type Output = [A];
 
-    #[spec(fn(&Self[@me], idx:Range<usize>{<Vec<A> as Index<Range<usize>>>::valid(me, idx)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], idx:Range<usize>{<std::vec::Vec<A> as Index<Range<usize>>>::valid(me, idx)}) -> &Self::Output)]
     fn index(&self, idx: Range<usize>) -> &Self::Output {
         &self[idx.start..idx.end]
     }
 }
 ```
+
+## Conclusion
+
+In this chapter, we saw how traits can be extended with **associated refinements**
+which let us _declare_ refinements on the inputs and outputs of trait methods
+(e.g. `valid` indexes) that are then _implemented_  by each implementation of
+the trait (e.g. the index is less than the slice size).
+
+Associated refinements turn out to be an extremely useful mechanism, for example,
+they let us specify properties of commonly used operations like
+[indexing](spec-index) and [iteration](spec-iterator), and more
+advanced properties like the semantics of sql queries [^4] and
+the behavior of memory allocators [^5].
+
 
 [^1]: The "real" ones in the standard library have a few more moving parts that would needlessly complicate our explanation of the interaction between traits and formal verification.
 
@@ -490,3 +507,11 @@ To be sound, Flux checks that the implementation needs to be a [subtype of the t
 We could for example, accept _more_ inputs and produce _fewer_ outputs.
 But in this case, it is simply a version of the trait specification, specialized
 to the particular `Self` and `Idx` types of the implementation.
+
+[spec-index]: https://github.com/flux-rs/flux/blob/main/lib/flux-core/src/slice/index.rs#L20
+
+[spec-iterator]: https://github.com/flux-rs/flux/blob/main/lib/flux-core/src/iter/traits/iterator.rs#L10-L16
+
+[^4]: See section 6.2 of this [POPL 2025 paper](https://ranjitjhala.github.io/static/popl25-generic-refinements.pdf) for more details.
+
+[^5]: See this [SOSP 2025 paper](https://ranjitjhala.github.io/static/sosp25-ticktock.pdf) for more details.
