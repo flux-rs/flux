@@ -279,6 +279,10 @@ const errors = {
   },
 
   displayErrorMessages: function (errorMessages) {
+
+    const playgroundsButton = document.querySelector('button[title="Playgrounds"][aria-label="Playgrounds"]');
+    playgroundsButton.style.color = "";
+
     for (const index in this.playgrounds) {
       const code_block = this.getPlayground(index);
 
@@ -289,6 +293,13 @@ const errors = {
         result_block = document.createElement("code");
         result_block.className = "result hljs language-bash";
         code_block.append(result_block);
+      }
+
+      if (result.trim() === "") {
+        code_block.classList.remove("unsafe");
+      } else {
+        code_block.classList.add("unsafe");
+        playgroundsButton.style.color = "red";
       }
 
       if (result.trim() === "" || this.noDisplay) {
@@ -350,6 +361,7 @@ const queryFlux = {
   },
 
   result(code_block, result_block, response) {
+    console.log('TRACE: queryFlux', code_block, result_block, response);
     errors.update(response);
   },
 
@@ -382,7 +394,7 @@ const queryRust = {
 const query = queryFlux;
 
 // Fix back button cache problem
-window.onunload = function () {};
+window.onunload = function () { };
 
 // Global variable, shared between modules
 function playground_text(playground, hidden = true) {
@@ -484,7 +496,7 @@ function playground_text(playground, hidden = true) {
   }
 
   function run_rust_code(code_block) {
-    console.log("TRACE: run_rust_code");
+    console.log("TRACE: run_rust_code", code_block);
     var result_block = code_block.querySelector(".result");
     if (!result_block) {
       result_block = document.createElement("code");
@@ -508,6 +520,7 @@ function playground_text(playground, hidden = true) {
       edition: edition,
       crateType: "rlib",
     };
+    console.log('TRACE: query code', text);
 
     if (text.indexOf("#![feature") !== -1) {
       params.version = "nightly";
@@ -529,8 +542,8 @@ function playground_text(playground, hidden = true) {
       })
       .catch(
         (error) =>
-          (result_block.innerText =
-            "Playground Communication: " + error.message),
+        (result_block.innerText =
+          "Playground Communication: " + error.message),
       );
   }
 
@@ -724,7 +737,7 @@ function playground_text(playground, hidden = true) {
     var theme;
     try {
       theme = localStorage.getItem("mdbook-theme");
-    } catch (e) {}
+    } catch (e) { }
     if (theme === null || theme === undefined) {
       return default_theme;
     } else {
@@ -770,7 +783,7 @@ function playground_text(playground, hidden = true) {
     if (store) {
       try {
         localStorage.setItem("mdbook-theme", theme);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     html.classList.remove(previousTheme);
@@ -882,7 +895,7 @@ function playground_text(playground, hidden = true) {
     sidebar.setAttribute("aria-hidden", false);
     try {
       localStorage.setItem("mdbook-sidebar", "visible");
-    } catch (e) {}
+    } catch (e) { }
   }
 
   var sidebarAnchorToggles = document.querySelectorAll("#sidebar a.toggle");
@@ -905,7 +918,7 @@ function playground_text(playground, hidden = true) {
     sidebar.setAttribute("aria-hidden", true);
     try {
       localStorage.setItem("mdbook-sidebar", "hidden");
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Toggle sidebar
@@ -1140,4 +1153,134 @@ function playground_text(playground, hidden = true) {
     updateBorder();
     document.addEventListener("scroll", updateBorder, { passive: true });
   })();
+})();
+
+(function addPlaygroundsButton() {
+  var leftButtons = document.querySelector(".left-buttons");
+  if (leftButtons) {
+    var playgroundsButton = document.createElement("button");
+    playgroundsButton.className = "icon-button";
+    playgroundsButton.type = "button";
+    playgroundsButton.title = "Playgrounds";
+    playgroundsButton.setAttribute("aria-label", "Playgrounds");
+    playgroundsButton.setAttribute("aria-haspopup", "true");
+    playgroundsButton.setAttribute("aria-expanded", "false");
+    playgroundsButton.setAttribute("aria-keyshortcuts", "Control+e");
+
+    var icon = document.createElement("i");
+    icon.className = "fa fa-code";
+    icon.setAttribute("aria-hidden", "true");
+
+    playgroundsButton.appendChild(icon);
+    leftButtons.appendChild(playgroundsButton);
+
+    // Create dropdown
+    var dropdown = document.createElement("div");
+    dropdown.className = "playgrounds-dropdown";
+    dropdown.style.display = "none";
+    dropdown.style.position = "fixed";
+    dropdown.style.backgroundColor = "var(--bg)";
+    dropdown.style.border = "1px solid var(--sidebar-bg)";
+    dropdown.style.borderRadius = "4px";
+    dropdown.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+    dropdown.style.padding = "8px 0";
+    dropdown.style.minWidth = "60px";
+    dropdown.style.zIndex = "1000";
+
+    leftButtons.appendChild(dropdown);
+
+    function updateDropdownItems() {
+      // Clear existing items
+      dropdown.innerHTML = "";
+
+      // Find all unsafe playgrounds
+      var playgrounds = Array.from(document.querySelectorAll(".playground"));
+      var unsafeIndexes = [];
+
+      playgrounds.forEach(function (playground, index) {
+        if (playground.classList.contains("unsafe")) {
+          unsafeIndexes.push(index);
+        }
+      });
+
+      if (unsafeIndexes.length === 0) {
+        var noItems = document.createElement("div");
+        noItems.textContent = "No unsafe playgrounds";
+        noItems.style.padding = "8px 16px";
+        noItems.style.color = "var(--fg)";
+        noItems.style.fontStyle = "italic";
+        dropdown.appendChild(noItems);
+      } else {
+        unsafeIndexes.forEach(function (index) {
+          var item = document.createElement("button");
+          item.className = "dropdown-item";
+          item.textContent = index;
+          item.style.display = "block";
+          item.style.width = "100%";
+          item.style.padding = "8px 16px";
+          item.style.border = "none";
+          item.style.backgroundColor = "transparent";
+          item.style.color = "var(--fg)";
+          item.style.cursor = "pointer";
+          item.style.textAlign = "left";
+
+          item.addEventListener("mouseover", function () {
+            item.style.backgroundColor = "var(--sidebar-bg)";
+          });
+
+          item.addEventListener("mouseout", function () {
+            item.style.backgroundColor = "transparent";
+          });
+
+          item.addEventListener("click", function () {
+            console.log("Selected unsafe playground:", index);
+
+            // Scroll to the selected playground
+            var playgrounds = Array.from(document.querySelectorAll(".playground"));
+            if (playgrounds[index]) {
+              playgrounds[index].scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+                inline: "nearest"
+              });
+            }
+
+            dropdown.style.display = "none";
+          });
+
+          dropdown.appendChild(item);
+        });
+      }
+    }
+
+    // Toggle dropdown on button click
+    playgroundsButton.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (dropdown.style.display === "none") {
+        // Update items before showing
+        updateDropdownItems();
+
+        // Position dropdown below button
+        var rect = playgroundsButton.getBoundingClientRect();
+        dropdown.style.top = rect.bottom + "px";
+        dropdown.style.left = rect.left + "px";
+        dropdown.style.display = "block";
+      } else {
+        dropdown.style.display = "none";
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener("click", function () {
+      dropdown.style.display = "none";
+    });
+
+    // Add keyboard shortcut (Ctrl+E) to toggle dropdown
+    document.addEventListener("keydown", function (e) {
+      if (e.ctrlKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        playgroundsButton.click();
+      }
+    });
+  }
 })();

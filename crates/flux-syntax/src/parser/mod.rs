@@ -226,6 +226,7 @@ fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
 fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<Item> {
     cx.expect(kw::Trait)?;
     let path = parse_expr_path(cx)?;
+    let _generics = parse_opt_generics(cx)?;
     cx.expect(TokenKind::open_delim(Brace))?;
 
     let mut items = vec![];
