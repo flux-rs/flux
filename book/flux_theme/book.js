@@ -1163,6 +1163,9 @@ function playground_text(playground, hidden = true) {
     playgroundsButton.type = "button";
     playgroundsButton.title = "Playgrounds";
     playgroundsButton.setAttribute("aria-label", "Playgrounds");
+    playgroundsButton.setAttribute("aria-haspopup", "true");
+    playgroundsButton.setAttribute("aria-expanded", "false");
+    playgroundsButton.setAttribute("aria-keyshortcuts", "Control+e");
 
     var icon = document.createElement("i");
     icon.className = "fa fa-code";
@@ -1175,7 +1178,7 @@ function playground_text(playground, hidden = true) {
     var dropdown = document.createElement("div");
     dropdown.className = "playgrounds-dropdown";
     dropdown.style.display = "none";
-    dropdown.style.position = "absolute";
+    dropdown.style.position = "fixed";
     dropdown.style.backgroundColor = "var(--bg)";
     dropdown.style.border = "1px solid var(--sidebar-bg)";
     dropdown.style.borderRadius = "4px";
@@ -1259,7 +1262,7 @@ function playground_text(playground, hidden = true) {
 
         // Position dropdown below button
         var rect = playgroundsButton.getBoundingClientRect();
-        dropdown.style.top = (rect.bottom + window.scrollY) + "px";
+        dropdown.style.top = rect.bottom + "px";
         dropdown.style.left = rect.left + "px";
         dropdown.style.display = "block";
       } else {
@@ -1270,6 +1273,14 @@ function playground_text(playground, hidden = true) {
     // Close dropdown when clicking outside
     document.addEventListener("click", function() {
       dropdown.style.display = "none";
+    });
+
+    // Add keyboard shortcut (Ctrl+E) to toggle dropdown
+    document.addEventListener("keydown", function(e) {
+      if (e.ctrlKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        playgroundsButton.click();
+      }
     });
   }
 })();
