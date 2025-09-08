@@ -1149,3 +1149,122 @@ function playground_text(playground, hidden = true) {
     document.addEventListener("scroll", updateBorder, { passive: true });
   })();
 })();
+
+(function addPlaygroundsButton() {
+  var leftButtons = document.querySelector(".left-buttons");
+  if (leftButtons) {
+    var playgroundsButton = document.createElement("button");
+    playgroundsButton.className = "icon-button";
+    playgroundsButton.type = "button";
+    playgroundsButton.title = "Playgrounds";
+    playgroundsButton.setAttribute("aria-label", "Playgrounds");
+
+    var icon = document.createElement("i");
+    icon.className = "fa fa-code";
+    icon.setAttribute("aria-hidden", "true");
+
+    playgroundsButton.appendChild(icon);
+    leftButtons.appendChild(playgroundsButton);
+
+    // Create dropdown
+    var dropdown = document.createElement("div");
+    dropdown.className = "playgrounds-dropdown";
+    dropdown.style.display = "none";
+    dropdown.style.position = "absolute";
+    dropdown.style.backgroundColor = "var(--bg)";
+    dropdown.style.border = "1px solid var(--sidebar-bg)";
+    dropdown.style.borderRadius = "4px";
+    dropdown.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+    dropdown.style.padding = "8px 0";
+    dropdown.style.minWidth = "60px";
+    dropdown.style.zIndex = "1000";
+
+    leftButtons.appendChild(dropdown);
+
+    function updateDropdownItems() {
+      // Clear existing items
+      dropdown.innerHTML = "";
+
+      // Find all unsafe playgrounds
+      var playgrounds = Array.from(document.querySelectorAll(".playground"));
+      var unsafeIndexes = [];
+
+      playgrounds.forEach(function(playground, index) {
+        if (playground.classList.contains("unsafe")) {
+          unsafeIndexes.push(index);
+        }
+      });
+
+      if (unsafeIndexes.length === 0) {
+        var noItems = document.createElement("div");
+        noItems.textContent = "No unsafe playgrounds";
+        noItems.style.padding = "8px 16px";
+        noItems.style.color = "var(--fg)";
+        noItems.style.fontStyle = "italic";
+        dropdown.appendChild(noItems);
+      } else {
+        unsafeIndexes.forEach(function(index) {
+          var item = document.createElement("button");
+          item.className = "dropdown-item";
+          item.textContent = index;
+          item.style.display = "block";
+          item.style.width = "100%";
+          item.style.padding = "8px 16px";
+          item.style.border = "none";
+          item.style.backgroundColor = "transparent";
+          item.style.color = "var(--fg)";
+          item.style.cursor = "pointer";
+          item.style.textAlign = "left";
+
+          item.addEventListener("mouseover", function() {
+            item.style.backgroundColor = "var(--sidebar-bg)";
+          });
+
+          item.addEventListener("mouseout", function() {
+            item.style.backgroundColor = "transparent";
+          });
+
+          item.addEventListener("click", function() {
+            console.log("Selected unsafe playground:", index);
+            
+            // Scroll to the selected playground
+            var playgrounds = Array.from(document.querySelectorAll(".playground"));
+            if (playgrounds[index]) {
+              playgrounds[index].scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+                inline: "nearest"
+              });
+            }
+            
+            dropdown.style.display = "none";
+          });
+
+          dropdown.appendChild(item);
+        });
+      }
+    }
+
+    // Toggle dropdown on button click
+    playgroundsButton.addEventListener("click", function(e) {
+      e.stopPropagation();
+      if (dropdown.style.display === "none") {
+        // Update items before showing
+        updateDropdownItems();
+
+        // Position dropdown below button
+        var rect = playgroundsButton.getBoundingClientRect();
+        dropdown.style.top = (rect.bottom + window.scrollY) + "px";
+        dropdown.style.left = rect.left + "px";
+        dropdown.style.display = "block";
+      } else {
+        dropdown.style.display = "none";
+      }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener("click", function() {
+      dropdown.style.display = "none";
+    });
+  }
+})();
