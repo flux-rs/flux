@@ -279,6 +279,10 @@ const errors = {
   },
 
   displayErrorMessages: function (errorMessages) {
+
+    const playgroundsButton = document.querySelector('button[title="Playgrounds"][aria-label="Playgrounds"]');
+    playgroundsButton.style.color = "";
+
     for (const index in this.playgrounds) {
       const code_block = this.getPlayground(index);
 
@@ -295,6 +299,7 @@ const errors = {
         code_block.classList.remove("unsafe");
       } else {
         code_block.classList.add("unsafe");
+        playgroundsButton.style.color = "red";
       }
 
       if (result.trim() === "" || this.noDisplay) {
