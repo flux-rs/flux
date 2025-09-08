@@ -131,11 +131,6 @@ impl CStore {
         let mut cstore = CStore::default();
         for crate_num in tcx.used_crates(()) {
             let Some(path) = flux_metadata_extern_location(tcx, *crate_num) else { continue };
-            println!(
-                "TRACE: loading flux metadata for crate `{}` from `{}`",
-                tcx.crate_name(*crate_num),
-                path.display()
-            );
             let Some(meta) = decode_crate_metadata(tcx, sess, path.as_path()) else { continue };
             cstore.local_tables.insert(*crate_num, meta.local_tables);
             cstore.merge_extern_tables(tcx, sess, meta.extern_tables);

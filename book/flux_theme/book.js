@@ -4,8 +4,8 @@ const Range = ace.require("ace/range").Range;
 
 const mode = "flux";
 
-// const fluxServerUrl = "https://flux.goto.ucsd.edu";
-const fluxServerUrl = "http://localhost:3000";
+const fluxServerUrl = "https://flux.goto.ucsd.edu";
+// const fluxServerUrl = "http://localhost:3000";
 
 function pad(size, line_or_null) {
   if (line_or_null) {
@@ -394,7 +394,7 @@ const queryRust = {
 const query = queryFlux;
 
 // Fix back button cache problem
-window.onunload = function () {};
+window.onunload = function () { };
 
 // Global variable, shared between modules
 function playground_text(playground, hidden = true) {
@@ -542,8 +542,8 @@ function playground_text(playground, hidden = true) {
       })
       .catch(
         (error) =>
-          (result_block.innerText =
-            "Playground Communication: " + error.message),
+        (result_block.innerText =
+          "Playground Communication: " + error.message),
       );
   }
 
@@ -737,7 +737,7 @@ function playground_text(playground, hidden = true) {
     var theme;
     try {
       theme = localStorage.getItem("mdbook-theme");
-    } catch (e) {}
+    } catch (e) { }
     if (theme === null || theme === undefined) {
       return default_theme;
     } else {
@@ -783,7 +783,7 @@ function playground_text(playground, hidden = true) {
     if (store) {
       try {
         localStorage.setItem("mdbook-theme", theme);
-      } catch (e) {}
+      } catch (e) { }
     }
 
     html.classList.remove(previousTheme);
@@ -895,7 +895,7 @@ function playground_text(playground, hidden = true) {
     sidebar.setAttribute("aria-hidden", false);
     try {
       localStorage.setItem("mdbook-sidebar", "visible");
-    } catch (e) {}
+    } catch (e) { }
   }
 
   var sidebarAnchorToggles = document.querySelectorAll("#sidebar a.toggle");
@@ -918,7 +918,7 @@ function playground_text(playground, hidden = true) {
     sidebar.setAttribute("aria-hidden", true);
     try {
       localStorage.setItem("mdbook-sidebar", "hidden");
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Toggle sidebar
@@ -1197,7 +1197,7 @@ function playground_text(playground, hidden = true) {
       var playgrounds = Array.from(document.querySelectorAll(".playground"));
       var unsafeIndexes = [];
 
-      playgrounds.forEach(function(playground, index) {
+      playgrounds.forEach(function (playground, index) {
         if (playground.classList.contains("unsafe")) {
           unsafeIndexes.push(index);
         }
@@ -1211,7 +1211,7 @@ function playground_text(playground, hidden = true) {
         noItems.style.fontStyle = "italic";
         dropdown.appendChild(noItems);
       } else {
-        unsafeIndexes.forEach(function(index) {
+        unsafeIndexes.forEach(function (index) {
           var item = document.createElement("button");
           item.className = "dropdown-item";
           item.textContent = index;
@@ -1224,15 +1224,15 @@ function playground_text(playground, hidden = true) {
           item.style.cursor = "pointer";
           item.style.textAlign = "left";
 
-          item.addEventListener("mouseover", function() {
+          item.addEventListener("mouseover", function () {
             item.style.backgroundColor = "var(--sidebar-bg)";
           });
 
-          item.addEventListener("mouseout", function() {
+          item.addEventListener("mouseout", function () {
             item.style.backgroundColor = "transparent";
           });
 
-          item.addEventListener("click", function() {
+          item.addEventListener("click", function () {
             console.log("Selected unsafe playground:", index);
 
             // Scroll to the selected playground
@@ -1254,7 +1254,7 @@ function playground_text(playground, hidden = true) {
     }
 
     // Toggle dropdown on button click
-    playgroundsButton.addEventListener("click", function(e) {
+    playgroundsButton.addEventListener("click", function (e) {
       e.stopPropagation();
       if (dropdown.style.display === "none") {
         // Update items before showing
@@ -1271,12 +1271,12 @@ function playground_text(playground, hidden = true) {
     });
 
     // Close dropdown when clicking outside
-    document.addEventListener("click", function() {
+    document.addEventListener("click", function () {
       dropdown.style.display = "none";
     });
 
     // Add keyboard shortcut (Ctrl+E) to toggle dropdown
-    document.addEventListener("keydown", function(e) {
+    document.addEventListener("keydown", function (e) {
       if (e.ctrlKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         playgroundsButton.click();
