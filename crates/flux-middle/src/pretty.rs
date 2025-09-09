@@ -771,7 +771,7 @@ impl FromOpt for KVarArgs {
 
 // -------------------------------------------------------------------------------------------------------------
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct NestedString {
     pub text: String,
     pub key: Option<String>,

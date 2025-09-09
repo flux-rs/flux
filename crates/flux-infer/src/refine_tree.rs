@@ -783,8 +783,9 @@ impl RefineCtxtTrace {
                 NodeKind::Assumption(e)
                     if !e.simplify(&SnapshotMap::default()).is_trivially_true() =>
                 {
-                    let e = e.nested_string(cx);
-                    exprs.push(e);
+                    for e in e.flatten_conjs() {
+                        exprs.push(e.nested_string(cx));
+                    }
                 }
                 NodeKind::Root(binds) => {
                     for (name, sort) in binds {

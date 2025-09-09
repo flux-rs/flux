@@ -2056,6 +2056,15 @@ impl RefineArgs {
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
+    pub fn to_trivial_base_ty(&self) -> Option<&BaseTy> {
+        let inner = self.as_ref().skip_binder();
+        if self.vars().len() == 1 && inner.pred.is_trivially_true() && inner.idx.is_nu() {
+            Some(&inner.bty)
+        } else {
+            None
+        }
+    }
+
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
         &self.as_ref().skip_binder().bty
     }
@@ -2073,6 +2082,19 @@ impl SubsetTyCtor {
 
     pub fn to_ty_ctor(&self) -> TyCtor {
         self.as_ref().map(SubsetTy::to_ty)
+    }
+}
+
+impl Binder<Ty> {
+    pub fn to_trivial_base_ty(&self) -> Option<&BaseTy> {
+        if self.vars().len() == 1
+            && let TyKind::Indexed(bty, idx) = self.skip_binder_ref().kind()
+            && idx.is_nu()
+        {
+            Some(&bty)
+        } else {
+            None
+        }
     }
 }
 
