@@ -2085,19 +2085,6 @@ impl SubsetTyCtor {
     }
 }
 
-impl Binder<Ty> {
-    pub fn to_trivial_base_ty(&self) -> Option<&BaseTy> {
-        if self.vars().len() == 1
-            && let TyKind::Indexed(bty, idx) = self.skip_binder_ref().kind()
-            && idx.is_nu()
-        {
-            Some(&bty)
-        } else {
-            None
-        }
-    }
-}
-
 /// A subset type is a simplified version of a type that has the form `{b[e] | p}` where `b` is a
 /// [`BaseTy`], `e` a refinement index, and `p` a predicate.
 ///
