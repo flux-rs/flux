@@ -2056,15 +2056,6 @@ impl RefineArgs {
 pub type SubsetTyCtor = Binder<SubsetTy>;
 
 impl SubsetTyCtor {
-    pub fn to_trivial_base_ty(&self) -> Option<&BaseTy> {
-        let inner = self.as_ref().skip_binder();
-        if self.vars().len() == 1 && inner.pred.is_trivially_true() && inner.idx.is_nu() {
-            Some(&inner.bty)
-        } else {
-            None
-        }
-    }
-
     pub fn as_bty_skipping_binder(&self) -> &BaseTy {
         &self.as_ref().skip_binder().bty
     }

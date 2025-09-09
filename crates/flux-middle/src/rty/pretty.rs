@@ -747,8 +747,10 @@ impl PrettyNested for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.fmt_nested(cx),
             GenericArg::Base(ctor) => {
-                if let Some(bty) = ctor.to_trivial_base_ty() {
-                    bty.fmt_nested(cx)
+                // if ctor is of the form `λb. bty[b]`, just print the `bty`
+                let inner = ctor.as_ref().skip_binder();
+                if ctor.vars().len() == 1 && inner.pred.is_trivially_true() && inner.idx.is_nu() {
+                    inner.bty.fmt_nested(cx)
                 } else {
                     nested_with_bound_vars(cx, "λ", ctor.vars(), None, |prefix| {
                         let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
@@ -889,6 +891,7 @@ impl PrettyNested for Ty {
             }
             TyKind::Exists(ty_ctor) => {
                 // TODO: remove redundant vars; see Ty
+                // if ctor is of the form `∃b. bty[b]`, just print the `bty`
                 if ty_ctor.vars().len() == 1
                     && let TyKind::Indexed(bty, idx) = ty_ctor.skip_binder_ref().kind()
                     && idx.is_nu()
