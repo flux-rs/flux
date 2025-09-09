@@ -5,7 +5,7 @@
     fn <a href="#tymethod.projection" class="fn">projection</a>(
         analysis: &amp;mut <a class="struct" href="struct.FoldUnfoldAnalysis.html" title="struct flux_refineck::ghost_statements::fold_unfold::FoldUnfoldAnalysis">FoldUnfoldAnalysis</a>&lt;'_, '_, '_, Self&gt;,
         env: &amp;mut <a class="struct" href="struct.Env.html" title="struct flux_refineck::ghost_statements::fold_unfold::Env">Env</a>,
-        place: &amp;<a class="struct" href="../../../flux_rustc_bridge/mir/struct.Place.html" title="struct flux_rustc_bridge::mir::Place">Place</a>,
+        place: &amp;Place,
     ) -&gt; <a class="type" href="../../../flux_middle/queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.goto_join_point" class="fn">goto_join_point</a>(
         analysis: &amp;mut <a class="struct" href="struct.FoldUnfoldAnalysis.html" title="struct flux_refineck::ghost_statements::fold_unfold::FoldUnfoldAnalysis">FoldUnfoldAnalysis</a>&lt;'_, '_, '_, Self&gt;,
@@ -16,7 +16,7 @@
 }</code></pre><h2 id="required-associated-consts" class="section-header">Required Associated Constants<a href="#required-associated-consts" class="anchor">§</a></h2><div class="methods"><section id="associatedconstant._NAME" class="method"><a class="src rightside" href="../../../src/flux_refineck/ghost_statements/fold_unfold.rs.html#132">Source</a><h4 class="code-header">const <a href="#associatedconstant._NAME" class="constant">_NAME</a>: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a></h4></section></div><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.projection" class="method"><a class="src rightside" href="../../../src/flux_refineck/ghost_statements/fold_unfold.rs.html#134-138">Source</a><h4 class="code-header">fn <a href="#tymethod.projection" class="fn">projection</a>(
     analysis: &amp;mut <a class="struct" href="struct.FoldUnfoldAnalysis.html" title="struct flux_refineck::ghost_statements::fold_unfold::FoldUnfoldAnalysis">FoldUnfoldAnalysis</a>&lt;'_, '_, '_, Self&gt;,
     env: &amp;mut <a class="struct" href="struct.Env.html" title="struct flux_refineck::ghost_statements::fold_unfold::Env">Env</a>,
-    place: &amp;<a class="struct" href="../../../flux_rustc_bridge/mir/struct.Place.html" title="struct flux_rustc_bridge::mir::Place">Place</a>,
+    place: &amp;Place,
 ) -&gt; <a class="type" href="../../../flux_middle/queries/type.QueryResult.html" title="type flux_middle::queries::QueryResult">QueryResult</a></h4></section><section id="tymethod.goto_join_point" class="method"><a class="src rightside" href="../../../src/flux_refineck/ghost_statements/fold_unfold.rs.html#140-144">Source</a><h4 class="code-header">fn <a href="#tymethod.goto_join_point" class="fn">goto_join_point</a>(
     analysis: &amp;mut <a class="struct" href="struct.FoldUnfoldAnalysis.html" title="struct flux_refineck::ghost_statements::fold_unfold::FoldUnfoldAnalysis">FoldUnfoldAnalysis</a>&lt;'_, '_, '_, Self&gt;,
     target: <a class="struct" href="https://doc.rust-lang.org/nightly/nightly-rustc/rustc_middle/mir/struct.BasicBlock.html" title="struct rustc_middle::mir::BasicBlock">BasicBlock</a>,
