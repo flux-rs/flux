@@ -8,12 +8,18 @@ use anyhow::anyhow;
 use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
 use flux_bin::{
     FluxMetadata,
-    utils::{EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain},
+    utils::{
+        EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain,
+        print_version_and_exit,
+    },
 };
 use itertools::Itertools;
 use tempfile::NamedTempFile;
 
 fn main() {
+    if env::args().any(|arg| arg == "--version" || arg == "-V") {
+        print_version_and_exit("cargo-flux");
+    }
     let exit_code = match run() {
         Ok(code) => code,
         Err(e) => {
