@@ -11,11 +11,11 @@ You can install and then run Flux either on a single file or on an entire crate.
 - [liquid-fixpoint](https://github.com/ucsd-progsys/liquid-fixpoint)
 
   Nightly binary builds are avilable on [GitHub Releases](https://github.com/ucsd-progsys/liquid-fixpoint/releases/tag/nightly). If there is no binary available
-for your platform, you will need to [build it from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install).
+  for your platform, you will need to [build it from source](https://github.com/ucsd-progsys/liquid-fixpoint?tab=readme-ov-file#how-to-build-and-install).
 
-- [z3](https://github.com/Z3Prover/z3)
+- [z3](https://github.com/Z3Prover/z3) 4.15 or later
 
-  You can download a binary for your platfrom from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). We recommend downloading the latest version, but older version should also work.
+  You can download a binary for your platform from [Z3 GitHub Releases](https://github.com/Z3Prover/z3/releases). We recommend downloading the latest version, but older version should also work.
 
 **Note:**
 Make sure that the `liquid-fixpoint` and `z3` binaries are in your `$PATH`.
@@ -54,7 +54,6 @@ flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 ```
 
 This will add the procedural macros Flux uses to your project; it is not a substitute for installing Flux, which must still be done.
-
 
 ## Running on a File: `flux`
 
@@ -101,8 +100,6 @@ To do so add the following to `Cargo.toml`:
 [package.metadata.flux]
 enabled = true
 ```
-
-
 
 ### Refinement Annotations on a Cargo Projects
 
