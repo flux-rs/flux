@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{
     BinOp, BinRel, Bind, Constant, Constraint, Expr, Identifier, KVarDecl, Pred, Qualifier, Sort,
     SortCtor, Types,
-    constraint::ConstraintWithEnv,
+    constraint_with_env::ConstraintWithEnv,
     sexp::{Atom, ParseError as SexpParseError, Parser as SexpParser, Sexp},
 };
 

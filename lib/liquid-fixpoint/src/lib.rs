@@ -11,6 +11,9 @@ extern crate rustc_serialize;
 extern crate rustc_span;
 
 mod constraint;
+mod constraint_fragments;
+mod constraint_solving;
+mod constraint_with_env;
 mod cstr2smt2;
 mod format;
 mod graph;
