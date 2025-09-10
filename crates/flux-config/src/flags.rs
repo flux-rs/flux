@@ -48,8 +48,6 @@ pub struct Flags {
     pub dump_fhir: bool,
     /// Saves the the `fhir` (debugging)
     pub dump_rty: bool,
-    /// Saves the low-level MIR for each analyzed function (debugging)
-    pub dump_mir: bool,
     /// Optimistically keeps running flux even after errors are found to get as many errors as possible
     pub catch_bugs: bool,
     /// Whether verification for the current crate is enabled. If false (the default), `flux-driver`
@@ -73,7 +71,6 @@ impl Default for Flags {
             dump_checker_trace: None,
             dump_fhir: false,
             dump_rty: false,
-            dump_mir: false,
             catch_bugs: false,
             pointer_width: PointerWidth::default(),
             include: None,
@@ -104,7 +101,6 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "log-dir" => parse_path_buf(&mut flags.log_dir, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
-            "dump-mir" => parse_bool(&mut flags.dump_mir, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
             "dump-rty" => parse_bool(&mut flags.dump_rty, value),
             "catch-bugs" => parse_bool(&mut flags.catch_bugs, value),

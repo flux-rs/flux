@@ -19,10 +19,6 @@ pub fn dump_checker_trace() -> Option<Level> {
     FLAGS.dump_checker_trace
 }
 
-pub fn dump_mir() -> bool {
-    FLAGS.dump_mir
-}
-
 pub fn dump_constraint() -> bool {
     FLAGS.dump_constraint
 }
