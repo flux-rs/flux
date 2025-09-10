@@ -1300,12 +1300,22 @@ const sampleData: NestedString = {
   ],
 };
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+
 function nestedStringHtml(node: NestedString): string {
   const hasChildren = node.children && node.children.length > 0;
   const toggleable = hasChildren ? "toggleable" : "";
   const labelclass = hasChildren ? " has-children" : " primitive";
   const keyText = node.key ? node.key + ": " : "";
-  const labelText = keyText + node.text;
+  const labelText = escapeHtml(keyText + node.text);
 
   let childrenHtml = "";
   if (node.children) {

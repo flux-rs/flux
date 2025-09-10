@@ -730,7 +730,7 @@ impl PrettyNested for SubsetTy {
         let bty_d = self.bty.fmt_nested(cx)?;
         let idx_d = IdxFmt(self.idx.clone()).fmt_nested(cx)?;
         if self.pred.is_trivially_true() {
-            let text = format!("{}{}", bty_d.text, idx_d.text);
+            let text = format!("{}[{}]", bty_d.text, idx_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children]);
             Ok(NestedString { text, children, key: None })
         } else {
@@ -747,11 +747,17 @@ impl PrettyNested for GenericArg {
         match self {
             GenericArg::Ty(ty) => ty.fmt_nested(cx),
             GenericArg::Base(ctor) => {
-                nested_with_bound_vars(cx, "λ", ctor.vars(), None, |prefix| {
-                    let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
-                    let text = format!("{}{}", prefix, ctor_d.text);
-                    Ok(NestedString { text, children: ctor_d.children, key: None })
-                })
+                // if ctor is of the form `λb. bty[b]`, just print the `bty`
+                let inner = ctor.as_ref().skip_binder();
+                if ctor.vars().len() == 1 && inner.pred.is_trivially_true() && inner.idx.is_nu() {
+                    inner.bty.fmt_nested(cx)
+                } else {
+                    nested_with_bound_vars(cx, "λ", ctor.vars(), None, |prefix| {
+                        let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
+                        let text = format!("{}{}", prefix, ctor_d.text);
+                        Ok(NestedString { text, children: ctor_d.children, key: None })
+                    })
+                }
             }
             GenericArg::Lifetime(..) | GenericArg::Const(..) => debug_nested(cx, self),
         }
@@ -807,7 +813,12 @@ impl PrettyNested for BaseTy {
             }
             BaseTy::Ref(_, ty, mutbl) => {
                 let ty_d = ty.fmt_nested(cx)?;
-                let text = format!("&{} {}", mutbl.prefix_str(), ty_d.text);
+                let prefix = mutbl.prefix_str();
+                let text = if prefix.is_empty() {
+                    format!("&{}", ty_d.text)
+                } else {
+                    format!("&{} {}", prefix, ty_d.text)
+                };
                 Ok(NestedString { text, children: ty_d.children, key: None })
             }
             BaseTy::Tuple(tys) => {
@@ -873,18 +884,26 @@ impl PrettyNested for Ty {
                 let text = if idx_d.text.is_empty() {
                     bty_d.text
                 } else {
-                    format!("{}{}", bty_d.text, idx_d.text)
+                    format!("{}[{}]", bty_d.text, idx_d.text)
                 };
                 let children = float_children(vec![bty_d.children, idx_d.children]);
                 Ok(NestedString { text, children, key: None })
             }
             TyKind::Exists(ty_ctor) => {
                 // TODO: remove redundant vars; see Ty
-                nested_with_bound_vars(cx, "∃", ty_ctor.vars(), None, |exi_str| {
-                    let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
-                    let text = format!("{}{}", exi_str, ty_ctor_d.text);
-                    Ok(NestedString { text, children: ty_ctor_d.children, key: None })
-                })
+                // if ctor is of the form `∃b. bty[b]`, just print the `bty`
+                if ty_ctor.vars().len() == 1
+                    && let TyKind::Indexed(bty, idx) = ty_ctor.skip_binder_ref().kind()
+                    && idx.is_nu()
+                {
+                    bty.fmt_nested(cx)
+                } else {
+                    nested_with_bound_vars(cx, "∃", ty_ctor.vars(), None, |exi_str| {
+                        let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
+                        let text = format!("{}{}", exi_str, ty_ctor_d.text);
+                        Ok(NestedString { text, children: ty_ctor_d.children, key: None })
+                    })
+                }
             }
             TyKind::Constr(expr, ty) => {
                 let expr_d = expr.fmt_nested(cx)?;
