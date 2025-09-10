@@ -7,7 +7,7 @@ fn parse_output(output: Output) -> Option<String> {
 fn git_sha() -> Option<String> {
     parse_output(
         Command::new("git")
-            .args(&["describe", "--always", "--dirty=*"])
+            .args(["describe", "--always", "--dirty=*"])
             .output()
             .ok()?,
     )
@@ -16,7 +16,7 @@ fn git_sha() -> Option<String> {
 fn git_date() -> Option<String> {
     parse_output(
         Command::new("git")
-            .args(&["show", "-s", "--format=%cd", "--date=format:%Y-%m-%d", "HEAD"])
+            .args(["show", "-s", "--format=%cd", "--date=format:%Y-%m-%d", "HEAD"])
             .output()
             .ok()?,
     )

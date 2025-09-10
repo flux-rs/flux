@@ -660,7 +660,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                     span: loc.span,
                 };
                 let ty = self.desugar_ty(ty);
-                Ok(fhir::Ensures::Type(path, ty))
+                Ok(fhir::Ensures::Type(path, self.genv().alloc(ty)))
             }
             surface::Ensures::Pred(e) => {
                 let pred = self.desugar_expr(e);

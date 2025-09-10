@@ -199,7 +199,7 @@ fn serde_json_to_config(
                 return Err(config::ConfigError::Message("invalid number".to_string()));
             }
         }
-        serde_json::Value::String(s) => config::ValueKind::String(s.to_string()),
+        serde_json::Value::String(s) => config::ValueKind::String(s.clone()),
         serde_json::Value::Array(values) => {
             config::ValueKind::Array(
                 values
@@ -211,7 +211,7 @@ fn serde_json_to_config(
         serde_json::Value::Object(map) => {
             config::ValueKind::Table(
                 map.iter()
-                    .map(|(k, v)| Ok((k.to_string(), serde_json_to_config(v, origin)?)))
+                    .map(|(k, v)| Ok((k.clone(), serde_json_to_config(v, origin)?)))
                     .try_collect()?,
             )
         }
