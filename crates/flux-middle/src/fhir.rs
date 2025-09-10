@@ -509,7 +509,7 @@ pub struct FnOutput<'fhir> {
 #[derive(Clone, Copy)]
 pub enum Ensures<'fhir> {
     /// A type constraint on a location
-    Type(PathExpr<'fhir>, Ty<'fhir>),
+    Type(PathExpr<'fhir>, &'fhir Ty<'fhir>),
     /// A predicate that needs to hold on function exit
     Pred(Expr<'fhir>),
 }

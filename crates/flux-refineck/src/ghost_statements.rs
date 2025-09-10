@@ -143,7 +143,7 @@ impl GhostStatements {
         use rustc_middle::mir::{PassWhere, pretty::MirDumper};
         if let Some(dumper) = MirDumper::new(tcx, "ghost", body.inner()) {
             dumper
-                .set_extra_data(&mut |pass, w| {
+                .set_extra_data(&|pass, w| {
                     match pass {
                         PassWhere::BeforeBlock(bb) if bb == START_BLOCK => {
                             for stmt in &self.at_start {
