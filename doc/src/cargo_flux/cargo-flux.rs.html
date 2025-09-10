@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(config::ConfigError::Message(<span class="string">"invalid number"</span>.to_string()));
 <a href=#200 id=200 data-nosnippet>200</a>            }
 <a href=#201 id=201 data-nosnippet>201</a>        }
-<a href=#202 id=202 data-nosnippet>202</a>        serde_json::Value::String(s) =&gt; config::ValueKind::String(s.to_string()),
+<a href=#202 id=202 data-nosnippet>202</a>        serde_json::Value::String(s) =&gt; config::ValueKind::String(s.clone()),
 <a href=#203 id=203 data-nosnippet>203</a>        serde_json::Value::Array(values) =&gt; {
 <a href=#204 id=204 data-nosnippet>204</a>            config::ValueKind::Array(
 <a href=#205 id=205 data-nosnippet>205</a>                values
@@ -211,7 +211,7 @@
 <a href=#211 id=211 data-nosnippet>211</a>        serde_json::Value::Object(map) =&gt; {
 <a href=#212 id=212 data-nosnippet>212</a>            config::ValueKind::Table(
 <a href=#213 id=213 data-nosnippet>213</a>                map.iter()
-<a href=#214 id=214 data-nosnippet>214</a>                    .map(|(k, v)| <span class="prelude-val">Ok</span>((k.to_string(), serde_json_to_config(v, origin)<span class="question-mark">?</span>)))
+<a href=#214 id=214 data-nosnippet>214</a>                    .map(|(k, v)| <span class="prelude-val">Ok</span>((k.clone(), serde_json_to_config(v, origin)<span class="question-mark">?</span>)))
 <a href=#215 id=215 data-nosnippet>215</a>                    .try_collect()<span class="question-mark">?</span>,
 <a href=#216 id=216 data-nosnippet>216</a>            )
 <a href=#217 id=217 data-nosnippet>217</a>        }

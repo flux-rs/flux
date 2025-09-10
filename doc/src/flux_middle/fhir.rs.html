@@ -509,7 +509,7 @@
 <a href=#509 id=509 data-nosnippet>509</a><span class="attr">#[derive(Clone, Copy)]
 <a href=#510 id=510 data-nosnippet>510</a></span><span class="kw">pub enum </span>Ensures&lt;<span class="lifetime">'fhir</span>&gt; {
 <a href=#511 id=511 data-nosnippet>511</a>    <span class="doccomment">/// A type constraint on a location
-<a href=#512 id=512 data-nosnippet>512</a>    </span>Type(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, Ty&lt;<span class="lifetime">'fhir</span>&gt;),
+<a href=#512 id=512 data-nosnippet>512</a>    </span>Type(PathExpr&lt;<span class="lifetime">'fhir</span>&gt;, <span class="kw-2">&amp;</span><span class="lifetime">'fhir </span>Ty&lt;<span class="lifetime">'fhir</span>&gt;),
 <a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// A predicate that needs to hold on function exit
 <a href=#514 id=514 data-nosnippet>514</a>    </span>Pred(Expr&lt;<span class="lifetime">'fhir</span>&gt;),
 <a href=#515 id=515 data-nosnippet>515</a>}
