@@ -15,7 +15,7 @@ z3 = { version = "0.12.1", optional = true }
 [features]
 default = []
 # Enable Z3 SMT solver integration for constraint satisfiability checking (optional)
-z3-solver = ["dep:z3"]
+rust-fixpoint = ["dep:z3"]
 nightly = []
 
 [lints]
