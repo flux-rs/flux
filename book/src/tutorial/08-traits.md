@@ -434,11 +434,11 @@ the below `impl`?
 
 
 ```rust, editable
-#[assoc(fn valid(me: std::vec::Vec, index: int) -> bool { true })]
+#[assoc(fn valid(me: Vec, index: int) -> bool { true })]
 impl <A:Copy> Index<usize> for Vec<A> {
     type Output = A;
 
-    #[spec(fn(&Self[@me], index:usize{<std::vec::Vec<A> as Index<usize>>::valid(me, index)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], index:usize{<Vec<A> as Index<usize>>::valid(me, index)}) -> &Self::Output)]
     fn index(&self, index: usize) -> &Self::Output {
         &self[index]
     }
@@ -450,7 +450,7 @@ to compute a dot-product for two `Vec<f64>`. Can you fix the `spec`
 for `dot_vec` so flux accepts it?
 
 ```rust, editable
-#[spec(fn (xs: &std::vec::Vec<f64>, ys: &std::vec::Vec<f64>) -> f64)]
+#[spec(fn (xs: &Vec<f64>, ys: &Vec<f64>) -> f64)]
 fn dot_vec(xs: &Vec<f64>, ys: &Vec<f64>) -> f64 {
     let mut res = 0.0;
     for i in 0..xs.len() {
@@ -466,14 +466,14 @@ fn dot_vec(xs: &Vec<f64>, ys: &Vec<f64>) -> f64 {
 Why does flux reject the below `impl`? Can you edit the code so flux accepts it?
 
 ```rust, editable
-#[assoc(fn valid(me: std::vec::Vec, idx: Range<int>) -> bool {
+#[assoc(fn valid(me: Vec, idx: Range<int>) -> bool {
     true
   })]
 impl <A> Index<Range<usize>> for Vec<A> {
 
     type Output = [A];
 
-    #[spec(fn(&Self[@me], idx:Range<usize>{<std::vec::Vec<A> as Index<Range<usize>>>::valid(me, idx)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], idx:Range<usize>{<Vec<A> as Index<Range<usize>>>::valid(me, idx)}) -> &Self::Output)]
     fn index(&self, idx: Range<usize>) -> &Self::Output {
         &self[idx.start..idx.end]
     }
