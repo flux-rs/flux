@@ -2,11 +2,10 @@ use std::iter;
 
 use derive_where::derive_where;
 use ena::unify::InPlaceUnificationTable;
-use flux_common::{bug, iter::IterExt, result::ResultExt, span_bug, tracked_span_bug};
+use flux_common::{bug, iter::IterExt, span_bug, tracked_span_bug};
 use flux_errors::{ErrorGuaranteed, Errors};
 use flux_infer::projections::NormalizeExt;
 use flux_middle::{
-    THEORY_FUNCS,
     fhir::{self, FhirId, FluxOwnerId, visit::Visitor as _},
     global_env::GlobalEnv,
     queries::QueryResult,
@@ -239,7 +238,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     }
 
     pub(super) fn check_loc(&mut self, loc: &fhir::PathExpr) -> Result {
-        let found = self.synth_path(loc)?;
+        let found = self.synth_path(loc);
         if found == rty::Sort::Loc {
             Ok(())
         } else {
@@ -287,7 +286,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
 
     fn synth_expr(&mut self, expr: &fhir::Expr<'genv>) -> Result<rty::Sort> {
         match expr.kind {
-            fhir::ExprKind::Var(var, _) => self.synth_path(&var),
+            fhir::ExprKind::Var(var, _) => Ok(self.synth_path(&var)),
             fhir::ExprKind::Literal(lit) => Ok(self.synth_lit(lit, expr)),
             fhir::ExprKind::BinaryOp(op, e1, e2) => self.synth_binary_op(expr, op, e1, e2),
             fhir::ExprKind::PrimApp(op, e1, e2) => self.synth_prim_app(&op, e1, e2, expr.span),
@@ -376,52 +375,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn synth_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
-        match path.res {
-            fhir::Res::Param(_, id) => Ok(self.param_sort(id)),
-            fhir::Res::Def(DefKind::Const, def_id) => {
-                if let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? {
-                    let info = self.genv.constant_info(def_id).emit(&self.genv)?;
-                    // non-integral constant
-                    if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
-                        Err(self.emit_err(errors::ConstantAnnotationNeeded::new(path.span)))?;
-                    }
-                    Ok(sort)
-                } else {
-                    span_bug!(path.span, "unexpected const")
-                }
-            }
-            fhir::Res::Def(DefKind::Ctor(..), def_id) => {
-                let Some(sort) = self.genv.sort_of_def_id(def_id).emit(&self.genv)? else {
-                    span_bug!(path.span, "unexpected variant {def_id:?}")
-                };
-                Ok(sort)
-            }
-            fhir::Res::Def(DefKind::ConstParam, _) => Ok(rty::Sort::Int),
-            fhir::Res::NumConst(_) => Ok(rty::Sort::Int),
-            fhir::Res::GlobalFunc(spec_func) => {
-                let fsort = match spec_func {
-                    fhir::SpecFuncKind::Def(name) | fhir::SpecFuncKind::Uif(name) => {
-                        self.genv.func_sort(name)
-                    }
-                    fhir::SpecFuncKind::Thy(itf) => THEORY_FUNCS.get(&itf).unwrap().sort.clone(),
-                    fhir::SpecFuncKind::Cast => {
-                        rty::PolyFuncSort::new(
-                            List::from_arr([rty::SortParamKind::Sort, rty::SortParamKind::Sort]),
-                            rty::FuncSort::new(
-                                vec![rty::Sort::Var(rty::ParamSort::from(0_usize))],
-                                rty::Sort::Var(rty::ParamSort::from(1_usize)),
-                            ),
-                        )
-                    }
-                };
-                Ok(rty::Sort::Func(fsort))
-            }
-            _ => {
-                // This should be caught during conv
-                span_bug!(path.span, "unexpected res `{:?}` in var position", path.res)
-            }
-        }
+    fn synth_path(&mut self, path: &fhir::PathExpr) -> rty::Sort {
+        self.node_sort
+            .get(&path.fhir_id)
+            .unwrap_or_else(|| tracked_span_bug!("no sort found for path: `{path:?}`"))
+            .clone()
     }
 
     fn check_integral(&mut self, op: fhir::BinOp, sort: &rty::Sort, span: Span) -> Result {
@@ -546,10 +504,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         self.node_sort.insert(fhir_id, sort);
     }
 
-    pub(crate) fn node_sort(&self, fhir_id: FhirId) -> rty::Sort {
+    pub(crate) fn sort_of_bty(&self, bty: &fhir::BaseTy) -> rty::Sort {
         self.node_sort
-            .get(&fhir_id)
-            .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
+            .get(&bty.fhir_id)
+            .unwrap_or_else(|| tracked_span_bug!("no sort found for bty: `{bty:?}`"))
             .clone()
     }
 
@@ -788,7 +746,7 @@ impl<'genv> InferCtxt<'genv, '_> {
     }
 
     fn ensure_resolved_path(&mut self, path: &fhir::PathExpr) -> Result<rty::Sort> {
-        let sort = self.synth_path(path)?;
+        let sort = self.synth_path(path);
         self.fully_resolve(&sort)
             .map_err(|_| self.emit_err(errors::CannotInferSort::new(path.span)))
     }
@@ -985,7 +943,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
-            let expected = self.infcx.node_sort(bty.fhir_id);
+            let expected = self.infcx.sort_of_bty(bty);
             self.infer_implicit_params(idx, &expected);
         }
         fhir::visit::walk_ty(self, ty);

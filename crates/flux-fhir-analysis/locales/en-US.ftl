@@ -90,10 +90,6 @@ fhir_analysis_sort_annotation_needed =
     sort annotation needed
     .label = help: consider giving this parameter an explicit sort
 
-fhir_analysis_constant_annotation_needed =
-    constant annotation required
-    .label = help: non-integral constants need a `constant` annotation that specifies their refinement value
-
 fhir_analysis_cannot_infer_sort =
     sort annotation needed
     .label = cannot infer sort
@@ -295,3 +291,7 @@ fhir_analysis_fail_to_match_predicates =
 
 fhir_analysis_invalid_res =
     {$res_descr} not allowed in this position
+
+fhir_analysis_constant_annotation_needed =
+    constant annotation required
+    .label = help: non-integral constants need a `constant` annotation that specifies their refinement value
