@@ -888,9 +888,7 @@ impl<'genv> InferCtxt<'genv, '_> {
             let sort = self
                 .fully_resolve(&sort)
                 .map_err(|_| self.emit_err(errors::SortAnnotationNeeded::new(&param)))?;
-            self.wfckresults
-                .node_sorts_mut()
-                .insert(param.fhir_id, sort);
+            self.wfckresults.param_sorts_mut().insert(param.id, sort);
         }
 
         Ok(self.wfckresults)

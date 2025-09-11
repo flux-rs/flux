@@ -574,8 +574,8 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
     }
 
-    fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
-        self.param_sort(param.id)
+    fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort {
+        self.param_sort(param_id)
     }
 
     fn node_sort(&self, _: FhirId) -> rty::Sort {

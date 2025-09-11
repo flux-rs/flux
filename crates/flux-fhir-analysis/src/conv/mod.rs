@@ -126,7 +126,7 @@ pub trait WfckResultsProvider: Sized {
 
     fn record_ctor(&self, fhir_id: FhirId) -> DefId;
 
-    fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort;
+    fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort;
 
     fn node_sort(&self, fhir_id: FhirId) -> rty::Sort;
 
@@ -204,10 +204,10 @@ impl WfckResultsProvider for WfckResults {
             .unwrap_or_else(|| bug!("unelaborated record constructor `{fhir_id:?}`"))
     }
 
-    fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
-        self.node_sorts()
-            .get(param.fhir_id)
-            .unwrap_or_else(|| bug!("unresolved sort for param `{param:?}`"))
+    fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort {
+        self.param_sorts()
+            .get(&param_id)
+            .unwrap_or_else(|| bug!("unresolved sort for param `{param_id:?}`"))
             .clone()
     }
 
@@ -370,7 +370,7 @@ pub(crate) fn conv_refinement_generics(
     params
         .iter()
         .map(|param| {
-            let sort = wfckresults.param_sort(param);
+            let sort = wfckresults.param_sort(param.id);
             let mode = rty::InferMode::from_param_kind(param.kind);
             Ok(rty::RefineParam { sort, name: param.name, mode })
         })
@@ -2494,7 +2494,7 @@ impl Layer {
         let map = params
             .iter()
             .map(|param| {
-                let sort = results.param_sort(param);
+                let sort = results.param_sort(param.id);
                 let infer_mode = rty::InferMode::from_param_kind(param.kind);
                 let entry = ParamEntry::new(sort, infer_mode, param.name);
                 (param.id, entry)
