@@ -429,7 +429,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                let expected = self.infcx.sort_of_bty(bty.fhir_id);
+                let expected = self.infcx.node_sort(bty.fhir_id);
                 self.infcx
                     .check_expr(idx, &expected)
                     .collect_err(&mut self.errors);
@@ -531,8 +531,8 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
         self.infcx
     }
 
-    fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
-        self.infcx.insert_sort_for_bty(fhir_id, sort);
+    fn insert_node_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
+        self.infcx.insert_node_sort(fhir_id, sort);
     }
 
     fn insert_path_args(&mut self, fhir_id: FhirId, args: rty::GenericArgs) {

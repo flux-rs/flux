@@ -91,9 +91,11 @@ pub trait ConvPhase<'genv, 'tcx>: Sized {
 
     fn results(&self) -> &Self::Results;
 
-    /// Called after converting an indexed type `b[e]` with the `fhir_id` and sort of `b`. Used
-    /// during the first phase to collect the sort of base types.
-    fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort);
+    /// Called during the first phase to collect the sort associated to a node which
+    /// would be hard to recompute from `fhir` otherwise. Currently, this is being
+    /// called when converting:
+    /// * An indexed type `b[e]` with the `fhir_id` and sort of `b`.
+    fn insert_node_sort(&mut self, fhir_id: FhirId, sort: rty::Sort);
 
     /// Called after converting a path with the generic arguments. Using during the first phase
     /// to instantiate sort of generic refinements.
@@ -169,7 +171,7 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for AfterSortck<'_, 'genv, 'tcx> {
         self.wfckresults
     }
 
-    fn insert_bty_sort(&mut self, _: FhirId, _: rty::Sort) {}
+    fn insert_node_sort(&mut self, _: FhirId, _: rty::Sort) {}
 
     fn insert_path_args(&mut self, _: FhirId, _: rty::GenericArgs) {}
 
@@ -1224,7 +1226,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     return Err(self.emit(errors::RefinedUnrefinableType::new(bty.span)))?;
                 };
                 let idx = self.conv_expr(env, idx)?;
-                self.0.insert_bty_sort(fhir_id, ty_ctor.sort());
+                self.0.insert_node_sort(fhir_id, ty_ctor.sort());
                 Ok(ty_ctor.replace_bound_reft(&idx))
             }
             fhir::TyKind::Exists(params, ty) => {

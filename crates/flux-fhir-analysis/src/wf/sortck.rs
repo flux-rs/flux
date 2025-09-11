@@ -36,7 +36,7 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     params: FxHashMap<fhir::ParamId, (fhir::RefineParam<'genv>, rty::Sort)>,
-    sort_of_bty: FxHashMap<FhirId, rty::Sort>,
+    node_sort: FxHashMap<FhirId, rty::Sort>,
     path_args: UnordMap<FhirId, rty::GenericArgs>,
     sort_of_alias_reft: FxHashMap<FhirId, rty::FuncSort>,
     sort_of_literal: NodeMap<'genv, rty::Sort>,
@@ -68,7 +68,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
-            sort_of_bty: Default::default(),
+            node_sort: Default::default(),
             path_args: Default::default(),
             sort_of_alias_reft: Default::default(),
             sort_of_literal: Default::default(),
@@ -542,12 +542,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         fsort.instantiate(&args)
     }
 
-    pub(crate) fn insert_sort_for_bty(&mut self, fhir_id: FhirId, sort: rty::Sort) {
-        self.sort_of_bty.insert(fhir_id, sort);
+    pub(crate) fn insert_node_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
+        self.node_sort.insert(fhir_id, sort);
     }
 
-    pub(crate) fn sort_of_bty(&self, fhir_id: FhirId) -> rty::Sort {
-        self.sort_of_bty
+    pub(crate) fn node_sort(&self, fhir_id: FhirId) -> rty::Sort {
+        self.node_sort
             .get(&fhir_id)
             .unwrap_or_else(|| tracked_span_bug!("no entry found for `{fhir_id:?}`"))
             .clone()
@@ -601,7 +601,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     // expanding aliases in `ConvCtxt::conv_sort`.
     pub(crate) fn normalize_sorts(&mut self) -> QueryResult {
         let genv = self.genv;
-        for sort in self.sort_of_bty.values_mut() {
+        for sort in self.node_sort.values_mut() {
             *sort = Self::normalize_projection_sort(genv, self.owner, sort.clone());
         }
         for fsort in self.sort_of_alias_reft.values_mut() {
@@ -987,7 +987,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
 impl<'genv> fhir::visit::Visitor<'genv> for ImplicitParamInferer<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         if let fhir::TyKind::Indexed(bty, idx) = &ty.kind {
-            let expected = self.infcx.sort_of_bty(bty.fhir_id);
+            let expected = self.infcx.node_sort(bty.fhir_id);
             self.infer_implicit_params(idx, &expected);
         }
         fhir::visit::walk_ty(self, ty);
