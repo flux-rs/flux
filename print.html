@@ -2577,11 +2577,11 @@ is accepted by flux?</p>
 <p><strong>EXERCISE</strong> Let's implement the <code>Index</code> trait for <code>Vec</code> using <code>usize</code> indexes.
 The definition of <code>valid</code> is too permissive, can you modify it so that flux accepts
 the below <code>impl</code>?</p>
-<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: std::vec::Vec, index: int) -&gt; bool { true })]
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: Vec, index: int) -&gt; bool { true })]
 impl &lt;A:Copy&gt; Index&lt;usize&gt; for Vec&lt;A&gt; {
     type Output = A;
 
-    #[spec(fn(&amp;Self[@me], index:usize{&lt;std::vec::Vec&lt;A&gt; as Index&lt;usize&gt;&gt;::valid(me, index)}) -&gt; &amp;Self::Output)]
+    #[spec(fn(&amp;Self[@me], index:usize{&lt;Vec&lt;A&gt; as Index&lt;usize&gt;&gt;::valid(me, index)}) -&gt; &amp;Self::Output)]
     fn index(&amp;self, index: usize) -&gt; &amp;Self::Output {
         &amp;self[index]
     }
@@ -2589,7 +2589,7 @@ impl &lt;A:Copy&gt; Index&lt;usize&gt; for Vec&lt;A&gt; {
 <p><strong>EXERCISE</strong> Let's write a client that uses the <code>index</code> on <code>Vec</code>
 to compute a dot-product for two <code>Vec&lt;f64&gt;</code>. Can you fix the <code>spec</code>
 for <code>dot_vec</code> so flux accepts it?</p>
-<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn (xs: &amp;std::vec::Vec&lt;f64&gt;, ys: &amp;std::vec::Vec&lt;f64&gt;) -&gt; f64)]
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn (xs: &amp;Vec&lt;f64&gt;, ys: &amp;Vec&lt;f64&gt;) -&gt; f64)]
 fn dot_vec(xs: &amp;Vec&lt;f64&gt;, ys: &amp;Vec&lt;f64&gt;) -&gt; f64 {
     let mut res = 0.0;
     for i in 0..xs.len() {
@@ -2600,14 +2600,14 @@ fn dot_vec(xs: &amp;Vec&lt;f64&gt;, ys: &amp;Vec&lt;f64&gt;) -&gt; f64 {
 <h2 id="indexing-vectors-with-ranges"><a class="header" href="#indexing-vectors-with-ranges">Indexing Vectors with Ranges</a></h2>
 <p><strong>EXERCISE</strong> Finally, lets extract <em>sub-slices</em> from vectors using <code>Range&lt;usize&gt;</code> indexes.
 Why does flux reject the below <code>impl</code>? Can you edit the code so flux accepts it?</p>
-<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: std::vec::Vec, idx: Range&lt;int&gt;) -&gt; bool {
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(fn valid(me: Vec, idx: Range&lt;int&gt;) -&gt; bool {
     true
   })]
 impl &lt;A&gt; Index&lt;Range&lt;usize&gt;&gt; for Vec&lt;A&gt; {
 
     type Output = [A];
 
-    #[spec(fn(&amp;Self[@me], idx:Range&lt;usize&gt;{&lt;std::vec::Vec&lt;A&gt; as Index&lt;Range&lt;usize&gt;&gt;&gt;::valid(me, idx)}) -&gt; &amp;Self::Output)]
+    #[spec(fn(&amp;Self[@me], idx:Range&lt;usize&gt;{&lt;Vec&lt;A&gt; as Index&lt;Range&lt;usize&gt;&gt;&gt;::valid(me, idx)}) -&gt; &amp;Self::Output)]
     fn index(&amp;self, idx: Range&lt;usize&gt;) -&gt; &amp;Self::Output {
         &amp;self[idx.start..idx.end]
     }
