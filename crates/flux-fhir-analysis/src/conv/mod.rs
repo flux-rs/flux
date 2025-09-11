@@ -2099,45 +2099,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_expr(&mut self, env: &mut Env, expr: &fhir::Expr) -> QueryResult<rty::Expr> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
-        let tcx = self.tcx();
         let expr = match expr.kind {
-            fhir::ExprKind::Var(var, _) => {
-                match var.res {
-                    fhir::Res::Param(..) => env.lookup(&var).to_expr(),
-                    fhir::Res::Def(DefKind::Const, def_id) => {
-                        self.hyperlink(var.span, tcx.def_ident_span(def_id));
-                        if P::HAS_ELABORATED_INFORMATION {
-                            rty::Expr::const_def_id(def_id).at(espan)
-                        } else {
-                            let Some(sort) = self.genv().sort_of_def_id(def_id)? else {
-                                span_bug!(expr.span, "missing sort for const {def_id:?}");
-                            };
-                            rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
-                        }
-                    }
-                    fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
-                        let variant_id = self.tcx().parent(ctor_id);
-                        let enum_id = self.tcx().parent(variant_id);
-                        self.hyperlink(var.span, tcx.def_ident_span(variant_id));
-                        let idx = variant_idx(self.tcx(), variant_id);
-                        rty::Expr::ctor_enum(enum_id, idx)
-                    }
-                    fhir::Res::Def(DefKind::ConstParam, def_id) => {
-                        self.hyperlink(var.span, tcx.def_ident_span(def_id));
-                        rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id))
-                            .at(espan)
-                    }
-                    fhir::Res::NumConst(num) => {
-                        rty::Expr::constant(rty::Constant::from(num)).at(espan)
-                    }
-                    _ => {
-                        Err(self.emit(errors::InvalidRes {
-                            span: expr.span,
-                            res_descr: var.res.descr(),
-                        }))?
-                    }
-                }
-            }
+            fhir::ExprKind::Var(path, _) => self.conv_path_expr(env, path)?,
             fhir::ExprKind::Literal(lit) => {
                 rty::Expr::constant(self.conv_lit(lit, fhir_id, expr.span)?).at(espan)
             }
@@ -2236,6 +2199,41 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Err(err) => Err(QueryErr::Emitted(err))?,
         };
         Ok(self.add_coercions(expr, fhir_id))
+    }
+
+    fn conv_path_expr(&mut self, env: &mut Env, path: fhir::PathExpr) -> QueryResult<rty::Expr> {
+        let tcx = self.genv().tcx();
+        let espan = ESpan::new(path.span);
+        let expr = match path.res {
+            fhir::Res::Param(..) => env.lookup(&path).to_expr(),
+            fhir::Res::Def(DefKind::Const, def_id) => {
+                self.hyperlink(path.span, tcx.def_ident_span(def_id));
+                if P::HAS_ELABORATED_INFORMATION {
+                    rty::Expr::const_def_id(def_id).at(espan)
+                } else {
+                    let Some(sort) = self.genv().sort_of_def_id(def_id)? else {
+                        span_bug!(path.span, "missing sort for const {def_id:?}");
+                    };
+                    rty::Expr::hole(rty::HoleKind::Expr(sort)).at(espan)
+                }
+            }
+            fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
+                let variant_id = self.tcx().parent(ctor_id);
+                let enum_id = self.tcx().parent(variant_id);
+                self.hyperlink(path.span, tcx.def_ident_span(variant_id));
+                let idx = variant_idx(self.tcx(), variant_id);
+                rty::Expr::ctor_enum(enum_id, idx)
+            }
+            fhir::Res::Def(DefKind::ConstParam, def_id) => {
+                self.hyperlink(path.span, tcx.def_ident_span(def_id));
+                rty::Expr::const_generic(def_id_to_param_const(self.genv(), def_id)).at(espan)
+            }
+            fhir::Res::NumConst(num) => rty::Expr::constant(rty::Constant::from(num)).at(espan),
+            _ => {
+                Err(self.emit(errors::InvalidRes { span: path.span, res_descr: path.res.descr() }))?
+            }
+        };
+        Ok(expr)
     }
 
     fn conv_constructor_exprs(
