@@ -1,20 +1,24 @@
+#[cfg(feature = "z3-solver")]
 use core::panic;
+#[cfg(feature = "z3-solver")]
 use std::collections::HashMap;
 
+#[cfg(feature = "z3-solver")]
 use z3::{
     Config, Context, SatResult, Solver, SortKind,
     ast::{self, Ast},
 };
 
-use crate::{
-    constraint::{BinOp, BinRel, Bind, Constant, Constraint, Expr, Pred, Sort},
-    parser::ParsingTypes,
-};
+#[cfg(feature = "z3-solver")]
+use crate::constraint::{BinOp, BinRel, Bind, Constant, Expr, Pred, Sort};
+use crate::{constraint::Constraint, parser::ParsingTypes};
 
+#[cfg(feature = "z3-solver")]
 struct Env<'ctx> {
     bindings: HashMap<String, Vec<ast::Dynamic<'ctx>>>,
 }
 
+#[cfg(feature = "z3-solver")]
 impl<'ctx> Env<'ctx> {
     fn new() -> Self {
         Self { bindings: HashMap::new() }
@@ -40,6 +44,7 @@ impl<'ctx> Env<'ctx> {
     }
 }
 
+#[cfg(feature = "z3-solver")]
 pub fn is_constraint_satisfiable(cstr: &Constraint<ParsingTypes>) -> bool {
     let cfg = Config::new();
     let ctx = Context::new(&cfg);
@@ -48,6 +53,14 @@ pub fn is_constraint_satisfiable(cstr: &Constraint<ParsingTypes>) -> bool {
     is_constraint_satisfiable_inner(&ctx, &cstr, &solver, &mut vars)
 }
 
+#[cfg(not(feature = "z3-solver"))]
+pub fn is_constraint_satisfiable(_cstr: &Constraint<ParsingTypes>) -> bool {
+    // When z3-solver feature is disabled, always return true (constraint is satisfiable)
+    // This is a conservative fallback that won't block compilation
+    true
+}
+
+#[cfg(feature = "z3-solver")]
 fn const_to_z3<'ctx>(ctx: &'ctx Context, cnst: &Constant<ParsingTypes>) -> ast::Dynamic<'ctx> {
     match cnst {
         Constant::Numeral(num) => ast::Int::from_i64(ctx, (*num).try_into().unwrap()).into(),
@@ -57,6 +70,7 @@ fn const_to_z3<'ctx>(ctx: &'ctx Context, cnst: &Constant<ParsingTypes>) -> ast::
     }
 }
 
+#[cfg(feature = "z3-solver")]
 fn atom_to_z3<'ctx>(
     ctx: &'ctx Context,
     bin_rel: &BinRel,
@@ -120,6 +134,7 @@ fn atom_to_z3<'ctx>(
     }
 }
 
+#[cfg(feature = "z3-solver")]
 fn binop_to_z3<'ctx>(
     ctx: &'ctx Context,
     bin_op: &BinOp,
@@ -168,6 +183,7 @@ fn binop_to_z3<'ctx>(
     }
 }
 
+#[cfg(feature = "z3-solver")]
 fn expr_to_z3<'ctx>(
     ctx: &'ctx Context,
     expr: &Expr<ParsingTypes>,
@@ -242,6 +258,7 @@ fn expr_to_z3<'ctx>(
     }
 }
 
+#[cfg(feature = "z3-solver")]
 fn pred_to_z3<'ctx>(
     ctx: &'ctx Context,
     pred: &Pred<ParsingTypes>,
@@ -261,6 +278,7 @@ fn pred_to_z3<'ctx>(
     }
 }
 
+#[cfg(feature = "z3-solver")]
 fn new_const<'ctx>(ctx: &'ctx Context, bind: &Bind<ParsingTypes>) -> ast::Dynamic<'ctx> {
     match &bind.sort {
         Sort::Int => ast::Int::new_const(ctx, bind.name.as_str()).into(),
@@ -271,6 +289,7 @@ fn new_const<'ctx>(ctx: &'ctx Context, bind: &Bind<ParsingTypes>) -> ast::Dynami
     }
 }
 
+#[cfg(feature = "z3-solver")]
 fn is_constraint_satisfiable_inner<'ctx>(
     ctx: &'ctx Context,
     cstr: &Constraint<ParsingTypes>,

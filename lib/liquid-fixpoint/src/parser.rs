@@ -613,11 +613,11 @@ fn sexp_to_qualifier(sexp: &Sexp) -> Result<Qualifier<ParsingTypes>, ParseError>
     }
 }
 
-pub fn parse_constraint(input: &str) -> Result<Constraint<ParsingTypes>, ParseError> {
-    let mut sexp_parser = SexpParser::new(input);
-    let sexp = sexp_parser.parse().map_err(ParseError::SexpParseError)?;
-    sexp_to_constraint(&sexp)
-}
+// pub fn parse_constraint(input: &str) -> Result<Constraint<ParsingTypes>, ParseError> {
+//     let mut sexp_parser = SexpParser::new(input);
+//     let sexp = sexp_parser.parse().map_err(ParseError::SexpParseError)?;
+//     sexp_to_constraint(&sexp)
+// }
 
 pub fn parse_constraint_with_kvars(
     input: &str,

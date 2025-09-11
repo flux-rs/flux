@@ -12,13 +12,13 @@ use crate::{
 };
 
 impl<T: Types> Constraint<T> {
-    fn contains_kvars(&self) -> bool {
-        match self {
-            Constraint::Conj(cs) => cs.iter().any(Constraint::contains_kvars),
-            Constraint::ForAll(_bind, inner) => inner.contains_kvars(),
-            Constraint::Pred(p, _tag) => p.contains_kvars(),
-        }
-    }
+    // fn contains_kvars(&self) -> bool {
+    //     match self {
+    //         Constraint::Conj(cs) => cs.iter().any(Constraint::contains_kvars),
+    //         Constraint::ForAll(_bind, inner) => inner.contains_kvars(),
+    //         Constraint::Pred(p, _tag) => p.contains_kvars(),
+    //     }
+    // }
 
     pub fn depth_first_fragments(&self) -> ConstraintFragments<'_, T> {
         ConstraintFragments::new(self)
