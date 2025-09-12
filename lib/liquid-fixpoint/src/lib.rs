@@ -43,14 +43,10 @@ use serde::{Deserialize, Serialize, de};
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
-    type Var: Identifier + Hash + Clone + Debug + Eq + FromPair<Self::KVar, i32>;
+    type Var: Identifier + Hash + Clone + Debug + Eq;
     type Decimal: FixpointFmt + Hash + Clone + Debug;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
-}
-
-pub trait FromPair<T1, T2> {
-    fn from(p: (T1, T2)) -> Self;
 }
 
 pub trait FixpointFmt: Sized {

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{
-    BinRel, FromPair, Types,
+    BinRel, Types,
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
@@ -184,19 +184,8 @@ impl<T: Types> Constraint<T> {
                     .collect()
             }
             Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
-                let args_eq: Vec<Expr<T>> = (0..)
-                    .zip(args.iter())
-                    .map(|(idx, arg)| {
-                        Expr::Atom(
-                            BinRel::Eq,
-                            Box::new([
-                                Expr::Var(FromPair::from((kvid.clone(), idx))),
-                                Expr::Var(arg.clone()),
-                            ]),
-                        )
-                    })
-                    .collect();
-                vec![(vec![], args_eq)]
+                let arg_vars = args.iter().map(|arg| Expr::Var(arg.clone())).collect();
+                vec![(vec![], arg_vars)]
             }
             Constraint::Pred(_, _) => vec![],
         }
@@ -231,14 +220,13 @@ impl<T: Types> Constraint<T> {
                             let kvar_instances_subbed: Vec<Pred<T>> = {
                                 kvar_instances
                                     .into_iter()
-                                    .map(|(kvid, args)| {
+                                    .map(|(_kvid, args)| {
                                         eqs.iter()
-                                            .enumerate()
                                             .zip(args.iter())
-                                            .map(|((i, eq), arg)| {
-                                                Pred::Expr(eq.clone().substitute(
-                                                    &FromPair::from((kvid.clone(), i as i32)),
-                                                    arg,
+                                            .map(|(eq, arg)| {
+                                                Pred::Expr(Expr::Atom(
+                                                    BinRel::Eq,
+                                                    Box::new([Expr::Var(arg.clone()), eq.clone()]),
                                                 ))
                                             })
                                             .collect::<Vec<_>>()

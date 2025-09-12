@@ -42,7 +42,7 @@ pub mod fixpoint {
     use std::fmt;
 
     use flux_middle::rty::{EarlyReftParam, Real};
-    use liquid_fixpoint::{FixpointFmt, FromPair, Identifier};
+    use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
@@ -132,13 +132,6 @@ pub mod fixpoint {
                     write!(f, "reftgen${}${}", param.name, param.index)
                 }
             }
-        }
-    }
-
-    impl FromPair<KVid, i32> for Var {
-        fn from(p: (KVid, i32)) -> Self {
-            let uniq = (p.0.as_u32() << 8) & (p.1 as u32);
-            Var::Local(LocalVar::from(uniq))
         }
     }
 
