@@ -1,8 +1,115 @@
-use std::hash::Hash;
+use std::{hash::Hash, sync::LazyLock, vec};
 
 use derive_where::derive_where;
 
-use crate::Types;
+use crate::{DefaultTypes, Types};
+
+pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 13]> =
+    LazyLock::new(|| {
+        // -----
+        // UNARY
+        // -----
+        // (qualif EqTrue ((v bool)) (v))
+        let eqtrue = Qualifier {
+            args: vec![("v", Sort::Bool)],
+            body: Expr::Var("v"),
+            name: String::from("EqTrue"),
+        };
+        // (qualif EqFalse ((v bool)) (!v))
+        let eqfalse = Qualifier {
+            args: vec![("v", Sort::Bool)],
+            body: Expr::Neg(Box::new(Expr::Var("v"))),
+            name: String::from("EqFalse"),
+        };
+        // (qualif EqZero ((v int)) (v == 0))
+        let eqzero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("EqZero"),
+        };
+
+        // (qualif GtZero ((v int)) (v > 0))
+        let gtzero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("GtZero"),
+        };
+
+        // (qualif GeZero ((v int)) (v >= 0))
+        let gezero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("GeZero"),
+        };
+
+        // (qualif LtZero ((v int)) (v < 0))
+        let ltzero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("LtZero"),
+        };
+
+        // (qualif LeZero ((v int)) (v <= 0))
+        let lezero = Qualifier {
+            args: vec![("v", Sort::Int)],
+            body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("v"), Expr::int(0)])),
+            name: String::from("LeZero"),
+        };
+
+        // ------
+        // BINARY
+        // ------
+
+        // (qualif Eq ((a int) (b int)) (a == b))
+        let eq = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Eq, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Eq"),
+        };
+
+        // (qualif Gt ((a int) (b int)) (a > b))
+        let gt = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Gt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Gt"),
+        };
+
+        // (qualif Lt ((a int) (b int)) (a < b))
+        let ge = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Ge, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Ge"),
+        };
+
+        // (qualif Ge ((a int) (b int)) (a >= b))
+        let lt = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Lt, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Lt"),
+        };
+
+        // (qualif Le ((a int) (b int)) (a <= b))
+        let le = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(BinRel::Le, Box::new([Expr::Var("a"), Expr::Var("b")])),
+            name: String::from("Le"),
+        };
+
+        // (qualif Le1 ((a int) (b int)) (a < b - 1))
+        let le1 = Qualifier {
+            args: vec![("a", Sort::Int), ("b", Sort::Int)],
+            body: Expr::Atom(
+                BinRel::Le,
+                Box::new([
+                    Expr::Var("a"),
+                    Expr::BinaryOp(BinOp::Sub, Box::new([Expr::Var("b"), Expr::int(1)])),
+                ]),
+            ),
+            name: String::from("Le1"),
+        };
+
+        [eqtrue, eqfalse, eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
+    });
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct Bind<T: Types> {

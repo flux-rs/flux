@@ -5,6 +5,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    constraint::DEFAULT_QUALIFIERS,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -32,6 +33,10 @@ impl<T: Types> fmt::Display for Task<T> {
 
         for data_decl in &self.data_decls {
             writeln!(f, "{data_decl}")?;
+        }
+
+        for qualif in DEFAULT_QUALIFIERS.iter() {
+            writeln!(f, "{qualif}")?;
         }
 
         for qualif in &self.qualifiers {
