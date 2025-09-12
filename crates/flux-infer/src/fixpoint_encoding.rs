@@ -137,7 +137,8 @@ pub mod fixpoint {
 
     impl FromPair<KVid, i32> for Var {
         fn from(p: (KVid, i32)) -> Self {
-            Var::Local(LocalVar::from(p.0.as_u32() & (p.1 as u32)))
+            let uniq = (p.0.as_u32() << 8) & (p.1 as u32);
+            Var::Local(LocalVar::from(uniq))
         }
     }
 
