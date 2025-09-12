@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::{hash::Hash, sync::LazyLock, vec};
 
 use derive_where::derive_where;
 
@@ -111,14 +111,14 @@ pub(crate) static DEFAULT_QUALIFIERS: LazyLock<[Qualifier<DefaultTypes>; 13]> =
         [eqtrue, eqfalse, eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
     });
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct Bind<T: Types> {
     pub name: T::Var,
     pub sort: Sort<T>,
     pub pred: Pred<T>,
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone, Debug)]
 pub enum Constraint<T: Types> {
     Pred(Pred<T>, #[derive_where(skip)] Option<T::Tag>),
     Conj(Vec<Self>),
@@ -169,7 +169,7 @@ pub struct DataField<T: Types> {
     pub sort: Sort<T>,
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub enum Sort<T: Types> {
     Int,
     Bool,
@@ -211,14 +211,14 @@ impl<T: Types> Sort<T> {
     }
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub enum SortCtor<T: Types> {
     Set,
     Map,
     Data(T::Sort),
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone, Debug)]
 pub enum Pred<T: Types> {
     And(Vec<Self>),
     KVar(T::KVar, Vec<T::Var>),
@@ -263,7 +263,7 @@ impl BinRel {
     pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
@@ -300,7 +300,7 @@ impl<T: Types> Expr<T> {
     }
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone, Debug)]
 pub enum Constant<T: Types> {
     Numeral(u128),
     Decimal(T::Decimal),
@@ -309,7 +309,7 @@ pub enum Constant<T: Types> {
     BitVec(u128, u32),
 }
 
-#[derive_where(Hash)]
+#[derive_where(Debug, Clone, Hash)]
 pub struct Qualifier<T: Types> {
     pub name: String,
     pub args: Vec<(T::Var, Sort<T>)>,
