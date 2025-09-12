@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier}, constraint_fragments::ConstraintFragments, graph::topological_sort_sccs, is_constraint_satisfiable, parser::ParsingTypes, BinRel, FromPair, Types
+    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier}, constraint_fragments::ConstraintFragments, graph::topological_sort_sccs, is_constraint_satisfiable, BinRel, FromPair, Types
 };
 
 impl<T: Types> Constraint<T> {
@@ -275,10 +275,8 @@ impl<T: Types> Constraint<T> {
             cpred => cpred.clone(),
         }
     }
-}
 
-impl Constraint<ParsingTypes> {
-    pub fn is_satisfiable(&self) -> bool {
+     pub fn is_satisfiable(&self) -> bool {
         is_constraint_satisfiable(self)
     }
 }

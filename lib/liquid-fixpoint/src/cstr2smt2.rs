@@ -1,4 +1,4 @@
-use crate::{constraint::Constraint, parser::ParsingTypes};
+use crate::{Types, constraint::Constraint};
 
 #[cfg(feature = "rust-fixpoint")]
 mod rust_fixpoint {
@@ -12,22 +12,22 @@ mod rust_fixpoint {
 
     use crate::{
         constraint::{BinOp, BinRel, Bind, Constant, Constraint, Expr, Pred, Sort},
-        parser::ParsingTypes,
+        Types, Identifier, FixpointFmt
     };
-    struct Env<'ctx> {
-        bindings: HashMap<String, Vec<ast::Dynamic<'ctx>>>,
+    struct Env<'ctx, T: Types> {
+        bindings: HashMap<T::Var, Vec<ast::Dynamic<'ctx>>>,
     }
 
-    impl<'ctx> Env<'ctx> {
+    impl<'ctx, T: Types> Env<'ctx, T> {
         fn new() -> Self {
             Self { bindings: HashMap::new() }
         }
 
-        fn insert(&mut self, name: String, value: ast::Dynamic<'ctx>) {
+        fn insert(&mut self, name: T::Var, value: ast::Dynamic<'ctx>) {
             self.bindings.entry(name).or_default().push(value);
         }
 
-        fn pop(&mut self, name: &str) {
+        fn pop(&mut self, name: &T::Var) {
             if let Some(stack) = self.bindings.get_mut(name) {
                 stack.pop();
                 if stack.is_empty() {
@@ -36,27 +36,27 @@ mod rust_fixpoint {
             }
         }
 
-        fn lookup(&self, name: &str) -> Option<ast::Dynamic<'ctx>> {
+        fn lookup(&self, name: &T::Var) -> Option<ast::Dynamic<'ctx>> {
             self.bindings
                 .get(name)
                 .and_then(|stack| stack.last().cloned())
         }
     }
 
-    fn const_to_z3<'ctx>(ctx: &'ctx Context, cnst: &Constant<ParsingTypes>) -> ast::Dynamic<'ctx> {
+    fn const_to_z3<'ctx, T: Types>(ctx: &'ctx Context, cnst: &Constant<T>) -> ast::Dynamic<'ctx> {
         match cnst {
             Constant::Numeral(num) => ast::Int::from_i64(ctx, (*num).try_into().unwrap()).into(),
             Constant::Boolean(b) => ast::Bool::from_bool(ctx, *b).into(),
-            Constant::String(strconst) => ast::String::from_str(ctx, strconst).unwrap().into(),
+            Constant::String(strconst) => ast::String::from_str(ctx, &strconst.display().to_string()).unwrap().into(),
             _ => panic!("handling for this kind of const isn't implemented yet"),
         }
     }
 
-    fn atom_to_z3<'ctx>(
+    fn atom_to_z3<'ctx, T: Types>(
         ctx: &'ctx Context,
         bin_rel: &BinRel,
-        operands: &Box<[Expr<ParsingTypes>; 2]>,
-        env: &mut Env<'ctx>,
+        operands: &Box<[Expr<T>; 2]>,
+        env: &mut Env<'ctx, T>,
     ) -> ast::Dynamic<'ctx> {
         let loperand = expr_to_z3(ctx, &operands[0], env);
         let roperand = expr_to_z3(ctx, &operands[1], env);
@@ -115,11 +115,11 @@ mod rust_fixpoint {
         }
     }
 
-    fn binop_to_z3<'ctx>(
+    fn binop_to_z3<'ctx, T: Types>(
         ctx: &'ctx Context,
         bin_op: &BinOp,
-        operands: &Box<[Expr<ParsingTypes>; 2]>,
-        env: &mut Env<'ctx>,
+        operands: &Box<[Expr<T>; 2]>,
+        env: &mut Env<'ctx, T>,
     ) -> ast::Dynamic<'ctx> {
         let lhs = expr_to_z3(ctx, &operands[0], env);
         let rhs = expr_to_z3(ctx, &operands[1], env);
@@ -163,10 +163,10 @@ mod rust_fixpoint {
         }
     }
 
-    fn expr_to_z3<'ctx>(
+    fn expr_to_z3<'ctx, T: Types>(
         ctx: &'ctx Context,
-        expr: &Expr<ParsingTypes>,
-        env: &mut Env<'ctx>,
+        expr: &Expr<T>,
+        env: &mut Env<'ctx, T>,
     ) -> ast::Dynamic<'ctx> {
         match expr {
             Expr::Var(var) => env.lookup(var).expect("error if not present"),
@@ -228,7 +228,7 @@ mod rust_fixpoint {
                 let binding = expr_to_z3(ctx, &exprs[0], env);
                 env.insert(variable.clone(), binding);
                 let res = expr_to_z3(ctx, &exprs[1], env);
-                env.pop(variable.as_str());
+                env.pop(&variable);
                 res
             }
             _ => {
@@ -237,10 +237,10 @@ mod rust_fixpoint {
         }
     }
 
-    fn pred_to_z3<'ctx>(
+    fn pred_to_z3<'ctx, T: Types>(
         ctx: &'ctx Context,
-        pred: &Pred<ParsingTypes>,
-        env: &mut Env<'ctx>,
+        pred: &Pred<T>,
+        env: &mut Env<'ctx, T>,
     ) -> ast::Bool<'ctx> {
         match pred {
             Pred::Expr(expr) => expr_to_z3(ctx, expr, env).as_bool().expect(" asldfj "),
@@ -256,21 +256,21 @@ mod rust_fixpoint {
         }
     }
 
-    fn new_const<'ctx>(ctx: &'ctx Context, bind: &Bind<ParsingTypes>) -> ast::Dynamic<'ctx> {
+    fn new_const<'ctx, T: Types>(ctx: &'ctx Context, bind: &Bind<T>) -> ast::Dynamic<'ctx> {
         match &bind.sort {
-            Sort::Int => ast::Int::new_const(ctx, bind.name.as_str()).into(),
-            Sort::Real => ast::Real::new_const(ctx, bind.name.as_str()).into(),
-            Sort::Bool => ast::Bool::new_const(ctx, bind.name.as_str()).into(),
-            Sort::Str => ast::String::new_const(ctx, bind.name.as_str()).into(),
+            Sort::Int => ast::Int::new_const(ctx, bind.name.display().to_string().as_str()).into(),
+            Sort::Real => ast::Real::new_const(ctx, bind.name.display().to_string().as_str()).into(),
+            Sort::Bool => ast::Bool::new_const(ctx, bind.name.display().to_string().as_str()).into(),
+            Sort::Str => ast::String::new_const(ctx, bind.name.display().to_string().as_str()).into(),
             _ => panic!("unhandled kind encountered"),
         }
     }
 
-    fn is_constraint_satisfiable_inner<'ctx>(
+    fn is_constraint_satisfiable_inner<'ctx, T: Types>(
         ctx: &'ctx Context,
-        cstr: &Constraint<ParsingTypes>,
+        cstr: &Constraint<T>,
         solver: &Solver,
-        env: &mut Env<'ctx>,
+        env: &mut Env<'ctx, T>,
     ) -> bool {
         solver.push();
         let res = match cstr {
@@ -288,7 +288,7 @@ mod rust_fixpoint {
                 env.insert(bind.name.clone(), new_const(ctx, bind));
                 solver.assert(&pred_to_z3(ctx, &bind.pred, env));
                 let inner_soln = is_constraint_satisfiable_inner(ctx, &**inner, solver, env);
-                env.pop(bind.name.as_str());
+                env.pop(&bind.name);
                 inner_soln
             }
         };
@@ -296,7 +296,7 @@ mod rust_fixpoint {
         res
     }
 
-    pub fn is_constraint_satisfiable(cstr: &Constraint<ParsingTypes>) -> bool {
+    pub fn is_constraint_satisfiable<T: Types>(cstr: &Constraint<T>) -> bool {
         let cfg = Config::new();
         let ctx = Context::new(&cfg);
         let solver = Solver::new(&ctx);
@@ -306,11 +306,11 @@ mod rust_fixpoint {
 }
 
 #[cfg(feature = "rust-fixpoint")]
-pub fn is_constraint_satisfiable(cstr: &Constraint<ParsingTypes>) -> bool {
+pub fn is_constraint_satisfiable<T: Types>(cstr: &Constraint<T>) -> bool {
     rust_fixpoint::is_constraint_satisfiable(cstr)
 }
 
 #[cfg(not(feature = "rust-fixpoint"))]
-pub fn is_constraint_satisfiable(_cstr: &Constraint<ParsingTypes>) -> bool {
+pub fn is_constraint_satisfiable<T: Types>(_cstr: &Constraint<T>) -> bool {
     true
 }
