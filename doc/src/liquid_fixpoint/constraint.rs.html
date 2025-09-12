@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `lib/liquid-fixpoint/src/constraint.rs`."><title>constraint.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="liquid_fixpoint" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.0-nightly (9c27f27ea 2025-09-08)" data-channel="nightly" data-search-js="search-d846cb6c.js" data-stringdex-js="stringdex-5af928a3.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">liquid_fixpoint/</div>constraint.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::sync::LazyLock;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `lib/liquid-fixpoint/src/constraint.rs`."><title>constraint.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="liquid_fixpoint" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.0-nightly (9c27f27ea 2025-09-08)" data-channel="nightly" data-search-js="search-d846cb6c.js" data-stringdex-js="stringdex-5af928a3.js" data-settings-js="settings-c38705f0.js" ><script src="../../static.files/storage-e2aeef58.js"></script><script defer src="../../static.files/src-script-813739b1.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">liquid_fixpoint/</div>constraint.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::{hash::Hash, sync::LazyLock, vec};
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>derive_where::derive_where;
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -111,14 +111,14 @@
 <a href=#111 id=111 data-nosnippet>111</a>        [eqtrue, eqfalse, eqzero, gtzero, gezero, ltzero, lezero, eq, gt, ge, lt, le, le1]
 <a href=#112 id=112 data-nosnippet>112</a>    });
 <a href=#113 id=113 data-nosnippet>113</a>
-<a href=#114 id=114 data-nosnippet>114</a><span class="attr">#[derive_where(Hash)]
+<a href=#114 id=114 data-nosnippet>114</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#115 id=115 data-nosnippet>115</a></span><span class="kw">pub struct </span>Bind&lt;T: Types&gt; {
 <a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">pub </span>name: T::Var,
 <a href=#117 id=117 data-nosnippet>117</a>    <span class="kw">pub </span>sort: Sort&lt;T&gt;,
 <a href=#118 id=118 data-nosnippet>118</a>    <span class="kw">pub </span>pred: Pred&lt;T&gt;,
 <a href=#119 id=119 data-nosnippet>119</a>}
 <a href=#120 id=120 data-nosnippet>120</a>
-<a href=#121 id=121 data-nosnippet>121</a><span class="attr">#[derive_where(Hash)]
+<a href=#121 id=121 data-nosnippet>121</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#122 id=122 data-nosnippet>122</a></span><span class="kw">pub enum </span>Constraint&lt;T: Types&gt; {
 <a href=#123 id=123 data-nosnippet>123</a>    Pred(Pred&lt;T&gt;, <span class="attr">#[derive_where(skip)] </span><span class="prelude-ty">Option</span>&lt;T::Tag&gt;),
 <a href=#124 id=124 data-nosnippet>124</a>    Conj(Vec&lt;<span class="self">Self</span>&gt;),
@@ -169,7 +169,7 @@
 <a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">pub </span>sort: Sort&lt;T&gt;,
 <a href=#170 id=170 data-nosnippet>170</a>}
 <a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a><span class="attr">#[derive_where(Hash, Clone)]
+<a href=#172 id=172 data-nosnippet>172</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#173 id=173 data-nosnippet>173</a></span><span class="kw">pub enum </span>Sort&lt;T: Types&gt; {
 <a href=#174 id=174 data-nosnippet>174</a>    Int,
 <a href=#175 id=175 data-nosnippet>175</a>    Bool,
@@ -211,14 +211,14 @@
 <a href=#211 id=211 data-nosnippet>211</a>    }
 <a href=#212 id=212 data-nosnippet>212</a>}
 <a href=#213 id=213 data-nosnippet>213</a>
-<a href=#214 id=214 data-nosnippet>214</a><span class="attr">#[derive_where(Hash, Clone)]
+<a href=#214 id=214 data-nosnippet>214</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#215 id=215 data-nosnippet>215</a></span><span class="kw">pub enum </span>SortCtor&lt;T: Types&gt; {
 <a href=#216 id=216 data-nosnippet>216</a>    Set,
 <a href=#217 id=217 data-nosnippet>217</a>    Map,
 <a href=#218 id=218 data-nosnippet>218</a>    Data(T::Sort),
 <a href=#219 id=219 data-nosnippet>219</a>}
 <a href=#220 id=220 data-nosnippet>220</a>
-<a href=#221 id=221 data-nosnippet>221</a><span class="attr">#[derive_where(Hash)]
+<a href=#221 id=221 data-nosnippet>221</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#222 id=222 data-nosnippet>222</a></span><span class="kw">pub enum </span>Pred&lt;T: Types&gt; {
 <a href=#223 id=223 data-nosnippet>223</a>    And(Vec&lt;<span class="self">Self</span>&gt;),
 <a href=#224 id=224 data-nosnippet>224</a>    KVar(T::KVar, Vec&lt;T::Var&gt;),
@@ -263,7 +263,7 @@
 <a href=#263 id=263 data-nosnippet>263</a>    <span class="kw">pub const </span>INEQUALITIES: [BinRel; <span class="number">4</span>] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 <a href=#264 id=264 data-nosnippet>264</a>}
 <a href=#265 id=265 data-nosnippet>265</a>
-<a href=#266 id=266 data-nosnippet>266</a><span class="attr">#[derive_where(Hash)]
+<a href=#266 id=266 data-nosnippet>266</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#267 id=267 data-nosnippet>267</a></span><span class="kw">pub enum </span>Expr&lt;T: Types&gt; {
 <a href=#268 id=268 data-nosnippet>268</a>    Constant(Constant&lt;T&gt;),
 <a href=#269 id=269 data-nosnippet>269</a>    Var(T::Var),
@@ -300,7 +300,7 @@
 <a href=#300 id=300 data-nosnippet>300</a>    }
 <a href=#301 id=301 data-nosnippet>301</a>}
 <a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a><span class="attr">#[derive_where(Hash)]
+<a href=#303 id=303 data-nosnippet>303</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#304 id=304 data-nosnippet>304</a></span><span class="kw">pub enum </span>Constant&lt;T: Types&gt; {
 <a href=#305 id=305 data-nosnippet>305</a>    Numeral(u128),
 <a href=#306 id=306 data-nosnippet>306</a>    Decimal(T::Decimal),
@@ -309,7 +309,7 @@
 <a href=#309 id=309 data-nosnippet>309</a>    BitVec(u128, u32),
 <a href=#310 id=310 data-nosnippet>310</a>}
 <a href=#311 id=311 data-nosnippet>311</a>
-<a href=#312 id=312 data-nosnippet>312</a><span class="attr">#[derive_where(Hash)]
+<a href=#312 id=312 data-nosnippet>312</a><span class="attr">#[derive_where(Debug, Clone, Hash)]
 <a href=#313 id=313 data-nosnippet>313</a></span><span class="kw">pub struct </span>Qualifier&lt;T: Types&gt; {
 <a href=#314 id=314 data-nosnippet>314</a>    <span class="kw">pub </span>name: String,
 <a href=#315 id=315 data-nosnippet>315</a>    <span class="kw">pub </span>args: Vec&lt;(T::Var, Sort&lt;T&gt;)&gt;,

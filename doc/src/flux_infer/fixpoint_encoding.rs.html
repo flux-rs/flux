@@ -72,7 +72,7 @@
 <a href=#72 id=72 data-nosnippet>72</a>        </span><span class="kw">pub struct </span>AdtId {}
 <a href=#73 id=73 data-nosnippet>73</a>    }
 <a href=#74 id=74 data-nosnippet>74</a>
-<a href=#75 id=75 data-nosnippet>75</a>    <span class="attr">#[derive(Hash, Copy, Clone)]
+<a href=#75 id=75 data-nosnippet>75</a>    <span class="attr">#[derive(Hash, Copy, Clone, Debug, PartialEq)]
 <a href=#76 id=76 data-nosnippet>76</a>    </span><span class="kw">pub enum </span>Var {
 <a href=#77 id=77 data-nosnippet>77</a>        Underscore,
 <a href=#78 id=78 data-nosnippet>78</a>        Global(GlobalVar, <span class="prelude-ty">Option</span>&lt;Symbol&gt;),
@@ -135,7 +135,7 @@
 <a href=#135 id=135 data-nosnippet>135</a>        }
 <a href=#136 id=136 data-nosnippet>136</a>    }
 <a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>    <span class="attr">#[derive(Clone, Hash)]
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="attr">#[derive(Clone, Hash, Debug)]
 <a href=#139 id=139 data-nosnippet>139</a>    </span><span class="kw">pub enum </span>DataSort {
 <a href=#140 id=140 data-nosnippet>140</a>        Tuple(usize),
 <a href=#141 id=141 data-nosnippet>141</a>        Adt(AdtId),
@@ -154,7 +154,7 @@
 <a href=#154 id=154 data-nosnippet>154</a>        }
 <a href=#155 id=155 data-nosnippet>155</a>    }
 <a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a>    <span class="attr">#[derive(Hash)]
+<a href=#157 id=157 data-nosnippet>157</a>    <span class="attr">#[derive(Hash, Clone, Debug)]
 <a href=#158 id=158 data-nosnippet>158</a>    </span><span class="kw">pub struct </span>SymStr(<span class="kw">pub </span>Symbol);
 <a href=#159 id=159 data-nosnippet>159</a>
 <a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">impl </span>FixpointFmt <span class="kw">for </span>SymStr {
