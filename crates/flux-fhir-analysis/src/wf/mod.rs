@@ -39,7 +39,7 @@ pub(crate) fn check_flux_item<'genv>(
     let mut infcx = InferCtxt::new(genv, owner);
 
     Wf::with(&mut infcx, |wf| {
-        wf.declare_params_for_flux_item(item)?;
+        wf.init_infcx_for_flux_item(item).emit(&genv)?;
         wf.check_flux_item(item);
         Ok(())
     })?;
@@ -53,7 +53,14 @@ pub(crate) fn check_constant_expr<'genv>(
     sort: &rty::Sort,
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, FluxOwnerId::Rust(owner));
-    infcx.check_expr(expr, sort)?;
+    Wf::with(&mut infcx, |wf| {
+        wf.declare_params_in_expr(expr)?;
+        wf.as_conv_ctxt()
+            .conv_constant_expr(expr)
+            .emit(&wf.errors)?;
+        wf.check_expr(expr, sort);
+        Ok(())
+    })?;
     infcx.into_results()
 }
 
@@ -76,9 +83,7 @@ pub(crate) fn check_invariants<'genv>(
             .emit(&wf.errors)?;
 
         for invariant in invariants {
-            wf.infcx
-                .check_expr(invariant, &rty::Sort::Bool)
-                .collect_err(&mut wf.errors);
+            wf.check_expr(invariant, &rty::Sort::Bool);
         }
         Ok(())
     })?;
@@ -91,7 +96,7 @@ pub(crate) fn check_node<'genv>(
 ) -> Result<WfckResults> {
     let mut infcx = InferCtxt::new(genv, node.owner_id().local_id().into());
     Wf::with(&mut infcx, |wf| {
-        wf.init_infcx(node)
+        wf.init_infcx_for_node(node)
             .map_err(|err| err.at(genv.tcx().def_span(node.owner_id().local_id())))
             .emit(&genv)?;
 
@@ -136,6 +141,12 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
     fn check_node(&mut self, node: &fhir::OwnerNode<'genv>) {
         self.visit_node(node);
+    }
+
+    fn check_expr(&mut self, expr: &fhir::Expr<'genv>, sort: &rty::Sort) {
+        self.infcx
+            .check_expr(expr, sort)
+            .collect_err(&mut self.errors);
     }
 
     // We special-case primop applications to declare their parameters because their
@@ -187,9 +198,13 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             self.declare_param(param)?;
         }
         for expr in invariants {
-            visit_refine_params(|vis| vis.visit_expr(expr), |param| self.declare_param(param))?;
+            self.declare_params_in_expr(expr)?;
         }
         Ok(())
+    }
+
+    fn declare_params_in_expr(&mut self, expr: &fhir::Expr<'genv>) -> Result {
+        visit_refine_params(|vis| vis.visit_expr(expr), |param| self.declare_param(param))
     }
 
     fn declare_param(&mut self, param: &fhir::RefineParam<'genv>) -> Result {
@@ -201,11 +216,12 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         Ok(())
     }
 
-    /// To check for well-formedness we need to know the sort of base types. For example, to check if
-    /// the type `i32[e]` is well formed, we need to know that the sort of `i32` is `int` so we can
-    /// check the expression `e` against it. Computing the sort from a base type is subtle and hard
-    /// to do in `fhir` so we must do it in `rty`. However, to convert from `fhir` to `rty` we need
-    /// elaborated information from sort checking which we do in `fhir`.
+    /// To check for well-formedness we need to synthesize sorts for some nodes which is hard to
+    /// compute in `fhir`. For example, to check if the type `i32[e]` is well formed, we need to
+    /// know that the sort of `i32` is `int` so we can check the expression `e` against it. Computing
+    /// the sort from a base type is subtle and hard to do in `fhir` so we must do it in `rty`.
+    /// However, to convert from `fhir` to `rty` we need elaborated information from sort checking
+    /// which we do in `fhir`.
     ///
     /// To break this circularity, we do conversion in two phases. In the first phase, we do conversion
     /// without elaborated information. This results in types in `rty` with incorrect refinements but
@@ -213,10 +229,10 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
     /// conversion again with the elaborated information.
     ///
     /// This function initializes the [inference context] by running the first phase of conversion and
-    /// collecting the sort of all base types.
+    /// collecting the sorts of some nodes that are hard to compute in `fhir`.
     ///
     /// [inference context]: InferCtxt
-    fn init_infcx(&mut self, node: &fhir::OwnerNode<'genv>) -> QueryResult {
+    fn init_infcx_for_node(&mut self, node: &fhir::OwnerNode<'genv>) -> QueryResult {
         let def_id = node.owner_id().map(|id| id.def_id);
         self.declare_params_for_node(node)?;
         let cx = self.as_conv_ctxt();
@@ -296,6 +312,23 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
         self.infcx.normalize_sorts()
     }
 
+    fn init_infcx_for_flux_item(&mut self, item: fhir::FluxItem<'genv>) -> QueryResult {
+        self.declare_params_for_flux_item(item)?;
+        let cx = self.as_conv_ctxt();
+        match item {
+            fhir::FluxItem::Qualifier(qualifier) => {
+                cx.conv_qualifier(qualifier)?;
+            }
+            fhir::FluxItem::Func(spec_func) => {
+                cx.conv_defn(spec_func)?;
+            }
+            fhir::FluxItem::PrimOpProp(prim_op_prop) => {
+                cx.conv_primop_prop(prim_op_prop)?;
+            }
+        }
+        Ok(())
+    }
+
     fn check_output_locs(&mut self, fn_decl: &fhir::FnDecl) {
         let mut output_locs = FxHashSet::default();
         for ens in fn_decl.output.ensures {
@@ -320,9 +353,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
 
 impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_qualifier(&mut self, qual: &fhir::Qualifier<'genv>) {
-        self.infcx
-            .check_expr(&qual.expr, &rty::Sort::Bool)
-            .collect_err(&mut self.errors);
+        self.check_expr(&qual.expr, &rty::Sort::Bool);
     }
 
     fn visit_primop_prop(&mut self, primop_prop: &fhir::PrimOpProp<'genv>) {
@@ -341,9 +372,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             ));
             return;
         }
-        self.infcx
-            .check_expr(&primop_prop.body, &rty::Sort::Bool)
-            .collect_err(&mut self.errors);
+        self.check_expr(&primop_prop.body, &rty::Sort::Bool);
     }
 
     fn visit_func(&mut self, func: &fhir::SpecFunc<'genv>) {
@@ -351,9 +380,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             let Ok(output) = self.as_conv_ctxt().conv_sort(&func.sort).emit(&self.errors) else {
                 return;
             };
-            self.infcx
-                .check_expr(body, &output)
-                .collect_err(&mut self.errors);
+            self.check_expr(body, &output);
         }
     }
 
@@ -365,9 +392,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
         else {
             return;
         };
-        self.infcx
-            .check_expr(&assoc_reft.body, &output)
-            .collect_err(&mut self.errors);
+        self.check_expr(&assoc_reft.body, &output);
     }
 
     fn visit_trait_assoc_reft(&mut self, assoc_reft: &fhir::TraitAssocReft<'genv>) {
@@ -379,9 +404,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             else {
                 return;
             };
-            self.infcx
-                .check_expr(body, &output)
-                .collect_err(&mut self.errors);
+            self.check_expr(body, &output);
         }
     }
 
@@ -396,9 +419,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             return;
         };
         let expected = adt_sort_def.to_sort(&args);
-        self.infcx
-            .check_expr(&ret.idx, &expected)
-            .collect_err(&mut self.errors);
+        self.check_expr(&ret.idx, &expected);
     }
 
     fn visit_fn_decl(&mut self, decl: &fhir::FnDecl<'genv>) {
@@ -407,9 +428,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     }
 
     fn visit_requires(&mut self, requires: &fhir::Requires<'genv>) {
-        self.infcx
-            .check_expr(&requires.pred, &rty::Sort::Bool)
-            .collect_err(&mut self.errors);
+        self.check_expr(&requires.pred, &rty::Sort::Bool);
     }
 
     fn visit_ensures(&mut self, ensures: &fhir::Ensures<'genv>) {
@@ -419,9 +438,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
                 self.visit_ty(ty);
             }
             fhir::Ensures::Pred(pred) => {
-                self.infcx
-                    .check_expr(pred, &rty::Sort::Bool)
-                    .collect_err(&mut self.errors);
+                self.check_expr(pred, &rty::Sort::Bool);
             }
         }
     }
@@ -429,10 +446,8 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
     fn visit_ty(&mut self, ty: &fhir::Ty<'genv>) {
         match &ty.kind {
             fhir::TyKind::Indexed(bty, idx) => {
-                let expected = self.infcx.sort_of_bty(bty.fhir_id);
-                self.infcx
-                    .check_expr(idx, &expected)
-                    .collect_err(&mut self.errors);
+                let expected = self.infcx.sort_of_bty(bty);
+                self.check_expr(idx, &expected);
                 self.visit_bty(bty);
             }
             fhir::TyKind::StrgRef(_, loc, ty) => {
@@ -441,9 +456,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             }
             fhir::TyKind::Constr(pred, ty) => {
                 self.visit_ty(ty);
-                self.infcx
-                    .check_expr(pred, &rty::Sort::Bool)
-                    .collect_err(&mut self.errors);
+                self.check_expr(pred, &rty::Sort::Bool);
             }
             _ => fhir::visit::walk_ty(self, ty),
         }
@@ -460,9 +473,7 @@ impl<'genv> fhir::visit::Visitor<'genv> for Wf<'_, 'genv, '_> {
             for (i, expr) in path.refine.iter().enumerate() {
                 let Ok(param) = generics.param_at(i, genv).emit(&self.errors) else { return };
                 let param = param.instantiate(genv.tcx(), &args, &[]);
-                self.infcx
-                    .check_expr(expr, &param.sort)
-                    .collect_err(&mut self.errors);
+                self.check_expr(expr, &param.sort);
             }
         };
         fhir::visit::walk_path(self, path);
@@ -531,8 +542,8 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
         self.infcx
     }
 
-    fn insert_bty_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
-        self.infcx.insert_sort_for_bty(fhir_id, sort);
+    fn insert_node_sort(&mut self, fhir_id: FhirId, sort: rty::Sort) {
+        self.infcx.insert_node_sort(fhir_id, sort);
     }
 
     fn insert_path_args(&mut self, fhir_id: FhirId, args: rty::GenericArgs) {
@@ -574,8 +585,8 @@ impl WfckResultsProvider for InferCtxt<'_, '_> {
         DefId { index: DefIndex::from_u32(0), krate: CrateNum::from_u32(0) }
     }
 
-    fn param_sort(&self, param: &fhir::RefineParam) -> rty::Sort {
-        self.param_sort(param.id)
+    fn param_sort(&self, param_id: fhir::ParamId) -> rty::Sort {
+        self.param_sort(param_id)
     }
 
     fn node_sort(&self, _: FhirId) -> rty::Sort {

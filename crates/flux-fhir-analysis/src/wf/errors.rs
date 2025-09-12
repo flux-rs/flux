@@ -248,20 +248,6 @@ impl SortAnnotationNeeded {
 }
 
 #[derive(Diagnostic)]
-#[diag(fhir_analysis_constant_annotation_needed, code = E0999)]
-pub(super) struct ConstantAnnotationNeeded {
-    #[primary_span]
-    #[label]
-    span: Span,
-}
-
-impl ConstantAnnotationNeeded {
-    pub(super) fn new(span: Span) -> Self {
-        Self { span }
-    }
-}
-
-#[derive(Diagnostic)]
 #[diag(fhir_analysis_cannot_infer_sort, code = E0999)]
 #[note]
 pub(super) struct CannotInferSort {

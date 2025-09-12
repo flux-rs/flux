@@ -2825,6 +2825,7 @@ pub use crate::_Ref as Ref;
 
 pub struct WfckResults {
     pub owner: FluxOwnerId,
+    param_sorts: UnordMap<fhir::ParamId, Sort>,
     bin_op_sorts: ItemLocalMap<Sort>,
     fn_app_sorts: ItemLocalMap<List<SortArg>>,
     coercions: ItemLocalMap<Vec<Coercion>>,
@@ -2856,6 +2857,7 @@ impl WfckResults {
     pub fn new(owner: impl Into<FluxOwnerId>) -> Self {
         Self {
             owner: owner.into(),
+            param_sorts: UnordMap::default(),
             bin_op_sorts: ItemLocalMap::default(),
             coercions: ItemLocalMap::default(),
             field_projs: ItemLocalMap::default(),
@@ -2863,6 +2865,14 @@ impl WfckResults {
             record_ctors: ItemLocalMap::default(),
             fn_app_sorts: ItemLocalMap::default(),
         }
+    }
+
+    pub fn param_sorts_mut(&mut self) -> &mut UnordMap<fhir::ParamId, Sort> {
+        &mut self.param_sorts
+    }
+
+    pub fn param_sorts(&self) -> &UnordMap<fhir::ParamId, Sort> {
+        &self.param_sorts
     }
 
     pub fn bin_op_sorts_mut(&mut self) -> LocalTableInContextMut<'_, Sort> {

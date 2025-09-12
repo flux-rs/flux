@@ -113,7 +113,8 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
         let Some(wfckresults) = wf::check_flux_item(genv, item).collect_err(&mut errors) else {
             continue;
         };
-        let Ok(defn) = conv::conv_defn(genv, func, &wfckresults).emit(&errors) else {
+        let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
+        let Ok(defn) = cx.conv_defn(func).emit(&errors) else {
             continue;
         };
 
@@ -142,7 +143,10 @@ fn qualifiers(genv: GlobalEnv) -> QueryResult<Vec<rty::Qualifier>> {
     genv.fhir_qualifiers()
         .map(|qualifier| {
             let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Qualifier(qualifier))?;
-            Ok(conv::conv_qualifier(genv, qualifier, &wfckresults)?.normalize(genv))
+            Ok(AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_qualifier(qualifier)?
+                .normalize(genv))
         })
         .try_collect()
 }
@@ -151,7 +155,10 @@ fn primop_props(genv: GlobalEnv) -> QueryResult<Vec<rty::PrimOpProp>> {
     genv.fhir_primop_props()
         .map(|primop_prop| {
             let wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimOpProp(primop_prop))?;
-            Ok(conv::conv_primop_prop(genv, primop_prop, &wfckresults)?.normalize(genv))
+            Ok(AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_primop_prop(primop_prop)?
+                .normalize(genv))
         })
         .try_collect()
 }
@@ -203,7 +210,10 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
             // for these constants we must check and use the expression
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
-            conv::conv_constant_expr(genv, def_id.resolved_id(), expr, sort, &wfckresults)
+            let expr = AfterSortck::new(genv, &wfckresults)
+                .into_conv_ctxt()
+                .conv_constant_expr(expr)?;
+            Ok(rty::ConstantInfo::Interpreted(expr, sort))
         }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
