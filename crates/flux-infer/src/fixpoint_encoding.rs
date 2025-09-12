@@ -72,7 +72,7 @@ pub mod fixpoint {
         pub struct AdtId {}
     }
 
-    #[derive(Hash, Copy, Clone, Debug, PartialEq)]
+    #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
         Global(GlobalVar, Option<Symbol>),
