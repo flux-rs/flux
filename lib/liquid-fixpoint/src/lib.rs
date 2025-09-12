@@ -50,7 +50,7 @@ pub trait Types {
 }
 
 pub trait FromPair<T1, T2> {
-    fn from(p: (T1, T2)) -> Self; 
+    fn from(p: (T1, T2)) -> Self;
 }
 
 pub trait FixpointFmt: Sized {

@@ -11,8 +11,8 @@ mod rust_fixpoint {
     };
 
     use crate::{
+        FixpointFmt, Identifier, Types,
         constraint::{BinOp, BinRel, Bind, Constant, Constraint, Expr, Pred, Sort},
-        Types, Identifier, FixpointFmt
     };
     struct Env<'ctx, T: Types> {
         bindings: HashMap<T::Var, Vec<ast::Dynamic<'ctx>>>,
@@ -47,7 +47,11 @@ mod rust_fixpoint {
         match cnst {
             Constant::Numeral(num) => ast::Int::from_i64(ctx, (*num).try_into().unwrap()).into(),
             Constant::Boolean(b) => ast::Bool::from_bool(ctx, *b).into(),
-            Constant::String(strconst) => ast::String::from_str(ctx, &strconst.display().to_string()).unwrap().into(),
+            Constant::String(strconst) => {
+                ast::String::from_str(ctx, &strconst.display().to_string())
+                    .unwrap()
+                    .into()
+            }
             _ => panic!("handling for this kind of const isn't implemented yet"),
         }
     }
@@ -259,9 +263,15 @@ mod rust_fixpoint {
     fn new_const<'ctx, T: Types>(ctx: &'ctx Context, bind: &Bind<T>) -> ast::Dynamic<'ctx> {
         match &bind.sort {
             Sort::Int => ast::Int::new_const(ctx, bind.name.display().to_string().as_str()).into(),
-            Sort::Real => ast::Real::new_const(ctx, bind.name.display().to_string().as_str()).into(),
-            Sort::Bool => ast::Bool::new_const(ctx, bind.name.display().to_string().as_str()).into(),
-            Sort::Str => ast::String::new_const(ctx, bind.name.display().to_string().as_str()).into(),
+            Sort::Real => {
+                ast::Real::new_const(ctx, bind.name.display().to_string().as_str()).into()
+            }
+            Sort::Bool => {
+                ast::Bool::new_const(ctx, bind.name.display().to_string().as_str()).into()
+            }
+            Sort::Str => {
+                ast::String::new_const(ctx, bind.name.display().to_string().as_str()).into()
+            }
             _ => panic!("unhandled kind encountered"),
         }
     }

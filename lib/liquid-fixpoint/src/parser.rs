@@ -1,7 +1,10 @@
 use std::fmt;
 
 use crate::{
-    constraint_with_env::ConstraintWithEnv, sexp::{Atom, ParseError as SexpParseError, Parser as SexpParser, Sexp}, BinOp, BinRel, Bind, Constant, Constraint, Expr, FromPair, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Types
+    BinOp, BinRel, Bind, Constant, Constraint, Expr, FromPair, Identifier, KVarDecl, Pred,
+    Qualifier, Sort, SortCtor, Types,
+    constraint_with_env::ConstraintWithEnv,
+    sexp::{Atom, ParseError as SexpParseError, Parser as SexpParser, Sexp},
 };
 
 #[derive(Debug)]

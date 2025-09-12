@@ -3,7 +3,11 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier}, constraint_fragments::ConstraintFragments, graph::topological_sort_sccs, is_constraint_satisfiable, BinRel, FromPair, Types
+    BinRel, FromPair, Types,
+    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
+    constraint_fragments::ConstraintFragments,
+    graph::topological_sort_sccs,
+    is_constraint_satisfiable,
 };
 
 impl<T: Types> Constraint<T> {
@@ -207,11 +211,7 @@ impl<T: Types> Constraint<T> {
         self.do_elim(var, &solution)
     }
 
-    fn do_elim(
-        &self,
-        var: &T::KVar,
-        solution: &Vec<(Vec<Bind<T>>, Vec<Expr<T>>)>,
-    ) -> Self {
+    fn do_elim(&self, var: &T::KVar, solution: &Vec<(Vec<Bind<T>>, Vec<Expr<T>>)>) -> Self {
         match self {
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
@@ -276,7 +276,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-     pub fn is_satisfiable(&self) -> bool {
+    pub fn is_satisfiable(&self) -> bool {
         is_constraint_satisfiable(self)
     }
 }

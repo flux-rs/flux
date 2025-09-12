@@ -7,7 +7,6 @@ use crate::{
     KVarDecl, Types,
     constraint::{Constraint, Qualifier},
     is_constraint_satisfiable,
-    parser::ParsingTypes,
 };
 
 #[derive_where(Hash)]
