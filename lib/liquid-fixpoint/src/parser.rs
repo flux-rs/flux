@@ -1,10 +1,7 @@
 use std::fmt;
 
 use crate::{
-    BinOp, BinRel, Bind, Constant, Constraint, Expr, Identifier, KVarDecl, Pred, Qualifier, Sort,
-    SortCtor, Types,
-    constraint_with_env::ConstraintWithEnv,
-    sexp::{Atom, ParseError as SexpParseError, Parser as SexpParser, Sexp},
+    constraint_with_env::ConstraintWithEnv, sexp::{Atom, ParseError as SexpParseError, Parser as SexpParser, Sexp}, BinOp, BinRel, Bind, Constant, Constraint, Expr, FromPair, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Types
 };
 
 #[derive(Debug)]
@@ -21,6 +18,12 @@ impl Types for ParsingTypes {
     type Tag = String;
     type Decimal = u32;
     type String = String;
+}
+
+impl FromPair<String, i32> for String {
+    fn from(value: (String, i32)) -> Self {
+        format!("karg${}#{}", value.0, value.1).to_string()
+    }
 }
 
 impl Identifier for String {

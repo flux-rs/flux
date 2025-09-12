@@ -26,10 +26,6 @@ impl ConstraintWithEnv<ParsingTypes> {
         }
     }
 
-    pub fn uniquify(&mut self) {
-        self.constraint.uniquify();
-    }
-
     pub fn solve_by_fusion(&self) -> bool {
         let mut cstr = self.constraint.clone();
         let mut dep_map = self.constraint.kvar_mappings().1;

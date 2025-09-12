@@ -43,10 +43,14 @@ use serde::{Deserialize, Serialize, de};
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
-    type Var: Identifier + Hash + Clone + Debug + PartialEq;
+    type Var: Identifier + Hash + Clone + Debug + PartialEq + FromPair<Self::KVar, i32>;
     type Decimal: FixpointFmt + Hash + Clone + Debug;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
+}
+
+pub trait FromPair<T1, T2> {
+    fn from(p: (T1, T2)) -> Self; 
 }
 
 pub trait FixpointFmt: Sized {
@@ -77,17 +81,6 @@ pub trait Identifier: Sized {
         }
         DisplayAdapter(self)
     }
-}
-
-struct DefaultTypes;
-
-impl Types for DefaultTypes {
-    type Sort = &'static str;
-    type KVar = &'static str;
-    type Var = &'static str;
-    type Tag = String;
-    type Decimal = u32;
-    type String = String;
 }
 
 impl Identifier for &str {

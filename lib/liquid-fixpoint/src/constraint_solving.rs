@@ -3,12 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{
-    BinRel, Types,
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
-    constraint_fragments::ConstraintFragments,
-    graph::topological_sort_sccs,
-    is_constraint_satisfiable,
-    parser::ParsingTypes,
+    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier}, constraint_fragments::ConstraintFragments, graph::topological_sort_sccs, is_constraint_satisfiable, parser::ParsingTypes, BinRel, FromPair, Types
 };
 
 impl<T: Types> Constraint<T> {
@@ -164,62 +159,8 @@ impl<T: Types> Constraint<T> {
             }
         }
     }
-}
 
-impl Constraint<ParsingTypes> {
-    pub fn uniquify(&mut self) {
-        let mut used_names = HashMap::new();
-        self.uniquify_help(&mut used_names);
-    }
-
-    fn uniquify_help(&mut self, used_names: &mut HashMap<String, u32>) {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                let bound_name = &bind.name;
-                if let Some(count) = used_names.get_mut(bound_name) {
-                    *count += 1;
-                    let new_name = format!("{}#{}", bind.name, count);
-                    used_names.insert(new_name.clone(), 0);
-                    inner.rename(bound_name, &new_name);
-                    bind.pred.rename(bound_name, &new_name);
-                    bind.name = new_name
-                } else {
-                    used_names.insert(bind.name.clone(), 0);
-                }
-                inner.uniquify_help(used_names);
-            }
-            Constraint::Conj(conjuncts) => {
-                conjuncts.iter_mut().for_each(|cstr| {
-                    cstr.uniquify_help(used_names);
-                });
-            }
-            Constraint::Pred(_, _) => {}
-        }
-    }
-
-    fn rename(&mut self, from: &String, to: &String) {
-        match self {
-            Constraint::ForAll(bind, inner) => {
-                if !bind.name.eq(from) {
-                    bind.name = to.clone();
-                    bind.pred.rename(from, to);
-                    inner.rename(from, to);
-                }
-            }
-            Constraint::Conj(conjuncts) => {
-                conjuncts.iter_mut().for_each(|cstr| {
-                    cstr.rename(from, to);
-                });
-            }
-            Constraint::Pred(pred, _tag) => pred.rename(from, to),
-        }
-    }
-
-    pub fn is_satisfiable(&self) -> bool {
-        is_constraint_satisfiable(self)
-    }
-
-    pub fn sol1(&self, var: &String) -> Vec<(Vec<Bind<ParsingTypes>>, Vec<Expr<ParsingTypes>>)> {
+    pub fn sol1(&self, var: &T::KVar) -> Vec<(Vec<Bind<T>>, Vec<Expr<T>>)> {
         match self {
             Constraint::ForAll(bind, inner) => {
                 inner
@@ -239,13 +180,13 @@ impl Constraint<ParsingTypes> {
                     .collect()
             }
             Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
-                let args_eq: Vec<Expr<ParsingTypes>> = (0..)
+                let args_eq: Vec<Expr<T>> = (0..)
                     .zip(args.iter())
                     .map(|(idx, arg)| {
                         Expr::Atom(
                             BinRel::Eq,
                             Box::new([
-                                Expr::Var(format!("karg${}#{}", kvid, idx).to_string()),
+                                Expr::Var(FromPair::from((kvid.clone(), idx))),
                                 Expr::Var(arg.clone()),
                             ]),
                         )
@@ -257,19 +198,19 @@ impl Constraint<ParsingTypes> {
         }
     }
 
-    pub fn elim(&self, vars: &Vec<String>) -> Self {
+    pub fn elim(&self, vars: &Vec<T::KVar>) -> Self {
         vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
     }
 
-    pub fn elim1(&self, var: &String) -> Self {
+    pub fn elim1(&self, var: &T::KVar) -> Self {
         let solution = self.scope(var).sol1(var);
         self.do_elim(var, &solution)
     }
 
     fn do_elim(
         &self,
-        var: &String,
-        solution: &Vec<(Vec<Bind<ParsingTypes>>, Vec<Expr<ParsingTypes>>)>,
+        var: &T::KVar,
+        solution: &Vec<(Vec<Bind<T>>, Vec<Expr<T>>)>,
     ) -> Self {
         match self {
             Constraint::Conj(conjuncts) => {
@@ -283,11 +224,11 @@ impl Constraint<ParsingTypes> {
             Constraint::ForAll(Bind { name, sort, pred }, inner) => {
                 let inner_elimmed = inner.do_elim(var, solution);
                 if pred.kvars().contains(var) {
-                    let cstrs: Vec<Constraint<ParsingTypes>> = solution
+                    let cstrs: Vec<Constraint<T>> = solution
                         .iter()
                         .map(|(binders, eqs)| {
                             let (kvar_instances, other_preds) = pred.partition_pred(var);
-                            let kvar_instances_subbed: Vec<Pred<ParsingTypes>> = {
+                            let kvar_instances_subbed: Vec<Pred<T>> = {
                                 kvar_instances
                                     .into_iter()
                                     .map(|(kvid, args)| {
@@ -296,7 +237,7 @@ impl Constraint<ParsingTypes> {
                                             .zip(args.iter())
                                             .map(|((i, eq), arg)| {
                                                 Pred::Expr(eq.clone().substitute(
-                                                    &format!("karg${}#{}", &kvid, i),
+                                                    &FromPair::from((kvid.clone(), i as i32)),
                                                     arg,
                                                 ))
                                             })
@@ -333,6 +274,12 @@ impl Constraint<ParsingTypes> {
             }
             cpred => cpred.clone(),
         }
+    }
+}
+
+impl Constraint<ParsingTypes> {
+    pub fn is_satisfiable(&self) -> bool {
+        is_constraint_satisfiable(self)
     }
 }
 
