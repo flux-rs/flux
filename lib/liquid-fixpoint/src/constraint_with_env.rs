@@ -17,6 +17,38 @@ pub struct ConstraintWithEnv<T: Types> {
     pub constraint: Constraint<T>,
 }
 
+impl<T: Types> ConstraintWithEnv<T> {
+    pub fn compute_initial_assignments<'a>(
+        &'a self,
+        qualifiers: &'a Vec<Qualifier<T>>,
+    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
+        let mut assignments = HashMap::new();
+
+        for decl in &self.kvar_decls {
+            let kvar_arg_count = decl.sorts.len();
+            for qualifier in qualifiers {
+                let qualifier_arg_count = qualifier.args.len();
+                for argument_combination in (0..kvar_arg_count).combinations(qualifier_arg_count) {
+                    assignments
+                        .entry(decl.kvid.clone())
+                        .or_insert(vec![])
+                        .extend(
+                            argument_combination
+                                .into_iter()
+                                .permutations(qualifier_arg_count)
+                                .filter(|arg_permutation| {
+                                    type_signature_matches(arg_permutation, decl, qualifier)
+                                })
+                                .map(|arg_permutation| (qualifier, arg_permutation)),
+                        );
+                }
+            }
+        }
+
+        assignments
+    }
+}
+
 impl ConstraintWithEnv<ParsingTypes> {
     pub fn is_satisfiable(&self) -> bool {
         if self.kvar_decls.is_empty() {
@@ -59,36 +91,6 @@ impl ConstraintWithEnv<ParsingTypes> {
         is_constraint_satisfiable(&no_kvar_cstr)
     }
 
-    pub fn compute_initial_assignments<'a>(
-        &'a self,
-        qualifiers: &'a Vec<Qualifier<ParsingTypes>>,
-    ) -> HashMap<String, Vec<(&'a Qualifier<ParsingTypes>, Vec<usize>)>> {
-        let mut assignments = HashMap::new();
-
-        for decl in &self.kvar_decls {
-            let kvar_arg_count = decl.sorts.len();
-            for qualifier in qualifiers {
-                let qualifier_arg_count = qualifier.args.len();
-                for argument_combination in (0..kvar_arg_count).combinations(qualifier_arg_count) {
-                    assignments
-                        .entry(decl.kvid.clone())
-                        .or_insert(vec![])
-                        .extend(
-                            argument_combination
-                                .into_iter()
-                                .permutations(qualifier_arg_count)
-                                .filter(|arg_permutation| {
-                                    type_signature_matches(arg_permutation, decl, qualifier)
-                                })
-                                .map(|arg_permutation| (qualifier, arg_permutation)),
-                        );
-                }
-            }
-        }
-
-        assignments
-    }
-
     pub fn solve_for_kvars<'a>(
         &'a self,
         qualifiers: &'a Vec<Qualifier<ParsingTypes>>,
@@ -125,10 +127,10 @@ impl ConstraintWithEnv<ParsingTypes> {
     }
 }
 
-fn type_signature_matches(
+fn type_signature_matches<T: Types>(
     argument_permutation: &Vec<usize>,
-    kvar_decl: &KVarDecl<ParsingTypes>,
-    qualifier: &Qualifier<ParsingTypes>,
+    kvar_decl: &KVarDecl<T>,
+    qualifier: &Qualifier<T>,
 ) -> bool {
     if argument_permutation.len() != qualifier.args.len() {
         return false;
