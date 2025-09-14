@@ -10,6 +10,11 @@ use crate::{
     is_constraint_satisfiable,
 };
 
+pub struct Solution<T: Types> {
+    pub binders: Vec<Bind<T>>,
+    pub args: Vec<Expr<T>>,
+}
+
 impl<T: Types> Constraint<T> {
     // fn contains_kvars(&self) -> bool {
     //     match self {
@@ -164,15 +169,15 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sol1(&self, var: &T::KVar) -> Vec<(Vec<Bind<T>>, Vec<Expr<T>>)> {
+    pub fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
         match self {
             Constraint::ForAll(bind, inner) => {
                 inner
                     .sol1(var)
                     .into_iter()
-                    .map(|(mut binders, exprs)| {
+                    .map(|Solution { mut binders, args }| {
                         binders.push(bind.clone());
-                        (binders, exprs)
+                        Solution { binders, args }
                     })
                     .collect()
             }
@@ -185,7 +190,7 @@ impl<T: Types> Constraint<T> {
             }
             Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
                 let arg_vars = args.iter().map(|arg| Expr::Var(arg.clone())).collect();
-                vec![(vec![], arg_vars)]
+                vec![Solution { binders: vec![], args: arg_vars }]
             }
             Constraint::Pred(_, _) => vec![],
         }
@@ -200,7 +205,7 @@ impl<T: Types> Constraint<T> {
         self.do_elim(var, &solution)
     }
 
-    fn do_elim(&self, var: &T::KVar, solution: &Vec<(Vec<Bind<T>>, Vec<Expr<T>>)>) -> Self {
+    fn do_elim(&self, var: &T::KVar, solution: &Vec<Solution<T>>) -> Self {
         match self {
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
@@ -215,18 +220,18 @@ impl<T: Types> Constraint<T> {
                 if pred.kvars().contains(var) {
                     let cstrs: Vec<Constraint<T>> = solution
                         .iter()
-                        .map(|(binders, eqs)| {
+                        .map(|Solution { binders, args }| {
                             let (kvar_instances, other_preds) = pred.partition_pred(var);
                             let kvar_instances_subbed: Vec<Pred<T>> = {
                                 kvar_instances
                                     .into_iter()
-                                    .map(|(_kvid, args)| {
-                                        eqs.iter()
-                                            .zip(args.iter())
-                                            .map(|(eq, arg)| {
+                                    .map(|(_kvid, eqs)| {
+                                        args.iter()
+                                            .zip(eqs.iter())
+                                            .map(|(arg, eq)| {
                                                 Pred::Expr(Expr::Atom(
                                                     BinRel::Eq,
-                                                    Box::new([Expr::Var(arg.clone()), eq.clone()]),
+                                                    Box::new([Expr::Var(eq.clone()), arg.clone()]),
                                                 ))
                                             })
                                             .collect::<Vec<_>>()
