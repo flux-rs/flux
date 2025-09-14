@@ -7,7 +7,6 @@ use crate::{
     KVarDecl, Types,
     constraint::{Constraint, Qualifier},
     is_constraint_satisfiable,
-    parser::ParsingTypes,
 };
 
 #[derive_where(Hash)]
@@ -17,56 +16,11 @@ pub struct ConstraintWithEnv<T: Types> {
     pub constraint: Constraint<T>,
 }
 
-impl ConstraintWithEnv<ParsingTypes> {
-    pub fn is_satisfiable(&self) -> bool {
-        if self.kvar_decls.is_empty() {
-            self.constraint.is_satisfiable()
-        } else {
-            self.solve_by_fusion()
-        }
-    }
-
-    pub fn uniquify(&mut self) {
-        self.constraint.uniquify();
-    }
-
-    pub fn solve_by_fusion(&self) -> bool {
-        let mut cstr = self.constraint.clone();
-        let mut dep_map = self.constraint.kvar_mappings().1;
-        let mut acyclic_kvars: Vec<String> = dep_map
-            .into_iter()
-            .filter(|(_, dependencies)| dependencies.is_empty())
-            .map(|(kvar, _)| kvar)
-            .collect();
-        while !acyclic_kvars.is_empty() {
-            cstr = cstr.elim(&acyclic_kvars);
-            dep_map = cstr.kvar_mappings().1;
-            acyclic_kvars = dep_map
-                .into_iter()
-                .filter(|(_, dependencies)| dependencies.is_empty())
-                .map(|(kvar, _)| kvar)
-                .collect();
-        }
-        ConstraintWithEnv {
-            kvar_decls: self.kvar_decls.to_vec(),
-            qualifiers: self.qualifiers.to_vec(),
-            constraint: cstr,
-        }
-        .solve_by_predicate_abstraction()
-    }
-
-    pub fn solve_by_predicate_abstraction(&self) -> bool {
-        let mut qualifiers: Vec<Qualifier<ParsingTypes>> = vec![];
-        qualifiers.extend(self.qualifiers.to_vec().into_iter());
-        let kvar_assignment = self.solve_for_kvars(&qualifiers);
-        let no_kvar_cstr = self.constraint.sub_all_kvars(&kvar_assignment);
-        is_constraint_satisfiable(&no_kvar_cstr)
-    }
-
+impl<T: Types> ConstraintWithEnv<T> {
     pub fn compute_initial_assignments<'a>(
         &'a self,
-        qualifiers: &'a Vec<Qualifier<ParsingTypes>>,
-    ) -> HashMap<String, Vec<(&'a Qualifier<ParsingTypes>, Vec<usize>)>> {
+        qualifiers: &'a Vec<Qualifier<T>>,
+    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
         let mut assignments = HashMap::new();
 
         for decl in &self.kvar_decls {
@@ -95,8 +49,8 @@ impl ConstraintWithEnv<ParsingTypes> {
 
     pub fn solve_for_kvars<'a>(
         &'a self,
-        qualifiers: &'a Vec<Qualifier<ParsingTypes>>,
-    ) -> HashMap<String, Vec<(&'a Qualifier<ParsingTypes>, Vec<usize>)>> {
+        qualifiers: &'a Vec<Qualifier<T>>,
+    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
         let mut assignments = self.compute_initial_assignments(qualifiers);
         let (kvars_to_fragments, _) = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
@@ -127,12 +81,53 @@ impl ConstraintWithEnv<ParsingTypes> {
         }
         assignments
     }
+
+    pub fn is_satisfiable(&self) -> bool {
+        if self.kvar_decls.is_empty() {
+            self.constraint.is_satisfiable()
+        } else {
+            self.solve_by_fusion()
+        }
+    }
+
+    pub fn solve_by_fusion(&self) -> bool {
+        let mut cstr = self.constraint.clone();
+        let mut dep_map = self.constraint.kvar_mappings().1;
+        let mut acyclic_kvars: Vec<T::KVar> = dep_map
+            .into_iter()
+            .filter(|(_, dependencies)| dependencies.is_empty())
+            .map(|(kvar, _)| kvar)
+            .collect();
+        while !acyclic_kvars.is_empty() {
+            cstr = cstr.elim(&acyclic_kvars);
+            dep_map = cstr.kvar_mappings().1;
+            acyclic_kvars = dep_map
+                .into_iter()
+                .filter(|(_, dependencies)| dependencies.is_empty())
+                .map(|(kvar, _)| kvar)
+                .collect();
+        }
+        ConstraintWithEnv {
+            kvar_decls: self.kvar_decls.to_vec(),
+            qualifiers: self.qualifiers.to_vec(),
+            constraint: cstr,
+        }
+        .solve_by_predicate_abstraction()
+    }
+
+    pub fn solve_by_predicate_abstraction(&self) -> bool {
+        let mut qualifiers: Vec<Qualifier<T>> = vec![];
+        qualifiers.extend(self.qualifiers.to_vec().into_iter());
+        let kvar_assignment = self.solve_for_kvars(&qualifiers);
+        let no_kvar_cstr = self.constraint.sub_all_kvars(&kvar_assignment);
+        is_constraint_satisfiable(&no_kvar_cstr)
+    }
 }
 
-fn type_signature_matches(
+fn type_signature_matches<T: Types>(
     argument_permutation: &Vec<usize>,
-    kvar_decl: &KVarDecl<ParsingTypes>,
-    qualifier: &Qualifier<ParsingTypes>,
+    kvar_decl: &KVarDecl<T>,
+    qualifier: &Qualifier<T>,
 ) -> bool {
     if argument_permutation.len() != qualifier.args.len() {
         return false;

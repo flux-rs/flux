@@ -43,7 +43,7 @@ use serde::{Deserialize, Serialize, de};
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
-    type Var: Identifier + Hash + Clone + Debug + PartialEq;
+    type Var: Identifier + Hash + Clone + Debug + Eq;
     type Decimal: FixpointFmt + Hash + Clone + Debug;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
