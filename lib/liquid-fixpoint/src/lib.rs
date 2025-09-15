@@ -14,6 +14,7 @@ mod constraint;
 mod constraint_fragments;
 mod constraint_solving;
 mod constraint_with_env;
+#[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
 mod graph;
@@ -24,21 +25,27 @@ use std::{
     collections::hash_map::DefaultHasher,
     fmt::{self, Debug},
     hash::{Hash, Hasher},
-    io::{self, BufWriter, Write as IOWrite},
-    process::{Command, Stdio},
+    io,
     str::FromStr,
+};
+#[cfg(not(feature = "rust-fixpoint"))]
+use std::{
+    io::{BufWriter, Write as IOWrite},
+    process::{Command, Stdio},
 };
 
 pub use constraint::{
     BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
     Qualifier, Sort, SortCtor,
 };
-pub use cstr2smt2::is_constraint_satisfiable;
 use derive_where::derive_where;
 pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};
+
+#[cfg(feature = "rust-fixpoint")]
+use crate::constraint_with_env::ConstraintWithEnv;
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug;
@@ -151,7 +158,7 @@ macro_rules! declare_types {
     };
 }
 
-#[derive_where(Hash)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct ConstDecl<T: Types> {
     pub name: T::Var,
     pub sort: Sort<T>,
@@ -210,6 +217,32 @@ pub enum FixpointResult<Tag> {
     Crash(CrashInfo),
 }
 
+impl<Tag> FixpointResult<Tag> {
+    pub fn is_safe(&self) -> bool {
+        matches!(self, FixpointResult::Safe(_))
+    }
+
+    pub fn merge(self, other: FixpointResult<Tag>) -> Self {
+        use FixpointResult as FR;
+        match (self, other) {
+            (FR::Safe(stats1), FR::Safe(stats2)) => FR::Safe(stats1.merge(&stats2)),
+            (FR::Safe(stats1), FR::Unsafe(stats2, errors)) => {
+                FR::Unsafe(stats1.merge(&stats2), errors)
+            }
+            (FR::Unsafe(stats1, mut errors1), FR::Unsafe(stats2, errors2)) => {
+                errors1.extend(errors2);
+                FR::Unsafe(stats1.merge(&stats2), errors1)
+            }
+            (FR::Unsafe(stats1, errors), FR::Safe(stats2)) => {
+                FR::Unsafe(stats1.merge(&stats2), errors)
+            }
+            (FR::Crash(info1), FR::Crash(info2)) => FR::Crash(info1.merge(info2)),
+            (FR::Crash(info), _) => FR::Crash(info),
+            (_, FR::Crash(info)) => FR::Crash(info),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Error<Tag> {
     pub id: i32,
@@ -225,8 +258,27 @@ pub struct Stats {
     pub num_vald: i32,
 }
 
+impl Stats {
+    pub fn merge(&self, other: &Stats) -> Self {
+        Stats {
+            num_cstr: self.num_cstr + other.num_cstr,
+            num_iter: self.num_iter + other.num_iter,
+            num_chck: self.num_chck + other.num_chck,
+            num_vald: self.num_vald + other.num_vald,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CrashInfo(Vec<serde_json::Value>);
+
+impl CrashInfo {
+    pub fn merge(self, other: CrashInfo) -> Self {
+        let mut v = self.0;
+        v.extend(other.0);
+        CrashInfo(v)
+    }
+}
 
 #[derive_where(Debug, Clone, Hash)]
 pub struct KVarDecl<T: Types> {
@@ -243,6 +295,18 @@ impl<T: Types> Task<T> {
         hasher.finish()
     }
 
+    #[cfg(feature = "rust-fixpoint")]
+    pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
+        Ok(ConstraintWithEnv {
+            kvar_decls: self.kvars.to_vec(),
+            qualifiers: self.qualifiers.to_vec(),
+            constants: self.constants.to_vec(),
+            constraint: self.constraint.clone(),
+        }
+        .is_satisfiable())
+    }
+
+    #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
         let mut child = Command::new("fixpoint")
             .arg("-q")

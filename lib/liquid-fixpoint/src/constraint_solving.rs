@@ -7,7 +7,6 @@ use crate::{
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
-    is_constraint_satisfiable,
 };
 
 pub struct Solution<T: Types> {
@@ -96,7 +95,9 @@ impl<T: Types> Constraint<T> {
                     Box::new(inner.sub_all_kvars(assignments)),
                 )
             }
-            Constraint::Pred(pred, _tag) => Constraint::Pred(pred.sub_kvars(assignments), None),
+            Constraint::Pred(pred, tag) => {
+                Constraint::Pred(pred.sub_kvars(assignments), tag.clone())
+            }
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
                     conjuncts
@@ -123,7 +124,7 @@ impl<T: Types> Constraint<T> {
                     Box::new(inner.sub_kvars_except_head(assignments)),
                 )
             }
-            Constraint::Pred(pred, _tag) => Constraint::Pred(pred.clone(), None),
+            Constraint::Pred(pred, tag) => Constraint::Pred(pred.clone(), tag.clone()),
             _ => panic!("Conjunctions should not occur in constraint fragments"),
         }
     }
@@ -133,8 +134,32 @@ impl<T: Types> Constraint<T> {
             Constraint::ForAll(bind, inner) => {
                 Constraint::ForAll(bind.clone(), Box::new(inner.sub_head(assignment)))
             }
-            Constraint::Pred(pred, _tag) => Constraint::Pred(pred.sub_head(assignment), None),
+            Constraint::Pred(pred, tag) => Constraint::Pred(pred.sub_head(assignment), tag.clone()),
             _ => panic!("Conjunctions should not occur in constraint fragments"),
+        }
+    }
+
+    pub fn simplify(&mut self) {
+        match self {
+            Constraint::ForAll(bind, inner) => {
+                bind.pred.simplify();
+                inner.simplify();
+            }
+            Constraint::Conj(conjuncts) => {
+                if conjuncts.len() == 0 {
+                    *self = Constraint::Pred(Pred::TRUE, None);
+                } else if conjuncts.len() == 1 {
+                    conjuncts[0].simplify();
+                    *self = conjuncts[0].clone();
+                } else {
+                    conjuncts
+                        .iter_mut()
+                        .for_each(|conjunct| conjunct.simplify());
+                }
+            }
+            Constraint::Pred(p, _) => {
+                p.simplify();
+            }
         }
     }
 
@@ -262,15 +287,11 @@ impl<T: Types> Constraint<T> {
                     )
                 }
             }
-            Constraint::Pred(Pred::KVar(kvid, _args), _tag) if var.eq(kvid) => {
-                Constraint::Pred(Pred::TRUE, None)
+            Constraint::Pred(Pred::KVar(kvid, _args), tag) if var.eq(kvid) => {
+                Constraint::Pred(Pred::TRUE, tag.clone())
             }
             cpred => cpred.clone(),
         }
-    }
-
-    pub fn is_satisfiable(&self) -> bool {
-        is_constraint_satisfiable(self)
     }
 }
 
