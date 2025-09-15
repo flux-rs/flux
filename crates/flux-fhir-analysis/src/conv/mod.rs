@@ -1794,10 +1794,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
-            fhir::Res::Param(..)
-            | fhir::Res::NumConst(_)
-            | fhir::Res::GlobalFunc(..)
-            | fhir::Res::Err => {
+            fhir::Res::Param(..) | fhir::Res::GlobalFunc(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
@@ -2269,9 +2266,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 // FIXME(nilehmann) generalize this to other sorts
                 let sort = rty::Sort::Int;
                 (rty::Expr::const_generic(def_id_to_param_const(genv, def_id)).at(espan), sort)
-            }
-            fhir::Res::NumConst(num) => {
-                (rty::Expr::constant(rty::Constant::from(num)).at(espan), rty::Sort::Int)
             }
             _ => {
                 Err(self.emit(errors::InvalidRes { span: path.span, res_descr: path.res.descr() }))?

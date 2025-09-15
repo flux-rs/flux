@@ -727,8 +727,6 @@ pub enum Res<Id = !> {
     Param(ParamKind, Id),
     /// A refinement function defined with `defs!`
     GlobalFunc(SpecFuncKind),
-    /// A hack used to resolve `u32::MAX` ans similar.
-    NumConst(i128),
     Err,
 }
 
@@ -1110,7 +1108,6 @@ impl<Id> Res<Id> {
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
             Res::Param(..) => "refinement parameter",
             Res::GlobalFunc(..) => "refinement function",
-            Res::NumConst(_) => "numeric constant",
             Res::Err => "unresolved item",
         }
     }
@@ -1130,7 +1127,7 @@ impl<Id> Res<Id> {
             Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
                 Some(Namespace::TypeNS)
             }
-            Res::Param(..) | Res::GlobalFunc(..) | Res::NumConst(..) => Some(Namespace::ValueNS),
+            Res::Param(..) | Res::GlobalFunc(..) => Some(Namespace::ValueNS),
             Res::Err => None,
         }
     }
@@ -1150,7 +1147,6 @@ impl<Id> Res<Id> {
             }
             Res::SelfTyParam { trait_ } => Res::SelfTyParam { trait_ },
             Res::GlobalFunc(spec_func_kind) => Res::GlobalFunc(spec_func_kind),
-            Res::NumConst(val) => Res::NumConst(val),
             Res::Err => Res::Err,
         }
     }

@@ -825,27 +825,6 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
     }
 }
 
-macro_rules! define_resolve_num_const {
-    ($($typ:ident),*) => {
-        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<Res<NodeId>> {
-            match typ.name.as_str() {
-                $(
-                    stringify!($typ) => {
-                        match name.name.as_str() {
-                            "MAX" => Some(Res::NumConst($typ::MAX.try_into().unwrap())),
-                            "MIN" => Some(Res::NumConst($typ::MIN.try_into().unwrap())),
-                            _ => None,
-                        }
-                    },
-                )*
-                _ => None
-            }
-        }
-    };
-}
-
-define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
-
 struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
     scopes: Vec<ScopeKind>,
     resolver: &'a CrateResolver<'genv, 'tcx>,
