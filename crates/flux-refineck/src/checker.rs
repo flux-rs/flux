@@ -400,7 +400,7 @@ fn find_trait_item(
         && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
     {
         let impl_trait_ref = impl_trait_ref.instantiate_identity();
-        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap();
+        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id().unwrap();
         return Ok(Some((impl_trait_ref, trait_item_id)));
     }
     Ok(None)
