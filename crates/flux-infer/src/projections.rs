@@ -223,7 +223,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 let assoc_type_id = tcx
                     .associated_items(impl_def_id)
                     .in_definition_order()
-                    .find(|item| item.trait_item_def_id == Some(obligation.def_id))
+                    .find(|item| item.trait_item_def_id() == Some(obligation.def_id))
                     .map(|item| item.def_id)
                     .ok_or_else(|| {
                         query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
