@@ -26,6 +26,8 @@ xflags::xflags! {
             optional filter: String
             /// Do not check tests in Flux libs.
             optional --no-lib-tests
+            /// Build binaries with features enabled
+            optional --features features: String
         }
         /// Run the `flux` binary on the given input file.
         cmd run {
@@ -130,7 +132,7 @@ fn test(args: Test) -> anyhow::Result<()> {
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: FluxLib::ALL },
     };
-    let flux = build_binary("flux", config.profile)?;
+    let flux = build_binary("flux", config.profile, args.features)?;
     install_sysroot(&config)?;
 
     Command::new("cargo")
@@ -172,7 +174,7 @@ fn run_inner(
     let config = SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()?, build_libs };
 
     install_sysroot(&config)?;
-    let flux = build_binary("flux", config.profile)?;
+    let flux = build_binary("flux", config.profile, None)?;
 
     let mut rustc_flags = tests::default_flags();
     rustc_flags.extend(flags);
@@ -215,9 +217,16 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_binary(bin: &str, profile: Profile) -> anyhow::Result<Utf8PathBuf> {
+fn build_binary(
+    bin: &str,
+    profile: Profile,
+    features: Option<String>,
+) -> anyhow::Result<Utf8PathBuf> {
     Command::new("cargo")
         .args(["build", "--bin", bin, "--profile", profile.as_str()])
+        .map_opt(features.as_ref(), |features, cmd| {
+            cmd.args(["--features", features]);
+        })
         .run_with_cargo_metadata()?
         .into_iter()
         .find(|artifact| artifact.target.name == bin && artifact.target.is_kind(TargetKind::Bin))
@@ -285,9 +294,9 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    copy_file(build_binary("flux-driver", config.profile)?, &config.dst)?;
+    copy_file(build_binary("flux-driver", config.profile, None)?, &config.dst)?;
 
-    let cargo_flux = build_binary("cargo-flux", config.profile)?;
+    let cargo_flux = build_binary("cargo-flux", config.profile, None)?;
 
     if config.build_libs.force {
         Command::new(&cargo_flux)
