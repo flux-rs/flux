@@ -92,58 +92,58 @@ fn atom_to_z3<'ctx, T: Types>(
     operands: &Box<[Expr<T>; 2]>,
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
-    let loperand = expr_to_z3(ctx, &operands[0], env);
-    let roperand = expr_to_z3(ctx, &operands[1], env);
-    if loperand.sort_kind() != roperand.sort_kind() {
+    let lhs = expr_to_z3(ctx, &operands[0], env);
+    let rhs = expr_to_z3(ctx, &operands[1], env);
+    if lhs.sort_kind() != rhs.sort_kind() {
         panic!("Operands must have the same sort");
     }
     if !matches!(bin_rel, BinRel::Eq | BinRel::Ne)
-        && !matches!(loperand.sort_kind(), SortKind::Int | SortKind::Real)
+        && !matches!(lhs.sort_kind(), SortKind::Int | SortKind::Real)
     {
         panic!("Comparison operators require numeric operands");
     }
-    match (bin_rel, loperand.sort_kind(), roperand.sort_kind()) {
-        (BinRel::Ne, _, _) => loperand._eq(&roperand).not().into(),
-        (BinRel::Eq, _, _) => loperand._eq(&roperand).into(),
+    match (bin_rel, lhs.sort_kind(), rhs.sort_kind()) {
+        (BinRel::Ne, _, _) => lhs._eq(&rhs).not().into(),
+        (BinRel::Eq, _, _) => lhs._eq(&rhs).into(),
         (BinRel::Gt, SortKind::Int, SortKind::Int) => {
-            let iloperand = loperand.as_int().expect("already checked");
-            let iroperand = roperand.as_int().expect("already checked");
-            iloperand.gt(&iroperand).into()
+            let ilhs = lhs.as_int().expect("already checked");
+            let irhs = rhs.as_int().expect("already checked");
+            ilhs.gt(&irhs).into()
         }
         (BinRel::Gt, SortKind::Real, SortKind::Real) => {
-            let rloperand = loperand.as_real().expect("already checked");
-            let rroperand = roperand.as_real().expect("already checked");
-            rloperand.gt(&rroperand).into()
+            let rlhs = lhs.as_real().expect("already checked");
+            let rrhs = rhs.as_real().expect("already checked");
+            rlhs.gt(&rrhs).into()
         }
         (BinRel::Ge, SortKind::Int, SortKind::Int) => {
-            let iloperand = loperand.as_int().expect("already checked");
-            let iroperand = roperand.as_int().expect("already checked");
-            iloperand.ge(&iroperand).into()
+            let ilhs = lhs.as_int().expect("already checked");
+            let irhs = rhs.as_int().expect("already checked");
+            ilhs.ge(&irhs).into()
         }
         (BinRel::Ge, SortKind::Real, SortKind::Real) => {
-            let rloperand = loperand.as_real().expect("already checked");
-            let rroperand = roperand.as_real().expect("already checked");
-            rloperand.ge(&rroperand).into()
+            let rlhs = lhs.as_real().expect("already checked");
+            let rrhs = rhs.as_real().expect("already checked");
+            rlhs.ge(&rrhs).into()
         }
         (BinRel::Lt, SortKind::Int, SortKind::Int) => {
-            let iloperand = loperand.as_int().expect("already checked");
-            let iroperand = roperand.as_int().expect("already checked");
-            iloperand.lt(&iroperand).into()
+            let ilhs = lhs.as_int().expect("already checked");
+            let irhs = rhs.as_int().expect("already checked");
+            ilhs.lt(&irhs).into()
         }
         (BinRel::Lt, SortKind::Real, SortKind::Real) => {
-            let rloperand = loperand.as_real().expect("already checked");
-            let rroperand = roperand.as_real().expect("already checked");
-            rloperand.lt(&rroperand).into()
+            let rlhs = lhs.as_real().expect("already checked");
+            let rrhs = rhs.as_real().expect("already checked");
+            rlhs.lt(&rrhs).into()
         }
         (BinRel::Le, SortKind::Int, SortKind::Int) => {
-            let iloperand = loperand.as_int().expect("already checked");
-            let iroperand = roperand.as_int().expect("already checked");
-            iloperand.le(&iroperand).into()
+            let ilhs = lhs.as_int().expect("already checked");
+            let irhs = rhs.as_int().expect("already checked");
+            ilhs.le(&irhs).into()
         }
         (BinRel::Le, SortKind::Real, SortKind::Real) => {
-            let rloperand = loperand.as_real().expect("already checked");
-            let rroperand = roperand.as_real().expect("already checked");
-            rloperand.le(&rroperand).into()
+            let rlhs = lhs.as_real().expect("already checked");
+            let rrhs = rhs.as_real().expect("already checked");
+            rlhs.le(&rrhs).into()
         }
         _ => panic!("Unsupported relation or operand types"),
     }
