@@ -442,6 +442,7 @@ where
         let mut constants = self.ecx.const_map.into_values().collect_vec();
         constants.extend(define_constants);
 
+        #[cfg(not(feature = "rust-fixpoint"))]
         for rel in fixpoint::BinRel::INEQUALITIES {
             // ∀a. a -> a -> bool
             let sort = fixpoint::Sort::mk_func(
