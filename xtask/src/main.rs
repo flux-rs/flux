@@ -115,6 +115,7 @@ fn main() -> anyhow::Result<()> {
         XtaskCmd::BuildSysroot(_) => {
             let config = SysrootConfig {
                 profile: Profile::Dev,
+                features: None,
                 dst: local_sysroot_dir()?,
                 build_libs: BuildLibs { force: true, tests: true, libs: FluxLib::ALL },
             };
@@ -129,10 +130,11 @@ fn main() -> anyhow::Result<()> {
 fn test(args: Test) -> anyhow::Result<()> {
     let config = SysrootConfig {
         profile: Profile::Dev,
+        features: args.features,
         dst: local_sysroot_dir()?,
         build_libs: BuildLibs { force: false, tests: !args.no_lib_tests, libs: FluxLib::ALL },
     };
-    let flux = build_binary("flux", config.profile, args.features)?;
+    let flux = build_binary("flux", config.profile, None)?;
     install_sysroot(&config)?;
 
     Command::new("cargo")
@@ -171,7 +173,12 @@ fn run_inner(
     build_libs: BuildLibs,
     flags: impl IntoIterator<Item = String>,
 ) -> Result<(), anyhow::Error> {
-    let config = SysrootConfig { profile: Profile::Dev, dst: local_sysroot_dir()?, build_libs };
+    let config = SysrootConfig {
+        profile: Profile::Dev,
+        features: None,
+        dst: local_sysroot_dir()?,
+        build_libs,
+    };
 
     install_sysroot(&config)?;
     let flux = build_binary("flux", config.profile, None)?;
@@ -190,6 +197,7 @@ fn install(args: &Install, extra: &[&str]) -> anyhow::Result<()> {
     let libs = if args.no_extern_specs { &[FluxLib::FluxRs] } else { FluxLib::ALL };
     let config = SysrootConfig {
         profile: args.profile(),
+        features: None,
         dst: default_sysroot_dir(),
         build_libs: BuildLibs { force: false, tests: false, libs },
     };
@@ -220,11 +228,11 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
 fn build_binary(
     bin: &str,
     profile: Profile,
-    features: Option<String>,
+    features: Option<&String>,
 ) -> anyhow::Result<Utf8PathBuf> {
     Command::new("cargo")
         .args(["build", "--bin", bin, "--profile", profile.as_str()])
-        .map_opt(features.as_ref(), |features, cmd| {
+        .map_opt(features, |features, cmd| {
             cmd.args(["--features", features]);
         })
         .run_with_cargo_metadata()?
@@ -237,6 +245,8 @@ fn build_binary(
 struct SysrootConfig {
     /// Profile used to build `flux-driver` and libraries
     profile: Profile,
+    /// Features enabled when building flux-driver and libraries
+    features: Option<String>,
     /// Destination path for sysroot artifacts
     dst: PathBuf,
     build_libs: BuildLibs,
@@ -294,9 +304,9 @@ fn install_sysroot(config: &SysrootConfig) -> anyhow::Result<()> {
     remove_path(&config.dst)?;
     create_dir(&config.dst)?;
 
-    copy_file(build_binary("flux-driver", config.profile, None)?, &config.dst)?;
+    copy_file(build_binary("flux-driver", config.profile, config.features.as_ref())?, &config.dst)?;
 
-    let cargo_flux = build_binary("cargo-flux", config.profile, None)?;
+    let cargo_flux = build_binary("cargo-flux", config.profile, config.features.as_ref())?;
 
     if config.build_libs.force {
         Command::new(&cargo_flux)
