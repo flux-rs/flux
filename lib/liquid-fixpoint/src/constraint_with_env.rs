@@ -29,21 +29,19 @@ impl<T: Types> ConstraintWithEnv<T> {
 
         for decl in &self.kvar_decls {
             let kvar_arg_count = decl.sorts.len();
+            assignments.insert(decl.kvid.clone(), vec![]);
             for qualifier in qualifiers {
                 let qualifier_arg_count = qualifier.args.len();
                 for argument_combination in (0..kvar_arg_count).combinations(qualifier_arg_count) {
-                    assignments
-                        .entry(decl.kvid.clone())
-                        .or_insert(vec![])
-                        .extend(
-                            argument_combination
-                                .into_iter()
-                                .permutations(qualifier_arg_count)
-                                .filter(|arg_permutation| {
-                                    type_signature_matches(arg_permutation, decl, qualifier)
-                                })
-                                .map(|arg_permutation| (qualifier, arg_permutation)),
-                        );
+                    assignments.get_mut(&decl.kvid).unwrap().extend(
+                        argument_combination
+                            .into_iter()
+                            .permutations(qualifier_arg_count)
+                            .filter(|arg_permutation| {
+                                type_signature_matches(arg_permutation, decl, qualifier)
+                            })
+                            .map(|arg_permutation| (qualifier, arg_permutation)),
+                    );
                 }
             }
         }
