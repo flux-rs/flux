@@ -139,7 +139,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn simplify(&mut self) {
+    pub(crate) fn simplify(&mut self) {
         match self {
             Constraint::ForAll(bind, inner) => {
                 bind.pred.simplify();
@@ -163,7 +163,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn scope(&self, var: &T::KVar) -> Self {
+    fn scope(&self, var: &T::KVar) -> Self {
         self.scope_help(var)
             .unwrap_or(Constraint::Pred(Pred::Expr(Expr::Constant(Constant::Boolean(true))), None))
     }
@@ -194,7 +194,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
+    fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
         match self {
             Constraint::ForAll(bind, inner) => {
                 inner
@@ -221,11 +221,11 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn elim(&self, vars: &Vec<T::KVar>) -> Self {
+    pub(crate) fn elim(&self, vars: &Vec<T::KVar>) -> Self {
         vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
     }
 
-    pub fn elim1(&self, var: &T::KVar) -> Self {
+    fn elim1(&self, var: &T::KVar) -> Self {
         let solution = self.scope(var).sol1(var);
         self.do_elim(var, &solution)
     }
@@ -304,7 +304,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn kvars(&self) -> Vec<T::KVar> {
+    fn kvars(&self) -> Vec<T::KVar> {
         match self {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
             Pred::Expr(_expr) => vec![],
@@ -319,7 +319,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn sub_kvars(
+    pub(crate) fn sub_kvars(
         &self,
         assignment: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
     ) -> Self {
@@ -373,7 +373,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn sub_head(&self, assignment: &(&Qualifier<T>, Vec<usize>)) -> Self {
+    pub(crate) fn sub_head(&self, assignment: &(&Qualifier<T>, Vec<usize>)) -> Self {
         match self {
             Pred::Expr(expr) => Pred::Expr(expr.clone()),
             Pred::KVar(_kvid, args) => {
@@ -391,7 +391,10 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn partition_pred(&self, var: &T::KVar) -> (Vec<(T::KVar, Vec<T::Var>)>, Vec<Pred<T>>) {
+    pub(crate) fn partition_pred(
+        &self,
+        var: &T::KVar,
+    ) -> (Vec<(T::KVar, Vec<T::Var>)>, Vec<Pred<T>>) {
         let mut kvar_instances = vec![];
         let mut other_preds = vec![];
         self.partition_pred_help(var, &mut kvar_instances, &mut other_preds);
@@ -418,28 +421,10 @@ impl<T: Types> Pred<T> {
             }
         }
     }
-
-    pub fn rename(&mut self, from: &T::Var, to: &T::Var) {
-        match self {
-            Pred::Expr(expr) => {
-                expr.substitute_in_place(from, to);
-            }
-            Pred::KVar(_kvid, args) => {
-                args.iter_mut().for_each(|arg| {
-                    if from.eq(arg) {
-                        *arg = to.clone();
-                    }
-                });
-            }
-            Pred::And(conjuncts) => {
-                conjuncts.iter_mut().for_each(|pred| pred.rename(from, to));
-            }
-        }
-    }
 }
 
 impl<T: Types> Expr<T> {
-    pub fn substitute_in_place(&mut self, v_from: &T::Var, v_to: &T::Var) {
+    fn substitute_in_place(&mut self, v_from: &T::Var, v_to: &T::Var) {
         match self {
             Expr::Var(v) => {
                 if v == v_from {
@@ -469,7 +454,7 @@ impl<T: Types> Expr<T> {
         }
     }
 
-    pub fn substitute(&self, v_from: &T::Var, v_to: &T::Var) -> Self {
+    pub(crate) fn substitute(&self, v_from: &T::Var, v_to: &T::Var) -> Self {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr

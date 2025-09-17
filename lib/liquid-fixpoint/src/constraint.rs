@@ -248,7 +248,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn simplify(&mut self) {
+    pub(crate) fn simplify(&mut self) {
         match self {
             Pred::And(conjuncts) => {
                 if conjuncts.len() == 0 {
