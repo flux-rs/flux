@@ -248,6 +248,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
+    #[cfg(feature = "rust-fixpoint")]
     pub(crate) fn simplify(&mut self) {
         match self {
             Pred::And(conjuncts) => {
