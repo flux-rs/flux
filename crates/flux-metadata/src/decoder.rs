@@ -3,6 +3,7 @@ use std::{
     io::{self, Read},
     mem,
     path::Path,
+    sync::Arc,
 };
 
 use flux_common::bug;
@@ -19,22 +20,45 @@ use rustc_serialize::{
 };
 use rustc_session::StableCrateId;
 use rustc_span::{
-    BytePos, ByteSymbol, DUMMY_SP, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
+    BytePos, ByteSymbol, DUMMY_SP, SourceFile, Span, SpanDecoder, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{HygieneDecodeContext, SyntaxContextKey},
 };
 
 use crate::{
-    AbsoluteBytePos, CrateMetadata, Footer, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED,
-    SYMBOL_STR, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
+    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
+    SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
 };
 
 struct DecodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     opaque: MemDecoder<'a>,
+    file_index_to_file: FxHashMap<SourceFileIndex, Arc<SourceFile>>,
+    file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
     syntax_contexts: &'a FxHashMap<u32, AbsoluteBytePos>,
     expn_data: FxHashMap<(StableCrateId, u32), AbsoluteBytePos>,
     hygiene_context: &'a HygieneDecodeContext,
+}
+
+impl<'a, 'tcx> DecodeContext<'a, 'tcx> {
+    fn file_index_to_file(&mut self, index: SourceFileIndex) -> Arc<SourceFile> {
+        self.file_index_to_file
+            .entry(index)
+            .or_insert_with(|| {
+                let source_file_id = &self.file_index_to_stable_id[&index];
+                let source_file_cnum = self
+                    .tcx
+                    .stable_crate_id_to_crate_num(source_file_id.stable_crate_id);
+
+                self.tcx.import_source_files(source_file_cnum);
+                self.tcx
+                    .sess
+                    .source_map()
+                    .source_file_by_stable_id(source_file_id.stable_source_file_id)
+                    .expect("failed to lookup `SourceFile` in new context")
+            })
+            .clone()
+    }
 }
 
 pub(super) fn decode_crate_metadata(
@@ -67,6 +91,8 @@ pub(super) fn decode_crate_metadata(
     let mut decoder = DecodeContext {
         tcx,
         opaque: MemDecoder::new(&buf, METADATA_HEADER.len()).unwrap(),
+        file_index_to_stable_id: footer.file_index_to_stable_id,
+        file_index_to_file: Default::default(),
         syntax_contexts: &footer.syntax_contexts,
         expn_data: footer.expn_data,
         hygiene_context: &Default::default(),
@@ -132,32 +158,14 @@ impl SpanDecoder for DecodeContext<'_, '_> {
 
         debug_assert!(tag == TAG_FULL_SPAN);
 
-        // CREUSOT: let source_file_index = SourceFileIndex::decode(self);
-        let sm = self.tcx.sess.source_map();
-        let ssfi = StableSourceFileId::decode(self);
+        let source_file_index = SourceFileIndex::decode(self);
         let lo = BytePos::decode(self);
         let len = BytePos::decode(self);
-        let Some(file) = sm.source_file_by_stable_id(ssfi) else {
-            return DUMMY_SP.with_ctxt(ctxt);
-        };
-        // CREUSOT: let file = self.file_index_to_file(source_file_index);
+        let file = self.file_index_to_file(source_file_index);
         let lo = file.start_pos + lo;
         let hi = lo + len;
 
         Span::new(lo, hi, ctxt, None)
-        // OLD CODE from prusti
-        // let sm = self.tcx.sess.source_map();
-        // let pos = [(); 2].map(|_| {
-        //     let ssfi = StableSourceFileId::decode(self);
-        //     let rel_bp = BytePos::decode(self);
-        //     // See comment in 'encoder.rs'
-        //     //
-        //     // This should hopefully never fail,
-        //     // so maybe could be an `unwrap` instead?
-        //     sm.source_file_by_stable_id(ssfi)
-        //         .map_or(BytePos(0), |sf| sf.start_pos + rel_bp)
-        // });
-        // Span::new(pos[0], pos[1], SyntaxContext::root(), None)
     }
 
     fn decode_symbol(&mut self) -> rustc_span::Symbol {

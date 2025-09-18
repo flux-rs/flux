@@ -45,7 +45,7 @@ use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
 use rustc_span::{
-    Span,
+    SourceFile, Span, StableSourceFileId,
     def_id::{CrateNum, DefId, DefIndex, StableCrateId},
 };
 
@@ -62,13 +62,37 @@ pub struct CStore {
     extern_tables: Tables<DefId>,
 }
 
+/// From CREUSOT: used to store the info about source files
+/// An `EncodedSourceFileId` is the same as a `StableSourceFileId` except that
+/// the source crate is represented as a [StableCrateId] instead of as a
+/// `CrateNum`. This way `EncodedSourceFileId` can be encoded and decoded
+/// without any additional context, i.e. with a simple `opaque::Decoder` (which
+/// is the only thing available when decoding the [Footer].
+#[derive(Encodable, Decodable, Clone, Debug)]
+struct EncodedSourceFileId {
+    stable_source_file_id: StableSourceFileId,
+    stable_crate_id: StableCrateId,
+}
+
+impl EncodedSourceFileId {
+    #[inline]
+    fn new(tcx: TyCtxt<'_>, file: &SourceFile) -> EncodedSourceFileId {
+        EncodedSourceFileId {
+            stable_source_file_id: file.stable_id,
+            stable_crate_id: tcx.stable_crate_id(file.cnum),
+        }
+    }
+}
+
 // Taken from CREUSOT; used to store the info about syntax contexts
 #[derive(Default, Decodable, Encodable)]
 pub struct Footer {
-    // file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
+    file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
     syntax_contexts: FxHashMap<u32, AbsoluteBytePos>,
     expn_data: FxHashMap<(StableCrateId, u32), AbsoluteBytePos>,
 }
+#[derive(Encodable, Decodable, Eq, PartialEq, Hash, Clone, Copy, Debug)]
+struct SourceFileIndex(u32);
 
 #[derive(Encodable, Decodable, Clone, Copy)]
 pub struct AbsoluteBytePos(u64);
