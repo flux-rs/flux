@@ -241,19 +241,6 @@ impl SpanEncoder for EncodeContext<'_, '_> {
         source_file_index.encode(self);
         lo.encode(self);
         len.encode(self);
-
-        // OLD CODE from prusti
-        // let sm = self.tcx.sess.source_map();
-        // for bp in [span.lo(), span.hi()] {
-        //     let sf = sm.lookup_source_file(bp);
-        //     let ssfi = stable_source_file_id_for_export(self.tcx, &sf);
-        //     ssfi.encode(self);
-        //     // Not sure if this is the most stable way to encode a BytePos. If it fails
-        //     // try finding a function in `SourceMap` or `SourceFile` instead. E.g. the
-        //     // `bytepos_to_file_charpos` fn which returns `CharPos` (though there is
-        //     // currently no fn mapping back to `BytePos` for decode)
-        //     (bp - sf.start_pos).encode(self);
-        // }
     }
 
     fn encode_symbol(&mut self, sym: Symbol) {
@@ -325,19 +312,3 @@ impl Encoder for EncodeContext<'_, '_> {
         emit_raw_bytes(&[u8]);
     }
 }
-
-// fn stable_source_file_id_for_export(tcx: TyCtxt, sf: &SourceFile) -> StableSourceFileId {
-//     let working_directory = &tcx.sess.opts.working_dir;
-//     let crate_stable_id = tcx.stable_crate_id(sf.cnum);
-//     let mut filename = sf.name.clone();
-//     if let FileName::Real(original_file_name) = filename {
-//         let adapted_file_name = tcx
-//             .sess
-//             .source_map()
-//             .path_mapping()
-//             .to_embeddable_absolute_path(original_file_name.clone(), working_directory);
-
-//         filename = FileName::Real(adapted_file_name);
-//     }
-//     StableSourceFileId::from_filename_for_export(&filename, crate_stable_id)
-// }
