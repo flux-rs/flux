@@ -168,7 +168,6 @@ pub struct IncludePattern {
 
 impl IncludePattern {
     fn new(includes: Vec<String>) -> Result<Self, String> {
-        println!("TRACE: IncludePattern::new({includes:?})");
         let mut defs = Vec::new();
         let mut spans = Vec::new();
         let mut glob = GlobSetBuilder::new();
@@ -179,7 +178,6 @@ impl IncludePattern {
                 spans.push(Pos::from_str(suffix)?);
             } else {
                 let suffix = include.strip_prefix("glob:").unwrap_or(&include);
-                println!("TRACE: include pattern glob: {suffix}");
                 let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
                 glob.add(glob_pattern);
             }
