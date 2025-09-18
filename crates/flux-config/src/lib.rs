@@ -156,7 +156,7 @@ impl fmt::Display for IncludePattern {
 /// This specifies which `DefId` should be checked. It can be specified via multiple patterns
 /// of the form `-Finclude=<pattern>` and the `DefId` is checked if it matches *any* of the patterns.
 /// Patterns are checked relative to the current working directory.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IncludePattern {
     /// files matching the glob pattern, e.g. `glob:src/ascii/*.rs` to check all files in the `ascii` module
     pub glob: GlobSet,
@@ -168,6 +168,7 @@ pub struct IncludePattern {
 
 impl IncludePattern {
     fn new(includes: Vec<String>) -> Result<Self, String> {
+        println!("TRACE: IncludePattern::new({includes:?})");
         let mut defs = Vec::new();
         let mut spans = Vec::new();
         let mut glob = GlobSetBuilder::new();
@@ -178,6 +179,7 @@ impl IncludePattern {
                 spans.push(Pos::from_str(suffix)?);
             } else {
                 let suffix = include.strip_prefix("glob:").unwrap_or(&include);
+                println!("TRACE: include pattern glob: {suffix}");
                 let glob_pattern = Glob::new(suffix.trim()).map_err(|_| "invalid glob pattern")?;
                 glob.add(glob_pattern);
             }

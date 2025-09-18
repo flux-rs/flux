@@ -218,6 +218,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         }) {
             return true;
         }
+        println!("TRACE: is_included {def_id:?} -> false");
         false
     }
 
