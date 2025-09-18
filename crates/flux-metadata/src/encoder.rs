@@ -1,4 +1,4 @@
-use std::collections::hash_map::Entry;
+use std::{collections::hash_map::Entry, sync::Arc};
 
 use flux_middle::global_env::GlobalEnv;
 use rustc_data_structures::fx::FxHashMap;
@@ -8,28 +8,36 @@ use rustc_middle::{
     bug,
     ty::{self, TyCtxt, codec::TyEncoder},
 };
-use rustc_serialize::{Encodable, Encoder, opaque};
+use rustc_serialize::{Encodable, Encoder, opaque, opaque::IntEncodedWithFixedSize};
 use rustc_session::config::CrateType;
 use rustc_span::{
-    ByteSymbol, ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol,
-    SyntaxContext,
+    ByteSymbol, ExpnId, SourceFile, Span, SpanEncoder, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{ExpnIndex, HygieneEncodeContext},
 };
 
-use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR};
+use crate::{
+    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
+    SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
+    rustc_middle::dep_graph::DepContext,
+};
 
 struct EncodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     opaque: opaque::FileEncoder,
     type_shorthands: FxHashMap<ty::Ty<'tcx>, usize>,
     predicate_shorthands: FxHashMap<ty::PredicateKind<'tcx>, usize>,
+    file_to_file_index: FxHashMap<*const SourceFile, SourceFileIndex>,
     is_proc_macro: bool,
     hygiene_ctxt: &'a HygieneEncodeContext,
     symbol_index_table: FxHashMap<u32, usize>,
 }
 
 impl EncodeContext<'_, '_> {
+    fn source_file_index(&mut self, source_file: Arc<SourceFile>) -> SourceFileIndex {
+        self.file_to_file_index[&(&*source_file as *const SourceFile)]
+    }
+
     fn encode_symbol_or_byte_symbol(
         &mut self,
         index: u32,
@@ -59,7 +67,61 @@ impl EncodeContext<'_, '_> {
     }
 }
 
+fn file_indices(
+    tcx: TyCtxt,
+) -> (FxHashMap<*const SourceFile, SourceFileIndex>, FxHashMap<SourceFileIndex, EncodedSourceFileId>)
+{
+    let files = tcx.sess.source_map().files();
+    let mut file_to_file_index =
+        FxHashMap::with_capacity_and_hasher(files.len(), Default::default());
+    let mut file_index_to_stable_id =
+        FxHashMap::with_capacity_and_hasher(files.len(), Default::default());
+    use rustc_span::def_id::LOCAL_CRATE;
+    let source_map = tcx.sess.source_map();
+    let working_directory = &tcx.sess.opts.working_dir;
+    let local_crate_stable_id = tcx.stable_crate_id(LOCAL_CRATE);
+
+    // This portion of the code is adapted from the rustc metadata encoder, while the rest of
+    // the code in this file is based off the rustc incremental cache encoder.
+    //
+    // Probably we should refactor the code to be exclusively based on the metadata encoder
+    for (index, file) in files.iter().enumerate() {
+        let index = SourceFileIndex(index as u32);
+        let file_ptr: *const SourceFile = &**file as *const _;
+        file_to_file_index.insert(file_ptr, index);
+
+        let mut adapted_source_file = (**file).clone();
+        if adapted_source_file.cnum == LOCAL_CRATE {
+            use rustc_span::FileName;
+            match file.name {
+                FileName::Real(ref original_file_name) => {
+                    let adapted_file_name = source_map
+                        .path_mapping()
+                        .to_embeddable_absolute_path(original_file_name.clone(), working_directory);
+
+                    adapted_source_file.name = FileName::Real(adapted_file_name);
+                }
+                _ => {
+                    // expanded code, not from a file
+                }
+            };
+            use rustc_span::StableSourceFileId;
+            adapted_source_file.stable_id = StableSourceFileId::from_filename_for_export(
+                &adapted_source_file.name,
+                local_crate_stable_id,
+            );
+        }
+
+        let source_file_id = EncodedSourceFileId::new(tcx, &adapted_source_file);
+        file_index_to_stable_id.insert(index, source_file_id);
+    }
+
+    (file_to_file_index, file_index_to_stable_id)
+}
+
 pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
+    let (file_to_file_index, file_index_to_stable_id) = file_indices(genv.tcx());
+
     let mut encoder = opaque::FileEncoder::new(path).unwrap_or_else(|err| {
         genv.tcx()
             .sess
@@ -72,17 +134,52 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     let crate_root = CrateMetadata::new(genv);
 
     let hygiene_ctxt = HygieneEncodeContext::default();
+    let tcx = genv.tcx();
     let mut ecx = EncodeContext {
-        tcx: genv.tcx(),
+        tcx,
         opaque: encoder,
         type_shorthands: Default::default(),
         predicate_shorthands: Default::default(),
+        file_to_file_index,
         is_proc_macro: genv.tcx().crate_types().contains(&CrateType::ProcMacro),
         hygiene_ctxt: &hygiene_ctxt,
         symbol_index_table: Default::default(),
     };
 
     crate_root.encode(&mut ecx);
+
+    // BEGIN: CREUSOT-footer
+    let mut syntax_contexts = FxHashMap::default();
+    let mut expn_data = FxHashMap::default();
+
+    // Encode all hygiene data (`SyntaxContextData` and `ExpnData`) from the current session.
+    ecx.hygiene_ctxt.encode(
+        &mut ecx,
+        |encoder, index, ctxt_data| {
+            let pos = AbsoluteBytePos::new(encoder.position());
+            ctxt_data.encode(encoder);
+            syntax_contexts.insert(index, pos);
+        },
+        |encoder, expn_id, data, hash| {
+            let pos = AbsoluteBytePos::new(encoder.position());
+            data.encode(encoder);
+            hash.encode(encoder);
+            expn_data.insert((tcx.stable_crate_id(expn_id.krate), expn_id.local_id.as_u32()), pos);
+        },
+    );
+
+    // Encode the file footer.
+    let footer_pos = ecx.position() as u64;
+    let footer = Footer { file_index_to_stable_id, syntax_contexts, expn_data };
+    footer.encode(&mut ecx);
+
+    // Encode the position of the footer as the last 8 bytes of the
+    // file so we know where to look for it.
+    IntEncodedWithFixedSize(footer_pos).encode(&mut ecx.opaque);
+
+    // DO NOT WRITE ANYTHING TO THE ENCODER AFTER THIS POINT! The address
+    // of the footer must be the last thing in the data stream.
+    // END: CREUSOT-footer
 
     ecx.opaque.finish().unwrap();
 }
@@ -120,19 +217,30 @@ impl SpanEncoder for EncodeContext<'_, '_> {
         expn_id.local_id.encode(self);
     }
 
-    // Code adapted from prusti
+    // Code adapted from creusot
     fn encode_span(&mut self, span: Span) {
-        let sm = self.tcx.sess.source_map();
-        for bp in [span.lo(), span.hi()] {
-            let sf = sm.lookup_source_file(bp);
-            let ssfi = stable_source_file_id_for_export(self.tcx, &sf);
-            ssfi.encode(self);
-            // Not sure if this is the most stable way to encode a BytePos. If it fails
-            // try finding a function in `SourceMap` or `SourceFile` instead. E.g. the
-            // `bytepos_to_file_charpos` fn which returns `CharPos` (though there is
-            // currently no fn mapping back to `BytePos` for decode)
-            (bp - sf.start_pos).encode(self);
+        let span = span.data();
+        span.ctxt.encode(self);
+
+        if span.is_dummy() {
+            return TAG_PARTIAL_SPAN.encode(self);
         }
+
+        let source_file = self.tcx.sess().source_map().lookup_source_file(span.lo);
+        if !source_file.contains(span.hi) {
+            // Unfortunately, macro expansion still sometimes generates Spans
+            // that malformed in this way.
+            return TAG_PARTIAL_SPAN.encode(self);
+        }
+
+        let lo = span.lo - source_file.start_pos;
+        let len = span.hi - span.lo;
+        let source_file_index = self.source_file_index(source_file);
+
+        TAG_FULL_SPAN.encode(self);
+        source_file_index.encode(self);
+        lo.encode(self);
+        len.encode(self);
     }
 
     fn encode_symbol(&mut self, sym: Symbol) {
@@ -203,20 +311,4 @@ impl Encoder for EncodeContext<'_, '_> {
         emit_str(&str);
         emit_raw_bytes(&[u8]);
     }
-}
-
-fn stable_source_file_id_for_export(tcx: TyCtxt, sf: &SourceFile) -> StableSourceFileId {
-    let working_directory = &tcx.sess.opts.working_dir;
-    let crate_stable_id = tcx.stable_crate_id(sf.cnum);
-    let mut filename = sf.name.clone();
-    if let FileName::Real(original_file_name) = filename {
-        let adapted_file_name = tcx
-            .sess
-            .source_map()
-            .path_mapping()
-            .to_embeddable_absolute_path(original_file_name.clone(), working_directory);
-
-        filename = FileName::Real(adapted_file_name);
-    }
-    StableSourceFileId::from_filename_for_export(&filename, crate_stable_id)
 }
