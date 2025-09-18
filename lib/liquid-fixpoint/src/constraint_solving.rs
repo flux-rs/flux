@@ -67,8 +67,7 @@ impl<T: Types> Constraint<T> {
             .into_iter()
             .rev()
             .flatten()
-            .map(|kvid| kvar_to_fragments.remove(&kvid).unwrap())
-            .flatten()
+            .flat_map(|kvid| kvar_to_fragments.remove(&kvid).unwrap())
             .collect()
     }
 
@@ -182,11 +181,7 @@ impl<T: Types> Constraint<T> {
                     .collect()
             }
             Constraint::Conj(conjuncts) => {
-                conjuncts
-                    .iter()
-                    .map(|cstr| cstr.sol1(var))
-                    .flatten()
-                    .collect()
+                conjuncts.iter().flat_map(|cstr| cstr.sol1(var)).collect()
             }
             Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
                 let arg_vars = args.iter().map(|arg| Expr::Var(arg.clone())).collect();
@@ -196,7 +191,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn elim(&self, vars: &Vec<T::KVar>) -> Self {
+    pub fn elim(&self, vars: &[T::KVar]) -> Self {
         vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
     }
 
@@ -225,7 +220,7 @@ impl<T: Types> Constraint<T> {
                             let kvar_instances_subbed: Vec<Pred<T>> = {
                                 kvar_instances
                                     .into_iter()
-                                    .map(|(_kvid, eqs)| {
+                                    .flat_map(|(_kvid, eqs)| {
                                         args.iter()
                                             .zip(eqs.iter())
                                             .map(|(arg, eq)| {
@@ -236,11 +231,10 @@ impl<T: Types> Constraint<T> {
                                             })
                                             .collect::<Vec<_>>()
                                     })
-                                    .flatten()
                                     .collect()
                             };
                             let mut preds = kvar_instances_subbed;
-                            preds.extend(other_preds.into_iter());
+                            preds.extend(other_preds);
                             let init = Constraint::ForAll(
                                 Bind {
                                     name: name.clone(),
@@ -287,14 +281,7 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
             Pred::Expr(_expr) => vec![],
-            Pred::And(conjuncts) => {
-                conjuncts
-                    .iter()
-                    .map(Pred::kvars)
-                    .flatten()
-                    .unique()
-                    .collect()
-            }
+            Pred::And(conjuncts) => conjuncts.iter().flat_map(Pred::kvars).unique().collect(),
         }
     }
 
@@ -305,21 +292,21 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::KVar(kvid, args) => {
                 let qualifiers = assignment.get(kvid).unwrap();
-                if qualifiers.len() == 0 {
+                if qualifiers.is_empty() {
                     return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
                 }
                 if qualifiers.len() == 1 {
                     let qualifier = qualifiers[0].0;
-                    return Pred::Expr(
+                    Pred::Expr(
                         qualifier
                             .args
                             .iter()
                             .map(|arg| &arg.0)
                             .zip(qualifiers[0].1.iter().map(|arg_idx| &args[*arg_idx]))
                             .fold(qualifier.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
-                    );
+                    )
                 } else {
-                    return Pred::And(
+                    Pred::And(
                         qualifiers
                             .iter()
                             .map(|qualifier| {
@@ -336,7 +323,7 @@ impl<T: Types> Pred<T> {
                                 )
                             })
                             .collect(),
-                    );
+                    )
                 }
             }
             Pred::Expr(expr) => Pred::Expr(expr.clone()),
@@ -390,7 +377,7 @@ impl<T: Types> Pred<T> {
                     .for_each(|pred| pred.partition_pred_help(var, kvar_instances, other_preds));
             }
             Pred::KVar(kvid, args) if var.eq(kvid) => {
-                kvar_instances.push((kvid.clone(), args.to_vec()));
+                kvar_instances.push((kvid.clone(), args.clone()));
             }
             _ => {
                 other_preds.push(self.clone());

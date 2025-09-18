@@ -67,7 +67,7 @@ fn parse_list_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
             let args = items[1..]
                 .to_vec()
                 .iter()
-                .map(|item| parse_sort(item))
+                .map(parse_sort)
                 .collect::<Result<Vec<Sort<ParsingTypes>>, ParseError>>()?;
             match &items[0] {
                 Sexp::Atom(Atom::S(s)) if s == "func" => parse_func_sort(sexp),
@@ -106,7 +106,7 @@ fn parse_bind(sexp: &Sexp) -> Result<Bind<ParsingTypes>, ParseError> {
             match &items[0] {
                 Sexp::List(name_and_sort) => {
                     let name = match &name_and_sort[0] {
-                        Sexp::Atom(Atom::S(s)) => Ok(s.to_string()),
+                        Sexp::Atom(Atom::S(s)) => Ok(s.clone()),
                         _ => {
                             Err(ParseError::MalformedSexpError("Expected bind name to be a string"))
                         }
@@ -148,7 +148,7 @@ fn parse_conj(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
                     items[1..]
                         .to_vec()
                         .iter()
-                        .map(|item| sexp_to_constraint_inner(item))
+                        .map(sexp_to_constraint_inner)
                         .collect::<Result<_, _>>()
                         .map(Constraint::Conj)
                 }
@@ -274,9 +274,9 @@ fn parse_or(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
                     items[1..]
                         .to_vec()
                         .iter()
-                        .map(|item| parse_expr_possibly_nested(item))
+                        .map(parse_expr_possibly_nested)
                         .collect::<Result<_, _>>()
-                        .map(|dijuncts| Expr::Or(dijuncts))
+                        .map(Expr::Or)
                 }
                 _ => {
                     Err(ParseError::MalformedSexpError(
@@ -297,9 +297,9 @@ fn parse_and(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
                     items[1..]
                         .to_vec()
                         .iter()
-                        .map(|item| parse_expr_possibly_nested(item))
+                        .map(parse_expr_possibly_nested)
                         .collect::<Result<_, _>>()
-                        .map(|conjuncts| Expr::And(conjuncts))
+                        .map(Expr::And)
                 }
                 _ => {
                     Err(ParseError::MalformedSexpError(
@@ -449,9 +449,9 @@ fn parse_pred_inner(sexp: &Sexp) -> Result<Pred<ParsingTypes>, ParseError> {
                     items[1..]
                         .to_vec()
                         .iter()
-                        .map(|item| parse_pred_inner(item))
+                        .map(parse_pred_inner)
                         .collect::<Result<_, _>>()
-                        .map(|conjuncts| Pred::And(conjuncts))
+                        .map(Pred::And)
                 }
                 Sexp::Atom(Atom::S(s)) if s.starts_with("$") => parse_kvar(sexp),
                 _ => parse_expr_possibly_nested(sexp).map(Pred::Expr),
@@ -477,12 +477,11 @@ fn parse_tagged_pred(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError
 }
 
 fn parse_pred(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
-    if let Sexp::List(items) = sexp {
-        if let Sexp::Atom(Atom::S(s)) = &items[0] {
-            if s == "tag" {
-                return parse_tagged_pred(sexp);
-            }
-        }
+    if let Sexp::List(items) = sexp
+        && let Sexp::Atom(Atom::S(s)) = &items[0]
+        && s == "tag"
+    {
+        return parse_tagged_pred(sexp);
     }
     let pred = parse_pred_inner(sexp)?;
     Ok(Constraint::Pred(pred, None))
