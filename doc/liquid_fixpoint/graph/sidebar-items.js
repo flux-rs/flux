@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["dfs_collect_scc","dfs_finish_order","find_sccs","reverse_graph","topological_sort_sccs"]};

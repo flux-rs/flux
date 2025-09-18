@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["type_signature_matches"],"struct":["ConstraintWithEnv"]};
+window.SIDEBAR_ITEMS = {"struct":["ConstraintWithEnv"]};

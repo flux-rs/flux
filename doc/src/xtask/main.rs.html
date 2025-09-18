@@ -19,7 +19,7 @@
 <a href=#19 id=19 data-nosnippet>19</a>    cmd xtask {
 <a href=#20 id=20 data-nosnippet>20</a>        <span class="doccomment">/// If true, run all cargo commands with `--offline`
 <a href=#21 id=21 data-nosnippet>21</a>        </span>optional --offline
-<a href=#22 id=22 data-nosnippet>22</a>        <span class="doccomment">/// If true, run cargo build commands with --features liquid-fixpoint/rust-fixpiont
+<a href=#22 id=22 data-nosnippet>22</a>        <span class="doccomment">/// If true, run cargo build commands with --features rust-fixpiont
 <a href=#23 id=23 data-nosnippet>23</a>        </span>optional --rust-fixpoint
 <a href=#24 id=24 data-nosnippet>24</a>
 <a href=#25 id=25 data-nosnippet>25</a>        <span class="doccomment">/// Run regression tests
@@ -231,7 +231,7 @@
 <a href=#231 id=231 data-nosnippet>231</a><span class="kw">fn </span>build_binary(bin: <span class="kw-2">&amp;</span>str, profile: Profile, rust_fixpoint: bool) -&gt; anyhow::Result&lt;Utf8PathBuf&gt; {
 <a href=#232 id=232 data-nosnippet>232</a>    <span class="kw">let </span><span class="kw-2">mut </span>args = <span class="macro">vec!</span>[<span class="string">"build"</span>, <span class="string">"--bin"</span>, bin, <span class="string">"--profile"</span>, profile.as_str()];
 <a href=#233 id=233 data-nosnippet>233</a>    <span class="kw">if </span>rust_fixpoint {
-<a href=#234 id=234 data-nosnippet>234</a>        args.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="string">"--features"</span>, <span class="string">"liquid-fixpoint/rust-fixpoint"</span>]);
+<a href=#234 id=234 data-nosnippet>234</a>        args.extend_from_slice(<span class="kw-2">&amp;</span>[<span class="string">"--features"</span>, <span class="string">"rust-fixpoint"</span>]);
 <a href=#235 id=235 data-nosnippet>235</a>    }
 <a href=#236 id=236 data-nosnippet>236</a>    Command::new(<span class="string">"cargo"</span>)
 <a href=#237 id=237 data-nosnippet>237</a>        .args(<span class="kw-2">&amp;</span>args)
@@ -245,7 +245,7 @@
 <a href=#245 id=245 data-nosnippet>245</a><span class="kw">struct </span>SysrootConfig {
 <a href=#246 id=246 data-nosnippet>246</a>    <span class="doccomment">/// Profile used to build `flux-driver` and libraries
 <a href=#247 id=247 data-nosnippet>247</a>    </span>profile: Profile,
-<a href=#248 id=248 data-nosnippet>248</a>    <span class="doccomment">/// Whether liquid-fixpoint/rust-fixpoint should be enabled to build `flux-driver`
+<a href=#248 id=248 data-nosnippet>248</a>    <span class="doccomment">/// Whether rust-fixpoint should be enabled to build `flux-driver`
 <a href=#249 id=249 data-nosnippet>249</a>    </span>rust_fixpoint: bool,
 <a href=#250 id=250 data-nosnippet>250</a>    <span class="doccomment">/// Destination path for sysroot artifacts
 <a href=#251 id=251 data-nosnippet>251</a>    </span>dst: PathBuf,

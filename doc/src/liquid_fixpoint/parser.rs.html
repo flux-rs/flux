@@ -634,7 +634,7 @@
 <a href=#634 id=634 data-nosnippet>634</a>        } <span class="kw">else if let </span><span class="prelude-val">Ok</span>(qualifier) = sexp_to_qualifier(<span class="kw-2">&amp;</span>sexp) {
 <a href=#635 id=635 data-nosnippet>635</a>            qualifiers.push(qualifier);
 <a href=#636 id=636 data-nosnippet>636</a>        } <span class="kw">else if let </span><span class="prelude-val">Ok</span>(constraint) = sexp_to_constraint(<span class="kw-2">&amp;</span>sexp) {
-<a href=#637 id=637 data-nosnippet>637</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(ConstraintWithEnv { kvar_decls, qualifiers, constraint });
+<a href=#637 id=637 data-nosnippet>637</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(ConstraintWithEnv { kvar_decls, qualifiers, constants: <span class="macro">vec!</span>[], constraint });
 <a href=#638 id=638 data-nosnippet>638</a>        }
 <a href=#639 id=639 data-nosnippet>639</a>    }
 <a href=#640 id=640 data-nosnippet>640</a>    <span class="prelude-val">Err</span>(ParseError::MalformedSexpError(<span class="string">"No constraint found"</span>))
