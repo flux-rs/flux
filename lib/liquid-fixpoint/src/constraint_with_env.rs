@@ -70,7 +70,7 @@ impl<T: Types> ConstraintWithEnv<T> {
                             let vc = subbed.sub_head(assignment);
                             is_constraint_satisfiable(&vc, &self.constants).is_safe()
                         });
-                        if initial_length > qualifiers.len() {
+                        if initial_length > assignment.len() {
                             work_list.extend(
                                 fragment
                                     .kvar_deps()

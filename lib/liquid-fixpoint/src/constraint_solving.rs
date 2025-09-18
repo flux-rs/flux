@@ -157,8 +157,23 @@ impl<T: Types> Constraint<T> {
                         .for_each(|conjunct| conjunct.simplify());
                 }
             }
-            Constraint::Pred(p, _) => {
-                p.simplify();
+            Constraint::Pred(p, tag) => {
+                match p {
+                    Pred::And(conjuncts) => {
+                        let mut cstr_conj = Constraint::Conj(
+                            conjuncts
+                                .iter()
+                                .cloned()
+                                .map(|pred| Constraint::Pred(pred, tag.clone()))
+                                .collect(),
+                        );
+                        cstr_conj.simplify();
+                        *self = cstr_conj;
+                    }
+                    _ => {
+                        p.simplify();
+                    }
+                }
             }
         }
     }
