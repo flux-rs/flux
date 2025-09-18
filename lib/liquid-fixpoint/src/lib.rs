@@ -89,17 +89,6 @@ pub trait Identifier: Sized {
     }
 }
 
-struct DefaultTypes;
-
-impl Types for DefaultTypes {
-    type Sort = &'static str;
-    type KVar = &'static str;
-    type Var = &'static str;
-    type Tag = String;
-    type Decimal = u32;
-    type String = String;
-}
-
 impl Identifier for &str {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{self}")

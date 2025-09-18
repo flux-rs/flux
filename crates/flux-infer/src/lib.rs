@@ -13,7 +13,6 @@ extern crate rustc_type_ir;
 
 mod evars;
 pub mod fixpoint_encoding;
-#[cfg(feature = "rust-fixpoint")]
 pub mod fixpoint_qualifiers;
 pub mod infer;
 pub mod projections;
