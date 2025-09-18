@@ -442,6 +442,10 @@ where
         let mut constants = self.ecx.const_map.into_values().collect_vec();
         constants.extend(define_constants);
 
+        // The rust fixpoint implementation does not yet support polymorphic functions.
+        // For now we avoid including these by default so that cases where they are not needed can work.
+        // Should be removed when support is added.
+        #[cfg(not(feature = "rust-fixpoint"))]
         for rel in fixpoint::BinRel::INEQUALITIES {
             // ∀a. a -> a -> bool
             let sort = fixpoint::Sort::mk_func(

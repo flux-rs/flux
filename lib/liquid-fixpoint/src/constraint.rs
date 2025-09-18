@@ -247,6 +247,22 @@ impl<T: Types> Pred<T> {
             Pred::Expr(_) => true,
         }
     }
+
+    #[cfg(feature = "rust-fixpoint")]
+    pub(crate) fn simplify(&mut self) {
+        match self {
+            Pred::And(conjuncts) => {
+                if conjuncts.len() == 0 {
+                    *self = Pred::TRUE;
+                } else if conjuncts.len() == 1 {
+                    *self = conjuncts[0].clone();
+                } else {
+                    conjuncts.iter_mut().for_each(|pred| pred.simplify());
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]

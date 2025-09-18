@@ -26,3 +26,6 @@ workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true
+
+[features]
+rust-fixpoint = ["liquid-fixpoint/rust-fixpoint"]
