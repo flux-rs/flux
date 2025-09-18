@@ -36,7 +36,7 @@ use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::projections::structurally_normalize_expr;
+use crate::{fixpoint_qualifiers::FIXPOINT_QUALIFIERS, projections::structurally_normalize_expr};
 
 pub mod fixpoint {
     use std::fmt;
@@ -433,7 +433,12 @@ where
         let kvars = self.kcx.into_fixpoint();
 
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-        let qualifiers = self.ecx.qualifiers_for(def_id.local_id(), &mut self.scx)?;
+        let qualifiers = self
+            .ecx
+            .qualifiers_for(def_id.local_id(), &mut self.scx)?
+            .into_iter()
+            .chain(FIXPOINT_QUALIFIERS.iter().cloned())
+            .collect();
 
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.

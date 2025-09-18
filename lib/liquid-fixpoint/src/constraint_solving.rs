@@ -340,7 +340,9 @@ impl<T: Types> Pred<T> {
     ) -> Self {
         match self {
             Pred::KVar(kvid, args) => {
-                let qualifiers = assignment.get(kvid).unwrap();
+                let qualifiers = assignment
+                    .get(kvid)
+                    .expect(format!("{:#?} should have an assignment", kvid).as_str());
                 if qualifiers.len() == 0 {
                     return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
                 }
