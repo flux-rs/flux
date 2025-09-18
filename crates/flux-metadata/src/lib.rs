@@ -4,7 +4,6 @@
 extern crate rustc_ast;
 extern crate rustc_data_structures;
 extern crate rustc_errors;
-
 extern crate rustc_hir;
 extern crate rustc_macros;
 extern crate rustc_metadata;
@@ -15,6 +14,10 @@ extern crate rustc_span;
 
 mod decoder;
 mod encoder;
+
+// Tags used for encoding Spans:
+const TAG_FULL_SPAN: u8 = 0;
+const TAG_PARTIAL_SPAN: u8 = 1;
 
 use std::{hash::Hash, path::PathBuf, rc::Rc};
 
@@ -30,17 +33,20 @@ use flux_middle::{
     queries::QueryResult,
     rty,
 };
-use rustc_data_structures::unord::{ExtendUnord, UnordMap};
+use rustc_data_structures::{
+    fx::FxHashMap,
+    unord::{ExtendUnord, UnordMap},
+};
 use rustc_hir::{
     def::{CtorKind, DefKind},
     def_id::{LOCAL_CRATE, LocalDefId},
 };
-use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::TyCtxt;
 use rustc_session::config::OutFileName;
 use rustc_span::{
     Span,
-    def_id::{CrateNum, DefId, DefIndex},
+    def_id::{CrateNum, DefId, DefIndex, StableCrateId},
 };
 
 pub use crate::encoder::encode_metadata;
@@ -54,6 +60,27 @@ const METADATA_HEADER: &[u8] = &[b'f', b'l', b'u', b'x', 0, 0, 0, METADATA_VERSI
 pub struct CStore {
     local_tables: UnordMap<CrateNum, Tables<DefIndex>>,
     extern_tables: Tables<DefId>,
+}
+
+// Taken from CREUSOT; used to store the info about syntax contexts
+#[derive(Default, Decodable, Encodable)]
+pub struct Footer {
+    // file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
+    syntax_contexts: FxHashMap<u32, AbsoluteBytePos>,
+    expn_data: FxHashMap<(StableCrateId, u32), AbsoluteBytePos>,
+}
+
+#[derive(Encodable, Decodable, Clone, Copy)]
+pub struct AbsoluteBytePos(u64);
+
+impl AbsoluteBytePos {
+    fn new(pos: usize) -> AbsoluteBytePos {
+        AbsoluteBytePos(pos.try_into().unwrap())
+    }
+
+    fn to_usize(self) -> usize {
+        self.0 as usize
+    }
 }
 
 #[derive(Default, TyEncodable, TyDecodable)]

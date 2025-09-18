@@ -8,7 +8,7 @@ use rustc_middle::{
     bug,
     ty::{self, TyCtxt, codec::TyEncoder},
 };
-use rustc_serialize::{Encodable, Encoder, opaque};
+use rustc_serialize::{Encodable, Encoder, opaque, opaque::IntEncodedWithFixedSize};
 use rustc_session::config::CrateType;
 use rustc_span::{
     ByteSymbol, ExpnId, FileName, SourceFile, Span, SpanEncoder, StableSourceFileId, Symbol,
@@ -17,7 +17,10 @@ use rustc_span::{
     hygiene::{ExpnIndex, HygieneEncodeContext},
 };
 
-use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR};
+use crate::{
+    AbsoluteBytePos, CrateMetadata, Footer, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED,
+    SYMBOL_STR, TAG_FULL_SPAN, TAG_PARTIAL_SPAN, rustc_middle::dep_graph::DepContext,
+};
 
 struct EncodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
@@ -72,8 +75,9 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     let crate_root = CrateMetadata::new(genv);
 
     let hygiene_ctxt = HygieneEncodeContext::default();
+    let tcx = genv.tcx();
     let mut ecx = EncodeContext {
-        tcx: genv.tcx(),
+        tcx,
         opaque: encoder,
         type_shorthands: Default::default(),
         predicate_shorthands: Default::default(),
@@ -83,6 +87,39 @@ pub fn encode_metadata(genv: GlobalEnv, path: &std::path::Path) {
     };
 
     crate_root.encode(&mut ecx);
+
+    // BEGIN: CREUSOT-footer
+    let mut syntax_contexts = FxHashMap::default();
+    let mut expn_data = FxHashMap::default();
+
+    // Encode all hygiene data (`SyntaxContextData` and `ExpnData`) from the current session.
+    ecx.hygiene_ctxt.encode(
+        &mut ecx,
+        |encoder, index, ctxt_data| {
+            let pos = AbsoluteBytePos::new(encoder.position());
+            ctxt_data.encode(encoder);
+            syntax_contexts.insert(index, pos);
+        },
+        |encoder, expn_id, data, hash| {
+            let pos = AbsoluteBytePos::new(encoder.position());
+            data.encode(encoder);
+            hash.encode(encoder);
+            expn_data.insert((tcx.stable_crate_id(expn_id.krate), expn_id.local_id.as_u32()), pos);
+        },
+    );
+
+    // Encode the file footer.
+    let footer_pos = ecx.position() as u64;
+    let footer = Footer { /* file_index_to_stable_id, */ syntax_contexts, expn_data };
+    footer.encode(&mut ecx);
+
+    // Encode the position of the footer as the last 8 bytes of the
+    // file so we know where to look for it.
+    IntEncodedWithFixedSize(footer_pos).encode(&mut ecx.opaque);
+
+    // DO NOT WRITE ANYTHING TO THE ENCODER AFTER THIS POINT! The address
+    // of the footer must be the last thing in the data stream.
+    // END: CREUSOT-footer
 
     ecx.opaque.finish().unwrap();
 }
@@ -120,19 +157,45 @@ impl SpanEncoder for EncodeContext<'_, '_> {
         expn_id.local_id.encode(self);
     }
 
-    // Code adapted from prusti
+    // Code adapted from creusot
     fn encode_span(&mut self, span: Span) {
-        let sm = self.tcx.sess.source_map();
-        for bp in [span.lo(), span.hi()] {
-            let sf = sm.lookup_source_file(bp);
-            let ssfi = stable_source_file_id_for_export(self.tcx, &sf);
-            ssfi.encode(self);
-            // Not sure if this is the most stable way to encode a BytePos. If it fails
-            // try finding a function in `SourceMap` or `SourceFile` instead. E.g. the
-            // `bytepos_to_file_charpos` fn which returns `CharPos` (though there is
-            // currently no fn mapping back to `BytePos` for decode)
-            (bp - sf.start_pos).encode(self);
+        let span = span.data();
+        span.ctxt.encode(self);
+
+        if span.is_dummy() {
+            return TAG_PARTIAL_SPAN.encode(self);
         }
+
+        let source_file = self.tcx.sess().source_map().lookup_source_file(span.lo);
+        if !source_file.contains(span.hi) {
+            // Unfortunately, macro expansion still sometimes generates Spans
+            // that malformed in this way.
+            return TAG_PARTIAL_SPAN.encode(self);
+        }
+
+        let lo = span.lo - source_file.start_pos;
+        let len = span.hi - span.lo;
+        let ssfi = stable_source_file_id_for_export(self.tcx, &source_file);
+        // CREUSOT let source_file_index = self.source_file_index(source_file);
+
+        TAG_FULL_SPAN.encode(self);
+        // CREUSOT: source_file_index.encode(self);
+        ssfi.encode(self);
+        lo.encode(self);
+        len.encode(self);
+
+        // OLD CODE from prusti
+        // let sm = self.tcx.sess.source_map();
+        // for bp in [span.lo(), span.hi()] {
+        //     let sf = sm.lookup_source_file(bp);
+        //     let ssfi = stable_source_file_id_for_export(self.tcx, &sf);
+        //     ssfi.encode(self);
+        //     // Not sure if this is the most stable way to encode a BytePos. If it fails
+        //     // try finding a function in `SourceMap` or `SourceFile` instead. E.g. the
+        //     // `bytepos_to_file_charpos` fn which returns `CharPos` (though there is
+        //     // currently no fn mapping back to `BytePos` for decode)
+        //     (bp - sf.start_pos).encode(self);
+        // }
     }
 
     fn encode_symbol(&mut self, sym: Symbol) {
