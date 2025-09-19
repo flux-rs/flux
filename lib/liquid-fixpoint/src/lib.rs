@@ -21,7 +21,7 @@ mod parser;
 mod sexp;
 
 use std::{
-    collections::hash_map::DefaultHasher,
+    collections::{HashMap, hash_map::DefaultHasher},
     fmt::{self, Debug},
     hash::{Hash, Hasher},
     io::{self, BufWriter, Write as IOWrite},
@@ -39,6 +39,9 @@ pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};
+
+/// Type alias for qualifier assignments used in constraint solving
+pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>>;
 
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug;

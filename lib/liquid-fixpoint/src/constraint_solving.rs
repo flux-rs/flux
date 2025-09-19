@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{
-    BinRel, Types,
+    Assignments, BinRel, Types,
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
@@ -40,6 +40,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn kvar_mappings(
         &self,
     ) -> (HashMap<T::KVar, Vec<Constraint<T>>>, HashMap<T::KVar, Vec<T::KVar>>) {
@@ -80,10 +81,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sub_all_kvars(
-        &self,
-        assignments: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
-    ) -> Self {
+    pub fn sub_all_kvars(&self, assignments: &Assignments<'_, T>) -> Self {
         match self {
             Constraint::ForAll(bind, inner) => {
                 Constraint::ForAll(
@@ -107,10 +105,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sub_kvars_except_head(
-        &self,
-        assignments: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
-    ) -> Self {
+    pub fn sub_kvars_except_head(&self, assignments: &Assignments<'_, T>) -> Self {
         match self {
             Constraint::ForAll(bind, inner) => {
                 Constraint::ForAll(
@@ -285,10 +280,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn sub_kvars(
-        &self,
-        assignment: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
-    ) -> Self {
+    pub fn sub_kvars(&self, assignment: &Assignments<'_, T>) -> Self {
         match self {
             Pred::KVar(kvid, args) => {
                 let qualifiers = assignment.get(kvid).unwrap();
@@ -357,6 +349,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn partition_pred(&self, var: &T::KVar) -> (Vec<(T::KVar, Vec<T::Var>)>, Vec<Pred<T>>) {
         let mut kvar_instances = vec![];
         let mut other_preds = vec![];

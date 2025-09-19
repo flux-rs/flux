@@ -4,7 +4,7 @@ use derive_where::derive_where;
 use itertools::Itertools;
 
 use crate::{
-    KVarDecl, Types,
+    Assignments, KVarDecl, Types,
     constraint::{Constraint, Qualifier},
     is_constraint_satisfiable,
 };
@@ -20,7 +20,7 @@ impl<T: Types> ConstraintWithEnv<T> {
     pub fn compute_initial_assignments<'a>(
         &'a self,
         qualifiers: &'a Vec<Qualifier<T>>,
-    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
+    ) -> Assignments<'a, T> {
         let mut assignments = HashMap::new();
 
         for decl in &self.kvar_decls {
@@ -47,10 +47,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    pub fn solve_for_kvars<'a>(
-        &'a self,
-        qualifiers: &'a Vec<Qualifier<T>>,
-    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
+    pub fn solve_for_kvars<'a>(&'a self, qualifiers: &'a Vec<Qualifier<T>>) -> Assignments<'a, T> {
         let mut assignments = self.compute_initial_assignments(qualifiers);
         let (kvars_to_fragments, _) = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
