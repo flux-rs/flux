@@ -19,7 +19,7 @@ xflags::xflags! {
     cmd xtask {
         /// If true, run all cargo commands with `--offline`
         optional --offline
-        /// If true, run cargo build commands with --features liquid-fixpoint/rust-fixpiont
+        /// If true, run cargo build commands with --features rust-fixpiont
         optional --rust-fixpoint
 
         /// Run regression tests
@@ -231,7 +231,7 @@ fn doc(_args: Doc) -> anyhow::Result<()> {
 fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Result<Utf8PathBuf> {
     let mut args = vec!["build", "--bin", bin, "--profile", profile.as_str()];
     if rust_fixpoint {
-        args.extend_from_slice(&["--features", "liquid-fixpoint/rust-fixpoint"]);
+        args.extend_from_slice(&["--features", "rust-fixpoint"]);
     }
     Command::new("cargo")
         .args(&args)
@@ -245,7 +245,7 @@ fn build_binary(bin: &str, profile: Profile, rust_fixpoint: bool) -> anyhow::Res
 struct SysrootConfig {
     /// Profile used to build `flux-driver` and libraries
     profile: Profile,
-    /// Whether liquid-fixpoint/rust-fixpoint should be enabled to build `flux-driver`
+    /// Whether rust-fixpoint should be enabled to build `flux-driver`
     rust_fixpoint: bool,
     /// Destination path for sysroot artifacts
     dst: PathBuf,

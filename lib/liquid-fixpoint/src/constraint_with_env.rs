@@ -1,21 +1,28 @@
-use std::collections::{HashMap, VecDeque};
-
 use derive_where::derive_where;
-use itertools::Itertools;
+#[cfg(feature = "rust-fixpoint")]
+use {
+    crate::{FixpointResult, cstr2smt2::is_constraint_satisfiable},
+    itertools::Itertools,
+    std::collections::{HashMap, VecDeque},
+};
 
 use crate::{
-    Assignments, KVarDecl, Types,
+    ConstDecl, KVarDecl, Types,
     constraint::{Constraint, Qualifier},
-    is_constraint_satisfiable,
 };
 
 #[derive_where(Hash)]
 pub struct ConstraintWithEnv<T: Types> {
     pub kvar_decls: Vec<KVarDecl<T>>,
     pub qualifiers: Vec<Qualifier<T>>,
+    pub constants: Vec<ConstDecl<T>>,
     pub constraint: Constraint<T>,
 }
 
+#[cfg(feature = "rust-fixpoint")]
+use crate::Assignments;
+
+#[cfg(feature = "rust-fixpoint")]
 impl<T: Types> ConstraintWithEnv<T> {
     pub fn compute_initial_assignments<'a>(
         &'a self,
@@ -25,21 +32,19 @@ impl<T: Types> ConstraintWithEnv<T> {
 
         for decl in &self.kvar_decls {
             let kvar_arg_count = decl.sorts.len();
+            assignments.insert(decl.kvid.clone(), vec![]);
             for qualifier in qualifiers {
                 let qualifier_arg_count = qualifier.args.len();
                 for argument_combination in (0..kvar_arg_count).combinations(qualifier_arg_count) {
-                    assignments
-                        .entry(decl.kvid.clone())
-                        .or_insert(vec![])
-                        .extend(
-                            argument_combination
-                                .into_iter()
-                                .permutations(qualifier_arg_count)
-                                .filter(|arg_permutation| {
-                                    type_signature_matches(arg_permutation, decl, qualifier)
-                                })
-                                .map(|arg_permutation| (qualifier, arg_permutation)),
-                        );
+                    assignments.get_mut(&decl.kvid).unwrap().extend(
+                        argument_combination
+                            .into_iter()
+                            .permutations(qualifier_arg_count)
+                            .filter(|arg_permutation| {
+                                type_signature_matches(arg_permutation, decl, qualifier)
+                            })
+                            .map(|arg_permutation| (qualifier, arg_permutation)),
+                    );
                 }
             }
         }
@@ -62,14 +67,15 @@ impl<T: Types> ConstraintWithEnv<T> {
                 let initial_length = assignment.len();
                 assignment.retain(|assignment| {
                     let vc = subbed.sub_head(assignment);
-                    is_constraint_satisfiable(&vc)
+                    is_constraint_satisfiable(&vc, &self.constants).is_safe()
                 });
-                if initial_length > qualifiers.len() {
+                if initial_length > assignment.len() {
                     work_list.extend(
                         fragment
                             .kvar_deps()
                             .iter()
-                            .flat_map(|kvar| kvars_to_fragments.get(kvar).unwrap().iter()),
+                            .map(|kvar| kvars_to_fragments.get(kvar).unwrap().iter())
+                            .flatten(),
                     );
                 }
             }
@@ -77,16 +83,11 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    pub fn is_satisfiable(&self) -> bool {
-        if self.kvar_decls.is_empty() {
-            self.constraint.is_satisfiable()
-        } else {
-            self.solve_by_fusion()
-        }
+    pub fn is_satisfiable(&mut self) -> FixpointResult<T::Tag> {
+        self.solve_by_fusion()
     }
 
-    pub fn solve_by_fusion(&self) -> bool {
-        let mut cstr = self.constraint.clone();
+    pub fn eliminate_acyclic_kvars(&mut self) {
         let mut dep_map = self.constraint.kvar_mappings().1;
         let mut acyclic_kvars: Vec<T::KVar> = dep_map
             .into_iter()
@@ -94,31 +95,36 @@ impl<T: Types> ConstraintWithEnv<T> {
             .map(|(kvar, _)| kvar)
             .collect();
         while !acyclic_kvars.is_empty() {
-            cstr = cstr.elim(&acyclic_kvars);
-            dep_map = cstr.kvar_mappings().1;
+            self.constraint = self.constraint.elim(&acyclic_kvars);
+            dep_map = self.constraint.kvar_mappings().1;
             acyclic_kvars = dep_map
                 .into_iter()
                 .filter(|(_, dependencies)| dependencies.is_empty())
                 .map(|(kvar, _)| kvar)
                 .collect();
         }
-        ConstraintWithEnv {
-            kvar_decls: self.kvar_decls.clone(),
-            qualifiers: self.qualifiers.clone(),
-            constraint: cstr,
-        }
-        .solve_by_predicate_abstraction()
     }
 
-    pub fn solve_by_predicate_abstraction(&self) -> bool {
+    fn simplify(&mut self) {
+        self.constraint.simplify();
+    }
+
+    pub fn solve_by_fusion(&mut self) -> FixpointResult<T::Tag> {
+        self.simplify();
+        self.eliminate_acyclic_kvars();
+        self.solve_by_predicate_abstraction()
+    }
+
+    pub fn solve_by_predicate_abstraction(&mut self) -> FixpointResult<T::Tag> {
         let mut qualifiers: Vec<Qualifier<T>> = vec![];
         qualifiers.extend(self.qualifiers.clone());
         let kvar_assignment = self.solve_for_kvars(&qualifiers);
-        let no_kvar_cstr = self.constraint.sub_all_kvars(&kvar_assignment);
-        is_constraint_satisfiable(&no_kvar_cstr)
+        self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);
+        is_constraint_satisfiable(&self.constraint, &self.constants)
     }
 }
 
+#[cfg(feature = "rust-fixpoint")]
 fn type_signature_matches<T: Types>(
     argument_permutation: &[usize],
     kvar_decl: &KVarDecl<T>,

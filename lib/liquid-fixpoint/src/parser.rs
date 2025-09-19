@@ -633,7 +633,7 @@ pub fn parse_constraint_with_kvars(
         } else if let Ok(qualifier) = sexp_to_qualifier(&sexp) {
             qualifiers.push(qualifier);
         } else if let Ok(constraint) = sexp_to_constraint(&sexp) {
-            return Ok(ConstraintWithEnv { kvar_decls, qualifiers, constraint });
+            return Ok(ConstraintWithEnv { kvar_decls, qualifiers, constants: vec![], constraint });
         }
     }
     Err(ParseError::MalformedSexpError("No constraint found"))

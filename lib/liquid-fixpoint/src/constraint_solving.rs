@@ -7,7 +7,6 @@ use crate::{
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
-    is_constraint_satisfiable,
 };
 
 pub struct Solution<T: Types> {
@@ -93,7 +92,9 @@ impl<T: Types> Constraint<T> {
                     Box::new(inner.sub_all_kvars(assignments)),
                 )
             }
-            Constraint::Pred(pred, _tag) => Constraint::Pred(pred.sub_kvars(assignments), None),
+            Constraint::Pred(pred, tag) => {
+                Constraint::Pred(pred.sub_kvars(assignments), tag.clone())
+            }
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
                     conjuncts
@@ -117,7 +118,7 @@ impl<T: Types> Constraint<T> {
                     Box::new(inner.sub_kvars_except_head(assignments)),
                 )
             }
-            Constraint::Pred(pred, _tag) => Constraint::Pred(pred.clone(), None),
+            Constraint::Pred(pred, tag) => Constraint::Pred(pred.clone(), tag.clone()),
             _ => panic!("Conjunctions should not occur in constraint fragments"),
         }
     }
@@ -127,12 +128,51 @@ impl<T: Types> Constraint<T> {
             Constraint::ForAll(bind, inner) => {
                 Constraint::ForAll(bind.clone(), Box::new(inner.sub_head(assignment)))
             }
-            Constraint::Pred(pred, _tag) => Constraint::Pred(pred.sub_head(assignment), None),
+            Constraint::Pred(pred, tag) => Constraint::Pred(pred.sub_head(assignment), tag.clone()),
             _ => panic!("Conjunctions should not occur in constraint fragments"),
         }
     }
 
-    pub fn scope(&self, var: &T::KVar) -> Self {
+    pub(crate) fn simplify(&mut self) {
+        match self {
+            Constraint::ForAll(bind, inner) => {
+                bind.pred.simplify();
+                inner.simplify();
+            }
+            Constraint::Conj(conjuncts) => {
+                if conjuncts.len() == 0 {
+                    *self = Constraint::Pred(Pred::TRUE, None);
+                } else if conjuncts.len() == 1 {
+                    conjuncts[0].simplify();
+                    *self = conjuncts[0].clone();
+                } else {
+                    conjuncts
+                        .iter_mut()
+                        .for_each(|conjunct| conjunct.simplify());
+                }
+            }
+            Constraint::Pred(p, tag) => {
+                match p {
+                    Pred::And(conjuncts) => {
+                        let mut cstr_conj = Constraint::Conj(
+                            conjuncts
+                                .iter()
+                                .cloned()
+                                .map(|pred| Constraint::Pred(pred, tag.clone()))
+                                .collect(),
+                        );
+                        cstr_conj.simplify();
+                        *self = cstr_conj;
+                    }
+                    _ => {
+                        p.simplify();
+                    }
+                }
+            }
+        }
+    }
+
+    fn scope(&self, var: &T::KVar) -> Self {
         self.scope_help(var)
             .unwrap_or(Constraint::Pred(Pred::Expr(Expr::Constant(Constant::Boolean(true))), None))
     }
@@ -163,7 +203,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
+    fn sol1(&self, var: &T::KVar) -> Vec<Solution<T>> {
         match self {
             Constraint::ForAll(bind, inner) => {
                 inner
@@ -190,7 +230,7 @@ impl<T: Types> Constraint<T> {
         vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
     }
 
-    pub fn elim1(&self, var: &T::KVar) -> Self {
+    fn elim1(&self, var: &T::KVar) -> Self {
         let solution = self.scope(var).sol1(var);
         self.do_elim(var, &solution)
     }
@@ -251,15 +291,11 @@ impl<T: Types> Constraint<T> {
                     )
                 }
             }
-            Constraint::Pred(Pred::KVar(kvid, _args), _tag) if var.eq(kvid) => {
-                Constraint::Pred(Pred::TRUE, None)
+            Constraint::Pred(Pred::KVar(kvid, _args), tag) if var.eq(kvid) => {
+                Constraint::Pred(Pred::TRUE, tag.clone())
             }
             cpred => cpred.clone(),
         }
-    }
-
-    pub fn is_satisfiable(&self) -> bool {
-        is_constraint_satisfiable(self)
     }
 }
 
@@ -272,7 +308,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn kvars(&self) -> Vec<T::KVar> {
+    fn kvars(&self) -> Vec<T::KVar> {
         match self {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
             Pred::Expr(_expr) => vec![],
@@ -280,11 +316,13 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn sub_kvars(&self, assignment: &Assignments<'_, T>) -> Self {
+    pub(crate) fn sub_kvars(&self, assignment: &Assignments<'_, T>) -> Self {
         match self {
             Pred::KVar(kvid, args) => {
-                let qualifiers = assignment.get(kvid).unwrap();
-                if qualifiers.is_empty() {
+                let qualifiers = assignment
+                    .get(kvid)
+                    .expect(format!("{:#?} should have an assignment", kvid).as_str());
+                if qualifiers.len() == 0 {
                     return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
                 }
                 if qualifiers.len() == 1 {
@@ -331,7 +369,7 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub fn sub_head(&self, assignment: &(&Qualifier<T>, Vec<usize>)) -> Self {
+    pub(crate) fn sub_head(&self, assignment: &(&Qualifier<T>, Vec<usize>)) -> Self {
         match self {
             Pred::Expr(expr) => Pred::Expr(expr.clone()),
             Pred::KVar(_kvid, args) => {
@@ -377,28 +415,10 @@ impl<T: Types> Pred<T> {
             }
         }
     }
-
-    pub fn rename(&mut self, from: &T::Var, to: &T::Var) {
-        match self {
-            Pred::Expr(expr) => {
-                expr.substitute_in_place(from, to);
-            }
-            Pred::KVar(_kvid, args) => {
-                args.iter_mut().for_each(|arg| {
-                    if from.eq(arg) {
-                        *arg = to.clone();
-                    }
-                });
-            }
-            Pred::And(conjuncts) => {
-                conjuncts.iter_mut().for_each(|pred| pred.rename(from, to));
-            }
-        }
-    }
 }
 
 impl<T: Types> Expr<T> {
-    pub fn substitute_in_place(&mut self, v_from: &T::Var, v_to: &T::Var) {
+    fn substitute_in_place(&mut self, v_from: &T::Var, v_to: &T::Var) {
         match self {
             Expr::Var(v) => {
                 if v == v_from {
@@ -428,7 +448,7 @@ impl<T: Types> Expr<T> {
         }
     }
 
-    pub fn substitute(&self, v_from: &T::Var, v_to: &T::Var) -> Self {
+    pub(crate) fn substitute(&self, v_from: &T::Var, v_to: &T::Var) -> Self {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr
