@@ -1732,7 +1732,7 @@ pub(crate) mod pretty {
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;
                     let text = if e.is_atom() {
-                        format!("%?%{}%?%.{}", e_d.text, fmt_field_proj(cx, *proj))
+                        format!("{}.{}", e_d.text, fmt_field_proj(cx, *proj))
                     } else {
                         format!("({}).{}", e_d.text, fmt_field_proj(cx, *proj))
                     };
