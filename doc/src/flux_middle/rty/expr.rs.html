@@ -1642,7 +1642,7 @@
 <a href=#1642 id=1642 data-nosnippet>1642</a>            </span><span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
 <a href=#1643 id=1643 data-nosnippet>1643</a>        } <span class="kw">else if </span>flds.len() == <span class="number">1 </span>{
 <a href=#1644 id=1644 data-nosnippet>1644</a>            <span class="comment">// Single field, inline index
-<a href=#1645 id=1645 data-nosnippet>1645</a>            </span>text += <span class="kw-2">&amp;</span><span class="macro">format_cx!</span>(cx, <span class="string">"{:?} "</span>, flds[<span class="number">0</span>].clone());
+<a href=#1645 id=1645 data-nosnippet>1645</a>            </span>text += <span class="kw-2">&amp;</span><span class="macro">format_cx!</span>(cx, <span class="string">"{:?}"</span>, flds[<span class="number">0</span>].clone());
 <a href=#1646 id=1646 data-nosnippet>1646</a>            <span class="prelude-val">Ok</span>(NestedString { text, children: <span class="prelude-val">None</span>, key: <span class="prelude-val">None </span>})
 <a href=#1647 id=1647 data-nosnippet>1647</a>        } <span class="kw">else </span>{
 <a href=#1648 id=1648 data-nosnippet>1648</a>            <span class="kw">let </span>keys = <span class="kw">if let </span><span class="prelude-val">Some</span>(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1724,100 +1724,105 @@
 <a href=#1724 id=1724 data-nosnippet>1724</a>                    };
 <a href=#1725 id=1725 data-nosnippet>1725</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
 <a href=#1726 id=1726 data-nosnippet>1726</a>                }
-<a href=#1727 id=1727 data-nosnippet>1727</a>                ExprKind::FieldProj(e, proj) =&gt; {
-<a href=#1728 id=1728 data-nosnippet>1728</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1729 id=1729 data-nosnippet>1729</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
-<a href=#1730 id=1730 data-nosnippet>1730</a>                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
-<a href=#1731 id=1731 data-nosnippet>1731</a>                    } <span class="kw">else </span>{
-<a href=#1732 id=1732 data-nosnippet>1732</a>                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
-<a href=#1733 id=1733 data-nosnippet>1733</a>                    };
-<a href=#1734 id=1734 data-nosnippet>1734</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1735 id=1735 data-nosnippet>1735</a>                }
-<a href=#1736 id=1736 data-nosnippet>1736</a>                ExprKind::Tuple(flds) =&gt; {
-<a href=#1737 id=1737 data-nosnippet>1737</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
-<a href=#1738 id=1738 data-nosnippet>1738</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
-<a href=#1739 id=1739 data-nosnippet>1739</a>                    <span class="kw">for </span>e <span class="kw">in </span>flds {
-<a href=#1740 id=1740 data-nosnippet>1740</a>                        <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1741 id=1741 data-nosnippet>1741</a>                        texts.push(e_d.text);
-<a href=#1742 id=1742 data-nosnippet>1742</a>                        kidss.push(e_d.children);
-<a href=#1743 id=1743 data-nosnippet>1743</a>                    }
-<a href=#1744 id=1744 data-nosnippet>1744</a>                    <span class="kw">let </span>text = <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>texts[..] {
-<a href=#1745 id=1745 data-nosnippet>1745</a>                        <span class="macro">format!</span>(<span class="string">"({e},)"</span>)
-<a href=#1746 id=1746 data-nosnippet>1746</a>                    } <span class="kw">else </span>{
-<a href=#1747 id=1747 data-nosnippet>1747</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, texts.join(<span class="string">", "</span>))
-<a href=#1748 id=1748 data-nosnippet>1748</a>                    };
-<a href=#1749 id=1749 data-nosnippet>1749</a>                    <span class="kw">let </span>children = float_children(kidss);
-<a href=#1750 id=1750 data-nosnippet>1750</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1751 id=1751 data-nosnippet>1751</a>                }
-<a href=#1752 id=1752 data-nosnippet>1752</a>                ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">true</span>),
-<a href=#1753 id=1753 data-nosnippet>1753</a>                ExprKind::PathProj(e, field) =&gt; {
-<a href=#1754 id=1754 data-nosnippet>1754</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1755 id=1755 data-nosnippet>1755</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
-<a href=#1756 id=1756 data-nosnippet>1756</a>                        <span class="macro">format!</span>(<span class="string">"{}.{:?}"</span>, e_d.text, field)
-<a href=#1757 id=1757 data-nosnippet>1757</a>                    } <span class="kw">else </span>{
-<a href=#1758 id=1758 data-nosnippet>1758</a>                        <span class="macro">format!</span>(<span class="string">"({}).{:?}"</span>, e_d.text, field)
-<a href=#1759 id=1759 data-nosnippet>1759</a>                    };
-<a href=#1760 id=1760 data-nosnippet>1760</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1761 id=1761 data-nosnippet>1761</a>                }
-<a href=#1762 id=1762 data-nosnippet>1762</a>                ExprKind::Alias(alias, args) =&gt; {
-<a href=#1763 id=1763 data-nosnippet>1763</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
-<a href=#1764 id=1764 data-nosnippet>1764</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
-<a href=#1765 id=1765 data-nosnippet>1765</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
-<a href=#1766 id=1766 data-nosnippet>1766</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1767 id=1767 data-nosnippet>1767</a>                        texts.push(arg_d.text);
-<a href=#1768 id=1768 data-nosnippet>1768</a>                        kidss.push(arg_d.children);
-<a href=#1769 id=1769 data-nosnippet>1769</a>                    }
-<a href=#1770 id=1770 data-nosnippet>1770</a>                    <span class="kw">let </span>text = <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}({:?})"</span>, alias, texts.join(<span class="string">", "</span>));
-<a href=#1771 id=1771 data-nosnippet>1771</a>                    <span class="kw">let </span>children = float_children(kidss);
-<a href=#1772 id=1772 data-nosnippet>1772</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1773 id=1773 data-nosnippet>1773</a>                }
-<a href=#1774 id=1774 data-nosnippet>1774</a>                ExprKind::App(func, <span class="kw">_</span>, args) =&gt; {
-<a href=#1775 id=1775 data-nosnippet>1775</a>                    <span class="kw">let </span>func_d = func.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1776 id=1776 data-nosnippet>1776</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
-<a href=#1777 id=1777 data-nosnippet>1777</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[func_d.children];
-<a href=#1778 id=1778 data-nosnippet>1778</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
-<a href=#1779 id=1779 data-nosnippet>1779</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1780 id=1780 data-nosnippet>1780</a>                        texts.push(arg_d.text);
-<a href=#1781 id=1781 data-nosnippet>1781</a>                        kidss.push(arg_d.children);
-<a href=#1782 id=1782 data-nosnippet>1782</a>                    }
-<a href=#1783 id=1783 data-nosnippet>1783</a>                    <span class="kw">let </span>text = <span class="kw">if </span>func.is_atom() {
-<a href=#1784 id=1784 data-nosnippet>1784</a>                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
-<a href=#1785 id=1785 data-nosnippet>1785</a>                    } <span class="kw">else </span>{
-<a href=#1786 id=1786 data-nosnippet>1786</a>                        <span class="macro">format!</span>(<span class="string">"({})({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
-<a href=#1787 id=1787 data-nosnippet>1787</a>                    };
-<a href=#1788 id=1788 data-nosnippet>1788</a>                    <span class="kw">let </span>children = float_children(kidss);
-<a href=#1789 id=1789 data-nosnippet>1789</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
-<a href=#1790 id=1790 data-nosnippet>1790</a>                }
-<a href=#1791 id=1791 data-nosnippet>1791</a>                ExprKind::Abs(lambda) =&gt; lambda.fmt_nested(cx),
-<a href=#1792 id=1792 data-nosnippet>1792</a>                ExprKind::Let(init, body) =&gt; {
-<a href=#1793 id=1793 data-nosnippet>1793</a>                    <span class="comment">// FIXME this is very wrong!
-<a href=#1794 id=1794 data-nosnippet>1794</a>                    </span>nested_with_bound_vars(cx, <span class="string">"let"</span>, body.vars(), <span class="prelude-val">None</span>, |prefix| {
-<a href=#1795 id=1795 data-nosnippet>1795</a>                        <span class="kw">let </span>body = body.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1796 id=1796 data-nosnippet>1796</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{:?} {}{}"</span>, init, prefix, body.text);
-<a href=#1797 id=1797 data-nosnippet>1797</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: body.children, key: <span class="prelude-val">None </span>})
-<a href=#1798 id=1798 data-nosnippet>1798</a>                    })
-<a href=#1799 id=1799 data-nosnippet>1799</a>                }
-<a href=#1800 id=1800 data-nosnippet>1800</a>                ExprKind::BoundedQuant(kind, rng, body) =&gt; {
-<a href=#1801 id=1801 data-nosnippet>1801</a>                    <span class="kw">let </span>left = <span class="kw">match </span>kind {
-<a href=#1802 id=1802 data-nosnippet>1802</a>                        fhir::QuantKind::Forall =&gt; <span class="string">"∀"</span>,
-<a href=#1803 id=1803 data-nosnippet>1803</a>                        fhir::QuantKind::Exists =&gt; <span class="string">"∃"</span>,
-<a href=#1804 id=1804 data-nosnippet>1804</a>                    };
-<a href=#1805 id=1805 data-nosnippet>1805</a>                    <span class="kw">let </span>right = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">" in {}..{}"</span>, rng.start, rng.end));
-<a href=#1806 id=1806 data-nosnippet>1806</a>
-<a href=#1807 id=1807 data-nosnippet>1807</a>                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
-<a href=#1808 id=1808 data-nosnippet>1808</a>                        <span class="kw">let </span>expr_d = body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1809 id=1809 data-nosnippet>1809</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
-<a href=#1810 id=1810 data-nosnippet>1810</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1811 id=1811 data-nosnippet>1811</a>                    })
-<a href=#1812 id=1812 data-nosnippet>1812</a>                }
-<a href=#1813 id=1813 data-nosnippet>1813</a>                ExprKind::ForAll(expr) =&gt; {
-<a href=#1814 id=1814 data-nosnippet>1814</a>                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), <span class="prelude-val">None</span>, |all_str| {
-<a href=#1815 id=1815 data-nosnippet>1815</a>                        <span class="kw">let </span>expr_d = expr.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
-<a href=#1816 id=1816 data-nosnippet>1816</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
-<a href=#1817 id=1817 data-nosnippet>1817</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
-<a href=#1818 id=1818 data-nosnippet>1818</a>                    })
-<a href=#1819 id=1819 data-nosnippet>1819</a>                }
-<a href=#1820 id=1820 data-nosnippet>1820</a>            }
-<a href=#1821 id=1821 data-nosnippet>1821</a>        }
-<a href=#1822 id=1822 data-nosnippet>1822</a>    }
-<a href=#1823 id=1823 data-nosnippet>1823</a>}</code></pre></div></section></main></body></html>
+<a href=#1727 id=1727 data-nosnippet>1727</a>                ExprKind::FieldProj(e, proj) <span class="kw">if let </span>ExprKind::Ctor(<span class="kw">_</span>, <span class="kw">_</span>) = e.kind() =&gt; {
+<a href=#1728 id=1728 data-nosnippet>1728</a>                    <span class="comment">// special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
+<a href=#1729 id=1729 data-nosnippet>1729</a>                    // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
+<a href=#1730 id=1730 data-nosnippet>1730</a>                    </span>e.proj_and_reduce(<span class="kw-2">*</span>proj).fmt_nested(cx)
+<a href=#1731 id=1731 data-nosnippet>1731</a>                }
+<a href=#1732 id=1732 data-nosnippet>1732</a>                ExprKind::FieldProj(e, proj) =&gt; {
+<a href=#1733 id=1733 data-nosnippet>1733</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1734 id=1734 data-nosnippet>1734</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+<a href=#1735 id=1735 data-nosnippet>1735</a>                        <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
+<a href=#1736 id=1736 data-nosnippet>1736</a>                    } <span class="kw">else </span>{
+<a href=#1737 id=1737 data-nosnippet>1737</a>                        <span class="macro">format!</span>(<span class="string">"({}).{}"</span>, e_d.text, fmt_field_proj(cx, <span class="kw-2">*</span>proj))
+<a href=#1738 id=1738 data-nosnippet>1738</a>                    };
+<a href=#1739 id=1739 data-nosnippet>1739</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1740 id=1740 data-nosnippet>1740</a>                }
+<a href=#1741 id=1741 data-nosnippet>1741</a>                ExprKind::Tuple(flds) =&gt; {
+<a href=#1742 id=1742 data-nosnippet>1742</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+<a href=#1743 id=1743 data-nosnippet>1743</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
+<a href=#1744 id=1744 data-nosnippet>1744</a>                    <span class="kw">for </span>e <span class="kw">in </span>flds {
+<a href=#1745 id=1745 data-nosnippet>1745</a>                        <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1746 id=1746 data-nosnippet>1746</a>                        texts.push(e_d.text);
+<a href=#1747 id=1747 data-nosnippet>1747</a>                        kidss.push(e_d.children);
+<a href=#1748 id=1748 data-nosnippet>1748</a>                    }
+<a href=#1749 id=1749 data-nosnippet>1749</a>                    <span class="kw">let </span>text = <span class="kw">if let </span>[e] = <span class="kw-2">&amp;</span>texts[..] {
+<a href=#1750 id=1750 data-nosnippet>1750</a>                        <span class="macro">format!</span>(<span class="string">"({e},)"</span>)
+<a href=#1751 id=1751 data-nosnippet>1751</a>                    } <span class="kw">else </span>{
+<a href=#1752 id=1752 data-nosnippet>1752</a>                        <span class="macro">format!</span>(<span class="string">"({})"</span>, texts.join(<span class="string">", "</span>))
+<a href=#1753 id=1753 data-nosnippet>1753</a>                    };
+<a href=#1754 id=1754 data-nosnippet>1754</a>                    <span class="kw">let </span>children = float_children(kidss);
+<a href=#1755 id=1755 data-nosnippet>1755</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1756 id=1756 data-nosnippet>1756</a>                }
+<a href=#1757 id=1757 data-nosnippet>1757</a>                ExprKind::Ctor(ctor, flds) =&gt; aggregate_nested(cx, ctor, flds, <span class="bool-val">true</span>),
+<a href=#1758 id=1758 data-nosnippet>1758</a>                ExprKind::PathProj(e, field) =&gt; {
+<a href=#1759 id=1759 data-nosnippet>1759</a>                    <span class="kw">let </span>e_d = e.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1760 id=1760 data-nosnippet>1760</a>                    <span class="kw">let </span>text = <span class="kw">if </span>e.is_atom() {
+<a href=#1761 id=1761 data-nosnippet>1761</a>                        <span class="macro">format!</span>(<span class="string">"{}.{:?}"</span>, e_d.text, field)
+<a href=#1762 id=1762 data-nosnippet>1762</a>                    } <span class="kw">else </span>{
+<a href=#1763 id=1763 data-nosnippet>1763</a>                        <span class="macro">format!</span>(<span class="string">"({}).{:?}"</span>, e_d.text, field)
+<a href=#1764 id=1764 data-nosnippet>1764</a>                    };
+<a href=#1765 id=1765 data-nosnippet>1765</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children: e_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1766 id=1766 data-nosnippet>1766</a>                }
+<a href=#1767 id=1767 data-nosnippet>1767</a>                ExprKind::Alias(alias, args) =&gt; {
+<a href=#1768 id=1768 data-nosnippet>1768</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+<a href=#1769 id=1769 data-nosnippet>1769</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[];
+<a href=#1770 id=1770 data-nosnippet>1770</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
+<a href=#1771 id=1771 data-nosnippet>1771</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1772 id=1772 data-nosnippet>1772</a>                        texts.push(arg_d.text);
+<a href=#1773 id=1773 data-nosnippet>1773</a>                        kidss.push(arg_d.children);
+<a href=#1774 id=1774 data-nosnippet>1774</a>                    }
+<a href=#1775 id=1775 data-nosnippet>1775</a>                    <span class="kw">let </span>text = <span class="macro">format_cx!</span>(cx, <span class="string">"{:?}({:?})"</span>, alias, texts.join(<span class="string">", "</span>));
+<a href=#1776 id=1776 data-nosnippet>1776</a>                    <span class="kw">let </span>children = float_children(kidss);
+<a href=#1777 id=1777 data-nosnippet>1777</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1778 id=1778 data-nosnippet>1778</a>                }
+<a href=#1779 id=1779 data-nosnippet>1779</a>                ExprKind::App(func, <span class="kw">_</span>, args) =&gt; {
+<a href=#1780 id=1780 data-nosnippet>1780</a>                    <span class="kw">let </span>func_d = func.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1781 id=1781 data-nosnippet>1781</a>                    <span class="kw">let </span><span class="kw-2">mut </span>texts = <span class="macro">vec!</span>[];
+<a href=#1782 id=1782 data-nosnippet>1782</a>                    <span class="kw">let </span><span class="kw-2">mut </span>kidss = <span class="macro">vec!</span>[func_d.children];
+<a href=#1783 id=1783 data-nosnippet>1783</a>                    <span class="kw">for </span>arg <span class="kw">in </span>args {
+<a href=#1784 id=1784 data-nosnippet>1784</a>                        <span class="kw">let </span>arg_d = arg.fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1785 id=1785 data-nosnippet>1785</a>                        texts.push(arg_d.text);
+<a href=#1786 id=1786 data-nosnippet>1786</a>                        kidss.push(arg_d.children);
+<a href=#1787 id=1787 data-nosnippet>1787</a>                    }
+<a href=#1788 id=1788 data-nosnippet>1788</a>                    <span class="kw">let </span>text = <span class="kw">if </span>func.is_atom() {
+<a href=#1789 id=1789 data-nosnippet>1789</a>                        <span class="macro">format!</span>(<span class="string">"{}({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
+<a href=#1790 id=1790 data-nosnippet>1790</a>                    } <span class="kw">else </span>{
+<a href=#1791 id=1791 data-nosnippet>1791</a>                        <span class="macro">format!</span>(<span class="string">"({})({})"</span>, func_d.text, texts.join(<span class="string">", "</span>))
+<a href=#1792 id=1792 data-nosnippet>1792</a>                    };
+<a href=#1793 id=1793 data-nosnippet>1793</a>                    <span class="kw">let </span>children = float_children(kidss);
+<a href=#1794 id=1794 data-nosnippet>1794</a>                    <span class="prelude-val">Ok</span>(NestedString { text, children, key: <span class="prelude-val">None </span>})
+<a href=#1795 id=1795 data-nosnippet>1795</a>                }
+<a href=#1796 id=1796 data-nosnippet>1796</a>                ExprKind::Abs(lambda) =&gt; lambda.fmt_nested(cx),
+<a href=#1797 id=1797 data-nosnippet>1797</a>                ExprKind::Let(init, body) =&gt; {
+<a href=#1798 id=1798 data-nosnippet>1798</a>                    <span class="comment">// FIXME this is very wrong!
+<a href=#1799 id=1799 data-nosnippet>1799</a>                    </span>nested_with_bound_vars(cx, <span class="string">"let"</span>, body.vars(), <span class="prelude-val">None</span>, |prefix| {
+<a href=#1800 id=1800 data-nosnippet>1800</a>                        <span class="kw">let </span>body = body.skip_binder_ref().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1801 id=1801 data-nosnippet>1801</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{:?} {}{}"</span>, init, prefix, body.text);
+<a href=#1802 id=1802 data-nosnippet>1802</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: body.children, key: <span class="prelude-val">None </span>})
+<a href=#1803 id=1803 data-nosnippet>1803</a>                    })
+<a href=#1804 id=1804 data-nosnippet>1804</a>                }
+<a href=#1805 id=1805 data-nosnippet>1805</a>                ExprKind::BoundedQuant(kind, rng, body) =&gt; {
+<a href=#1806 id=1806 data-nosnippet>1806</a>                    <span class="kw">let </span>left = <span class="kw">match </span>kind {
+<a href=#1807 id=1807 data-nosnippet>1807</a>                        fhir::QuantKind::Forall =&gt; <span class="string">"∀"</span>,
+<a href=#1808 id=1808 data-nosnippet>1808</a>                        fhir::QuantKind::Exists =&gt; <span class="string">"∃"</span>,
+<a href=#1809 id=1809 data-nosnippet>1809</a>                    };
+<a href=#1810 id=1810 data-nosnippet>1810</a>                    <span class="kw">let </span>right = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">" in {}..{}"</span>, rng.start, rng.end));
+<a href=#1811 id=1811 data-nosnippet>1811</a>
+<a href=#1812 id=1812 data-nosnippet>1812</a>                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+<a href=#1813 id=1813 data-nosnippet>1813</a>                        <span class="kw">let </span>expr_d = body.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1814 id=1814 data-nosnippet>1814</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
+<a href=#1815 id=1815 data-nosnippet>1815</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1816 id=1816 data-nosnippet>1816</a>                    })
+<a href=#1817 id=1817 data-nosnippet>1817</a>                }
+<a href=#1818 id=1818 data-nosnippet>1818</a>                ExprKind::ForAll(expr) =&gt; {
+<a href=#1819 id=1819 data-nosnippet>1819</a>                    nested_with_bound_vars(cx, <span class="string">"∀"</span>, expr.vars(), <span class="prelude-val">None</span>, |all_str| {
+<a href=#1820 id=1820 data-nosnippet>1820</a>                        <span class="kw">let </span>expr_d = expr.as_ref().skip_binder().fmt_nested(cx)<span class="question-mark">?</span>;
+<a href=#1821 id=1821 data-nosnippet>1821</a>                        <span class="kw">let </span>text = <span class="macro">format!</span>(<span class="string">"{}{}"</span>, all_str, expr_d.text);
+<a href=#1822 id=1822 data-nosnippet>1822</a>                        <span class="prelude-val">Ok</span>(NestedString { text, children: expr_d.children, key: <span class="prelude-val">None </span>})
+<a href=#1823 id=1823 data-nosnippet>1823</a>                    })
+<a href=#1824 id=1824 data-nosnippet>1824</a>                }
+<a href=#1825 id=1825 data-nosnippet>1825</a>            }
+<a href=#1826 id=1826 data-nosnippet>1826</a>        }
+<a href=#1827 id=1827 data-nosnippet>1827</a>    }
+<a href=#1828 id=1828 data-nosnippet>1828</a>}</code></pre></div></section></main></body></html>
