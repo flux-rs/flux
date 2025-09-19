@@ -2,17 +2,17 @@ use core::panic;
 use std::{collections::HashMap, vec};
 
 use z3::{
-    Config, Context, FuncDecl, SatResult, Solver, SortKind,
+    Context, FuncDecl, SatResult, Solver, SortKind,
     ast::{self, Ast},
 };
 
 use crate::{
-    ConstDecl, Error, FixpointFmt, FixpointResult, Identifier, Stats, Types,
+    Error, FixpointFmt, FixpointResult, Identifier, Stats, Types,
     constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
 };
 
 #[derive(Debug)]
-enum Binding<'ctx> {
+pub(crate) enum Binding<'ctx> {
     Variable(ast::Dynamic<'ctx>),
     Function(FuncDecl<'ctx>),
 }
@@ -29,16 +29,16 @@ impl<'ctx> From<FuncDecl<'ctx>> for Binding<'ctx> {
     }
 }
 
-pub struct Env<'ctx, T: Types> {
+pub(crate) struct Env<'ctx, T: Types> {
     bindings: HashMap<T::Var, Vec<Binding<'ctx>>>,
 }
 
 impl<'ctx, T: Types> Env<'ctx, T> {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { bindings: HashMap::new() }
     }
 
-    fn insert<B: Into<Binding<'ctx>>>(&mut self, name: T::Var, value: B) {
+    pub(crate) fn insert<B: Into<Binding<'ctx>>>(&mut self, name: T::Var, value: B) {
         self.bindings
             .entry(name)
             .or_default()
@@ -322,7 +322,11 @@ fn pred_to_z3<'ctx, T: Types>(
     }
 }
 
-fn new_binding<'ctx, T: Types>(ctx: &'ctx Context, name: &T::Var, sort: &Sort<T>) -> Binding<'ctx> {
+pub(crate) fn new_binding<'ctx, T: Types>(
+    ctx: &'ctx Context,
+    name: &T::Var,
+    sort: &Sort<T>,
+) -> Binding<'ctx> {
     match &sort {
         Sort::Int => {
             Binding::Variable(ast::Int::new_const(ctx, name.display().to_string().as_str()).into())
@@ -361,7 +365,7 @@ fn z3_sort<'ctx, T: Types>(ctx: &'ctx Context, s: &Sort<T>) -> z3::Sort<'ctx> {
     }
 }
 
-fn is_constraint_satisfiable_inner<'ctx, T: Types>(
+pub(crate) fn is_constraint_satisfiable_inner<'ctx, T: Types>(
     ctx: &'ctx Context,
     cstr: &Constraint<T>,
     solver: &Solver,
@@ -400,18 +404,4 @@ fn is_constraint_satisfiable_inner<'ctx, T: Types>(
     };
     solver.pop(1);
     res
-}
-
-pub fn is_constraint_satisfiable<T: Types>(
-    cstr: &Constraint<T>,
-    consts: &Vec<ConstDecl<T>>,
-) -> FixpointResult<T::Tag> {
-    let cfg = Config::new();
-    let ctx = Context::new(&cfg);
-    let solver = Solver::new(&ctx);
-    let mut vars = Env::new();
-    consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&ctx, &const_decl.name, &const_decl.sort))
-    });
-    is_constraint_satisfiable_inner(&ctx, &cstr, &solver, &mut vars)
 }
