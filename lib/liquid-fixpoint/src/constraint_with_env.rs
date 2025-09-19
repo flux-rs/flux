@@ -20,11 +20,14 @@ pub struct ConstraintWithEnv<T: Types> {
 }
 
 #[cfg(feature = "rust-fixpoint")]
+use crate::Assignments;
+
+#[cfg(feature = "rust-fixpoint")]
 impl<T: Types> ConstraintWithEnv<T> {
     pub fn compute_initial_assignments<'a>(
         &'a self,
         qualifiers: &'a Vec<Qualifier<T>>,
-    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
+    ) -> Assignments<'a, T> {
         let mut assignments = HashMap::new();
 
         for decl in &self.kvar_decls {
@@ -49,35 +52,31 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    pub fn solve_for_kvars<'a>(
-        &'a self,
-        qualifiers: &'a Vec<Qualifier<T>>,
-    ) -> HashMap<T::KVar, Vec<(&'a Qualifier<T>, Vec<usize>)>> {
+    pub fn solve_for_kvars<'a>(&'a self, qualifiers: &'a Vec<Qualifier<T>>) -> Assignments<'a, T> {
         let mut assignments = self.compute_initial_assignments(qualifiers);
         let (kvars_to_fragments, _) = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
         let mut work_list = VecDeque::from_iter(topo_order_fragments.iter());
         while !work_list.is_empty() {
-            if let Some(fragment) = work_list.pop_front() {
-                if let Some(kvar_name) = fragment.fragment_kvar_head() {
-                    let subbed = fragment.sub_kvars_except_head(&assignments);
-                    let assignment = assignments.get_mut(&kvar_name);
-                    if let Some(assignment) = assignment {
-                        let initial_length = assignment.len();
-                        assignment.retain(|assignment| {
-                            let vc = subbed.sub_head(assignment);
-                            is_constraint_satisfiable(&vc, &self.constants).is_safe()
-                        });
-                        if initial_length > assignment.len() {
-                            work_list.extend(
-                                fragment
-                                    .kvar_deps()
-                                    .iter()
-                                    .map(|kvar| kvars_to_fragments.get(kvar).unwrap().iter())
-                                    .flatten(),
-                            );
-                        }
-                    }
+            if let Some(fragment) = work_list.pop_front()
+                && let Some(kvar_name) = fragment.fragment_kvar_head()
+                && let subbed = fragment.sub_kvars_except_head(&assignments)
+                && let assignment = assignments.get_mut(&kvar_name)
+                && let Some(assignment) = assignment
+            {
+                let initial_length = assignment.len();
+                assignment.retain(|assignment| {
+                    let vc = subbed.sub_head(assignment);
+                    is_constraint_satisfiable(&vc, &self.constants).is_safe()
+                });
+                if initial_length > assignment.len() {
+                    work_list.extend(
+                        fragment
+                            .kvar_deps()
+                            .iter()
+                            .map(|kvar| kvars_to_fragments.get(kvar).unwrap().iter())
+                            .flatten(),
+                    );
                 }
             }
         }
@@ -118,7 +117,7 @@ impl<T: Types> ConstraintWithEnv<T> {
 
     pub fn solve_by_predicate_abstraction(&mut self) -> FixpointResult<T::Tag> {
         let mut qualifiers: Vec<Qualifier<T>> = vec![];
-        qualifiers.extend(self.qualifiers.to_vec().into_iter());
+        qualifiers.extend(self.qualifiers.clone());
         let kvar_assignment = self.solve_for_kvars(&qualifiers);
         self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);
         is_constraint_satisfiable(&self.constraint, &self.constants)
@@ -127,7 +126,7 @@ impl<T: Types> ConstraintWithEnv<T> {
 
 #[cfg(feature = "rust-fixpoint")]
 fn type_signature_matches<T: Types>(
-    argument_permutation: &Vec<usize>,
+    argument_permutation: &[usize],
     kvar_decl: &KVarDecl<T>,
     qualifier: &Qualifier<T>,
 ) -> bool {

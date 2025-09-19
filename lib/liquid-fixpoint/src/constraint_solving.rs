@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::{
-    BinRel, Types,
+    Assignments, BinRel, Types,
     constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
@@ -39,6 +39,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn kvar_mappings(
         &self,
     ) -> (HashMap<T::KVar, Vec<Constraint<T>>>, HashMap<T::KVar, Vec<T::KVar>>) {
@@ -66,8 +67,7 @@ impl<T: Types> Constraint<T> {
             .into_iter()
             .rev()
             .flatten()
-            .map(|kvid| kvar_to_fragments.remove(&kvid).unwrap())
-            .flatten()
+            .flat_map(|kvid| kvar_to_fragments.remove(&kvid).unwrap())
             .collect()
     }
 
@@ -80,10 +80,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sub_all_kvars(
-        &self,
-        assignments: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
-    ) -> Self {
+    pub fn sub_all_kvars(&self, assignments: &Assignments<'_, T>) -> Self {
         match self {
             Constraint::ForAll(bind, inner) => {
                 Constraint::ForAll(
@@ -109,10 +106,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub fn sub_kvars_except_head(
-        &self,
-        assignments: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
-    ) -> Self {
+    pub fn sub_kvars_except_head(&self, assignments: &Assignments<'_, T>) -> Self {
         match self {
             Constraint::ForAll(bind, inner) => {
                 Constraint::ForAll(
@@ -222,11 +216,7 @@ impl<T: Types> Constraint<T> {
                     .collect()
             }
             Constraint::Conj(conjuncts) => {
-                conjuncts
-                    .iter()
-                    .map(|cstr| cstr.sol1(var))
-                    .flatten()
-                    .collect()
+                conjuncts.iter().flat_map(|cstr| cstr.sol1(var)).collect()
             }
             Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
                 let arg_vars = args.iter().map(|arg| Expr::Var(arg.clone())).collect();
@@ -236,7 +226,7 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    pub(crate) fn elim(&self, vars: &Vec<T::KVar>) -> Self {
+    pub fn elim(&self, vars: &[T::KVar]) -> Self {
         vars.iter().fold(self.clone(), |acc, var| acc.elim1(var))
     }
 
@@ -265,7 +255,7 @@ impl<T: Types> Constraint<T> {
                             let kvar_instances_subbed: Vec<Pred<T>> = {
                                 kvar_instances
                                     .into_iter()
-                                    .map(|(_kvid, eqs)| {
+                                    .flat_map(|(_kvid, eqs)| {
                                         args.iter()
                                             .zip(eqs.iter())
                                             .map(|(arg, eq)| {
@@ -276,11 +266,10 @@ impl<T: Types> Constraint<T> {
                                             })
                                             .collect::<Vec<_>>()
                                     })
-                                    .flatten()
                                     .collect()
                             };
                             let mut preds = kvar_instances_subbed;
-                            preds.extend(other_preds.into_iter());
+                            preds.extend(other_preds);
                             let init = Constraint::ForAll(
                                 Bind {
                                     name: name.clone(),
@@ -323,21 +312,11 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
             Pred::Expr(_expr) => vec![],
-            Pred::And(conjuncts) => {
-                conjuncts
-                    .iter()
-                    .map(Pred::kvars)
-                    .flatten()
-                    .unique()
-                    .collect()
-            }
+            Pred::And(conjuncts) => conjuncts.iter().flat_map(Pred::kvars).unique().collect(),
         }
     }
 
-    pub(crate) fn sub_kvars(
-        &self,
-        assignment: &HashMap<T::KVar, Vec<(&Qualifier<T>, Vec<usize>)>>,
-    ) -> Self {
+    pub(crate) fn sub_kvars(&self, assignment: &Assignments<'_, T>) -> Self {
         match self {
             Pred::KVar(kvid, args) => {
                 let qualifiers = assignment
@@ -348,16 +327,16 @@ impl<T: Types> Pred<T> {
                 }
                 if qualifiers.len() == 1 {
                     let qualifier = qualifiers[0].0;
-                    return Pred::Expr(
+                    Pred::Expr(
                         qualifier
                             .args
                             .iter()
                             .map(|arg| &arg.0)
                             .zip(qualifiers[0].1.iter().map(|arg_idx| &args[*arg_idx]))
                             .fold(qualifier.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
-                    );
+                    )
                 } else {
-                    return Pred::And(
+                    Pred::And(
                         qualifiers
                             .iter()
                             .map(|qualifier| {
@@ -374,7 +353,7 @@ impl<T: Types> Pred<T> {
                                 )
                             })
                             .collect(),
-                    );
+                    )
                 }
             }
             Pred::Expr(expr) => Pred::Expr(expr.clone()),
@@ -408,10 +387,8 @@ impl<T: Types> Pred<T> {
         }
     }
 
-    pub(crate) fn partition_pred(
-        &self,
-        var: &T::KVar,
-    ) -> (Vec<(T::KVar, Vec<T::Var>)>, Vec<Pred<T>>) {
+    #[allow(clippy::type_complexity)]
+    pub fn partition_pred(&self, var: &T::KVar) -> (Vec<(T::KVar, Vec<T::Var>)>, Vec<Pred<T>>) {
         let mut kvar_instances = vec![];
         let mut other_preds = vec![];
         self.partition_pred_help(var, &mut kvar_instances, &mut other_preds);
@@ -431,7 +408,7 @@ impl<T: Types> Pred<T> {
                     .for_each(|pred| pred.partition_pred_help(var, kvar_instances, other_preds));
             }
             Pred::KVar(kvid, args) if var.eq(kvid) => {
-                kvar_instances.push((kvid.clone(), args.to_vec()));
+                kvar_instances.push((kvid.clone(), args.clone()));
             }
             _ => {
                 other_preds.push(self.clone());

@@ -25,8 +25,8 @@ impl<T: Types> Iterator for ConstraintFragments<'_, T> {
         while let Some((node, binders)) = self.stack.pop() {
             match node {
                 Fragment::Predicate(Pred::And(preds)) => {
-                    for p in preds.into_iter().rev() {
-                        self.stack.push((Fragment::Predicate(&p), binders.clone()));
+                    for p in preds.iter().rev() {
+                        self.stack.push((Fragment::Predicate(p), binders.clone()));
                     }
                 }
                 Fragment::Predicate(pred) => {
@@ -41,7 +41,7 @@ impl<T: Types> Iterator for ConstraintFragments<'_, T> {
                         .push((Fragment::Predicate(pred), binders.clone()));
                 }
                 Fragment::Constraint(Constraint::Conj(children)) => {
-                    for child in children.into_iter().rev() {
+                    for child in children.iter().rev() {
                         self.stack
                             .push((Fragment::Constraint(child), binders.clone()));
                     }
