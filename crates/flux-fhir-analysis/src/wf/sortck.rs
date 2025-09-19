@@ -84,7 +84,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .iter()
             .map(|param| self.param_sort(param.id))
             .collect();
-        println!("adding weak kvar");
         self.weak_kvars.insert(wk.num, inputs);
     }
 
@@ -388,7 +387,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.synth_expr(body)
             }
             fhir::ExprKind::WeakKvar(num, args) => {
-                println!("kvar {} {:?}", num, args);
                 let inputs = self.weak_kvars[&num].clone();
                 if args.len() != inputs.len() {
                     return Err(self.emit_err(errors::ArgCountMismatch::new(
@@ -399,7 +397,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     )));
                 }
                 for (arg, expected) in iter::zip(args, &inputs) {
-                    let found = self.synth_path(arg)?;
+                    let found = self.synth_path(arg);
                     let found = self.resolve_vars_if_possible(&found);
                     let expected = self.resolve_vars_if_possible(expected);
                     if !self.is_coercible(&found, &expected, expr.fhir_id) {
