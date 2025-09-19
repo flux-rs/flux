@@ -89,7 +89,7 @@ fn const_to_z3<'ctx, T: Types>(ctx: &'ctx Context, cnst: &Constant<T>) -> ast::D
 fn atom_to_z3<'ctx, T: Types>(
     ctx: &'ctx Context,
     bin_rel: &BinRel,
-    operands: &Box<[Expr<T>; 2]>,
+    operands: &[Expr<T>; 2],
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
     let lhs = expr_to_z3(ctx, &operands[0], env);
@@ -152,7 +152,7 @@ fn atom_to_z3<'ctx, T: Types>(
 fn binop_to_z3<'ctx, T: Types>(
     ctx: &'ctx Context,
     bin_op: &BinOp,
-    operands: &Box<[Expr<T>; 2]>,
+    operands: &[Expr<T>; 2],
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
     let lhs = expr_to_z3(ctx, &operands[0], env);
@@ -204,9 +204,7 @@ fn expr_to_z3<'ctx, T: Types>(
 ) -> ast::Dynamic<'ctx> {
     match expr {
         Expr::Var(var) => {
-            env.var_lookup(var)
-                .map(|var| var.clone())
-                .expect("error if not present")
+            env.var_lookup(var).cloned().expect("error if not present")
         }
         Expr::Constant(cnst) => const_to_z3(ctx, cnst),
         Expr::Atom(bin_rel, operands) => atom_to_z3(ctx, bin_rel, operands, env),
@@ -232,7 +230,7 @@ fn expr_to_z3<'ctx, T: Types>(
             ast::Bool::or(ctx, bool_ref_slice).into()
         }
         Expr::Not(inner) => {
-            expr_to_z3(ctx, &*inner, env)
+            expr_to_z3(ctx, inner, env)
                 .as_bool()
                 .unwrap()
                 .not()
@@ -240,7 +238,7 @@ fn expr_to_z3<'ctx, T: Types>(
         }
         Expr::Neg(number) => {
             let zero = ast::Int::from_i64(ctx, 0);
-            let z3_num = expr_to_z3(ctx, &number, env);
+            let z3_num = expr_to_z3(ctx, number, env);
             match z3_num.sort_kind() {
                 SortKind::Int => ast::Int::sub(ctx, &[&zero, &z3_num.as_int().unwrap()]).into(),
                 SortKind::Real => {
@@ -266,7 +264,7 @@ fn expr_to_z3<'ctx, T: Types>(
             let binding = expr_to_z3(ctx, &exprs[0], env);
             env.insert(variable.clone(), binding);
             let res = expr_to_z3(ctx, &exprs[1], env);
-            env.pop(&variable);
+            env.pop(variable);
             res
         }
         Expr::App(fun, args) => {
@@ -316,7 +314,7 @@ fn pred_to_z3<'ctx, T: Types>(
                 .map(|conjunct| pred_to_z3(ctx, conjunct, env))
                 .collect::<Vec<_>>();
             let bool_refs: Vec<&ast::Bool> = bools.iter().collect();
-            ast::Bool::and(ctx, bool_refs.as_slice()).into()
+            ast::Bool::and(ctx, bool_refs.as_slice())
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }

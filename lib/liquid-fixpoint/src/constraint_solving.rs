@@ -140,7 +140,7 @@ impl<T: Types> Constraint<T> {
                 inner.simplify();
             }
             Constraint::Conj(conjuncts) => {
-                if conjuncts.len() == 0 {
+                if conjuncts.is_empty() {
                     *self = Constraint::Pred(Pred::TRUE, None);
                 } else if conjuncts.len() == 1 {
                     conjuncts[0].simplify();
@@ -321,8 +321,8 @@ impl<T: Types> Pred<T> {
             Pred::KVar(kvid, args) => {
                 let qualifiers = assignment
                     .get(kvid)
-                    .expect(format!("{:#?} should have an assignment", kvid).as_str());
-                if qualifiers.len() == 0 {
+                    .unwrap_or_else(|| panic!("{:#?} should have an assignment", kvid));
+                if qualifiers.is_empty() {
                     return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
                 }
                 if qualifiers.len() == 1 {
