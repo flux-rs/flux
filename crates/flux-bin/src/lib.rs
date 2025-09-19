@@ -58,9 +58,12 @@ impl FluxMetadata {
         }
         if let Some(patterns) = self.include {
             for pat in patterns {
-                if let Some(glob_prefix) = glob_prefix {
+                if let Some(glob_prefix) = glob_prefix
+                    && !glob_prefix.as_str().is_empty()
+                {
                     // I haven't tested this on windows, but it should work because `globset`
                     // will normalize patterns to use `/` as separator
+                    // don't use the empty `glob_prefix` as that makes the pattern hang off root!
                     flags.push(format!("-Finclude={glob_prefix}/{pat}"));
                 } else {
                     flags.push(format!("-Finclude={pat}"));
