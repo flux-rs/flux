@@ -145,12 +145,12 @@ impl<T: Types> Pred<T> {
     pub(crate) fn simplify(&mut self) {
         if let Pred::And(conjuncts) = self {
             if conjuncts.is_empty() {
-                    *self = Pred::TRUE;
-                } else if conjuncts.len() == 1 {
-                    *self = conjuncts[0].clone();
-                } else {
-                    conjuncts.iter_mut().for_each(|pred| pred.simplify());
-                }
+                *self = Pred::TRUE;
+            } else if conjuncts.len() == 1 {
+                *self = conjuncts[0].clone();
+            } else {
+                conjuncts.iter_mut().for_each(|pred| pred.simplify());
+            }
         }
     }
 }

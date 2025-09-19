@@ -203,9 +203,7 @@ fn expr_to_z3<'ctx, T: Types>(
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
     match expr {
-        Expr::Var(var) => {
-            env.var_lookup(var).cloned().expect("error if not present")
-        }
+        Expr::Var(var) => env.var_lookup(var).cloned().expect("error if not present"),
         Expr::Constant(cnst) => const_to_z3(ctx, cnst),
         Expr::Atom(bin_rel, operands) => atom_to_z3(ctx, bin_rel, operands, env),
         Expr::BinaryOp(bin_op, operands) => binop_to_z3(ctx, bin_op, operands, env),
@@ -229,13 +227,7 @@ fn expr_to_z3<'ctx, T: Types>(
             let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
             ast::Bool::or(ctx, bool_ref_slice).into()
         }
-        Expr::Not(inner) => {
-            expr_to_z3(ctx, inner, env)
-                .as_bool()
-                .unwrap()
-                .not()
-                .into()
-        }
+        Expr::Not(inner) => expr_to_z3(ctx, inner, env).as_bool().unwrap().not().into(),
         Expr::Neg(number) => {
             let zero = ast::Int::from_i64(ctx, 0);
             let z3_num = expr_to_z3(ctx, number, env);

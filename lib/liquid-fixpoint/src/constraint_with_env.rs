@@ -28,9 +28,7 @@ use crate::Assignments;
 
 #[cfg(feature = "rust-fixpoint")]
 impl<T: Types> ConstraintWithEnv<T> {
-    pub fn compute_initial_assignments(
-        &self,
-    ) -> Assignments<'_, T> {
+    pub fn compute_initial_assignments(&self) -> Assignments<'_, T> {
         let mut assignments = HashMap::new();
 
         for decl in &self.kvar_decls {
