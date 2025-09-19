@@ -1642,7 +1642,7 @@ pub(crate) mod pretty {
             Ok(NestedString { text, children: None, key: None })
         } else if flds.len() == 1 {
             // Single field, inline index
-            text += &format_cx!(cx, "{:?} ", flds[0].clone());
+            text += &format_cx!(cx, "{:?}", flds[0].clone());
             Ok(NestedString { text, children: None, key: None })
         } else {
             let keys = if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1724,10 +1724,15 @@ pub(crate) mod pretty {
                     };
                     Ok(NestedString { text, children: e_d.children, key: None })
                 }
+                ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
+                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
+                    // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
+                    e.proj_and_reduce(*proj).fmt_nested(cx)
+                }
                 ExprKind::FieldProj(e, proj) => {
                     let e_d = e.fmt_nested(cx)?;
                     let text = if e.is_atom() {
-                        format!("{}.{}", e_d.text, fmt_field_proj(cx, *proj))
+                        format!("%?%{}%?%.{}", e_d.text, fmt_field_proj(cx, *proj))
                     } else {
                         format!("({}).{}", e_d.text, fmt_field_proj(cx, *proj))
                     };
