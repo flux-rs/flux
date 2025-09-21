@@ -429,7 +429,7 @@ impl Pretty for Ty {
                 if idx.is_unit() {
                     w!(cx, f, "{:?}", bty)?;
                 } else {
-                    w!(cx, f, "{:?}{:?}", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
+                    w!(cx, f, "{:?}[{:?}]", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
@@ -729,13 +729,13 @@ impl PrettyNested for SubsetTy {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
         let bty_d = self.bty.fmt_nested(cx)?;
         let idx_d = IdxFmt(self.idx.clone()).fmt_nested(cx)?;
-        if self.pred.is_trivially_true() {
+        if self.pred.is_trivially_true() || matches!(self.pred.kind(), ExprKind::KVar(..)) {
             let text = format!("{}[{}]", bty_d.text, idx_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children]);
             Ok(NestedString { text, children, key: None })
         } else {
             let pred_d = self.pred.fmt_nested(cx)?;
-            let text = format!("{{ {}{} | {} }}", bty_d.text, idx_d.text, pred_d.text);
+            let text = format!("{{ {}[{}] | {} }}", bty_d.text, idx_d.text, pred_d.text);
             let children = float_children(vec![bty_d.children, idx_d.children, pred_d.children]);
             Ok(NestedString { text, children, key: None })
         }
