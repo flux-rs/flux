@@ -1361,11 +1361,6 @@ pub(crate) mod pretty {
                         w!(cx, f, "{:?}({:?})", op, e)
                     }
                 }
-                ExprKind::FieldProj(e, proj) if let ExprKind::Ctor(_, _) = e.kind() => {
-                    // special case to avoid printing `{n:12}.n` as `12.n` but instead, just print `12`
-                    // TODO: maintain an invariant that `FieldProj` never has a Ctor as first argument (as always reduced)
-                    w!(cx, f, "{:?}", e.proj_and_reduce(*proj))
-                }
                 ExprKind::FieldProj(e, proj) => {
                     if e.is_atom() {
                         w!(cx, f, "{:?}.{}", e, ^fmt_field_proj(cx, *proj))

@@ -52,7 +52,6 @@ impl BigInt {
     pub fn uint_max(bit_width: u32) -> BigInt {
         (u128::MAX >> (128 - bit_width)).into()
     }
-    
 }
 
 impl From<usize> for BigInt {
