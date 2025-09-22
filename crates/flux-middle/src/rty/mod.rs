@@ -2006,7 +2006,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                     .map(|pred| pred.to_rustc(tcx))
                     .collect_vec();
                 let preds = tcx.mk_poly_existential_predicates(&preds);
-                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 bug!("TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}")

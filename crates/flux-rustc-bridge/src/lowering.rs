@@ -896,7 +896,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 let args = args.lower(tcx)?;
                 Ok(Ty::mk_generator_witness(*did, args))
             }
-            rustc_ty::Dynamic(predicates, region, rustc_ty::DynKind::Dyn) => {
+            rustc_ty::Dynamic(predicates, region) => {
                 let region = region.lower(tcx)?;
 
                 let exi_preds = List::from_vec(

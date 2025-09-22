@@ -963,7 +963,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
                     .collect_vec();
 
                 let preds = tcx.mk_poly_existential_predicates(&preds);
-                rustc_ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_ty::DynKind::Dyn)
+                rustc_ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
             TyKind::Coroutine(_, _) | TyKind::CoroutineWitness(_, _) => {
                 bug!("TODO: to_rustc for `{self:?}`")
