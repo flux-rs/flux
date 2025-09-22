@@ -298,9 +298,6 @@ impl<M: Mode> FoldUnfoldAnalysis<'_, '_, '_, M> {
             }
             StatementKind::Assign(place, rvalue) => {
                 match rvalue {
-                    Rvalue::Len(place) => {
-                        M::projection(self, env, place)?;
-                    }
                     Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
                     | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                         let deref_place = place.deref();

@@ -455,7 +455,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::RawPtr(kind, place) => {
                 Ok(Rvalue::RawPtr(*kind, lower_place(self.tcx, place)?))
             }
-            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(self.tcx, place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
                     UnsupportedReason::new(format!("unsupported cast `{kind:?}`"))
