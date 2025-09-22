@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use {
     crate::{
         FixpointResult,
-        cstr2smt2::{Env, is_constraint_satisfiable_inner, new_binding},
+        cstr2smt2::{Env, is_constraint_satisfiable, new_binding},
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
@@ -73,7 +73,7 @@ impl<T: Types> ConstraintWithEnv<T> {
                 let initial_length = assignment.len();
                 assignment.retain(|assignment| {
                     let vc = subbed.sub_head(assignment);
-                    is_constraint_satisfiable_inner(ctx, &vc, solver, env).is_safe()
+                    is_constraint_satisfiable(ctx, &vc, solver, env).is_safe()
                 });
                 if initial_length > assignment.len() {
                     work_list.extend(
@@ -133,7 +133,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         });
         let kvar_assignment = self.solve_for_kvars(&ctx, &solver, &mut vars);
         self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);
-        is_constraint_satisfiable_inner(&ctx, &self.constraint, &solver, &mut vars)
+        is_constraint_satisfiable(&ctx, &self.constraint, &solver, &mut vars)
     }
 }
 

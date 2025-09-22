@@ -355,7 +355,7 @@ fn z3_sort<'ctx, T: Types>(ctx: &'ctx Context, s: &Sort<T>) -> z3::Sort<'ctx> {
     }
 }
 
-pub(crate) fn is_constraint_satisfiable_inner<'ctx, T: Types>(
+pub(crate) fn is_constraint_satisfiable<'ctx, T: Types>(
     ctx: &'ctx Context,
     cstr: &Constraint<T>,
     solver: &Solver,
@@ -380,14 +380,14 @@ pub(crate) fn is_constraint_satisfiable_inner<'ctx, T: Types>(
         Constraint::Conj(conjuncts) => {
             conjuncts.iter().fold(
                 FixpointResult::Safe(Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }),
-                |acc, cstr| is_constraint_satisfiable_inner(ctx, cstr, solver, env).merge(acc),
+                |acc, cstr| is_constraint_satisfiable(ctx, cstr, solver, env).merge(acc),
             )
         }
 
         Constraint::ForAll(bind, inner) => {
             env.insert(bind.name.clone(), new_binding(ctx, &bind.name, &bind.sort));
             solver.assert(&pred_to_z3(ctx, &bind.pred, env));
-            let inner_soln = is_constraint_satisfiable_inner(ctx, &**inner, solver, env);
+            let inner_soln = is_constraint_satisfiable(ctx, &**inner, solver, env);
             env.pop(&bind.name);
             inner_soln
         }
