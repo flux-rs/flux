@@ -1266,7 +1266,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
-            Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                 self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
@@ -1364,26 +1363,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             _ => Ok(Ty::unit()),
         }
-    }
-
-    fn check_len(
-        &mut self,
-        infcx: &mut InferCtxt,
-        env: &mut TypeEnv,
-        stmt_span: Span,
-        place: &Place,
-    ) -> Result<Ty> {
-        let ty = env
-            .lookup_place(&mut infcx.at(stmt_span), place)
-            .with_span(stmt_span)?;
-
-        let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
-            TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
-            _ => tracked_span_bug!("check_len: expected array or slice type found  `{ty:?}`"),
-        };
-
-        Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
     }
 
     fn check_binary_op(
