@@ -2,17 +2,17 @@ use core::panic;
 use std::{collections::HashMap, vec};
 
 use z3::{
-    Config, Context, FuncDecl, SatResult, Solver, SortKind,
+    Context, FuncDecl, SatResult, Solver, SortKind,
     ast::{self, Ast},
 };
 
 use crate::{
-    ConstDecl, Error, FixpointFmt, FixpointResult, Identifier, Stats, Types,
+    Error, FixpointFmt, FixpointResult, Identifier, Stats, Types,
     constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
 };
 
 #[derive(Debug)]
-enum Binding<'ctx> {
+pub(crate) enum Binding<'ctx> {
     Variable(ast::Dynamic<'ctx>),
     Function(FuncDecl<'ctx>),
 }
@@ -29,16 +29,16 @@ impl<'ctx> From<FuncDecl<'ctx>> for Binding<'ctx> {
     }
 }
 
-pub struct Env<'ctx, T: Types> {
+pub(crate) struct Env<'ctx, T: Types> {
     bindings: HashMap<T::Var, Vec<Binding<'ctx>>>,
 }
 
 impl<'ctx, T: Types> Env<'ctx, T> {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self { bindings: HashMap::new() }
     }
 
-    fn insert<B: Into<Binding<'ctx>>>(&mut self, name: T::Var, value: B) {
+    pub(crate) fn insert<B: Into<Binding<'ctx>>>(&mut self, name: T::Var, value: B) {
         self.bindings
             .entry(name)
             .or_default()
@@ -89,7 +89,7 @@ fn const_to_z3<'ctx, T: Types>(ctx: &'ctx Context, cnst: &Constant<T>) -> ast::D
 fn atom_to_z3<'ctx, T: Types>(
     ctx: &'ctx Context,
     bin_rel: &BinRel,
-    operands: &Box<[Expr<T>; 2]>,
+    operands: &[Expr<T>; 2],
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
     let lhs = expr_to_z3(ctx, &operands[0], env);
@@ -152,7 +152,7 @@ fn atom_to_z3<'ctx, T: Types>(
 fn binop_to_z3<'ctx, T: Types>(
     ctx: &'ctx Context,
     bin_op: &BinOp,
-    operands: &Box<[Expr<T>; 2]>,
+    operands: &[Expr<T>; 2],
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
     let lhs = expr_to_z3(ctx, &operands[0], env);
@@ -203,11 +203,7 @@ fn expr_to_z3<'ctx, T: Types>(
     env: &mut Env<'ctx, T>,
 ) -> ast::Dynamic<'ctx> {
     match expr {
-        Expr::Var(var) => {
-            env.var_lookup(var)
-                .map(|var| var.clone())
-                .expect("error if not present")
-        }
+        Expr::Var(var) => env.var_lookup(var).cloned().expect("error if not present"),
         Expr::Constant(cnst) => const_to_z3(ctx, cnst),
         Expr::Atom(bin_rel, operands) => atom_to_z3(ctx, bin_rel, operands, env),
         Expr::BinaryOp(bin_op, operands) => binop_to_z3(ctx, bin_op, operands, env),
@@ -231,16 +227,10 @@ fn expr_to_z3<'ctx, T: Types>(
             let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
             ast::Bool::or(ctx, bool_ref_slice).into()
         }
-        Expr::Not(inner) => {
-            expr_to_z3(ctx, &*inner, env)
-                .as_bool()
-                .unwrap()
-                .not()
-                .into()
-        }
+        Expr::Not(inner) => expr_to_z3(ctx, inner, env).as_bool().unwrap().not().into(),
         Expr::Neg(number) => {
             let zero = ast::Int::from_i64(ctx, 0);
-            let z3_num = expr_to_z3(ctx, &number, env);
+            let z3_num = expr_to_z3(ctx, number, env);
             match z3_num.sort_kind() {
                 SortKind::Int => ast::Int::sub(ctx, &[&zero, &z3_num.as_int().unwrap()]).into(),
                 SortKind::Real => {
@@ -266,7 +256,7 @@ fn expr_to_z3<'ctx, T: Types>(
             let binding = expr_to_z3(ctx, &exprs[0], env);
             env.insert(variable.clone(), binding);
             let res = expr_to_z3(ctx, &exprs[1], env);
-            env.pop(&variable);
+            env.pop(variable);
             res
         }
         Expr::App(fun, args) => {
@@ -316,13 +306,17 @@ fn pred_to_z3<'ctx, T: Types>(
                 .map(|conjunct| pred_to_z3(ctx, conjunct, env))
                 .collect::<Vec<_>>();
             let bool_refs: Vec<&ast::Bool> = bools.iter().collect();
-            ast::Bool::and(ctx, bool_refs.as_slice()).into()
+            ast::Bool::and(ctx, bool_refs.as_slice())
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }
 }
 
-fn new_binding<'ctx, T: Types>(ctx: &'ctx Context, name: &T::Var, sort: &Sort<T>) -> Binding<'ctx> {
+pub(crate) fn new_binding<'ctx, T: Types>(
+    ctx: &'ctx Context,
+    name: &T::Var,
+    sort: &Sort<T>,
+) -> Binding<'ctx> {
     match &sort {
         Sort::Int => {
             Binding::Variable(ast::Int::new_const(ctx, name.display().to_string().as_str()).into())
@@ -361,7 +355,7 @@ fn z3_sort<'ctx, T: Types>(ctx: &'ctx Context, s: &Sort<T>) -> z3::Sort<'ctx> {
     }
 }
 
-fn is_constraint_satisfiable_inner<'ctx, T: Types>(
+pub(crate) fn is_constraint_satisfiable<'ctx, T: Types>(
     ctx: &'ctx Context,
     cstr: &Constraint<T>,
     solver: &Solver,
@@ -386,32 +380,18 @@ fn is_constraint_satisfiable_inner<'ctx, T: Types>(
         Constraint::Conj(conjuncts) => {
             conjuncts.iter().fold(
                 FixpointResult::Safe(Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }),
-                |acc, cstr| is_constraint_satisfiable_inner(ctx, cstr, solver, env).merge(acc),
+                |acc, cstr| is_constraint_satisfiable(ctx, cstr, solver, env).merge(acc),
             )
         }
 
         Constraint::ForAll(bind, inner) => {
             env.insert(bind.name.clone(), new_binding(ctx, &bind.name, &bind.sort));
             solver.assert(&pred_to_z3(ctx, &bind.pred, env));
-            let inner_soln = is_constraint_satisfiable_inner(ctx, &**inner, solver, env);
+            let inner_soln = is_constraint_satisfiable(ctx, &**inner, solver, env);
             env.pop(&bind.name);
             inner_soln
         }
     };
     solver.pop(1);
     res
-}
-
-pub fn is_constraint_satisfiable<T: Types>(
-    cstr: &Constraint<T>,
-    consts: &Vec<ConstDecl<T>>,
-) -> FixpointResult<T::Tag> {
-    let cfg = Config::new();
-    let ctx = Context::new(&cfg);
-    let solver = Solver::new(&ctx);
-    let mut vars = Env::new();
-    consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&ctx, &const_decl.name, &const_decl.sort))
-    });
-    is_constraint_satisfiable_inner(&ctx, &cstr, &solver, &mut vars)
 }
