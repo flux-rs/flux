@@ -293,9 +293,9 @@
 <a href=#293 id=293 data-nosnippet>293</a>    <span class="attr">#[cfg(feature = <span class="string">"rust-fixpoint"</span>)]
 <a href=#294 id=294 data-nosnippet>294</a>    </span><span class="kw">pub fn </span>run(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; io::Result&lt;FixpointResult&lt;T::Tag&gt;&gt; {
 <a href=#295 id=295 data-nosnippet>295</a>        <span class="prelude-val">Ok</span>(ConstraintWithEnv {
-<a href=#296 id=296 data-nosnippet>296</a>            kvar_decls: <span class="self">self</span>.kvars.to_vec(),
-<a href=#297 id=297 data-nosnippet>297</a>            qualifiers: <span class="self">self</span>.qualifiers.to_vec(),
-<a href=#298 id=298 data-nosnippet>298</a>            constants: <span class="self">self</span>.constants.to_vec(),
+<a href=#296 id=296 data-nosnippet>296</a>            kvar_decls: <span class="self">self</span>.kvars.clone(),
+<a href=#297 id=297 data-nosnippet>297</a>            qualifiers: <span class="self">self</span>.qualifiers.clone(),
+<a href=#298 id=298 data-nosnippet>298</a>            constants: <span class="self">self</span>.constants.clone(),
 <a href=#299 id=299 data-nosnippet>299</a>            constraint: <span class="self">self</span>.constraint.clone(),
 <a href=#300 id=300 data-nosnippet>300</a>        }
 <a href=#301 id=301 data-nosnippet>301</a>        .is_satisfiable())
