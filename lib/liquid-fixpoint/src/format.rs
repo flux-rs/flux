@@ -319,6 +319,7 @@ impl<T: Types> fmt::Display for Expr<T> {
                 let [e1, e2] = &**exprs;
                 write!(f, "(let (({} {e1})) {e2})", name.display())
             }
+            Expr::ThyFunc(thy_func) => write!(f, "{}", thy_func),
         }
     }
 }

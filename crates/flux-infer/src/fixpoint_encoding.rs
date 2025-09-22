@@ -157,6 +157,14 @@ pub mod fixpoint {
     #[derive(Hash, Clone, Debug)]
     pub struct SymStr(pub Symbol);
 
+    #[cfg(feature = "rust-fixpoint")]
+    impl FixpointFmt for SymStr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    #[cfg(not(feature = "rust-fixpoint"))]
     impl FixpointFmt for SymStr {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "\"{}\"", self.0)
@@ -1175,7 +1183,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::Expr::Let(vars[0].into(), Box::new([init, body]))
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
-                fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
+                fixpoint::Expr::ThyFunc(*itf)
             }
             rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(def_id)) => {
                 fixpoint::Expr::Var(self.define_const_for_uif(*def_id, scx))
@@ -1256,7 +1264,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             fixpoint::BinRel::Le => fixpoint::ThyFunc::BvUle,
             _ => span_bug!(self.def_span(), "not a bitvector relation!"),
         };
-        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
+        fixpoint::Expr::ThyFunc(itf)
     }
 
     fn bv_op_to_fixpoint(&self, op: &rty::BinOp) -> fixpoint::Expr {
@@ -1273,7 +1281,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::BitShr => fixpoint::ThyFunc::BvLshr,
             _ => span_bug!(self.def_span(), "not a bitvector operation!"),
         };
-        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
+        fixpoint::Expr::ThyFunc(itf)
     }
 
     fn bin_op_to_fixpoint(

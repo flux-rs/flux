@@ -7,7 +7,7 @@ use z3::{
 };
 
 use crate::{
-    Error, FixpointFmt, FixpointResult, Identifier, Stats, Types,
+    Error, FixpointFmt, FixpointResult, Identifier, Stats, ThyFunc, Types,
     constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
 };
 
@@ -23,7 +23,7 @@ impl From<ast::Dynamic> for Binding {
     }
 }
 
-impl From<FuncDecl> for Binding{
+impl From<FuncDecl> for Binding {
     fn from(value: FuncDecl) -> Self {
         Binding::Function(value)
     }
@@ -75,11 +75,12 @@ impl<T: Types> Env<T> {
 
 fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
     match cnst {
-        Constant::Numeral(num) => ast::Int::from_i64((*num).try_into().unwrap()).into(),
+        Constant::Numeral(num) => ast::Int::from_u64(*num as u64).into(),
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
         Constant::String(strconst) => {
             ast::String::from(strconst.display().to_string().as_str()).into()
         }
+        Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
         _ => panic!("handling for this kind of const isn't implemented yet"),
     }
 }
@@ -88,7 +89,7 @@ fn atom_to_z3<'ctx, T: Types>(
     bin_rel: &BinRel,
     operands: &[Expr<T>; 2],
     env: &mut Env<T>,
-) -> ast::Dynamic{
+) -> ast::Dynamic {
     let lhs = expr_to_z3(&operands[0], env);
     let rhs = expr_to_z3(&operands[1], env);
     if lhs.sort_kind() != rhs.sort_kind() {
@@ -151,8 +152,8 @@ fn binop_to_z3<T: Types>(
     operands: &[Expr<T>; 2],
     env: &mut Env<T>,
 ) -> ast::Dynamic {
-    let lhs = expr_to_z3( &operands[0], env);
-    let rhs = expr_to_z3( &operands[1], env);
+    let lhs = expr_to_z3(&operands[0], env);
+    let rhs = expr_to_z3(&operands[1], env);
 
     if lhs.sort_kind() != rhs.sort_kind() {
         panic!("binary operands must have the same sort");
@@ -163,13 +164,13 @@ fn binop_to_z3<T: Types>(
         // ✦  Integers  ✦
         // ------------------------------------------------------------------
         SortKind::Int => {
-            let l: ast::Int= lhs.as_int().unwrap();
+            let l: ast::Int = lhs.as_int().unwrap();
             let r: ast::Int = rhs.as_int().unwrap();
 
             let res = match bin_op {
-                BinOp::Add => ast::Int::add( &[&l, &r]),
-                BinOp::Sub => ast::Int::sub( &[&l, &r]),
-                BinOp::Mul => ast::Int::mul( &[&l, &r]),
+                BinOp::Add => ast::Int::add(&[&l, &r]),
+                BinOp::Sub => ast::Int::sub(&[&l, &r]),
+                BinOp::Mul => ast::Int::mul(&[&l, &r]),
                 BinOp::Div => l.div(&r),
                 BinOp::Mod => l.modulo(&r),
             };
@@ -181,8 +182,8 @@ fn binop_to_z3<T: Types>(
 
             let res = match bin_op {
                 BinOp::Add => ast::Real::add(&[&l, &r]),
-                BinOp::Sub => ast::Real::sub( &[&l, &r]),
-                BinOp::Mul => ast::Real::mul( &[&l, &r]),
+                BinOp::Sub => ast::Real::sub(&[&l, &r]),
+                BinOp::Mul => ast::Real::mul(&[&l, &r]),
                 BinOp::Div => l.div(&r),
                 BinOp::Mod => panic!("modulo is not defined on Real numbers"),
             };
@@ -193,10 +194,185 @@ fn binop_to_z3<T: Types>(
     }
 }
 
-fn expr_to_z3<T: Types>(
-    expr: &Expr<T>,
+fn thy_func_application_to_z3<T: Types>(
+    func: &ThyFunc,
+    args: &Vec<Expr<T>>,
     env: &mut Env<T>,
 ) -> ast::Dynamic {
+    match func {
+        ThyFunc::StrLen => {
+            expr_to_z3(&args[0], env)
+                .as_string()
+                .unwrap()
+                .length()
+                .into()
+        }
+        ThyFunc::SetMem => {
+            let elem = expr_to_z3(&args[0], env);
+            let set = expr_to_z3(&args[1], env).as_set().unwrap();
+            set.member(&elem).into()
+        }
+        ThyFunc::SetEmpty | ThyFunc::SetSng => {
+            let arg = expr_to_z3(&args[0], env);
+            let arg_sort = arg.get_sort();
+            let empty = ast::Set::empty(&arg_sort);
+            empty.add(&arg).into()
+        }
+        ThyFunc::SetCup => {
+            let arg1 = expr_to_z3(&args[0], env).as_set().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_set().unwrap();
+            ast::Set::set_union(&[&arg1, &arg2]).into()
+        }
+        ThyFunc::IntToBv32 => {
+            let arg = expr_to_z3(&args[0], env).as_int().unwrap();
+            ast::BV::from_int(&arg, 32).into()
+        }
+        ThyFunc::IntToBv64 => {
+            let arg = expr_to_z3(&args[0], env).as_int().unwrap();
+            ast::BV::from_int(&arg, 64).into()
+        }
+        ThyFunc::IntToBv8 => {
+            let arg = expr_to_z3(&args[0], env).as_int().unwrap();
+            ast::BV::from_int(&arg, 8).into()
+        }
+        ThyFunc::Bv32ToInt => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.to_int(false).into()
+        }
+        ThyFunc::Bv64ToInt => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.to_int(false).into()
+        }
+        ThyFunc::Bv8ToInt => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.to_int(false).into()
+        }
+        ThyFunc::BvAdd => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvadd(&arg2).into()
+        }
+        ThyFunc::BvSub => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvsub(&arg2).into()
+        }
+        ThyFunc::BvMul => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvmul(&arg2).into()
+        }
+        ThyFunc::BvNeg => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.bvneg().into()
+        }
+        ThyFunc::BvSdiv => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvsdiv(&arg2).into()
+        }
+        ThyFunc::BvSrem => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvsrem(&arg2).into()
+        }
+        ThyFunc::BvUrem => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvurem(&arg2).into()
+        }
+        ThyFunc::BvUdiv => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvudiv(&arg2).into()
+        }
+        ThyFunc::BvAnd => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvand(&arg2).into()
+        }
+        ThyFunc::BvOr => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvor(&arg2).into()
+        }
+        ThyFunc::BvXor => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvxor(&arg2).into()
+        }
+        ThyFunc::BvNot => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.bvnot().into()
+        }
+        ThyFunc::BvSge => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvsge(&arg2).into()
+        }
+        ThyFunc::BvSgt => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvsgt(&arg2).into()
+        }
+        ThyFunc::BvSle => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvsle(&arg2).into()
+        }
+        ThyFunc::BvSlt => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvslt(&arg2).into()
+        }
+        ThyFunc::BvUge => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvuge(&arg2).into()
+        }
+        ThyFunc::BvUgt => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvugt(&arg2).into()
+        }
+        ThyFunc::BvUle => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvule(&arg2).into()
+        }
+        ThyFunc::BvUlt => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvult(&arg2).into()
+        }
+        ThyFunc::BvShl => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvshl(&arg2).into()
+        }
+        ThyFunc::BvLshr => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvlshr(&arg2).into()
+        }
+        ThyFunc::BvAshr => {
+            let arg1 = expr_to_z3(&args[0], env).as_bv().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_bv().unwrap();
+            arg1.bvashr(&arg2).into()
+        }
+        ThyFunc::BvZeroExtend(size) => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.zero_ext(*size as u32).into()
+        }
+        ThyFunc::BvSignExtend(size) => {
+            let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
+            arg.sign_ext(*size as u32).into()
+        }
+        _ => panic!("unhandled theory function"),
+    }
+}
+
+fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
     match expr {
         Expr::Var(var) => env.var_lookup(var).cloned().expect("error if not present"),
         Expr::Constant(cnst) => const_to_z3(cnst),
@@ -205,29 +381,29 @@ fn expr_to_z3<T: Types>(
         Expr::And(conjuncts) => {
             let booleans = conjuncts
                 .iter()
-                .map(|conjunct| expr_to_z3( conjunct, env).as_bool())
+                .map(|conjunct| expr_to_z3(conjunct, env).as_bool())
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
             let boolean_refs: Vec<&ast::Bool> = booleans.iter().collect();
             let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
-            ast::Bool::and( bool_ref_slice).into()
+            ast::Bool::and(bool_ref_slice).into()
         }
         Expr::Or(options) => {
             let booleans = options
                 .iter()
-                .map(|option| expr_to_z3( option, env).as_bool())
+                .map(|option| expr_to_z3(option, env).as_bool())
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
             let boolean_refs: Vec<&ast::Bool> = booleans.iter().collect();
             let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
-            ast::Bool::or( bool_ref_slice).into()
+            ast::Bool::or(bool_ref_slice).into()
         }
-        Expr::Not(inner) => expr_to_z3( inner, env).as_bool().unwrap().not().into(),
+        Expr::Not(inner) => expr_to_z3(inner, env).as_bool().unwrap().not().into(),
         Expr::Neg(number) => {
-            let zero = ast::Int::from_i64( 0);
-            let z3_num = expr_to_z3( number, env);
+            let zero = ast::Int::from_i64(0);
+            let z3_num = expr_to_z3(number, env);
             match z3_num.sort_kind() {
-                SortKind::Int => ast::Int::sub( &[&zero, &z3_num.as_int().unwrap()]).into(),
+                SortKind::Int => ast::Int::sub(&[&zero, &z3_num.as_int().unwrap()]).into(),
                 SortKind::Real => {
                     ast::Real::sub(&[&zero.to_real(), &z3_num.as_real().unwrap()]).into()
                 }
@@ -235,20 +411,20 @@ fn expr_to_z3<T: Types>(
             }
         }
         Expr::Iff(operands) => {
-            let lhs = expr_to_z3( &operands[0], env);
-            let rhs = expr_to_z3( &operands[1], env);
+            let lhs = expr_to_z3(&operands[0], env);
+            let rhs = expr_to_z3(&operands[1], env);
             lhs.as_bool().unwrap().iff(&rhs.as_bool().unwrap()).into()
         }
         Expr::Imp(operands) => {
-            let lhs = expr_to_z3( &operands[0], env);
-            let rhs = expr_to_z3( &operands[1], env);
+            let lhs = expr_to_z3(&operands[0], env);
+            let rhs = expr_to_z3(&operands[1], env);
             lhs.as_bool()
                 .unwrap()
                 .implies(&rhs.as_bool().unwrap())
                 .into()
         }
         Expr::Let(variable, exprs) => {
-            let binding = expr_to_z3( &exprs[0], env);
+            let binding = expr_to_z3(&exprs[0], env);
             env.insert(variable.clone(), binding);
             let res = expr_to_z3(&exprs[1], env);
             env.pop(variable);
@@ -259,12 +435,15 @@ fn expr_to_z3<T: Types>(
                 Expr::Var(var) => {
                     let arg_asts: Vec<Box<dyn Ast>> = args
                         .iter()
-                        .map(|arg| dynamic_as_ast(expr_to_z3( arg, env)))
+                        .map(|arg| dynamic_as_ast(expr_to_z3(arg, env)))
                         .collect();
                     let arg_refs: Vec<&_> = arg_asts.iter().map(|a| a.as_ref()).collect();
-                    let fun_decl = env.fun_lookup(var).expect("error if function not present");
+                    let fun_decl = env
+                        .fun_lookup(var)
+                        .expect(format!("error if function not present {:#?}", var).as_str());
                     fun_decl.apply(&arg_refs)
                 }
+                Expr::ThyFunc(func) => thy_func_application_to_z3(func, args, env),
                 _ => panic!("encountered function application but no function"),
             }
         }
@@ -283,33 +462,29 @@ fn dynamic_as_ast(val: ast::Dynamic) -> Box<dyn Ast> {
         Box::new(bool_val) as Box<dyn Ast>
     } else if let Some(str_val) = val.as_string() {
         Box::new(str_val) as Box<dyn Ast>
+    } else if let Some(bv_val) = val.as_bv() {
+        Box::new(bv_val) as Box<dyn Ast>
     } else {
         panic!("unhandled sort encountered")
     }
 }
 
-fn pred_to_z3<T: Types>(
-    pred: &Pred<T>,
-    env: &mut Env<T>,
-) -> ast::Bool {
+fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
     match pred {
-        Pred::Expr(expr) => expr_to_z3( expr, env).as_bool().expect(" asldfj "),
+        Pred::Expr(expr) => expr_to_z3(expr, env).as_bool().expect(" asldfj "),
         Pred::And(conjuncts) => {
             let bools: Vec<_> = conjuncts
                 .iter()
-                .map(|conjunct| pred_to_z3( conjunct, env))
+                .map(|conjunct| pred_to_z3(conjunct, env))
                 .collect::<Vec<_>>();
             let bool_refs: Vec<&ast::Bool> = bools.iter().collect();
-            ast::Bool::and( bool_refs.as_slice())
+            ast::Bool::and(bool_refs.as_slice())
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }
 }
 
-pub(crate) fn new_binding<T: Types>(
-    name: &T::Var,
-    sort: &Sort<T>,
-) -> Binding {
+pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
     match &sort {
         Sort::Int => {
             Binding::Variable(ast::Int::new_const(name.display().to_string().as_str()).into())
@@ -321,17 +496,25 @@ pub(crate) fn new_binding<T: Types>(
             Binding::Variable(ast::Bool::new_const(name.display().to_string().as_str()).into())
         }
         Sort::Str => {
-            Binding::Variable(
-                ast::String::new_const(name.display().to_string().as_str()).into(),
-            )
+            Binding::Variable(ast::String::new_const(name.display().to_string().as_str()).into())
         }
         Sort::Func(sorts) => {
             let fun_decl = FuncDecl::new(
                 name.display().to_string().as_str(),
-                &[&z3_sort( &(*sorts)[0])],
-                &z3_sort( &(*sorts)[1]),
+                &[&z3_sort(&(*sorts)[0])],
+                &z3_sort(&(*sorts)[1]),
             );
             Binding::Function(fun_decl)
+        }
+        Sort::BitVec(bv_size) => {
+            match **bv_size {
+                Sort::BvSize(size) => {
+                    Binding::Variable(
+                        ast::BV::new_const(name.display().to_string().as_str(), size).into(),
+                    )
+                }
+                _ => panic!("incorrect bitvector size specification"),
+            }
         }
         &s => panic!("unhandled kind encountered: {:#?}", s),
     }
@@ -343,6 +526,12 @@ fn z3_sort<T: Types>(s: &Sort<T>) -> z3::Sort {
         Sort::Real => z3::Sort::real(),
         Sort::Bool => z3::Sort::bool(),
         Sort::Str => z3::Sort::string(),
+        Sort::BitVec(bv_size) => {
+            match **bv_size {
+                Sort::BvSize(size) => z3::Sort::bitvector(size),
+                _ => panic!("incorrect bitvector size specification"),
+            }
+        }
         _ => panic!("unhandled sort encountered"),
     }
 }
