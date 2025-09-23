@@ -156,7 +156,7 @@ impl fmt::Display for IncludePattern {
 /// This specifies which `DefId` should be checked. It can be specified via multiple patterns
 /// of the form `-Finclude=<pattern>` and the `DefId` is checked if it matches *any* of the patterns.
 /// Patterns are checked relative to the current working directory.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IncludePattern {
     /// files matching the glob pattern, e.g. `glob:src/ascii/*.rs` to check all files in the `ascii` module
     pub glob: GlobSet,
