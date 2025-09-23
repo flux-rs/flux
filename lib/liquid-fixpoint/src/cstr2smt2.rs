@@ -365,11 +365,11 @@ fn thy_func_application_to_z3<T: Types>(
         }
         ThyFunc::BvZeroExtend(size) => {
             let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
-            arg.zero_ext(*size as u32).into()
+            arg.zero_ext(size as u32).into()
         }
         ThyFunc::BvSignExtend(size) => {
             let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
-            arg.sign_ext(*size as u32).into()
+            arg.sign_ext(size as u32).into()
         }
         _ => panic!("unhandled theory function"),
     }
@@ -446,7 +446,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                         .expect(format!("error if function not present {:#?}", var).as_str());
                     fun_decl.apply(&arg_refs)
                 }
-                Expr::ThyFunc(func) => thy_func_application_to_z3(func, args, env),
+                Expr::ThyFunc(func) => thy_func_application_to_z3(*func, args, env),
                 _ => panic!("encountered function application but no function"),
             }
         }
