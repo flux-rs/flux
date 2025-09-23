@@ -156,7 +156,7 @@
 <a href=#156 id=156 data-nosnippet>156</a><span class="doccomment">/// This specifies which `DefId` should be checked. It can be specified via multiple patterns
 <a href=#157 id=157 data-nosnippet>157</a>/// of the form `-Finclude=&lt;pattern&gt;` and the `DefId` is checked if it matches *any* of the patterns.
 <a href=#158 id=158 data-nosnippet>158</a>/// Patterns are checked relative to the current working directory.
-<a href=#159 id=159 data-nosnippet>159</a></span><span class="attr">#[derive(Clone, Debug)]
+<a href=#159 id=159 data-nosnippet>159</a></span><span class="attr">#[derive(Clone)]
 <a href=#160 id=160 data-nosnippet>160</a></span><span class="kw">pub struct </span>IncludePattern {
 <a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// files matching the glob pattern, e.g. `glob:src/ascii/*.rs` to check all files in the `ascii` module
 <a href=#162 id=162 data-nosnippet>162</a>    </span><span class="kw">pub </span>glob: GlobSet,
