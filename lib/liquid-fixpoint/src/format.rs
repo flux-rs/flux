@@ -155,6 +155,11 @@ impl ConstraintFormatter {
                     }
                 }
             }
+            Pred::WKVar(_) => {
+                // Pretend as if the wkvar was TRUE when sending the constraint
+                // to fixpoint to check.
+                self.fmt_pred_in_head_position(&Pred::Expr(Expr::Constant(Constant::Boolean::<T>(true))), tag, f)
+            }
             Pred::Expr(_) | Pred::KVar(..) => {
                 if let Some(tag) = tag {
                     write!(f, "(tag {pred} \"{tag}\")")
@@ -274,6 +279,10 @@ impl<T: Types> fmt::Display for Pred<T> {
                     kvid.display(),
                     vars.iter().map(Identifier::display).format(" ")
                 )
+            }
+            Pred::WKVar(_) => {
+                // Pretend as if this was just TRUE
+                Pred::Expr(Expr::Constant(Constant::Boolean::<T>(true))).fmt(f)
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
         }

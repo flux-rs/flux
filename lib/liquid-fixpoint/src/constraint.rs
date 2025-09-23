@@ -52,6 +52,93 @@ impl<T: Types> Constraint<T> {
         go(self, &mut count);
         count
     }
+
+    /// Flattens a single constraint into a list of individual constraints which
+    /// may be checked for satisfiability.
+    ///
+    /// Because this function is generic, it is your responsibility to filter
+    /// out UNDERSCORE binders (although it isn't strictly wrong to keep them
+    /// in).
+    ///
+    /// NOTE: Assumes and requires that all binder names are unique, i.e.
+    /// there is no shadowing (it is OK to have multiple binders of the same
+    /// name so long as they never are used, e.g. UNDERSCORE).
+    pub fn flatten(&self) -> Vec<FlatConstraint<T>> {
+        match self {
+            Constraint::Pred(pred, tag) => {
+                vec![FlatConstraint {
+                    binders: vec![],
+                    assumptions: vec![],
+                    head: pred.clone(),
+                    tag: tag.clone(),
+                }]
+            }
+            Constraint::Conj(constrs) => {
+                constrs.iter().flat_map(|constr| constr.flatten()).collect_vec()
+            }
+            Constraint::ForAll(bind, constr) => {
+                let mut flat_constrs = constr.flatten();
+                for constr in &mut flat_constrs {
+                    constr.binders.push((bind.name.clone(), bind.sort.clone()));
+                    constr.assumptions.extend(bind.pred.as_conjunction())
+                }
+                flat_constrs
+            }
+        }
+    }
+}
+
+#[derive_where(Hash, Clone, Debug)]
+pub struct FlatConstraint<T: Types> {
+    /// All of the binders that come before the head.
+    ///
+    /// NOTE: There should be no duplicates among the binders which are used (so
+    /// e.g. UNDERSCORE appearing multiple times is OK).
+    binders: Vec<(T::Var, Sort<T>)>,
+    /// All of the assumptions (i.e. a flattened conjunction of predicates from
+    /// all of the binders)
+    assumptions: Vec<Pred<T>>,
+    head: Pred<T>,
+    #[derive_where(skip)]
+    tag: Option<T::Tag>,
+}
+
+impl<T: Types> FlatConstraint<T> {
+    /// Removes any binder corresponding to a given var. Returns the new
+    /// constraint along with the removed binders and their sorts.
+    ///
+    /// NOTE: Assumes that all binders are unique and therefore there are no
+    /// name clashes.
+    pub fn remove_binders(&self, vars: HashSet<T::Var>) -> (Vec<(T::Var, Sort<T>)>, FlatConstraint<T>) {
+        let mut new_binders = self.binders.clone();
+        let removed_binders = new_binders.extract_if(.., |(var, _sort)| vars.contains(var)).collect_vec();
+        let new_constraint = FlatConstraint {
+            binders: new_binders,
+            assumptions: self.assumptions.clone(),
+            head: self.head.clone(),
+            tag: self.tag.clone(),
+        };
+        (removed_binders, new_constraint)
+    }
+
+    /// Turn this back into a constraint
+    pub fn into_constraint(&self, underscore_var: T::Var) -> Constraint<T> {
+        let head_constr = Constraint::Pred(self.head.clone(), self.tag.clone());
+        let mut constr = Constraint::ForAll(Bind {
+            name: underscore_var.clone(),
+            sort: Sort::Int,
+            pred: Pred::And(self.assumptions.clone()),
+        }, Box::new(head_constr));
+
+        for (var, sort) in &self.binders {
+            constr = Constraint::ForAll(Bind {
+                name: var.clone(),
+                sort: sort.clone(),
+                pred: Pred::TRUE,
+            }, Box::new(constr));
+        }
+        constr
+    }
 }
 
 #[derive_where(Hash, Clone)]
@@ -132,6 +219,11 @@ pub enum SortCtor<T: Types> {
 pub enum Pred<T: Types> {
     And(Vec<Self>),
     KVar(T::KVar, Vec<T::Var>),
+    /// NOTE: WKVars are for internal use and we will serialize them as TRUE.
+    ///
+    /// In an ideal world we would serialize them too and fixpoint would ignore
+    /// them.
+    WKVar(T::WKVar),
     Expr(Expr<T>),
 }
 
@@ -151,6 +243,8 @@ impl<T: Types> Pred<T> {
     pub fn is_trivially_true(&self) -> bool {
         match self {
             Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
+            // FIXME: We do substitue true for wkvars, but is this correct?
+            Pred::WKVar(_) => true,
             Pred::And(ps) => ps.is_empty(),
             _ => false,
         }
@@ -160,6 +254,7 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::And(ps) => ps.iter().any(Pred::is_concrete),
             Pred::KVar(_, _) => false,
+            Pred::WKVar(_) => false,
             Pred::Expr(_) => true,
         }
     }
@@ -173,6 +268,29 @@ impl<T: Types> Pred<T> {
                 *self = conjuncts[0].clone();
             } else {
                 conjuncts.iter_mut().for_each(|pred| pred.simplify());
+            }
+        }
+    }
+
+    /// Returns a Vec of Preds whose conjunction is equal to the original Pred.
+    ///
+    /// This trusts that Pred::Expr(BinOp(BinOp::And, ...) is not possible ---
+    /// i.e. Preds are always converted to Pred::And if possible.
+    pub fn as_conjunction(&self) -> Vec<Self> {
+        match self {
+            Pred::And(conjs) => conjs.clone(),
+            _ => vec![self.clone()],
+        }
+    }
+
+    pub fn free_vars(&self) -> HashSet<T::Var> {
+        match self {
+            Pred::KVar(..) | Pred::WKVar(..) => HashSet::new(),
+            Pred::And(preds) => {
+                preds.iter().flat_map(|pred| pred.free_vars()).collect()
+            }
+            Pred::Expr(expr) => {
+                expr.free_vars()
             }
         }
     }

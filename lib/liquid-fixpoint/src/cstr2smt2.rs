@@ -694,3 +694,11 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     solver.pop(1);
     res
 }
+
+pub fn qe_and_simplify<T: Types>(
+    cstr: &Constraint<T>,
+    consts: &Vec<ConstDecl<T>>,
+) {
+    // Add the vars we aren't trying to eliminate as consts
+    todo!()
+}

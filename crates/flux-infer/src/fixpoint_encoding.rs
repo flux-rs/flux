@@ -57,7 +57,7 @@ use crate::refine_tree::BlameAnalysis;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam};
+    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam, self};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -191,6 +191,7 @@ pub mod fixpoint {
     liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
+        type WKVar = rty::WKVar;
         type Var = Var;
         type String = SymStr;
         type Tag = super::TagIdx;
@@ -814,12 +815,10 @@ where
                 let pred = self.kvar_to_fixpoint(kvar, &mut bindings)?;
                 Ok(fixpoint::Constraint::foralls(bindings, fixpoint::Constraint::Pred(pred, None)))
             }
-            rty::ExprKind::WKVar(_) => {
-                // Don't emit anything to fixpoint for this.
-                //
-                // If a weak kvar appears in this position, we shouldn't track it because
-                // it isn't an assumption. I'm pretty sure this is correct.
-                Ok(fixpoint::Constraint::TRUE)
+            rty::ExprKind::WKVar(wkvar) => {
+                // This gets emitted as true, but we need to track it in the
+                // constraint to do some analysis downstream.
+                Ok(fixpoint::Constraint::Pred(fixpoint::Pred::WKVar(wkvar.clone()), None))
             }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
@@ -891,6 +890,7 @@ where
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
+                preds.push(fixpoint::Pred::WKVar(wkvar.clone()));
                 blame_analysis.wkvars.push(wkvar.clone());
             }
             rty::ExprKind::ForAll(_) => {
