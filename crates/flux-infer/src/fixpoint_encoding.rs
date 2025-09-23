@@ -78,17 +78,9 @@ pub mod fixpoint {
         Global(GlobalVar, Option<Symbol>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
-        TupleCtor {
-            arity: usize,
-        },
-        TupleProj {
-            arity: usize,
-            field: u32,
-        },
+        TupleCtor { arity: usize },
+        TupleProj { arity: usize, field: u32 },
         UIFRel(BinRel),
-        /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
-        /// name is different than the display implementation for the other variants.
-        Itf(liquid_fixpoint::ThyFunc),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
     }
@@ -116,7 +108,6 @@ pub mod fixpoint {
                 }
                 Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
-                Var::Itf(name) => write!(f, "{name}"),
                 Var::UIFRel(BinRel::Gt) => write!(f, "gt"),
                 Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
                 Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
@@ -1182,9 +1173,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
                 fixpoint::Expr::Let(vars[0].into(), Box::new([init, body]))
             }
-            rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
-                fixpoint::Expr::ThyFunc(*itf)
-            }
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => fixpoint::Expr::ThyFunc(*itf),
             rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(def_id)) => {
                 fixpoint::Expr::Var(self.define_const_for_uif(*def_id, scx))
             }
