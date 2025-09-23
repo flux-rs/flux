@@ -55,7 +55,7 @@ pub mod decoding;
 use crate::refine_tree::BlameAnalysis;
 
 pub mod fixpoint {
-    use std::fmt;
+    use std::{collections::HashSet, fmt};
 
     use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam, self};
     use liquid_fixpoint::{FixpointFmt, Identifier};
@@ -73,6 +73,12 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "k{}", self.as_u32())
         }
+    }
+
+    #[derive(Hash, Clone, Debug)]
+    pub struct WKVar {
+        pub wkvid: rty::WKVid,
+        pub args: Vec<Expr>,
     }
 
     newtype_index! {
@@ -191,7 +197,7 @@ pub mod fixpoint {
     liquid_fixpoint::declare_types! {
         type Sort = DataSort;
         type KVar = KVid;
-        type WKVar = rty::WKVar;
+        type WKVar = WKVar;
         type Var = Var;
         type String = SymStr;
         type Tag = super::TagIdx;
@@ -818,7 +824,7 @@ where
             rty::ExprKind::WKVar(wkvar) => {
                 // This gets emitted as true, but we need to track it in the
                 // constraint to do some analysis downstream.
-                Ok(fixpoint::Constraint::Pred(fixpoint::Pred::WKVar(wkvar.clone()), None))
+                Ok(fixpoint::Constraint::Pred(self.wkvar_to_fixpoint(wkvar)?, None))
             }
             rty::ExprKind::ForAll(pred) => {
                 self.ecx
@@ -890,7 +896,7 @@ where
                 preds.push(self.kvar_to_fixpoint(kvar, bindings)?);
             }
             rty::ExprKind::WKVar(wkvar) => {
-                preds.push(fixpoint::Pred::WKVar(wkvar.clone()));
+                preds.push(self.wkvar_to_fixpoint(wkvar)?);
                 blame_analysis.wkvars.push(wkvar.clone());
             }
             rty::ExprKind::ForAll(_) => {
@@ -978,6 +984,15 @@ where
             .collect_vec();
 
         Ok(fixpoint::Pred::And(kvars))
+    }
+
+    fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar
+    ) -> QueryResult<fixpoint::Pred> {
+        let args: Vec<fixpoint::Expr> = wkvar.args.iter().map(|arg| self.ecx.expr_to_fixpoint(arg, &mut self.scx)).collect::<QueryResult<Vec<fixpoint::Expr>>>()?;
+        Ok(fixpoint::Pred::WKVar(fixpoint::WKVar {
+            wkvid: wkvar.wkvid.clone(),
+            args,
+        }))
     }
 }
 

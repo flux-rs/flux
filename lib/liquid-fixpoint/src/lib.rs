@@ -55,7 +55,7 @@ use crate::constraint_with_env::ConstraintWithEnv;
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
-    type WKVar: Hash + Clone + Debug + Eq;
+    type WKVar: Hash + Clone + Debug;
     type Var: Identifier + Hash + Clone + Debug + Eq;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
