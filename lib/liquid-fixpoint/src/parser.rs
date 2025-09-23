@@ -19,6 +19,7 @@ impl ParseError {
     pub fn err(msg: impl Into<String>) -> Self {
         ParseError::MalformedSexpError(msg.into())
     }
+    type WKVar = String;
 }
 
 impl Identifier for String {
