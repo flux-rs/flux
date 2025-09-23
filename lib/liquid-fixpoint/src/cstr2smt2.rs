@@ -212,7 +212,10 @@ fn thy_func_application_to_z3<T: Types>(
             let set = expr_to_z3(&args[1], env).as_set().unwrap();
             set.member(&elem).into()
         }
-        ThyFunc::SetEmpty | ThyFunc::SetSng => {
+        ThyFunc::SetEmpty => {
+            panic!("cannot infer empty set element sort")
+        }
+        ThyFunc::SetSng => {
             let arg = expr_to_z3(&args[0], env);
             let arg_sort = arg.get_sort();
             let empty = ast::Set::empty(&arg_sort);
