@@ -7,7 +7,7 @@ use {
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
-    z3::{Config, Context, Solver},
+    z3::Solver,
 };
 
 use crate::{
@@ -53,12 +53,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    fn solve_for_kvars<'ctx>(
-        &self,
-        ctx: &'ctx Context,
-        solver: &Solver<'ctx>,
-        env: &mut Env<'ctx, T>,
-    ) -> Assignments<'_, T> {
+    fn solve_for_kvars(&self, solver: &Solver, env: &mut Env<T>) -> Assignments<'_, T> {
         let mut assignments = self.compute_initial_assignments();
         let (kvars_to_fragments, _) = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
@@ -73,7 +68,7 @@ impl<T: Types> ConstraintWithEnv<T> {
                 let initial_length = assignment.len();
                 assignment.retain(|assignment| {
                     let vc = subbed.sub_head(assignment);
-                    is_constraint_satisfiable(ctx, &vc, solver, env).is_safe()
+                    is_constraint_satisfiable(&vc, solver, env).is_safe()
                 });
                 if initial_length > assignment.len() {
                     work_list.extend(
@@ -121,19 +116,14 @@ impl<T: Types> ConstraintWithEnv<T> {
     }
 
     pub fn solve_by_predicate_abstraction(&mut self) -> FixpointResult<T::Tag> {
-        let cfg = Config::new();
-        let ctx = Context::new(&cfg);
-        let solver = Solver::new(&ctx);
-        let mut vars: Env<'_, T> = Env::new();
+        let solver = Solver::new();
+        let mut vars: Env<T> = Env::new();
         self.constants.iter().for_each(|const_decl| {
-            vars.insert(
-                const_decl.name.clone(),
-                new_binding(&ctx, &const_decl.name, &const_decl.sort),
-            );
+            vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort));
         });
-        let kvar_assignment = self.solve_for_kvars(&ctx, &solver, &mut vars);
+        let kvar_assignment = self.solve_for_kvars(&solver, &mut vars);
         self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);
-        is_constraint_satisfiable(&ctx, &self.constraint, &solver, &mut vars)
+        is_constraint_satisfiable(&self.constraint, &solver, &mut vars)
     }
 }
 

@@ -78,17 +78,9 @@ pub mod fixpoint {
         Global(GlobalVar, Option<Symbol>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
-        TupleCtor {
-            arity: usize,
-        },
-        TupleProj {
-            arity: usize,
-            field: u32,
-        },
+        TupleCtor { arity: usize },
+        TupleProj { arity: usize, field: u32 },
         UIFRel(BinRel),
-        /// Interpreted theory function. This can be an arbitrary string, thus we are assuming the
-        /// name is different than the display implementation for the other variants.
-        Itf(liquid_fixpoint::ThyFunc),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
     }
@@ -116,7 +108,6 @@ pub mod fixpoint {
                 }
                 Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
-                Var::Itf(name) => write!(f, "{name}"),
                 Var::UIFRel(BinRel::Gt) => write!(f, "gt"),
                 Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
                 Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
@@ -157,6 +148,14 @@ pub mod fixpoint {
     #[derive(Hash, Clone, Debug)]
     pub struct SymStr(pub Symbol);
 
+    #[cfg(feature = "rust-fixpoint")]
+    impl FixpointFmt for SymStr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    #[cfg(not(feature = "rust-fixpoint"))]
     impl FixpointFmt for SymStr {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "\"{}\"", self.0)
@@ -1174,9 +1173,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
                 fixpoint::Expr::Let(vars[0].into(), Box::new([init, body]))
             }
-            rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
-                fixpoint::Expr::Var(fixpoint::Var::Itf(*itf))
-            }
+            rty::ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => fixpoint::Expr::ThyFunc(*itf),
             rty::ExprKind::GlobalFunc(SpecFuncKind::Uif(def_id)) => {
                 fixpoint::Expr::Var(self.define_const_for_uif(*def_id, scx))
             }
@@ -1256,7 +1253,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             fixpoint::BinRel::Le => fixpoint::ThyFunc::BvUle,
             _ => span_bug!(self.def_span(), "not a bitvector relation!"),
         };
-        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
+        fixpoint::Expr::ThyFunc(itf)
     }
 
     fn bv_op_to_fixpoint(&self, op: &rty::BinOp) -> fixpoint::Expr {
@@ -1273,7 +1270,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::BitShr => fixpoint::ThyFunc::BvLshr,
             _ => span_bug!(self.def_span(), "not a bitvector operation!"),
         };
-        fixpoint::Expr::Var(fixpoint::Var::Itf(itf))
+        fixpoint::Expr::ThyFunc(itf)
     }
 
     fn bin_op_to_fixpoint(

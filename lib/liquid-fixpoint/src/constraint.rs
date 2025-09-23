@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use derive_where::derive_where;
 
-use crate::Types;
+use crate::{ThyFunc, Types};
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct Bind<T: Types> {
@@ -184,6 +184,7 @@ pub enum Expr<T: Types> {
     Iff(Box<[Self; 2]>),
     Atom(BinRel, Box<[Self; 2]>),
     Let(T::Var, Box<[Self; 2]>),
+    ThyFunc(ThyFunc),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
