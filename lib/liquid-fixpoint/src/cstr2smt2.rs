@@ -195,8 +195,8 @@ fn binop_to_z3<T: Types>(
 }
 
 fn thy_func_application_to_z3<T: Types>(
-    func: &ThyFunc,
-    args: &Vec<Expr<T>>,
+    func: ThyFunc,
+    args: &[Expr<T>],
     env: &mut Env<T>,
 ) -> ast::Dynamic {
     match func {
