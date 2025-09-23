@@ -198,13 +198,20 @@ fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
 
 fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Item<FnSpec>> {
     let trusted = attrs.is_trusted();
+    let proven_externally = attrs.is_proven_externally();
     let fn_sig = parse_fn_sig(cx, token::Semi)?;
     let span = fn_sig.span;
     let ident = fn_sig
         .ident
         .ok_or(ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span })?;
     let path = ident_path(cx, ident);
-    let fn_spec = FnSpec { fn_sig: Some(fn_sig), qual_names: None, reveal_names: None, trusted };
+    let fn_spec = FnSpec {
+        fn_sig: Some(fn_sig),
+        qual_names: None,
+        reveal_names: None,
+        trusted,
+        proven_externally,
+    };
     Ok(Item { path, kind: fn_spec })
 }
 

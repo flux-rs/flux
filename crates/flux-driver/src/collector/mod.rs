@@ -15,7 +15,7 @@ use flux_config::{self as config, OverflowMode, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     Specs,
-    fhir::{Ignored, Trusted},
+    fhir::{Ignored, ProvenExternally, Trusted},
 };
 use flux_syntax::{ParseResult, ParseSess, surface};
 use itertools::Itertools;
@@ -94,6 +94,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
+        self.collect_proven_externally(&mut attrs, CRATE_DEF_ID);
         DetachedSpecsCollector::collect(self, &mut attrs)?;
 
         self.specs
@@ -110,6 +111,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
+        self.collect_proven_externally(&mut attrs, owner_id.def_id);
         DetachedSpecsCollector::collect(self, &mut attrs)?;
 
         match &item.kind {
@@ -158,6 +160,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
+        self.collect_proven_externally(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
         }
@@ -171,6 +174,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
+        self.collect_proven_externally(&mut attrs, owner_id.def_id);
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_fn_spec(owner_id, attrs)?;
@@ -354,11 +358,19 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
 
+        let proven_externally = matches!(attrs.proven_externally(), Some(ProvenExternally::Yes));
+
         Ok(self
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted }))
+            .or_insert(surface::FnSpec {
+                fn_sig,
+                qual_names,
+                reveal_names,
+                trusted,
+                proven_externally,
+            }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -484,6 +496,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
             }
+            ("proven_externally", hir::AttrArgs::Empty) => {
+                FluxAttrKind::ProvenExternally(ProvenExternally::Yes)
+            }
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
             ("opaque", hir::AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
@@ -541,6 +556,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
     }
 
+    fn collect_proven_externally(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
+        if let Some(proven_externally) = attrs.proven_externally() {
+            self.specs
+                .proven_externally
+                .insert(def_id, proven_externally);
+        }
+    }
+
     fn collect_infer_opts(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
         if let Some(infer_opts) = attrs.infer_opts() {
             self.specs.infer_opts.insert(def_id, infer_opts);
@@ -563,6 +586,7 @@ struct FluxAttr {
 enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
+    ProvenExternally(ProvenExternally),
     Opaque,
     Reflect,
     FnSig(surface::FnSig),
@@ -637,6 +661,10 @@ impl FluxAttrs {
 
     fn trusted_impl(&mut self) -> Option<Trusted> {
         read_attr!(self, TrustedImpl)
+    }
+
+    fn proven_externally(&mut self) -> Option<ProvenExternally> {
+        read_attr!(self, ProvenExternally)
     }
 
     fn ignore(&mut self) -> Option<Ignored> {
@@ -731,6 +759,7 @@ impl FluxAttrKind {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
+            FluxAttrKind::ProvenExternally(_) => attr_name!(ProvenExternally),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::Reflect => attr_name!(Reflect),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),

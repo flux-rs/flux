@@ -538,6 +538,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.collect_specs().should_fail.contains(&def_id)
     }
 
+    /// Whether the function is marked with `#[proven_externally]`
+    pub fn proven_externally(self, def_id: LocalDefId) -> bool {
+        self.traverse_parents(def_id, |did| self.collect_specs().proven_externally.get(&did))
+            .map(|proven_externally| proven_externally.to_bool())
+            .unwrap_or(false)
+    }
+
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,

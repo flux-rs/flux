@@ -85,6 +85,28 @@ impl From<bool> for Trusted {
     }
 }
 
+/// A boolean-like enum used to mark whether some specification is proven correct in lean.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum ProvenExternally {
+    Yes,
+    No,
+}
+
+impl ProvenExternally {
+    pub fn to_bool(self) -> bool {
+        match self {
+            ProvenExternally::Yes => true,
+            ProvenExternally::No => false,
+        }
+    }
+}
+
+impl From<bool> for ProvenExternally {
+    fn from(value: bool) -> Self {
+        if value { ProvenExternally::Yes } else { ProvenExternally::No }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
     pub params: &'fhir [GenericParam<'fhir>],

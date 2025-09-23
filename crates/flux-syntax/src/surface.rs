@@ -340,6 +340,7 @@ pub struct FnSpec {
     pub qual_names: Option<QualNames>,
     pub reveal_names: Option<RevealNames>,
     pub trusted: bool,
+    pub proven_externally: bool,
 }
 
 #[derive(Debug)]
@@ -564,6 +565,8 @@ pub enum BindKind {
 pub enum Attr {
     /// A `#[trusted]` attribute
     Trusted,
+    /// A `#[proven_externally]` attribute
+    ProvenExternally,
     /// A `#[hide]` attribute
     Hide,
     /// A `#[reft]` attribute
@@ -583,6 +586,12 @@ impl Attrs {
 
     pub fn is_trusted(&self) -> bool {
         self.0.iter().any(|attr| matches!(attr, Attr::Trusted))
+    }
+
+    pub fn is_proven_externally(&self) -> bool {
+        self.0
+            .iter()
+            .any(|attr| matches!(attr, Attr::ProvenExternally))
     }
 
     pub fn refined_by(&mut self) -> Option<RefineParams> {
