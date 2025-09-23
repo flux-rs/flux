@@ -3,28 +3,62 @@ use std::{
     io::{self, Read},
     mem,
     path::Path,
+    sync::Arc,
 };
 
 use flux_common::bug;
 use flux_errors::FluxSession;
-use rustc_data_structures::sync::HashMapExt;
+use rustc_data_structures::{fx::FxHashMap, sync::HashMapExt};
 use rustc_hir::def_id::DefId;
 use rustc_middle::{
     implement_ty_decoder,
     ty::{self, TyCtxt, codec::TyDecoder},
 };
-use rustc_serialize::{Decodable, Decoder as _, opaque::MemDecoder};
+use rustc_serialize::{
+    Decodable, Decoder as _,
+    opaque::{IntEncodedWithFixedSize, MemDecoder},
+};
 use rustc_session::StableCrateId;
 use rustc_span::{
-    BytePos, ByteSymbol, Span, SpanDecoder, StableSourceFileId, Symbol, SyntaxContext,
+    BytePos, ByteSymbol, DUMMY_SP, SourceFile, Span, SpanDecoder, Symbol, SyntaxContext,
     def_id::{CrateNum, DefIndex},
+    hygiene::{HygieneDecodeContext, SyntaxContextKey},
 };
 
-use crate::{CrateMetadata, METADATA_HEADER, SYMBOL_OFFSET, SYMBOL_PREDEFINED, SYMBOL_STR};
+use crate::{
+    AbsoluteBytePos, CrateMetadata, EncodedSourceFileId, Footer, METADATA_HEADER, SYMBOL_OFFSET,
+    SYMBOL_PREDEFINED, SYMBOL_STR, SourceFileIndex, TAG_FULL_SPAN, TAG_PARTIAL_SPAN,
+};
 
 struct DecodeContext<'a, 'tcx> {
     tcx: TyCtxt<'tcx>,
     opaque: MemDecoder<'a>,
+    file_index_to_file: FxHashMap<SourceFileIndex, Arc<SourceFile>>,
+    file_index_to_stable_id: FxHashMap<SourceFileIndex, EncodedSourceFileId>,
+    syntax_contexts: &'a FxHashMap<u32, AbsoluteBytePos>,
+    expn_data: FxHashMap<(StableCrateId, u32), AbsoluteBytePos>,
+    hygiene_context: &'a HygieneDecodeContext,
+}
+
+impl<'a, 'tcx> DecodeContext<'a, 'tcx> {
+    fn file_index_to_file(&mut self, index: SourceFileIndex) -> Arc<SourceFile> {
+        self.file_index_to_file
+            .entry(index)
+            .or_insert_with(|| {
+                let source_file_id = &self.file_index_to_stable_id[&index];
+                let source_file_cnum = self
+                    .tcx
+                    .stable_crate_id_to_crate_num(source_file_id.stable_crate_id);
+
+                self.tcx.import_source_files(source_file_cnum);
+                self.tcx
+                    .sess
+                    .source_map()
+                    .source_file_by_stable_id(source_file_id.stable_source_file_id)
+                    .expect("failed to lookup `SourceFile` in new context")
+            })
+            .clone()
+    }
 }
 
 pub(super) fn decode_crate_metadata(
@@ -45,8 +79,25 @@ pub(super) fn decode_crate_metadata(
         bug!("incompatible metadata version");
     }
 
-    let mut decoder =
-        DecodeContext { tcx, opaque: MemDecoder::new(&buf, METADATA_HEADER.len()).unwrap() };
+    let footer = {
+        let mut decoder = MemDecoder::new(&buf, 0).unwrap();
+        let footer_pos = decoder
+            .with_position(decoder.len() - IntEncodedWithFixedSize::ENCODED_SIZE, |d| {
+                IntEncodedWithFixedSize::decode(d).0 as usize
+            });
+        decoder.with_position(footer_pos, |d| Footer::decode(d))
+    };
+
+    let mut decoder = DecodeContext {
+        tcx,
+        opaque: MemDecoder::new(&buf, METADATA_HEADER.len()).unwrap(),
+        file_index_to_stable_id: footer.file_index_to_stable_id,
+        file_index_to_file: Default::default(),
+        syntax_contexts: &footer.syntax_contexts,
+        expn_data: footer.expn_data,
+        hygiene_context: &Default::default(),
+    };
+
     Some(CrateMetadata::decode(&mut decoder))
 }
 
@@ -70,27 +121,50 @@ impl SpanDecoder for DecodeContext<'_, '_> {
         DefId { krate: Decodable::decode(self), index: Decodable::decode(self) }
     }
 
-    fn decode_syntax_context(&mut self) -> rustc_span::SyntaxContext {
-        bug!("cannot decode `SyntaxContext` with `DecodeContext`");
+    fn decode_syntax_context(&mut self) -> SyntaxContext {
+        let syntax_contexts = self.syntax_contexts;
+        rustc_span::hygiene::decode_syntax_context(self, &self.hygiene_context, |this, id| {
+            // This closure is invoked if we haven't already decoded the data for the `SyntaxContext` we are deserializing.
+            // We look up the position of the associated `SyntaxData` and decode it.
+            let pos = syntax_contexts.get(&id).unwrap();
+            this.with_position(pos.to_usize(), |decoder| SyntaxContextKey::decode(decoder))
+        })
     }
 
     fn decode_expn_id(&mut self) -> rustc_span::ExpnId {
-        bug!("cannot decode `ExpnId` with `DecodeContext`");
+        let stable_id = StableCrateId::decode(self);
+        let cnum = self.tcx.stable_crate_id_to_crate_num(stable_id);
+        let index = u32::decode(self);
+
+        let expn_id = rustc_span::hygiene::decode_expn_id(cnum, index, |_| {
+            let pos = self.expn_data.get(&(stable_id, index)).unwrap();
+            self.with_position(pos.to_usize(), |decoder| {
+                let data = rustc_span::ExpnData::decode(decoder);
+                let hash = rustc_span::ExpnHash::decode(decoder);
+                (data, hash)
+            })
+        });
+        expn_id
     }
 
     fn decode_span(&mut self) -> rustc_span::Span {
-        let sm = self.tcx.sess.source_map();
-        let pos = [(); 2].map(|_| {
-            let ssfi = StableSourceFileId::decode(self);
-            let rel_bp = BytePos::decode(self);
-            // See comment in 'encoder.rs'
-            //
-            // This should hopefully never fail,
-            // so maybe could be an `unwrap` instead?
-            sm.source_file_by_stable_id(ssfi)
-                .map_or(BytePos(0), |sf| sf.start_pos + rel_bp)
-        });
-        Span::new(pos[0], pos[1], SyntaxContext::root(), None)
+        let ctxt = SyntaxContext::decode(self);
+        let tag: u8 = Decodable::decode(self);
+
+        if tag == TAG_PARTIAL_SPAN {
+            return DUMMY_SP.with_ctxt(ctxt);
+        }
+
+        debug_assert!(tag == TAG_FULL_SPAN);
+
+        let source_file_index = SourceFileIndex::decode(self);
+        let lo = BytePos::decode(self);
+        let len = BytePos::decode(self);
+        let file = self.file_index_to_file(source_file_index);
+        let lo = file.start_pos + lo;
+        let hi = lo + len;
+
+        Span::new(lo, hi, ctxt, None)
     }
 
     fn decode_symbol(&mut self) -> rustc_span::Symbol {
