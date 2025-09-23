@@ -56,6 +56,7 @@ use crate::constraint_with_env::ConstraintWithEnv;
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
+    type WKVar: Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
     type Decimal: FixpointFmt + Hash + Clone + Debug;
     type String: FixpointFmt + Hash + Clone + Debug;
@@ -114,6 +115,7 @@ impl FixpointFmt for String {
 macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
+        type WKVar = $wkvar:ty;
         type Var = $var:ty;
         type Decimal = $real:ty;
         type String = $str:ty;
@@ -143,6 +145,7 @@ macro_rules! declare_types {
         impl $crate::Types for fixpoint_generated::FixpointTypes {
             type Sort = $sort;
             type KVar = $kvar;
+            type WKVar = $wkvar;
             type Var = $var;
 
             type Decimal = $real;

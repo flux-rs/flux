@@ -17,6 +17,7 @@ pub struct ParsingTypes;
 impl Types for ParsingTypes {
     type Sort = String;
     type KVar = String;
+    type WKVar = String;
     type Var = String;
     type Tag = String;
     type Decimal = u32;
