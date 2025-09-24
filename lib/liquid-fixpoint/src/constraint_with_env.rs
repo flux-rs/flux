@@ -2,10 +2,7 @@ use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointStatus, Sort, SortCtor,
-        cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
-        graph,
-    cstr2smt2::{is_constraint_satisfiable, qe_and_simplify},
+        FixpointStatus, Sort, SortCtor, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype, qe_and_simplify}, graph,
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
