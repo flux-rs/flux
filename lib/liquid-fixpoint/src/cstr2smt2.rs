@@ -723,7 +723,6 @@ fn qe_and_simplify_inner<T: Types>(
     goal: &Goal,
     env: &mut Env<T>,
 ) {
-    todo!();
     match cstr {
         Constraint::Pred(pred, _tag) => {
             // Heads can't have KVars if we don't know their solutions.
