@@ -316,7 +316,6 @@ pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &OwnerNode<'v>) {
 
 pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
     if let ItemKind::Fn(fn_sig) = &item.kind {
-        println!("declaring weak kvars early");
         for wk in fn_sig.weak_kvars {
             vis.declare_weak_kvar(wk);
         }
@@ -341,7 +340,6 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
 
 pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'v>) {
     if let TraitItemKind::Fn(fn_sig) = &trait_item.kind {
-        println!("declaring trait weak kvars early");
         for wk in fn_sig.weak_kvars {
             vis.declare_weak_kvar(wk);
         }
@@ -356,7 +354,6 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
 
 pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>) {
     if let ImplItemKind::Fn(fn_sig) = &impl_item.kind {
-        println!("declaring impl weak kvars early");
         for wk in fn_sig.weak_kvars {
             vis.declare_weak_kvar(wk);
         }
@@ -371,7 +368,6 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
 
 pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignItem<'v>) {
     if let ForeignItemKind::Fn(fn_sig, _generics) = &impl_item.kind {
-        println!("declaring foreign weak kvars early");
         for wk in fn_sig.weak_kvars {
             vis.declare_weak_kvar(wk);
         }
