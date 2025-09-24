@@ -491,6 +491,8 @@ where
         let mut constants = self.ecx.const_map.into_values().collect_vec();
         constants.extend(define_constants);
 
+        let constants_without_inequalities = constants.clone();
+
         // The rust fixpoint implementation does not yet support polymorphic functions.
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
@@ -514,7 +516,7 @@ where
 
         let task = fixpoint::Task {
             comments: self.comments,
-            constants: constants.clone(),
+            constants,
             kvars,
             define_funs,
             constraint,
@@ -549,7 +551,7 @@ where
                                         }
                                     })).collect();
                                     let (mut consts, new_flat_constraint) = flat_constraint.remove_binders(fvars);
-                                    consts.extend(constants.iter().cloned());
+                                    consts.extend(constants_without_inequalities.iter().cloned());
                                     let new_constraint = new_flat_constraint.into_constraint(fixpoint::Var::Underscore);
                                     println!("Trying to qe for weak kvar {:?}", wkvar.wkvid);
                                     println!("  constraint: {:?}", new_constraint);
