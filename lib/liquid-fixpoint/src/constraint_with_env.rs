@@ -2,7 +2,7 @@ use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointStatus, Sort, SortCtor, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype, qe_and_simplify}, graph,
+        FixpointStatus, Sort, SortCtor, cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype}, graph,
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
@@ -107,12 +107,6 @@ impl<T: Types> ConstraintWithEnv<T> {
 
     pub fn is_satisfiable(&mut self) -> FixpointStatus<T::Tag> {
         self.solve_by_fusion()
-    }
-
-    pub fn qe_and_simplify(&mut self, free_vars: Vec<ConstDecl<T>>) {
-        let mut consts = self.constants.clone();
-        consts.extend(free_vars.clone());
-        qe_and_simplify(&self.constraint, &consts);
     }
 
     pub(crate) fn eliminate_acyclic_kvars(&mut self) {
