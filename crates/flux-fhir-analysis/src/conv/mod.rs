@@ -2249,7 +2249,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let mut params = vec![];
                 let mut args = vec![];
                 for fhir_arg in fhir_args {
-                    let arg = env.lookup(fhir_arg).to_expr();
+                    let arg = self.conv_path_expr(env, *fhir_arg)?;
                     let rty::ExprKind::Var(var) = *arg.kind() else {
                         return Err(query_bug!(
                             "arguments to weak kvars must resolve to parameters"
