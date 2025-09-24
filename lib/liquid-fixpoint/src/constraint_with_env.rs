@@ -3,8 +3,7 @@ use derive_where::derive_where;
 use {
     crate::{
         FixpointResult,
-        cstr2smt2::{Env, is_constraint_satisfiable, new_binding},
-    cstr2smt2::{is_constraint_satisfiable, qe_and_simplify},
+        cstr2smt2::{Env, is_constraint_satisfiable, new_binding, qe_and_simplify},
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
