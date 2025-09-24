@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use {
     crate::{
         FixpointResult,
-        cstr2smt2::{Env, is_constraint_satisfiable, new_binding, qe_and_simplify},
+        cstr2smt2::{Env, is_constraint_satisfiable, new_binding},
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
@@ -85,12 +85,6 @@ impl<T: Types> ConstraintWithEnv<T> {
 
     pub fn is_satisfiable(&mut self) -> FixpointResult<T::Tag> {
         self.solve_by_fusion()
-    }
-
-    pub fn qe_and_simplify(&mut self, free_vars: Vec<ConstDecl<T>>) {
-        let mut consts = self.constants.clone();
-        consts.extend(free_vars.clone());
-        qe_and_simplify(&self.constraint, &consts);
     }
 
     pub fn eliminate_acyclic_kvars(&mut self) {

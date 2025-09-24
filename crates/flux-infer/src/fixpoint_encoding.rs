@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{collections::HashMap, hash::Hash, iter};
+use std::{collections::{HashMap, HashSet}, hash::Hash, iter};
 
 use fixpoint::AdtId;
 use flux_common::{
@@ -26,7 +26,7 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
-use liquid_fixpoint::{FixpointResult, SmtSolver};
+use liquid_fixpoint::{qe_and_simplify, FixpointResult, SmtSolver};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -42,7 +42,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use crate::{fixpoint_qualifiers::FIXPOINT_QUALIFIERS, projections::structurally_normalize_expr, refine_tree::BlameAnalysis};
 
 pub mod fixpoint {
-    use std::{collections::HashSet, fmt};
+    use std::fmt;
 
     use flux_middle::rty::{self, EarlyReftParam, Real};
     use liquid_fixpoint::{FixpointFmt, Identifier};
@@ -423,11 +423,12 @@ pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
     pub blame_ctx: BlameCtxt,
+    pub flat_constraint: Option<fixpoint::FlatConstraint>,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
-    pub fn new(tag: Tag, blame_ctx: BlameCtxt) -> Self {
-        Self { tag, blame_ctx }
+    pub fn new(tag: Tag, blame_ctx: BlameCtxt, flat_constraint: Option<fixpoint::FlatConstraint>) -> Self {
+        Self { tag, blame_ctx, flat_constraint }
     }
 }
 
@@ -479,6 +480,14 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
+        let flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint.flatten().into_iter().flat_map(|flat_constraint| {
+            if let Some(tag) = flat_constraint.tag && !flat_constraint.head.has_kvar() {
+                Some((tag.clone(), flat_constraint))
+            } else {
+                None
+            }
+        }).collect();
+
         let mut constants = self.ecx.const_map.into_values().collect_vec();
         constants.extend(define_constants);
 
@@ -505,7 +514,7 @@ where
 
         let task = fixpoint::Task {
             comments: self.comments,
-            constants,
+            constants: constants.clone(),
             kvars,
             define_funs,
             constraint,
@@ -526,7 +535,29 @@ where
                     .map(|err| (err.tag, self.tags[err.tag]))
                     .unique()
                     .map(|(tag_idx, tag)| {
-                        FixpointCheckError::new(tag, self.blame_ctx_map[&tag_idx].clone())
+                        let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
+                        if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
+                            println!("Looking for weak kvars that might solve {:?}", blame_ctx.expr);
+                            println!("weak kvars that should be present: {:?}", blame_ctx.blame_analysis.wkvars);
+                            println!("constraint: {:?}", flat_constraint);
+                            for assumption in &flat_constraint.assumptions {
+                                if let fixpoint::Pred::WKVar(wkvar) = assumption {
+                                    let fvars: HashSet<fixpoint::Var> = wkvar.args.iter().flat_map(|arg| arg.free_vars().into_iter().filter(|fvar| {
+                                        match fvar {
+                                            fixpoint::Var::Local(_) | fixpoint::Var::Param(_) => true,
+                                            _ => false,
+                                        }
+                                    })).collect();
+                                    let (mut consts, new_flat_constraint) = flat_constraint.remove_binders(fvars);
+                                    consts.extend(constants.iter().cloned());
+                                    let new_constraint = new_flat_constraint.into_constraint(fixpoint::Var::Underscore);
+                                    println!("Trying to qe for weak kvar {:?}", wkvar.wkvid);
+                                    println!("  constraint: {:?}", new_constraint);
+                                    qe_and_simplify(&new_constraint, &consts);
+                                }
+                            }
+                        }
+                        FixpointCheckError::new(tag, blame_ctx, flat_constraint_map.get(&tag_idx).cloned())
                     })
                     .collect_vec())
             }
