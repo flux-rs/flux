@@ -3,14 +3,12 @@ use std::{collections::HashMap, iter, str::FromStr, vec};
 
 use itertools::Itertools as _;
 use z3::{
-    FuncDecl, SatResult, Solver, SortKind,
+    FuncDecl, Goal, SatResult, Solver, SortKind, Tactic,
     ast::{self, Ast},
 };
 
 use crate::{
-    DataDecl, Error, FixpointFmt, FixpointStatus, Identifier, SortCtor, Stats, ThyFunc, Types,
-    constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
-};
+    DataDecl, FixpointStatus, SortCtor, constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort}, ConstDecl, Error, FixpointFmt, FixpointResult, Identifier, Stats, ThyFunc, Types, };
 
 #[derive(Debug)]
 pub(crate) enum Binding {
@@ -526,6 +524,8 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
             let bool_refs = bools.iter().collect_vec();
             ast::Bool::and(&bool_refs)
         }
+        // NOTE: we treat weak kvars as if they were true
+        Pred::WKVar(_) => ast::Bool::from_bool(true),
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }
 }
@@ -699,6 +699,33 @@ pub fn qe_and_simplify<T: Types>(
     cstr: &Constraint<T>,
     consts: &Vec<ConstDecl<T>>,
 ) {
-    // Add the vars we aren't trying to eliminate as consts
-    todo!()
+    let goal = Goal::new(true, true, false);
+    let mut vars = Env::new();
+    consts.iter().for_each(|const_decl| {
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort))
+    });
+    qe_and_simplify_inner(&cstr, &goal, &mut vars);
+}
+
+fn qe_and_simplify_inner<T: Types>(
+    cstr: &Constraint<T>,
+    goal: &Goal,
+    env: &mut Env<T>,
+) {
+    todo!();
+    match cstr {
+        Constraint::Pred(pred, _tag) => {
+            goal.assert(&pred_to_z3(pred, env).not());
+        }
+        Constraint::Conj(_conjuncts) => {
+            unreachable!("the constraint should be flat")
+        }
+
+        Constraint::ForAll(bind, inner) => {
+            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
+            goal.assert(&pred_to_z3(&bind.pred, env));
+            qe_and_simplify_inner(&**inner, goal, env);
+            env.pop(&bind.name);
+        }
+    }
 }
