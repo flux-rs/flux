@@ -16,7 +16,7 @@ mod constraint_fragments;
 #[cfg(feature = "rust-fixpoint")]
 mod constraint_solving;
 mod constraint_with_env;
-#[cfg(feature = "rust-fixpoint")]
+// #[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
 #[cfg(feature = "rust-fixpoint")]
@@ -38,8 +38,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
-    Qualifier, Sort, SortCtor,
+    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField,
+    Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
 pub use parser::parse_constraint_with_kvars;
@@ -127,6 +127,7 @@ macro_rules! declare_types {
             pub type Expr = $crate::Expr<FixpointTypes>;
             pub type Pred = $crate::Pred<FixpointTypes>;
             pub type Constraint = $crate::Constraint<FixpointTypes>;
+            pub type FlatConstraint = $crate::FlatConstraint<FixpointTypes>;
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type FunDef = $crate::FunDef<FixpointTypes>;
@@ -155,6 +156,13 @@ macro_rules! declare_types {
         }
     };
 }
+
+pub fn qe_and_simplify<T: Types>(constraint: &Constraint<T>, free_vars: &Vec<ConstDecl<T>>) {
+    // let mut consts = self.constants.clone();
+    // consts.extend(free_vars.clone());
+    cstr2smt2::qe_and_simplify(constraint, free_vars);
+}
+
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct ConstDecl<T: Types> {
