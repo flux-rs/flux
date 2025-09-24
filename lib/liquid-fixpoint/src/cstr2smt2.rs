@@ -513,20 +513,31 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
     }
 }
 
-fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
+#[derive(Clone, Copy)]
+enum AllowKVars {
+    ReplaceKVarsWithTrue,
+    NoKVars,
+}
+
+fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>, allow_kvars: AllowKVars) -> ast::Bool {
     match pred {
         Pred::Expr(expr) => expr_to_z3(expr, env).as_bool().expect(" asldfj "),
         Pred::And(conjuncts) => {
             let bools = conjuncts
                 .iter()
-                .map(|conjunct| pred_to_z3(conjunct, env))
+                .map(|conjunct| pred_to_z3(conjunct, env, allow_kvars))
                 .collect_vec();
             let bool_refs = bools.iter().collect_vec();
             ast::Bool::and(&bool_refs)
         }
         // NOTE: we treat weak kvars as if they were true
         Pred::WKVar(_) => ast::Bool::from_bool(true),
-        Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
+        Pred::KVar(_kvar, _vars) => {
+            match allow_kvars {
+                AllowKVars::NoKVars => panic!("Kvars not supported yet"),
+                AllowKVars::ReplaceKVarsWithTrue => ast::Bool::from_bool(true),
+            }
+        }
     }
 }
 
@@ -663,7 +674,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     solver.push();
     let res = match cstr {
         Constraint::Pred(pred, tag) => {
-            solver.assert(pred_to_z3(pred, env).not());
+            solver.assert(pred_to_z3(pred, env, AllowKVars::NoKVars).not());
             if solver.check() == SatResult::Unsat {
                 FixpointStatus::Safe(Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 })
             } else {
@@ -685,7 +696,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 
         Constraint::ForAll(bind, inner) => {
             env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort, env));
-            solver.assert(pred_to_z3(&bind.pred, env));
+            solver.assert(pred_to_z3(&bind.pred, env, AllowKVars::NoKVars));
             let inner_soln = is_constraint_satisfiable(inner, solver, env);
             env.pop(&bind.name);
             inner_soln
@@ -715,7 +726,17 @@ fn qe_and_simplify_inner<T: Types>(
     todo!();
     match cstr {
         Constraint::Pred(pred, _tag) => {
-            goal.assert(&pred_to_z3(pred, env).not());
+            // Heads can't have KVars if we don't know their solutions.
+            goal.assert(&pred_to_z3(pred, env, AllowKVars::NoKVars).not());
+            let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
+            match qe_and_simplify.apply(goal, None) {
+                Ok(apply_result) => {
+                    for new_goal in apply_result.list_subgoals() {
+                        println!("New goal: {:?}", new_goal);
+                    }
+                }
+                Err(_) => println!("Failed to qe + simplify"),
+            }
         }
         Constraint::Conj(_conjuncts) => {
             unreachable!("the constraint should be flat")
@@ -723,7 +744,7 @@ fn qe_and_simplify_inner<T: Types>(
 
         Constraint::ForAll(bind, inner) => {
             env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
-            goal.assert(&pred_to_z3(&bind.pred, env));
+            goal.assert(&pred_to_z3(&bind.pred, env, AllowKVars::ReplaceKVarsWithTrue));
             qe_and_simplify_inner(&**inner, goal, env);
             env.pop(&bind.name);
         }

@@ -3,7 +3,7 @@ use std::{collections::HashSet, hash::Hash};
 use derive_where::derive_where;
 use itertools::Itertools;
 
-use crate::{ThyFunc, Types};
+use crate::{ConstDecl, ThyFunc, Types};
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct Bind<T: Types> {
@@ -94,13 +94,13 @@ pub struct FlatConstraint<T: Types> {
     ///
     /// NOTE: There should be no duplicates among the binders which are used (so
     /// e.g. UNDERSCORE appearing multiple times is OK).
-    binders: Vec<(T::Var, Sort<T>)>,
+    pub binders: Vec<(T::Var, Sort<T>)>,
     /// All of the assumptions (i.e. a flattened conjunction of predicates from
     /// all of the binders)
-    assumptions: Vec<Pred<T>>,
-    head: Pred<T>,
+    pub assumptions: Vec<Pred<T>>,
+    pub head: Pred<T>,
     #[derive_where(skip)]
-    tag: Option<T::Tag>,
+    pub tag: Option<T::Tag>,
 }
 
 impl<T: Types> FlatConstraint<T> {
@@ -109,9 +109,15 @@ impl<T: Types> FlatConstraint<T> {
     ///
     /// NOTE: Assumes that all binders are unique and therefore there are no
     /// name clashes.
-    pub fn remove_binders(&self, vars: HashSet<T::Var>) -> (Vec<(T::Var, Sort<T>)>, FlatConstraint<T>) {
+    pub fn remove_binders(&self, vars: HashSet<T::Var>) -> (Vec<ConstDecl<T>>, FlatConstraint<T>) {
         let mut new_binders = self.binders.clone();
-        let removed_binders = new_binders.extract_if(.., |(var, _sort)| vars.contains(var)).collect_vec();
+        let removed_binders = new_binders.extract_if(.., |(var, _sort)| vars.contains(var)).map(|(var, sort)| {
+            ConstDecl {
+                name: var,
+                sort,
+                comment: None,
+            }
+        }).collect_vec();
         let new_constraint = FlatConstraint {
             binders: new_binders,
             assumptions: self.assumptions.clone(),
@@ -292,6 +298,14 @@ impl<T: Types> Pred<T> {
             Pred::Expr(expr) => {
                 expr.free_vars()
             }
+        }
+    }
+
+    pub fn has_kvar(&self) -> bool {
+        match self {
+            Pred::KVar(..) => true,
+            Pred::And(preds) => preds.iter().any(|pred| pred.has_kvar()),
+            _ => false,
         }
     }
 }
