@@ -204,7 +204,7 @@ pub trait Visitor<'v>: Sized {
 
     fn visit_path_expr(&mut self, _path: &PathExpr<'v>) {}
 
-    fn declare_weak_kvar(&mut self, wk: &WeakKvar<'v>) {}
+    fn declare_weak_kvar(&mut self, _wk: &WeakKvar<'v>) {}
 }
 
 fn walk_func<'v, V: Visitor<'v>>(vis: &mut V, func: &SpecFunc<'v>) {
@@ -306,11 +306,11 @@ pub fn walk_node<'v, V: Visitor<'v>>(vis: &mut V, node: &OwnerNode<'v>) {
 }
 
 pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
-    if let ItemKind::Fn(fn_sig) = &item.kind {
-        for wk in fn_sig.weak_kvars {
-            vis.declare_weak_kvar(wk);
-        }
-    }
+    // if let ItemKind::Fn(fn_sig) = &item.kind {
+    //     for wk in fn_sig.weak_kvars {
+    //         vis.declare_weak_kvar(wk);
+    //     }
+    // }
     vis.visit_generics(&item.generics);
     match &item.kind {
         ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
@@ -330,11 +330,11 @@ pub fn walk_item<'v, V: Visitor<'v>>(vis: &mut V, item: &Item<'v>) {
 }
 
 pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'v>) {
-    if let TraitItemKind::Fn(fn_sig) = &trait_item.kind {
-        for wk in fn_sig.weak_kvars {
-            vis.declare_weak_kvar(wk);
-        }
-    }
+    // if let TraitItemKind::Fn(fn_sig) = &trait_item.kind {
+    //     for wk in fn_sig.weak_kvars {
+    //         vis.declare_weak_kvar(wk);
+    //     }
+    // }
     vis.visit_generics(&trait_item.generics);
     match &trait_item.kind {
         TraitItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
@@ -344,11 +344,11 @@ pub fn walk_trait_item<'v, V: Visitor<'v>>(vis: &mut V, trait_item: &TraitItem<'
 }
 
 pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>) {
-    if let ImplItemKind::Fn(fn_sig) = &impl_item.kind {
-        for wk in fn_sig.weak_kvars {
-            vis.declare_weak_kvar(wk);
-        }
-    }
+    // if let ImplItemKind::Fn(fn_sig) = &impl_item.kind {
+    //     for wk in fn_sig.weak_kvars {
+    //         vis.declare_weak_kvar(wk);
+    //     }
+    // }
     vis.visit_generics(&impl_item.generics);
     match &impl_item.kind {
         ImplItemKind::Fn(fn_sig) => vis.visit_fn_sig(fn_sig),
@@ -358,11 +358,11 @@ pub fn walk_impl_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ImplItem<'v>)
 }
 
 pub fn walk_foreign_item<'v, V: Visitor<'v>>(vis: &mut V, impl_item: &ForeignItem<'v>) {
-    if let ForeignItemKind::Fn(fn_sig, _generics) = &impl_item.kind {
-        for wk in fn_sig.weak_kvars {
-            vis.declare_weak_kvar(wk);
-        }
-    }
+    // if let ForeignItemKind::Fn(fn_sig, _generics) = &impl_item.kind {
+    //     for wk in fn_sig.weak_kvars {
+    //         vis.declare_weak_kvar(wk);
+    //     }
+    // }
     match &impl_item.kind {
         ForeignItemKind::Fn(fn_sig, generics) => {
             vis.visit_generics(generics);
