@@ -433,6 +433,12 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
             env.pop(variable);
             res
         }
+        Expr::IfThenElse(exprs) => {
+            let condition = expr_to_z3(&exprs[0], env).as_bool().unwrap();
+            let if_true = expr_to_z3(&exprs[1], env);
+            let if_false = expr_to_z3(&exprs[2], env);
+            ast::Bool::ite(&condition, &if_true, &if_false)
+        }
         Expr::App(fun, args) => {
             match &**fun {
                 Expr::Var(var) => {
@@ -450,9 +456,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 _ => panic!("encountered function application but no function"),
             }
         }
-        _ => {
-            panic!("handling for this kind of expression is not implemented yet")
-        }
+        Expr::ThyFunc(_) => panic!("Should not encounter theory func outside of an application"),
     }
 }
 
