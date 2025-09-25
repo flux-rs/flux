@@ -151,7 +151,7 @@ macro_rules! declare_types {
     };
 }
 
-pub fn qe_and_simplify<T: Types>(constraint: &Constraint<T>, free_vars: &Vec<ConstDecl<T>>) {
+pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>) {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
     cstr2smt2::qe_and_simplify(constraint, free_vars);

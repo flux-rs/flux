@@ -2,13 +2,14 @@ use core::panic;
 use std::{collections::HashMap, iter, str::FromStr, vec};
 
 use itertools::Itertools as _;
+use itertools::Itertools;
 use z3::{
     FuncDecl, Goal, SatResult, Solver, SortKind, Tactic,
     ast::{self, Ast},
 };
 
 use crate::{
-    DataDecl, FixpointStatus, SortCtor, constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort}, ConstDecl, Error, FixpointFmt, FixpointResult, Identifier, Stats, ThyFunc, Types, };
+    DataDecl, FixpointStatus, SortCtor, constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort}, ConstDecl, Error, FixpointFmt, FixpointResult, FlatConstraint, Identifier, Stats, ThyFunc, Types, };
 
 #[derive(Debug)]
 pub(crate) enum Binding {
@@ -707,7 +708,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 }
 
 pub fn qe_and_simplify<T: Types>(
-    cstr: &Constraint<T>,
+    cstr: &FlatConstraint<T>,
     consts: &Vec<ConstDecl<T>>,
 ) {
     let goal = Goal::new(true, true, false);
@@ -715,37 +716,71 @@ pub fn qe_and_simplify<T: Types>(
     consts.iter().for_each(|const_decl| {
         vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort))
     });
-    qe_and_simplify_inner(&cstr, &goal, &mut vars);
-}
-
-fn qe_and_simplify_inner<T: Types>(
-    cstr: &Constraint<T>,
-    goal: &Goal,
-    env: &mut Env<T>,
-) {
-    match cstr {
-        Constraint::Pred(pred, _tag) => {
-            // Heads can't have KVars if we don't know their solutions.
-            goal.assert(&pred_to_z3(pred, env, AllowKVars::NoKVars).not());
-            let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
-            match qe_and_simplify.apply(goal, None) {
-                Ok(apply_result) => {
-                    for new_goal in apply_result.list_subgoals() {
-                        println!("New goal: {:?}", new_goal);
-                    }
-                }
-                Err(_) => println!("Failed to qe + simplify"),
-            }
-        }
-        Constraint::Conj(_conjuncts) => {
-            unreachable!("the constraint should be flat")
-        }
-
-        Constraint::ForAll(bind, inner) => {
-            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
-            goal.assert(&pred_to_z3(&bind.pred, env, AllowKVars::ReplaceKVarsWithTrue));
-            qe_and_simplify_inner(&**inner, goal, env);
-            env.pop(&bind.name);
+    for (var, sort) in &cstr.binders {
+        // TODO: eliminate binders that are unused.
+        vars.insert(var.clone(), new_binding(var, sort));
+    }
+    let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().map(|pred| pred_to_z3(pred, &mut vars, AllowKVars::ReplaceKVarsWithTrue)).collect_vec());
+    let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
+    let mut body = z3::ast::Bool::implies(&lhs, &rhs);
+    for (var, _sort) in &cstr.binders {
+        if let Binding::Variable(z3_var) = vars.lookup(var).unwrap() {
+            body = z3::ast::quantifier_const(
+                true,
+                0,
+                format!("{:?}_binder", var),
+                "",
+                &[z3_var],
+                &[],
+                &[],
+                &body,
+            );
+        } else {
+            panic!("function in forall");
         }
     }
+    goal.assert(&body);
+    println!("goal before qe + simplify: {:?}", goal);
+    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
+    match qe_and_simplify.apply(&goal, None) {
+        Ok(apply_result) => {
+            for new_goal in apply_result.list_subgoals() {
+                println!("New goal: {:?}", new_goal);
+            }
+        }
+        Err(_) => println!("Failed to qe + simplify"),
+    }
 }
+
+// fn qe_and_simplify_inner<T: Types>(
+//     cstr: &FlatConstraint<T>,
+//     goal: &Goal,
+//     env: &mut Env<T>,
+// ) {
+//     match cstr {
+//         Constraint::Pred(pred, _tag) => {
+//             // Heads can't have KVars if we don't know their solutions.
+//             goal.assert(&pred_to_z3(pred, env, AllowKVars::NoKVars).not());
+//             let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
+//             match qe_and_simplify.apply(goal, None) {
+//                 Ok(apply_result) => {
+//                     for new_goal in apply_result.list_subgoals() {
+//                         println!("New goal: {:?}", new_goal);
+//                     }
+//                 }
+//                 Err(_) => println!("Failed to qe + simplify"),
+//             }
+//         }
+//         Constraint::Conj(_conjuncts) => {
+//             unreachable!("the constraint should be flat")
+//         }
+//
+//         Constraint::ForAll(bind, inner) => {
+//             todo!("don't add the binder to the env: make it an actual forall");
+//             env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
+//             goal.assert(&pred_to_z3(&bind.pred, env, AllowKVars::ReplaceKVarsWithTrue));
+//             qe_and_simplify_inner(&**inner, goal, env);
+//             env.pop(&bind.name);
+//         }
+//     }
+// }

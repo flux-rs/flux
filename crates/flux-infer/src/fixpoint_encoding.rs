@@ -594,6 +594,9 @@ where
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
         let flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint.flatten().into_iter().flat_map(|flat_constraint| {
+            // We can't send a kvar to the SMT. If there's a kvar on the LHS we
+            // can underapproximate it with TRUE, but if it's in head position
+            // we don't know what to do.
             if let Some(tag) = flat_constraint.tag && !flat_constraint.head.has_kvar() {
                 Some((tag.clone(), flat_constraint))
             } else {
@@ -661,8 +664,6 @@ where
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
                             println!("Looking for weak kvars that might solve {:?}", blame_ctx.expr);
-                            println!("weak kvars that should be present: {:?}", blame_ctx.blame_analysis.wkvars);
-                            println!("constraint: {:?}", flat_constraint);
                             for assumption in &flat_constraint.assumptions {
                                 if let fixpoint::Pred::WKVar(wkvar) = assumption {
                                     let fvars: HashSet<fixpoint::Var> = wkvar.args.iter().flat_map(|arg| arg.free_vars().into_iter().filter(|fvar| {
@@ -671,12 +672,19 @@ where
                                             _ => false,
                                         }
                                     })).collect();
-                                    let (mut consts, new_flat_constraint) = flat_constraint.remove_binders(fvars);
+                                    let (mut consts, mut new_flat_constraint) = flat_constraint.remove_binders(fvars);
+                                    // Some cleanup: remove all of the underscores (those aren't real binders)
+                                    new_flat_constraint.binders.retain(|(var, _)| {
+                                        !matches!(var, fixpoint::Var::Underscore)
+                                    });
+                                    // Remove all trivially true assumptions
+                                    // (and kvars for now; ideally we would sub their values but we'll
+                                    // underapproximate with true)
+                                    new_flat_constraint.assumptions.retain(|pred| {
+                                        !pred.is_trivially_true() && !matches!(pred, fixpoint::Pred::KVar(..))
+                                    });
                                     consts.extend(constants_without_inequalities.iter().cloned());
-                                    let new_constraint = new_flat_constraint.into_constraint(fixpoint::Var::Underscore);
-                                    println!("Trying to qe for weak kvar {:?}", wkvar.wkvid);
-                                    println!("  constraint: {:?}", new_constraint);
-                                    qe_and_simplify(&new_constraint, &consts);
+                                    qe_and_simplify(&new_flat_constraint, &consts);
                                 }
                             }
                         }
