@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, iter, str::FromStr, vec};
+use std::{ str::FromStr, iter, collections::{HashMap, HashSet}, vec};
 
 use itertools::Itertools as _;
 use itertools::Itertools;
@@ -716,11 +716,23 @@ pub fn qe_and_simplify<T: Types>(
     consts.iter().for_each(|const_decl| {
         vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort))
     });
+    let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
+    // These are going to be the bound vars, so we declare the free vars above them.
     for (var, sort) in &cstr.binders {
         // TODO: eliminate binders that are unused.
         vars.insert(var.clone(), new_binding(var, sort));
     }
-    let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().map(|pred| pred_to_z3(pred, &mut vars, AllowKVars::ReplaceKVarsWithTrue)).collect_vec());
+    let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().filter_map(|pred| {
+        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::ReplaceKVarsWithTrue);
+        // Assumptions that only pertain to non-quantified variables will
+        // just be asserted.
+        if pred.free_vars().is_subset(&free_vars) {
+            goal.assert(&pred_ast);
+            None
+        } else {
+            Some(pred_ast)
+        }
+    }).collect_vec());
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
     let mut body = z3::ast::Bool::implies(&lhs, &rhs);
     for (var, _sort) in &cstr.binders {
@@ -741,7 +753,7 @@ pub fn qe_and_simplify<T: Types>(
     }
     goal.assert(&body);
     println!("goal before qe + simplify: {:?}", goal);
-    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
+    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify"));
     match qe_and_simplify.apply(&goal, None) {
         Ok(apply_result) => {
             for new_goal in apply_result.list_subgoals() {
