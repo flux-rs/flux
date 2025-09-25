@@ -29,7 +29,7 @@ use rustc_span::Span;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, fixpoint::Constraint},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -195,6 +195,18 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     ) -> Expr {
         let inner = &mut *self.inner.borrow_mut();
         inner.kvars.fresh(binders, scope.iter(), encoding)
+    }
+
+    pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
+        let inner = self.inner.into_inner();
+        let kvars = inner.kvars;
+        let evars = inner.evars;
+        let mut refine_tree = self.refine_tree;
+        refine_tree.replace_evars(&evars).unwrap();
+
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        fcx.generate_and_check_lean_lemmas(cstr)
     }
 
     pub fn execute_fixpoint_query(

@@ -126,11 +126,22 @@ pub fn check_fn(
         )
         .map_err(|err| err.emit(genv, def_id))?;
 
-        // PHASE 3: invoke fixpoint on the constraint
-        let errors = infcx_root
-            .execute_fixpoint_query(cache, MaybeExternId::Local(def_id), FixpointQueryKind::Body)
-            .emit(&genv)?;
-        report_fixpoint_errors(genv, def_id, errors)
+        if genv.proven_externally(def_id) {
+            let ok = infcx_root
+                .execute_lean_query(MaybeExternId::Local(def_id))
+                .emit(&genv)?;
+            Ok(ok)
+        } else {
+            // PHASE 3: invoke fixpoint on the constraint
+            let errors = infcx_root
+                .execute_fixpoint_query(
+                    cache,
+                    MaybeExternId::Local(def_id),
+                    FixpointQueryKind::Body,
+                )
+                .emit(&genv)?;
+            report_fixpoint_errors(genv, def_id, errors)
+        }
     })?;
 
     dbg::check_fn_span!(genv.tcx(), def_id).in_scope(|| Ok(()))
