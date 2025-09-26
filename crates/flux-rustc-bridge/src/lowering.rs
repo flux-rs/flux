@@ -92,7 +92,7 @@ fn trait_ref_impl_id<'tcx>(
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let trait_ref = tcx.erase_regions(trait_ref);
+    let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
@@ -455,7 +455,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::RawPtr(kind, place) => {
                 Ok(Rvalue::RawPtr(*kind, lower_place(self.tcx, place)?))
             }
-            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(self.tcx, place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
                     UnsupportedReason::new(format!("unsupported cast `{kind:?}`"))
@@ -897,7 +896,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 let args = args.lower(tcx)?;
                 Ok(Ty::mk_generator_witness(*did, args))
             }
-            rustc_ty::Dynamic(predicates, region, rustc_ty::DynKind::Dyn) => {
+            rustc_ty::Dynamic(predicates, region) => {
                 let region = region.lower(tcx)?;
 
                 let exi_preds = List::from_vec(
