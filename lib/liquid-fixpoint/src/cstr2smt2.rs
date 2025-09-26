@@ -14,18 +14,12 @@ use crate::{
 #[derive(Debug)]
 pub(crate) enum Binding {
     Variable(ast::Dynamic),
-    Function(FuncDecl),
+    Function(FuncDecl, ast::Dynamic),
 }
 
 impl From<ast::Dynamic> for Binding {
     fn from(value: ast::Dynamic) -> Self {
-        Binding::Variable(value)
-    }
-}
-
-impl From<FuncDecl> for Binding {
-    fn from(value: FuncDecl) -> Self {
-        Binding::Function(value)
+        Self::Variable(value)
     }
 }
 
@@ -57,13 +51,14 @@ impl<T: Types> Env<T> {
     fn var_lookup(&self, name: &T::Var) -> Option<&ast::Dynamic> {
         match &self.lookup(name) {
             Some(Binding::Variable(var)) => Some(var),
+            Some(Binding::Function(_, c)) => Some(c),
             _ => None,
         }
     }
 
     fn fun_lookup(&self, name: &T::Var) -> Option<&FuncDecl> {
         match &self.lookup(name) {
-            Some(Binding::Function(fun)) => Some(fun),
+            Some(Binding::Function(fun, _)) => Some(fun),
             _ => None,
         }
     }
@@ -506,12 +501,21 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
             Binding::Variable(ast::String::new_const(name.display().to_string().as_str()).into())
         }
         Sort::Func(sorts) => {
-            let fun_decl = FuncDecl::new(
-                name.display().to_string().as_str(),
-                &[&z3_sort(&(*sorts)[0])],
-                &z3_sort(&(*sorts)[1]),
-            );
-            Binding::Function(fun_decl)
+            let mut domain = vec![z3_sort(&sorts[0])];
+            let mut current = sorts.as_ref();
+            let mut range = &sorts[1];
+            while let Sort::Func(sorts) = &current[1] {
+                domain.push(z3_sort(&(*sorts)[0]));
+                range = &sorts[1];
+                current = sorts.as_ref();
+            }
+            let domain_refs: Vec<&_> = domain.iter().map(|a| a).collect();
+            let fun_decl =
+                FuncDecl::new(name.display().to_string().as_str(), &domain_refs, &z3_sort(range));
+            Binding::Function(
+                fun_decl,
+                ast::Int::new_const(name.display().to_string().as_str()).into(),
+            )
         }
         Sort::BitVec(bv_size) => {
             match **bv_size {
@@ -539,7 +543,7 @@ fn z3_sort<T: Types>(s: &Sort<T>) -> z3::Sort {
                 _ => panic!("incorrect bitvector size specification"),
             }
         }
-        _ => panic!("unhandled sort encountered"),
+        _ => panic!("unhandled sort encountered {:#?}", s),
     }
 }
 
