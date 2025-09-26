@@ -437,11 +437,8 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::App(fun, args) => {
             match &**fun {
                 Expr::Var(var) => {
-                    let arg_asts: Vec<Box<dyn Ast>> = args
-                        .iter()
-                        .map(|arg| dynamic_as_ast(expr_to_z3(arg, env)))
-                        .collect();
-                    let arg_refs: Vec<&_> = arg_asts.iter().map(|a| a.as_ref()).collect();
+                    let arg_asts: Vec<_> = args.iter().map(|arg| expr_to_z3(arg, env)).collect();
+                    let arg_refs: Vec<_> = arg_asts.iter().map(|a| a as &dyn Ast).collect();
                     let fun_decl = env
                         .fun_lookup(var)
                         .expect(format!("error if function not present {:#?}", var).as_str());
@@ -452,22 +449,6 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
             }
         }
         Expr::ThyFunc(_) => panic!("Should not encounter theory func outside of an application"),
-    }
-}
-
-fn dynamic_as_ast(val: ast::Dynamic) -> Box<dyn Ast> {
-    if let Some(int_val) = val.as_int() {
-        Box::new(int_val) as Box<dyn Ast>
-    } else if let Some(real_val) = val.as_real() {
-        Box::new(real_val) as Box<dyn Ast>
-    } else if let Some(bool_val) = val.as_bool() {
-        Box::new(bool_val) as Box<dyn Ast>
-    } else if let Some(str_val) = val.as_string() {
-        Box::new(str_val) as Box<dyn Ast>
-    } else if let Some(bv_val) = val.as_bv() {
-        Box::new(bv_val) as Box<dyn Ast>
-    } else {
-        panic!("unhandled sort encountered")
     }
 }
 
