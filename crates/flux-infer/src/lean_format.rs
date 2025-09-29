@@ -27,7 +27,7 @@ impl<'a> fmt::Display for LeanVar<'a> {
 impl<'a> fmt::Display for LeanConstDecl<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let LeanConstDecl(ConstDecl { name, sort, comment: _ }) = self;
-        write!(f, "{} : {}", LeanVar(name), LeanSort(sort))
+        write!(f, "∃ ({} : {})", LeanVar(name), LeanSort(sort))
     }
 }
 
@@ -38,6 +38,9 @@ impl<'a> fmt::Display for LeanSort<'a> {
             Sort::Bool => write!(f, "Bool"),
             Sort::Real => write!(f, "Real"),
             Sort::Str => write!(f, "String"),
+            Sort::Func(f_sort) => {
+                write!(f, "({} -> {})", LeanSort(&f_sort[0]), LeanSort(&f_sort[1]))
+            }
             _ => todo!(),
         }
     }
@@ -130,7 +133,7 @@ impl<'a> fmt::Display for LeanConstraint<'a> {
                 if bind.pred.is_trivially_true() {
                     write!(
                         f,
-                        "∀ ({} : {}), {}",
+                        "(∀ ({} : {}), {})",
                         LeanVar(&bind.name),
                         LeanSort(&bind.sort),
                         LeanConstraint(inner)
@@ -138,7 +141,7 @@ impl<'a> fmt::Display for LeanConstraint<'a> {
                 } else {
                     write!(
                         f,
-                        "∀ ({} : {}), {} -> {}",
+                        "(∀ ({} : {}), ({} -> {}))",
                         LeanVar(&bind.name),
                         LeanSort(&bind.sort),
                         LeanPred(&bind.pred),
@@ -159,13 +162,6 @@ impl<'a> fmt::Display for LeanConstraint<'a> {
 impl<'genv, 'tcx> fmt::Display for LeanEncoder<'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-- GENERATED; DO NOT EDIT --")?;
-        if !self.constants().is_empty() {
-            writeln!(f, "-- CONSTANTS --")?;
-            for (const_decl, expr) in self.constants() {
-                writeln!(f, "def {} :=", LeanConstDecl(const_decl))?;
-                writeln!(f, "  {}", LeanExpr(expr))?;
-            }
-        }
         if !self.fun_defs().is_empty() {
             writeln!(f, "-- FUNCTIONS --")?;
             for fun_def in self.fun_defs() {
@@ -173,11 +169,21 @@ impl<'genv, 'tcx> fmt::Display for LeanEncoder<'genv, 'tcx> {
             }
         }
         writeln!(f, "-- THEOREM")?;
-        writeln!(
-            f,
-            "def {} : Prop := {}",
-            self.theorem_name().replace(".", "_"),
-            LeanConstraint(self.constraint())
-        )
+        if self.constants().is_empty() {
+            writeln!(
+                f,
+                "def {} : Prop := {}",
+                self.theorem_name().replace(".", "_"),
+                LeanConstraint(self.constraint())
+            )
+        } else {
+            writeln!(
+                f,
+                "def {} : Prop := {}, {}",
+                self.theorem_name().replace(".", "_"),
+                self.constants().iter().map(LeanConstDecl).format(", "),
+                LeanConstraint(self.constraint())
+            )
+        }
     }
 }

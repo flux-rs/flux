@@ -518,9 +518,9 @@ where
         self.ecx.errors.into_result()?;
 
         let lean_encoder = LeanEncoder::new(def_id, self.genv, define_funs, constants, constraint);
-        lean_encoder.generate_def_file();
-        lean_encoder.generate_proof_file();
-        lean_encoder.check_proof()
+        let lean_path = std::path::Path::new("./");
+        let project_name = "lean_proofs";
+        lean_encoder.check_proof(lean_path, project_name)
     }
 
     fn run_task_with_cache(

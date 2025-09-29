@@ -29,7 +29,7 @@ use rustc_span::Span;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, fixpoint::Constraint},
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -203,6 +203,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let evars = inner.evars;
         let mut refine_tree = self.refine_tree;
         refine_tree.replace_evars(&evars).unwrap();
+        refine_tree.simplify(self.genv);
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
