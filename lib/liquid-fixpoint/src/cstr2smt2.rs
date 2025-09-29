@@ -4,7 +4,7 @@ use std::{ str::FromStr, iter, collections::{HashMap, HashSet}, vec};
 use itertools::Itertools as _;
 use itertools::Itertools;
 use z3::{
-    FuncDecl, Goal, SatResult, Solver, SortKind, Tactic,
+    AstKind, FuncDecl, Goal, SatResult, Solver, SortKind, Tactic,
     ast::{self, Ast},
 };
 
@@ -758,10 +758,82 @@ pub fn qe_and_simplify<T: Types>(
         Ok(apply_result) => {
             for new_goal in apply_result.list_subgoals() {
                 println!("New goal: {:?}", new_goal);
+                new_goal.iter_formulas().for_each(|ast: ast::Dynamic| z3_debug(&ast));
             }
         }
         Err(_) => println!("Failed to qe + simplify"),
     }
+}
+
+
+fn z3_debug(z3: &ast::Dynamic) {
+    println!("node: {:?}", z3);
+    println!("node sort: {:?}", z3.get_sort());
+    println!("node funcdecl: {:?}", z3.safe_decl());
+    println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
+    match z3.kind() {
+        AstKind::Numeral => {
+            println!("numeral");
+        }
+        AstKind::App => {
+            println!("app");
+        }
+        AstKind::Var => {
+            println!("var");
+        }
+        AstKind::Quantifier => {
+            println!("quantifier");
+        }
+        AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
+            println!("func decl; unknown; sort");
+        }
+    }
+    z3.children().iter().for_each(|child| z3_debug(child));
+}
+
+fn z3_to_expr<T: Types>(z3: &ast::Dynamic) -> Pred<T> {
+    println!("node: {:?}", z3);
+    println!("node sort: {:?}", z3.get_sort());
+    println!("node funcdecl: {:?}", z3.safe_decl());
+    println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
+    match z3.kind() {
+        AstKind::Numeral => {
+            let e = match z3.sort_kind() {
+                SortKind::Int => {
+                    let int = z3.as_int().unwrap().as_i64().unwrap();
+                    if int > 0 {
+                        Expr::Constant(Constant::Numeral(int as u128))
+                    } else {
+                        Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128))))
+                    }
+                }
+                // SortKind::Real => {
+                //     let real = z3.as_real().unwrap();
+                //     Expr::
+                // }
+                // SortKind::FloatingPoint => {
+                //     let fp = z3.as_float().unwrap();
+                // }
+                _ => {
+                    panic!("unexpected sort kind: {:?}", z3.sort_kind());
+                }
+            };
+            Pred::Expr(e)
+        }
+        AstKind::App => {
+            println!("app");
+        }
+        AstKind::Var => {
+            todo!("bound vars");
+        }
+        AstKind::Quantifier => {
+            panic!("unexpected quantifier");
+        }
+        AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
+            panic!("unexpected astkind: {:?}", z3.kind());
+        }
+    }
+    // z3.children().iter().for_each(|child| z3_debug(child));
 }
 
 // fn qe_and_simplify_inner<T: Types>(
