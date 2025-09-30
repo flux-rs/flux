@@ -4,7 +4,7 @@ use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
-    fhir::{self, Res},
+    fhir::{self, PartialRes, Res},
 };
 use flux_syntax::{
     surface::{self, Ident, NodeId, visit::Visitor as _},
@@ -397,7 +397,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
     sort_params: FxIndexSet<Symbol>,
     param_defs: FxIndexMap<NodeId, ParamDef>,
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    path_res_map: FxHashMap<NodeId, Res<NodeId>>,
+    path_res_map: FxHashMap<NodeId, PartialRes<NodeId>>,
     errors: Errors<'genv>,
 }
 
@@ -548,24 +548,17 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         if let [segment] = &path.segments[..]
             && let Some(res) = self.try_resolve_param(segment.ident)
         {
-            self.path_res_map.insert(path.node_id, res);
+            self.path_res_map.insert(path.node_id, PartialRes::new(res));
             return;
         }
         if let Some(res) = self.try_resolve_expr_with_ribs(&path.segments) {
             self.path_res_map.insert(path.node_id, res);
             return;
         }
-        // TODO(nilehmann) move this to resolve_with_ribs
-        if let [typ, name] = &path.segments[..]
-            && let Some(res) = resolve_num_const(typ.ident, name.ident)
-        {
-            self.path_res_map.insert(path.node_id, res);
-            return;
-        }
         if let [segment] = &path.segments[..]
             && let Some(res) = self.try_resolve_global_func(segment.ident)
         {
-            self.path_res_map.insert(path.node_id, res);
+            self.path_res_map.insert(path.node_id, PartialRes::new(res));
             return;
         }
 
@@ -574,7 +567,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
 
     fn resolve_ident(&mut self, ident: Ident, node_id: NodeId) {
         if let Some(res) = self.try_resolve_param(ident) {
-            self.path_res_map.insert(node_id, res);
+            self.path_res_map.insert(node_id, PartialRes::new(res));
             return;
         }
         if let Some(res) = self.try_resolve_expr_with_ribs(&[ident]) {
@@ -582,20 +575,22 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
             return;
         }
         if let Some(res) = self.try_resolve_global_func(ident) {
-            self.path_res_map.insert(node_id, res);
+            self.path_res_map.insert(node_id, PartialRes::new(res));
             return;
         }
         self.errors.emit(errors::UnresolvedVar::from_ident(ident));
     }
 
-    fn try_resolve_expr_with_ribs<S: Segment>(&mut self, segments: &[S]) -> Option<Res<NodeId>> {
+    fn try_resolve_expr_with_ribs<S: Segment>(
+        &mut self,
+        segments: &[S],
+    ) -> Option<PartialRes<NodeId>> {
         if let Some(partial_res) = self.resolver.resolve_path_with_ribs(segments, ValueNS) {
-            return partial_res.full_res().map(|r| r.map_param_id(|p| p));
+            return Some(partial_res.map_param_id(|p| p));
         }
 
         self.resolver
-            .resolve_path_with_ribs(segments, TypeNS)?
-            .full_res()
+            .resolve_path_with_ribs(segments, TypeNS)
             .map(|r| r.map_param_id(|p| p))
     }
 
@@ -829,27 +824,6 @@ impl ScopedVisitor for RefinementResolver<'_, '_, '_> {
         }
     }
 }
-
-macro_rules! define_resolve_num_const {
-    ($($typ:ident),*) => {
-        fn resolve_num_const(typ: surface::Ident, name: surface::Ident) -> Option<Res<NodeId>> {
-            match typ.name.as_str() {
-                $(
-                    stringify!($typ) => {
-                        match name.name.as_str() {
-                            "MAX" => Some(Res::NumConst($typ::MAX.try_into().unwrap())),
-                            "MIN" => Some(Res::NumConst($typ::MIN.try_into().unwrap())),
-                            _ => None,
-                        }
-                    },
-                )*
-                _ => None
-            }
-        }
-    };
-}
-
-define_resolve_num_const!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 
 struct IllegalBinderVisitor<'a, 'genv, 'tcx> {
     scopes: Vec<ScopeKind>,

@@ -21,7 +21,7 @@ use flux_common::{
 use flux_middle::{
     THEORY_FUNCS,
     def_id::MaybeExternId,
-    fhir::{self, FhirId, FluxOwnerId},
+    fhir::{self, FhirId, FluxOwnerId, QPathExpr},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
     query_bug,
@@ -1505,7 +1505,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     assoc_ident,
                 )?
             }
-            _ => Err(self.emit(errors::AssocTypeNotFound::new(assoc_ident)))?,
+            _ => self.report_assoc_item_not_found(assoc_ident.span, AssocTag::Type)?,
         };
 
         let Some(trait_ref) = bound.no_bound_vars() else {
@@ -1539,6 +1539,38 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let refine_args = List::empty();
         let alias_ty = rty::AliasTy { args, refine_args, def_id: assoc_id };
         Ok(alias_ty)
+    }
+
+    fn conv_type_relative_path_const(
+        &mut self,
+        fhir_expr: &fhir::Expr,
+        qself: &rty::Ty,
+        assoc: Ident,
+    ) -> QueryResult<rty::Expr> {
+        let tcx = self.genv().tcx();
+
+        let mut candidates = vec![];
+        if let Some(simplified_type) = qself.simplify_type() {
+            candidates = tcx
+                .incoherent_impls(simplified_type)
+                .iter()
+                .filter_map(|impl_id| {
+                    tcx.associated_items(impl_id).find_by_ident_and_kind(
+                        tcx,
+                        assoc,
+                        AssocTag::Const,
+                        *impl_id,
+                    )
+                })
+                .collect_vec();
+        }
+        let (expr, sort) = match &candidates[..] {
+            [candidate] => self.conv_const(fhir_expr.span, candidate.def_id)?,
+            [] => self.report_assoc_item_not_found(fhir_expr.span, AssocTag::Const)?,
+            _ => self.report_ambiguous_assoc_item(fhir_expr.span, AssocTag::Const, assoc)?,
+        };
+        self.0.insert_node_sort(fhir_expr.fhir_id, sort);
+        Ok(expr)
     }
 
     /// Return the generics of the containing owner item
@@ -1585,17 +1617,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
+        let tag = AssocTag::Type;
         let mut matching_candidates = all_candidates().filter(|r| {
-            self.trait_defines_associated_item_named(r.def_id(), AssocTag::Type, assoc_name)
+            self.trait_defines_associated_item_named(r.def_id(), tag, assoc_name)
                 .is_some()
         });
 
         let Some(bound) = matching_candidates.next() else {
-            return Err(self.emit(errors::AssocTypeNotFound::new(assoc_name)))?;
+            self.report_assoc_item_not_found(assoc_name.span, AssocTag::Type)?;
         };
 
         if matching_candidates.next().is_some() {
-            self.report_ambiguous_assoc_ty(assoc_name.span, assoc_name)?;
+            self.report_ambiguous_assoc_item(assoc_name.span, tag, assoc_name)?;
         }
 
         Ok(bound)
@@ -1719,7 +1752,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
 
                 let Some(qself) = qself else {
-                    self.report_ambiguous_assoc_ty(path.span, assoc_segment.ident)?
+                    self.report_ambiguous_assoc_item(
+                        path.span,
+                        AssocTag::Type,
+                        assoc_segment.ident,
+                    )?
                 };
 
                 let trait_generics = self.genv().generics_of(trait_id)?;
@@ -1762,10 +1799,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::BaseTy::Foreign(def_id)
             }
             fhir::Res::Def(kind, def_id) => self.report_expected_type(path.span, kind, def_id)?,
-            fhir::Res::Param(..)
-            | fhir::Res::NumConst(_)
-            | fhir::Res::GlobalFunc(..)
-            | fhir::Res::Err => {
+            fhir::Res::Param(..) | fhir::Res::GlobalFunc(..) | fhir::Res::Err => {
                 span_bug!(path.span, "unexpected resolution in conv_ty_ctor: {:?}", path.res)
             }
         };
@@ -1973,12 +2007,31 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         self.genv().sess().emit_err(err)
     }
 
-    fn report_ambiguous_assoc_ty(
+    fn report_assoc_item_not_found(
         &self,
         span: Span,
+        assoc_tag: AssocTag,
+    ) -> Result<!, ErrorGuaranteed> {
+        let tag = match assoc_tag {
+            AssocTag::Const => "constant",
+            AssocTag::Fn => "function",
+            AssocTag::Type => "type",
+        };
+        Err(self.emit(errors::AssocItemNotFound { span, tag }))?
+    }
+
+    fn report_ambiguous_assoc_item(
+        &self,
+        span: Span,
+        assoc_tag: AssocTag,
         assoc_name: Ident,
     ) -> Result<!, ErrorGuaranteed> {
-        Err(self.emit(errors::AmbiguousAssocType { span, name: assoc_name }))?
+        let tag = match assoc_tag {
+            AssocTag::Const => "constant",
+            AssocTag::Fn => "function",
+            AssocTag::Type => "type",
+        };
+        Err(self.emit(errors::AmbiguousAssocItem { span, name: assoc_name, tag }))?
     }
 
     #[track_caller]
@@ -2098,7 +2151,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let fhir_id = expr.fhir_id;
         let espan = ESpan::new(expr.span);
         let expr = match expr.kind {
-            fhir::ExprKind::Var(path, _) => self.conv_path_expr(env, path)?,
+            fhir::ExprKind::Var(QPathExpr::Resolved(path, _)) => self.conv_path_expr(env, path)?,
+            fhir::ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) => {
+                let qself = self.conv_ty(env, qself)?;
+                self.conv_type_relative_path_const(expr, &qself, assoc)?
+            }
             fhir::ExprKind::Literal(lit) => {
                 rty::Expr::constant(self.conv_lit(lit, fhir_id, expr.span)?).at(espan)
             }
@@ -2214,15 +2271,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Res::Param(_, id) => (env.lookup(&path).to_expr(), self.results().param_sort(id)),
             fhir::Res::Def(DefKind::Const, def_id) => {
                 self.hyperlink(path.span, tcx.def_ident_span(def_id));
-                let Some(sort) = genv.sort_of_def_id(def_id).emit(&genv)? else {
-                    span_bug!(path.span, "unexpected const")
-                };
-                let info = genv.constant_info(def_id).emit(&genv)?;
-                // non-integral constant
-                if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
-                    Err(self.emit(errors::ConstantAnnotationNeeded::new(path.span)))?;
-                }
-                (rty::Expr::const_def_id(def_id).at(espan), sort)
+                let (expr, sort) = self.conv_const(path.span, def_id)?;
+                (expr.at(espan), sort)
             }
             fhir::Res::Def(DefKind::Ctor(..), ctor_id) => {
                 let Some(sort) = genv.sort_of_def_id(ctor_id).emit(&genv)? else {
@@ -2241,15 +2291,25 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let sort = rty::Sort::Int;
                 (rty::Expr::const_generic(def_id_to_param_const(genv, def_id)).at(espan), sort)
             }
-            fhir::Res::NumConst(num) => {
-                (rty::Expr::constant(rty::Constant::from(num)).at(espan), rty::Sort::Int)
-            }
             _ => {
                 Err(self.emit(errors::InvalidRes { span: path.span, res_descr: path.res.descr() }))?
             }
         };
         self.0.insert_node_sort(path.fhir_id, sort);
         Ok(expr)
+    }
+
+    fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
+        let genv = self.genv();
+        let Some(sort) = genv.sort_of_def_id(def_id).emit(&genv)? else {
+            span_bug!(span, "unsupported const: `{def_id:?}`")
+        };
+        let info = genv.constant_info(def_id).emit(&genv)?;
+        // non-integral constant
+        if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
+            Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
+        }
+        Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
     }
 
     fn conv_constructor_exprs(
@@ -2677,27 +2737,22 @@ mod errors {
     use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
+    #[diag(fhir_analysis_assoc_item_not_found, code = E0999)]
     #[note]
-    pub(super) struct AssocTypeNotFound {
-        #[primary_span]
-        #[label]
-        span: Span,
-    }
-
-    impl AssocTypeNotFound {
-        pub(super) fn new(assoc_ident: Ident) -> Self {
-            Self { span: assoc_ident.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(fhir_analysis_ambiguous_assoc_type, code = E0999)]
-    pub(super) struct AmbiguousAssocType {
+    pub(super) struct AssocItemNotFound {
         #[primary_span]
         #[label]
         pub span: Span,
+        pub tag: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_ambiguous_assoc_item, code = E0999)]
+    pub(super) struct AmbiguousAssocItem {
+        #[primary_span]
+        pub span: Span,
         pub name: Ident,
+        pub tag: &'static str,
     }
 
     #[derive(Diagnostic)]

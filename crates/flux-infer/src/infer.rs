@@ -1136,7 +1136,11 @@ mod pretty {
 
     impl Pretty for Tag {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            w!(cx, f, "{:?} at {:?}", ^self.reason, self.src_span)
+            w!(cx, f, "{:?} at {:?}", ^self.reason, self.src_span)?;
+            if let Some(dst_span) = self.dst_span {
+                w!(cx, f, " ({:?})", ^dst_span)?;
+            }
+            Ok(())
         }
     }
 

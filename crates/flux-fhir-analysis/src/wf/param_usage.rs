@@ -56,7 +56,9 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
     /// Insert params that are considered to be value determined to `xi`.
     fn insert_value_determined(&mut self, expr: &fhir::Expr) {
         match expr.kind {
-            fhir::ExprKind::Var(path, _) if let fhir::Res::Param(_, id) = path.res => {
+            fhir::ExprKind::Var(fhir::QPathExpr::Resolved(path, _))
+                if let fhir::Res::Param(_, id) = path.res =>
+            {
                 self.xi.insert(id, ());
             }
             fhir::ExprKind::Record(fields) => {
@@ -100,12 +102,15 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                     self.check_func_params_uses(arg, false);
                 }
             }
-            fhir::ExprKind::Var(var, _) => {
-                if let fhir::Res::Param(_, id) = var.res
+            fhir::ExprKind::Var(fhir::QPathExpr::Resolved(path, _)) => {
+                if let fhir::Res::Param(_, id) = path.res
                     && let sort @ rty::Sort::Func(_) = self.infcx.param_sort(id)
                 {
-                    self.errors.emit(InvalidParamPos::new(var.span, &sort));
+                    self.errors.emit(InvalidParamPos::new(path.span, &sort));
                 }
+            }
+            fhir::ExprKind::Var(fhir::QPathExpr::TypeRelative(..)) => {
+                // TODO(nilehmann) should we check the usage inside the `qself`?
             }
             fhir::ExprKind::IfThenElse(e1, e2, e3) => {
                 self.check_func_params_uses(e1, false);

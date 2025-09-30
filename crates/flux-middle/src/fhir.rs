@@ -727,29 +727,27 @@ pub enum Res<Id = !> {
     Param(ParamKind, Id),
     /// A refinement function defined with `defs!`
     GlobalFunc(SpecFuncKind),
-    /// A hack used to resolve `u32::MAX` ans similar.
-    NumConst(i128),
     Err,
 }
 
 /// See [`rustc_hir::def::PartialRes`]
 #[derive(Copy, Clone, Debug)]
-pub struct PartialRes {
-    base_res: Res<!>,
+pub struct PartialRes<Id = !> {
+    base_res: Res<Id>,
     unresolved_segments: usize,
 }
 
-impl PartialRes {
-    pub fn new(base_res: Res) -> Self {
+impl<Id: Copy> PartialRes<Id> {
+    pub fn new(base_res: Res<Id>) -> Self {
         Self { base_res, unresolved_segments: 0 }
     }
 
-    pub fn with_unresolved_segments(base_res: Res, unresolved_segments: usize) -> Self {
+    pub fn with_unresolved_segments(base_res: Res<Id>, unresolved_segments: usize) -> Self {
         Self { base_res, unresolved_segments }
     }
 
     #[inline]
-    pub fn base_res(&self) -> Res {
+    pub fn base_res(&self) -> Res<Id> {
         self.base_res
     }
 
@@ -758,17 +756,24 @@ impl PartialRes {
     }
 
     #[inline]
-    pub fn full_res(&self) -> Option<Res> {
+    pub fn full_res(&self) -> Option<Res<Id>> {
         (self.unresolved_segments == 0).then_some(self.base_res)
     }
 
     #[inline]
-    pub fn expect_full_res(&self) -> Res {
+    pub fn expect_full_res(&self) -> Res<Id> {
         self.full_res().unwrap_or_else(|| bug!("expected full res"))
     }
 
     pub fn is_box(&self, tcx: TyCtxt) -> bool {
         self.full_res().is_some_and(|res| res.is_box(tcx))
+    }
+
+    pub fn map_param_id<R>(&self, f: impl FnOnce(Id) -> R) -> PartialRes<R> {
+        PartialRes {
+            base_res: self.base_res.map_param_id(f),
+            unresolved_segments: self.unresolved_segments,
+        }
     }
 }
 
@@ -999,7 +1004,7 @@ pub struct Range {
 
 #[derive(Clone, Copy)]
 pub enum ExprKind<'fhir> {
-    Var(PathExpr<'fhir>, Option<ParamKind>),
+    Var(QPathExpr<'fhir>),
     Dot(&'fhir Expr<'fhir>, Ident),
     Literal(Lit),
     BinaryOp(BinOp, &'fhir Expr<'fhir>, &'fhir Expr<'fhir>),
@@ -1018,6 +1023,12 @@ pub enum ExprKind<'fhir> {
 }
 
 #[derive(Clone, Copy)]
+pub enum QPathExpr<'fhir> {
+    Resolved(PathExpr<'fhir>, Option<ParamKind>),
+    TypeRelative(&'fhir Ty<'fhir>, Ident),
+}
+
+#[derive(Clone, Copy)]
 pub struct LetDecl<'fhir> {
     pub param: RefineParam<'fhir>,
     pub init: Expr<'fhir>,
@@ -1025,7 +1036,7 @@ pub struct LetDecl<'fhir> {
 
 impl Expr<'_> {
     pub fn is_colon_param(&self) -> Option<ParamId> {
-        if let ExprKind::Var(path, Some(ParamKind::Colon)) = &self.kind
+        if let ExprKind::Var(QPathExpr::Resolved(path, Some(ParamKind::Colon))) = &self.kind
             && let Res::Param(kind, id) = path.res
         {
             debug_assert_eq!(kind, ParamKind::Colon);
@@ -1097,7 +1108,6 @@ impl<Id> Res<Id> {
             Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => "self type",
             Res::Param(..) => "refinement parameter",
             Res::GlobalFunc(..) => "refinement function",
-            Res::NumConst(_) => "numeric constant",
             Res::Err => "unresolved item",
         }
     }
@@ -1117,7 +1127,7 @@ impl<Id> Res<Id> {
             Res::PrimTy(..) | Res::SelfTyAlias { .. } | Res::SelfTyParam { .. } => {
                 Some(Namespace::TypeNS)
             }
-            Res::Param(..) | Res::GlobalFunc(..) | Res::NumConst(..) => Some(Namespace::ValueNS),
+            Res::Param(..) | Res::GlobalFunc(..) => Some(Namespace::ValueNS),
             Res::Err => None,
         }
     }
@@ -1137,7 +1147,6 @@ impl<Id> Res<Id> {
             }
             Res::SelfTyParam { trait_ } => Res::SelfTyParam { trait_ },
             Res::GlobalFunc(spec_func_kind) => Res::GlobalFunc(spec_func_kind),
-            Res::NumConst(val) => Res::NumConst(val),
             Res::Err => Res::Err,
         }
     }
@@ -1521,7 +1530,10 @@ impl fmt::Debug for QuantKind {
 impl fmt::Debug for Expr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
-            ExprKind::Var(x, ..) => write!(f, "{x:?}"),
+            ExprKind::Var(QPathExpr::Resolved(path, ..)) => write!(f, "{path:?}"),
+            ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) => {
+                write!(f, "<{qself:?}>::{assoc}")
+            }
             ExprKind::BinaryOp(op, e1, e2) => write!(f, "({e1:?} {op:?} {e2:?})"),
             ExprKind::PrimApp(op, e1, e2) => write!(f, "[{op:?}]({e1:?}, {e2:?})"),
             ExprKind::UnaryOp(op, e) => write!(f, "{op:?}{e:?}"),

@@ -802,7 +802,12 @@ impl Segment for surface::PathSegment {
 }
 
 impl Segment for surface::ExprPathSegment {
-    fn record_segment_res(_resolver: &mut CrateResolver, _segment: &Self, _res: fhir::Res) {}
+    fn record_segment_res(resolver: &mut CrateResolver, segment: &Self, res: fhir::Res) {
+        resolver
+            .output
+            .expr_path_res_map
+            .insert(segment.node_id, fhir::PartialRes::new(res.map_param_id(|p| p)));
+    }
 
     fn ident(&self) -> Ident {
         self.ident

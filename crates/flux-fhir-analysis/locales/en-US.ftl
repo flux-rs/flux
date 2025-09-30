@@ -157,14 +157,13 @@ fhir_analysis_definition_cycle =
 
 # Conv errors
 
-fhir_analysis_assoc_type_not_found =
-    associated type not found
-    .label = cannot resolve this associated type
-    .note = Flux cannot resolved associated types if they are defined in a super trait
+fhir_analysis_assoc_item_not_found =
+    associated {$tag} not found
+    .label = cannot resolve this associated {$tag}
+    .note = Flux cannot resolved associated {$tag}s if they are defined in a super trait
 
-fhir_analysis_ambiguous_assoc_type =
-    ambiguous associated type `{$name}`
-    .label = help: use fully-qualified syntax
+fhir_analysis_ambiguous_assoc_item =
+    ambiguous associated {$tag} `{$name}`
 
 fhir_analysis_invalid_base_instance =
     values of this type cannot be used as base sorted instances

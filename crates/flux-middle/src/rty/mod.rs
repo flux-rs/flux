@@ -47,7 +47,7 @@ use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::Un
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
-use rustc_middle::ty::TyCtxt;
+use rustc_middle::ty::{TyCtxt, fast_reject::SimplifiedType};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
@@ -1618,6 +1618,11 @@ impl Ty {
             tracked_span_bug!("expected tuple found `{self:?}` (kind: `{:?}`)", self.kind())
         }
     }
+
+    pub fn simplify_type(&self) -> Option<SimplifiedType> {
+        self.as_bty_skipping_existentials()
+            .and_then(BaseTy::simplify_type)
+    }
 }
 
 impl<'tcx> ToRustc<'tcx> for Ty {
@@ -1907,6 +1912,44 @@ impl BaseTy {
                 // be if we print them as `impl Trait`
                 | BaseTy::Alias(..)
         )
+    }
+
+    /// Similar to [`rustc_infer::infer::canonical::ir::fast_reject::simplify_type`].
+    ///
+    /// This implementation is currently incomplete, so it should only be used in contexts
+    /// where completeness is not required. Currently, it's used to find incoherent
+    /// implementations when resolving associated constants. In this context, incompleteness
+    /// is acceptable since the worst case outcome is simply failing to resolve a type-relative
+    /// constant.
+    fn simplify_type(&self) -> Option<SimplifiedType> {
+        match self {
+            BaseTy::Bool => Some(SimplifiedType::Bool),
+            BaseTy::Char => Some(SimplifiedType::Char),
+            BaseTy::Int(int_type) => Some(SimplifiedType::Int(*int_type)),
+            BaseTy::Uint(uint_type) => Some(SimplifiedType::Uint(*uint_type)),
+            BaseTy::Float(float_type) => Some(SimplifiedType::Float(*float_type)),
+            BaseTy::Adt(def, _) => Some(SimplifiedType::Adt(def.did())),
+            BaseTy::Str => Some(SimplifiedType::Str),
+            BaseTy::Array(..) => Some(SimplifiedType::Array),
+            BaseTy::Slice(..) => Some(SimplifiedType::Slice),
+            BaseTy::RawPtr(_, mutbl) => Some(SimplifiedType::Ptr(*mutbl)),
+            BaseTy::Ref(_, _, mutbl) => Some(SimplifiedType::Ref(*mutbl)),
+            BaseTy::FnDef(def_id, _) | BaseTy::Closure(def_id, ..) => {
+                Some(SimplifiedType::Closure(*def_id))
+            }
+            BaseTy::Coroutine(def_id, ..) => Some(SimplifiedType::Coroutine(*def_id)),
+            BaseTy::Never => Some(SimplifiedType::Never),
+            BaseTy::Tuple(tys) => Some(SimplifiedType::Tuple(tys.len())),
+            BaseTy::FnPtr(poly_fn_sig) => {
+                Some(SimplifiedType::Function(poly_fn_sig.skip_binder_ref().inputs().len()))
+            }
+            BaseTy::Foreign(def_id) => Some(SimplifiedType::Foreign(*def_id)),
+            BaseTy::RawPtrMetadata(_)
+            | BaseTy::Alias(..)
+            | BaseTy::Param(_)
+            | BaseTy::Dynamic(..)
+            | BaseTy::Infer(_) => None,
+        }
     }
 }
 
