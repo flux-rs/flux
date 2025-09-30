@@ -19,7 +19,7 @@ mod constraint_with_env;
 // #[cfg(feature = "rust-fixpoint")]
 mod cstr2smt2;
 mod format;
-#[cfg(feature = "rust-fixpoint")]
+// #[cfg(feature = "rust-fixpoint")]
 mod graph;
 pub mod parser;
 pub mod sexp;
@@ -41,6 +41,8 @@ pub use constraint::{
     BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField,
     Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl
 };
+use constraint_with_env::{topo_sort_data_declarations, ConstraintWithEnv};
+use cstr2smt2::Z3DecodeError;
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
@@ -151,10 +153,11 @@ macro_rules! declare_types {
     };
 }
 
-pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>) {
+pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> Result<Expr<T>, Z3DecodeError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
-    cstr2smt2::qe_and_simplify(constraint, free_vars);
+    let datatype_decls = topo_sort_data_declarations(datatype_decls);
+    cstr2smt2::qe_and_simplify(constraint, free_vars, &datatype_decls)
 }
 
 

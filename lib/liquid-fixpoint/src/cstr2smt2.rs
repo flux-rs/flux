@@ -1,7 +1,6 @@
 use core::panic;
 use std::{ str::FromStr, iter, collections::{HashMap, HashSet}, vec};
 
-use itertools::Itertools as _;
 use itertools::Itertools;
 use z3::{
     AstKind, FuncDecl, Goal, SatResult, Solver, SortKind, Tactic,
@@ -717,17 +716,22 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 pub fn qe_and_simplify<T: Types>(
     cstr: &FlatConstraint<T>,
     consts: &Vec<ConstDecl<T>>,
-) {
+    datatype_decls: &Vec<DataDecl<T>>,
+) -> Result<Expr<T>, Z3DecodeError>{
     let goal = Goal::new(true, true, false);
     let mut vars = Env::new();
     consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort))
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort, &vars))
+    });
+    datatype_decls.iter().for_each(|data_decl| {
+        let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
+        vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
     let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
     // These are going to be the bound vars, so we declare the free vars above them.
     for (var, sort) in &cstr.binders {
         // TODO: eliminate binders that are unused.
-        vars.insert(var.clone(), new_binding(var, sort));
+        vars.insert(var.clone(), new_binding(var, sort, &vars));
     }
     let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().filter_map(|pred| {
         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::ReplaceKVarsWithTrue);
@@ -763,15 +767,14 @@ pub fn qe_and_simplify<T: Types>(
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify"));
     match qe_and_simplify.apply(&goal, None) {
         Ok(apply_result) => {
-            for new_goal in apply_result.list_subgoals() {
-                // println!("New goal: {:?}", new_goal);
-                new_goal.iter_formulas().for_each(|ast: ast::Dynamic| {
-                    let e = z3_to_expr(&vars, &ast);
-                    println!("decoded expression {:?}", e);
-                });
+            if let Some(new_goal) = apply_result.list_subgoals().last() {
+                if let Some(new_cstr) = new_goal.iter_formulas().last() {
+                    return z3_to_expr(&vars, &new_cstr);
+                }
             }
+            panic!("No goals/formulas after qe + simplfiy");
         }
-        Err(_) => println!("Failed to qe + simplify"),
+        Err(_) => panic!("Failed to qe + simplify"),
     }
 }
 
@@ -945,36 +948,3 @@ fn z3_const_to_expr<T: Types>(env: &Env<T>, head: FuncDecl) -> Result<Expr<T>, Z
         Err(Z3DecodeError::UnexpectedConstHead(head))
     }
 }
-
-// fn qe_and_simplify_inner<T: Types>(
-//     cstr: &FlatConstraint<T>,
-//     goal: &Goal,
-//     env: &mut Env<T>,
-// ) {
-//     match cstr {
-//         Constraint::Pred(pred, _tag) => {
-//             // Heads can't have KVars if we don't know their solutions.
-//             goal.assert(&pred_to_z3(pred, env, AllowKVars::NoKVars).not());
-//             let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
-//             match qe_and_simplify.apply(goal, None) {
-//                 Ok(apply_result) => {
-//                     for new_goal in apply_result.list_subgoals() {
-//                         println!("New goal: {:?}", new_goal);
-//                     }
-//                 }
-//                 Err(_) => println!("Failed to qe + simplify"),
-//             }
-//         }
-//         Constraint::Conj(_conjuncts) => {
-//             unreachable!("the constraint should be flat")
-//         }
-//
-//         Constraint::ForAll(bind, inner) => {
-//             todo!("don't add the binder to the env: make it an actual forall");
-//             env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
-//             goal.assert(&pred_to_z3(&bind.pred, env, AllowKVars::ReplaceKVarsWithTrue));
-//             qe_and_simplify_inner(&**inner, goal, env);
-//             env.pop(&bind.name);
-//         }
-//     }
-// }
