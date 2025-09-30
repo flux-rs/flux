@@ -26,7 +26,8 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, BoundReftKind, ESpan, INNERMOST, InternalFuncKind, List, RefineArgsExt, WfckResults,
+        self, AssocReft, BoundReftKind, ESpan, INNERMOST, InternalFuncKind, List, RefineArgsExt,
+        WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
     },
@@ -914,7 +915,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
                 let alias_ty =
-                    self.conv_type_relative_path(&mut env, ident.span, res, &assoc_segment)?;
+                    self.conv_type_relative_type_path(&mut env, ident.span, res, &assoc_segment)?;
                 return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
@@ -1159,13 +1160,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let candidate = self.probe_single_bound_for_assoc_item(
             || traits::supertraits(tcx, poly_trait_ref.to_rustc(tcx)),
             constraint.ident,
+            AssocTag::Type,
         )?;
-        let assoc_item_id = self
-            .trait_defines_associated_item_named(
-                candidate.def_id(),
-                AssocTag::Type,
-                constraint.ident,
-            )
+        let assoc_item_id = AssocTag::Type
+            .trait_defines_item_named(self.genv(), candidate.def_id(), constraint.ident)?
             .unwrap()
             .def_id;
 
@@ -1188,17 +1186,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         clauses.push(clause);
         Ok(())
-    }
-
-    fn trait_defines_associated_item_named(
-        &self,
-        trait_def_id: DefId,
-        assoc_tag: AssocTag,
-        assoc_name: Ident,
-    ) -> Option<&'tcx AssocItem> {
-        self.tcx()
-            .associated_items(trait_def_id)
-            .find_by_ident_and_kind(self.tcx(), assoc_name, assoc_tag, trait_def_id)
     }
 
     fn conv_ty_with_name(
@@ -1445,7 +1432,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let qself_res =
                     if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
                 let alias_ty = self
-                    .conv_type_relative_path(env, qself.span, qself_res, segment)?
+                    .conv_type_relative_type_path(env, qself.span, qself_res, segment)?
                     .shift_in_escaping(1);
                 let bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
                 let sort = bty.sort();
@@ -1462,15 +1449,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
-    fn conv_type_relative_path(
+    fn conv_type_relative_path<Tag: AssocItemTag>(
         &mut self,
-        env: &mut Env,
+        tag: Tag,
         qself_span: Span,
         qself_res: fhir::Res,
-        assoc_segment: &fhir::PathSegment,
-    ) -> QueryResult<rty::AliasTy> {
+        assoc_ident: Ident,
+    ) -> QueryResult<(Tag::AssocItem<'tcx>, rty::TraitRef)> {
         let tcx = self.tcx();
-        let assoc_ident = assoc_segment.ident;
 
         let bound = match qself_res {
             fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
@@ -1487,25 +1473,25 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                         )
                     },
                     assoc_ident,
+                    tag,
                 )?
             }
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
-                let predicates = self.probe_type_param_bounds(param_id, assoc_ident);
+                let predicates = type_param_predicates(tcx, param_id);
                 self.probe_single_bound_for_assoc_item(
                     || {
-                        traits::transitive_bounds_that_define_assoc_item(
-                            tcx,
-                            predicates.iter_identity_copied().filter_map(|(p, _)| {
-                                Some(p.as_trait_clause()?.map_bound(|t| t.trait_ref))
-                            }),
+                        tag.transitive_bounds_that_define_assoc_item(
+                            self.genv(),
+                            predicates.map(|pred| pred.map_bound(|t| t.trait_ref)),
                             assoc_ident,
                         )
                     },
                     assoc_ident,
+                    tag,
                 )?
             }
-            _ => self.report_assoc_item_not_found(assoc_ident.span, AssocTag::Type)?,
+            _ => self.report_assoc_item_not_found(assoc_ident.span, tag)?,
         };
 
         let Some(trait_ref) = bound.no_bound_vars() else {
@@ -1527,9 +1513,26 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
             .refine(&self.refiner()?)?;
 
-        let assoc_item = self
-            .trait_defines_associated_item_named(trait_ref.def_id, AssocTag::Type, assoc_ident)
+        let assoc_item = tag
+            .trait_defines_item_named(self.genv(), trait_ref.def_id, assoc_ident)?
             .unwrap();
+
+        Ok((assoc_item, trait_ref))
+    }
+
+    fn conv_type_relative_type_path(
+        &mut self,
+        env: &mut Env,
+        qself_span: Span,
+        qself_res: fhir::Res,
+        assoc_segment: &fhir::PathSegment,
+    ) -> QueryResult<rty::AliasTy> {
+        let (assoc_item, trait_ref) = self.conv_type_relative_path(
+            AssocTag::Type,
+            qself_span,
+            qself_res,
+            assoc_segment.ident,
+        )?;
 
         let assoc_id = assoc_item.def_id;
         let mut args = trait_ref.args.to_vec();
@@ -1541,7 +1544,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(alias_ty)
     }
 
-    fn conv_type_relative_path_const(
+    fn conv_type_relative_const_path(
         &mut self,
         fhir_expr: &fhir::Expr,
         qself: &rty::Ty,
@@ -1584,78 +1587,30 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
     }
 
-    fn probe_type_param_bounds(
-        &self,
-        param_id: DefId,
-        assoc_ident: Ident,
-    ) -> ty::EarlyBinder<'tcx, &'tcx [(ty::Clause<'tcx>, Span)]> {
-        // We would like to do this computation on the resolved id for it to work with extern specs
-        // but the `type_param_predicates` query is only defined for `LocalDefId`. This is mostly
-        // fine because the worst that can happen is that we fail to infer a trait when using the
-        // `T::Assoc` syntax and the user has to manually annotate it as `<T as Trait>::Assoc`
-        // (or add it as a bound to the extern spec so it's returned by the query).
-        let param_id = self
-            .genv()
-            .resolve_id(param_id)
-            .as_maybe_extern()
-            .unwrap()
-            .local_id();
-        match self.owner() {
-            FluxOwnerId::Rust(owner_id) => {
-                self.tcx()
-                    .type_param_predicates((owner_id.def_id, param_id, assoc_ident))
-            }
-            FluxOwnerId::Flux(_) => ty::EarlyBinder::bind(&[]),
-        }
-    }
-
-    fn probe_single_bound_for_assoc_reft<I>(
+    fn probe_single_bound_for_assoc_item<I, Tag: AssocItemTag>(
         &self,
         all_candidates: impl FnOnce() -> I,
         assoc_name: Ident,
+        tag: Tag,
     ) -> QueryResult<ty::PolyTraitRef<'tcx>>
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
         let mut matching_candidates = vec![];
         for candidate in all_candidates() {
-            let found = self
-                .genv()
-                .assoc_refinements_of(candidate.def_id())?
-                .find(assoc_name.name)
-                .is_some();
-            if found {
+            if tag
+                .trait_defines_item_named(self.genv(), candidate.def_id(), assoc_name)?
+                .is_some()
+            {
                 matching_candidates.push(candidate);
             }
         }
 
-        let a = 0;
-        match matching_candidates[..] {
-            [] => todo!(),
-            [candidate] => Ok(candidate),
-            _ => todo!(),
-        }
-    }
-
-    fn probe_single_bound_for_assoc_item<I>(
-        &self,
-        all_candidates: impl Fn() -> I,
-        assoc_name: Ident,
-    ) -> QueryResult<ty::PolyTraitRef<'tcx>>
-    where
-        I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
-    {
-        let tag = AssocTag::Type;
-        let mut matching_candidates = all_candidates().filter(|r| {
-            self.trait_defines_associated_item_named(r.def_id(), tag, assoc_name)
-                .is_some()
-        });
-
-        let Some(bound) = matching_candidates.next() else {
-            self.report_assoc_item_not_found(assoc_name.span, AssocTag::Type)?;
+        let Some(bound) = matching_candidates.pop() else {
+            self.report_assoc_item_not_found(assoc_name.span, tag)?;
         };
 
-        if matching_candidates.next().is_some() {
+        if !matching_candidates.is_empty() {
             self.report_ambiguous_assoc_item(assoc_name.span, tag, assoc_name)?;
         }
 
@@ -2035,31 +1990,25 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         self.genv().sess().emit_err(err)
     }
 
-    fn report_assoc_item_not_found(
+    fn report_assoc_item_not_found<Tag: AssocItemTag>(
         &self,
         span: Span,
-        assoc_tag: AssocTag,
+        assoc_tag: Tag,
     ) -> Result<!, ErrorGuaranteed> {
-        let tag = match assoc_tag {
-            AssocTag::Const => "constant",
-            AssocTag::Fn => "function",
-            AssocTag::Type => "type",
-        };
-        Err(self.emit(errors::AssocItemNotFound { span, tag }))?
+        Err(self.emit(errors::AssocItemNotFound { span, tag: assoc_tag.descr() }))?
     }
 
-    fn report_ambiguous_assoc_item(
+    fn report_ambiguous_assoc_item<Tag: AssocItemTag>(
         &self,
         span: Span,
-        assoc_tag: AssocTag,
+        assoc_tag: Tag,
         assoc_name: Ident,
     ) -> Result<!, ErrorGuaranteed> {
-        let tag = match assoc_tag {
-            AssocTag::Const => "constant",
-            AssocTag::Fn => "function",
-            AssocTag::Type => "type",
-        };
-        Err(self.emit(errors::AmbiguousAssocItem { span, name: assoc_name, tag }))?
+        Err(self.emit(errors::AmbiguousAssocItem {
+            span,
+            name: assoc_name,
+            tag: assoc_tag.descr(),
+        }))?
     }
 
     #[track_caller]
@@ -2182,7 +2131,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::ExprKind::Var(QPathExpr::Resolved(path, _)) => self.conv_path_expr(env, path)?,
             fhir::ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) => {
                 let qself = self.conv_ty(env, qself)?;
-                self.conv_type_relative_path_const(expr, &qself, assoc)?
+                self.conv_type_relative_const_path(expr, &qself, assoc)?
             }
             fhir::ExprKind::Literal(lit) => {
                 rty::Expr::constant(self.conv_lit(lit, fhir_id, expr.span)?).at(espan)
@@ -2505,86 +2454,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::AliasReft { assoc_id, args: List::from_vec(generic_args) }
             }
             fhir::AliasReft::TypeRelative { qself, name } => {
-                self.conv_type_relative_alias_reft(qself, *name)?
+                let qself_res =
+                    if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
+                let (assoc_reft, trait_ref) =
+                    self.conv_type_relative_path(AssocReftTag, qself.span, qself_res, *name)?;
+                rty::AliasReft { assoc_id: assoc_reft.def_id, args: trait_ref.args }
             }
         };
         let fsort = alias_reft.fsort(self.genv())?;
         self.0.insert_alias_reft_sort(fhir_id, fsort);
         Ok(alias_reft)
-    }
-
-    fn conv_type_relative_alias_reft(
-        &mut self,
-        qself: &fhir::Ty,
-        assoc_ident: Ident,
-    ) -> QueryResult<rty::AliasReft> {
-        // Check which parts we can share between this and `conv_type_relative_path`
-        let b = 0;
-        let tcx = self.tcx();
-
-        let qself_res = if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
-        let bound = match qself_res {
-            fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
-                let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
-                    // A cycle error occurred most likely (comment copied from rustc)
-                    span_bug!(qself.span, "expected cycle error");
-                };
-
-                self.probe_single_bound_for_assoc_reft(
-                    || {
-                        traits::supertraits(
-                            tcx,
-                            ty::Binder::dummy(trait_ref.instantiate_identity()),
-                        )
-                    },
-                    assoc_ident,
-                )?
-            }
-            fhir::Res::Def(DefKind::TyParam, param_id)
-            | fhir::Res::SelfTyParam { trait_: param_id } => {
-                let param_bounds = type_param_predicates(tcx, param_id);
-                self.probe_single_bound_for_assoc_reft(
-                    || {
-                        transitive_bounds(
-                            tcx,
-                            param_bounds.map(|pred| pred.map_bound(|t| t.trait_ref)),
-                        )
-                    },
-                    assoc_ident,
-                )?
-            }
-            _ => {
-                let a = 0;
-                todo!()
-            }
-        };
-
-        let Some(trait_ref) = bound.no_bound_vars() else {
-            // This is a programmer error and we should gracefully report it. It's triggered
-            // by code like this
-            // ```
-            // trait Super<'a> { type Assoc; }
-            // trait Child: for<'a> Super<'a> {}
-            // fn foo<T: Child>(x: T::Assoc) {}
-            // ```
-            Err(self.emit(
-                query_bug!("associated path with uninferred generic parameters")
-                    .at(assoc_ident.span),
-            ))?
-        };
-
-        let trait_ref = trait_ref
-            .lower(tcx)
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
-            .refine(&self.refiner()?)?;
-
-        let assoc_reft = self
-            .genv()
-            .assoc_refinements_of(trait_ref.def_id)?
-            .find(assoc_ident.name)
-            .unwrap();
-
-        Ok(rty::AliasReft { assoc_id: assoc_reft.def_id, args: trait_ref.args })
     }
 
     pub(crate) fn conv_invariants(
@@ -2834,6 +2713,98 @@ fn ty_param_name(genv: GlobalEnv, def_id: DefId) -> Symbol {
     }
 }
 
+/// This trait is used to define functions generically over both _associated refinements_
+/// and _associated items_ (types, consts, and functions).
+trait AssocItemTag: Copy {
+    type AssocItem<'tcx>;
+
+    fn descr(self) -> &'static str;
+
+    fn trait_defines_item_named<'tcx>(
+        self,
+        genv: GlobalEnv<'_, 'tcx>,
+        trait_def_id: DefId,
+        assoc_name: Ident,
+    ) -> QueryResult<Option<Self::AssocItem<'tcx>>>;
+
+    fn transitive_bounds_that_define_assoc_item<'tcx>(
+        self,
+        genv: GlobalEnv<'_, 'tcx>,
+        trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
+        assoc_name: Ident,
+    ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>>;
+}
+
+impl AssocItemTag for AssocTag {
+    type AssocItem<'tcx> = &'tcx AssocItem;
+
+    fn descr(self) -> &'static str {
+        match self {
+            AssocTag::Const => "constant",
+            AssocTag::Fn => "function",
+            AssocTag::Type => "type",
+        }
+    }
+
+    fn trait_defines_item_named<'tcx>(
+        self,
+        genv: GlobalEnv<'_, 'tcx>,
+        trait_def_id: DefId,
+        assoc_name: Ident,
+    ) -> QueryResult<Option<Self::AssocItem<'tcx>>> {
+        Ok(genv
+            .tcx()
+            .associated_items(trait_def_id)
+            .find_by_ident_and_kind(genv.tcx(), assoc_name, self, trait_def_id))
+    }
+
+    fn transitive_bounds_that_define_assoc_item<'tcx>(
+        self,
+        genv: GlobalEnv<'_, 'tcx>,
+        trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
+        assoc_name: Ident,
+    ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>> {
+        traits::transitive_bounds_that_define_assoc_item(genv.tcx(), trait_refs, assoc_name)
+    }
+}
+
+#[derive(Copy, Clone)]
+struct AssocReftTag;
+
+impl AssocItemTag for AssocReftTag {
+    type AssocItem<'tcx> = AssocReft;
+
+    fn descr(self) -> &'static str {
+        "refinement"
+    }
+
+    fn trait_defines_item_named<'tcx>(
+        self,
+        genv: GlobalEnv<'_, 'tcx>,
+        trait_def_id: DefId,
+        assoc_name: Ident,
+    ) -> QueryResult<Option<Self::AssocItem<'tcx>>> {
+        Ok(genv
+            .assoc_refinements_of(trait_def_id)?
+            .find(assoc_name.name))
+    }
+
+    fn transitive_bounds_that_define_assoc_item<'tcx>(
+        self,
+        genv: GlobalEnv<'_, 'tcx>,
+        trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
+        _assoc_name: Ident,
+    ) -> impl Iterator<Item = ty::PolyTraitRef<'tcx>> {
+        transitive_bounds(genv.tcx(), trait_refs)
+    }
+}
+
+/// This is like [`TyCtxt::type_param_predicates`] but computes all bounds not just the ones defining
+/// an associated item. We *must* compute this ourselves to resolve type-relative associated refinements,
+/// but we also use it to resolve type-relative type paths.
+///
+/// NOTE: [`TyCtxt::type_param_predicates`] is defined specifically to avoid cycles which is not a
+/// problem for us so we can use it instead of [`TyCtxt::type_param_predicates`].
 fn type_param_predicates<'tcx>(
     tcx: TyCtxt<'tcx>,
     param_id: DefId,
@@ -2856,8 +2827,13 @@ fn type_param_predicates<'tcx>(
     })
 }
 
-// Comment this function and the one above
-const A: () = {};
+/// This is like [`traits::transitive_bounds_that_define_assoc_item`] but computes all bounds not just
+/// the ones defining an associated item. We *must* compute this ourselves to resolve type-relative
+/// associated refinements.
+///
+/// NOTE: [`traits::transitive_bounds_that_define_assoc_item`] is defined specifically to avoid cycles
+/// which is not a problem for us. So instead of using `explicit_supertraits_containing_assoc_item` we
+/// can simply use `explicit_super_predicates_of`.
 fn transitive_bounds<'tcx>(
     tcx: TyCtxt<'tcx>,
     trait_refs: impl Iterator<Item = ty::PolyTraitRef<'tcx>>,
