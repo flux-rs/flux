@@ -602,7 +602,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
 pub fn qe_and_simplify<T: Types>(
     cstr: &FlatConstraint<T>,
     consts: &Vec<ConstDecl<T>>,
-) {
+) -> Result<Expr<T>, Z3DecodeError>{
     let goal = Goal::new(true, true, false);
     let mut vars = Env::new();
     consts.iter().for_each(|const_decl| {
@@ -648,15 +648,14 @@ pub fn qe_and_simplify<T: Types>(
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify"));
     match qe_and_simplify.apply(&goal, None) {
         Ok(apply_result) => {
-            for new_goal in apply_result.list_subgoals() {
-                // println!("New goal: {:?}", new_goal);
-                new_goal.iter_formulas().for_each(|ast: ast::Dynamic| {
-                    let e = z3_to_expr(&vars, &ast);
-                    println!("decoded expression {:?}", e);
-                });
+            if let Some(new_goal) = apply_result.list_subgoals().last() {
+                if let Some(new_cstr) = new_goal.iter_formulas().last() {
+                    return z3_to_expr(&vars, &new_cstr);
+                }
             }
+            panic!("No goals/formulas after qe + simplfiy");
         }
-        Err(_) => println!("Failed to qe + simplify"),
+        Err(_) => panic!("Failed to qe + simplify"),
     }
 }
 
@@ -830,36 +829,3 @@ fn z3_const_to_expr<T: Types>(env: &Env<T>, head: FuncDecl) -> Result<Expr<T>, Z
         Err(Z3DecodeError::UnexpectedConstHead(head))
     }
 }
-
-// fn qe_and_simplify_inner<T: Types>(
-//     cstr: &FlatConstraint<T>,
-//     goal: &Goal,
-//     env: &mut Env<T>,
-// ) {
-//     match cstr {
-//         Constraint::Pred(pred, _tag) => {
-//             // Heads can't have KVars if we don't know their solutions.
-//             goal.assert(&pred_to_z3(pred, env, AllowKVars::NoKVars).not());
-//             let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("simplify"));
-//             match qe_and_simplify.apply(goal, None) {
-//                 Ok(apply_result) => {
-//                     for new_goal in apply_result.list_subgoals() {
-//                         println!("New goal: {:?}", new_goal);
-//                     }
-//                 }
-//                 Err(_) => println!("Failed to qe + simplify"),
-//             }
-//         }
-//         Constraint::Conj(_conjuncts) => {
-//             unreachable!("the constraint should be flat")
-//         }
-//
-//         Constraint::ForAll(bind, inner) => {
-//             todo!("don't add the binder to the env: make it an actual forall");
-//             env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
-//             goal.assert(&pred_to_z3(&bind.pred, env, AllowKVars::ReplaceKVarsWithTrue));
-//             qe_and_simplify_inner(&**inner, goal, env);
-//             env.pop(&bind.name);
-//         }
-//     }
-// }

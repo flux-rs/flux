@@ -41,6 +41,7 @@ pub use constraint::{
     BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField,
     Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor,
 };
+use cstr2smt2::Z3DecodeError;
 use derive_where::derive_where;
 pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
@@ -157,10 +158,10 @@ macro_rules! declare_types {
     };
 }
 
-pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>) {
+pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>) -> Result<Expr<T>, Z3DecodeError> {
     // let mut consts = self.constants.clone();
     // consts.extend(free_vars.clone());
-    cstr2smt2::qe_and_simplify(constraint, free_vars);
+    cstr2smt2::qe_and_simplify(constraint, free_vars)
 }
 
 

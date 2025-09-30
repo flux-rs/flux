@@ -366,10 +366,10 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn into_data_decls(self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    fn to_data_decls(&self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
-        Self::append_tuple_decls(self.tuples, &mut decls);
-        Self::append_adt_decls(genv, self.adt_sorts, &mut decls)?;
+        Self::append_tuple_decls(self.tuples.clone(), &mut decls);
+        Self::append_adt_decls(genv, self.adt_sorts.clone(), &mut decls)?;
         Ok(decls)
     }
 }
@@ -478,7 +478,7 @@ where
         let def_span = self.ecx.def_span();
         let def_id = self.ecx.def_id;
 
-        let kvars = self.kcx.into_fixpoint();
+        let kvars = self.kcx.to_fixpoint();
 
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
         let qualifiers = self
@@ -509,7 +509,7 @@ where
             })
             .collect();
 
-        let mut constants = self.ecx.const_map.into_values().collect_vec();
+        let mut constants = self.ecx.const_map.values().cloned().collect_vec();
         constants.extend(define_constants);
 
         let constants_without_inequalities = constants.clone();
@@ -533,10 +533,10 @@ where
         }
 
         // We are done encoding expressions. Check if there are any errors.
-        self.ecx.errors.into_result()?;
+        self.ecx.errors.to_result()?;
 
         let task = fixpoint::Task {
-            comments: self.comments,
+            comments: self.comments.clone(),
             constants,
             kvars,
             define_funs,
@@ -544,7 +544,7 @@ where
             qualifiers,
             scrape_quals,
             solver,
-            data_decls: self.scx.into_data_decls(self.genv)?,
+            data_decls: self.scx.to_data_decls(self.genv)?,
         };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
@@ -593,7 +593,13 @@ where
                                             && !matches!(pred, fixpoint::Pred::KVar(..))
                                     });
                                     consts.extend(constants_without_inequalities.iter().cloned());
-                                    qe_and_simplify(&new_flat_constraint, &consts);
+                                    match qe_and_simplify(&new_flat_constraint, &consts) {
+                                        Ok(fe) => {
+                                            let e = self.fixpoint_to_expr(&fe);
+                                            println!("decoded fixpoint expression: {:?}", e);
+                                        }
+                                        Err(err) => println!("failed to decoded z3 expr because of {:?}", err),
+                                    }
                                 }
                             }
                         }
@@ -898,8 +904,12 @@ where
                     fixpoint::Var::Global(_, _) => {
                         todo!()
                     }
-                    fixpoint::Var::Local(_) => {
-                        todo!()
+                    fixpoint::Var::Local(fname) => {
+                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
+                            var.clone()
+                        } else {
+                            todo!("No entry in reverse map for var {:?}", fname)
+                        }
                     }
                     fixpoint::Var::DataCtor(_, _) => {
                         todo!()
@@ -1146,11 +1156,11 @@ impl KVarEncodingCtxt {
         })
     }
 
-    fn into_fixpoint(self) -> Vec<fixpoint::KVarDecl> {
+    fn to_fixpoint(&self) -> Vec<fixpoint::KVarDecl> {
         self.kvars
-            .into_iter_enumerated()
+            .iter_enumerated()
             .map(|(kvid, kvar)| {
-                fixpoint::KVarDecl::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
+                fixpoint::KVarDecl::new(kvid, kvar.sorts.clone(), format!("orig: {:?}", kvar.orig))
             })
             .collect()
     }
@@ -1162,11 +1172,17 @@ struct LocalVarEnv {
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
     /// Layers of late bound variables
     layers: Vec<Vec<fixpoint::LocalVar>>,
+    reverse_map: UnordMap<fixpoint::LocalVar, rty::Var>,
 }
 
 impl LocalVarEnv {
     fn new() -> Self {
-        Self { local_var_gen: IndexGen::new(), fvars: Default::default(), layers: Vec::new() }
+        Self {
+            local_var_gen: IndexGen::new(),
+            fvars: Default::default(),
+            layers: Vec::new(),
+            reverse_map: Default::default(),
+        }
     }
 
     // This doesn't require to be mutable because `IndexGen` uses atomics, but we make it mutable
@@ -1177,7 +1193,8 @@ impl LocalVarEnv {
 
     fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
-        self.fvars.insert(name, fresh);
+        self.fvars.insert(name.clone(), fresh.clone());
+        self.reverse_map.insert(fresh, rty::Var::Free(name));
         fresh
     }
 
@@ -1189,6 +1206,7 @@ impl LocalVarEnv {
     fn push_layer_with_fresh_names(&mut self, count: usize) {
         let layer = (0..count).map(|_| self.fresh_name()).collect();
         self.layers.push(layer);
+        // FIXME: (ck) what to put in reverse_map here?
     }
 
     fn pop_layer(&mut self) -> Vec<fixpoint::LocalVar> {
