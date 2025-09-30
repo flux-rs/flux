@@ -332,7 +332,7 @@ impl SortEncodingCtxt {
                                         sort: self.sort_to_fixpoint(sort),
                                     }
                                 })
-                                .collect::<Vec<_>>();
+                                .collect_vec();
                             fixpoint::DataCtor { name, fields }
                         })
                         .collect(),
