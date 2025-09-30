@@ -80,6 +80,7 @@ pub mod fixpoint {
         DataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
         TupleProj { arity: usize, field: u32 },
+        DataProj { adt_id: AdtId, /* variant_idx: VariantIdx, */ field: u32 },
         UIFRel(BinRel),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
@@ -108,6 +109,7 @@ pub mod fixpoint {
                 }
                 Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
+                Var::DataProj { adt_id, field } => write!(f, "fld{}${field}", adt_id.as_u32()),
                 Var::UIFRel(BinRel::Gt) => write!(f, "gt"),
                 Var::UIFRel(BinRel::Ge) => write!(f, "ge"),
                 Var::UIFRel(BinRel::Lt) => write!(f, "lt"),
@@ -234,10 +236,15 @@ impl SortEncodingCtxt {
                     if let [sort] = &sorts[..] {
                         self.sort_to_fixpoint(sort)
                     } else {
-                        self.declare_tuple(sorts.len());
-                        let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                        let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                        let adt_id = self.declare_adt(sort_def.did());
+                        let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id));
+                        let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                        // CUT: let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                         fixpoint::Sort::App(ctor, args)
+                        // CUT: self.declare_tuple(sorts.len());
+                        // CUT: let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                        // CUT: let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                        // CUT: fixpoint::Sort::App(ctor, args)
                     }
                 } else {
                     debug_assert!(args.is_empty());
@@ -296,10 +303,11 @@ impl SortEncodingCtxt {
     }
 
     fn append_adt_decls(
+        &mut self,
         genv: GlobalEnv,
-        adt_sorts: FxIndexSet<DefId>,
         decls: &mut Vec<fixpoint::DataDecl>,
     ) -> QueryResult {
+        let adt_sorts = self.adt_sorts.clone();
         for (idx, adt_def_id) in adt_sorts.iter().enumerate() {
             let adt_id = AdtId::from_usize(idx);
             let adt_sort_def = genv.adt_sort_def_of(adt_def_id)?;
@@ -310,11 +318,20 @@ impl SortEncodingCtxt {
                     .variants()
                     .iter_enumerated()
                     .map(|(idx, variant)| {
-                        debug_assert_eq!(variant.fields(), 0);
-                        fixpoint::DataCtor {
-                            name: fixpoint::Var::DataCtor(adt_id, idx),
-                            fields: vec![],
-                        }
+                        // debug_assert_eq!(variant.fields(), 0);
+                        let name = fixpoint::Var::DataCtor(adt_id, idx);
+                        let fields = variant
+                            .field_sorts_id()
+                            .iter()
+                            .enumerate()
+                            .map(|(i, sort)| {
+                                fixpoint::DataField {
+                                    name: fixpoint::Var::DataProj { adt_id, field: i as u32 },
+                                    sort: self.sort_to_fixpoint(sort),
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        fixpoint::DataCtor { name, fields }
                     })
                     .collect(),
             });
@@ -348,10 +365,10 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn into_data_decls(self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    fn into_data_decls(mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
+        self.append_adt_decls(genv, &mut decls)?;
         Self::append_tuple_decls(self.tuples, &mut decls);
-        Self::append_adt_decls(genv, self.adt_sorts, &mut decls)?;
         Ok(decls)
     }
 }
@@ -1041,6 +1058,26 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::Var(var)
     }
 
+    fn struct_fields_to_fixpoint(
+        &mut self,
+        did: &DefId,
+        flds: &[rty::Expr],
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::Expr> {
+        // do not generate 1-tuples
+        if let [fld] = flds {
+            self.expr_to_fixpoint(fld, scx)
+        } else {
+            let adt_id = scx.declare_adt(*did);
+            let ctor = fixpoint::Expr::Var(fixpoint::Var::DataCtor(adt_id, VariantIdx::ZERO));
+            let args = flds
+                .iter()
+                .map(|fld| self.expr_to_fixpoint(fld, scx))
+                .try_collect()?;
+            Ok(fixpoint::Expr::App(Box::new(ctor), args))
+        }
+    }
+
     fn fields_to_fixpoint(
         &mut self,
         flds: &[rty::Expr],
@@ -1122,8 +1159,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::UnaryOp(op, e) => self.un_op_to_fixpoint(*op, e, scx)?,
             rty::ExprKind::FieldProj(e, proj) => self.proj_to_fixpoint(e, *proj, scx)?,
             rty::ExprKind::Tuple(flds) => self.fields_to_fixpoint(flds, scx)?,
-            rty::ExprKind::Ctor(rty::Ctor::Struct(_), flds) => {
-                self.fields_to_fixpoint(flds, scx)?
+            rty::ExprKind::Ctor(rty::Ctor::Struct(did), flds) => {
+                self.struct_fields_to_fixpoint(did, flds, scx)?
             }
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
                 self.variant_to_fixpoint(scx, did, *idx)
@@ -1225,9 +1262,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         if arity == 1 {
             self.expr_to_fixpoint(e, scx)
         } else {
-            let field = proj.field_idx();
-            scx.declare_tuple(arity);
-            let proj = fixpoint::Var::TupleProj { arity, field };
+            let proj = match proj {
+                rty::FieldProj::Tuple { arity, field } => {
+                    scx.declare_tuple(arity);
+                    fixpoint::Var::TupleProj { arity, field }
+                }
+                rty::FieldProj::Adt { def_id, field } => {
+                    let adt_id = scx.declare_adt(def_id);
+                    fixpoint::Var::DataProj { adt_id, field }
+                }
+            };
             let proj = fixpoint::Expr::Var(proj);
             Ok(fixpoint::Expr::App(Box::new(proj), vec![self.expr_to_fixpoint(e, scx)?]))
         }
