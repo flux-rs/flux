@@ -678,31 +678,6 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     res
 }
 
-fn z3_debug(z3: &ast::Dynamic) {
-    println!("node: {:?}", z3);
-    println!("node sort: {:?}", z3.get_sort());
-    println!("node funcdecl: {:?}", z3.safe_decl());
-    println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
-    match z3.kind() {
-        AstKind::Numeral => {
-            println!("numeral");
-        }
-        AstKind::App => {
-            println!("app");
-        }
-        AstKind::Var => {
-            println!("var");
-        }
-        AstKind::Quantifier => {
-            println!("quantifier");
-        }
-        AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
-            println!("func decl; unknown; sort");
-        }
-    }
-    z3.children().iter().for_each(|child| z3_debug(child));
-}
-
 #[derive(Debug)]
 pub enum Z3DecodeError {
     /// FIXME: (ck) For some reason Z3 dies when doing ast queries on quantifiers (at
@@ -770,4 +745,101 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
         }
     }
     // z3.children().iter().for_each(|child| z3_debug(child));
+}
+
+fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynamic>) -> Result<Expr<T>, Z3DecodeError> {
+    // let args: Vec<Expr<T>> = args.iter().map(|arg| z3_to_expr::<T>(arg)).collect::<Result<Vec<_>,_>>()?;
+    let head_name = head.name();
+    if &head_name == "-" {
+        match args.len() {
+            1 => {
+                Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
+            }
+            2 => {
+                Ok(Expr::BinaryOp(BinOp::Sub, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+            }
+            _ => {
+                Err(Z3DecodeError::ArgNumMismatch("-", args.len()))
+            }
+        }
+    } else if &head_name == "if" {
+        if args.len() == 3 {
+            Ok(Expr::IfThenElse(Box::new([z3_to_expr(env, &args[0])?,
+                                          z3_to_expr(env, &args[1])?,
+                                          z3_to_expr(env, &args[2])?,
+            ])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("if", args.len()))
+        }
+    } else if &head_name == "let" {
+        if args.len() == 3 {
+            let var: Expr<T> = z3_to_expr(env, &args[0])?;
+            let e    = z3_to_expr(env, &args[1])?;
+            let body = z3_to_expr(env, &args[2])?;
+            if let Expr::Var(v) = var {
+                Ok(Expr::Let(v, Box::new([e, body])))
+            } else {
+                Err(Z3DecodeError::LetFirstArgumentNotAVar)
+            }
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("let", args.len()))
+        }
+    } else if &head_name == "and" {
+        Ok(Expr::And(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+    } else if &head_name == "or" {
+        Ok(Expr::Or(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+    } else if &head_name == "not" {
+        if args.len() == 1 {
+            Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("not", args.len()))
+        }
+    } else if &head_name == "=>" {
+        if args.len() == 2 {
+            Ok(Expr::Imp(Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("=>", args.len()))
+        }
+    } else if &head_name == "<=>" {
+        if args.len() == 2 {
+            Ok(Expr::Iff(Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("<=>", args.len()))
+        }
+    } else if let Ok(binop) = head_name.parse::<BinOp>() {
+        if args.len() == 2 {
+            Ok(Expr::BinaryOp(binop, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("binop", args.len()))
+        }
+    } else if let Ok(binrel) = head_name.parse::<BinRel>() {
+        if args.len() == 2 {
+            Ok(Expr::Atom(binrel, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("binrel", args.len()))
+        }
+    } else if let Ok(thyfunc) = head_name.parse::<ThyFunc>() {
+        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), expr_args))
+    } else if let Some(var) = env.rev_lookup(&head_name) {
+        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        Ok(Expr::App(Box::new(Expr::Var(var.clone())), expr_args))
+    } else {
+        Err(Z3DecodeError::UnexpectedAppHead(head))
+    }
+}
+
+fn z3_const_to_expr<T: Types>(env: &Env<T>, head: FuncDecl) -> Result<Expr<T>, Z3DecodeError> {
+    let head_name = head.name();
+    // TODO: we should parse other constants, but I would need to
+    // see how they're being represented first...
+    if let Some(var) = env.rev_lookup(&head_name) {
+        Ok(Expr::Var(var.clone()))
+    } else if head_name == "true" {
+        Ok(Expr::Constant(Constant::Boolean(true)))
+    } else if head_name == "false" {
+        Ok(Expr::Constant(Constant::Boolean(false)))
+    } else {
+        Err(Z3DecodeError::UnexpectedConstHead(head))
+    }
 }
