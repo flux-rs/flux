@@ -1,6 +1,9 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{collections::{HashMap, HashSet}, hash::Hash, iter, ops::Range};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+    iter, ops::Range, };
 
 use fixpoint::AdtId;
 use flux_common::{
@@ -16,6 +19,7 @@ use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     FixpointQueryKind,
+    big_int::BigInt,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     global_env::GlobalEnv,
@@ -34,7 +38,7 @@ use liquid_fixpoint::{
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
-use liquid_fixpoint::{qe_and_simplify, FixpointResult, SmtSolver};
+use liquid_fixpoint::{FixpointResult, SmtSolver, qe_and_simplify};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -539,7 +543,11 @@ pub struct FixpointCheckError<Tag> {
 }
 
 impl<Tag> FixpointCheckError<Tag> {
-    pub fn new(tag: Tag, blame_ctx: BlameCtxt, flat_constraint: Option<fixpoint::FlatConstraint>) -> Self {
+    pub fn new(
+        tag: Tag,
+        blame_ctx: BlameCtxt,
+        flat_constraint: Option<fixpoint::FlatConstraint>,
+    ) -> Self {
         Self { tag, blame_ctx, flat_constraint }
     }
 }
@@ -593,16 +601,22 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint.flatten().into_iter().flat_map(|flat_constraint| {
-            // We can't send a kvar to the SMT. If there's a kvar on the LHS we
-            // can underapproximate it with TRUE, but if it's in head position
-            // we don't know what to do.
-            if let Some(tag) = flat_constraint.tag && !flat_constraint.head.has_kvar() {
-                Some((tag.clone(), flat_constraint))
-            } else {
-                None
-            }
-        }).collect();
+        let flat_constraint_map: HashMap<TagIdx, fixpoint::FlatConstraint> = constraint
+            .flatten()
+            .into_iter()
+            .flat_map(|flat_constraint| {
+                // We can't send a kvar to the SMT. If there's a kvar on the LHS we
+                // can underapproximate it with TRUE, but if it's in head position
+                // we don't know what to do.
+                if let Some(tag) = flat_constraint.tag
+                    && !flat_constraint.head.has_kvar()
+                {
+                    Some((tag.clone(), flat_constraint))
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let mut constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
         constants.extend(define_constants);
@@ -663,16 +677,27 @@ where
                     .map(|(tag_idx, tag)| {
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
-                            println!("Looking for weak kvars that might solve {:?}", blame_ctx.expr);
+                            println!(
+                                "Looking for weak kvars that might solve {:?}",
+                                blame_ctx.expr
+                            );
                             for assumption in &flat_constraint.assumptions {
                                 if let fixpoint::Pred::WKVar(wkvar) = assumption {
-                                    let fvars: HashSet<fixpoint::Var> = wkvar.args.iter().flat_map(|arg| arg.free_vars().into_iter().filter(|fvar| {
-                                        match fvar {
-                                            fixpoint::Var::Local(_) | fixpoint::Var::Param(_) => true,
-                                            _ => false,
-                                        }
-                                    })).collect();
-                                    let (mut consts, mut new_flat_constraint) = flat_constraint.remove_binders(fvars);
+                                    let fvars: HashSet<fixpoint::Var> = wkvar
+                                        .args
+                                        .iter()
+                                        .flat_map(|arg| {
+                                            arg.free_vars().into_iter().filter(|fvar| {
+                                                match fvar {
+                                                    fixpoint::Var::Local(_)
+                                                    | fixpoint::Var::Param(_) => true,
+                                                    _ => false,
+                                                }
+                                            })
+                                        })
+                                        .collect();
+                                    let (mut consts, mut new_flat_constraint) =
+                                        flat_constraint.remove_binders(fvars);
                                     // Some cleanup: remove all of the underscores (those aren't real binders)
                                     new_flat_constraint.binders.retain(|(var, _)| {
                                         !matches!(var, fixpoint::Var::Underscore)
@@ -681,14 +706,19 @@ where
                                     // (and kvars for now; ideally we would sub their values but we'll
                                     // underapproximate with true)
                                     new_flat_constraint.assumptions.retain(|pred| {
-                                        !pred.is_trivially_true() && !matches!(pred, fixpoint::Pred::KVar(..))
+                                        !pred.is_trivially_true()
+                                            && !matches!(pred, fixpoint::Pred::KVar(..))
                                     });
                                     consts.extend(constants_without_inequalities.iter().cloned());
                                     qe_and_simplify(&new_flat_constraint, &consts);
                                 }
                             }
                         }
-                        FixpointCheckError::new(tag, blame_ctx, flat_constraint_map.get(&tag_idx).cloned())
+                        FixpointCheckError::new(
+                            tag,
+                            blame_ctx,
+                            flat_constraint_map.get(&tag_idx).cloned(),
+                        )
                     })
                     .collect_vec()
             }
@@ -1028,14 +1058,213 @@ where
         Ok(fixpoint::Pred::And(kvars))
     }
 
-    fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar
-    ) -> QueryResult<fixpoint::Pred> {
-        let args: Vec<fixpoint::Expr> = wkvar.args.iter().map(|arg| self.ecx.expr_to_fixpoint(arg, &mut self.scx)).collect::<QueryResult<Vec<fixpoint::Expr>>>()?;
-        Ok(fixpoint::Pred::WKVar(fixpoint::WKVar {
-            wkvid: wkvar.wkvid.clone(),
-            args,
-        }))
+    fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar) -> QueryResult<fixpoint::Pred> {
+        let args: Vec<fixpoint::Expr> = wkvar
+            .args
+            .iter()
+            .map(|arg| self.ecx.expr_to_fixpoint(arg, &mut self.scx))
+            .collect::<QueryResult<Vec<fixpoint::Expr>>>()?;
+        Ok(fixpoint::Pred::WKVar(fixpoint::WKVar { wkvid: wkvar.wkvid.clone(), args }))
     }
+
+    pub(crate) fn fixpoint_to_expr(
+        &self,
+        fexpr: &fixpoint::Expr,
+    ) -> Result<rty::Expr, FixpointParseError> {
+        match fexpr {
+            fixpoint::Expr::Constant(constant) => {
+                let c = match constant {
+                    fixpoint::Constant::Numeral(num) => rty::Constant::Int(BigInt::from(*num)),
+                    fixpoint::Constant::Decimal(dec) => rty::Constant::Real(*dec),
+                    fixpoint::Constant::Boolean(b) => rty::Constant::Bool(*b),
+                    fixpoint::Constant::String(s) => rty::Constant::Str(s.0),
+                    fixpoint::Constant::BitVec(bv, size) => rty::Constant::BitVec(*bv, *size),
+                };
+                Ok(rty::Expr::constant(c))
+            }
+            fixpoint::Expr::Var(fvar) => {
+                let var = match fvar {
+                    fixpoint::Var::Underscore => {
+                        unreachable!("Underscore should not appear in exprs")
+                    }
+                    fixpoint::Var::Global(_, _) => {
+                        todo!()
+                    }
+                    fixpoint::Var::Local(_) => {
+                        todo!()
+                    }
+                    fixpoint::Var::DataCtor(_, _) => {
+                        todo!()
+                    }
+                    fixpoint::Var::TupleCtor { .. }
+                    | fixpoint::Var::TupleProj { .. }
+                    | fixpoint::Var::UIFRel(_) => {
+                        unreachable!(
+                            "Trying to convert an atomic var, but reached a var that should only occur as the head of an app (and be special-cased in conversion as a result)"
+                        )
+                    }
+                    fixpoint::Var::Param(early_reft_param) => {
+                        rty::Var::EarlyParam(*early_reft_param)
+                    }
+                    fixpoint::Var::ConstGeneric(const_generic) => {
+                        rty::Var::ConstGeneric(*const_generic)
+                    }
+                };
+                Ok(rty::Expr::var(var))
+            }
+            fixpoint::Expr::App(fhead, fargs) => {
+                match &**fhead {
+                    fixpoint::Expr::Var(fixpoint::Var::TupleProj { arity, field }) => {
+                        if fargs.len() == 1 {
+                            let earg = self.fixpoint_to_expr(&fargs[0])?;
+                            Ok(rty::Expr::field_proj(
+                                earg,
+                                rty::FieldProj::Tuple { arity: *arity, field: *field },
+                            ))
+                        } else {
+                            Err(FixpointParseError::TupleProjArityMismatch(fargs.len()))
+                        }
+                    }
+                    fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity }) => {
+                        if fargs.len() == *arity {
+                            let eargs = fargs
+                                .iter()
+                                .map(|farg| self.fixpoint_to_expr(farg))
+                                .collect::<Result<List<_>, _>>()?;
+                            Ok(rty::Expr::tuple(eargs))
+                        } else {
+                            Err(FixpointParseError::TupleCtorArityMismatch(*arity, fargs.len()))
+                        }
+                    }
+                    fixpoint::Expr::Var(fixpoint::Var::UIFRel(fbinrel)) => {
+                        if fargs.len() == 2 {
+                            let e1 = self.fixpoint_to_expr(&fargs[0])?;
+                            let e2 = self.fixpoint_to_expr(&fargs[1])?;
+                            let binrel = match fbinrel {
+                                fixpoint::BinRel::Eq => rty::BinOp::Eq,
+                                fixpoint::BinRel::Ne => rty::BinOp::Ne,
+                                // FIXME: (ck) faked sort information
+                                //
+                                // This needs to be a sort that goes to the UIFRel
+                                // case in fixpoint conversion. Again, if we actually
+                                // need to inspect the sorts this will die unless the
+                                // arguments are actually Strs.
+                                fixpoint::BinRel::Gt => rty::BinOp::Gt(rty::Sort::Str),
+                                fixpoint::BinRel::Ge => rty::BinOp::Ge(rty::Sort::Str),
+                                fixpoint::BinRel::Lt => rty::BinOp::Lt(rty::Sort::Str),
+                                fixpoint::BinRel::Le => rty::BinOp::Le(rty::Sort::Str),
+                            };
+                            Ok(rty::Expr::binary_op(binrel, e1, e2))
+                        } else {
+                            Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
+                        }
+                    }
+                    fhead => {
+                        let head = self.fixpoint_to_expr(&fhead);
+                        todo!("need to curry args + get sort")
+                    }
+                }
+            }
+            fixpoint::Expr::Neg(fexpr) => {
+                let e = self.fixpoint_to_expr(&fexpr)?;
+                Ok(rty::Expr::neg(&e))
+            }
+            fixpoint::Expr::BinaryOp(fbinop, boxed_args) => {
+                let binop = match fbinop {
+                    // FIXME: (ck) faked sort information
+                    //
+                    // See what we do for binrel for an explanation.
+                    fixpoint::BinOp::Add => rty::BinOp::Add(rty::Sort::Int),
+                    fixpoint::BinOp::Sub => rty::BinOp::Sub(rty::Sort::Int),
+                    fixpoint::BinOp::Mul => rty::BinOp::Mul(rty::Sort::Int),
+                    fixpoint::BinOp::Div => rty::BinOp::Div(rty::Sort::Int),
+                    fixpoint::BinOp::Mod => rty::BinOp::Mod(rty::Sort::Int),
+                };
+                let [fe1, fe2] = &**boxed_args;
+                let e1 = self.fixpoint_to_expr(&fe1)?;
+                let e2 = self.fixpoint_to_expr(&fe2)?;
+                Ok(rty::Expr::binary_op(binop, e1, e2))
+            }
+            fixpoint::Expr::IfThenElse(boxed_args) => {
+                let [fe1, fe2, fe3] = &**boxed_args;
+                let e1 = self.fixpoint_to_expr(&fe1)?;
+                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e3 = self.fixpoint_to_expr(&fe3)?;
+                Ok(rty::Expr::ite(e1, e2, e3))
+            }
+            fixpoint::Expr::And(fexprs) => {
+                let exprs = fexprs
+                    .iter()
+                    .map(|fexpr| self.fixpoint_to_expr(fexpr))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rty::Expr::and_from_iter(exprs.into_iter()))
+            }
+            fixpoint::Expr::Or(fexprs) => {
+                let exprs = fexprs
+                    .iter()
+                    .map(|fexpr| self.fixpoint_to_expr(fexpr))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(rty::Expr::or_from_iter(exprs.into_iter()))
+            }
+            fixpoint::Expr::Not(fexpr) => {
+                let e = self.fixpoint_to_expr(&fexpr)?;
+                Ok(rty::Expr::not(&e))
+            }
+            fixpoint::Expr::Imp(boxed_args) => {
+                let [fe1, fe2] = &**boxed_args;
+                let e1 = self.fixpoint_to_expr(&fe1)?;
+                let e2 = self.fixpoint_to_expr(&fe2)?;
+                Ok(rty::Expr::binary_op(rty::BinOp::Imp, e1, e2))
+            }
+            fixpoint::Expr::Iff(boxed_args) => {
+                let [fe1, fe2] = &**boxed_args;
+                let e1 = self.fixpoint_to_expr(&fe1)?;
+                let e2 = self.fixpoint_to_expr(&fe2)?;
+                Ok(rty::Expr::binary_op(rty::BinOp::Iff, e1, e2))
+            }
+            fixpoint::Expr::Atom(fbinrel, boxed_args) => {
+                let binrel = match fbinrel {
+                    fixpoint::BinRel::Eq => rty::BinOp::Eq,
+                    fixpoint::BinRel::Ne => rty::BinOp::Ne,
+                    // FIXME: (ck) faked sort information
+                    //
+                    // I'm pretty sure that it is OK to give `rty::Sort::Int`
+                    // because we only emit `fixpoint::BinRel::Gt`, etc. when we
+                    // have an Int/Real/Char sort (and further this sort info
+                    // isn't further used). But if we inspect this in other
+                    // places then things could break.
+                    fixpoint::BinRel::Gt => rty::BinOp::Gt(rty::Sort::Int),
+                    fixpoint::BinRel::Ge => rty::BinOp::Ge(rty::Sort::Int),
+                    fixpoint::BinRel::Lt => rty::BinOp::Lt(rty::Sort::Int),
+                    fixpoint::BinRel::Le => rty::BinOp::Le(rty::Sort::Int),
+                };
+                let [fe1, fe2] = &**boxed_args;
+                let e1 = self.fixpoint_to_expr(&fe1)?;
+                let e2 = self.fixpoint_to_expr(&fe2)?;
+                Ok(rty::Expr::binary_op(binrel, e1, e2))
+            }
+            fixpoint::Expr::Let(var, boxed_args) => {
+                let [fe1, fe2] = &**boxed_args;
+                let e1 = self.fixpoint_to_expr(&fe1)?;
+                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e2_binder =
+                    todo!("Convert `var` in e2 to locally nameless var, then fill in sort");
+                Ok(rty::Expr::let_(e1, e2_binder))
+            }
+            fixpoint::Expr::ThyFunc(itf) => Ok(rty::Expr::global_func(SpecFuncKind::Thy(*itf))),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum FixpointParseError {
+    /// UIFRels are encoded as Apps, but they are as of right now only binary
+    /// relations so they must have 2 arguments only.
+    UIFRelArityMismatch(usize),
+    /// Expected arity (based off of the tuple ctor), actual arity (the numer of args)
+    TupleCtorArityMismatch(usize, usize),
+    /// The number of arguments should only ever be 1 for a tuple proj
+    TupleProjArityMismatch(usize),
 }
 
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
