@@ -12,7 +12,7 @@ use liquid_fixpoint::Identifier;
 
 use crate::fixpoint_encoding::fixpoint::{BinRel, ConstDecl, Constraint, Expr, FunDef, Pred};
 
-pub(crate) struct ConstDef(pub ConstDecl, pub Expr);
+pub(crate) struct ConstDef(pub ConstDecl, pub Option<Expr>);
 
 pub(crate) struct LeanEncoder<'genv, 'tcx> {
     def_id: MaybeExternId,
@@ -177,8 +177,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .map(|const_decl| {
                 let mut defs = vec![];
                 Self::extract_const_def(&const_decl, constraint, &mut defs);
-                if defs.len() == 1 {
-                    ConstDef(const_decl, defs.pop().unwrap())
+                if defs.len() <= 1 {
+                    ConstDef(const_decl, defs.pop())
                 } else {
                     panic!("Constant {} has {} definitions", const_decl.name.display(), defs.len())
                 }

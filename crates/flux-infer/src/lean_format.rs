@@ -27,7 +27,11 @@ impl<'a> fmt::Display for LeanVar<'a> {
 impl<'a> fmt::Display for LeanConstDef<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let LeanConstDef(ConstDef(ConstDecl { name, sort, comment: _ }, def)) = self;
-        write!(f, "def {} : {} := {}", LeanVar(name), LeanSort(sort), LeanExpr(def),)
+        if let Some(def) = def {
+            write!(f, "def {} : {} := {}", LeanVar(name), LeanSort(sort), LeanExpr(def))
+        } else {
+            write!(f, "axiom {} : {}", LeanVar(name), LeanSort(sort))
+        }
     }
 }
 
