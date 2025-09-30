@@ -239,12 +239,7 @@ impl SortEncodingCtxt {
                         let adt_id = self.declare_adt(sort_def.did());
                         let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id));
                         let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
-                        // CUT: let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                         fixpoint::Sort::App(ctor, args)
-                        // CUT: self.declare_tuple(sorts.len());
-                        // CUT: let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                        // CUT: let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
-                        // CUT: fixpoint::Sort::App(ctor, args)
                     }
                 } else {
                     debug_assert!(args.is_empty());
@@ -318,7 +313,6 @@ impl SortEncodingCtxt {
                     .variants()
                     .iter_enumerated()
                     .map(|(idx, variant)| {
-                        // debug_assert_eq!(variant.fields(), 0);
                         let name = fixpoint::Var::DataCtor(adt_id, idx);
                         let fields = variant
                             .field_sorts_id()
