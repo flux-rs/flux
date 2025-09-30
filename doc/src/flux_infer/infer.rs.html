@@ -1136,9 +1136,13 @@
 <a href=#1136 id=1136 data-nosnippet>1136</a>
 <a href=#1137 id=1137 data-nosnippet>1137</a>    <span class="kw">impl </span>Pretty <span class="kw">for </span>Tag {
 <a href=#1138 id=1138 data-nosnippet>1138</a>        <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, cx: <span class="kw-2">&amp;</span>PrettyCx, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#1139 id=1139 data-nosnippet>1139</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)
-<a href=#1140 id=1140 data-nosnippet>1140</a>        }
-<a href=#1141 id=1141 data-nosnippet>1141</a>    }
-<a href=#1142 id=1142 data-nosnippet>1142</a>
-<a href=#1143 id=1143 data-nosnippet>1143</a>    <span class="macro">impl_debug_with_default_cx!</span>(Tag);
-<a href=#1144 id=1144 data-nosnippet>1144</a>}</code></pre></div></section></main></body></html>
+<a href=#1139 id=1139 data-nosnippet>1139</a>            <span class="macro">w!</span>(cx, f, <span class="string">"{:?} at {:?}"</span>, ^<span class="self">self</span>.reason, <span class="self">self</span>.src_span)<span class="question-mark">?</span>;
+<a href=#1140 id=1140 data-nosnippet>1140</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(dst_span) = <span class="self">self</span>.dst_span {
+<a href=#1141 id=1141 data-nosnippet>1141</a>                <span class="macro">w!</span>(cx, f, <span class="string">" ({:?})"</span>, ^dst_span)<span class="question-mark">?</span>;
+<a href=#1142 id=1142 data-nosnippet>1142</a>            }
+<a href=#1143 id=1143 data-nosnippet>1143</a>            <span class="prelude-val">Ok</span>(())
+<a href=#1144 id=1144 data-nosnippet>1144</a>        }
+<a href=#1145 id=1145 data-nosnippet>1145</a>    }
+<a href=#1146 id=1146 data-nosnippet>1146</a>
+<a href=#1147 id=1147 data-nosnippet>1147</a>    <span class="macro">impl_debug_with_default_cx!</span>(Tag);
+<a href=#1148 id=1148 data-nosnippet>1148</a>}</code></pre></div></section></main></body></html>
