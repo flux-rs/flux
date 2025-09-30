@@ -7,12 +7,12 @@ use crate::{
     fixpoint_encoding::fixpoint::{
         BinOp, BinRel, ConstDecl, Constant, Constraint, Expr, FunDef, Pred, Sort, Var,
     },
-    lean_encoding::LeanEncoder,
+    lean_encoding::{ConstDef, LeanEncoder},
 };
 
 struct LeanSort<'a>(&'a Sort);
 struct LeanFunDef<'a>(&'a FunDef);
-struct LeanConstDecl<'a>(&'a ConstDecl);
+struct LeanConstDef<'a>(&'a ConstDef);
 struct LeanConstraint<'a>(&'a Constraint);
 struct LeanPred<'a>(&'a Pred);
 struct LeanExpr<'a>(&'a Expr);
@@ -24,10 +24,10 @@ impl<'a> fmt::Display for LeanVar<'a> {
     }
 }
 
-impl<'a> fmt::Display for LeanConstDecl<'a> {
+impl<'a> fmt::Display for LeanConstDef<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let LeanConstDecl(ConstDecl { name, sort, comment: _ }) = self;
-        write!(f, "∃ ({} : {})", LeanVar(name), LeanSort(sort))
+        let LeanConstDef(ConstDef(ConstDecl { name, sort, comment: _ }, def)) = self;
+        write!(f, "def {} : {} := {}", LeanVar(name), LeanSort(sort), LeanExpr(def),)
     }
 }
 
@@ -168,22 +168,18 @@ impl<'genv, 'tcx> fmt::Display for LeanEncoder<'genv, 'tcx> {
                 writeln!(f, "{}", LeanFunDef(fun_def))?;
             }
         }
-        writeln!(f, "-- THEOREM")?;
-        if self.constants().is_empty() {
-            writeln!(
-                f,
-                "def {} : Prop := {}",
-                self.theorem_name().replace(".", "_"),
-                LeanConstraint(self.constraint())
-            )
-        } else {
-            writeln!(
-                f,
-                "def {} : Prop := {}, {}",
-                self.theorem_name().replace(".", "_"),
-                self.constants().iter().map(LeanConstDecl).format(", "),
-                LeanConstraint(self.constraint())
-            )
+        if !self.constants().is_empty() {
+            writeln!(f, "-- Constants --")?;
+            for const_def in self.constants() {
+                writeln!(f, "{}", LeanConstDef(const_def))?;
+            }
         }
+        writeln!(f, "-- THEOREM --")?;
+        writeln!(
+            f,
+            "def {} : Prop := {}",
+            self.theorem_name().replace(".", "_"),
+            LeanConstraint(self.constraint())
+        )
     }
 }

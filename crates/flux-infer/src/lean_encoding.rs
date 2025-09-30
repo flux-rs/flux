@@ -7,14 +7,18 @@ use std::{
 
 use flux_common::tracked_span_bug;
 use flux_middle::{def_id::MaybeExternId, global_env::GlobalEnv, queries::QueryResult};
+use itertools::Itertools;
+use liquid_fixpoint::Identifier;
 
-use crate::fixpoint_encoding::fixpoint::{ConstDecl, Constraint, FunDef};
+use crate::fixpoint_encoding::fixpoint::{BinRel, ConstDecl, Constraint, Expr, FunDef, Pred};
+
+pub(crate) struct ConstDef(pub ConstDecl, pub Expr);
 
 pub(crate) struct LeanEncoder<'genv, 'tcx> {
     def_id: MaybeExternId,
     genv: GlobalEnv<'genv, 'tcx>,
     fun_defs: Vec<FunDef>,
-    constants: Vec<ConstDecl>,
+    constants: Vec<ConstDef>,
     constraint: Constraint,
 }
 
@@ -26,6 +30,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         constants: Vec<ConstDecl>,
         constraint: Constraint,
     ) -> Self {
+        let constants = Self::extract_const_defs(constants, &constraint);
         Self { def_id, genv, fun_defs, constants, constraint }
     }
 
@@ -37,7 +42,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self.constraint
     }
 
-    pub fn constants(&self) -> &[ConstDecl] {
+    pub fn constants(&self) -> &[ConstDef] {
         &self.constants
     }
 
@@ -164,5 +169,46 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 }
             })
             .collect::<String>()
+    }
+
+    fn extract_const_defs(const_decls: Vec<ConstDecl>, constraint: &Constraint) -> Vec<ConstDef> {
+        const_decls
+            .into_iter()
+            .map(|const_decl| {
+                let mut defs = vec![];
+                Self::extract_const_def(&const_decl, constraint, &mut defs);
+                if defs.len() == 1 {
+                    ConstDef(const_decl, defs.pop().unwrap())
+                } else {
+                    panic!("Constant {} has {} definitions", const_decl.name.display(), defs.len())
+                }
+            })
+            .collect_vec()
+    }
+
+    fn extract_const_def(const_decl: &ConstDecl, constraint: &Constraint, acc: &mut Vec<Expr>) {
+        match constraint {
+            Constraint::ForAll(bind, inner) => {
+                if let Pred::Expr(Expr::Atom(BinRel::Eq, equals)) = &bind.pred {
+                    if let Expr::Var(vl) = &equals[0]
+                        && vl.eq(&const_decl.name)
+                    {
+                        acc.push(equals[1].clone())
+                    }
+                    if let Expr::Var(vr) = &equals[1]
+                        && vr.eq(&const_decl.name)
+                    {
+                        acc.push(equals[0].clone())
+                    }
+                    Self::extract_const_def(&const_decl, inner.as_ref(), acc);
+                }
+            }
+            Constraint::Conj(conjuncts) => {
+                conjuncts
+                    .iter()
+                    .for_each(|constraint| Self::extract_const_def(&const_decl, &constraint, acc));
+            }
+            Constraint::Pred(..) => {}
+        }
     }
 }

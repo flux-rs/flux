@@ -540,7 +540,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     /// Whether the function is marked with `#[proven_externally]`
     pub fn proven_externally(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().proven_externally.get(&did))
+        self.collect_specs()
+            .proven_externally
+            .get(&def_id)
             .map(|proven_externally| proven_externally.to_bool())
             .unwrap_or(false)
     }
