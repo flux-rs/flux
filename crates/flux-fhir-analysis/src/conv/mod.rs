@@ -1505,7 +1505,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     assoc_ident,
                 )?
             }
-            _ => Err(self.emit(errors::AssocTypeNotFound::new(assoc_ident)))?,
+            _ => self.report_assoc_item_not_found(assoc_ident.span, AssocTag::Type)?,
         };
 
         let Some(trait_ref) = bound.no_bound_vars() else {
@@ -1566,8 +1566,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         }
         let (expr, sort) = match &candidates[..] {
             [candidate] => self.conv_const(fhir_expr.span, candidate.def_id)?,
-            [] => todo!(),
-            candidates => todo!(),
+            [] => self.report_assoc_item_not_found(fhir_expr.span, AssocTag::Const)?,
+            _ => self.report_ambiguous_assoc_item(fhir_expr.span, AssocTag::Const, assoc)?,
         };
         self.0.insert_node_sort(fhir_expr.fhir_id, sort);
         Ok(expr)
@@ -1617,17 +1617,18 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
+        let tag = AssocTag::Type;
         let mut matching_candidates = all_candidates().filter(|r| {
-            self.trait_defines_associated_item_named(r.def_id(), AssocTag::Type, assoc_name)
+            self.trait_defines_associated_item_named(r.def_id(), tag, assoc_name)
                 .is_some()
         });
 
         let Some(bound) = matching_candidates.next() else {
-            return Err(self.emit(errors::AssocTypeNotFound::new(assoc_name)))?;
+            self.report_assoc_item_not_found(assoc_name.span, AssocTag::Type)?;
         };
 
         if matching_candidates.next().is_some() {
-            self.report_ambiguous_assoc_ty(assoc_name.span, assoc_name)?;
+            self.report_ambiguous_assoc_item(assoc_name.span, tag, assoc_name)?;
         }
 
         Ok(bound)
@@ -1751,7 +1752,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
 
                 let Some(qself) = qself else {
-                    self.report_ambiguous_assoc_ty(path.span, assoc_segment.ident)?
+                    self.report_ambiguous_assoc_item(
+                        path.span,
+                        AssocTag::Type,
+                        assoc_segment.ident,
+                    )?
                 };
 
                 let trait_generics = self.genv().generics_of(trait_id)?;
@@ -2002,12 +2007,31 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         self.genv().sess().emit_err(err)
     }
 
-    fn report_ambiguous_assoc_ty(
+    fn report_assoc_item_not_found(
         &self,
         span: Span,
+        assoc_tag: AssocTag,
+    ) -> Result<!, ErrorGuaranteed> {
+        let tag = match assoc_tag {
+            AssocTag::Const => "constant",
+            AssocTag::Fn => "function",
+            AssocTag::Type => "type",
+        };
+        Err(self.emit(errors::AssocItemNotFound { span, tag }))?
+    }
+
+    fn report_ambiguous_assoc_item(
+        &self,
+        span: Span,
+        assoc_tag: AssocTag,
         assoc_name: Ident,
     ) -> Result<!, ErrorGuaranteed> {
-        Err(self.emit(errors::AmbiguousAssocType { span, name: assoc_name }))?
+        let tag = match assoc_tag {
+            AssocTag::Const => "constant",
+            AssocTag::Fn => "function",
+            AssocTag::Type => "type",
+        };
+        Err(self.emit(errors::AmbiguousAssocItem { span, name: assoc_name, tag }))?
     }
 
     #[track_caller]
@@ -2713,27 +2737,22 @@ mod errors {
     use rustc_span::{Span, Symbol, symbol::Ident};
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_assoc_type_not_found, code = E0999)]
+    #[diag(fhir_analysis_assoc_item_not_found, code = E0999)]
     #[note]
-    pub(super) struct AssocTypeNotFound {
-        #[primary_span]
-        #[label]
-        span: Span,
-    }
-
-    impl AssocTypeNotFound {
-        pub(super) fn new(assoc_ident: Ident) -> Self {
-            Self { span: assoc_ident.span }
-        }
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(fhir_analysis_ambiguous_assoc_type, code = E0999)]
-    pub(super) struct AmbiguousAssocType {
+    pub(super) struct AssocItemNotFound {
         #[primary_span]
         #[label]
         pub span: Span,
+        pub tag: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(fhir_analysis_ambiguous_assoc_item, code = E0999)]
+    pub(super) struct AmbiguousAssocItem {
+        #[primary_span]
+        pub span: Span,
         pub name: Ident,
+        pub tag: &'static str,
     }
 
     #[derive(Diagnostic)]
