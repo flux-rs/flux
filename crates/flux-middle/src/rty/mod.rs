@@ -119,7 +119,7 @@ impl AdtSortVariant {
         self.sorts.fold_with(&mut SortSubst::new(args))
     }
 
-    pub fn field_sorts_id(&self) -> List<Sort> {
+    pub fn field_sorts_instantiate_identity(&self) -> List<Sort> {
         self.sorts.clone()
     }
 

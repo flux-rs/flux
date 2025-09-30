@@ -28,6 +28,7 @@ use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
@@ -302,33 +303,41 @@ impl SortEncodingCtxt {
         genv: GlobalEnv,
         decls: &mut Vec<fixpoint::DataDecl>,
     ) -> QueryResult {
-        let adt_sorts = self.adt_sorts.clone();
-        for (idx, adt_def_id) in adt_sorts.iter().enumerate() {
-            let adt_id = AdtId::from_usize(idx);
-            let adt_sort_def = genv.adt_sort_def_of(adt_def_id)?;
-            decls.push(fixpoint::DataDecl {
-                name: fixpoint::DataSort::Adt(adt_id),
-                vars: adt_sort_def.param_count(),
-                ctors: adt_sort_def
-                    .variants()
-                    .iter_enumerated()
-                    .map(|(idx, variant)| {
-                        let name = fixpoint::Var::DataCtor(adt_id, idx);
-                        let fields = variant
-                            .field_sorts_id()
-                            .iter()
-                            .enumerate()
-                            .map(|(i, sort)| {
-                                fixpoint::DataField {
-                                    name: fixpoint::Var::DataProj { adt_id, field: i as u32 },
-                                    sort: self.sort_to_fixpoint(sort),
-                                }
-                            })
-                            .collect::<Vec<_>>();
-                        fixpoint::DataCtor { name, fields }
-                    })
-                    .collect(),
-            });
+        // We iterate until we have processed all adt sorts because processing one adt sort may
+        // discover new adt sorts to process (e.g., if an adt field has an adt sort).
+        let mut done = FxHashSet::default();
+        while done.len() < self.adt_sorts.len() {
+            let adt_sorts = self.adt_sorts.clone();
+            for (idx, adt_def_id) in adt_sorts.iter().enumerate().skip(done.len()) {
+                if !done.insert(*adt_def_id) {
+                    continue;
+                }
+                let adt_id = AdtId::from_usize(idx);
+                let adt_sort_def = genv.adt_sort_def_of(adt_def_id)?;
+                decls.push(fixpoint::DataDecl {
+                    name: fixpoint::DataSort::Adt(adt_id),
+                    vars: adt_sort_def.param_count(),
+                    ctors: adt_sort_def
+                        .variants()
+                        .iter_enumerated()
+                        .map(|(idx, variant)| {
+                            let name = fixpoint::Var::DataCtor(adt_id, idx);
+                            let fields = variant
+                                .field_sorts_instantiate_identity()
+                                .iter()
+                                .enumerate()
+                                .map(|(i, sort)| {
+                                    fixpoint::DataField {
+                                        name: fixpoint::Var::DataProj { adt_id, field: i as u32 },
+                                        sort: self.sort_to_fixpoint(sort),
+                                    }
+                                })
+                                .collect::<Vec<_>>();
+                            fixpoint::DataCtor { name, fields }
+                        })
+                        .collect(),
+                });
+            }
         }
         Ok(())
     }
