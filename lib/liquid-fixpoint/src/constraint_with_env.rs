@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
@@ -9,7 +11,11 @@ use {
     z3::Solver,
 };
 
-#[allow(unused)]
+use crate::{
+    constraint::{Constraint, Qualifier}, ConstDecl, DataDecl, KVarDecl, Sort, SortCtor, Types, graph,
+};
+use itertools::Itertools;
+
 #[derive_where(Hash)]
 pub struct ConstraintWithEnv<T: Types> {
     datatype_decls: Vec<DataDecl<T>>,
@@ -20,10 +26,6 @@ pub struct ConstraintWithEnv<T: Types> {
 }
 #[cfg(feature = "rust-fixpoint")]
 use crate::Assignments;
-use crate::{
-    ConstDecl, DataDecl, KVarDecl, Types,
-    constraint::{Constraint, Qualifier},
-};
 
 #[cfg(not(feature = "rust-fixpoint"))]
 impl<T: Types> ConstraintWithEnv<T> {
@@ -48,7 +50,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         constants: Vec<ConstDecl<T>>,
         constraint: Constraint<T>,
     ) -> Self {
-        let datatype_decls = Self::topo_sort_data_declarations(datatype_decls);
+        let datatype_decls = topo_sort_data_declarations(datatype_decls);
         Self { datatype_decls, kvar_decls, qualifiers, constants, constraint }
     }
 
@@ -154,35 +156,35 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);
         is_constraint_satisfiable(&self.constraint, &solver, &mut vars)
     }
+}
 
-    fn topo_sort_data_declarations(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
-        let mut datatype_dependencies: HashMap<T::Sort, Vec<T::Sort>> = HashMap::new();
-        for datatype_decl in &datatype_decls {
-            datatype_dependencies.insert(datatype_decl.name.clone(), vec![]);
-        }
-        let mut data_decls_by_name = HashMap::new();
-        for datatype_decl in datatype_decls {
-            for data_constructor in &datatype_decl.ctors {
-                for accessor in &data_constructor.fields {
-                    if let Sort::App(ctor, _) = &accessor.sort
-                        && let SortCtor::Data(data_ctor) = &ctor
-                    {
-                        datatype_dependencies
-                            .get_mut(&datatype_decl.name)
-                            .unwrap()
-                            .push(data_ctor.clone());
-                    }
+pub fn topo_sort_data_declarations<T: Types>(datatype_decls: Vec<DataDecl<T>>) -> Vec<DataDecl<T>> {
+    let mut datatype_dependencies: HashMap<T::Sort, Vec<T::Sort>> = HashMap::new();
+    for datatype_decl in &datatype_decls {
+        datatype_dependencies.insert(datatype_decl.name.clone(), vec![]);
+    }
+    let mut data_decls_by_name = HashMap::new();
+    for datatype_decl in datatype_decls {
+        for data_constructor in &datatype_decl.ctors {
+            for accessor in &data_constructor.fields {
+                if let Sort::App(ctor, _) = &accessor.sort
+                    && let SortCtor::Data(data_ctor) = &ctor
+                {
+                    datatype_dependencies
+                        .get_mut(&datatype_decl.name)
+                        .unwrap()
+                        .push(data_ctor.clone());
                 }
             }
-            data_decls_by_name.insert(datatype_decl.name.clone(), datatype_decl);
         }
-        graph::topological_sort_sccs(&datatype_dependencies)
-            .into_iter()
-            .flatten()
-            .rev()
-            .map(|datatype_decl_name| data_decls_by_name.remove(&datatype_decl_name).unwrap())
-            .collect_vec()
+        data_decls_by_name.insert(datatype_decl.name.clone(), datatype_decl);
     }
+    graph::topological_sort_sccs(&datatype_dependencies)
+        .into_iter()
+        .flatten()
+        .rev()
+        .map(|datatype_decl_name| data_decls_by_name.remove(&datatype_decl_name).unwrap())
+        .collect_vec()
 }
 
 #[cfg(feature = "rust-fixpoint")]
