@@ -26,18 +26,21 @@ impl From<ast::Dynamic> for Binding {
 pub(crate) struct Env<T: Types> {
     bindings: HashMap<T::Var, Vec<Binding>>,
     data_types: HashMap<T::Sort, z3::Sort>,
+    rev_bindings: HashMap<String, T::Var>,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: HashMap::new(), data_types: HashMap::new() }
+        Self { bindings: HashMap::new(), data_types: HashMap::new(), rev_bindings: HashMap::new() }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
         self.bindings
-            .entry(name)
+            .entry(name.clone())
             .or_default()
             .push(Into::<Binding>::into(value));
+        self.rev_bindings
+            .insert(name.display().to_string(), name.clone());
     }
 
     pub(crate) fn insert_data_decl(&mut self, name: T::Sort, datatype: z3::Sort) {
@@ -70,6 +73,10 @@ impl<T: Types> Env<T> {
 
     fn lookup(&self, name: &T::Var) -> Option<&Binding> {
         self.bindings.get(name).and_then(|stack| stack.last())
+    }
+
+    fn rev_lookup(&self, name: &str) -> Option<&T::Var> {
+        self.rev_bindings.get(name)
     }
 
     fn datatype_lookup(&self, name: &T::Sort) -> Option<&z3::Sort> {
@@ -740,7 +747,7 @@ pub fn qe_and_simplify<T: Types>(
             body = z3::ast::quantifier_const(
                 true,
                 0,
-                format!("{:?}_binder", var),
+                format!("{}_binder", var.display()),
                 "",
                 &[z3_var],
                 &[],
@@ -752,13 +759,16 @@ pub fn qe_and_simplify<T: Types>(
         }
     }
     goal.assert(&body);
-    println!("goal before qe + simplify: {:?}", goal);
+    // println!("goal before qe + simplify: {:?}", goal);
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify"));
     match qe_and_simplify.apply(&goal, None) {
         Ok(apply_result) => {
             for new_goal in apply_result.list_subgoals() {
-                println!("New goal: {:?}", new_goal);
-                new_goal.iter_formulas().for_each(|ast: ast::Dynamic| z3_debug(&ast));
+                // println!("New goal: {:?}", new_goal);
+                new_goal.iter_formulas().for_each(|ast: ast::Dynamic| {
+                    let e = z3_to_expr(&vars, &ast);
+                    println!("decoded expression {:?}", e);
+                });
             }
         }
         Err(_) => println!("Failed to qe + simplify"),
@@ -766,7 +776,8 @@ pub fn qe_and_simplify<T: Types>(
 }
 
 
-fn z3_debug(z3: &ast::Dynamic) {
+fn z3_debug<T: Ast>(z3: &T) {
+    println!("z3 debug");
     println!("node: {:?}", z3);
     println!("node sort: {:?}", z3.get_sort());
     println!("node funcdecl: {:?}", z3.safe_decl());
@@ -791,22 +802,46 @@ fn z3_debug(z3: &ast::Dynamic) {
     z3.children().iter().for_each(|child| z3_debug(child));
 }
 
-fn z3_to_expr<T: Types>(z3: &ast::Dynamic) -> Pred<T> {
-    println!("node: {:?}", z3);
-    println!("node sort: {:?}", z3.get_sort());
-    println!("node funcdecl: {:?}", z3.safe_decl());
-    println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
+#[derive(Debug)]
+pub enum Z3DecodeError {
+    /// FIXME: (ck) For some reason Z3 dies when doing ast queries on quantifiers (at
+    /// least in testing the formuals we send to it --- it's possible I've done
+    /// something wrong). We don't want quantifiers in our output anyway, so it's fine,
+    /// but we ought to be able to properly deserialize output from Z3.
+    ContainsQuantifier,
+    /// See [`Z3DecodeError::ContainsQuantifier`]. Pretty sure only quantifiers
+    /// introduce Vars.
+    ContainsVar,
+    /// Right now we only expect to see Ints for numerals (can and probably
+    /// should change in the future).
+    UnexpectedSortKindForNumeral(SortKind),
+    UnexpectedAstKind(AstKind),
+    /// We use a string to identify the operator because there are some
+    /// expressions like [`Expr::Neg`] that don't actually identify their
+    /// operator.
+    ArgNumMismatch(&'static str, usize),
+    LetFirstArgumentNotAVar,
+    UnexpectedAppHead(FuncDecl),
+    UnexpectedConstHead(FuncDecl),
+}
+
+fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
+    // println!("node: {:?}", z3);
+    // println!("node sort: {:?}", z3.get_sort());
+    // println!("node funcdecl: {:?}", z3.safe_decl());
+    // println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
     match z3.kind() {
         AstKind::Numeral => {
-            let e = match z3.sort_kind() {
+            match z3.sort_kind() {
                 SortKind::Int => {
                     let int = z3.as_int().unwrap().as_i64().unwrap();
                     if int > 0 {
-                        Expr::Constant(Constant::Numeral(int as u128))
+                        Ok(Expr::Constant(Constant::Numeral(int as u128)))
                     } else {
-                        Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128))))
+                        Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
                     }
                 }
+                // TODO: other sorts (it seems we don't send these to Z3 yet...)
                 // SortKind::Real => {
                 //     let real = z3.as_real().unwrap();
                 //     Expr::
@@ -814,26 +849,124 @@ fn z3_to_expr<T: Types>(z3: &ast::Dynamic) -> Pred<T> {
                 // SortKind::FloatingPoint => {
                 //     let fp = z3.as_float().unwrap();
                 // }
-                _ => {
-                    panic!("unexpected sort kind: {:?}", z3.sort_kind());
-                }
-            };
-            Pred::Expr(e)
+                _ => Err(Z3DecodeError::UnexpectedSortKindForNumeral(z3.sort_kind())),
+            }
+        }
+        AstKind::App if z3.is_const() => {
+            z3_const_to_expr(env, z3.decl())
+        }
+        AstKind::App if z3.is_app() => {
+            z3_app_to_expr(env, z3.decl(), &z3.children())
         }
         AstKind::App => {
-            println!("app");
+            unreachable!()
+        }
+        // NOTE: if we add support for quantifiers, we will want to change the
+        // return type to Pred<T>.
+        AstKind::Quantifier => {
+            Err(Z3DecodeError::ContainsQuantifier)
         }
         AstKind::Var => {
-            todo!("bound vars");
-        }
-        AstKind::Quantifier => {
-            panic!("unexpected quantifier");
+            Err(Z3DecodeError::ContainsVar)
         }
         AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
-            panic!("unexpected astkind: {:?}", z3.kind());
+            Err(Z3DecodeError::UnexpectedAstKind(z3.kind()))
         }
     }
-    // z3.children().iter().for_each(|child| z3_debug(child));
+}
+
+fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynamic>) -> Result<Expr<T>, Z3DecodeError> {
+    // let args: Vec<Expr<T>> = args.iter().map(|arg| z3_to_expr::<T>(arg)).collect::<Result<Vec<_>,_>>()?;
+    let head_name = head.name();
+    if &head_name == "-" {
+        match args.len() {
+            1 => {
+                Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
+            }
+            2 => {
+                Ok(Expr::BinaryOp(BinOp::Sub, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+            }
+            _ => {
+                Err(Z3DecodeError::ArgNumMismatch("-", args.len()))
+            }
+        }
+    } else if &head_name == "if" {
+        if args.len() == 3 {
+            Ok(Expr::IfThenElse(Box::new([z3_to_expr(env, &args[0])?,
+                                          z3_to_expr(env, &args[1])?,
+                                          z3_to_expr(env, &args[2])?,
+            ])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("if", args.len()))
+        }
+    } else if &head_name == "let" {
+        if args.len() == 3 {
+            let var: Expr<T> = z3_to_expr(env, &args[0])?;
+            let e    = z3_to_expr(env, &args[1])?;
+            let body = z3_to_expr(env, &args[2])?;
+            if let Expr::Var(v) = var {
+                Ok(Expr::Let(v, Box::new([e, body])))
+            } else {
+                Err(Z3DecodeError::LetFirstArgumentNotAVar)
+            }
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("let", args.len()))
+        }
+    } else if &head_name == "and" {
+        Ok(Expr::And(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+    } else if &head_name == "or" {
+        Ok(Expr::Or(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+    } else if &head_name == "not" {
+        if args.len() == 1 {
+            Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("not", args.len()))
+        }
+    } else if &head_name == "=>" {
+        if args.len() == 2 {
+            Ok(Expr::Imp(Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("=>", args.len()))
+        }
+    } else if &head_name == "<=>" {
+        if args.len() == 2 {
+            Ok(Expr::Iff(Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("<=>", args.len()))
+        }
+    } else if let Ok(binop) = head_name.parse::<BinOp>() {
+        if args.len() == 2 {
+            Ok(Expr::BinaryOp(binop, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("binop", args.len()))
+        }
+    } else if let Ok(binrel) = head_name.parse::<BinRel>() {
+        if args.len() == 2 {
+            Ok(Expr::Atom(binrel, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        } else {
+            Err(Z3DecodeError::ArgNumMismatch("binrel", args.len()))
+        }
+    } else if let Ok(thyfunc) = head_name.parse::<ThyFunc>() {
+        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), expr_args))
+    } else {
+        Err(Z3DecodeError::UnexpectedAppHead(head))
+    }
+}
+
+fn z3_const_to_expr<T: Types>(env: &Env<T>, head: FuncDecl) -> Result<Expr<T>, Z3DecodeError> {
+    let head_name = head.name();
+    // TODO: we should parse other constants, but I would need to
+    // see how they're being represented first...
+    if let Some(var) = env.rev_lookup(&head_name) {
+        Ok(Expr::Var(var.clone()))
+    } else if head_name == "true" {
+        Ok(Expr::Constant(Constant::Boolean(true)))
+    } else if head_name == "false" {
+        Ok(Expr::Constant(Constant::Boolean(false)))
+    } else {
+        Err(Z3DecodeError::UnexpectedConstHead(head))
+    }
 }
 
 // fn qe_and_simplify_inner<T: Types>(
