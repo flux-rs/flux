@@ -382,8 +382,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
             let boolean_refs = booleans.iter().collect_vec();
-            let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
-            ast::Bool::and(bool_ref_slice).into()
+            ast::Bool::and(&boolean_refs).into()
         }
         Expr::Or(options) => {
             let booleans = options
@@ -392,8 +391,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
             let boolean_refs = booleans.iter().collect_vec();
-            let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
-            ast::Bool::or(bool_ref_slice).into()
+            ast::Bool::or(&boolean_refs).into()
         }
         Expr::Not(inner) => expr_to_z3(inner, env).as_bool().unwrap().not().into(),
         Expr::Neg(number) => {
@@ -460,7 +458,7 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
                 .map(|conjunct| pred_to_z3(conjunct, env))
                 .collect_vec();
             let bool_refs = bools.iter().collect_vec();
-            ast::Bool::and(bool_refs.as_slice())
+            ast::Bool::and(&bool_refs)
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }
