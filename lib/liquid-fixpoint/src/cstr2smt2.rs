@@ -1,6 +1,7 @@
 use core::panic;
 use std::{collections::HashMap, vec};
 
+use itertools::Itertools as _;
 use z3::{
     FuncDecl, SatResult, Solver, SortKind,
     ast::{self, Ast},
@@ -72,9 +73,7 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
     match cnst {
         Constant::Numeral(num) => ast::Int::from_u64(*num as u64).into(),
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
-        Constant::String(strconst) => {
-            ast::String::from(strconst.display().to_string().as_str()).into()
-        }
+        Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
         Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
         _ => panic!("handling for this kind of const isn't implemented yet"),
     }
@@ -382,9 +381,8 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 .map(|conjunct| expr_to_z3(conjunct, env).as_bool())
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
-            let boolean_refs: Vec<&ast::Bool> = booleans.iter().collect();
-            let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
-            ast::Bool::and(bool_ref_slice).into()
+            let boolean_refs = booleans.iter().collect_vec();
+            ast::Bool::and(&boolean_refs).into()
         }
         Expr::Or(options) => {
             let booleans = options
@@ -392,9 +390,8 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 .map(|option| expr_to_z3(option, env).as_bool())
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
-            let boolean_refs: Vec<&ast::Bool> = booleans.iter().collect();
-            let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
-            ast::Bool::or(bool_ref_slice).into()
+            let boolean_refs = booleans.iter().collect_vec();
+            ast::Bool::or(&boolean_refs).into()
         }
         Expr::Not(inner) => expr_to_z3(inner, env).as_bool().unwrap().not().into(),
         Expr::Neg(number) => {
@@ -437,11 +434,8 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::App(fun, args) => {
             match &**fun {
                 Expr::Var(var) => {
-                    let arg_asts: Vec<Box<dyn Ast>> = args
-                        .iter()
-                        .map(|arg| dynamic_as_ast(expr_to_z3(arg, env)))
-                        .collect();
-                    let arg_refs: Vec<&_> = arg_asts.iter().map(|a| a.as_ref()).collect();
+                    let arg_asts = args.iter().map(|arg| expr_to_z3(arg, env)).collect_vec();
+                    let arg_refs = arg_asts.iter().map(|a| a as &dyn Ast).collect_vec();
                     let fun_decl = env
                         .fun_lookup(var)
                         .expect(format!("error if function not present {:#?}", var).as_str());
@@ -455,32 +449,16 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
     }
 }
 
-fn dynamic_as_ast(val: ast::Dynamic) -> Box<dyn Ast> {
-    if let Some(int_val) = val.as_int() {
-        Box::new(int_val) as Box<dyn Ast>
-    } else if let Some(real_val) = val.as_real() {
-        Box::new(real_val) as Box<dyn Ast>
-    } else if let Some(bool_val) = val.as_bool() {
-        Box::new(bool_val) as Box<dyn Ast>
-    } else if let Some(str_val) = val.as_string() {
-        Box::new(str_val) as Box<dyn Ast>
-    } else if let Some(bv_val) = val.as_bv() {
-        Box::new(bv_val) as Box<dyn Ast>
-    } else {
-        panic!("unhandled sort encountered")
-    }
-}
-
 fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
     match pred {
         Pred::Expr(expr) => expr_to_z3(expr, env).as_bool().expect(" asldfj "),
         Pred::And(conjuncts) => {
-            let bools: Vec<_> = conjuncts
+            let bools = conjuncts
                 .iter()
                 .map(|conjunct| pred_to_z3(conjunct, env))
-                .collect::<Vec<_>>();
-            let bool_refs: Vec<&ast::Bool> = bools.iter().collect();
-            ast::Bool::and(bool_refs.as_slice())
+                .collect_vec();
+            let bool_refs = bools.iter().collect_vec();
+            ast::Bool::and(&bool_refs)
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
     }
@@ -488,18 +466,10 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
 
 pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
     match &sort {
-        Sort::Int => {
-            Binding::Variable(ast::Int::new_const(name.display().to_string().as_str()).into())
-        }
-        Sort::Real => {
-            Binding::Variable(ast::Real::new_const(name.display().to_string().as_str()).into())
-        }
-        Sort::Bool => {
-            Binding::Variable(ast::Bool::new_const(name.display().to_string().as_str()).into())
-        }
-        Sort::Str => {
-            Binding::Variable(ast::String::new_const(name.display().to_string().as_str()).into())
-        }
+        Sort::Int => Binding::Variable(ast::Int::new_const(name.display().to_string()).into()),
+        Sort::Real => Binding::Variable(ast::Real::new_const(name.display().to_string()).into()),
+        Sort::Bool => Binding::Variable(ast::Bool::new_const(name.display().to_string()).into()),
+        Sort::Str => Binding::Variable(ast::String::new_const(name.display().to_string()).into()),
         Sort::Func(sorts) => {
             let mut domain = vec![z3_sort(&sorts[0])];
             let mut current = sorts.as_ref();
@@ -509,20 +479,14 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
                 range = &sorts[1];
                 current = sorts.as_ref();
             }
-            let domain_refs: Vec<&_> = domain.iter().map(|a| a).collect();
-            let fun_decl =
-                FuncDecl::new(name.display().to_string().as_str(), &domain_refs, &z3_sort(range));
-            Binding::Function(
-                fun_decl,
-                ast::Int::new_const(name.display().to_string().as_str()).into(),
-            )
+            let domain_refs = domain.iter().collect_vec();
+            let fun_decl = FuncDecl::new(name.display().to_string(), &domain_refs, &z3_sort(range));
+            Binding::Function(fun_decl, ast::Int::new_const(name.display().to_string()).into())
         }
         Sort::BitVec(bv_size) => {
             match **bv_size {
                 Sort::BvSize(size) => {
-                    Binding::Variable(
-                        ast::BV::new_const(name.display().to_string().as_str(), size).into(),
-                    )
+                    Binding::Variable(ast::BV::new_const(name.display().to_string(), size).into())
                 }
                 _ => panic!("incorrect bitvector size specification"),
             }

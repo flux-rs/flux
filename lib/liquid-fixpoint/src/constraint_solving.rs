@@ -50,7 +50,7 @@ impl<T: Types> Constraint<T> {
                 kvar_to_dependencies
                     .entry(kvar.clone())
                     .or_insert_with(Vec::new)
-                    .extend_from_slice(&frag.kvar_deps().into_iter().unique().collect::<Vec<_>>());
+                    .extend_from_slice(&frag.kvar_deps().into_iter().unique().collect_vec());
                 kvar_to_fragments
                     .entry(kvar.clone())
                     .or_insert_with(Vec::new)
@@ -192,7 +192,7 @@ impl<T: Types> Constraint<T> {
                 match conjuncts
                     .iter()
                     .filter_map(|inner| inner.scope_help(var))
-                    .collect::<Vec<Self>>()
+                    .collect_vec()
                     .as_slice()
                 {
                     [] => Some(self.clone()),
@@ -264,7 +264,7 @@ impl<T: Types> Constraint<T> {
                                                     Box::new([Expr::Var(eq.clone()), arg.clone()]),
                                                 ))
                                             })
-                                            .collect::<Vec<_>>()
+                                            .collect_vec()
                                     })
                                     .collect()
                             };
