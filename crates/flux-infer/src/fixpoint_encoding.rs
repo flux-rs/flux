@@ -539,16 +539,16 @@ pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 pub struct FixpointCheckError<Tag> {
     pub tag: Tag,
     pub blame_ctx: BlameCtxt,
-    pub flat_constraint: Option<fixpoint::FlatConstraint>,
+    pub possible_solutions: HashMap<rty::WKVid, Vec<rty::Expr>>,
 }
 
 impl<Tag> FixpointCheckError<Tag> {
     pub fn new(
         tag: Tag,
         blame_ctx: BlameCtxt,
-        flat_constraint: Option<fixpoint::FlatConstraint>,
+        possible_solutions: HashMap<rty::WKVid, Vec<rty::Expr>>,
     ) -> Self {
-        Self { tag, blame_ctx, flat_constraint }
+        Self { tag, blame_ctx, possible_solutions }
     }
 }
 
@@ -678,6 +678,7 @@ where
                     .unique()
                     .map(|(tag_idx, tag)| {
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
+                        let mut possible_solutions: HashMap<rty::WKVid, Vec<rty::Expr>> = HashMap::new();
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
                             println!(
                                 "Looking for weak kvars that might solve {:?}",
@@ -714,10 +715,20 @@ where
                                     consts.extend(constants_without_inequalities.iter().cloned());
                                     match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
                                         Ok(fe) => {
-                                            let e = self.fixpoint_to_expr(&fe);
-                                            println!("decoded fixpoint expression: {:?}", e);
+                                            match self.fixpoint_to_expr(&fe) {
+                                                Ok(e) => {
+                                                    println!("decoded fixpoint expression: {:?}", e);
+                                                    if !e.is_trivially_false() && !e.is_trivially_true() {
+                                                        println!("it isn't trivial, so we're keeping it as a possible solution");
+                                                        possible_solutions.entry(wkvar.wkvid)
+                                                            .or_default()
+                                                            .push(e);
+                                                    }
+                                                }
+                                                Err(err) => println!("failed to decode fixpoint expr because of {:?}", err),
+                                            }
                                         }
-                                        Err(err) => println!("failed to decoded z3 expr because of {:?}", err),
+                                        Err(err) => println!("failed to decode z3 expr because of {:?}", err),
                                     }
                                 }
                             }
@@ -725,7 +736,7 @@ where
                         FixpointCheckError::new(
                             tag,
                             blame_ctx,
-                            flat_constraint_map.get(&tag_idx).cloned(),
+                            possible_solutions,
                         )
                     })
                     .collect_vec()

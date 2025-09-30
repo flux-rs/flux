@@ -38,7 +38,7 @@ use flux_infer::{
     fixpoint_encoding::{FixQueryCache, SolutionTrace, FixpointCheckError},
     infer::{ConstrReason, SubtypeReason, Tag},
     refine_tree::{BinderDeps, BinderOriginator, BinderProvenance, CallReturn},
-    wkvars::{Constraints, WKVarInstantiator, WKVarSubst, find_solution_candidates},
+    wkvars::{Constraints, WKVarInstantiator, WKVarSubst, _find_solution_candidates},
 };
 use flux_macros::fluent_messages;
 use flux_middle::{
@@ -278,8 +278,8 @@ fn report_errors(
         //   * The rest are related (we reverse the sort to emit them most-to-least useful)
         let (blamed_binders, related_binders) = split_binders(binders);
 
-        // Find predicates which imply the failing constraint
-        let solution_candidates = find_solution_candidates(&err.blame_ctx);
+        // // Find predicates which imply the failing constraint
+        // let solution_candidates = _find_solution_candidates(&err.blame_ctx);
 
         let wkvar_solutions = err
             .blame_ctx
@@ -287,11 +287,15 @@ fn report_errors(
             .wkvars
             .iter()
             .flat_map(|wkvar| {
-                // Try to instantiate it to each candidate
-                solution_candidates.iter().flat_map(|expr| {
-                    WKVarInstantiator::try_instantiate_wkvar(wkvar, expr)
-                        .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
-                })
+                // Try to instantiate each wkvar to each possible solution for it
+                err.possible_solutions
+                   .get(&wkvar.wkvid)
+                   .map(|v| v.iter())
+                   .unwrap_or_default()
+                   .flat_map(|expr| {
+                        WKVarInstantiator::try_instantiate_wkvar(wkvar, expr)
+                            .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
+                   })
             })
             .collect_vec();
 

@@ -1,4 +1,4 @@
-use std::{io, path::Path};
+use std::{fs::create_dir_all, io, path::Path};
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
@@ -121,9 +121,11 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
 
         println!("Solution loop finished.");
         let crate_name = genv.tcx().crate_name(LOCAL_CRATE);
+        println!("writing to {:?}", config::log_dir());
+        create_dir_all(config::log_dir()).unwrap();
         solution.write_summary_file(
             genv,
-            &config::log_dir().join(format!("{}-wkvar-solve-summary.csv", crate_name)),
+            &config::log_dir().join(format!("{}-wkvar-solve-summary.json", crate_name)),
         ).unwrap();
         solution.write_stats_file(
             genv,

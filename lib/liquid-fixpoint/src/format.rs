@@ -420,7 +420,7 @@ impl FromStr for BinOp {
             "+" => Ok(BinOp::Add),
             "-" => Ok(BinOp::Sub),
             "*" => Ok(BinOp::Mul),
-            "/" => Ok(BinOp::Div),
+            "/" | "div" => Ok(BinOp::Div),
             "mod" => Ok(BinOp::Mod),
             _ => Err(format!("Unexpected BinOp {}", s)),
         }
