@@ -72,9 +72,7 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
     match cnst {
         Constant::Numeral(num) => ast::Int::from_u64(*num as u64).into(),
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
-        Constant::String(strconst) => {
-            ast::String::from(strconst.display().to_string().as_str()).into()
-        }
+        Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
         Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
         _ => panic!("handling for this kind of const isn't implemented yet"),
     }
@@ -469,18 +467,10 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
 
 pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
     match &sort {
-        Sort::Int => {
-            Binding::Variable(ast::Int::new_const(name.display().to_string().as_str()).into())
-        }
-        Sort::Real => {
-            Binding::Variable(ast::Real::new_const(name.display().to_string().as_str()).into())
-        }
-        Sort::Bool => {
-            Binding::Variable(ast::Bool::new_const(name.display().to_string().as_str()).into())
-        }
-        Sort::Str => {
-            Binding::Variable(ast::String::new_const(name.display().to_string().as_str()).into())
-        }
+        Sort::Int => Binding::Variable(ast::Int::new_const(name.display().to_string()).into()),
+        Sort::Real => Binding::Variable(ast::Real::new_const(name.display().to_string()).into()),
+        Sort::Bool => Binding::Variable(ast::Bool::new_const(name.display().to_string()).into()),
+        Sort::Str => Binding::Variable(ast::String::new_const(name.display().to_string()).into()),
         Sort::Func(sorts) => {
             let mut domain = vec![z3_sort(&sorts[0])];
             let mut current = sorts.as_ref();
@@ -491,19 +481,13 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
                 current = sorts.as_ref();
             }
             let domain_refs: Vec<&_> = domain.iter().map(|a| a).collect();
-            let fun_decl =
-                FuncDecl::new(name.display().to_string().as_str(), &domain_refs, &z3_sort(range));
-            Binding::Function(
-                fun_decl,
-                ast::Int::new_const(name.display().to_string().as_str()).into(),
-            )
+            let fun_decl = FuncDecl::new(name.display().to_string(), &domain_refs, &z3_sort(range));
+            Binding::Function(fun_decl, ast::Int::new_const(name.display().to_string()).into())
         }
         Sort::BitVec(bv_size) => {
             match **bv_size {
                 Sort::BvSize(size) => {
-                    Binding::Variable(
-                        ast::BV::new_const(name.display().to_string().as_str(), size).into(),
-                    )
+                    Binding::Variable(ast::BV::new_const(name.display().to_string(), size).into())
                 }
                 _ => panic!("incorrect bitvector size specification"),
             }
