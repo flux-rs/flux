@@ -1,6 +1,7 @@
 use core::panic;
 use std::{collections::HashMap, vec};
 
+use itertools::Itertools as _;
 use z3::{
     FuncDecl, SatResult, Solver, SortKind,
     ast::{self, Ast},
@@ -380,7 +381,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 .map(|conjunct| expr_to_z3(conjunct, env).as_bool())
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
-            let boolean_refs: Vec<&ast::Bool> = booleans.iter().collect();
+            let boolean_refs = booleans.iter().collect_vec();
             let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
             ast::Bool::and(bool_ref_slice).into()
         }
@@ -390,7 +391,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 .map(|option| expr_to_z3(option, env).as_bool())
                 .collect::<Option<Vec<_>>>()
                 .unwrap();
-            let boolean_refs: Vec<&ast::Bool> = booleans.iter().collect();
+            let boolean_refs = booleans.iter().collect_vec();
             let bool_ref_slice: &[&ast::Bool] = boolean_refs.as_slice();
             ast::Bool::or(bool_ref_slice).into()
         }
@@ -435,8 +436,8 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::App(fun, args) => {
             match &**fun {
                 Expr::Var(var) => {
-                    let arg_asts: Vec<_> = args.iter().map(|arg| expr_to_z3(arg, env)).collect();
-                    let arg_refs: Vec<_> = arg_asts.iter().map(|a| a as &dyn Ast).collect();
+                    let arg_asts = args.iter().map(|arg| expr_to_z3(arg, env)).collect_vec();
+                    let arg_refs = arg_asts.iter().map(|a| a as &dyn Ast).collect_vec();
                     let fun_decl = env
                         .fun_lookup(var)
                         .expect(format!("error if function not present {:#?}", var).as_str());
@@ -454,11 +455,11 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
     match pred {
         Pred::Expr(expr) => expr_to_z3(expr, env).as_bool().expect(" asldfj "),
         Pred::And(conjuncts) => {
-            let bools: Vec<_> = conjuncts
+            let bools = conjuncts
                 .iter()
                 .map(|conjunct| pred_to_z3(conjunct, env))
-                .collect::<Vec<_>>();
-            let bool_refs: Vec<&ast::Bool> = bools.iter().collect();
+                .collect_vec();
+            let bool_refs = bools.iter().collect_vec();
             ast::Bool::and(bool_refs.as_slice())
         }
         Pred::KVar(_kvar, _vars) => panic!("Kvars not supported yet"),
@@ -480,7 +481,7 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
                 range = &sorts[1];
                 current = sorts.as_ref();
             }
-            let domain_refs: Vec<&_> = domain.iter().map(|a| a).collect();
+            let domain_refs = domain.iter().collect_vec();
             let fun_decl = FuncDecl::new(name.display().to_string(), &domain_refs, &z3_sort(range));
             Binding::Function(fun_decl, ast::Int::new_const(name.display().to_string()).into())
         }
