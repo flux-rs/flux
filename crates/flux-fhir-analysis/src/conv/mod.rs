@@ -2285,7 +2285,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
             Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
         }
-        Ok((rty::Expr::const_def_id(def_id), sort))
+        Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
     }
 
     fn conv_constructor_exprs(
