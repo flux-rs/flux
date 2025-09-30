@@ -3,7 +3,7 @@ use derive_where::derive_where;
 use {
     crate::{
         FixpointResult,
-        cstr2smt2::{Env, is_constraint_satisfiable, new_binding},
+        cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
     },
     itertools::Itertools,
     std::collections::{HashMap, VecDeque},
@@ -11,12 +11,13 @@ use {
 };
 
 use crate::{
-    ConstDecl, KVarDecl, Types,
+    ConstDecl, DataDecl, KVarDecl, Types,
     constraint::{Constraint, Qualifier},
 };
 
 #[derive_where(Hash)]
 pub struct ConstraintWithEnv<T: Types> {
+    pub datatype_decls: Vec<DataDecl<T>>,
     pub kvar_decls: Vec<KVarDecl<T>>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub constants: Vec<ConstDecl<T>>,
@@ -119,7 +120,14 @@ impl<T: Types> ConstraintWithEnv<T> {
         let solver = Solver::new();
         let mut vars: Env<T> = Env::new();
         self.constants.iter().for_each(|const_decl| {
-            vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort));
+            vars.insert(
+                const_decl.name.clone(),
+                new_binding(&const_decl.name, &const_decl.sort, &vars),
+            );
+        });
+        self.datatype_decls.iter().for_each(|data_decl| {
+            let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
+            vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
         });
         let kvar_assignment = self.solve_for_kvars(&solver, &mut vars);
         self.constraint = self.constraint.sub_all_kvars(&kvar_assignment);

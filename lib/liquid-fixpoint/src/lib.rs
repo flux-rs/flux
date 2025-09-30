@@ -54,7 +54,7 @@ pub type Assignments<'a, T> = HashMap<<T as Types>::KVar, Vec<(&'a Qualifier<T>,
 use crate::constraint_with_env::ConstraintWithEnv;
 
 pub trait Types {
-    type Sort: Identifier + Hash + Clone + Debug;
+    type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
     type Decimal: FixpointFmt + Hash + Clone + Debug;
@@ -293,6 +293,7 @@ impl<T: Types> Task<T> {
     #[cfg(feature = "rust-fixpoint")]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
         Ok(ConstraintWithEnv {
+            datatype_decls: self.data_decls.clone(),
             kvar_decls: self.kvars.clone(),
             qualifiers: self.qualifiers.clone(),
             constants: self.constants.clone(),
