@@ -776,32 +776,6 @@ pub fn qe_and_simplify<T: Types>(
 }
 
 
-fn z3_debug<T: Ast>(z3: &T) {
-    println!("z3 debug");
-    println!("node: {:?}", z3);
-    println!("node sort: {:?}", z3.get_sort());
-    println!("node funcdecl: {:?}", z3.safe_decl());
-    println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
-    match z3.kind() {
-        AstKind::Numeral => {
-            println!("numeral");
-        }
-        AstKind::App => {
-            println!("app");
-        }
-        AstKind::Var => {
-            println!("var");
-        }
-        AstKind::Quantifier => {
-            println!("quantifier");
-        }
-        AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
-            println!("func decl; unknown; sort");
-        }
-    }
-    z3.children().iter().for_each(|child| z3_debug(child));
-}
-
 #[derive(Debug)]
 pub enum Z3DecodeError {
     /// FIXME: (ck) For some reason Z3 dies when doing ast queries on quantifiers (at
@@ -949,6 +923,9 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
     } else if let Ok(thyfunc) = head_name.parse::<ThyFunc>() {
         let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
         Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), expr_args))
+    } else if let Some(var) = env.rev_lookup(&head_name) {
+        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        Ok(Expr::App(Box::new(Expr::Var(var.clone())), expr_args))
     } else {
         Err(Z3DecodeError::UnexpectedAppHead(head))
     }
