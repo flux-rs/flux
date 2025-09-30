@@ -148,6 +148,10 @@ impl<'sess> Errors<'sess> {
     pub fn into_result(self) -> Result<(), ErrorGuaranteed> {
         if let Some(err) = self.err.into_inner() { Err(err) } else { Ok(()) }
     }
+
+    pub fn to_result(&self) -> Result<(), ErrorGuaranteed> {
+        if let Some(err) = self.err.clone().into_inner() { Err(err) } else { Ok(()) }
+    }
 }
 
 impl ErrorEmitter for Errors<'_> {
