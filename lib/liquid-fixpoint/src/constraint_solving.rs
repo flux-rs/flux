@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter};
 
 use itertools::Itertools;
 
@@ -235,7 +235,7 @@ impl<T: Types> Constraint<T> {
         self.do_elim(var, &solution)
     }
 
-    fn do_elim(&self, var: &T::KVar, solution: &Vec<Solution<T>>) -> Self {
+    fn do_elim(&self, var: &T::KVar, solution: &[Solution<T>]) -> Self {
         match self {
             Constraint::Conj(conjuncts) => {
                 Constraint::Conj(
@@ -251,25 +251,15 @@ impl<T: Types> Constraint<T> {
                     let cstrs: Vec<Constraint<T>> = solution
                         .iter()
                         .map(|Solution { binders, args }| {
-                            let (kvar_instances, other_preds) = pred.partition_pred(var);
-                            let kvar_instances_subbed: Vec<Pred<T>> = {
-                                kvar_instances
-                                    .into_iter()
-                                    .flat_map(|(_kvid, eqs)| {
-                                        args.iter()
-                                            .zip(eqs.iter())
-                                            .map(|(arg, eq)| {
-                                                Pred::Expr(Expr::Atom(
-                                                    BinRel::Eq,
-                                                    Box::new([Expr::Var(eq.clone()), arg.clone()]),
-                                                ))
-                                            })
-                                            .collect_vec()
-                                    })
-                                    .collect()
-                            };
-                            let mut preds = kvar_instances_subbed;
-                            preds.extend(other_preds);
+                            let (kvar_instances, mut preds) = pred.partition_pred(var);
+                            preds.extend(kvar_instances.into_iter().flat_map(|(_, eqs)| {
+                                iter::zip(args, eqs).map(|(arg, eq)| {
+                                    Pred::Expr(Expr::Atom(
+                                        BinRel::Eq,
+                                        Box::new([Expr::Var(eq), arg.clone()]),
+                                    ))
+                                })
+                            }));
                             let init = Constraint::ForAll(
                                 Bind {
                                     name: name.clone(),
@@ -283,7 +273,7 @@ impl<T: Types> Constraint<T> {
                             })
                         })
                         .collect();
-                    if cstrs.len() == 1 { cstrs[0].clone() } else { Constraint::Conj(cstrs) }
+                    Constraint::conj(cstrs)
                 } else {
                     Constraint::ForAll(
                         Bind { name: name.clone(), sort: sort.clone(), pred: pred.clone() },
