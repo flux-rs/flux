@@ -153,7 +153,7 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
         ThyFunc::SetSng => "set_singleton",
         ThyFunc::SetCup => "set_union",
         ThyFunc::SetCap => "set_intersection",
-        ThyFunc::SetDiff => "set_difference",
+        ThyFunc::SetDif => "set_difference",
         ThyFunc::SetSub => "set_subset",
         ThyFunc::SetMem => "set_is_in",
         ThyFunc::MapDefault => "map_default",
@@ -276,7 +276,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
                 rty::FuncSort::new(vec![Var(param0)], Sort::app(Set, List::singleton(Var(param0)))),
             )
         }
-        ThyFunc::SetCup | ThyFunc::SetCap | ThyFunc::SetDiff => {
+        ThyFunc::SetCup | ThyFunc::SetCap | ThyFunc::SetDif => {
             // ∀s. (Set<S>, Set<S>) -> Set<S>
             rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::Sort),

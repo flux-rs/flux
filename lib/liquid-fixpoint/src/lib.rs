@@ -416,7 +416,7 @@ pub enum ThyFunc {
     /// Set intersection
     SetCap,
     /// Set difference
-    SetDiff,
+    SetDif,
     /// Subset
     SetSub,
     /// Set membership
@@ -468,7 +468,7 @@ impl ThyFunc {
         ThyFunc::SetCup,
         ThyFunc::SetMem,
         ThyFunc::SetCap,
-        ThyFunc::SetDiff,
+        ThyFunc::SetDif,
         ThyFunc::SetSub,
         ThyFunc::MapDefault,
         ThyFunc::MapSelect,
@@ -518,7 +518,7 @@ impl fmt::Display for ThyFunc {
             ThyFunc::SetSng => write!(f, "Set_sng"),
             ThyFunc::SetCup => write!(f, "Set_cup"),
             ThyFunc::SetCap => write!(f, "Set_cap"),
-            ThyFunc::SetDiff => write!(f, "Set_diff"),
+            ThyFunc::SetDif => write!(f, "Set_dif"),
             ThyFunc::SetMem => write!(f, "Set_mem"),
             ThyFunc::SetSub => write!(f, "Set_sub"),
             ThyFunc::MapDefault => write!(f, "Map_default"),

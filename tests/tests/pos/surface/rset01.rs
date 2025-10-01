@@ -44,6 +44,43 @@ pub fn test_intersection() {
     assert(s3.contains(&v2));
 }
 
+pub fn test_difference() {
+    let mut s1 = RSet::new();
+    let mut s2 = RSet::new();
+    let v0 = 666;
+    let v1 = 667;
+    let v2 = 999;
+    s1.insert(v0);
+    s1.insert(v1);
+    s1.insert(v2);
+
+    s2.insert(v1);
+    s2.insert(v2);
+
+    let s3 = s1.difference(&s2);
+    assert(s3.contains(&v0));
+    assert(!s3.contains(&v1));
+    assert(!s3.contains(&v2));
+}
+
+pub fn test_subset() {
+    let mut s1 = RSet::new();
+    let mut s2 = RSet::new();
+    let v0 = 666;
+    let v1 = 667;
+    let v2 = 999;
+
+    s1.insert(v0);
+    s1.insert(v1);
+    s1.insert(v2);
+
+    s2.insert(v1);
+    s2.insert(v2);
+
+    assert(s2.subset(&s1));
+    assert(!s1.subset(&s2));
+}
+
 #[flux::sig(fn () -> RSet<i32{v:666<=v}>)]
 pub fn test1() -> RSet<i32> {
     let mut s = RSet::new();
