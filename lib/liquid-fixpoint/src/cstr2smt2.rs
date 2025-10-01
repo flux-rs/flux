@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, vec};
+use std::{collections::HashMap, iter, vec};
 
 use itertools::Itertools as _;
 use z3::{
@@ -492,17 +492,16 @@ pub(crate) fn new_datatype<T: Types>(
         for (name, field) in data_field_names.iter().zip(&data_ctor.fields) {
             fields.push((name.as_str(), z3::DatatypeAccessor::sort(z3_sort(&field.sort, env))));
         }
-        builder = builder.variant(data_ctor.name.display().to_string().as_str(), fields)
+        builder = builder.variant(&data_ctor.name.display().to_string(), fields)
     }
     let z3::DatatypeSort { sort, variants } = builder.finish();
-    for (data_ctor, z3::DatatypeVariant { constructor, accessors, tester: _ }) in
-        data_decl.ctors.iter().zip(variants)
-    {
+    for (data_ctor, variant) in iter::zip(&data_decl.ctors, variants) {
+        let z3::DatatypeVariant { constructor, accessors, tester: _ } = variant;
         env.insert(
             data_ctor.name.clone(),
             Binding::Function(constructor, ast::Int::new_const(name.display().to_string()).into()),
         );
-        for (field, accessor) in data_ctor.fields.iter().zip(accessors) {
+        for (field, accessor) in iter::zip(&data_ctor.fields, accessors) {
             env.insert(
                 field.name.clone(),
                 Binding::Function(
