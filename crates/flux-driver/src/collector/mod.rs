@@ -357,19 +357,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
 
-        let proven_externally = matches!(attrs.proven_externally(), Some(ProvenExternally::Yes));
-
         Ok(self
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec {
-                fn_sig,
-                qual_names,
-                reveal_names,
-                trusted,
-                proven_externally,
-            }))
+            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
