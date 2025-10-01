@@ -193,20 +193,20 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                     if let Expr::Var(vl) = &equals[0]
                         && vl.eq(&const_decl.name)
                     {
-                        acc.push(equals[1].clone())
+                        acc.push(equals[1].clone());
                     }
                     if let Expr::Var(vr) = &equals[1]
                         && vr.eq(&const_decl.name)
                     {
-                        acc.push(equals[0].clone())
+                        acc.push(equals[0].clone());
                     }
-                    Self::extract_const_def(&const_decl, inner.as_ref(), acc);
+                    Self::extract_const_def(const_decl, inner.as_ref(), acc);
                 }
             }
             Constraint::Conj(conjuncts) => {
                 conjuncts
                     .iter()
-                    .for_each(|constraint| Self::extract_const_def(&const_decl, &constraint, acc));
+                    .for_each(|constraint| Self::extract_const_def(const_decl, constraint, acc));
             }
             Constraint::Pred(..) => {}
         }

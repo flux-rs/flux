@@ -127,10 +127,10 @@ pub fn check_fn(
         .map_err(|err| err.emit(genv, def_id))?;
 
         if genv.proven_externally(def_id) {
-            let ok = infcx_root
+            infcx_root
                 .execute_lean_query(MaybeExternId::Local(def_id))
                 .emit(&genv)?;
-            Ok(ok)
+            Ok(())
         } else {
             // PHASE 3: invoke fixpoint on the constraint
             let errors = infcx_root
