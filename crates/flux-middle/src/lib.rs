@@ -152,6 +152,9 @@ pub fn name_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<&'static str> 
         ThyFunc::SetEmpty => "set_empty",
         ThyFunc::SetSng => "set_singleton",
         ThyFunc::SetCup => "set_union",
+        ThyFunc::SetCap => "set_intersection",
+        ThyFunc::SetDif => "set_difference",
+        ThyFunc::SetSub => "set_subset",
         ThyFunc::SetMem => "set_is_in",
         ThyFunc::MapDefault => "map_default",
         ThyFunc::MapSelect => "map_select",
@@ -273,7 +276,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
                 rty::FuncSort::new(vec![Var(param0)], Sort::app(Set, List::singleton(Var(param0)))),
             )
         }
-        ThyFunc::SetCup => {
+        ThyFunc::SetCup | ThyFunc::SetCap | ThyFunc::SetDif => {
             // ∀s. (Set<S>, Set<S>) -> Set<S>
             rty::PolyFuncSort::new(
                 List::singleton(SortParamKind::Sort),
@@ -296,6 +299,20 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
                 ),
             )
         }
+        ThyFunc::SetSub => {
+            // ∀s. (Set<s>, Set<s>) -> bool
+            rty::PolyFuncSort::new(
+                List::singleton(SortParamKind::Sort),
+                rty::FuncSort::new(
+                    vec![
+                        Sort::app(Set, List::singleton(Var(param0))),
+                        Sort::app(Set, List::singleton(Var(param0))),
+                    ],
+                    Bool,
+                ),
+            )
+        }
+
         ThyFunc::MapDefault => {
             // ∀k,v. v -> Map<k,v>
             rty::PolyFuncSort::new(
