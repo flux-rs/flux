@@ -110,7 +110,7 @@ can fix by commenting out or removing the last call...
 
 ## A Trait to `Index` Values
 
-Next, lets write our own little trait to index different kinds of containers [^1].
+Next, lets write our own little trait to index different kinds of containers[^1].
 
 
 
@@ -139,7 +139,7 @@ implements `Index<usize>`.
 
 ```rust, editable
 fn get_firstV1<A, T>(container: &T) -> &A
-  where
+where
     T: ?Sized + IndexV1<usize, Output = A>
 {
     container.index(0)
@@ -239,7 +239,7 @@ Flux's solution to this puzzle is to borrow a page from Rust's own playbook.
 
 Lets revisit the definition of the `Index` trait:
 
-```
+```rust,ignore
 pub trait IndexV1<Idx> {
     type Output:?Sized;
     fn index(&self, index: Idx) -> &Self::Output;
@@ -260,11 +260,11 @@ that specifies when an index is `valid` for a container.
 Lets do so by defining the `Index` trait as:
 
 ```rust, editable
-#[reft(fn valid(me: Self, index: Idx) -> bool)]
-pub trait Index<Idx:?Sized> {
-    type Output:?Sized;
+#[assoc(fn valid(me: Self, index: Idx) -> bool)]
+pub trait Index<Idx: ?Sized> {
+    type Output: ?Sized;
 
-    #[spec(fn(&Self[@me], idx:Idx{<Self as Index<Idx>>::valid(me, idx)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], idx: Idx{ Self::valid(me, idx) }) -> &Self::Output)]
     fn index(&self, idx: Idx) -> &Self::Output;
 }
 ```
@@ -272,7 +272,7 @@ pub trait Index<Idx:?Sized> {
 There are _two_ new things in our new version of `Index`.
 
 **1. Declaration**
-First, the `reft` attribute declares[^2] the _associated refinement_:
+First, the `assoc` attribute declares[^2] the _associated refinement_:
 a refinement level function named `valid`, that
 
 - _takes_ as inputs, the `Self` type of the container and the `Idx` type of the index, and
@@ -282,10 +282,9 @@ a refinement level function named `valid`, that
 **2. Use**
 Next, the `spec` attribute refines the `index` method to say that it should only be
 passed an `idx` that is *valid* for the `me` container, where `valid` is the associated
-refinement declared above. The notation `<Self as Index<Idx>>::valid(me, idx)` is a
-(sadly, verbose!) way to refer to the `valid` function associated with the particular
-implementation of the `Index` trait for the `Self` type.
-
+refinement declared above. The notation `Self::valid(me, idx)` is a
+way to refer to the `valid` associated refinement, similar to
+how `Self::Output` is used to refer to the `Output` associated type.
 
 ### A Safe (and Generic, Reusable) `get_first`
 
@@ -294,9 +293,9 @@ but where flux will guarantee that `index` is safe to call. For example, lets re
 the `get_first` method that returns the 0th element of a container.
 
 ```rust, editable
-// #[spec(fn (&T{container:<T as Index<usize>>::valid(container, 0)}) -> &A)]
+// #[spec(fn (&T{ container: T::valid(container, 0) }) -> &A)]
 fn get_first<A, T>(container: &T) -> &A
-  where T: ?Sized + Index<usize, Output = A>
+where T: ?Sized + Index<usize, Output = A>
 {
     container.index(0)
 }
@@ -314,10 +313,9 @@ Lets now revisit that implementation of for slices using `usize` indexes.
 ```rust, editable
 #[assoc(fn valid(size: int, index: int) -> bool { index < size })]
 impl <A> Index<usize> for [A] {
-
     type Output = A;
 
-    #[spec(fn(&Self[@me], idx:usize{<[A] as Index<usize>>::valid(me, idx)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], idx:usize{ Self::valid(me, idx) }) -> &Self::Output)]
     fn index(&self, index: usize) -> &Self::Output {
         &self[index]
     }
@@ -373,14 +371,16 @@ containers. Lets see how to implement `Index` for `str` using `Range<usize>` ind
 which return sub-slices of the string.
 
 ```rust, editable
-#[assoc(fn valid(me: str, index: Range) -> bool {
-    index.start <= index.end && index.end <= str_len(me)
-})]
+#[assoc(
+    fn valid(me: str, index: Range<int>) -> bool {
+        index.start <= index.end && index.end <= str_len(me)
+    }
+)]
 impl Index<Range<usize>> for str  {
 
     type Output = str;
 
-    #[spec(fn(&Self[@me], idx:Range<usize>{<str as Index<Range<usize>>>::valid(me, idx)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], idx:Range<usize>{ Self::valid(me, idx) }) -> &Self::Output)]
     fn index(&self, idx: Range<usize>) -> &Self::Output {
         &self[idx.start..idx.end]
     }
@@ -438,7 +438,7 @@ the below `impl`?
 impl <A:Copy> Index<usize> for Vec<A> {
     type Output = A;
 
-    #[spec(fn(&Self[@me], index:usize{<Vec<A> as Index<usize>>::valid(me, index)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], index:usize{ Self::valid(me, index) }) -> &Self::Output)]
     fn index(&self, index: usize) -> &Self::Output {
         &self[index]
     }
@@ -450,7 +450,7 @@ to compute a dot-product for two `Vec<f64>`. Can you fix the `spec`
 for `dot_vec` so flux accepts it?
 
 ```rust, editable
-#[spec(fn (xs: &Vec<f64>, ys: &Vec<f64>) -> f64)]
+#[spec(fn(xs: &Vec<f64>, ys: &Vec<f64>) -> f64)]
 fn dot_vec(xs: &Vec<f64>, ys: &Vec<f64>) -> f64 {
     let mut res = 0.0;
     for i in 0..xs.len() {
@@ -466,14 +466,15 @@ fn dot_vec(xs: &Vec<f64>, ys: &Vec<f64>) -> f64 {
 Why does flux reject the below `impl`? Can you edit the code so flux accepts it?
 
 ```rust, editable
-#[assoc(fn valid(me: Vec, idx: Range<int>) -> bool {
-    true
-  })]
+#[assoc(
+    fn valid(me: Vec, idx: Range<int>) -> bool {
+        true
+    }
+)]
 impl <A> Index<Range<usize>> for Vec<A> {
-
     type Output = [A];
 
-    #[spec(fn(&Self[@me], idx:Range<usize>{<Vec<A> as Index<Range<usize>>>::valid(me, idx)}) -> &Self::Output)]
+    #[spec(fn(&Self[@me], idx: Range<usize>{ Self::valid(me, idx) }) -> &Self::Output)]
     fn index(&self, idx: Range<usize>) -> &Self::Output {
         &self[idx.start..idx.end]
     }
