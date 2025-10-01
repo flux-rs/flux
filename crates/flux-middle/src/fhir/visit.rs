@@ -528,8 +528,15 @@ pub fn walk_func_sort<'v, V: Visitor<'v>>(vis: &mut V, func: &FuncSort<'v>) {
 }
 
 pub fn walk_alias_reft<'v, V: Visitor<'v>>(vis: &mut V, alias: &AliasReft<'v>) {
-    vis.visit_ty(alias.qself);
-    vis.visit_path(&alias.path);
+    match alias {
+        AliasReft::Qualified { qself, trait_, name: _ } => {
+            vis.visit_ty(qself);
+            vis.visit_path(trait_);
+        }
+        AliasReft::TypeRelative { qself, name: _ } => {
+            vis.visit_ty(qself);
+        }
+    }
 }
 
 pub fn walk_field_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &FieldExpr<'v>) {

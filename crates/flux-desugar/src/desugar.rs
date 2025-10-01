@@ -1558,10 +1558,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
         let args = self.desugar_exprs(args);
         match &callee.kind {
             surface::ExprKind::Path(path) => {
-                if let QPathExpr::Resolved(path, _) = self.desugar_epath(path) {
-                    fhir::ExprKind::App(path, args)
-                } else {
-                    fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span)))
+                match self.desugar_epath(path) {
+                    QPathExpr::Resolved(path, _) => fhir::ExprKind::App(path, args),
+                    QPathExpr::TypeRelative(qself, name) => {
+                        fhir::ExprKind::Alias(fhir::AliasReft::TypeRelative { qself, name }, args)
+                    }
                 }
             }
             surface::ExprKind::PrimUIF(op) if args.len() == 2 && self.allow_prim_app() => {
@@ -1569,15 +1570,18 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
             }
             surface::ExprKind::AssocReft(qself, path, name) => {
                 let qself = self.desugar_ty(qself);
-                let fhir::QPath::Resolved(None, fpath) = self.desugar_qpath(None, path) else {
+                let fhir::QPath::Resolved(None, trait_) = self.desugar_qpath(None, path) else {
                     span_bug!(path.span, "desugar_alias_reft: unexpected qpath")
                 };
-                let Res::Def(DefKind::Trait, _) = fpath.res else {
+                let Res::Def(DefKind::Trait, _) = trait_.res else {
                     // FIXME(nilehmann) we ought to report this error somewhere else
                     return fhir::ExprKind::Err(self.emit(errors::InvalidAliasReft::new(path)));
                 };
-                let alias_reft =
-                    fhir::AliasReft { qself: self.genv().alloc(qself), path: fpath, name: *name };
+                let alias_reft = fhir::AliasReft::Qualified {
+                    qself: self.genv().alloc(qself),
+                    trait_,
+                    name: *name,
+                };
                 fhir::ExprKind::Alias(alias_reft, args)
             }
             _ => fhir::ExprKind::Err(self.emit(errors::UnsupportedPosition::new(callee.span))),

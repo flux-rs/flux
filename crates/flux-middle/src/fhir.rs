@@ -962,10 +962,13 @@ impl<'fhir> PolyFuncSort<'fhir> {
 
 /// `<qself as path>::name`
 #[derive(Clone, Copy)]
-pub struct AliasReft<'fhir> {
-    pub qself: &'fhir Ty<'fhir>,
-    pub path: Path<'fhir>,
-    pub name: Ident,
+pub enum AliasReft<'fhir> {
+    /// A fully qualified associated refinement `<qself as trait_>::name`
+    Qualified { qself: &'fhir Ty<'fhir>, trait_: Path<'fhir>, name: Ident },
+    /// A type-relative associated refinement, e.g., `Self::name`. Note that
+    /// we can only resolve this when `ty` is a parameter, similar to how
+    /// type-relative associated types are resolved.
+    TypeRelative { qself: &'fhir Ty<'fhir>, name: Ident },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1514,7 +1517,14 @@ impl fmt::Debug for AssocItemConstraint<'_> {
 
 impl fmt::Debug for AliasReft<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<{:?} as {:?}>::{}", self.qself, self.path, self.name)
+        match self {
+            AliasReft::Qualified { qself, trait_, name } => {
+                write!(f, "<{qself:?} as {trait_:?}>::{name}")
+            }
+            AliasReft::TypeRelative { qself, name } => {
+                write!(f, "{qself:?}::{name}")
+            }
+        }
     }
 }
 
