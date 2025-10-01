@@ -36,7 +36,10 @@ use rustc_span::Span;
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::{fixpoint_qualifiers::FIXPOINT_QUALIFIERS, projections::structurally_normalize_expr};
+use crate::{
+    fixpoint_qualifiers::FIXPOINT_QUALIFIERS, lean_encoding::LeanEncoder,
+    projections::structurally_normalize_expr,
+};
 
 pub mod fixpoint {
     use std::fmt;
@@ -507,6 +510,31 @@ where
             }
             FixpointResult::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         }
+    }
+
+    pub fn generate_and_check_lean_lemmas(
+        mut self,
+        constraint: fixpoint::Constraint,
+    ) -> QueryResult<()> {
+        let def_id = self.ecx.def_id;
+
+        if !self.kcx.into_fixpoint().is_empty() {
+            tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
+        }
+
+        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
+
+        let mut constants = self.ecx.const_map.into_values().collect_vec();
+        constants.extend(define_constants);
+
+        self.ecx.errors.into_result()?;
+
+        let lean_encoder = LeanEncoder::new(def_id, self.genv, define_funs, constants, constraint);
+        let lean_path = std::path::Path::new("./");
+        let project_name = "lean_proofs";
+        lean_encoder.check_proof(lean_path, project_name)
     }
 
     fn run_task_with_cache(

@@ -75,6 +75,11 @@ pub fn trusted_impl(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn proven_externally(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::proven_externally(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn generics(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::generics(attr, tokens)
 }
@@ -154,6 +159,7 @@ mod attr_sysroot {
         opts,
         trusted,
         trusted_impl,
+        proven_externally,
         generics,
         assoc,
         ignore,
@@ -202,6 +208,7 @@ mod attr_dummy {
         opts,
         trusted,
         trusted_impl,
+        proven_externally,
         generics,
         assoc,
         ignore,
