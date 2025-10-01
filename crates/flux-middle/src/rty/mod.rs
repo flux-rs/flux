@@ -119,6 +119,10 @@ impl AdtSortVariant {
         self.sorts.fold_with(&mut SortSubst::new(args))
     }
 
+    pub fn field_sorts_instantiate_identity(&self) -> List<Sort> {
+        self.sorts.clone()
+    }
+
     pub fn projections(&self, def_id: DefId) -> impl Iterator<Item = FieldProj> {
         (0..self.fields()).map(move |i| FieldProj::Adt { def_id, field: i as u32 })
     }

@@ -85,7 +85,7 @@ pub(super) fn decode_crate_metadata(
             .with_position(decoder.len() - IntEncodedWithFixedSize::ENCODED_SIZE, |d| {
                 IntEncodedWithFixedSize::decode(d).0 as usize
             });
-        decoder.with_position(footer_pos, |d| Footer::decode(d))
+        decoder.with_position(footer_pos, Footer::decode)
     };
 
     let mut decoder = DecodeContext {
@@ -123,11 +123,11 @@ impl SpanDecoder for DecodeContext<'_, '_> {
 
     fn decode_syntax_context(&mut self) -> SyntaxContext {
         let syntax_contexts = self.syntax_contexts;
-        rustc_span::hygiene::decode_syntax_context(self, &self.hygiene_context, |this, id| {
+        rustc_span::hygiene::decode_syntax_context(self, self.hygiene_context, |this, id| {
             // This closure is invoked if we haven't already decoded the data for the `SyntaxContext` we are deserializing.
             // We look up the position of the associated `SyntaxData` and decode it.
             let pos = syntax_contexts.get(&id).unwrap();
-            this.with_position(pos.to_usize(), |decoder| SyntaxContextKey::decode(decoder))
+            this.with_position(pos.to_usize(), SyntaxContextKey::decode)
         })
     }
 
@@ -136,15 +136,14 @@ impl SpanDecoder for DecodeContext<'_, '_> {
         let cnum = self.tcx.stable_crate_id_to_crate_num(stable_id);
         let index = u32::decode(self);
 
-        let expn_id = rustc_span::hygiene::decode_expn_id(cnum, index, |_| {
+        rustc_span::hygiene::decode_expn_id(cnum, index, |_| {
             let pos = self.expn_data.get(&(stable_id, index)).unwrap();
             self.with_position(pos.to_usize(), |decoder| {
                 let data = rustc_span::ExpnData::decode(decoder);
                 let hash = rustc_span::ExpnHash::decode(decoder);
                 (data, hash)
             })
-        });
-        expn_id
+        })
     }
 
     fn decode_span(&mut self) -> rustc_span::Span {
