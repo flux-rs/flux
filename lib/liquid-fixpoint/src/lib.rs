@@ -413,6 +413,12 @@ pub enum ThyFunc {
     SetSng,
     /// Set union
     SetCup,
+    /// Set intersection
+    SetCap,
+    /// Set difference
+    SetDiff,
+    /// Subset
+    SetSub,
     /// Set membership
     SetMem,
 
@@ -426,7 +432,7 @@ pub enum ThyFunc {
 }
 
 impl ThyFunc {
-    pub const ALL: [ThyFunc; 37] = [
+    pub const ALL: [ThyFunc; 40] = [
         ThyFunc::StrLen,
         ThyFunc::IntToBv8,
         ThyFunc::Bv8ToInt,
@@ -461,6 +467,9 @@ impl ThyFunc {
         ThyFunc::SetSng,
         ThyFunc::SetCup,
         ThyFunc::SetMem,
+        ThyFunc::SetCap,
+        ThyFunc::SetDiff,
+        ThyFunc::SetSub,
         ThyFunc::MapDefault,
         ThyFunc::MapSelect,
         ThyFunc::MapStore,
@@ -508,7 +517,10 @@ impl fmt::Display for ThyFunc {
             ThyFunc::SetEmpty => write!(f, "Set_empty"),
             ThyFunc::SetSng => write!(f, "Set_sng"),
             ThyFunc::SetCup => write!(f, "Set_cup"),
+            ThyFunc::SetCap => write!(f, "Set_cap"),
+            ThyFunc::SetDiff => write!(f, "Set_diff"),
             ThyFunc::SetMem => write!(f, "Set_mem"),
+            ThyFunc::SetSub => write!(f, "Set_sub"),
             ThyFunc::MapDefault => write!(f, "Map_default"),
             ThyFunc::MapSelect => write!(f, "Map_select"),
             ThyFunc::MapStore => write!(f, "Map_store"),

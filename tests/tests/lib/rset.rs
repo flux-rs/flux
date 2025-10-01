@@ -40,4 +40,24 @@ impl<T> RSet<T> {
     pub fn iter(self: &Self) -> std::collections::hash_set::Iter<'_, T> {
         self.inner.iter()
     }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&RSet<T>[@self], &RSet<T>[@other]) -> RSet<T>[set_intersection(self, other)])]
+    pub fn intersection(&self, other: &RSet<T>) -> RSet<T>
+    where
+        T: Eq + Hash + Clone,
+    {
+        let inner = self.inner.intersection(&other.inner).cloned().collect();
+        RSet { inner }
+    }
+
+    #[flux::trusted]
+    #[flux::sig(fn(&RSet<T>[@self], &RSet<T>[@other]) -> RSet<T>[set_union(self, other)])]
+    pub fn union(&self, other: &RSet<T>) -> RSet<T>
+    where
+        T: Eq + Hash + Clone,
+    {
+        let inner = self.inner.union(&other.inner).cloned().collect();
+        RSet { inner }
+    }
 }
