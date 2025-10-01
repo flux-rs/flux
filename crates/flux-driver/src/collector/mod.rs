@@ -94,7 +94,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
-        self.collect_proven_externally(&mut attrs, CRATE_DEF_ID);
         DetachedSpecsCollector::collect(self, &mut attrs)?;
 
         self.specs
@@ -111,11 +110,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-        self.collect_proven_externally(&mut attrs, owner_id.def_id);
         DetachedSpecsCollector::collect(self, &mut attrs)?;
 
         match &item.kind {
             ItemKind::Fn { .. } => {
+                self.collect_proven_externally(&mut attrs, owner_id.def_id);
                 self.collect_fn_spec(owner_id, attrs)?;
             }
             ItemKind::Struct(_, _, variant) => {
@@ -160,8 +159,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-        self.collect_proven_externally(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
+            self.collect_proven_externally(&mut attrs, owner_id.def_id);
             self.collect_fn_spec(owner_id, attrs)?;
         }
         hir::intravisit::walk_trait_item(self, trait_item);
@@ -174,9 +173,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-        self.collect_proven_externally(&mut attrs, owner_id.def_id);
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
+            self.collect_proven_externally(&mut attrs, owner_id.def_id);
             self.collect_fn_spec(owner_id, attrs)?;
         }
         hir::intravisit::walk_impl_item(self, impl_item);
