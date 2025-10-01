@@ -127,10 +127,10 @@
 <a href=#127 id=127 data-nosnippet>127</a>        .map_err(|err| err.emit(genv, def_id))<span class="question-mark">?</span>;
 <a href=#128 id=128 data-nosnippet>128</a>
 <a href=#129 id=129 data-nosnippet>129</a>        <span class="kw">if </span>genv.proven_externally(def_id) {
-<a href=#130 id=130 data-nosnippet>130</a>            <span class="kw">let </span>ok = infcx_root
+<a href=#130 id=130 data-nosnippet>130</a>            infcx_root
 <a href=#131 id=131 data-nosnippet>131</a>                .execute_lean_query(MaybeExternId::Local(def_id))
 <a href=#132 id=132 data-nosnippet>132</a>                .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-<a href=#133 id=133 data-nosnippet>133</a>            <span class="prelude-val">Ok</span>(ok)
+<a href=#133 id=133 data-nosnippet>133</a>            <span class="prelude-val">Ok</span>(())
 <a href=#134 id=134 data-nosnippet>134</a>        } <span class="kw">else </span>{
 <a href=#135 id=135 data-nosnippet>135</a>            <span class="comment">// PHASE 3: invoke fixpoint on the constraint
 <a href=#136 id=136 data-nosnippet>136</a>            </span><span class="kw">let </span>errors = infcx_root
