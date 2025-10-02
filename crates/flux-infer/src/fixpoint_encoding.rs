@@ -551,10 +551,8 @@ where
         if config::is_cache_enabled()
             && let Some(result) = cache.lookup(&key, hash)
         {
-            println!("TRACE: cache hit for {def_id:?}");
             return result.clone();
         }
-        println!("TRACE: cache miss for {def_id:?}");
         let result = timings::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             task.run()
                 .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
