@@ -70,9 +70,6 @@ Flux View Panel: shows the types and environments known at each program point
 
 ![After Statement](static/flux_view_end.jpg)
 
-## TODO
+Diagnostics Panel: shows the full flux error message when you click on a diagnostic in the editor
 
-- [x] full error with monochrome
-- [x] Replace [0999] with "click for full Flux error"
-- [x] Remove the junk in the pane
-- [ ] Restore colors!
+![Diagnostics Panel](static/flux_diagnostic.jpg)

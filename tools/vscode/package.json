@@ -32,6 +32,10 @@
       {
         "command": "Flux.toggle",
         "title": "Toggle Flux View"
+      },
+      {
+        "command": "Flux.showDiagnostic",
+        "title": "Show Full Flux Diagnostic"
       }
     ],
     "activationEvents": [
