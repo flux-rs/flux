@@ -64,122 +64,116 @@ export function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(killFluxCommand);
 
-  // Register command to show full diagnostic
-  let showDiagnosticCommand = vscode.commands.registerCommand("Flux.showDiagnostic", async (diagnosticUri: vscode.Uri) => {
-    try {
-      // Extract diagnostic ID from URI
-      const diagnosticId = diagnosticUri.path.substring(1);
-      const diagnostic = diagnosticDetailsMap.get(diagnosticId);
+  //   // Register command to show full diagnostic
+  //   let showDiagnosticCommand = vscode.commands.registerCommand("Flux.showDiagnostic", async (diagnosticUri: vscode.Uri) => {
+  //     try {
+  //       // Extract diagnostic ID from URI
+  //       const diagnosticId = diagnosticUri.path.substring(1);
+  //       const diagnostic = diagnosticDetailsMap.get(diagnosticId);
 
-      if (!diagnostic) {
-        vscode.window.showErrorMessage('Diagnostic not found');
-        return;
-      }
+  //       if (!diagnostic) {
+  //         vscode.window.showErrorMessage('Diagnostic not found');
+  //         return;
+  //       }
 
-      // Create webview panel for better HTML rendering
-      const panel = vscode.window.createWebviewPanel(
-        'fluxDiagnostic',
-        'Flux Compiler Diagnostic',
-        vscode.ViewColumn.Beside,
-        {
-          enableScripts: false,
-          retainContextWhenHidden: true
-        }
-      );
+  //       // Create webview panel for better HTML rendering
+  //       const panel = vscode.window.createWebviewPanel(
+  //         'fluxDiagnostic',
+  //         'Flux Compiler Diagnostic',
+  //         vscode.ViewColumn.Beside,
+  //         {
+  //           enableScripts: false,
+  //           retainContextWhenHidden: true
+  //         }
+  //       );
 
-      const message = diagnostic.message;
-      // Clean up the message to remove some redundant information
-      if (message.rendered) {
-        // Strip all ANSI escape codes and show plain text
-        const plainText = anser.ansiToText(message.rendered)
-          // Escape HTML entities for safety
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-        // const decolorized = anser.ansiToText(message.rendered);
-        // const index = decolorized.match(/^(note|help):/m)?.index || decolorized.length;
-        // const plainText = decolorized
-        //   .substring(0, index)
-        //   .replace(/^ -->[^\n]+\n/m, "")
-        //   .trim();
+  //       const message = diagnostic.message;
+  //       // Clean up the message to remove some redundant information
+  //       if (message.rendered) {
+  //         // Strip all ANSI escape codes and show plain text
+  //         const plainText = anser.ansiToText(message.rendered)
+  //           // Escape HTML entities for safety
+  //           .replace(/&/g, '&amp;')
+  //           .replace(/</g, '&lt;')
+  //           .replace(/>/g, '&gt;')
+  //           .replace(/"/g, '&quot;')
+  //           .replace(/'/g, '&#39;');
 
-        panel.webview.html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.4;
-            color: #d4d4d4;
-            background-color: #1e1e1e;
-            margin: 0;
-            padding: 16px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-        .diagnostic-header {
-            border-bottom: 2px solid #3c3c3c;
-            padding-bottom: 8px;
-            margin-bottom: 16px;
-            font-weight: bold;
-            color: #569cd6;
-        }
-        .diagnostic-content {
-            font-family: inherit;
-        }
-    </style>
-</head>
-<body>
-    <div class="diagnostic-header">Full Blux Compiler Diagnostic</div>
-    <div class="diagnostic-content">${plainText}</div>
-</body>
-</html>`;
-      } else {
-        // Fallback to plain text
-        const plainText = `Full Klux Compiler Diagnostic
+  //         panel.webview.html = `<!DOCTYPE html>
+  // <html>
+  // <head>
+  //     <meta charset="UTF-8">
+  //     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  //     <style>
+  //         body {
+  //             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  //             font-size: 13px;
+  //             line-height: 1.4;
+  //             color: #d4d4d4;
+  //             background-color: #1e1e1e;
+  //             margin: 0;
+  //             padding: 16px;
+  //             white-space: pre-wrap;
+  //             word-wrap: break-word;
+  //         }
+  //         .diagnostic-header {
+  //             border-bottom: 2px solid #3c3c3c;
+  //             padding-bottom: 8px;
+  //             margin-bottom: 16px;
+  //             font-weight: bold;
+  //             color: #569cd6;
+  //         }
+  //         .diagnostic-content {
+  //             font-family: inherit;
+  //         }
+  //     </style>
+  // </head>
+  // <body>
+  //     <div class="diagnostic-header">Full Blux Compiler Diagnostic</div>
+  //     <div class="diagnostic-content">${plainText}</div>
+  // </body>
+  // </html>`;
+  //       } else {
+  //         // Fallback to plain text
+  //         const plainText = `Full Klux Compiler Diagnostic
 
-${message.level.toUpperCase()}: ${message.message}
+  // ${message.level.toUpperCase()}: ${message.message}
 
-${message.spans.map(span =>
-          `  --> ${span.file_name}:${span.line_start}:${span.column_start}
-${span.text?.map(text => `   | ${text.text}`).join('\n') || ''}
-${span.label ? `   = ${span.label}` : ''}`
-        ).join('\n\n')}
+  // ${message.spans.map(span =>
+  //           `  --> ${span.file_name}:${span.line_start}:${span.column_start}
+  // ${span.text?.map(text => `   | ${text.text}`).join('\n') || ''}
+  // ${span.label ? `   = ${span.label}` : ''}`
+  //         ).join('\n\n')}
 
-${message.children.map(child =>
-          `${child.level}: ${child.message}`
-        ).join('\n')}`;
+  // ${message.children.map(child =>
+  //           `${child.level}: ${child.message}`
+  //         ).join('\n')}`;
 
-        panel.webview.html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            font-size: 13px;
-            line-height: 1.4;
-            color: #d4d4d4;
-            background-color: #1e1e1e;
-            margin: 0;
-            padding: 16px;
-            white-space: pre-wrap;
-        }
-    </style>
-</head>
-<body>${plainText.replace(/\n/g, '<br>')}</body>
-</html>`;
-      }
-    } catch (error) {
-      vscode.window.showErrorMessage(`Failed to show diagnostic: ${error}`);
-    }
-  });
-  context.subscriptions.push(showDiagnosticCommand);
+  //         panel.webview.html = `<!DOCTYPE html>
+  // <html>
+  // <head>
+  //     <meta charset="UTF-8">
+  //     <style>
+  //         body {
+  //             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  //             font-size: 13px;
+  //             line-height: 1.4;
+  //             color: #d4d4d4;
+  //             background-color: #1e1e1e;
+  //             margin: 0;
+  //             padding: 16px;
+  //             white-space: pre-wrap;
+  //         }
+  //     </style>
+  // </head>
+  // <body>${plainText.replace(/\n/g, '<br>')}</body>
+  // </html>`;
+  //       }
+  //     } catch (error) {
+  //       vscode.window.showErrorMessage(`Failed to show diagnostic: ${error}`);
+  //     }
+  //   });
+  //   context.subscriptions.push(showDiagnosticCommand);
 
   /************************************************************/
   // Register a custom webview panel
@@ -408,29 +402,14 @@ class FluxDiagnosticContentProvider implements vscode.TextDocumentContentProvide
     const message = diagnostic.message;
     if (message.rendered) {
       const decolorized = anser.ansiToText(message.rendered);
-      // const index = decolorized.match(/^(note|help):/m)?.index || decolorized.length;
       const plainText = decolorized
-        //   .substring(0, index)
         .replace(/^ -->[^\n]+\n/m, "")
         .trim();
 
-      const header = '=== Full Qlux Compiler Diagnostic ===\n\n';
-      return header + plainText; // message.rendered;
+      // const header = '=== Full Flux Diagnostic ===\n\n';
+      return plainText;
     } else {
-      // Fallback to plain text if no rendered content
-      return `Full Flux Compiler Diagnostic
-
-${message.level.toUpperCase()}: ${message.message}
-
-${message.spans.map(span =>
-        `  --> ${span.file_name}:${span.line_start}:${span.column_start}
-${span.text?.map(text => `   | ${text.text}`).join('\n') || ''}
-${span.label ? `   = ${span.label}` : ''}`
-      ).join('\n\n')}
-
-${message.children.map(child =>
-        `${child.level}: ${child.message}`
-      ).join('\n')}`;
+      return `<sorry, no diagnostic available!>`;
     }
   }
 
@@ -1710,23 +1689,25 @@ export function convertRustcDiagnostic(
       // If there's already a code, preserve it, otherwise create a new code object
       const existingCode = message.code?.code;
       diag.code = {
-        value: existingCode || "Click for full compiler diagnostic",
+        value: /* existingCode || */ "Click for full flux diagnostic",
         target: diagnosticUri
       };
 
-      // Clean up the message to remove some redundant information
-      if (message.rendered) {
-        const decolorized = anser.ansiToText(message.rendered);
-        const index = decolorized.match(/^(note|help):/m)?.index || decolorized.length;
-        const cleanMessage = decolorized
-          .substring(0, index)
-          .replace(/^ -->[^\n]+\n/m, "")
-          .trim();
+      // The stuff below gives a sneak preview of the message in the VSCode panel,
+      // but is ugly as it seems to pull in bits of the rust code not nicely formatted :-(
+      //
+      // if (message.rendered) {
+      //   const decolorized = anser.ansiToText(message.rendered);
+      //   const index = decolorized.match(/^(note|help):/m)?.index || decolorized.length;
+      //   const cleanMessage = decolorized
+      //     .substring(0, index)
+      //     .replace(/^ -->[^\n]+\n/m, "")
+      //     .trim();
 
-        if (cleanMessage && cleanMessage !== message.message) {
-          diag.message = cleanMessage;
-        }
-      }
+      //   if (cleanMessage && cleanMessage !== message.message) {
+      //     diag.message = cleanMessage;
+      //   }
+      // }
     }
 
     return { uri, diagnostic: diag };

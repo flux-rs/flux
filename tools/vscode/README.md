@@ -72,4 +72,7 @@ Flux View Panel: shows the types and environments known at each program point
 
 ## TODO
 
-- [ ] Add "click for full error message" functionality to the diagnostics panel.
+- [x] full error with monochrome
+- [x] Replace [0999] with "click for full Flux error"
+- [x] Remove the junk in the pane
+- [ ] Restore colors!
