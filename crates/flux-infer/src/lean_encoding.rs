@@ -51,6 +51,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .tcx()
             .def_path(self.def_id.resolved_id())
             .to_filename_friendly_no_crate()
+            .replace("-", "_")
     }
 
     fn proof_name(&self) -> String {
