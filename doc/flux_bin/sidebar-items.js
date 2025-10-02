@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["utils"],"struct":["FluxMetadata"]};
+window.SIDEBAR_ITEMS = {"mod":["cargo_flux_opts","cargo_style","utils"],"struct":["FluxMetadata"]};

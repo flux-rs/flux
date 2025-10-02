@@ -5,29 +5,30 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>anyhow::Result;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>flux_bin::utils::{
 <a href=#7 id=7 data-nosnippet>7</a>    LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
-<a href=#8 id=8 data-nosnippet>8</a>    get_rust_toolchain, prepend_path_to_env_var, print_version_and_exit,
+<a href=#8 id=8 data-nosnippet>8</a>    get_rust_toolchain, get_version, prepend_path_to_env_var,
 <a href=#9 id=9 data-nosnippet>9</a>};
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#12 id=12 data-nosnippet>12</a>    <span class="kw">if </span>env::args().any(|arg| arg == <span class="string">"--version" </span>|| arg == <span class="string">"-V"</span>) {
-<a href=#13 id=13 data-nosnippet>13</a>        print_version_and_exit(<span class="string">"flux"</span>);
-<a href=#14 id=14 data-nosnippet>14</a>    }
-<a href=#15 id=15 data-nosnippet>15</a>
-<a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">let </span>flux_sysroot = flux_sysroot_dir();
-<a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>flux_sysroot)<span class="question-mark">?</span>;
-<a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">let </span>rust_sysroot = get_rust_sysroot(<span class="kw-2">&amp;</span>get_rust_toolchain()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
-<a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">let </span>ld_library_path = get_rust_lib_path(<span class="kw-2">&amp;</span>rust_sysroot);
-<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
-<a href=#21 id=21 data-nosnippet>21</a>
-<a href=#22 id=22 data-nosnippet>22</a>    Command::new(flux_driver_path)
-<a href=#23 id=23 data-nosnippet>23</a>        <span class="comment">// Skip the invocation of `flux` itself
-<a href=#24 id=24 data-nosnippet>24</a>        </span>.args(env::args().skip(<span class="number">1</span>))
-<a href=#25 id=25 data-nosnippet>25</a>        .arg(<span class="string">"-L"</span>)
-<a href=#26 id=26 data-nosnippet>26</a>        .arg(flux_sysroot)
-<a href=#27 id=27 data-nosnippet>27</a>        .args([<span class="string">"--extern"</span>, <span class="string">"flux_rs"</span>, <span class="string">"-Fverify=on"</span>])
-<a href=#28 id=28 data-nosnippet>28</a>        .env(LIB_PATH, extended_lib_path)
-<a href=#29 id=29 data-nosnippet>29</a>        .status()<span class="question-mark">?
-<a href=#30 id=30 data-nosnippet>30</a>        </span>.exit_ok()<span class="question-mark">?</span>;
-<a href=#31 id=31 data-nosnippet>31</a>
-<a href=#32 id=32 data-nosnippet>32</a>    <span class="prelude-val">Ok</span>(())
-<a href=#33 id=33 data-nosnippet>33</a>}</code></pre></div></section></main></body></html>
+<a href=#13 id=13 data-nosnippet>13</a>        <span class="macro">println!</span>(<span class="string">"flux {}"</span>, get_version());
+<a href=#14 id=14 data-nosnippet>14</a>        std::process::exit(<span class="number">0</span>);
+<a href=#15 id=15 data-nosnippet>15</a>    }
+<a href=#16 id=16 data-nosnippet>16</a>
+<a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">let </span>flux_sysroot = flux_sysroot_dir();
+<a href=#18 id=18 data-nosnippet>18</a>    <span class="kw">let </span>flux_driver_path = get_flux_driver_path(<span class="kw-2">&amp;</span>flux_sysroot)<span class="question-mark">?</span>;
+<a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">let </span>rust_sysroot = get_rust_sysroot(<span class="kw-2">&amp;</span>get_rust_toolchain()<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+<a href=#20 id=20 data-nosnippet>20</a>    <span class="kw">let </span>ld_library_path = get_rust_lib_path(<span class="kw-2">&amp;</span>rust_sysroot);
+<a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">let </span>extended_lib_path = prepend_path_to_env_var(LIB_PATH, ld_library_path)<span class="question-mark">?</span>;
+<a href=#22 id=22 data-nosnippet>22</a>
+<a href=#23 id=23 data-nosnippet>23</a>    Command::new(flux_driver_path)
+<a href=#24 id=24 data-nosnippet>24</a>        <span class="comment">// Skip the invocation of `flux` itself
+<a href=#25 id=25 data-nosnippet>25</a>        </span>.args(env::args().skip(<span class="number">1</span>))
+<a href=#26 id=26 data-nosnippet>26</a>        .arg(<span class="string">"-L"</span>)
+<a href=#27 id=27 data-nosnippet>27</a>        .arg(flux_sysroot)
+<a href=#28 id=28 data-nosnippet>28</a>        .args([<span class="string">"--extern"</span>, <span class="string">"flux_rs"</span>, <span class="string">"-Fverify=on"</span>])
+<a href=#29 id=29 data-nosnippet>29</a>        .env(LIB_PATH, extended_lib_path)
+<a href=#30 id=30 data-nosnippet>30</a>        .status()<span class="question-mark">?
+<a href=#31 id=31 data-nosnippet>31</a>        </span>.exit_ok()<span class="question-mark">?</span>;
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a>    <span class="prelude-val">Ok</span>(())
+<a href=#34 id=34 data-nosnippet>34</a>}</code></pre></div></section></main></body></html>
