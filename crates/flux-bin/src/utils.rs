@@ -93,9 +93,6 @@ fn bytes_to_pathbuf(input: Vec<u8>) -> Result<PathBuf> {
     Ok(PathBuf::from(String::from_utf8(input)?.trim()))
 }
 
-pub fn print_version_and_exit(tool: &str) {
-    let hash = option_env!("GIT_SHA").unwrap_or("unknown");
-    let date = option_env!("GIT_DATE").unwrap_or("unknown");
-    println!("{tool} {hash} ({date})");
-    std::process::exit(0);
+pub fn get_version() -> &'static str {
+    concat!(env!("GIT_SHA"), " (", env!("GIT_DATE"), ")")
 }

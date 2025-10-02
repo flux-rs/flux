@@ -5,12 +5,13 @@ use std::{env, process::Command};
 use anyhow::Result;
 use flux_bin::utils::{
     LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
-    get_rust_toolchain, prepend_path_to_env_var, print_version_and_exit,
+    get_rust_toolchain, get_version, prepend_path_to_env_var,
 };
 
 fn main() -> Result<()> {
     if env::args().any(|arg| arg == "--version" || arg == "-V") {
-        print_version_and_exit("flux");
+        println!("flux {}", get_version());
+        std::process::exit(0);
     }
 
     let flux_sysroot = flux_sysroot_dir();
