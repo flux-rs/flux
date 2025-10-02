@@ -64,117 +64,6 @@ export function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(killFluxCommand);
 
-  //   // Register command to show full diagnostic
-  //   let showDiagnosticCommand = vscode.commands.registerCommand("Flux.showDiagnostic", async (diagnosticUri: vscode.Uri) => {
-  //     try {
-  //       // Extract diagnostic ID from URI
-  //       const diagnosticId = diagnosticUri.path.substring(1);
-  //       const diagnostic = diagnosticDetailsMap.get(diagnosticId);
-
-  //       if (!diagnostic) {
-  //         vscode.window.showErrorMessage('Diagnostic not found');
-  //         return;
-  //       }
-
-  //       // Create webview panel for better HTML rendering
-  //       const panel = vscode.window.createWebviewPanel(
-  //         'fluxDiagnostic',
-  //         'Flux Compiler Diagnostic',
-  //         vscode.ViewColumn.Beside,
-  //         {
-  //           enableScripts: false,
-  //           retainContextWhenHidden: true
-  //         }
-  //       );
-
-  //       const message = diagnostic.message;
-  //       // Clean up the message to remove some redundant information
-  //       if (message.rendered) {
-  //         // Strip all ANSI escape codes and show plain text
-  //         const plainText = anser.ansiToText(message.rendered)
-  //           // Escape HTML entities for safety
-  //           .replace(/&/g, '&amp;')
-  //           .replace(/</g, '&lt;')
-  //           .replace(/>/g, '&gt;')
-  //           .replace(/"/g, '&quot;')
-  //           .replace(/'/g, '&#39;');
-
-  //         panel.webview.html = `<!DOCTYPE html>
-  // <html>
-  // <head>
-  //     <meta charset="UTF-8">
-  //     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  //     <style>
-  //         body {
-  //             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-  //             font-size: 13px;
-  //             line-height: 1.4;
-  //             color: #d4d4d4;
-  //             background-color: #1e1e1e;
-  //             margin: 0;
-  //             padding: 16px;
-  //             white-space: pre-wrap;
-  //             word-wrap: break-word;
-  //         }
-  //         .diagnostic-header {
-  //             border-bottom: 2px solid #3c3c3c;
-  //             padding-bottom: 8px;
-  //             margin-bottom: 16px;
-  //             font-weight: bold;
-  //             color: #569cd6;
-  //         }
-  //         .diagnostic-content {
-  //             font-family: inherit;
-  //         }
-  //     </style>
-  // </head>
-  // <body>
-  //     <div class="diagnostic-header">Full Blux Compiler Diagnostic</div>
-  //     <div class="diagnostic-content">${plainText}</div>
-  // </body>
-  // </html>`;
-  //       } else {
-  //         // Fallback to plain text
-  //         const plainText = `Full Klux Compiler Diagnostic
-
-  // ${message.level.toUpperCase()}: ${message.message}
-
-  // ${message.spans.map(span =>
-  //           `  --> ${span.file_name}:${span.line_start}:${span.column_start}
-  // ${span.text?.map(text => `   | ${text.text}`).join('\n') || ''}
-  // ${span.label ? `   = ${span.label}` : ''}`
-  //         ).join('\n\n')}
-
-  // ${message.children.map(child =>
-  //           `${child.level}: ${child.message}`
-  //         ).join('\n')}`;
-
-  //         panel.webview.html = `<!DOCTYPE html>
-  // <html>
-  // <head>
-  //     <meta charset="UTF-8">
-  //     <style>
-  //         body {
-  //             font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-  //             font-size: 13px;
-  //             line-height: 1.4;
-  //             color: #d4d4d4;
-  //             background-color: #1e1e1e;
-  //             margin: 0;
-  //             padding: 16px;
-  //             white-space: pre-wrap;
-  //         }
-  //     </style>
-  // </head>
-  // <body>${plainText.replace(/\n/g, '<br>')}</body>
-  // </html>`;
-  //       }
-  //     } catch (error) {
-  //       vscode.window.showErrorMessage(`Failed to show diagnostic: ${error}`);
-  //     }
-  //   });
-  //   context.subscriptions.push(showDiagnosticCommand);
-
   /************************************************************/
   // Register a custom webview panel
 
@@ -384,6 +273,10 @@ async function runCargoFlux(workspacePath: string, file: string, trace: boolean,
   });
 }
 
+
+
+
+
 // TextDocumentContentProvider for showing full diagnostic details
 class FluxDiagnosticContentProvider implements vscode.TextDocumentContentProvider {
   private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -401,13 +294,17 @@ class FluxDiagnosticContentProvider implements vscode.TextDocumentContentProvide
 
     const message = diagnostic.message;
     if (message.rendered) {
+      // plain-text version of the rendered message
       const decolorized = anser.ansiToText(message.rendered);
       const plainText = decolorized
         .replace(/^ -->[^\n]+\n/m, "")
         .trim();
 
-      // const header = '=== Full Flux Diagnostic ===\n\n';
-      return plainText;
+      const header = '<b>Foo</b> === Full Flux Diagnostic ===\n\n';
+      return header + plainText;
+
+      // html-colorized version of rendered message
+      // return this.ansiToHtml(message.rendered);
     } else {
       return `<sorry, no diagnostic available!>`;
     }
@@ -415,6 +312,44 @@ class FluxDiagnosticContentProvider implements vscode.TextDocumentContentProvide
 
   update(uri: vscode.Uri): void {
     this._onDidChange.fire(uri);
+  }
+
+  private ansiToHtml(text: string): string {
+    const anserJson = anser.ansiToJson(text, {
+      use_classes: false,
+      remove_empty: true
+    });
+
+    let htmlContent = '';
+    for (const chunk of anserJson) {
+      const styles: string[] = [];
+
+      if (chunk.fg) styles.push(`color: ${chunk.fg}`);
+      if (chunk.bg) styles.push(`background-color: ${chunk.bg}`);
+      if (chunk.decorations) {
+        if (chunk.decorations.includes('bold')) styles.push('font-weight: bold');
+        if (chunk.decorations.includes('italic')) styles.push('font-style: italic');
+        if (chunk.decorations.includes('underline')) styles.push('text-decoration: underline');
+      }
+
+      const styleAttr = styles.length > 0 ? ` style="${styles.join('; ')}"` : '';
+      htmlContent += `<span${styleAttr}>${this.escapeHtml(chunk.content)}</span>`;
+    }
+
+    return `<!DOCTYPE html>
+<html>
+<head><style>body { background-color: #1e1e1e; color: #cccccc; font-family: monospace; padding: 10px; white-space: pre-wrap; }</style></head>
+<body>${htmlContent}</body>
+</html>`;
+  }
+
+  private escapeHtml(text: string): string {
+    return text.replace(/[&<>"']/g, (char) => {
+      const entities: { [key: string]: string } = {
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      };
+      return entities[char];
+    });
   }
 }
 
