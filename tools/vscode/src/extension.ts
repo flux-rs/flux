@@ -9,6 +9,7 @@ import * as vscode from "vscode";
 
 const checkerPath = "log/checker";
 
+
 // Global variable to track the running flux process
 let runningFluxProcess: child_process.ChildProcess | null = null;
 
