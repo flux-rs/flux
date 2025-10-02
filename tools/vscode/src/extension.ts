@@ -128,8 +128,15 @@ export function activate(context: vscode.ExtensionContext) {
 
       const message = diagnostic.message;
       if (message.rendered) {
+        // First escape HTML entities in the content, then convert ANSI to HTML
+        // This prevents anser from treating < > as HTML tags
+        const escapedContent = message.rendered
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+
         // Convert ANSI escape codes to HTML to preserve formatting
-        const htmlContent = anser.ansiToHtml(message.rendered);
+        const htmlContent = anser.ansiToHtml(escapedContent);
 
         panel.webview.html = `<!DOCTYPE html>
 <html>
