@@ -1733,7 +1733,7 @@ export function updateDiagnosticsFromRustc(
           const parsed = JSON.parse(line);
           // Only process compiler messages (not build artifacts)
           if (parsed.reason === 'compiler-message' && parsed.message) {
-            console.log(`TRACE: updateDiagnostics parsed:`, parsed);
+            // console.log(`TRACE: updateDiagnostics parsed:`, parsed);
             const diag = {
               message: parsed.message,
               package_id: parsed.package_id,
