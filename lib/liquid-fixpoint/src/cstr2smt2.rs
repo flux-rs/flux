@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, vec};
+use std::{collections::HashMap, iter, vec};
 
 use itertools::Itertools as _;
 use z3::{
@@ -8,7 +8,7 @@ use z3::{
 };
 
 use crate::{
-    Error, FixpointFmt, FixpointResult, Identifier, Stats, ThyFunc, Types,
+    DataDecl, Error, FixpointFmt, FixpointResult, Identifier, SortCtor, Stats, ThyFunc, Types,
     constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
 };
 
@@ -26,11 +26,12 @@ impl From<ast::Dynamic> for Binding {
 
 pub(crate) struct Env<T: Types> {
     bindings: HashMap<T::Var, Vec<Binding>>,
+    data_types: HashMap<T::Sort, z3::Sort>,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: HashMap::new() }
+        Self { bindings: HashMap::new(), data_types: HashMap::new() }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
@@ -38,6 +39,10 @@ impl<T: Types> Env<T> {
             .entry(name)
             .or_default()
             .push(Into::<Binding>::into(value));
+    }
+
+    pub(crate) fn insert_data_decl(&mut self, name: T::Sort, datatype: z3::Sort) {
+        self.data_types.insert(name, datatype);
     }
 
     fn pop(&mut self, name: &T::Var) {
@@ -66,6 +71,10 @@ impl<T: Types> Env<T> {
 
     fn lookup(&self, name: &T::Var) -> Option<&Binding> {
         self.bindings.get(name).and_then(|stack| stack.last())
+    }
+
+    fn datatype_lookup(&self, name: &T::Sort) -> Option<&z3::Sort> {
+        self.data_types.get(name)
     }
 }
 
@@ -464,23 +473,65 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>) -> ast::Bool {
     }
 }
 
-pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
+pub(crate) fn new_datatype<T: Types>(
+    name: &T::Sort,
+    data_decl: &DataDecl<T>,
+    env: &mut Env<T>,
+) -> z3::Sort {
+    let mut builder = z3::DatatypeBuilder::new(name.display().to_string());
+    if data_decl.vars != 0 {
+        panic!("Unexpected polymorphic datatype constructor encountered {}", name.display())
+    }
+    for data_ctor in &data_decl.ctors {
+        let mut fields = Vec::new();
+        let data_field_names = data_ctor
+            .fields
+            .iter()
+            .map(|field| field.name.display().to_string())
+            .collect_vec();
+        for (name, field) in data_field_names.iter().zip(&data_ctor.fields) {
+            fields.push((name.as_str(), z3::DatatypeAccessor::sort(z3_sort(&field.sort, env))));
+        }
+        builder = builder.variant(&data_ctor.name.display().to_string(), fields)
+    }
+    let z3::DatatypeSort { sort, variants } = builder.finish();
+    for (data_ctor, variant) in iter::zip(&data_decl.ctors, variants) {
+        let z3::DatatypeVariant { constructor, accessors, tester: _ } = variant;
+        env.insert(
+            data_ctor.name.clone(),
+            Binding::Function(constructor, ast::Int::new_const(name.display().to_string()).into()),
+        );
+        for (field, accessor) in iter::zip(&data_ctor.fields, accessors) {
+            env.insert(
+                field.name.clone(),
+                Binding::Function(
+                    accessor,
+                    ast::Int::new_const(field.name.display().to_string()).into(),
+                ),
+            );
+        }
+    }
+    sort
+}
+
+pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>) -> Binding {
     match &sort {
         Sort::Int => Binding::Variable(ast::Int::new_const(name.display().to_string()).into()),
         Sort::Real => Binding::Variable(ast::Real::new_const(name.display().to_string()).into()),
         Sort::Bool => Binding::Variable(ast::Bool::new_const(name.display().to_string()).into()),
         Sort::Str => Binding::Variable(ast::String::new_const(name.display().to_string()).into()),
         Sort::Func(sorts) => {
-            let mut domain = vec![z3_sort(&sorts[0])];
+            let mut domain = vec![z3_sort(&sorts[0], env)];
             let mut current = sorts.as_ref();
             let mut range = &sorts[1];
             while let Sort::Func(sorts) = &current[1] {
-                domain.push(z3_sort(&(*sorts)[0]));
+                domain.push(z3_sort(&(*sorts)[0], env));
                 range = &sorts[1];
                 current = sorts.as_ref();
             }
             let domain_refs = domain.iter().collect_vec();
-            let fun_decl = FuncDecl::new(name.display().to_string(), &domain_refs, &z3_sort(range));
+            let fun_decl =
+                FuncDecl::new(name.display().to_string(), &domain_refs, &z3_sort(range, env));
             Binding::Function(fun_decl, ast::Int::new_const(name.display().to_string()).into())
         }
         Sort::BitVec(bv_size) => {
@@ -491,11 +542,40 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>) -> Binding {
                 _ => panic!("incorrect bitvector size specification"),
             }
         }
+        Sort::App(sort_ctor, args) => {
+            match sort_ctor {
+                SortCtor::Set => {
+                    Binding::Variable(
+                        ast::Set::new_const(name.display().to_string(), &z3_sort(&args[0], env))
+                            .into(),
+                    )
+                }
+                SortCtor::Map => {
+                    Binding::Variable(
+                        ast::Array::new_const(
+                            name.display().to_string(),
+                            &z3_sort(&args[0], env),
+                            &z3_sort(&args[1], env),
+                        )
+                        .into(),
+                    )
+                }
+                SortCtor::Data(data_ctor) => {
+                    Binding::Variable(
+                        ast::Datatype::new_const(
+                            name.display().to_string(),
+                            &env.datatype_lookup(data_ctor).unwrap(),
+                        )
+                        .into(),
+                    )
+                }
+            }
+        }
         &s => panic!("unhandled kind encountered: {:#?}", s),
     }
 }
 
-fn z3_sort<T: Types>(s: &Sort<T>) -> z3::Sort {
+fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
     match &s {
         Sort::Int => z3::Sort::int(),
         Sort::Real => z3::Sort::real(),
@@ -505,6 +585,13 @@ fn z3_sort<T: Types>(s: &Sort<T>) -> z3::Sort {
             match **bv_size {
                 Sort::BvSize(size) => z3::Sort::bitvector(size),
                 _ => panic!("incorrect bitvector size specification"),
+            }
+        }
+        Sort::App(sort_ctor, args) => {
+            match sort_ctor {
+                SortCtor::Set => z3::Sort::set(&z3_sort(&args[0], env)),
+                SortCtor::Map => z3::Sort::array(&z3_sort(&args[0], env), &z3_sort(&args[1], env)),
+                SortCtor::Data(sort) => env.datatype_lookup(&sort).unwrap().clone(),
             }
         }
         _ => panic!("unhandled sort encountered {:#?}", s),
@@ -540,7 +627,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
         }
 
         Constraint::ForAll(bind, inner) => {
-            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort));
+            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort, &env));
             solver.assert(&pred_to_z3(&bind.pred, env));
             let inner_soln = is_constraint_satisfiable(&**inner, solver, env);
             env.pop(&bind.name);

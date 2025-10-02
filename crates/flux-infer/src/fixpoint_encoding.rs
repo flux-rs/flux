@@ -131,7 +131,7 @@ pub mod fixpoint {
         }
     }
 
-    #[derive(Clone, Hash, Debug)]
+    #[derive(Clone, Hash, Debug, PartialEq, Eq)]
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
