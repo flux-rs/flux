@@ -1,12 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
-use crate::Types;
-
-fn dfs_finish_order<'a, T: Types>(
-    node: &'a T::KVar,
-    graph: &'a HashMap<T::KVar, Vec<T::KVar>>,
-    visited: &mut HashSet<T::KVar>,
-    order: &mut Vec<T::KVar>,
+fn dfs_finish_order<'a, T: Hash + Eq + Clone>(
+    node: &'a T,
+    graph: &'a HashMap<T, Vec<T>>,
+    visited: &mut HashSet<T>,
+    order: &mut Vec<T>,
 ) {
     if visited.contains(node) {
         return;
@@ -23,9 +24,7 @@ fn dfs_finish_order<'a, T: Types>(
     order.push(node.clone());
 }
 
-fn reverse_graph<T: Types>(
-    graph: &HashMap<T::KVar, Vec<T::KVar>>,
-) -> HashMap<T::KVar, Vec<T::KVar>> {
+fn reverse_graph<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> HashMap<T, Vec<T>> {
     let mut reversed = HashMap::new();
 
     for (node, neighbors) in graph {
@@ -44,11 +43,11 @@ fn reverse_graph<T: Types>(
     reversed
 }
 
-fn dfs_collect_scc<'a, T: Types>(
-    node: &'a T::KVar,
-    graph: &'a HashMap<T::KVar, Vec<T::KVar>>,
-    visited: &mut HashSet<T::KVar>,
-    scc: &mut Vec<T::KVar>,
+fn dfs_collect_scc<'a, T: Hash + Eq + Clone>(
+    node: &'a T,
+    graph: &'a HashMap<T, Vec<T>>,
+    visited: &mut HashSet<T>,
+    scc: &mut Vec<T>,
 ) {
     if visited.contains(node) {
         return;
@@ -64,7 +63,7 @@ fn dfs_collect_scc<'a, T: Types>(
     }
 }
 
-fn find_sccs<T: Types>(graph: &HashMap<T::KVar, Vec<T::KVar>>) -> Vec<Vec<T::KVar>> {
+fn find_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> Vec<Vec<T>> {
     let mut visited = HashSet::new();
     let mut order = Vec::new();
 
@@ -91,9 +90,7 @@ fn find_sccs<T: Types>(graph: &HashMap<T::KVar, Vec<T::KVar>>) -> Vec<Vec<T::KVa
     sccs
 }
 
-pub fn topological_sort_sccs<T: Types>(
-    graph: &HashMap<T::KVar, Vec<T::KVar>>,
-) -> Vec<Vec<T::KVar>> {
+pub fn topological_sort_sccs<T: Hash + Eq + Clone>(graph: &HashMap<T, Vec<T>>) -> Vec<Vec<T>> {
     let sccs = find_sccs::<T>(graph);
 
     // Map each node to its SCC index

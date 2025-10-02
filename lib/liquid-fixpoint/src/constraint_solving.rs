@@ -62,7 +62,7 @@ impl<T: Types> Constraint<T> {
 
     pub fn topo_order_fragments(&self) -> Vec<Self> {
         let (mut kvar_to_fragments, kvar_to_dependencies) = self.kvar_mappings();
-        let topologically_ordered_kvids = topological_sort_sccs::<T>(&kvar_to_dependencies);
+        let topologically_ordered_kvids = topological_sort_sccs(&kvar_to_dependencies);
         topologically_ordered_kvids
             .into_iter()
             .rev()

@@ -292,14 +292,15 @@ impl<T: Types> Task<T> {
 
     #[cfg(feature = "rust-fixpoint")]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
-        Ok(ConstraintWithEnv {
-            datatype_decls: self.data_decls.clone(),
-            kvar_decls: self.kvars.clone(),
-            qualifiers: self.qualifiers.clone(),
-            constants: self.constants.clone(),
-            constraint: self.constraint.clone(),
-        }
-        .is_satisfiable())
+        let mut cstr_with_env = ConstraintWithEnv::new(
+            self.data_decls.clone(),
+            self.kvars.clone(),
+            self.qualifiers.clone(),
+            self.constants.clone(),
+            self.constraint.clone(),
+        );
+        let is_satisfiable = cstr_with_env.is_satisfiable();
+        Ok(is_satisfiable)
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
