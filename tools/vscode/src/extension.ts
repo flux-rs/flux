@@ -1,15 +1,19 @@
-import * as vscode from "vscode";
-import * as path from "path";
+import anser from "anser";
 import * as child_process from "child_process";
-import * as process from "node:process";
-import { promisify } from "util";
 import * as fs from "fs";
+import * as process from "node:process";
+import * as path from "path";
 import * as readline from "readline";
+import { promisify } from "util";
+import * as vscode from "vscode";
 
 const checkerPath = "log/checker";
 
 // Global variable to track the running flux process
 let runningFluxProcess: child_process.ChildProcess | null = null;
+
+// Global map to store diagnostic details for the TextDocumentContentProvider
+const diagnosticDetailsMap = new Map<string, RustcDiagnostic>();
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -98,6 +102,129 @@ export function activate(context: vscode.ExtensionContext) {
       fluxDefinitionProvider
     )
   );
+
+  // Register command to show full diagnostic in webview
+  let showDiagnosticCommand = vscode.commands.registerCommand("Flux.showDiagnostic", async (diagnosticUri: vscode.Uri) => {
+    try {
+      // Extract diagnostic ID from URI
+      const diagnosticId = diagnosticUri.path.substring(1);
+      const diagnostic = diagnosticDetailsMap.get(diagnosticId);
+
+      if (!diagnostic) {
+        vscode.window.showErrorMessage('Diagnostic not found');
+        return;
+      }
+
+      // Create webview panel for better HTML rendering
+      const panel = vscode.window.createWebviewPanel(
+        'fluxDiagnostic',
+        'Flux Compiler Diagnostic',
+        vscode.ViewColumn.Beside,
+        {
+          enableScripts: false,
+          retainContextWhenHidden: true
+        }
+      );
+
+      const message = diagnostic.message;
+      if (message.rendered) {
+        // Convert ANSI escape codes to HTML to preserve formatting
+        const htmlContent = anser.ansiToHtml(message.rendered);
+
+        panel.webview.html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
+            font-size: var(--vscode-editor-font-size, 13px);
+            line-height: 1.4;
+            color: var(--vscode-editor-foreground);
+            background-color: var(--vscode-editor-background);
+            margin: 0;
+            padding: 16px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .diagnostic-header {
+            border-bottom: 2px solid var(--vscode-panel-border);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+            font-weight: bold;
+            color: var(--vscode-textLink-foreground);
+        }
+        .diagnostic-content {
+            font-family: inherit;
+        }
+        /* ANSI color classes that anser.ansiToHtml() generates - using VS Code theme colors */
+        .ansi-black-fg { color: var(--vscode-terminal-ansiBlack, #000000); }
+        .ansi-red-fg { color: var(--vscode-terminal-ansiRed, #cd3131); }
+        .ansi-green-fg { color: var(--vscode-terminal-ansiGreen, #0dbc79); }
+        .ansi-yellow-fg { color: var(--vscode-terminal-ansiYellow, #e5e510); }
+        .ansi-blue-fg { color: var(--vscode-terminal-ansiBlue, #2472c8); }
+        .ansi-magenta-fg { color: var(--vscode-terminal-ansiMagenta, #bc3fbc); }
+        .ansi-cyan-fg { color: var(--vscode-terminal-ansiCyan, #11a8cd); }
+        .ansi-white-fg { color: var(--vscode-terminal-ansiWhite, #e5e5e5); }
+        .ansi-bright-black-fg { color: var(--vscode-terminal-ansiBrightBlack, #666666); }
+        .ansi-bright-red-fg { color: var(--vscode-terminal-ansiBrightRed, #f14c4c); }
+        .ansi-bright-green-fg { color: var(--vscode-terminal-ansiBrightGreen, #23d18b); }
+        .ansi-bright-yellow-fg { color: var(--vscode-terminal-ansiBrightYellow, #f5f543); }
+        .ansi-bright-blue-fg { color: var(--vscode-terminal-ansiBrightBlue, #3b8eea); }
+        .ansi-bright-magenta-fg { color: var(--vscode-terminal-ansiBrightMagenta, #d670d6); }
+        .ansi-bright-cyan-fg { color: var(--vscode-terminal-ansiBrightCyan, #29b8db); }
+        .ansi-bright-white-fg { color: var(--vscode-terminal-ansiBrightWhite, #ffffff); }
+        .ansi-bold { font-weight: bold; }
+        .ansi-underline { text-decoration: underline; }
+        .ansi-italic { font-style: italic; }
+    </style>
+</head>
+<body>
+${htmlContent}
+</body>
+</html>`;
+      } else {
+        // Fallback to plain text
+        const plainText = `Full Flux Compiler Diagnostic
+
+${message.level.toUpperCase()}: ${message.message}
+
+${message.spans.map(span =>
+          `  --> ${span.file_name}:${span.line_start}:${span.column_start}
+${span.text?.map(text => `   | ${text.text}`).join('\n') || ''}
+${span.label ? `   = ${span.label}` : ''}`
+        ).join('\n\n')}
+
+${message.children.map(child =>
+          `${child.level}: ${child.message}`
+        ).join('\n')}`;
+
+        panel.webview.html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            color: #d4d4d4;
+            background-color: #1e1e1e;
+            margin: 0;
+            padding: 16px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>${plainText.replace(/\n/g, '<br>')}</body>
+</html>`;
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(`Failed to show diagnostic: ${error}`);
+    }
+  });
+  context.subscriptions.push(showDiagnosticCommand);
 
 
   // Reload the flux trace information for changedFiles
@@ -189,8 +316,8 @@ async function runCargoFlux(workspacePath: string, file: string, trace: boolean,
 
   return new Promise((resolve, reject) => {
     const fluxEnv = {
-       ...process.env,
-       FLUXFLAGS: fluxFlags,
+      ...process.env,
+      FLUXFLAGS: fluxFlags,
     };
 
     // Get the flux command from workspace configuration
@@ -260,8 +387,14 @@ async function runCargoFlux(workspacePath: string, file: string, trace: boolean,
   });
 }
 
+
+
+
+
+// Note: FluxDiagnosticContentProvider removed - now using WebView panel directly via command
+
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }
 
 type LineMap = Map<number, LineInfo>;
 
@@ -271,7 +404,7 @@ enum Position {
 }
 
 // definitions per line
-type FluxDef  = { fileName: string, line: number, column_start: number; column_end: number; target: vscode.Location };
+type FluxDef = { fileName: string, line: number, column_start: number; column_end: number; target: vscode.Location };
 // definitions per file, indexed by line number
 type FluxDefs = Map<number, FluxDef[]>
 
@@ -292,7 +425,7 @@ class FluxDefinitionProvider implements vscode.DefinitionProvider {
   constructor(
     private readonly _infoProvider: InfoProvider,
     private readonly _context: vscode.ExtensionContext
-  ) {}
+  ) { }
 
   provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): vscode.ProviderResult<vscode.Definition | vscode.DefinitionLink[]> {
     const fileName = document.fileName;
@@ -335,7 +468,7 @@ class InfoProvider {
     private readonly _workspacePath: string,
     private readonly _diagnosticCollection: vscode.DiagnosticCollection,
     private readonly _statusBarItem: vscode.StatusBarItem
-  ) {}
+  ) { }
 
   private _StartMap: Map<string, LineMap> = new Map();
   private _EndMap: Map<string, LineMap> = new Map();
@@ -429,7 +562,7 @@ class InfoProvider {
         return "[]"; // empty globset pattern;
     }
   }
-  public async runFlux(uri: vscode.Uri, file: string, trace: boolean, checkMode: CheckMode,  beforeLoad: () => void) {
+  public async runFlux(uri: vscode.Uri, file: string, trace: boolean, checkMode: CheckMode, beforeLoad: () => void) {
     if (!file.endsWith(".rs")) {
       return;
     }
@@ -549,7 +682,7 @@ class FluxViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _infoProvider: InfoProvider,
-  ) {}
+  ) { }
 
 
   private show() {
@@ -1233,36 +1366,36 @@ function parseEvent(event: any): [string, LineInfo] | undefined {
 function parseFluxDef(event: any): FluxDef | undefined {
   if (event.fields && event.fields.event === "hyperlink") {
     try {
-        const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;
-        const dstSpan = JSON.parse(event.fields.dst_span) as StmtSpan;
-        if (!srcSpan.file || !dstSpan.file) {
-          console.log(`Invalid detached link: ${event.fields}`);
-          return undefined; // Skip invalid links
-        }
-        // console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
-        // Create the target location
-        const targetUri = vscode.Uri.file(dstSpan.file);
-        const targetRange = new vscode.Range(
-          dstSpan.start_line - 1,
-          dstSpan.start_col - 1,
-          dstSpan.end_line - 1,
-          dstSpan.end_col - 1
-        );
-        const targetLocation = new vscode.Location(targetUri, targetRange);
-
-        const fluxDef: FluxDef = {
-          fileName: srcSpan.file,
-          line: srcSpan.start_line,
-          column_start: srcSpan.start_col,
-          column_end: srcSpan.end_col,
-          target: targetLocation,
-        };
-        // console.log(`Found flux definition`, fluxDef);
-        return fluxDef;
-      } catch (error) {
-        console.log(`Failed to parse definition event: ${error}`);
-        return undefined;
+      const srcSpan = JSON.parse(event.fields.src_span) as StmtSpan;
+      const dstSpan = JSON.parse(event.fields.dst_span) as StmtSpan;
+      if (!srcSpan.file || !dstSpan.file) {
+        console.log(`Invalid detached link: ${event.fields}`);
+        return undefined; // Skip invalid links
       }
+      // console.log(`Parsing flux hyperlink definition`, srcSpan, dstSpan);
+      // Create the target location
+      const targetUri = vscode.Uri.file(dstSpan.file);
+      const targetRange = new vscode.Range(
+        dstSpan.start_line - 1,
+        dstSpan.start_col - 1,
+        dstSpan.end_line - 1,
+        dstSpan.end_col - 1
+      );
+      const targetLocation = new vscode.Location(targetUri, targetRange);
+
+      const fluxDef: FluxDef = {
+        fileName: srcSpan.file,
+        line: srcSpan.start_line,
+        column_start: srcSpan.start_col,
+        column_end: srcSpan.end_col,
+        target: targetLocation,
+      };
+      // console.log(`Found flux definition`, fluxDef);
+      return fluxDef;
+    } catch (error) {
+      console.log(`Failed to parse definition event: ${error}`);
+      return undefined;
+    }
   }
   return undefined;
 }
@@ -1476,7 +1609,7 @@ export function convertRustcDiagnostic(
     const range = convertRange(span);
 
     // Create the diagnostic
-    const diagnostic = new vscode.Diagnostic(
+    const diag = new vscode.Diagnostic(
       range,
       message.message,
       convertSeverity(message.level)
@@ -1484,21 +1617,21 @@ export function convertRustcDiagnostic(
 
     // Add error code if available
     if (message.code) {
-      diagnostic.code = message.code.explanation
+      diag.code = message.code.explanation
         ? {
-            value: message.code.code,
-            target: vscode.Uri.parse(`https://doc.rust-lang.org/error-index.html#${message.code.code}`)
-          }
+          value: message.code.code,
+          target: vscode.Uri.parse(`https://doc.rust-lang.org/error-index.html#${message.code.code}`)
+        }
         : message.code.code;
     }
 
     // Set source
-    diagnostic.source = 'flux';
+    diag.source = 'flux';
 
     // Add related information from child messages
     const relatedInfo = convertRelatedInformation(message.children, workspaceRoot);
     if (relatedInfo.length > 0) {
-      diagnostic.relatedInformation = relatedInfo;
+      diag.relatedInformation = relatedInfo;
     }
 
     // Add tags for specific types of diagnostics
@@ -1510,10 +1643,53 @@ export function convertRustcDiagnostic(
       tags.push(vscode.DiagnosticTag.Deprecated);
     }
     if (tags.length > 0) {
-      diagnostic.tags = tags;
+      diag.tags = tags;
     }
 
-    return { uri, diagnostic };
+    // Add link to full diagnostic if rendered content is available
+    if (message.rendered) {
+      // Generate a unique ID for this diagnostic
+      const diagnosticId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Store the diagnostic details for the content provider
+      diagnosticDetailsMap.set(diagnosticId, rustcDiag);
+
+      // Create command URI for the full diagnostic view
+      const diagnosticUri = vscode.Uri.from({
+        scheme: 'command',
+        path: 'Flux.showDiagnostic',
+        query: JSON.stringify([vscode.Uri.from({
+          scheme: 'flux-diagnostic',
+          path: `/${diagnosticId}`,
+          query: `file=${encodeURIComponent(span.file_name)}&line=${span.line_start}`
+        })])
+      });
+
+      // If there's already a code, preserve it, otherwise create a new code object
+      const existingCode = message.code?.code;
+      diag.code = {
+        value: /* existingCode || */ "Click for full flux diagnostic",
+        target: diagnosticUri
+      };
+
+      // The stuff below gives a sneak preview of the message in the VSCode panel,
+      // but is ugly as it seems to pull in bits of the rust code not nicely formatted :-(
+      //
+      // if (message.rendered) {
+      //   const decolorized = anser.ansiToText(message.rendered);
+      //   const index = decolorized.match(/^(note|help):/m)?.index || decolorized.length;
+      //   const cleanMessage = decolorized
+      //     .substring(0, index)
+      //     .replace(/^ -->[^\n]+\n/m, "")
+      //     .trim();
+
+      //   if (cleanMessage && cleanMessage !== message.message) {
+      //     diag.message = cleanMessage;
+      //   }
+      // }
+    }
+
+    return { uri, diagnostic: diag };
   } catch (error) {
     console.error('Failed to convert rustc diagnostic:', error, rustcDiag);
     return null;
@@ -1540,6 +1716,7 @@ export function convertRustcDiagnostics(
   return diagnosticsByFile;
 }
 
+
 // Usage example:
 export function updateDiagnosticsFromRustc(
   diagnosticCollection: vscode.DiagnosticCollection,
@@ -1556,6 +1733,7 @@ export function updateDiagnosticsFromRustc(
           const parsed = JSON.parse(line);
           // Only process compiler messages (not build artifacts)
           if (parsed.reason === 'compiler-message' && parsed.message) {
+            // console.log(`TRACE: updateDiagnostics parsed:`, parsed);
             const diag = {
               message: parsed.message,
               package_id: parsed.package_id,
@@ -1667,7 +1845,7 @@ export function renderRustcDiagnostic(
   message.children.forEach(child => {
     output += '\n';
     const childLevel = child.level === 'note' ? 'note' :
-                     child.level === 'help' ? 'help' : child.level;
+      child.level === 'help' ? 'help' : child.level;
     output += `${childLevel}: ${child.message}\n`;
 
     // Render child spans

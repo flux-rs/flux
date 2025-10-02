@@ -2,7 +2,7 @@
   "name": "flux-checker",
   "displayName": "Flux Refinement Type Checker",
   "description": "VSCode Extension for the Flux Refinement Type Checker for Rust",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "RanjitJhala",
   "repository": {
     "type": "git",
@@ -32,6 +32,10 @@
       {
         "command": "Flux.toggle",
         "title": "Toggle Flux View"
+      },
+      {
+        "command": "Flux.showDiagnostic",
+        "title": "Show Full Flux Diagnostic"
       }
     ],
     "activationEvents": [
@@ -107,6 +111,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "anser": "^2.3.2",
     "prettier": "^3.4.1"
   }
 }
