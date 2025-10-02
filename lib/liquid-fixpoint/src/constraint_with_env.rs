@@ -50,10 +50,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         constants: Vec<ConstDecl<T>>,
         constraint: Constraint<T>,
     ) -> Self {
-        use crate::Identifier;
-
         let datatype_decls = Self::topo_sort_data_declarations(datatype_decls);
-        println!("{}", datatype_decls.iter().map(|decl| decl.name.display().to_string()).format(", "));
         Self { datatype_decls, kvar_decls, qualifiers, constants, constraint }
     }
 
