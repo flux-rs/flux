@@ -101,7 +101,7 @@
 <a href=#101 id=101 data-nosnippet>101</a><span class="attr">#[macro_export]
 <a href=#102 id=102 data-nosnippet>102</a></span><span class="macro">macro_rules!</span> _statement{
 <a href=#103 id=103 data-nosnippet>103</a>    (<span class="macro-nonterminal">$pos</span>:literal, <span class="macro-nonterminal">$stmt</span>:expr, <span class="macro-nonterminal">$infcx</span>:expr, <span class="macro-nonterminal">$env</span>:expr, <span class="macro-nonterminal">$span</span>:expr, <span class="macro-nonterminal">$checker</span>:expr) =&gt; {{
-<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(level) = config::dump_checker_trace() &amp;&amp; level &lt;= tracing::Level::INFO {
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(level) = config::dump_checker_trace() &amp;&amp; tracing::Level::INFO &lt;= level {
 <a href=#105 id=105 data-nosnippet>105</a>          <span class="kw">let </span>rcx = <span class="macro-nonterminal">$infcx</span>.cursor();
 <a href=#106 id=106 data-nosnippet>106</a>          <span class="kw">let </span>ck = <span class="macro-nonterminal">$checker</span>;
 <a href=#107 id=107 data-nosnippet>107</a>          <span class="kw">let </span>genv = ck.genv;
