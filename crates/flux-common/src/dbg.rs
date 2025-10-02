@@ -102,7 +102,6 @@ pub use crate::_basic_block_start as basic_block_start;
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
         if let Some(level) = config::dump_checker_trace() && tracing::Level::INFO <= level {
-          println!("TRACE: statement {level}");
           let rcx = $infcx.cursor();
           let ck = $checker;
           let genv = ck.genv;
