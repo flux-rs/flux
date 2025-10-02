@@ -5,51 +5,32 @@ use std::{
 };
 
 use anyhow::anyhow;
-use cargo_metadata::{Metadata, MetadataCommand, camino::Utf8Path};
+use cargo_metadata::{Metadata, camino::Utf8Path};
+use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
-    utils::{
-        EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain,
-        print_version_and_exit,
-    },
+    cargo_flux_opts::{CargoFluxCommand, Cli, GlobalOptions},
+    utils::{EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain},
 };
 use itertools::Itertools;
 use tempfile::NamedTempFile;
 
 fn main() {
-    if env::args().any(|arg| arg == "--version" || arg == "-V") {
-        print_version_and_exit("cargo-flux");
-    }
-    let exit_code = match run() {
-        Ok(code) => code,
+    let Cli::Flux { global_opts, check_opts, command } = Cli::parse();
+
+    match run(global_opts, command.unwrap_or_else(|| CargoFluxCommand::Check(check_opts))) {
+        Ok(exit_code) => exit(exit_code),
         Err(e) => {
             println!("Failed to run `cargo-flux`, error={e}");
-            EXIT_ERR
+            exit(EXIT_ERR)
         }
     };
-    exit(exit_code)
 }
 
-fn run() -> anyhow::Result<i32> {
+fn run(global_opts: GlobalOptions, command: CargoFluxCommand) -> anyhow::Result<i32> {
     let toolchain = get_rust_toolchain()?;
-
-    let metadata = MetadataCommand::new().exec()?;
+    let metadata = global_opts.metadata().exec()?;
     let config_file = write_cargo_config(metadata)?;
-
-    // Cargo can be called like `cargo [OPTIONS] flux`, so we skip all arguments until `flux` is found.
-    let mut args = env::args()
-        .skip_while(|arg| arg != "flux")
-        .skip(1)
-        .collect::<Vec<_>>();
-
-    // Unless we are calling `cargo flux clean` add a `check`
-    match &args[..] {
-        [subcommand, ..] if subcommand == "clean" => {}
-        _ => {
-            args.insert(0, "check".to_string());
-        }
-    }
-    args.extend(["--profile".to_string(), "flux".to_string()]);
 
     // We set `RUSTC` as an environment variable and not in in the [build]
     // section of the config file to make sure we run flux even when the
@@ -61,9 +42,11 @@ fn run() -> anyhow::Result<i32> {
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
         .arg(format!("+{toolchain}"))
+        .args([command.cargo_subcommand(), "--profile", "flux"])
         .arg("--config")
         .arg(config_file.path())
-        .args(args)
+        .args(global_opts.forward_args())
+        .args(command.forward_args())
         .status()?
         .code();
 
