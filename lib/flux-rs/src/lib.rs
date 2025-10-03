@@ -1,7 +1,10 @@
 #![no_std]
 extern crate alloc;
 
+#[allow(unused_extern_crates)]
 extern crate flux_alloc;
+
+#[allow(unused_extern_crates)]
 extern crate flux_core;
 
 pub mod bitvec;

@@ -12,4 +12,7 @@ mod option;
 mod cmp;
 
 #[cfg(flux)]
+mod clone;
+
+#[cfg(flux)]
 mod slice;

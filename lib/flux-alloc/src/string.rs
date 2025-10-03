@@ -16,6 +16,6 @@ impl PartialEq for String {
 
 #[extern_spec]
 impl Clone for String {
-    #[spec(fn (&String[@s]) -> String[s])]
+    #[spec(fn (&String[@s]) -> String[<String as Clone>::cloned(s)])]
     fn clone(&self) -> Self;
 }
