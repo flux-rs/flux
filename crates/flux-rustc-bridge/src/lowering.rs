@@ -1019,19 +1019,22 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::Region<'tcx> {
     type R = Result<Region, UnsupportedReason>;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
-        use rustc_middle::ty::RegionKind;
+        use rustc_middle::ty;
         match self.kind() {
-            RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
-            RegionKind::ReBound(debruijn, bregion) => {
+            ty::ReVar(rvid) => Ok(Region::ReVar(rvid)),
+            ty::ReBound(ty::BoundVarIndexKind::Bound(debruijn), bregion) => {
                 Ok(Region::ReBound(
                     debruijn,
                     Ok(BoundRegion { kind: bregion.kind, var: bregion.var })?,
                 ))
             }
-            RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
-            RegionKind::ReStatic => Ok(Region::ReStatic),
-            RegionKind::ReErased => Ok(Region::ReErased),
-            RegionKind::ReLateParam(_) | RegionKind::RePlaceholder(_) | RegionKind::ReError(_) => {
+            ty::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
+            ty::ReStatic => Ok(Region::ReStatic),
+            ty::ReErased => Ok(Region::ReErased),
+            ty::ReBound(ty::BoundVarIndexKind::Canonical, _)
+            | ty::ReLateParam(_)
+            | ty::RePlaceholder(_)
+            | ty::ReError(_) => {
                 Err(UnsupportedReason::new(format!("unsupported region `{self:?}`")))
             }
         }
