@@ -143,7 +143,7 @@ impl<'a> fmt::Display for LeanExpr<'a> {
                 let [condition, if_true, if_false] = ite.as_ref();
                 write!(
                     f,
-                    "(ite {} {} {})",
+                    "(if {} then {} else {})",
                     LeanExpr(condition),
                     LeanExpr(if_true),
                     LeanExpr(if_false)
