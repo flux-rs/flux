@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, process::Command};
 
 use cargo_metadata::{MetadataCommand, camino::Utf8PathBuf};
 
@@ -31,19 +31,19 @@ pub enum CargoFluxCommand {
 
 impl CargoFluxCommand {
     /// Returns a vector of arguments to forward to the cargo command
-    pub fn forward_args(&self) -> Vec<&str> {
-        let mut args = vec![];
+    pub fn forward_args(&self, cmd: &mut Command, config_file: &Path) {
         match self {
             CargoFluxCommand::Check(check_opts) => {
-                args.push("check");
-                check_opts.forward_args(&mut args);
+                cmd.arg("check");
+                check_opts.forward_args(cmd);
             }
             CargoFluxCommand::Clean(clean_opts) => {
-                args.push("clean");
-                clean_opts.forward_args(&mut args);
+                cmd.arg("clean");
+                clean_opts.forward_args(cmd);
             }
         }
-        args
+        cmd.args(["--profile", "flux"]);
+        cmd.args(["--config".as_ref(), config_file.as_os_str()]);
     }
 
     /// Returns the cargo subcommand
@@ -83,14 +83,14 @@ pub struct CheckOpts {
 }
 
 impl CheckOpts {
-    fn forward_args<'a>(&'a self, args: &mut Vec<&'a str>) {
+    fn forward_args<'a>(&'a self, cmd: &mut Command) {
         let CheckOpts { message_format, workspace, features, manifest } = self;
         if let Some(message_format) = &message_format {
-            args.extend(["--message-format", &message_format]);
+            cmd.args(["--message-format", &message_format]);
         }
-        workspace.forward_args(args);
-        features.forward_args(args);
-        manifest.forward_args(args);
+        workspace.forward_args(cmd);
+        features.forward_args(cmd);
+        manifest.forward_args(cmd);
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
@@ -111,11 +111,11 @@ pub struct CleanOpts {
 }
 
 impl CleanOpts {
-    fn forward_args<'a>(&'a self, args: &mut Vec<&'a str>) {
+    fn forward_args(&self, cmd: &mut Command) {
         let CleanOpts { package, features, manifest } = self;
-        package.forward_args(args);
-        features.forward_args(args);
-        manifest.forward_args(args);
+        package.forward_args(cmd);
+        features.forward_args(cmd);
+        manifest.forward_args(cmd);
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
@@ -141,14 +141,14 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    fn forward_args<'a>(&'a self, args: &mut Vec<&'a str>) {
+    fn forward_args(&self, cmd: &mut Command) {
         let Workspace { package, workspace, exclude } = self;
-        package.forward_args(args);
+        package.forward_args(cmd);
         if *workspace {
-            args.push("--workspace");
+            cmd.arg("--workspace");
         }
         if !exclude.is_empty() {
-            args.extend(exclude.iter().flat_map(|package| ["--exclude", package]));
+            cmd.args(exclude.iter().flat_map(|package| ["--exclude", package]));
         }
     }
 }
@@ -162,10 +162,10 @@ pub struct Package {
 }
 
 impl Package {
-    fn forward_args<'a>(&'a self, args: &mut Vec<&'a str>) {
+    fn forward_args(&self, cmd: &mut Command) {
         let Package { package } = self;
         if !package.is_empty() {
-            args.extend(package.iter().flat_map(|package| ["--package", package]));
+            cmd.args(package.iter().flat_map(|package| ["--package", package]));
         }
     }
 }
@@ -185,16 +185,16 @@ pub struct Features {
 }
 
 impl Features {
-    fn forward_args<'a>(&'a self, args: &mut Vec<&'a str>) {
+    fn forward_args(&self, cmd: &mut Command) {
         let Features { features, all_features, no_default_features } = self;
         if !features.is_empty() {
-            args.extend(features.iter().flat_map(|feature| ["--features", feature]));
+            cmd.args(features.iter().flat_map(|feature| ["--features", feature]));
         }
         if *all_features {
-            args.push("--all-features");
+            cmd.arg("--all-features");
         }
         if *no_default_features {
-            args.push("--no-default-features");
+            cmd.arg("--no-default-features");
         }
     }
 
@@ -224,13 +224,13 @@ pub struct ManifestOptions {
 }
 
 impl ManifestOptions {
-    fn forward_args<'a>(&'a self, args: &mut Vec<&'a str>) {
+    fn forward_args<'a>(&'a self, cmd: &mut Command) {
         let ManifestOptions { manifest_path, offline } = self;
         if let Some(manifest_path) = &manifest_path {
-            args.extend(["--manifest-path", manifest_path.as_str()]);
+            cmd.args(["--manifest-path", manifest_path.as_str()]);
         }
         if *offline {
-            args.push("--offline");
+            cmd.arg("--offline");
         }
     }
 
