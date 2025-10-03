@@ -1745,6 +1745,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<(Vec<fixpoint::FunDef>, Vec<fixpoint::ConstDecl>)> {
         let reveals: UnordSet<FluxDefId> = self.genv.reveals_for(def_id.local_id())?.collect();
+        let proven_externally = self.genv.proven_externally(def_id.local_id());
         let mut consts = vec![];
         let mut defs = vec![];
 
@@ -1757,7 +1758,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             let comment = format!("flux def: {did:?}");
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
-            if info.hide && !revealed {
+            if info.hide && !revealed && !proven_externally {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(did));
                 consts.push(fixpoint::ConstDecl { name, sort, comment: Some(comment) });
             } else {
