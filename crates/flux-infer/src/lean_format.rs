@@ -335,6 +335,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanFunDef<'a, 'genv, 'tcx> {
         )?;
         writeln!(f, "  {}", LeanExpr(body, self.1))
     }
+
 }
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
@@ -352,6 +353,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                 )
             }
             Pred::KVar(_, _) => panic!("kvars should not appear when encoding in lean"),
+            Pred::WKVar(_) => panic!("wkvars should not appear when encoding in lean"),
         }
     }
 }
