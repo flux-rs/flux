@@ -9,7 +9,7 @@ use cargo_metadata::{Metadata, camino::Utf8Path};
 use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
-    cargo_flux_opts::{CargoFluxCommand, Cli, GlobalOptions},
+    cargo_flux_opts::{CargoFluxCommand, Cli},
     utils::{
         EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
     },
@@ -18,9 +18,9 @@ use itertools::Itertools;
 use tempfile::NamedTempFile;
 
 fn main() {
-    let Cli::Flux { global_opts, check_opts, command } = Cli::parse();
+    let Cli::Flux { check_opts, command } = Cli::parse();
 
-    match run(global_opts, command.unwrap_or_else(|| CargoFluxCommand::Check(check_opts))) {
+    match run(command.unwrap_or_else(|| CargoFluxCommand::Check(check_opts))) {
         Ok(exit_code) => exit(exit_code),
         Err(e) => {
             println!("Failed to run `cargo-flux`, error={e}");
@@ -29,11 +29,11 @@ fn main() {
     };
 }
 
-fn run(global_opts: GlobalOptions, command: CargoFluxCommand) -> anyhow::Result<i32> {
+fn run(command: CargoFluxCommand) -> anyhow::Result<i32> {
     let toolchain = get_rust_toolchain()?;
     let cargo_path = get_binary_path(&toolchain, "cargo")?;
 
-    let metadata = global_opts.metadata().cargo_path(&cargo_path).exec()?;
+    let metadata = command.metadata().cargo_path(&cargo_path).exec()?;
     let config_file = write_cargo_config(metadata)?;
 
     // We set `RUSTC` as an environment variable and not in in the [build]
@@ -46,11 +46,10 @@ fn run(global_opts: GlobalOptions, command: CargoFluxCommand) -> anyhow::Result<
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
         .arg(&format!("+{toolchain}"))
-        .args([command.cargo_subcommand(), "--profile", "flux"])
+        .args(command.forward_args())
+        .args(["--profile", "flux"])
         .arg("--config")
         .arg(config_file.path())
-        .args(global_opts.forward_args())
-        .args(command.forward_args())
         .status()?
         .code();
 
