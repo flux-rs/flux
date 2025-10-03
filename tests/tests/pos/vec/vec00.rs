@@ -1,46 +1,9 @@
 #![feature(allocator_api)]
 
-// extern crate flux_alloc;
+extern crate flux_alloc;
 extern crate flux_core;
 
-use std::alloc::{Allocator, Global};
-
-use flux_rs::{assert, attrs::*, extern_spec};
-
-#[extern_spec]
-#[refined_by(len: int)]
-#[invariant(len >= 0)]
-struct Vec<T, A: Allocator = Global>;
-
-#[extern_spec]
-impl<T> Vec<T> {
-    #[spec(fn() -> Vec<T>[0])]
-    fn new() -> Vec<T>;
-}
-
-#[extern_spec]
-impl<T, A: Allocator> Vec<T, A> {
-    #[spec(fn(self: &mut Vec<T, A>[@n], T) ensures self: Vec<T, A>[n+1])]
-    fn push(&mut self, value: T);
-
-    #[spec(fn(self: &Vec<T, A>[@n]) -> usize[n])]
-    fn len(&self) -> usize;
-
-    #[spec(fn(self: &Vec<T, A>[@n]) -> bool[n == 0])]
-    fn is_empty(&self) -> bool;
-
-    #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T>[n > 0]
-           ensures self: Vec<T, A>[if n > 0 { n - 1 } else { 0 }])]
-    fn pop(&mut self) -> Option<T>;
-}
-
-#[extern_spec]
-impl<T> [T] {
-    #[spec(fn(self: Box<[T][@n], A>) -> Vec<T, A>[n])]
-    fn into_vec<A>(self: Box<[T], A>) -> Vec<T, A>
-    where
-        A: Allocator;
-}
+use flux_rs::{assert, attrs::*};
 
 #[spec(fn() -> Vec<i32>[3])]
 pub fn test_vec_macro() -> Vec<i32> {

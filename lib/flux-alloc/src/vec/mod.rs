@@ -28,8 +28,11 @@ impl<T, A: Allocator> Vec<T, A> {
     #[spec(fn(&Vec<T, A>[@n]) -> usize[n])]
     fn len(v: &Vec<T, A>) -> usize;
 
-    #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T> ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &mut Vec<T, A>[@n]) -> Option<T>[n > 0] ensures self: Vec<T, A>[if n > 0 { n-1 } else { 0 }])]
     fn pop(&mut self) -> Option<T>;
+
+    #[spec(fn(self: &Vec<T, A>[@n]) -> bool[n == 0])]
+    fn is_empty(&self) -> bool;
 }
 
 //---------------------------------------------------------------------------------------
@@ -47,7 +50,14 @@ impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
 }
 
 //---------------------------------------------------------------------------------------
-
+#[extern_spec]
+impl<T> [T] {
+    #[spec(fn(self: Box<[T][@n], A>) -> Vec<T, A>[n])]
+    fn into_vec<A>(self: Box<[T], A>) -> Vec<T, A>
+    where
+        A: Allocator;
+}
+//---------------------------------------------------------------------------------------
 #[extern_spec]
 impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
     #[spec(fn (&Vec<T, A>[@n]) -> <&Vec<T, A> as IntoIterator>::IntoIter[0,n])]
