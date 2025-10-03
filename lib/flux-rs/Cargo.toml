@@ -6,6 +6,8 @@ edition.workspace = true
 
 [dependencies]
 flux-attrs = { path = "../flux-attrs", version = "0.1.0" }
+flux-alloc = { path = "../flux-alloc", version = "0.1.0" }
+flux-core = { path = "../flux-core", version = "0.1.0" }
 
 [lints]
 workspace = true
