@@ -1046,11 +1046,11 @@ pub enum ExprKind<'fhir> {
     SetLiteral(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
-    WeakKvar(u32, &'fhir [PathExpr<'fhir>]),
+    WeakKvar(u32, &'fhir [QPathExpr<'fhir>]),
     Err(ErrorGuaranteed),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum QPathExpr<'fhir> {
     Resolved(PathExpr<'fhir>, Option<ParamKind>),
     TypeRelative(&'fhir Ty<'fhir>, Ident),
