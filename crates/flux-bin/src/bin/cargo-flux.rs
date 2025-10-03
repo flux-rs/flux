@@ -9,16 +9,18 @@ use cargo_metadata::{Metadata, camino::Utf8Path};
 use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
-    cargo_flux_opts::{CargoFluxCommand, Cli, GlobalOptions},
-    utils::{EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain},
+    cargo_flux_opts::{CargoFluxCommand, Cli},
+    utils::{
+        EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
+    },
 };
 use itertools::Itertools;
 use tempfile::NamedTempFile;
 
 fn main() {
-    let Cli::Flux { global_opts, check_opts, command } = Cli::parse();
+    let Cli::Flux { check_opts, command } = Cli::parse();
 
-    match run(global_opts, command.unwrap_or_else(|| CargoFluxCommand::Check(check_opts))) {
+    match run(command.unwrap_or_else(|| CargoFluxCommand::Check(check_opts))) {
         Ok(exit_code) => exit(exit_code),
         Err(e) => {
             println!("Failed to run `cargo-flux`, error={e}");
@@ -27,30 +29,30 @@ fn main() {
     };
 }
 
-fn run(global_opts: GlobalOptions, command: CargoFluxCommand) -> anyhow::Result<i32> {
+fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     let toolchain = get_rust_toolchain()?;
-    let metadata = global_opts.metadata().exec()?;
+    let cargo_path = get_binary_path(&toolchain, "cargo")?;
+
+    let metadata = cargo_flux_cmd.metadata().cargo_path(&cargo_path).exec()?;
     let config_file = write_cargo_config(metadata)?;
+
+    let sysroot = flux_sysroot_dir();
+    let flux_driver_path = get_flux_driver_path(&sysroot)?;
+
+    let mut cargo_command = Command::new("cargo");
 
     // We set `RUSTC` as an environment variable and not in in the [build]
     // section of the config file to make sure we run flux even when the
     // variable is already set. We also unset `RUSTC_WRAPPER` to avoid
     // conflicts, e.g., see https://github.com/flux-rs/flux/issues/1155
-    let sysroot = flux_sysroot_dir();
-    let flux_driver_path = get_flux_driver_path(&sysroot)?;
-    let exit_code = Command::new("cargo")
+    cargo_command
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
-        .arg(format!("+{toolchain}"))
-        .args([command.cargo_subcommand(), "--profile", "flux"])
-        .arg("--config")
-        .arg(config_file.path())
-        .args(global_opts.forward_args())
-        .args(command.forward_args())
-        .status()?
-        .code();
+        .arg(&format!("+{toolchain}"));
 
-    Ok(exit_code.unwrap_or(EXIT_ERR))
+    cargo_flux_cmd.forward_args(&mut cargo_command, config_file.path());
+
+    Ok(cargo_command.status()?.code().unwrap_or(EXIT_ERR))
 }
 
 fn write_cargo_config(metadata: Metadata) -> anyhow::Result<NamedTempFile> {

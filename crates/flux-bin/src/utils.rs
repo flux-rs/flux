@@ -65,6 +65,24 @@ pub fn get_rust_toolchain() -> Result<String> {
     Ok(toolchain_file.toolchain.channel)
 }
 
+pub fn get_binary_path(toolchain: &str, bin: &str) -> anyhow::Result<PathBuf> {
+    let output = Command::new("rustup")
+        .args(["which", "--toolchain", toolchain, bin])
+        .output()
+        .map_err(|e| anyhow!("failed to run `rustup which`: {e}"))?;
+
+    if !output.status.success() {
+        return Err(anyhow!("`rustup which` failed: {}", String::from_utf8_lossy(&output.stderr)));
+    }
+
+    Ok(PathBuf::from(
+        String::from_utf8(output.stdout)
+            .map_err(|e| anyhow!("invalid utf8 from `rustup which` output: {e}"))?
+            .trim()
+            .to_string(),
+    ))
+}
+
 pub fn get_rust_sysroot(toolchain: &str) -> Result<PathBuf> {
     let out = Command::new("rustc")
         .arg(format!("+{toolchain}"))
