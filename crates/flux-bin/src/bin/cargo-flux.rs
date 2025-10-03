@@ -10,7 +10,9 @@ use clap::Parser as _;
 use flux_bin::{
     FluxMetadata,
     cargo_flux_opts::{CargoFluxCommand, Cli, GlobalOptions},
-    utils::{EXIT_ERR, flux_sysroot_dir, get_flux_driver_path, get_rust_toolchain},
+    utils::{
+        EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
+    },
 };
 use itertools::Itertools;
 use tempfile::NamedTempFile;
@@ -29,7 +31,9 @@ fn main() {
 
 fn run(global_opts: GlobalOptions, command: CargoFluxCommand) -> anyhow::Result<i32> {
     let toolchain = get_rust_toolchain()?;
-    let metadata = global_opts.metadata().exec()?;
+    let cargo_path = get_binary_path(&toolchain, "cargo")?;
+
+    let metadata = global_opts.metadata().cargo_path(&cargo_path).exec()?;
     let config_file = write_cargo_config(metadata)?;
 
     // We set `RUSTC` as an environment variable and not in in the [build]
@@ -41,7 +45,7 @@ fn run(global_opts: GlobalOptions, command: CargoFluxCommand) -> anyhow::Result<
     let exit_code = Command::new("cargo")
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
-        .arg(format!("+{toolchain}"))
+        .arg(&format!("+{toolchain}"))
         .args([command.cargo_subcommand(), "--profile", "flux"])
         .arg("--config")
         .arg(config_file.path())

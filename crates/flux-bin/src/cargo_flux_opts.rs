@@ -81,8 +81,8 @@ pub struct CheckOptions {
 
 #[derive(clap::Subcommand)]
 pub enum CargoFluxCommand {
-    /// Check a local package and all of its dependencies for errors using Flux. This is the
-    /// default command if no command is specified.
+    /// Check a local package and its dependencies for errors using Flux.
+    /// This is the default command when no subcommand is provided.
     Check(CheckOptions),
     /// Remove artifacts that cargo-flux has generated in the past
     Clean,
@@ -160,7 +160,7 @@ impl CargoFluxCommand {
                     forward_args.push(&message_format);
                 }
             }
-            CargoFluxCommand::Clean => todo!(),
+            CargoFluxCommand::Clean => {}
         }
         forward_args
     }
