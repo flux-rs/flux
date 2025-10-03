@@ -1,3 +1,5 @@
+extern crate flux_core;
+
 use std::ops::{Add, Sub};
 
 use flux_rs::*;

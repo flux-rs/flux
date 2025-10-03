@@ -19,3 +19,9 @@ impl Clone for String {
     #[spec(fn (&String[@s]) -> String[<String as Clone>::cloned(s)])]
     fn clone(&self) -> Self;
 }
+
+#[trusted]
+#[spec(fn(&str[@s]) -> String[s])]
+pub fn mk_string(s: &str) -> String {
+    s.to_string()
+}

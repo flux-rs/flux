@@ -661,9 +661,7 @@ dependencies = [
 name = "flux-rs"
 version = "0.1.0"
 dependencies = [
- "flux-alloc",
  "flux-attrs",
- "flux-core",
 ]
 
 [[package]]

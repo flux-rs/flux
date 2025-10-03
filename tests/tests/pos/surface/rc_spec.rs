@@ -1,7 +1,8 @@
 extern crate flux_alloc;
 use std::rc::Rc;
 
-use flux_rs::{assert, mk_string};
+use flux_alloc::string::mk_string;
+use flux_rs::assert;
 
 pub fn test_rc() {
     let bob1 = mk_string("bob");
