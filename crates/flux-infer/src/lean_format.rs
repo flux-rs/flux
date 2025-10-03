@@ -118,6 +118,7 @@ impl<'a> fmt::Display for LeanFunDef<'a> {
         )?;
         writeln!(f, "  {}", LeanExpr(body))
     }
+
 }
 
 impl<'a> fmt::Display for LeanPred<'a> {
@@ -126,6 +127,7 @@ impl<'a> fmt::Display for LeanPred<'a> {
             Pred::Expr(expr) => write!(f, "{}", LeanExpr(expr)),
             Pred::And(preds) => write!(f, "({})", preds.iter().map(LeanPred).format(" ∧ ")),
             Pred::KVar(_, _) => panic!("kvars should not appear when encoding in lean"),
+            Pred::WKVar(_) => panic!("wkvars should not appear when encoding in lean"),
         }
     }
 }
