@@ -55,8 +55,8 @@ pub fn opaque(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn reflected(attr: TokenStream, tokens: TokenStream) -> TokenStream {
-    attr_impl::reflected(attr, tokens)
+pub fn reflect(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::reflect(attr, tokens)
 }
 
 #[proc_macro_attribute]
@@ -155,7 +155,7 @@ mod attr_sysroot {
         constant,
         invariant,
         opaque,
-        reflected,
+        reflect,
         opts,
         trusted,
         trusted_impl,
@@ -204,7 +204,7 @@ mod attr_dummy {
         invariant,
         constant,
         opaque,
-        reflected,
+        reflect,
         opts,
         trusted,
         trusted_impl,
