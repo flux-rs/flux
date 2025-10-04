@@ -83,10 +83,10 @@ pub struct CheckOpts {
 }
 
 impl CheckOpts {
-    fn forward_args<'a>(&'a self, cmd: &mut Command) {
+    fn forward_args(&self, cmd: &mut Command) {
         let CheckOpts { message_format, workspace, features, manifest } = self;
         if let Some(message_format) = &message_format {
-            cmd.args(["--message-format", &message_format]);
+            cmd.args(["--message-format", message_format]);
         }
         workspace.forward_args(cmd);
         features.forward_args(cmd);
@@ -207,7 +207,7 @@ impl Features {
             meta.features(cargo_metadata::CargoOpt::NoDefaultFeatures);
         }
         if !features.is_empty() {
-            meta.features(cargo_metadata::CargoOpt::SomeFeatures(features.to_vec()));
+            meta.features(cargo_metadata::CargoOpt::SomeFeatures(features.clone()));
         }
     }
 }
@@ -224,7 +224,7 @@ pub struct ManifestOptions {
 }
 
 impl ManifestOptions {
-    fn forward_args<'a>(&'a self, cmd: &mut Command) {
+    fn forward_args(&self, cmd: &mut Command) {
         let ManifestOptions { manifest_path, offline } = self;
         if let Some(manifest_path) = &manifest_path {
             cmd.args(["--manifest-path", manifest_path.as_str()]);

@@ -20,7 +20,7 @@ use tempfile::NamedTempFile;
 fn main() {
     let Cli::Flux { check_opts, command } = Cli::parse();
 
-    match run(command.unwrap_or_else(|| CargoFluxCommand::Check(check_opts))) {
+    match run(command.unwrap_or(CargoFluxCommand::Check(check_opts))) {
         Ok(exit_code) => exit(exit_code),
         Err(e) => {
             println!("Failed to run `cargo-flux`, error={e}");
@@ -48,7 +48,7 @@ fn run(cargo_flux_cmd: CargoFluxCommand) -> anyhow::Result<i32> {
     cargo_command
         .env("RUSTC", flux_driver_path)
         .env("RUSTC_WRAPPER", "")
-        .arg(&format!("+{toolchain}"));
+        .arg(format!("+{toolchain}"));
 
     cargo_flux_cmd.forward_args(&mut cargo_command, config_file.path());
 
