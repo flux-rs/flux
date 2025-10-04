@@ -1287,28 +1287,30 @@ pub fn is_zero(_: E, x: i32) -&gt; i32 {
     x + 1
 }</code></pre>
 <h3 id="reflecting-enums"><a class="header" href="#reflecting-enums">Reflecting Enums</a></h3>
-<pre><code class="language-rust noplayground">#[flux::reflect]
+<pre><code class="language-rust noplayground">use flux_rs::attrs::*;
+
+#[reflect]
 pub enum State {
     On,
     Off,
 }
 
-#[flux_rs::sig(fn () -&gt; State[State::On])]
+#[spec(fn () -&gt; State[State::On])]
 pub fn test00() -&gt; State {
     State::On
 }
 
-#[flux_rs::sig(fn () -&gt; State[State::Off])]
+#[spec(fn () -&gt; State[State::Off])]
 pub fn test01() -&gt; State {
     State::Off
 }
 
-#[flux::sig(fn () -&gt; State[State::Off])]
+#[spec(fn () -&gt; State[State::Off])]
 pub fn test02() -&gt; State {
     State::On //~ ERROR refinement type
 }
 
-#[flux::sig(fn (State[State::On]) -&gt; usize[1])]
+#[spec(fn (State[State::On]) -&gt; usize[1])]
 pub fn test03(s: State) -&gt; usize {
     match s {
         State::On =&gt; 1,
@@ -1316,7 +1318,7 @@ pub fn test03(s: State) -&gt; usize {
     }
 }
 
-#[flux::sig(fn (State[@squig], zig: usize, tag: Day) -&gt; usize[tag])]
+#[spec(fn (State[@squig], zig: usize, tag: Day) -&gt; usize[tag])]
 pub fn test04(s: State, _zig: usize, tag: Day) -&gt; usize {
     match s {
         State::On =&gt; 1,  //~ ERROR refinement type
@@ -1324,7 +1326,7 @@ pub fn test04(s: State, _zig: usize, tag: Day) -&gt; usize {
     }
 }
 
-#[flux::refined_by(day: int)]
+#[refined_by(day: int)]
 pub enum Day {
     #[flux::variant(Day[0])]
     Mon,
@@ -1334,7 +1336,7 @@ pub enum Day {
     Wed,
 }
 
-#[flux::sig(fn (s:State, zig: usize, tag: Day) -&gt; usize[tag])]
+#[spec(fn (s:State, zig: usize, tag: Day) -&gt; usize[tag])]
 pub fn test05(s: State, _zig: usize, _tag: Day) -&gt; usize {
     match s {
         State::On =&gt; 1,  //~ ERROR refinement type
