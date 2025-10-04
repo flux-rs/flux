@@ -5,8 +5,11 @@ use std::{
     process::{Command, Stdio},
 };
 
-use flux_common::tracked_span_bug;
-use flux_middle::{def_id::MaybeExternId, global_env::GlobalEnv, queries::QueryResult};
+use flux_middle::{
+    def_id::MaybeExternId,
+    global_env::GlobalEnv,
+    queries::{QueryErr, QueryResult},
+};
 use itertools::Itertools;
 use liquid_fixpoint::Identifier;
 
@@ -51,6 +54,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .tcx()
             .def_path(self.def_id.resolved_id())
             .to_filename_friendly_no_crate()
+            .replace("-", "_")
     }
 
     fn proof_name(&self) -> String {
@@ -153,8 +157,18 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     pub fn check_proof(&self, lean_path: &path::Path, project_name: &str) -> QueryResult<()> {
-        self.check_proof_help(lean_path, project_name)
-            .map_err(|_| tracked_span_bug!("checking proof for {} failed", self.theorem_name()))
+        self.check_proof_help(lean_path, project_name).map_err(|_| {
+            let msg = format!("checking proof for {} failed", self.theorem_name());
+            let span = self.genv.tcx().def_span(self.def_id.resolved_id());
+            QueryErr::Emitted(
+                self.genv
+                    .sess()
+                    .dcx()
+                    .handle()
+                    .struct_span_err(span, msg)
+                    .emit(),
+            )
+        })
     }
 
     fn snake_case_to_pascal_case(snake: &str) -> String {
