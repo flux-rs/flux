@@ -23,7 +23,6 @@ symbols! {
     Symbols {
         Map,
         Set,
-        hide,
         int,
         real,
     }

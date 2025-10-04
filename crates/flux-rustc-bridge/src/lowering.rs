@@ -92,7 +92,7 @@ fn trait_ref_impl_id<'tcx>(
     param_env: ParamEnv<'tcx>,
     trait_ref: rustc_ty::TraitRef<'tcx>,
 ) -> Option<(DefId, rustc_middle::ty::GenericArgsRef<'tcx>)> {
-    let trait_ref = tcx.erase_regions(trait_ref);
+    let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let obligation = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
     let impl_source = selcx.select(&obligation).ok()??;
     let impl_source = selcx.infcx.resolve_vars_if_possible(impl_source);
@@ -455,7 +455,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Rvalue::RawPtr(kind, place) => {
                 Ok(Rvalue::RawPtr(*kind, lower_place(self.tcx, place)?))
             }
-            rustc_mir::Rvalue::Len(place) => Ok(Rvalue::Len(lower_place(self.tcx, place)?)),
             rustc_mir::Rvalue::Cast(kind, op, ty) => {
                 let kind = self.lower_cast_kind(*kind).ok_or_else(|| {
                     UnsupportedReason::new(format!("unsupported cast `{kind:?}`"))
@@ -897,7 +896,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 let args = args.lower(tcx)?;
                 Ok(Ty::mk_generator_witness(*did, args))
             }
-            rustc_ty::Dynamic(predicates, region, rustc_ty::DynKind::Dyn) => {
+            rustc_ty::Dynamic(predicates, region) => {
                 let region = region.lower(tcx)?;
 
                 let exi_preds = List::from_vec(
@@ -1020,19 +1019,22 @@ impl<'tcx> Lower<'tcx> for rustc_middle::ty::Region<'tcx> {
     type R = Result<Region, UnsupportedReason>;
 
     fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
-        use rustc_middle::ty::RegionKind;
+        use rustc_middle::ty;
         match self.kind() {
-            RegionKind::ReVar(rvid) => Ok(Region::ReVar(rvid)),
-            RegionKind::ReBound(debruijn, bregion) => {
+            ty::ReVar(rvid) => Ok(Region::ReVar(rvid)),
+            ty::ReBound(ty::BoundVarIndexKind::Bound(debruijn), bregion) => {
                 Ok(Region::ReBound(
                     debruijn,
                     Ok(BoundRegion { kind: bregion.kind, var: bregion.var })?,
                 ))
             }
-            RegionKind::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
-            RegionKind::ReStatic => Ok(Region::ReStatic),
-            RegionKind::ReErased => Ok(Region::ReErased),
-            RegionKind::ReLateParam(_) | RegionKind::RePlaceholder(_) | RegionKind::ReError(_) => {
+            ty::ReEarlyParam(bregion) => Ok(Region::ReEarlyParam(bregion)),
+            ty::ReStatic => Ok(Region::ReStatic),
+            ty::ReErased => Ok(Region::ReErased),
+            ty::ReBound(ty::BoundVarIndexKind::Canonical, _)
+            | ty::ReLateParam(_)
+            | ty::RePlaceholder(_)
+            | ty::ReError(_) => {
                 Err(UnsupportedReason::new(format!("unsupported region `{self:?}`")))
             }
         }
