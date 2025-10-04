@@ -1,25 +1,27 @@
-#[flux::reflect]
+use flux_rs::attrs::*;
+
+#[reflect]
 pub enum State {
     On,
     Off,
 }
 
-#[flux_rs::sig(fn () -> State[State::On])]
+#[spec(fn () -> State[State::On])]
 pub fn test00() -> State {
     State::On
 }
 
-#[flux_rs::sig(fn () -> State[State::Off])]
+#[spec(fn () -> State[State::Off])]
 pub fn test01() -> State {
     State::Off
 }
 
-#[flux::sig(fn () -> State[State::Off])]
+#[spec(fn () -> State[State::Off])]
 pub fn test02() -> State {
     State::On //~ ERROR refinement type
 }
 
-#[flux::sig(fn (State[State::On]) -> usize[1])]
+#[spec(fn (State[State::On]) -> usize[1])]
 pub fn test03(s: State) -> usize {
     match s {
         State::On => 1,
@@ -27,7 +29,7 @@ pub fn test03(s: State) -> usize {
     }
 }
 
-#[flux::sig(fn (State[@squig], zig: usize, tag: Day) -> usize[tag])]
+#[spec(fn (State[@squig], zig: usize, tag: Day) -> usize[tag])]
 pub fn test04(s: State, _zig: usize, tag: Day) -> usize {
     match s {
         State::On => 1,  //~ ERROR refinement type
@@ -35,7 +37,7 @@ pub fn test04(s: State, _zig: usize, tag: Day) -> usize {
     }
 }
 
-#[flux::refined_by(day: int)]
+#[refined_by(day: int)]
 pub enum Day {
     #[flux::variant(Day[0])]
     Mon,
@@ -45,7 +47,7 @@ pub enum Day {
     Wed,
 }
 
-#[flux::sig(fn (s:State, zig: usize, tag: Day) -> usize[tag])]
+#[spec(fn (s:State, zig: usize, tag: Day) -> usize[tag])]
 pub fn test05(s: State, _zig: usize, _tag: Day) -> usize {
     match s {
         State::On => 1,  //~ ERROR refinement type
