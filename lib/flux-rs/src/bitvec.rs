@@ -149,7 +149,6 @@ impl Rem for BV32 {
 }
 
 #[trusted]
-#[trusted_impl]
 impl PartialEq for BV32 {
     #[sig(fn(&BV32[@val1], &BV32[@val2]) -> bool[val1 == val2])]
     fn eq(&self, other: &Self) -> bool {
@@ -310,7 +309,6 @@ impl Rem for BV8 {
 }
 
 #[trusted]
-#[trusted_impl]
 impl PartialEq for BV8 {
     #[sig(fn(&BV8[@val1], &BV8[@val2]) -> bool[val1 == val2])]
     fn eq(&self, other: &Self) -> bool {
