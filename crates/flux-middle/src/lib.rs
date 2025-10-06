@@ -352,6 +352,11 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
 }
 
 #[derive(Default)]
+pub struct DetachedSpecs<'genv> {
+    pub fn_sigs: UnordMap<OwnerId, &'genv surface::FnSpec>,
+}
+
+#[derive(Default)]
 pub struct Specs {
     pub fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
     pub constants: UnordMap<OwnerId, surface::ConstantInfo>,

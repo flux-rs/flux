@@ -154,7 +154,11 @@ impl ErrCtxt {
 
 pub struct Providers {
     pub collect_specs: fn(GlobalEnv) -> crate::Specs,
-    pub attach_specs: fn(GlobalEnv, &crate::ResolverOutput, &crate::Specs) -> crate::Specs,
+    pub detached_specs: for<'genv> fn(
+        GlobalEnv<'genv, '_>,
+        &crate::ResolverOutput,
+        &crate::Specs,
+    ) -> crate::DetachedSpecs<'genv>,
     pub resolve_crate: fn(GlobalEnv) -> crate::ResolverOutput,
     pub desugar: for<'genv> fn(
         GlobalEnv<'genv, '_>,
@@ -203,7 +207,7 @@ impl Default for Providers {
     fn default() -> Self {
         Self {
             collect_specs: |_| empty_query!(),
-            attach_specs: |_, _, _| empty_query!(),
+            detached_specs: |_, _, _| empty_query!(),
             resolve_crate: |_| empty_query!(),
             desugar: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
@@ -235,7 +239,7 @@ pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<mir::Body<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
-    attach_specs: OnceCell<crate::Specs>,
+    detached_specs: OnceCell<crate::DetachedSpecs<'genv>>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
     fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
@@ -273,7 +277,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             providers,
             mir: Default::default(),
             collect_specs: Default::default(),
-            attach_specs: Default::default(),
+            detached_specs: Default::default(),
             resolve_crate: Default::default(),
             desugar: Default::default(),
             fhir_crate: Default::default(),
@@ -323,15 +327,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             .get_or_init(|| (self.providers.collect_specs)(genv))
     }
 
-    pub(crate) fn attach_specs(
+    pub(crate) fn detached_specs(
         &'genv self,
         genv: GlobalEnv<'genv, 'tcx>,
         resolver_output: &crate::ResolverOutput,
         specs: &crate::Specs,
-    ) -> &'genv crate::Specs {
-        todo!()
-        // self.attach_specs
-        //     .get_or_init(|| (self.providers.attach_specs)(genv, resolver_output, specs))
+    ) -> &'genv crate::DetachedSpecs<'genv> {
+        self.detached_specs
+            .get_or_init(|| (self.providers.detached_specs)(genv, resolver_output, specs))
     }
 
     pub(crate) fn resolve_crate(

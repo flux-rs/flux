@@ -42,6 +42,44 @@ pub fn provide(providers: &mut Providers) {
     providers.fhir_crate = desugar_crate;
 }
 
+struct DesugarSpecs<'genv> {
+    specs: &'genv Specs,
+    detached_specs: &'genv flux_middle::DetachedSpecs<'genv>,
+}
+
+impl<'genv> DesugarSpecs<'genv> {
+    fn fn_sigs(&self, owner_id: OwnerId) -> Option<&'genv surface::FnSpec> {
+        self.specs.fn_sigs.get(&owner_id)
+    }
+
+    fn enums(&self, owner_id: OwnerId) -> Option<&'genv surface::EnumDef> {
+        self.specs.enums.get(&owner_id)
+    }
+
+    fn structs(&self, owner_id: OwnerId) -> Option<&'genv surface::StructDef> {
+        self.specs.structs.get(&owner_id)
+    }
+
+    fn ty_aliases(&self, owner_id: OwnerId) -> Option<&'genv surface::TyAlias> {
+        self.specs
+            .ty_aliases
+            .get(&owner_id)
+            .and_then(|opt| opt.as_ref())
+    }
+
+    fn traits(&self, owner_id: OwnerId) -> Option<&'genv surface::Trait> {
+        self.specs.traits.get(&owner_id)
+    }
+
+    fn impls(&self, owner_id: OwnerId) -> Option<&'genv surface::Impl> {
+        self.specs.impls.get(&owner_id)
+    }
+
+    fn constants(&self, owner_id: OwnerId) -> Option<&'genv surface::ConstantInfo> {
+        self.specs.constants.get(&owner_id)
+    }
+}
+
 // grabs spec, triggers name resolution, and desugars
 pub fn desugar<'genv>(
     genv: GlobalEnv<'genv, '_>,
@@ -52,8 +90,11 @@ pub fn desugar<'genv>(
     }
 
     let cx = DesugarCtxt { genv, resolver_output: genv.resolve_crate() };
+
     let specs = genv.collect_specs();
-    let specs = genv.attach_specs(&cx.resolver_output, specs); // query to collect detached specs
+    let detached_specs = genv.collect_detached_specs(&cx.resolver_output, specs); // HOOK-ATTACH-SPECS-HEREHEREHEREHEREHERE query to collect detached specs
+    let specs = DesugarSpecs { specs, detached_specs }; // HOOK-ATTACH-SPECS-HEREHEREHEREHEREHERE
+
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
 
@@ -61,7 +102,7 @@ pub fn desugar<'genv>(
         rustc_hir::Node::Item(item) => {
             match item.kind {
                 hir::ItemKind::Fn { .. } => {
-                    let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
+                    let fn_spec = specs.fn_sigs(owner_id).unwrap();
                     let mut opaque_tys = Default::default();
                     let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
                         cx.desugar_item_fn(fn_spec)
@@ -72,7 +113,7 @@ pub fn desugar<'genv>(
                     nodes.insert(def_id, fhir::Node::Item(genv.alloc(item)));
                 }
                 hir::ItemKind::TyAlias(..) => {
-                    let ty_alias = specs.ty_aliases[&owner_id].as_ref();
+                    let ty_alias = specs.ty_aliases(owner_id);
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
@@ -84,7 +125,7 @@ pub fn desugar<'genv>(
                 }
 
                 hir::ItemKind::Enum(..) => {
-                    let enum_def = &specs.enums[&owner_id];
+                    let enum_def = &specs.enums(owner_id).unwrap();
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
@@ -95,7 +136,7 @@ pub fn desugar<'genv>(
                     );
                 }
                 hir::ItemKind::Union(..) => {
-                    let union_def = &specs.structs[&owner_id];
+                    let union_def = &specs.structs(owner_id).unwrap();
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
@@ -106,7 +147,7 @@ pub fn desugar<'genv>(
                     );
                 }
                 hir::ItemKind::Struct(..) => {
-                    let struct_def = &specs.structs[&owner_id];
+                    let struct_def = &specs.structs(owner_id).unwrap();
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
@@ -117,7 +158,7 @@ pub fn desugar<'genv>(
                     );
                 }
                 hir::ItemKind::Trait(..) => {
-                    let trait_ = &specs.traits[&owner_id];
+                    let trait_ = &specs.traits(owner_id).unwrap();
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
@@ -128,7 +169,7 @@ pub fn desugar<'genv>(
                     );
                 }
                 hir::ItemKind::Impl(..) => {
-                    let impl_ = &specs.impls[&owner_id];
+                    let impl_ = &specs.impls(owner_id).unwrap();
                     nodes.insert(
                         def_id,
                         fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
@@ -139,7 +180,7 @@ pub fn desugar<'genv>(
                     );
                 }
                 hir::ItemKind::Const(..) => {
-                    let constant_ = match specs.constants.get(&owner_id) {
+                    let constant_ = match specs.constants(owner_id) {
                         Some(constant_) => constant_,
                         None => &surface::ConstantInfo { expr: None },
                     };
@@ -159,7 +200,7 @@ pub fn desugar<'genv>(
         rustc_hir::Node::TraitItem(trait_item) => {
             match trait_item.kind {
                 rustc_hir::TraitItemKind::Fn(..) => {
-                    let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
+                    let fn_spec = specs.fn_sigs(owner_id).unwrap();
                     let mut opaque_tys = Default::default();
                     let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
                         cx.desugar_trait_fn(fn_spec)
@@ -190,7 +231,7 @@ pub fn desugar<'genv>(
         rustc_hir::Node::ImplItem(impl_item) => {
             match &impl_item.kind {
                 rustc_hir::ImplItemKind::Fn(..) => {
-                    let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
+                    let fn_spec = specs.fn_sigs(owner_id).unwrap();
                     let mut opaque_tys = Default::default();
                     let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
                         cx.desugar_impl_fn(fn_spec)

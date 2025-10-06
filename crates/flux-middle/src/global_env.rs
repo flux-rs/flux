@@ -70,14 +70,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.collect_specs(self)
     }
 
-    pub fn attach_specs(
+    pub fn collect_detached_specs(
         self,
         resolver_output: &ResolverOutput,
         specs: &crate::Specs,
-    ) -> &'genv crate::Specs {
+    ) -> &'genv crate::DetachedSpecs<'genv> {
         self.inner
             .queries
-            .attach_specs(self, resolver_output, specs)
+            .detached_specs(self, resolver_output, specs)
     }
 
     pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {

@@ -6,7 +6,7 @@ use flux_errors::FluxSession;
 use flux_infer::fixpoint_encoding::FixQueryCache;
 use flux_metadata::CStore;
 use flux_middle::{
-    ResolverOutput, Specs,
+    DetachedSpecs, ResolverOutput, Specs,
     def_id::MaybeExternId,
     fhir,
     global_env::GlobalEnv,
@@ -67,7 +67,7 @@ impl FluxCallbacks {
         flux_desugar::provide(&mut providers);
         flux_fhir_analysis::provide(&mut providers);
         providers.collect_specs = collect_specs;
-        providers.attach_specs = attach_specs;
+        providers.detached_specs = detached_specs;
 
         let cstore = CStore::load(tcx, &sess);
         let arena = fhir::Arena::new();
@@ -117,10 +117,12 @@ fn collect_specs(genv: GlobalEnv) -> Specs {
     }
 }
 
-fn attach_specs(genv: GlobalEnv, resolver_output: &ResolverOutput, specs: &Specs) -> Specs {
-    Specs::default() //specs.clone()
-    // todo!("implement attach_specs")
-    // genv.queries().attach_specs(genv, resolver_output, specs)
+fn detached_specs<'genv, 'specs>(
+    genv: GlobalEnv<'genv, '_>,
+    resolver_output: &ResolverOutput,
+    specs: &'specs Specs,
+) -> DetachedSpecs<'genv> {
+    DetachedSpecs::default() // TODO: visit the specs
 }
 
 fn encode_and_save_metadata(genv: GlobalEnv) {
