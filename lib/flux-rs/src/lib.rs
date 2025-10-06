@@ -8,6 +8,6 @@ pub use flux_attrs as attrs;
 pub fn assert(_: bool) {}
 
 #[sig (fn() -> _ requires false)]
-pub fn impossible() -> ! {
-    panic!("impossible case")
+pub fn unreachable() -> ! {
+    unreachable!("impossible case")
 }
