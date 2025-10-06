@@ -1,4 +1,4 @@
-use std::alloc::{Allocator, Global};
+use std::alloc::Allocator;
 
 use flux_attrs::*;
 
