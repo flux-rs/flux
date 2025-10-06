@@ -33,7 +33,7 @@ xflags::xflags! {
         cmd run {
             /// Input file
             required input: PathBuf
-            /// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=y`
+            /// Extra options to pass to the `flux` binary, e.g. `cargo x run file.rs -- -Zdump-mir=renumber`
             repeated opts: String
             /// Do not build Flux libs for extern specs
             optional --no-extern-specs

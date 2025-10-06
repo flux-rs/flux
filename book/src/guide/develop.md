@@ -113,6 +113,25 @@ Or you can run the `xtask` command directly
 cargo x expand path/to/file.rs
 ```
 
+## Examining the MIR
+
+You can use the `-Zdump-mir` flag to dump the MIR at various stages of compilation.
+For example,
+
+```
+$ cargo x run path/to/test.rs -- -Zdump-mir=renumber
+```
+
+or
+
+```
+$ cargo x run path/to/test.rs -- -Zdump-mir=ghost
+```
+
+will stash the MIR for those relevant stages in the `mir_dump` directory.
+
+You can then look at the `<fn-name>.ghost.mir` to see the MIR that Flux is checking.
+
 ## Reporting and dealing with bugs
 
 As Flux is under active development, there are many aspects of Rust that Flux does not yet support, are
