@@ -1,4 +1,4 @@
-use flux_rs::attrs::*;
+use flux_rs::{assert, attrs::*};
 extern crate flux_core;
 
 #[reflect]
@@ -13,7 +13,7 @@ pub fn test_eq() {
     let s1 = State::On;
     let s2 = State::On;
     let s3 = State::Off;
-
-    flux_rs::assert(s1 == s2);
-    flux_rs::assert(s1 != s3);
+    assert(s1 == s2); // checks
+    assert(s1 == s1); // checks
+    assert(s1 != s3); // checks
 }
