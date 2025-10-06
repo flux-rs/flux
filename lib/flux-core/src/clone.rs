@@ -2,9 +2,9 @@ use flux_attrs::*;
 
 #[extern_spec]
 #[assoc(
-    fn cloned(x: Self) -> Self { x }
+    fn cloned(old: Self, new: Self) -> bool { true }
 )]
 trait Clone: Sized {
-    #[spec(fn(&Self[@s]) -> Self[Self::cloned(s)])]
+    #[spec(fn(&Self[@old]) -> Self{ new: Self::cloned(old, new) })]
     fn clone(&self) -> Self;
 }

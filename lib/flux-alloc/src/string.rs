@@ -14,8 +14,9 @@ impl PartialEq for String {
 }
 
 #[extern_spec]
+#[assoc(fn cloned(old: Self, new: Self) -> bool { old == new } )]
 impl Clone for String {
-    #[spec(fn (&String[@s]) -> String[<String as Clone>::cloned(s)])]
+    #[spec(fn (&String[@s]) -> String[s])]
     fn clone(&self) -> Self;
 }
 
