@@ -119,7 +119,7 @@ You can use the `-Zdump-mir` flag to dump the MIR at various stages of compilati
 For example,
 
 ```
-$ cargo x run path/to/test.rs -- -Zdump-mir=all
+$ cargo x run path/to/test.rs -- -Zdump-mir=renumber
 ```
 
 will stash the MIR at all stages of compilation in the `mir_dump` directory.
