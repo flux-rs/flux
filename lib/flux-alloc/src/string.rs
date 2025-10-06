@@ -6,11 +6,11 @@ struct String;
 
 #[extern_spec]
 #[assoc(
-    fn eq(x: String, y: String) -> bool { x.val == y.val }
-    fn ne(x: String, y: String) -> bool { x.val != y.val }
+    fn is_eq(x: String, y: String, res: bool) -> bool { res <=> (x.val == y.val) }
+    fn is_ne(x: String, y: String, res: bool) -> bool { res <=> (x.val != y.val) }
 )]
 impl PartialEq for String {
-    #[spec(fn(&String[@s], &String[@t]) -> bool[<String as PartialEq>::eq(s, t)])]
+    #[spec(fn(&String[@s], &String[@t]) -> bool[s == t])]
     fn eq(&self, other: &String) -> bool;
 }
 
