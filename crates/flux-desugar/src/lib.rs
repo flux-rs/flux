@@ -42,6 +42,7 @@ pub fn provide(providers: &mut Providers) {
     providers.fhir_crate = desugar_crate;
 }
 
+// grabs spec, triggers name resolution, and desugars
 pub fn desugar<'genv>(
     genv: GlobalEnv<'genv, '_>,
     def_id: LocalDefId,
