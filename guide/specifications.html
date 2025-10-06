@@ -717,44 +717,10 @@ fn test01(vec: &amp;mut RVec&lt;i32&gt;) {
 <p><strong>Standalone</strong></p>
 <pre><code class="language-rust noplayground">#![feature(allocator_api)]
 
-use std::alloc::{Allocator, Global};
+extern crate flux_alloc;
+extern crate flux_core;
 
-use flux_rs::{assert, attrs::*, extern_spec};
-
-#[extern_spec]
-#[refined_by(len: int)]
-#[invariant(len &gt;= 0)]
-struct Vec&lt;T, A: Allocator = Global&gt;;
-
-#[extern_spec]
-impl&lt;T&gt; Vec&lt;T&gt; {
-    #[spec(fn() -&gt; Vec&lt;T&gt;[0])]
-    fn new() -&gt; Vec&lt;T&gt;;
-}
-
-#[extern_spec]
-impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
-    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n], T) ensures self: Vec&lt;T, A&gt;[n+1])]
-    fn push(&amp;mut self, value: T);
-
-    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
-    fn len(&amp;self) -&gt; usize;
-
-    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
-    fn is_empty(&amp;self) -&gt; bool;
-
-    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt;
-           ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
-    fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
-}
-
-#[extern_spec]
-impl&lt;T&gt; [T] {
-    #[spec(fn(self: Box&lt;[T][@n], A&gt;) -&gt; Vec&lt;T, A&gt;[n])]
-    fn into_vec&lt;A&gt;(self: Box&lt;[T], A&gt;) -&gt; Vec&lt;T, A&gt;
-    where
-        A: Allocator;
-}
+use flux_rs::{assert, attrs::*};
 
 #[spec(fn() -&gt; Vec&lt;i32&gt;[3])]
 pub fn test_vec_macro() -&gt; Vec&lt;i32&gt; {
@@ -837,8 +803,11 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
-    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt;[n &gt; 0] ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
     fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
+
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
+    fn is_empty(&amp;self) -&gt; bool;
 }
 
 //---------------------------------------------------------------------------------------
@@ -856,7 +825,6 @@ impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&
 }
 
 //---------------------------------------------------------------------------------------
-
 #[extern_spec]
 impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
     #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
@@ -2485,7 +2453,11 @@ pub fn test_06(x: BV32, y: BV32) -&gt; bool {
 pub fn test_07(x: BV32, y: BV32) -&gt; bool {
     x + y &gt; x - y
 }</code></pre>
-<pre><code class="language-rust noplayground">use std::ops::{Add, Sub};
+<pre><code class="language-rust noplayground">extern crate flux_core;
+
+use std::ops::{Add, Sub};
+
+use flux_rs::*;
 
 #[flux::opaque]
 #[flux::refined_by(x: bitvec&lt;32&gt;)]
@@ -2519,17 +2491,14 @@ impl Sub for BV32 {
     }
 }
 
+#[trusted]
+#[assoc(
+    fn eq(x: BV32, y: BV32) -&gt; bool { x == y }
+)]
 impl PartialEq for BV32 {
-    #[flux::trusted]
-    #[flux::sig(fn (&amp;BV32[@val1], &amp;BV32[@val2]) -&gt; bool[val1 == val2])]
+    #[sig(fn(&amp;BV32[@val1], &amp;BV32[@val2]) -&gt; bool[&lt;BV32 as PartialEq&gt;::eq(val1, val2)])]
     fn eq(&amp;self, other: &amp;Self) -&gt; bool {
         self.0 == other.0
-    }
-
-    #[flux::trusted]
-    #[flux::sig(fn (&amp;BV32[@val1], &amp;BV32[@val2]) -&gt; bool[val1 != val2])]
-    fn ne(&amp;self, other: &amp;Self) -&gt; bool {
-        self.0 != other.0
     }
 }
 
@@ -2586,7 +2555,7 @@ pub fn trivial_gt(x: BV32) -&gt; bool {
 
 #[flux::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[
     bv_ule(x, bv_int_to_bv32(10))
-    &amp;&amp; 
+    &amp;&amp;
     bv_uge(y, bv_int_to_bv32(20))
     &amp;&amp;
     bv_ult(x, bv_int_to_bv32(11))
@@ -2597,24 +2566,23 @@ pub fn real_example(x: BV32, y: BV32) -&gt; bool {
     x &lt;= BV32::new(10) &amp;&amp; y &gt;= BV32::new(20) &amp;&amp; x &lt; BV32::new(11) &amp;&amp; y &gt; BV32::new(21)
 }
 
-
 #[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_ult(x, y) &amp;&amp; bv_ugt(x, bv_int_to_bv32(0x20)) &amp;&amp; bv_ult(y, bv_int_to_bv32(0xFF)))]
-fn lt_imp(x: BV32, y: BV32) -&gt; bool {
+pub fn lt_imp(x: BV32, y: BV32) -&gt; bool {
     x - BV32::new(0x20) &lt; y + BV32::new(0x20)
 }
 
 #[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_ule(x, y) &amp;&amp; bv_uge(x, bv_int_to_bv32(0x20)) &amp;&amp; bv_ule(y, bv_int_to_bv32(0xFF)))]
-fn le_imp(x: BV32, y: BV32) -&gt; bool {
+pub fn le_imp(x: BV32, y: BV32) -&gt; bool {
     x - BV32::new(0x20) &lt;= y + BV32::new(0x20)
 }
 
 #[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_ugt(x, y) &amp;&amp; bv_ugt(y, bv_int_to_bv32(0x20)) &amp;&amp; bv_ult(x, bv_int_to_bv32(0xFF)))]
-fn gt_imp(x: BV32, y: BV32) -&gt; bool {
+pub fn gt_imp(x: BV32, y: BV32) -&gt; bool {
     x + BV32::new(0x20) &gt; y - BV32::new(0x20)
 }
 
 #[flux_rs::sig(fn (BV32[@x], BV32[@y]) -&gt; bool[true] requires bv_uge(x, y) &amp;&amp; bv_uge(y, bv_int_to_bv32(0x20)) &amp;&amp; bv_ule(x, bv_int_to_bv32(0xFF)))]
-fn ge_imp(x: BV32, y: BV32) -&gt; bool {
+pub fn ge_imp(x: BV32, y: BV32) -&gt; bool {
     x + BV32::new(0x20) &gt;= y - BV32::new(0x20)
 }</code></pre>
 <h3 id="specification-functions"><a class="header" href="#specification-functions">Specification functions</a></h3>
@@ -2902,8 +2870,11 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
-    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt;[n &gt; 0] ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
     fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
+
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
+    fn is_empty(&amp;self) -&gt; bool;
 }
 
 //---------------------------------------------------------------------------------------
@@ -2921,7 +2892,6 @@ impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&
 }
 
 //---------------------------------------------------------------------------------------
-
 #[extern_spec]
 impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
     #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]
@@ -3400,8 +3370,11 @@ impl&lt;T, A: Allocator&gt; Vec&lt;T, A&gt; {
     #[spec(fn(&amp;Vec&lt;T, A&gt;[@n]) -&gt; usize[n])]
     fn len(v: &amp;Vec&lt;T, A&gt;) -&gt; usize;
 
-    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt; ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
+    #[spec(fn(self: &amp;mut Vec&lt;T, A&gt;[@n]) -&gt; Option&lt;T&gt;[n &gt; 0] ensures self: Vec&lt;T, A&gt;[if n &gt; 0 { n-1 } else { 0 }])]
     fn pop(&amp;mut self) -&gt; Option&lt;T&gt;;
+
+    #[spec(fn(self: &amp;Vec&lt;T, A&gt;[@n]) -&gt; bool[n == 0])]
+    fn is_empty(&amp;self) -&gt; bool;
 }
 
 //---------------------------------------------------------------------------------------
@@ -3419,7 +3392,6 @@ impl&lt;T, I: SliceIndex&lt;[T]&gt;, A: Allocator&gt; IndexMut&lt;I&gt; for Vec&
 }
 
 //---------------------------------------------------------------------------------------
-
 #[extern_spec]
 impl&lt;'a, T, A: Allocator&gt; IntoIterator for &amp;'a Vec&lt;T, A&gt; {
     #[spec(fn (&amp;Vec&lt;T, A&gt;[@n]) -&gt; &lt;&amp;Vec&lt;T, A&gt; as IntoIterator&gt;::IntoIter[0,n])]

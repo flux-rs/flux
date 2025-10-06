@@ -261,6 +261,16 @@ struct HashSet&lt;T, S = RandomState&gt;;
 <p>Or you can run the <code>xtask</code> command directly</p>
 <pre><code class="language-shell">cargo x expand path/to/file.rs
 </code></pre>
+<h2 id="examining-the-mir"><a class="header" href="#examining-the-mir">Examining the MIR</a></h2>
+<p>You can use the <code>-Zdump-mir</code> flag to dump the MIR at various stages of compilation.
+For example,</p>
+<pre><code>$ cargo x run path/to/test.rs -- -Zdump-mir=renumber
+</code></pre>
+<p>or</p>
+<pre><code>$ cargo x run path/to/test.rs -- -Zdump-mir=ghost
+</code></pre>
+<p>will stash the MIR for those relevant stages in the <code>mir_dump</code> directory.</p>
+<p>You can then look at the <code>&lt;fn-name&gt;.ghost.mir</code> to see the MIR that Flux is checking.</p>
 <h2 id="reporting-and-dealing-with-bugs"><a class="header" href="#reporting-and-dealing-with-bugs">Reporting and dealing with bugs</a></h2>
 <p>As Flux is under active development, there are many aspects of Rust that Flux does not yet support, are
 only partially implemented, or where the implementation may contain bugs. These issues typically manifest

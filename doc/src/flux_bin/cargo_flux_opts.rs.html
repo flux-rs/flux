@@ -83,10 +83,10 @@
 <a href=#83 id=83 data-nosnippet>83</a>}
 <a href=#84 id=84 data-nosnippet>84</a>
 <a href=#85 id=85 data-nosnippet>85</a><span class="kw">impl </span>CheckOpts {
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">fn </span>forward_args&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, cmd: <span class="kw-2">&amp;mut </span>Command) {
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">fn </span>forward_args(<span class="kw-2">&amp;</span><span class="self">self</span>, cmd: <span class="kw-2">&amp;mut </span>Command) {
 <a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>CheckOpts { message_format, workspace, features, manifest } = <span class="self">self</span>;
 <a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(message_format) = <span class="kw-2">&amp;</span>message_format {
-<a href=#89 id=89 data-nosnippet>89</a>            cmd.args([<span class="string">"--message-format"</span>, <span class="kw-2">&amp;</span>message_format]);
+<a href=#89 id=89 data-nosnippet>89</a>            cmd.args([<span class="string">"--message-format"</span>, message_format]);
 <a href=#90 id=90 data-nosnippet>90</a>        }
 <a href=#91 id=91 data-nosnippet>91</a>        workspace.forward_args(cmd);
 <a href=#92 id=92 data-nosnippet>92</a>        features.forward_args(cmd);
@@ -207,7 +207,7 @@
 <a href=#207 id=207 data-nosnippet>207</a>            meta.features(cargo_metadata::CargoOpt::NoDefaultFeatures);
 <a href=#208 id=208 data-nosnippet>208</a>        }
 <a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">if </span>!features.is_empty() {
-<a href=#210 id=210 data-nosnippet>210</a>            meta.features(cargo_metadata::CargoOpt::SomeFeatures(features.to_vec()));
+<a href=#210 id=210 data-nosnippet>210</a>            meta.features(cargo_metadata::CargoOpt::SomeFeatures(features.clone()));
 <a href=#211 id=211 data-nosnippet>211</a>        }
 <a href=#212 id=212 data-nosnippet>212</a>    }
 <a href=#213 id=213 data-nosnippet>213</a>}
@@ -224,7 +224,7 @@
 <a href=#224 id=224 data-nosnippet>224</a>}
 <a href=#225 id=225 data-nosnippet>225</a>
 <a href=#226 id=226 data-nosnippet>226</a><span class="kw">impl </span>ManifestOptions {
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">fn </span>forward_args&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">self</span>, cmd: <span class="kw-2">&amp;mut </span>Command) {
+<a href=#227 id=227 data-nosnippet>227</a>    <span class="kw">fn </span>forward_args(<span class="kw-2">&amp;</span><span class="self">self</span>, cmd: <span class="kw-2">&amp;mut </span>Command) {
 <a href=#228 id=228 data-nosnippet>228</a>        <span class="kw">let </span>ManifestOptions { manifest_path, offline } = <span class="self">self</span>;
 <a href=#229 id=229 data-nosnippet>229</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(manifest_path) = <span class="kw-2">&amp;</span>manifest_path {
 <a href=#230 id=230 data-nosnippet>230</a>            cmd.args([<span class="string">"--manifest-path"</span>, manifest_path.as_str()]);
