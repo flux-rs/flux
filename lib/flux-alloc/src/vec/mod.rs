@@ -51,14 +51,6 @@ impl<T, I: SliceIndex<[T]>, A: Allocator> IndexMut<I> for Vec<T, A> {
 
 //---------------------------------------------------------------------------------------
 #[extern_spec]
-impl<T> [T] {
-    #[spec(fn(self: Box<[T][@n], A>) -> Vec<T, A>[n])]
-    fn into_vec<A>(self: Box<[T], A>) -> Vec<T, A>
-    where
-        A: Allocator;
-}
-//---------------------------------------------------------------------------------------
-#[extern_spec]
 impl<'a, T, A: Allocator> IntoIterator for &'a Vec<T, A> {
     #[spec(fn (&Vec<T, A>[@n]) -> <&Vec<T, A> as IntoIterator>::IntoIter[0,n])]
     fn into_iter(v: &'a Vec<T, A>) -> <&'a Vec<T, A> as IntoIterator>::IntoIter;

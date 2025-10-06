@@ -2,6 +2,9 @@
 #![cfg_attr(flux, feature(allocator_api))]
 
 #[cfg(flux)]
+pub mod slice;
+
+#[cfg(flux)]
 pub mod vec;
 
 #[cfg(flux)]
