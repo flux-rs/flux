@@ -122,8 +122,15 @@ For example,
 $ cargo x run path/to/test.rs -- -Zdump-mir=renumber
 ```
 
-will stash the MIR at all stages of compilation in the `mir_dump` directory.
-You can look at the `<fn-name>.ghost.mir` to see the MIR that Flux is checking.
+or
+
+```
+$ cargo x run path/to/test.rs -- -Zdump-mir=ghost
+```
+
+will stash the MIR for those relevant stages in the `mir_dump` directory.
+
+You can then look at the `<fn-name>.ghost.mir` to see the MIR that Flux is checking.
 
 ## Reporting and dealing with bugs
 
