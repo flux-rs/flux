@@ -18,6 +18,7 @@ use rustc_span::Span;
 pub use rustc_span::{Symbol, symbol::Ident};
 
 use crate::{
+    ResolverOutput,
     cstore::CrateStoreDyn,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
     fhir::{self, VariantIdx},
@@ -67,6 +68,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn collect_specs(self) -> &'genv crate::Specs {
         self.inner.queries.collect_specs(self)
+    }
+
+    pub fn attach_specs(
+        self,
+        resolver_output: &ResolverOutput,
+        specs: &crate::Specs,
+    ) -> &'genv crate::Specs {
+        self.inner
+            .queries
+            .attach_specs(self, resolver_output, specs)
     }
 
     pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {

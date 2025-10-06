@@ -53,6 +53,7 @@ pub fn desugar<'genv>(
 
     let cx = DesugarCtxt { genv, resolver_output: genv.resolve_crate() };
     let specs = genv.collect_specs();
+    let specs = genv.attach_specs(&cx.resolver_output, specs); // query to collect detached specs
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
 
