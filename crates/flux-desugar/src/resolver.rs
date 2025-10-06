@@ -572,6 +572,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
     }
 
     fn visit_mod(&mut self, module: &'tcx hir::Mod<'tcx>, _s: Span, hir_id: hir::HirId) {
+        // ENTER MOD
         let old_mod = self.current_module;
         self.current_module = hir_id.expect_owner();
         self.push_rib(TypeNS, RibKind::Module);
@@ -589,6 +590,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         hir::intravisit::walk_mod(self, module);
 
+        // EXIT MOD
         self.pop_rib(ValueNS);
         self.pop_rib(TypeNS);
         self.current_module = old_mod;
