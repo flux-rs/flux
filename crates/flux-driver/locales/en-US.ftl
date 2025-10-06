@@ -70,7 +70,8 @@ driver_item_not_in_trait =
 
 driver_extern_spec_for_local_def =
     cannot add extern specs to local definition
-    .note = `{$name}` defined here in the same crate
+    .help = `{$name}` defined here in the same crate, use a detached spec https://flux-rs.github.io/flux/guide/specifications.html?highlight=detached#detached-specifications
+
 
 driver_dup_extern_spec =
     multiple extern specs for `{$name}`

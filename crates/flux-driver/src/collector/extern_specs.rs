@@ -620,7 +620,7 @@ mod errors {
     pub(super) struct ExternSpecForLocalDef {
         #[primary_span]
         pub span: Span,
-        #[note]
+        #[help]
         pub local_def_span: Span,
         pub name: String,
     }
