@@ -2,21 +2,16 @@ use core::marker::PointeeSized;
 
 use flux_attrs::*;
 
-defs! {
-    fn uif_eq<A, B>(a: A, b: B) -> bool;
-    fn uif_ne<A, B>(a: A, b: B) -> bool;
-}
-
 #[extern_spec]
 #[assoc(
-    fn eq(x: Self, y: Rhs) -> bool { uif_eq(x, y) }
-    fn ne(x: Self, y: Rhs) -> bool { uif_ne(x, y) }
+    fn is_eq(x: Self, y: Rhs, res: bool) -> bool { true }
+    fn is_ne(x: Self, y: Rhs, res: bool) -> bool { true }
 )]
 trait PartialEq<Rhs: PointeeSized = Self>: PointeeSized {
-    #[spec(fn(&Self[@s], &Rhs[@t]) -> bool[Self::eq(s, t)] )]
+    #[spec(fn(&Self[@s], &Rhs[@t]) -> bool{v: Self::is_eq(s, t, v)})]
     fn eq(&self, other: &Rhs) -> bool;
 
-    #[spec(fn(&Self[@s], &Rhs[@t]) -> bool[Self::ne(s, t)] )]
+    #[spec(fn(&Self[@s], &Rhs[@t]) -> bool{v: Self::is_ne(s, t, v)})]
     fn ne(&self, other: &Rhs) -> bool;
 }
 
@@ -24,16 +19,16 @@ trait PartialEq<Rhs: PointeeSized = Self>: PointeeSized {
 macro_rules! eq {
     ($type_name:ident) => {
         #[specs {
-                            impl PartialEq for $type_name {
-                                #[reft] fn eq(self: $type_name, other: $type_name) -> bool {
-                                        self == other
-                                }
-                                #[reft] fn ne(self: $type_name, other: $type_name) -> bool {
-                                        self != other
-                                }
-                                fn eq(&$type_name[@v1], other: &$type_name[@v2]) -> bool[v1 == v2];
-                            }
-                        }]
+                    impl PartialEq for $type_name {
+                        #[reft] fn is_eq(self: $type_name, other: $type_name, res: bool) -> bool {
+                            res <=> (self == other)
+                        }
+                        #[reft] fn is_ne(self: $type_name, other: $type_name, res: bool) -> bool {
+                            res <=> (self != other)
+                        }
+                        fn eq(&$type_name[@v1], other: &$type_name[@v2]) -> bool[v1 == v2];
+                    }
+                }]
         const _: () = ();
     };
 }
