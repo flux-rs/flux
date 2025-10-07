@@ -16,26 +16,36 @@ use rustc_span::{Symbol, def_id::DefId};
 use crate::collector::{FluxAttrs, SpecCollector, errors};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
-#[derive(PartialEq, Eq, Debug, Hash)]
-struct ImplKey(Symbol);
+#[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
+// struct ImplKey(Symbol);
+enum LookupRes {
+    DefId(DefId),
+    Name(Symbol),
+}
 
-impl ImplKey {
-    fn new(tcx: TyCtxt, ty: &Ty) -> Self {
-        let name = match ty.kind() {
+impl LookupRes {
+    fn from_name<T: std::fmt::Debug>(thing: &T) -> Self {
+        let str = format!("{thing:?}");
+        LookupRes::Name(Symbol::intern(&str))
+        // LookupRes::Name(Symbol::intern(name))
+    }
+
+    fn new(ty: &Ty) -> Self {
+        match ty.kind() {
             rustc_middle::ty::TyKind::Adt(adt_def, _) => {
-                let def_id = adt_def.did();
-                tcx.def_path_str(def_id)
+                LookupRes::DefId(adt_def.did())
+                // let def_id = adt_def.did();
+                // tcx.def_path_str(def_id)
             }
-            _ => format!("{ty:?}"),
-        };
-        ImplKey(Symbol::intern(&name))
+            _ => Self::from_name(ty),
+        }
     }
 }
 
 #[derive(PartialEq, Eq, Debug, Hash)]
 struct TraitImplKey {
     trait_: Symbol,
-    self_ty: ImplKey,
+    self_ty: LookupRes,
 }
 
 fn path_to_symbol(path: &surface::ExprPath) -> Symbol {
@@ -61,8 +71,9 @@ fn item_def_kind(kind: &surface::ItemKind) -> Vec<DefKind> {
     }
 }
 
+#[derive(Debug)]
 struct ScopeResolver {
-    items: HashMap<(Symbol, DefKind), DefId>,
+    items: HashMap<(Symbol, DefKind), LookupRes>,
 }
 
 impl ScopeResolver {
@@ -70,25 +81,32 @@ impl ScopeResolver {
         let mut items = HashMap::default();
         for child in tcx.module_children_local(def_id) {
             let ident = child.ident;
+            // println!("TRACE: scope-resolver::new : item = {:?} res = {:?}", ident.name, child.res);
+
             if let Res::Def(exp_kind, def_id) = child.res {
-                items.insert((ident.name, exp_kind), def_id);
+                items.insert((ident.name, exp_kind), LookupRes::DefId(def_id));
             }
+        }
+        for pty in rustc_hir::PrimTy::ALL {
+            let name = pty.name();
+            items.insert((name, DefKind::Struct), LookupRes::Name(name)); // HACK: use DefKind::Struct for primitive...
         }
         Self { items }
     }
 
-    fn lookup(&self, path: &ExprPath, item_kind: &surface::ItemKind) -> Option<DefId> {
+    fn lookup(&self, path: &ExprPath, item_kind: &surface::ItemKind) -> Option<LookupRes> {
         let symbol = path_to_symbol(path);
         for kind in item_def_kind(item_kind) {
             let key = (symbol, kind);
-            if let Some(def_id) = self.items.get(&key) {
-                return Some(*def_id);
+            if let Some(res) = self.items.get(&key) {
+                return Some(*res);
             }
         }
         None
     }
 }
 
+#[derive(Debug)]
 struct TraitImplResolver {
     items: HashMap<TraitImplKey, LocalDefId>,
 }
@@ -101,27 +119,29 @@ impl TraitImplResolver {
                 for impl_id in impl_ids {
                     if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
                         let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                        let self_ty = ImplKey::new(tcx, &self_ty);
+                        let self_ty = LookupRes::new(&self_ty);
                         let key = TraitImplKey { trait_, self_ty };
                         items.insert(key, *impl_id);
                     }
                 }
             }
         }
+        // println!("TRACE: trait-impl-resolver = {:?}", items);
         Self { items }
     }
 
-    fn resolve(&self, trait_: &ExprPath, self_ty: &ExprPath) -> Option<LocalDefId> {
+    fn resolve(&self, trait_: &ExprPath, self_ty: LookupRes) -> Option<LocalDefId> {
         let trait_ = path_to_symbol(trait_);
-        let self_ty = ImplKey(path_to_symbol(self_ty));
         let key = TraitImplKey { trait_, self_ty };
+        // println!("TRACE: trait-impl-resolver::resolve: items = {:?}", self.items);
+        // println!("TRACE: trait-impl-resolver::RESOLVE: key = {:?}", key);
         self.items.get(&key).copied()
     }
 }
 
 pub(super) struct DetachedSpecsCollector<'a, 'sess, 'tcx> {
     inner: &'a mut SpecCollector<'sess, 'tcx>,
-    id_resolver: HashMap<NodeId, DefId>,
+    id_resolver: HashMap<NodeId, LookupRes>,
     impl_resolver: TraitImplResolver,
 }
 
@@ -141,6 +161,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     }
 
     fn run(&mut self, detached_specs: surface::DetachedSpecs, def_id: LocalDefId) -> Result {
+        //println!("TRACE: detached-collector: run : {def_id:?}");
         self.resolve(&detached_specs, def_id)?;
         for item in detached_specs.items {
             self.attach(item)?;
@@ -150,10 +171,11 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
     fn resolve(&mut self, detached_specs: &surface::DetachedSpecs, def_id: LocalDefId) -> Result {
         let resolver = ScopeResolver::new(self.inner.tcx, def_id);
+        // println!("TRACE: detached-resolver = {resolver:?}");
         for item in &detached_specs.items {
-            if matches!(item.kind, surface::ItemKind::TraitImpl(_)) {
-                continue;
-            }
+            // if matches!(item.kind, surface::ItemKind::TraitImpl(_)) {
+            //     continue;
+            // }
             let path = &item.path;
             let Some(def_id) = resolver.lookup(path, &item.kind) else {
                 return Err(self
@@ -175,15 +197,18 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     }
 
     fn lookup(&mut self, item: &surface::Item) -> Result<LocalDefId> {
-        if let Some(def_id) = self.id_resolver.get(&item.path.node_id)
-            && let Some(local_def_id) = self.unwrap_def_id(def_id)?
-        {
-            return Ok(local_def_id);
-        }
+        let path_def_id = self.id_resolver.get(&item.path.node_id);
+
         if let surface::ItemKind::TraitImpl(trait_impl) = &item.kind
-            && let Some(impl_id) = self.impl_resolver.resolve(&trait_impl.trait_, &item.path)
+            && let Some(self_ty) = path_def_id
+            && let Some(impl_id) = self.impl_resolver.resolve(&trait_impl.trait_, *self_ty)
         {
             return Ok(impl_id);
+        }
+        if let Some(LookupRes::DefId(def_id)) = self.id_resolver.get(&item.path.node_id) {
+            if let Some(local_def_id) = self.unwrap_def_id(def_id)? {
+                return Ok(local_def_id);
+            }
         }
         Err(self
             .inner

@@ -2,7 +2,7 @@
 
 #[flux::specs {
 
-    impl From<u32> for busize { //~ ERROR unresolved item
+    impl From<u32> for busize { //~ ERROR unresolved name
       fn gromp() -> usize[0];
     }
 }]
