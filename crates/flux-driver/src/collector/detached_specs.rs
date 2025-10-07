@@ -17,7 +17,6 @@ use crate::collector::{FluxAttrs, SpecCollector, errors};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 #[derive(PartialEq, Eq, Debug, Hash, Clone, Copy)]
-// struct ImplKey(Symbol);
 enum LookupRes {
     DefId(DefId),
     Name(Symbol),
@@ -81,7 +80,6 @@ impl ScopeResolver {
         let mut items = HashMap::default();
         for child in tcx.module_children_local(def_id) {
             let ident = child.ident;
-            // println!("TRACE: scope-resolver::new : item = {:?} res = {:?}", ident.name, child.res);
 
             if let Res::Def(exp_kind, def_id) = child.res {
                 items.insert((ident.name, exp_kind), LookupRes::DefId(def_id));
@@ -126,15 +124,12 @@ impl TraitImplResolver {
                 }
             }
         }
-        // println!("TRACE: trait-impl-resolver = {:?}", items);
         Self { items }
     }
 
     fn resolve(&self, trait_: &ExprPath, self_ty: LookupRes) -> Option<LocalDefId> {
         let trait_ = path_to_symbol(trait_);
         let key = TraitImplKey { trait_, self_ty };
-        // println!("TRACE: trait-impl-resolver::resolve: items = {:?}", self.items);
-        // println!("TRACE: trait-impl-resolver::RESOLVE: key = {:?}", key);
         self.items.get(&key).copied()
     }
 }
@@ -161,7 +156,6 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     }
 
     fn run(&mut self, detached_specs: surface::DetachedSpecs, def_id: LocalDefId) -> Result {
-        //println!("TRACE: detached-collector: run : {def_id:?}");
         self.resolve(&detached_specs, def_id)?;
         for item in detached_specs.items {
             self.attach(item)?;
@@ -171,11 +165,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
     fn resolve(&mut self, detached_specs: &surface::DetachedSpecs, def_id: LocalDefId) -> Result {
         let resolver = ScopeResolver::new(self.inner.tcx, def_id);
-        // println!("TRACE: detached-resolver = {resolver:?}");
         for item in &detached_specs.items {
-            // if matches!(item.kind, surface::ItemKind::TraitImpl(_)) {
-            //     continue;
-            // }
             let path = &item.path;
             let Some(def_id) = resolver.lookup(path, &item.kind) else {
                 return Err(self
