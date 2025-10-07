@@ -49,7 +49,15 @@ struct DesugarSpecs<'genv> {
 
 impl<'genv> DesugarSpecs<'genv> {
     fn fn_sigs(&self, owner_id: OwnerId) -> Option<&'genv surface::FnSpec> {
-        self.specs.fn_sigs.get(&owner_id)
+        let fn_spec = self.specs.fn_sigs.get(&owner_id).unwrap();
+        let Some(detached_fn_spec) = self.detached_specs.fn_sigs.get(&owner_id) else {
+            return Some(fn_spec);
+        };
+        if fn_spec.fn_sig.is_some() {
+            panic!("Multiple fn specs for {owner_id:?}")
+            //return Err(self.err_multiple_specs(owner_id.to_def_id(), fn_sig.span));
+        }
+        Some(detached_fn_spec)
     }
 
     fn enums(&self, owner_id: OwnerId) -> Option<&'genv surface::EnumDef> {

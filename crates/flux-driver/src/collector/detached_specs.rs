@@ -197,7 +197,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let dst_span = self.inner.tcx.def_span(def_id);
         dbg::hyperlink!(self.inner.tcx, span, dst_span);
         match item.kind {
-            surface::ItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
+            surface::ItemKind::FnSig(_fn_spec) => (), // self.collect_fn_spec(owner_id, fn_spec)?,
             surface::ItemKind::Struct(struct_def) => {
                 self.collect_struct(span, owner_id, struct_def)?;
             }
