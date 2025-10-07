@@ -8,7 +8,7 @@ use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     OwnerId,
     def::{DefKind, Res},
-    def_id::{CRATE_DEF_ID, LocalDefId},
+    def_id::LocalDefId,
 };
 use rustc_middle::ty::{AssocItem, AssocKind, Ty, TyCtxt};
 use rustc_span::{Symbol, def_id::DefId};
@@ -129,12 +129,13 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
     pub(super) fn collect(
         inner: &'a mut SpecCollector<'sess, 'tcx>,
         attrs: &mut FluxAttrs,
+        module_id: LocalDefId,
     ) -> Result {
         if let Some(detached_specs) = attrs.detached_specs() {
             let trait_impl_resolver = TraitImplResolver::new(inner.tcx);
             let mut collector =
                 Self { inner, id_resolver: HashMap::default(), impl_resolver: trait_impl_resolver };
-            collector.run(detached_specs, CRATE_DEF_ID)?;
+            collector.run(detached_specs, module_id)?;
         };
         Ok(())
     }

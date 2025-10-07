@@ -17,7 +17,7 @@ trait PartialEq<Rhs: PointeeSized = Self>: PointeeSized {
 
 #[macro_export]
 macro_rules! eq {
-    ($type_name:ident) => {
+    ($type_name:path) => {
         #[specs {
                     impl PartialEq for $type_name {
                         #[reft] fn is_eq(self: $type_name, other: $type_name, res: bool) -> bool {
