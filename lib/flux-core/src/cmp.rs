@@ -18,7 +18,7 @@ trait PartialEq<Rhs: PointeeSized = Self>: PointeeSized {
 #[macro_export]
 macro_rules! eq {
     ($type_name:path) => {
-        #[flux_rs::specs {
+        #[cfg_attr(flux, flux::specs {
                     impl std::cmp::PartialEq for $type_name {
                         #[reft] fn is_eq(self: $type_name, other: $type_name, res: bool) -> bool {
                             res <=> (self == other)
