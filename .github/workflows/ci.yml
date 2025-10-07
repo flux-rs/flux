@@ -62,8 +62,9 @@ jobs:
       - name: Patch flux-rs dependency if in pull request
         if: github.event_name == 'pull_request'
         run: |
-          echo '[patch."https://github.com/flux-rs/flux.git"]' >> tock/Cargo.toml
-          echo 'flux-rs = { path = "../lib/flux-rs" }' >> tock/Cargo.toml
+          mkdir -p tock/.cargo
+          echo '[patch."https://github.com/flux-rs/flux.git"]' >> tock/.cargo/config.toml
+          echo 'flux-rs = { path = "../lib/flux-rs" }' >> tock/.cargo/config.toml
 
       - name: Check tock/kernel
         run: |
