@@ -32,8 +32,6 @@ impl LookupRes {
         match ty.kind() {
             rustc_middle::ty::TyKind::Adt(adt_def, _) => {
                 LookupRes::DefId(adt_def.did())
-                // let def_id = adt_def.did();
-                // tcx.def_path_str(def_id)
             }
             _ => Self::from_name(ty),
         }
