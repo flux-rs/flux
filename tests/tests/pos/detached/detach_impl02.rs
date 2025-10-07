@@ -67,11 +67,11 @@ fn test_c() -> usize {
       fn succ(n:Nat) -> Nat[n+1];
     }
 
-    impl From<usize> for Nat {
+    impl std::convert::From<usize> for Nat {
       fn from(n: usize) -> Nat[n];
     }
 
-    impl From<Nat> for usize {
+    impl std::convert::From<Nat> for usize {
       fn from(n: Nat) -> usize[n];
     }
 }]

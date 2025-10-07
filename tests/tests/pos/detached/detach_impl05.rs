@@ -18,7 +18,7 @@ pub mod wrapper {
 
 #[flux_rs::specs {
     mod wrapper {
-        impl PartialEq for Role {
+        impl std::cmp::PartialEq for Role {
             #[reft] fn is_eq(self: Role, other: Role, res: bool) -> bool {
                 res <=> (self == other)
             }

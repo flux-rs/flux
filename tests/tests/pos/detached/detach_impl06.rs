@@ -46,7 +46,7 @@ mod test {
 #[flux_rs::specs {
     mod x {
         mod y {
-            impl MyTrait for Thing<T> {
+            impl a::b::MyTrait for Thing<T> {
                 fn gromp(&Self) -> usize[42];
             }
         }

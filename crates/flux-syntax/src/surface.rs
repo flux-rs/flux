@@ -122,7 +122,7 @@ pub struct DetachedTraitImpl {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DetachedTrait {
     pub items: Vec<Item<FnSpec>>,
     pub refts: Vec<TraitAssocReft>,
