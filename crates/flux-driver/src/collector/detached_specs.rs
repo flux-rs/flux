@@ -85,16 +85,10 @@ impl ScopeResolver {
         }
         for trait_impl_key in impl_resolver.items.keys() {
             if let LookupRes::DefId(trait_id) = trait_impl_key.trait_ {
-                // let name = tcx.item_name(trait_id);
                 let name = Symbol::intern(&tcx.def_path_str(trait_id));
-                // println!(
-                //     "TRACE: ScopeResolver: Found trait impl for trait_id={:?} name={}",
-                //     trait_id, name
-                // );
                 items.insert((name, DefKind::Trait), trait_impl_key.trait_);
             }
         }
-        // println!("TRACE: ScopeResolver: {:#?}", items);
         Self { items }
     }
 
@@ -213,10 +207,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         {
             return Ok(impl_id);
         }
-        if let Some(LookupRes::DefId(def_id)) = self.id_resolver.get(&item.path.node_id) {
-            if let Some(local_def_id) = self.unwrap_def_id(def_id)? {
-                return Ok(local_def_id);
-            }
+        if let Some(LookupRes::DefId(def_id)) = self.id_resolver.get(&item.path.node_id)
+            && let Some(local_def_id) = self.unwrap_def_id(def_id)?
+        {
+            return Ok(local_def_id);
         }
         Err(self
             .inner
