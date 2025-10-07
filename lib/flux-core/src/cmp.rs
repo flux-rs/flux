@@ -28,7 +28,7 @@ macro_rules! eq {
                         }
                         fn eq(&$type_name[@v1], other: &$type_name[@v2]) -> bool[v1 == v2];
                     }
-                }]
+                })]
         const _: () = ();
     };
 }
