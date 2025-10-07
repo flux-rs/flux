@@ -2492,15 +2492,12 @@ impl Sub for BV32 {
 }
 
 #[trusted]
-#[assoc(
-    fn eq(x: BV32, y: BV32) -&gt; bool { x == y }
-)]
 impl PartialEq for BV32 {
-    #[sig(fn(&amp;BV32[@val1], &amp;BV32[@val2]) -&gt; bool[&lt;BV32 as PartialEq&gt;::eq(val1, val2)])]
     fn eq(&amp;self, other: &amp;Self) -&gt; bool {
         self.0 == other.0
     }
 }
+flux_core::eq!(BV32);
 
 impl PartialOrd for BV32 {
     #[flux::trusted]
