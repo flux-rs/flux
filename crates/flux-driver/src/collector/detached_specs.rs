@@ -26,7 +26,6 @@ impl LookupRes {
     fn from_name<T: std::fmt::Debug>(thing: &T) -> Self {
         let str = format!("{thing:?}");
         LookupRes::Name(Symbol::intern(&str))
-        // LookupRes::Name(Symbol::intern(name))
     }
 
     fn new(ty: &Ty) -> Self {
