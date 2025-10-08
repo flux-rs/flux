@@ -297,104 +297,9 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_trait(&mut self, trait_: &surface::Trait) -> Result {
-        let mut definitions = DefinitionMap::default();
-        for assoc_reft in &trait_.assoc_refinements {
-            definitions
-                .define(assoc_reft.name)
-                .emit(&self.genv)
-                .collect_err(&mut self.err);
-        }
-
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_trait(trait_))?;
-        RefinementResolver::resolve_trait(self, trait_)
-    }
-
-    fn resolve_impl(&mut self, impl_: &surface::Impl) -> Result {
-        let mut definitions = DefinitionMap::default();
-        for assoc_reft in &impl_.assoc_refinements {
-            definitions
-                .define(assoc_reft.name)
-                .emit(&self.genv)
-                .collect_err(&mut self.err);
-        }
-
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_impl(impl_))?;
-        RefinementResolver::resolve_impl(self, impl_)
-    }
-
-    fn resolve_type_alias(&mut self, ty_alias: &surface::TyAlias) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_ty_alias(ty_alias))?;
-        RefinementResolver::resolve_ty_alias(self, ty_alias)
-    }
-
-    fn resolve_enum_def(&mut self, enum_def: &surface::EnumDef) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_enum_def(enum_def))?;
-        RefinementResolver::resolve_enum_def(self, enum_def)
-    }
-
-    fn resolve_struct_def(&mut self, struct_def: &surface::StructDef) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_struct_def(struct_def))?;
-        RefinementResolver::resolve_struct_def(self, struct_def)
-    }
-
-    fn resolve_constant(&mut self, constant: &surface::ConstantInfo) -> Result {
-        ItemResolver::run(self, |item_resolver| item_resolver.visit_constant(constant))?;
-        RefinementResolver::resolve_constant(self, constant)
-    }
-
-    fn resolve_fn_spec(&mut self, fn_spec: &surface::FnSpec) -> Result {
-        self.resolve_qualifiers(fn_spec.node_id, fn_spec.qual_names.as_ref())?;
-        self.resolve_reveals(fn_spec.node_id, fn_spec.reveal_names.as_ref())?;
-        if let Some(fn_sig) = &fn_spec.fn_sig {
-            ItemResolver::run(self, |item_resolver| item_resolver.visit_fn_sig(fn_sig))?;
-            RefinementResolver::resolve_fn_sig(self, fn_sig)?;
-        }
-        Ok(())
-    }
-
-    fn resolve_qualifiers(
-        &mut self,
-        fn_spec_id: surface::NodeId,
-        quals: Option<&surface::QualNames>,
-    ) -> Result {
-        let qual_names = quals.map_or(&[][..], |q| &q.names[..]);
-        let mut qualifiers = Vec::with_capacity(qual_names.len());
-        for qual in qual_names {
-            if let Some(def_id) = self.qualifiers.get(&qual.name) {
-                qualifiers.push(*def_id);
-            } else {
-                return Err(self
-                    .genv
-                    .sess()
-                    .emit_err(errors::UnknownQualifier::new(qual.span)));
-            }
-        }
-        self.output.qualifier_res_map.insert(fn_spec_id, qualifiers);
-        Ok(())
-    }
-
-    fn resolve_reveals(
-        &mut self,
-        fn_spec_id: surface::NodeId,
-        reveals: Option<&surface::RevealNames>,
-    ) -> Result {
-        let reveal_names = reveals.map_or(&[][..], |q| &q.names[..]);
-        let mut reveals = Vec::with_capacity(reveal_names.len());
-        for reveal in reveal_names {
-            if let Some(spec) = self.func_decls.get(&reveal.name)
-                && let Some(def_id) = spec.def_id()
-            {
-                reveals.push(def_id);
-            } else {
-                return Err(self
-                    .genv
-                    .sess()
-                    .emit_err(errors::UnknownRevealDefinition::new(reveal.span)));
-            }
-        }
-        self.output.reveal_res_map.insert(fn_spec_id, reveals);
-        Ok(())
+    fn resolve_item(&mut self, item: &surface::Item) -> Result {
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_item(item))?;
+        RefinementResolver::resolve_item(self, item)
     }
 
     fn resolve_path_with_ribs<S: Segment>(
@@ -591,17 +496,14 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         match item.kind {
             ItemKind::Trait(..) => {
-                let trait_ = &self.specs.get_trait(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
                 );
-                self.resolve_trait(trait_).collect_err(&mut self.err);
             }
             ItemKind::Impl(hir::Impl { of_trait, .. }) => {
-                let impl_ = &self.specs.get_impl(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
@@ -611,46 +513,33 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     },
                     TypeNS,
                 );
-                self.resolve_impl(impl_).collect_err(&mut self.err);
             }
             ItemKind::TyAlias(..) => {
-                if let Some(ty_alias) = &self.specs.get_type_alias(def_id.local_id()) {
-                    self.define_generics(def_id);
-                    self.resolve_type_alias(ty_alias).collect_err(&mut self.err);
-                }
+                self.define_generics(def_id);
             }
             ItemKind::Enum(..) => {
-                let enum_def = &self.specs.get_enum_def(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
-                self.resolve_enum_def(enum_def).collect_err(&mut self.err);
             }
             ItemKind::Struct(..) => {
-                let struct_def = &self.specs.get_struct_def(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
-                self.resolve_struct_def(struct_def)
-                    .collect_err(&mut self.err);
-            }
-            ItemKind::Const(..) => {
-                if let Some(constant) = self.specs.get_constant(def_id.local_id()) {
-                    self.resolve_constant(constant).collect_err(&mut self.err);
-                }
             }
             ItemKind::Fn { .. } => {
-                let fn_spec = &self.specs.get_fn_spec(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
-                self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
             }
             _ => {}
+        }
+        if let Some(item) = self.specs.get_item(def_id.local_id()) {
+            self.resolve_item(item).collect_err(&mut self.err);
         }
 
         hir::intravisit::walk_item(self, item);
@@ -666,10 +555,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .map(|def_id| OwnerId { def_id });
 
         self.push_rib(TypeNS, RibKind::Normal);
-        self.define_generics(def_id);
-        if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            let fn_spec = &self.specs.get_fn_spec(def_id.local_id()).unwrap();
-            self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
+        if let Some(item) = self.specs.get_item(def_id.local_id()) {
+            self.define_generics(def_id);
+            self.resolve_item(item).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -682,10 +570,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .map(|def_id| OwnerId { def_id });
 
         self.push_rib(TypeNS, RibKind::Normal);
-        self.define_generics(def_id);
-        if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            let fn_spec = &self.specs.get_fn_spec(def_id.local_id()).unwrap();
-            self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
+        if let Some(item) = self.specs.get_item(def_id.local_id()) {
+            self.define_generics(def_id);
+            self.resolve_item(item).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
@@ -843,9 +730,74 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
             self.errors.emit(errors::UnresolvedPath::new(path));
         }
     }
+
+    fn resolve_qualifiers(
+        &mut self,
+        fn_spec_id: surface::NodeId,
+        quals: Option<&surface::QualNames>,
+    ) {
+        let qual_names = quals.map_or(&[][..], |q| &q.names[..]);
+        let mut qualifiers = Vec::with_capacity(qual_names.len());
+        for qual in qual_names {
+            if let Some(def_id) = self.resolver.qualifiers.get(&qual.name) {
+                qualifiers.push(*def_id);
+            } else {
+                self.errors.emit(errors::UnknownQualifier::new(qual.span));
+            }
+        }
+        self.resolver
+            .output
+            .qualifier_res_map
+            .insert(fn_spec_id, qualifiers);
+    }
+
+    fn resolve_reveals(
+        &mut self,
+        fn_spec_id: surface::NodeId,
+        reveals: Option<&surface::RevealNames>,
+    ) {
+        let reveal_names = reveals.map_or(&[][..], |q| &q.names[..]);
+        let mut reveals = Vec::with_capacity(reveal_names.len());
+        for reveal in reveal_names {
+            if let Some(spec) = self.resolver.func_decls.get(&reveal.name)
+                && let Some(def_id) = spec.def_id()
+            {
+                reveals.push(def_id);
+            } else {
+                self.errors
+                    .emit(errors::UnknownRevealDefinition::new(reveal.span));
+            }
+        }
+        self.resolver
+            .output
+            .reveal_res_map
+            .insert(fn_spec_id, reveals);
+    }
 }
 
 impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
+    fn visit_trait(&mut self, trait_: &surface::Trait) {
+        let mut definitions = DefinitionMap::default();
+        for assoc_reft in &trait_.assoc_refinements {
+            let _ = definitions.define(assoc_reft.name).emit(&self.errors);
+        }
+        surface::visit::walk_trait(self, trait_);
+    }
+
+    fn visit_impl(&mut self, impl_: &surface::Impl) {
+        let mut definitions = DefinitionMap::default();
+        for assoc_reft in &impl_.assoc_refinements {
+            let _ = definitions.define(assoc_reft.name).emit(&self.errors);
+        }
+        surface::visit::walk_impl(self, impl_);
+    }
+
+    fn visit_fn_spec(&mut self, fn_spec: &surface::FnSpec) {
+        self.resolve_qualifiers(fn_spec.node_id, fn_spec.qual_names.as_ref());
+        self.resolve_reveals(fn_spec.node_id, fn_spec.reveal_names.as_ref());
+        surface::visit::walk_fn_spec(self, fn_spec);
+    }
+
     fn visit_generic_arg(&mut self, arg: &surface::GenericArg) {
         if let surface::GenericArgKind::Type(ty) = &arg.kind
             && let Some(path) = ty.is_potential_const_arg()

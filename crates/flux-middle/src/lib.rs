@@ -399,8 +399,12 @@ impl Specs {
         self.dummy_extern.insert(def_id);
     }
 
+    pub fn get_item(&self, owner_id: OwnerId) -> Option<&surface::Item> {
+        self.items.get(&owner_id)
+    }
+
     pub fn get_fn_spec(&self, owner_id: OwnerId) -> Option<&surface::FnSpec> {
-        let surface::ItemKind::Fn(fn_spec) = &self.items.get(&owner_id)?.kind else { return None };
+        let surface::ItemKind::Fn(fn_spec) = &self.get_item(owner_id)?.kind else { return None };
         Some(fn_spec)
     }
 
@@ -422,42 +426,36 @@ impl Specs {
     }
 
     pub fn get_type_alias(&self, owner_id: OwnerId) -> Option<&surface::TyAlias> {
-        let surface::ItemKind::TyAlias(ty_alias) = &self.items.get(&owner_id)?.kind else {
+        let surface::ItemKind::TyAlias(ty_alias) = &self.get_item(owner_id)?.kind else {
             return None;
         };
         Some(ty_alias)
     }
 
     pub fn get_enum_def(&self, owner_id: OwnerId) -> Option<&surface::EnumDef> {
-        let surface::ItemKind::Enum(enum_def) = &self.items.get(&owner_id)?.kind else {
-            return None;
-        };
+        let surface::ItemKind::Enum(enum_def) = &self.get_item(owner_id)?.kind else { return None };
         Some(enum_def)
     }
 
     pub fn get_struct_def(&self, owner_id: OwnerId) -> Option<&surface::StructDef> {
-        let surface::ItemKind::Struct(struct_def) = &self.items.get(&owner_id)?.kind else {
+        let surface::ItemKind::Struct(struct_def) = &self.get_item(owner_id)?.kind else {
             return None;
         };
         Some(struct_def)
     }
 
     pub fn get_trait(&self, owner_id: OwnerId) -> Option<&surface::Trait> {
-        let surface::ItemKind::Trait(trait_) = &self.items.get(&owner_id)?.kind else {
-            return None;
-        };
+        let surface::ItemKind::Trait(trait_) = &self.get_item(owner_id)?.kind else { return None };
         Some(trait_)
     }
 
     pub fn get_impl(&self, owner_id: OwnerId) -> Option<&surface::Impl> {
-        let surface::ItemKind::Impl(impl_) = &self.items.get(&owner_id)?.kind else { return None };
+        let surface::ItemKind::Impl(impl_) = &self.get_item(owner_id)?.kind else { return None };
         Some(impl_)
     }
 
     pub fn get_constant(&self, owner_id: OwnerId) -> Option<&surface::ConstantInfo> {
-        let surface::ItemKind::Const(const_) = &self.items.get(&owner_id)?.kind else {
-            return None;
-        };
+        let surface::ItemKind::Const(const_) = &self.get_item(owner_id)?.kind else { return None };
         Some(const_)
     }
 }
