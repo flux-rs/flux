@@ -1752,10 +1752,10 @@ fn collect_opaque_types(
     match genv.tcx().hir_owner_node(owner_id.local_id()) {
         hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
         hir::OwnerNode::ImplItem(impl_item) => {
-            hir::intravisit::walk_impl_item(&mut collector, impl_item)
+            hir::intravisit::walk_impl_item(&mut collector, impl_item);
         }
         hir::OwnerNode::TraitItem(trait_item) => {
-            hir::intravisit::walk_trait_item(&mut collector, trait_item)
+            hir::intravisit::walk_trait_item(&mut collector, trait_item);
         }
         hir::OwnerNode::ForeignItem(_) | hir::OwnerNode::Crate(_) | hir::OwnerNode::Synthetic => {}
     };
