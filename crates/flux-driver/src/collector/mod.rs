@@ -361,7 +361,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .specs
             .fn_sigs
             .entry(owner_id)
-            .or_insert(surface::FnSpec { fn_sig, qual_names, reveal_names, trusted }))
+            .or_insert(surface::FnSpec {
+                fn_sig,
+                qual_names,
+                reveal_names,
+                trusted,
+                node_id: self.parse_sess.next_node_id(),
+            }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {

@@ -438,10 +438,12 @@ pub struct ResolverOutput {
     pub implicit_params: UnordMap<NodeId, Vec<(Ident, NodeId)>>,
     pub sort_path_res_map: UnordMap<NodeId, fhir::SortRes>,
     pub expr_path_res_map: UnordMap<NodeId, fhir::PartialRes<fhir::ParamId>>,
-    /// The resolved list of local qualifiers per function
-    pub qualifier_res_map: UnordMap<OwnerId, Vec<def_id::FluxLocalDefId>>,
+    /// The resolved list of local qualifiers per function.
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub qualifier_res_map: UnordMap<NodeId, Vec<def_id::FluxLocalDefId>>,
     /// The resolved list of local reveals per function
-    pub reveal_res_map: UnordMap<OwnerId, Vec<def_id::FluxDefId>>,
+    /// The [`NodeId`] corresponds to the [`surface::FnSpec`].
+    pub reveal_res_map: UnordMap<NodeId, Vec<def_id::FluxDefId>>,
 }
 
 #[extension(pub trait PlaceExt)]

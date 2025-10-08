@@ -340,6 +340,7 @@ pub struct FnSpec {
     pub qual_names: Option<QualNames>,
     pub reveal_names: Option<RevealNames>,
     pub trusted: bool,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
