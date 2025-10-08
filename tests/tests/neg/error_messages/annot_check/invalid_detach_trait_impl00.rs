@@ -2,7 +2,7 @@
 
 #[flux::specs {
 
-    impl Gromp for usize {  //~ ERROR unresolved item
+    impl Gromp for usize {  //~ ERROR unresolved
       fn gromp() -> usize[0];
     }
 

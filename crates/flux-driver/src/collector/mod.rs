@@ -94,7 +94,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
         self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
-        DetachedSpecsCollector::collect(self, &mut attrs)?;
+        DetachedSpecsCollector::collect(self, &mut attrs, CRATE_DEF_ID)?;
 
         self.specs
             .flux_items_by_parent
@@ -110,7 +110,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
         self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
-        DetachedSpecsCollector::collect(self, &mut attrs)?;
+
+        // Get the parent module's LocalDefId
+        let module_id = self
+            .tcx
+            .parent_module_from_def_id(owner_id.def_id)
+            .to_local_def_id();
+        DetachedSpecsCollector::collect(self, &mut attrs, module_id)?;
 
         match &item.kind {
             ItemKind::Fn { .. } => {
