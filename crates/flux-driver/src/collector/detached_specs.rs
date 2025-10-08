@@ -224,7 +224,12 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let dst_span = self.inner.tcx.def_span(def_id);
         dbg::hyperlink!(self.inner.tcx, span, dst_span);
         match item.kind {
-            surface::DetachedItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
+            surface::DetachedItemKind::FnSig(fn_spec) => {
+                self.inner
+                    .specs
+                    .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Fn(fn_spec) })
+                    .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
+            }
             surface::DetachedItemKind::Struct(struct_def) => {
                 self.collect_struct(owner_id, struct_def)?;
             }
@@ -250,24 +255,17 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_fn_spec(&mut self, owner_id: OwnerId, fn_spec: surface::FnSpec) -> Result {
-        self.inner
-            .specs
-            .insert_fn_spec(owner_id, fn_spec)
-            .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))
-    }
-
     fn collect_struct(&mut self, owner_id: OwnerId, struct_def: surface::StructDef) -> Result {
         self.inner
             .specs
-            .insert_struct_def(owner_id, struct_def)
+            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Struct(struct_def) })
             .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn collect_enum(&mut self, owner_id: OwnerId, enum_def: surface::EnumDef) -> Result {
         self.inner
             .specs
-            .insert_enum_def(owner_id, enum_def)
+            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Enum(enum_def) })
             .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
@@ -275,9 +273,14 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         // 1. Collect the associated-refinements
         self.inner
             .specs
-            .insert_trait(
+            .insert_item(
                 owner_id,
-                surface::Trait { generics: None, assoc_refinements: trait_def.refts },
+                surface::Item {
+                    kind: surface::ItemKind::Trait(surface::Trait {
+                        generics: None,
+                        assoc_refinements: trait_def.refts,
+                    }),
+                },
             )
             .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
 
@@ -295,9 +298,14 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         // 1. Collect the associated-refinements
         self.inner
             .specs
-            .insert_impl(
+            .insert_item(
                 owner_id,
-                surface::Impl { generics: None, assoc_refinements: trait_impl.refts },
+                surface::Item {
+                    kind: surface::ItemKind::Impl(surface::Impl {
+                        generics: None,
+                        assoc_refinements: trait_impl.refts,
+                    }),
+                },
             )
             .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
 
@@ -347,7 +355,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             if let Some(def_id) = self.unwrap_def_id(&def_id)? {
                 dbg::hyperlink!(self.inner.tcx, path.span, self.inner.tcx.def_span(def_id));
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.collect_fn_spec(owner_id, fn_spec)?;
+                self.inner
+                    .specs
+                    .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Fn(fn_spec) })
+                    .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
             }
         }
         Ok(())

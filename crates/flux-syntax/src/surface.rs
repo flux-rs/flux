@@ -109,6 +109,72 @@ pub struct TyAlias {
     pub span: Span,
 }
 
+pub struct Item {
+    pub kind: ItemKind,
+}
+
+pub enum ItemKind {
+    Fn(FnSpec),
+    Struct(StructDef),
+    Enum(EnumDef),
+    Trait(Trait),
+    Impl(Impl),
+    Const(ConstantInfo),
+    TyAlias(TyAlias),
+}
+
+impl Item {
+    pub fn merge(&mut self, other: Item) -> Result<(), ()> {
+        match (&mut self.kind, other.kind) {
+            (ItemKind::Fn(a), ItemKind::Fn(b)) => {
+                if a.fn_sig.is_some() && b.fn_sig.is_some() {
+                    Err(())
+                } else {
+                    if a.fn_sig.is_none() {
+                        a.fn_sig = b.fn_sig;
+                    }
+                    a.trusted = a.trusted || b.trusted;
+                    Ok(())
+                }
+            }
+            (ItemKind::Struct(a), ItemKind::Struct(b)) => {
+                if a.is_nontrivial() {
+                    Err(())
+                } else {
+                    *a = b;
+                    Ok(())
+                }
+            }
+            (ItemKind::Trait(a), ItemKind::Trait(b)) => {
+                if a.is_nontrivial() {
+                    Err(())
+                } else {
+                    a.assoc_refinements.extend(b.assoc_refinements);
+                    Ok(())
+                }
+            }
+            (ItemKind::Impl(a), ItemKind::Impl(b)) => {
+                if a.is_nontrivial() {
+                    Err(())
+                } else {
+                    a.assoc_refinements.extend(b.assoc_refinements);
+                    Ok(())
+                }
+            }
+            (ItemKind::Enum(a), ItemKind::Enum(b)) => {
+                if a.is_nontrivial() {
+                    Err(())
+                } else {
+                    *a = b;
+                    Ok(())
+                }
+            }
+            (ItemKind::Const(_), ItemKind::Const(_)) => Err(()),
+            _ => panic!("both side must have the same kind"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DetachedSpecs {
     pub items: Vec<DetachedItem>,
