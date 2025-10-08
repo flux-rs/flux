@@ -306,9 +306,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 .collect_err(&mut self.err);
         }
 
-        ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_trait(trait_);
-        })?;
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_trait(trait_))?;
         RefinementResolver::resolve_trait(self, trait_)
     }
 
@@ -321,47 +319,35 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 .collect_err(&mut self.err);
         }
 
-        ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_impl(impl_);
-        })?;
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_impl(impl_))?;
         RefinementResolver::resolve_impl(self, impl_)
     }
 
     fn resolve_type_alias(&mut self, ty_alias: &surface::TyAlias) -> Result {
-        ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_ty_alias(ty_alias);
-        })?;
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_ty_alias(ty_alias))?;
         RefinementResolver::resolve_ty_alias(self, ty_alias)
     }
 
     fn resolve_enum_def(&mut self, enum_def: &surface::EnumDef) -> Result {
-        ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_enum_def(enum_def);
-        })?;
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_enum_def(enum_def))?;
         RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
     fn resolve_struct_def(&mut self, struct_def: &surface::StructDef) -> Result {
-        ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_struct_def(struct_def);
-        })?;
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_struct_def(struct_def))?;
         RefinementResolver::resolve_struct_def(self, struct_def)
     }
 
     fn resolve_constant(&mut self, constant: &surface::ConstantInfo) -> Result {
-        ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_constant(constant);
-        })?;
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_constant(constant))?;
         RefinementResolver::resolve_constant(self, constant)
     }
 
-    fn resolve_fn_sig(&mut self, fn_spec: &surface::FnSpec) -> Result {
+    fn resolve_fn_spec(&mut self, fn_spec: &surface::FnSpec) -> Result {
         self.resolve_qualifiers(fn_spec.node_id, fn_spec.qual_names.as_ref())?;
         self.resolve_reveals(fn_spec.node_id, fn_spec.reveal_names.as_ref())?;
         if let Some(fn_sig) = &fn_spec.fn_sig {
-            ItemResolver::run(self, |item_resolver| {
-                item_resolver.visit_fn_sig(fn_sig);
-            })?;
+            ItemResolver::run(self, |item_resolver| item_resolver.visit_fn_sig(fn_sig))?;
             RefinementResolver::resolve_fn_sig(self, fn_sig)?;
         }
         Ok(())
@@ -662,7 +648,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             ItemKind::Fn { .. } => {
                 let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
                 self.define_generics(def_id);
-                self.resolve_fn_sig(fn_spec).collect_err(&mut self.err);
+                self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
             }
             _ => {}
         }
@@ -683,7 +669,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.define_generics(def_id);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
             let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
-            self.resolve_fn_sig(fn_spec).collect_err(&mut self.err);
+            self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -699,7 +685,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.define_generics(def_id);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
             let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
-            self.resolve_fn_sig(fn_spec).collect_err(&mut self.err);
+            self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
