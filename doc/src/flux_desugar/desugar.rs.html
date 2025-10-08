@@ -1752,10 +1752,10 @@
 <a href=#1752 id=1752 data-nosnippet>1752</a>    <span class="kw">match </span>genv.tcx().hir_owner_node(owner_id.local_id()) {
 <a href=#1753 id=1753 data-nosnippet>1753</a>        hir::OwnerNode::Item(item) =&gt; hir::intravisit::walk_item(<span class="kw-2">&amp;mut </span>collector, item),
 <a href=#1754 id=1754 data-nosnippet>1754</a>        hir::OwnerNode::ImplItem(impl_item) =&gt; {
-<a href=#1755 id=1755 data-nosnippet>1755</a>            hir::intravisit::walk_impl_item(<span class="kw-2">&amp;mut </span>collector, impl_item)
+<a href=#1755 id=1755 data-nosnippet>1755</a>            hir::intravisit::walk_impl_item(<span class="kw-2">&amp;mut </span>collector, impl_item);
 <a href=#1756 id=1756 data-nosnippet>1756</a>        }
 <a href=#1757 id=1757 data-nosnippet>1757</a>        hir::OwnerNode::TraitItem(trait_item) =&gt; {
-<a href=#1758 id=1758 data-nosnippet>1758</a>            hir::intravisit::walk_trait_item(<span class="kw-2">&amp;mut </span>collector, trait_item)
+<a href=#1758 id=1758 data-nosnippet>1758</a>            hir::intravisit::walk_trait_item(<span class="kw-2">&amp;mut </span>collector, trait_item);
 <a href=#1759 id=1759 data-nosnippet>1759</a>        }
 <a href=#1760 id=1760 data-nosnippet>1760</a>        hir::OwnerNode::ForeignItem(<span class="kw">_</span>) | hir::OwnerNode::Crate(<span class="kw">_</span>) | hir::OwnerNode::Synthetic =&gt; {}
 <a href=#1761 id=1761 data-nosnippet>1761</a>    };
