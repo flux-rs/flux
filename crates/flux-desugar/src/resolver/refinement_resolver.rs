@@ -402,10 +402,7 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    pub(crate) fn for_flux_item(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        item: &FluxItem,
-    ) -> Self {
+    fn for_flux_item(resolver: &'a mut CrateResolver<'genv, 'tcx>, item: &FluxItem) -> Self {
         let sort_params = match item {
             FluxItem::FuncDef(defn) => &defn.sort_vars[..],
             FluxItem::Qualifier(_) | FluxItem::SortDecl(_) | FluxItem::PrimOpProp(_) => &[],
@@ -413,7 +410,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         Self::new(resolver, sort_params.iter().map(|ident| ident.name).collect())
     }
 
-    pub(crate) fn for_rust_item(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
+    fn for_rust_item(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
         Self::new(resolver, Default::default())
     }
 
