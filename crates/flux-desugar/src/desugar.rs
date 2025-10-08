@@ -606,16 +606,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
 
-        let qual_names = self
-            .owner
-            .as_local()
-            .map_or(&[][..], |owner_id| &self.resolver_output.qualifier_res_map[&owner_id]);
-
-        let reveal_names = self
-            .owner
-            .as_local()
-            .map_or(&[][..], |owner_id| &self.resolver_output.reveal_res_map[&owner_id]);
-
+        let qual_names = &self.resolver_output.qualifier_res_map[&fn_spec.node_id];
+        let reveal_names = &self.resolver_output.reveal_res_map[&fn_spec.node_id];
         Ok((
             generics,
             fhir::FnSig {

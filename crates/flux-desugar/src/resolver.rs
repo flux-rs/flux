@@ -370,10 +370,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let fn_spec = &self.specs.fn_sigs[&owner_id.local_id()];
 
-        if let Some(owner_id) = owner_id.as_local() {
-            self.resolve_qualifiers(owner_id, fn_spec.qual_names.as_ref())?;
-            self.resolve_reveals(owner_id, fn_spec.reveal_names.as_ref())?;
-        }
+        self.resolve_qualifiers(fn_spec.node_id, fn_spec.qual_names.as_ref())?;
+        self.resolve_reveals(fn_spec.node_id, fn_spec.reveal_names.as_ref())?;
         if let Some(fn_sig) = &fn_spec.fn_sig {
             ItemResolver::run(self, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
@@ -385,7 +383,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_qualifiers(
         &mut self,
-        owner_id: OwnerId,
+        fn_spec_id: surface::NodeId,
         quals: Option<&surface::QualNames>,
     ) -> Result {
         let qual_names = quals.map_or(&[][..], |q| &q.names[..]);
@@ -400,13 +398,13 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     .emit_err(errors::UnknownQualifier::new(qual.span)));
             }
         }
-        self.output.qualifier_res_map.insert(owner_id, qualifiers);
+        self.output.qualifier_res_map.insert(fn_spec_id, qualifiers);
         Ok(())
     }
 
     fn resolve_reveals(
         &mut self,
-        owner_id: OwnerId,
+        fn_spec_id: surface::NodeId,
         reveals: Option<&surface::RevealNames>,
     ) -> Result {
         let reveal_names = reveals.map_or(&[][..], |q| &q.names[..]);
@@ -423,7 +421,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     .emit_err(errors::UnknownRevealDefinition::new(reveal.span)));
             }
         }
-        self.output.reveal_res_map.insert(owner_id, reveals);
+        self.output.reveal_res_map.insert(fn_spec_id, reveals);
         Ok(())
     }
 
