@@ -297,9 +297,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         }
     }
 
-    fn resolve_trait(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        let trait_ = &self.specs.traits[&owner_id.local_id()];
-
+    fn resolve_trait(&mut self, trait_: &surface::Trait) -> Result {
         let mut definitions = DefinitionMap::default();
         for assoc_reft in &trait_.assoc_refinements {
             definitions
@@ -314,9 +312,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         RefinementResolver::resolve_trait(self, trait_)
     }
 
-    fn resolve_impl(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        let impl_ = &self.specs.impls[&owner_id.local_id()];
-
+    fn resolve_impl(&mut self, impl_: &surface::Impl) -> Result {
         let mut definitions = DefinitionMap::default();
         for assoc_reft in &impl_.assoc_refinements {
             definitions
@@ -331,45 +327,35 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         RefinementResolver::resolve_impl(self, impl_)
     }
 
-    fn resolve_type_alias(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id.local_id()] {
-            ItemResolver::run(self, |item_resolver| {
-                item_resolver.visit_ty_alias(ty_alias);
-            })?;
-            RefinementResolver::resolve_ty_alias(self, ty_alias)?;
-        }
-        Ok(())
-    }
-
-    fn resolve_struct_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        let struct_def = &self.specs.structs[&owner_id.local_id()];
+    fn resolve_type_alias(&mut self, ty_alias: &surface::TyAlias) -> Result {
         ItemResolver::run(self, |item_resolver| {
-            item_resolver.visit_struct_def(struct_def);
+            item_resolver.visit_ty_alias(ty_alias);
         })?;
-        RefinementResolver::resolve_struct_def(self, struct_def)
+        RefinementResolver::resolve_ty_alias(self, ty_alias)
     }
 
-    fn resolve_enum_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        let enum_def = &self.specs.enums[&owner_id.local_id()];
+    fn resolve_enum_def(&mut self, enum_def: &surface::EnumDef) -> Result {
         ItemResolver::run(self, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })?;
         RefinementResolver::resolve_enum_def(self, enum_def)
     }
 
-    fn resolve_constant(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        if let Some(constant) = self.specs.constants.get(&owner_id.local_id()) {
-            ItemResolver::run(self, |item_resolver| {
-                item_resolver.visit_constant(constant);
-            })?;
-            RefinementResolver::resolve_constant(self, constant)?;
-        }
-        Ok(())
+    fn resolve_struct_def(&mut self, struct_def: &surface::StructDef) -> Result {
+        ItemResolver::run(self, |item_resolver| {
+            item_resolver.visit_struct_def(struct_def);
+        })?;
+        RefinementResolver::resolve_struct_def(self, struct_def)
     }
 
-    fn resolve_fn_sig(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
-        let fn_spec = &self.specs.fn_sigs[&owner_id.local_id()];
+    fn resolve_constant(&mut self, constant: &surface::ConstantInfo) -> Result {
+        ItemResolver::run(self, |item_resolver| {
+            item_resolver.visit_constant(constant);
+        })?;
+        RefinementResolver::resolve_constant(self, constant)
+    }
 
+    fn resolve_fn_sig(&mut self, fn_spec: &surface::FnSpec) -> Result {
         self.resolve_qualifiers(fn_spec.node_id, fn_spec.qual_names.as_ref())?;
         self.resolve_reveals(fn_spec.node_id, fn_spec.reveal_names.as_ref())?;
         if let Some(fn_sig) = &fn_spec.fn_sig {
@@ -619,54 +605,64 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         match item.kind {
             ItemKind::Trait(..) => {
+                let trait_ = &self.specs.traits[&def_id.local_id()];
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyParam { trait_: def_id.resolved_id() },
                     TypeNS,
                 );
-                self.resolve_trait(def_id).collect_err(&mut self.err);
+                self.resolve_trait(trait_).collect_err(&mut self.err);
             }
-            ItemKind::Impl(impl_) => {
+            ItemKind::Impl(hir::Impl { of_trait, .. }) => {
+                let impl_ = &self.specs.impls[&def_id.local_id()];
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyAlias {
                         alias_to: def_id.resolved_id(),
-                        is_trait_impl: impl_.of_trait.is_some(),
+                        is_trait_impl: of_trait.is_some(),
                     },
                     TypeNS,
                 );
-                self.resolve_impl(def_id).collect_err(&mut self.err);
+                self.resolve_impl(impl_).collect_err(&mut self.err);
             }
             ItemKind::TyAlias(..) => {
-                self.define_generics(def_id);
-                self.resolve_type_alias(def_id).collect_err(&mut self.err);
+                if let Some(ty_alias) = &self.specs.ty_aliases[&def_id.local_id()] {
+                    self.define_generics(def_id);
+                    self.resolve_type_alias(ty_alias).collect_err(&mut self.err);
+                }
             }
-            ItemKind::Enum(_enum_def, ..) => {
+            ItemKind::Enum(..) => {
+                let enum_def = &self.specs.enums[&def_id.local_id()];
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
-                self.resolve_enum_def(def_id).collect_err(&mut self.err);
+                self.resolve_enum_def(enum_def).collect_err(&mut self.err);
             }
             ItemKind::Struct(..) => {
+                let struct_def = &self.specs.structs[&def_id.local_id()];
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
                     fhir::Res::SelfTyAlias { alias_to: def_id.resolved_id(), is_trait_impl: false },
                     TypeNS,
                 );
-                self.resolve_struct_def(def_id).collect_err(&mut self.err);
-            }
-            ItemKind::Fn { .. } => {
-                self.define_generics(def_id);
-                self.resolve_fn_sig(def_id).collect_err(&mut self.err);
+                self.resolve_struct_def(struct_def)
+                    .collect_err(&mut self.err);
             }
             ItemKind::Const(..) => {
-                self.resolve_constant(def_id).collect_err(&mut self.err);
+                if let Some(constant) = self.specs.constants.get(&def_id.local_id()) {
+                    self.resolve_constant(constant).collect_err(&mut self.err);
+                }
+            }
+            ItemKind::Fn { .. } => {
+                let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
+                self.define_generics(def_id);
+                self.resolve_fn_sig(fn_spec).collect_err(&mut self.err);
             }
             _ => {}
         }
@@ -686,7 +682,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(def_id);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            self.resolve_fn_sig(def_id).collect_err(&mut self.err);
+            let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
+            self.resolve_fn_sig(fn_spec).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -701,7 +698,8 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(def_id);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            self.resolve_fn_sig(def_id).collect_err(&mut self.err);
+            let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
+            self.resolve_fn_sig(fn_spec).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);
