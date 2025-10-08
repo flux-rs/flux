@@ -926,8 +926,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Map)?;
                 rty::SortCtor::Map
             }
-            fhir::SortRes::User { name } => {
-                if !path.args.is_empty() {
+            fhir::SortRes::User { name, params } => {
+                if path.args.len() != params {
                     let err = errors::GenericsOnUserDefinedOpaqueSort::new(
                         path.segments.last().unwrap().span,
                         path.args.len(),
