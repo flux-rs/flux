@@ -281,19 +281,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
     fn resolve_flux_items(&mut self, parent: OwnerId) {
         let Some(items) = self.specs.flux_items_by_parent.get(&parent) else { return };
         for item in items {
-            match item {
-                surface::FluxItem::Qualifier(qual) => {
-                    RefinementResolver::resolve_qualifier(self, qual).collect_err(&mut self.err);
-                }
-                surface::FluxItem::FuncDef(defn) => {
-                    RefinementResolver::resolve_defn(self, defn).collect_err(&mut self.err);
-                }
-                surface::FluxItem::SortDecl(_) => {}
-                surface::FluxItem::PrimOpProp(primop_prop) => {
-                    RefinementResolver::resolve_primop_prop(self, primop_prop)
-                        .collect_err(&mut self.err);
-                }
-            }
+            RefinementResolver::resolve_flux_item(self, item).collect_err(&mut self.err);
         }
     }
 

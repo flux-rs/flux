@@ -15,7 +15,7 @@ use super::{
     Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
     WhereBoundPredicate,
 };
-use crate::surface::{FnSpec, Item, PrimOpProp};
+use crate::surface::{FluxItem, FnSpec, Item, PrimOpProp};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -30,6 +30,10 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor: Sized {
+    fn visit_flux_item(&mut self, item: &FluxItem) {
+        walk_flux_item(self, item);
+    }
+
     fn visit_qualifier(&mut self, qualifier: &Qualifier) {
         walk_qualifier(self, qualifier);
     }
@@ -196,6 +200,15 @@ pub trait Visitor: Sized {
     fn visit_ident(&mut self, _ident: Ident) {}
 
     fn visit_literal(&mut self, _lit: Lit) {}
+}
+
+pub fn walk_flux_item<V: Visitor>(vis: &mut V, item: &FluxItem) {
+    match item {
+        FluxItem::Qualifier(qualifier) => vis.visit_qualifier(qualifier),
+        FluxItem::FuncDef(spec_func) => vis.visit_defn(spec_func),
+        FluxItem::SortDecl(_sort_decl) => {}
+        FluxItem::PrimOpProp(prim_op_prop) => vis.visit_primop_prop(prim_op_prop),
+    }
 }
 
 pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {

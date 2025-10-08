@@ -7,7 +7,7 @@ use flux_middle::{
     fhir::{self, PartialRes, Res},
 };
 use flux_syntax::{
-    surface::{self, Ident, NodeId, visit::Visitor as _},
+    surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
     symbols::sym,
     walk_list,
 };
@@ -404,8 +404,12 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     pub(crate) fn for_flux_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        sort_params: &[Ident],
+        item: &FluxItem,
     ) -> Self {
+        let sort_params = match item {
+            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
+            FluxItem::Qualifier(_) | FluxItem::SortDecl(_) | FluxItem::PrimOpProp(_) => &[],
+        };
         Self::new(resolver, sort_params.iter().map(|ident| ident.name).collect())
     }
 
@@ -413,25 +417,11 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         Self::new(resolver, Default::default())
     }
 
-    pub(crate) fn resolve_qualifier(
+    pub(crate) fn resolve_flux_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        qualifier: &surface::Qualifier,
+        item: &FluxItem,
     ) -> Result {
-        Self::for_flux_item(resolver, &[]).run(|r| r.visit_qualifier(qualifier))
-    }
-
-    pub(crate) fn resolve_defn(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        defn: &surface::SpecFunc,
-    ) -> Result {
-        Self::for_flux_item(resolver, &defn.sort_vars).run(|r| r.visit_defn(defn))
-    }
-
-    pub(crate) fn resolve_primop_prop(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        prop: &surface::PrimOpProp,
-    ) -> Result {
-        Self::for_flux_item(resolver, &[]).run(|r| r.visit_primop_prop(prop))
+        Self::for_flux_item(resolver, item).run(|r| r.visit_flux_item(item))
     }
 
     pub(crate) fn resolve_item(
