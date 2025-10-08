@@ -141,3 +141,12 @@ impl UnsupportedConstGenericArg {
         Self { span, res_descr }
     }
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_unsupported_signature, code = E0999)]
+#[note]
+pub(super) struct UnsupportedSignature<'a> {
+    #[primary_span]
+    pub span: Span,
+    pub note: &'a str,
+}

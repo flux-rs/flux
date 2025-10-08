@@ -10,7 +10,7 @@ use flux_common::{
     span_bug,
 };
 use flux_config as config;
-use flux_errors::Errors;
+use flux_errors::{Errors, FluxSession};
 use flux_middle::{
     ResolverOutput,
     def_id::{FluxLocalDefId, MaybeExternId},
@@ -124,6 +124,11 @@ pub(crate) struct RustItemCtxt<'a, 'genv, 'tcx> {
     owner: MaybeExternId<OwnerId>,
     fn_sig_scope: Option<NodeId>,
     resolver_output: &'genv ResolverOutput,
+    /// HACK! We assume there's at most one opaque type (we fail with an error if there's more than one)
+    /// and we store the `DefId` here if it exists. See [`collect_opaque_types`]
+    opaque: Option<LocalDefId>,
+    /// This collects all the opaque types generated in the process of desugaring an `FnSig`, however
+    /// we can only resolve one opaque type so this will contain at most one element.
     opaque_tys: Option<&'a mut Vec<&'genv fhir::OpaqueTy<'genv>>>,
     errors: Errors<'genv>,
 }
@@ -144,6 +149,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             resolver_output,
             opaque_tys,
             errors: Errors::new(genv.sess()),
+            opaque: collect_opaque_types(genv, owner)?,
         };
         let r = f(&mut cx)?;
         cx.into_result()?;
@@ -728,13 +734,14 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         returns: &surface::FnRetTy,
     ) -> fhir::Ty<'genv> {
         match asyncness {
-            surface::Async::Yes { node_id, span } => {
-                let def_id = self.resolver_output.impl_trait_res_map[&node_id];
+            surface::Async::Yes { span, .. } => {
+                // If there's more than one opaque it will fail when collecting it so we can unwrap here
+                let def_id = self.opaque.unwrap();
+
                 // FIXME(nilehmann) since we can only pass local ids for opaque types it means we
                 // can't support extern specs with opaque types.
                 let opaque_ty = self.desugar_opaque_ty_for_async(def_id, returns);
                 let opaque_ty = self.insert_opaque_ty(opaque_ty);
-
                 let kind = fhir::TyKind::OpaqueDef(opaque_ty);
                 fhir::Ty { kind, span }
             }
@@ -948,11 +955,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
     fn genv(&self) -> GlobalEnv<'genv, 'tcx>;
     fn resolver_output(&self) -> &'genv ResolverOutput;
     fn next_fhir_id(&self) -> FhirId;
-    fn desugar_impl_trait(
-        &mut self,
-        node_id: NodeId,
-        bounds: &[surface::TraitRef],
-    ) -> fhir::TyKind<'genv>;
+    fn desugar_impl_trait(&mut self, bounds: &[surface::TraitRef]) -> fhir::TyKind<'genv>;
 
     fn allow_prim_app(&self) -> bool {
         false
@@ -1298,9 +1301,7 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let len = Self::desugar_const_arg(len);
                 fhir::TyKind::Array(self.genv().alloc(ty), len)
             }
-            surface::TyKind::ImplTrait(node_id, bounds) => {
-                self.desugar_impl_trait(*node_id, bounds)
-            }
+            surface::TyKind::ImplTrait(_, bounds) => self.desugar_impl_trait(bounds),
             surface::TyKind::Hole => fhir::TyKind::Infer,
         };
         fhir::Ty { kind, span }
@@ -1714,12 +1715,9 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for RustItemCtxt<'_, 'genv, 'tcx> {
         self.resolver_output
     }
 
-    fn desugar_impl_trait(
-        &mut self,
-        node_id: NodeId,
-        bounds: &[surface::TraitRef],
-    ) -> fhir::TyKind<'genv> {
-        let def_id = self.resolver_output().impl_trait_res_map[&node_id];
+    fn desugar_impl_trait(&mut self, bounds: &[surface::TraitRef]) -> fhir::TyKind<'genv> {
+        // If there's more than one opaque it will fail when collecting it so we can unwrap here
+        let def_id = self.opaque.unwrap();
 
         // FIXME(nilehmann) since we can only pass local ids for opaque types it means we can't
         // support extern specs with opaque types.
@@ -1747,7 +1745,59 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
         self.resolver_output
     }
 
-    fn desugar_impl_trait(&mut self, _: NodeId, _: &[surface::TraitRef]) -> fhir::TyKind<'genv> {
+    fn desugar_impl_trait(&mut self, _: &[surface::TraitRef]) -> fhir::TyKind<'genv> {
         unimplemented!("`impl Trait` not supported in this item")
+    }
+}
+
+/// Traverses the `hir` for an item and collects the `def_id` of any opaque type (i.e., `impl Trait` or `async`)
+/// Currently, we only support up to one opaque type and we report an error if there's more than one.
+fn collect_opaque_types(
+    genv: GlobalEnv,
+    owner_id: MaybeExternId<OwnerId>,
+) -> Result<Option<LocalDefId>> {
+    let mut collector = OpaqueTypeCollector::new(genv.sess());
+    match genv.tcx().hir_owner_node(owner_id.local_id()) {
+        hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
+        hir::OwnerNode::ImplItem(impl_item) => {
+            hir::intravisit::walk_impl_item(&mut collector, impl_item)
+        }
+        hir::OwnerNode::TraitItem(trait_item) => {
+            hir::intravisit::walk_trait_item(&mut collector, trait_item)
+        }
+        hir::OwnerNode::ForeignItem(_) | hir::OwnerNode::Crate(_) | hir::OwnerNode::Synthetic => {}
+    };
+    collector.into_result()
+}
+
+struct OpaqueTypeCollector<'sess> {
+    opaque: Option<LocalDefId>,
+    errors: Errors<'sess>,
+}
+
+impl<'sess> OpaqueTypeCollector<'sess> {
+    fn new(sess: &'sess FluxSession) -> Self {
+        Self { opaque: None, errors: Errors::new(sess) }
+    }
+
+    fn into_result(self) -> Result<Option<LocalDefId>> {
+        self.errors.into_result()?;
+        Ok(self.opaque)
+    }
+}
+
+impl<'tcx> hir::intravisit::Visitor<'tcx> for OpaqueTypeCollector<'_> {
+    fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx, rustc_hir::AmbigArg>) {
+        if let hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
+            if self.opaque.is_some() {
+                self.errors.emit(errors::UnsupportedSignature {
+                    span: ty.span,
+                    note: "duplicate opaque types in signature",
+                });
+            } else {
+                self.opaque = Some(opaque_ty.def_id);
+            }
+        }
+        hir::intravisit::walk_ty(self, ty);
     }
 }
