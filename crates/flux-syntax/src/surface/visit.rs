@@ -10,11 +10,12 @@ use rustc_span::symbol::Ident;
 use super::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg, Ensures, EnumDef,
     Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
-    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
-    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
-    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, ItemKind,
+    Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef,
+    Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
+    WhereBoundPredicate,
 };
-use crate::surface::PrimOpProp;
+use crate::surface::{Item, PrimOpProp};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -51,6 +52,10 @@ pub trait Visitor: Sized {
 
     fn visit_sort(&mut self, sort: &Sort) {
         walk_sort(self, sort);
+    }
+
+    fn visit_item(&mut self, item: &Item) {
+        walk_item(self, item);
     }
 
     fn visit_trait(&mut self, trait_: &Trait) {
@@ -228,6 +233,22 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
             vis.visit_base_sort(output);
         }
         Sort::Infer => {}
+    }
+}
+
+pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
+    match &item.kind {
+        ItemKind::Fn(fn_spec) => {
+            if let Some(fn_sig) = fn_spec.fn_sig.as_ref() {
+                vis.visit_fn_sig(fn_sig);
+            }
+        }
+        ItemKind::Struct(struct_def) => vis.visit_struct_def(struct_def),
+        ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
+        ItemKind::Trait(trait_) => vis.visit_trait(trait_),
+        ItemKind::Impl(impl_) => vis.visit_impl(impl_),
+        ItemKind::Const(cst) => vis.visit_constant(cst),
+        ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
     }
 }
 
