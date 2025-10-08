@@ -502,7 +502,8 @@ type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 enum ConstKey<'tcx> {
     Uif(FluxDefId),
     RustConst(DefId),
-    Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
+    // Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
+    Alias(FluxDefId, rty::GenericArgs),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
@@ -1545,11 +1546,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         match internal_func {
             InternalFuncKind::Val(op) => {
+                assert!(sort_args.is_empty());
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let args = self.exprs_to_fixpoint(args, scx)?;
                 Ok(fixpoint::Expr::App(Box::new(func), None, args))
             }
             InternalFuncKind::Rel(op) => {
+                assert!(sort_args.is_empty());
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
                 } else {
@@ -1623,6 +1626,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 if let rty::ExprKind::InternalFunc(func) = func.kind() {
                     self.internal_func_to_fixpoint(func, sort_args, args, scx)?
                 } else {
+                    assert!(sort_args.is_empty());
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let sort_args = self.sort_args_to_fixpoint(sort_args, scx);
                     let args = self.exprs_to_fixpoint(args, scx)?;
@@ -2069,6 +2073,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let fsort = rty::FuncSort::new(vec![from.clone()], to.clone());
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
+                let global_name = self.global_var_gen.fresh();
+                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
@@ -2088,6 +2094,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let sort = scx.func_sort_to_fixpoint(&Self::prim_op_sort(op, span));
+                let global_name = self.global_var_gen.fresh();
+                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
@@ -2106,6 +2114,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
+                let global_name = self.global_var_gen.fresh();
+                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, Some(def_id)),
                     sort,
@@ -2124,6 +2134,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
+                let global_name = self.global_var_gen.fresh();
+                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort: scx.sort_to_fixpoint(&sort),

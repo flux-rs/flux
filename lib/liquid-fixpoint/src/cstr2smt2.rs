@@ -720,12 +720,12 @@ pub fn qe_and_simplify<T: Types>(
 ) -> Result<Expr<T>, Z3DecodeError>{
     let goal = Goal::new(true, true, false);
     let mut vars = Env::new();
-    consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort, &vars))
-    });
     datatype_decls.iter().for_each(|data_decl| {
         let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
+    });
+    consts.iter().for_each(|const_decl| {
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort, &vars))
     });
     let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
     // These are going to be the bound vars, so we declare the free vars above them.
@@ -800,6 +800,7 @@ pub enum Z3DecodeError {
     LetFirstArgumentNotAVar,
     UnexpectedAppHead(FuncDecl),
     UnexpectedConstHead(FuncDecl),
+    InvalidIntConstant,
 }
 
 fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
@@ -811,11 +812,17 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
         AstKind::Numeral => {
             match z3.sort_kind() {
                 SortKind::Int => {
-                    let int = z3.as_int().unwrap().as_i64().unwrap();
-                    if int > 0 {
-                        Ok(Expr::Constant(Constant::Numeral(int as u128)))
+                    let z3_int = z3.as_int().unwrap();
+                    if let Some(uint) = z3_int.as_u64() {
+                        Ok(Expr::Constant(Constant::Numeral(uint as u128)))
+                    } else if let Some(int) = z3_int.as_i64() {
+                        if int > 0 {
+                            Ok(Expr::Constant(Constant::Numeral(int as u128)))
+                        } else {
+                            Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                        }
                     } else {
-                        Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                        Err(Z3DecodeError::InvalidIntConstant)
                     }
                 }
                 // TODO: other sorts (it seems we don't send these to Z3 yet...)
