@@ -140,4 +140,13 @@
 <a href=#140 id=140 data-nosnippet>140</a>    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, res_descr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; <span class="self">Self </span>{
 <a href=#141 id=141 data-nosnippet>141</a>        <span class="self">Self </span>{ span, res_descr }
 <a href=#142 id=142 data-nosnippet>142</a>    }
-<a href=#143 id=143 data-nosnippet>143</a>}</code></pre></div></section></main></body></html>
+<a href=#143 id=143 data-nosnippet>143</a>}
+<a href=#144 id=144 data-nosnippet>144</a>
+<a href=#145 id=145 data-nosnippet>145</a><span class="attr">#[derive(Diagnostic)]
+<a href=#146 id=146 data-nosnippet>146</a>#[diag(desugar_unsupported_signature, code = E0999)]
+<a href=#147 id=147 data-nosnippet>147</a>#[note]
+<a href=#148 id=148 data-nosnippet>148</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">struct </span>UnsupportedSignature&lt;<span class="lifetime">'a</span>&gt; {
+<a href=#149 id=149 data-nosnippet>149</a>    <span class="attr">#[primary_span]
+<a href=#150 id=150 data-nosnippet>150</a>    </span><span class="kw">pub </span>span: Span,
+<a href=#151 id=151 data-nosnippet>151</a>    <span class="kw">pub </span>note: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
+<a href=#152 id=152 data-nosnippet>152</a>}</code></pre></div></section></main></body></html>
