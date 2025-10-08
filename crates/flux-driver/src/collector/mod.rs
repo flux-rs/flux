@@ -25,7 +25,7 @@ use rustc_hir::{
     self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
     VariantData,
     def::DefKind,
-    def_id::{CRATE_DEF_ID, LocalDefId},
+    def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
@@ -202,10 +202,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let assoc_refinements = attrs.trait_assoc_refts();
 
         self.specs
-            .traits
-            .insert(owner_id, surface::Trait { generics, assoc_refinements });
-
-        Ok(())
+            .insert_trait(owner_id, surface::Trait { generics, assoc_refinements })
+            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn collect_impl(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
@@ -213,16 +211,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let assoc_refinements = attrs.impl_assoc_refts();
 
         self.specs
-            .impls
-            .insert(owner_id, surface::Impl { generics, assoc_refinements });
-
-        Ok(())
+            .insert_impl(owner_id, surface::Impl { generics, assoc_refinements })
+            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         self.specs
-            .ty_aliases
-            .insert(owner_id, attrs.ty_alias().map(|z| *z));
+            .insert_type_alias(owner_id, attrs.ty_alias().map(|z| *z));
         Ok(())
     }
 
@@ -231,7 +226,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
         data: &VariantData,
-    ) -> Result<&mut surface::StructDef> {
+    ) -> Result {
         let opaque = attrs.opaque();
         let refined_by = attrs.refined_by();
         let generics = attrs.generics();
@@ -245,16 +240,17 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let invariants = attrs.invariants();
 
-        Ok(self
-            .specs
-            .structs
-            .entry(owner_id)
-            .or_insert(surface::StructDef { generics, refined_by, fields, opaque, invariants }))
+        self.specs
+            .insert_struct_def(
+                owner_id,
+                surface::StructDef { generics, refined_by, fields, opaque, invariants },
+            )
+            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
-            self.specs.constants.insert(owner_id, constant);
+            self.specs.insert_constant(owner_id, constant);
         }
         Ok(())
     }
@@ -284,7 +280,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
         enum_def: &EnumDef,
-    ) -> Result<&mut surface::EnumDef> {
+    ) -> Result {
         let generics = attrs.generics();
         let refined_by = attrs.refined_by();
         let reflected = attrs.reflected();
@@ -305,11 +301,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let invariants = attrs.invariants();
 
-        Ok(self
-            .specs
-            .enums
-            .entry(owner_id)
-            .or_insert(surface::EnumDef { generics, refined_by, variants, invariants, reflected }))
+        self.specs
+            .insert_enum_def(
+                owner_id,
+                surface::EnumDef { generics, refined_by, variants, invariants, reflected },
+            )
+            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn collect_variant(
@@ -334,11 +331,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.parse_constant_spec(owner_id, attrs)
     }
 
-    fn collect_fn_spec(
-        &mut self,
-        owner_id: OwnerId,
-        mut attrs: FluxAttrs,
-    ) -> Result<&mut surface::FnSpec> {
+    fn collect_fn_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         let fn_sig = attrs.fn_sig();
 
         if let Some(fn_sig) = &fn_sig
@@ -363,17 +356,18 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
 
-        Ok(self
-            .specs
-            .fn_sigs
-            .entry(owner_id)
-            .or_insert(surface::FnSpec {
-                fn_sig,
-                qual_names,
-                reveal_names,
-                trusted,
-                node_id: self.parse_sess.next_node_id(),
-            }))
+        self.specs
+            .insert_fn_spec(
+                owner_id,
+                surface::FnSpec {
+                    fn_sig,
+                    qual_names,
+                    reveal_names,
+                    trusted,
+                    node_id: self.parse_sess.next_node_id(),
+                },
+            )
+            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -571,6 +565,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let Some(infer_opts) = attrs.infer_opts() {
             self.specs.infer_opts.insert(def_id, infer_opts);
         }
+    }
+
+    fn err_multiple_specs(&mut self, def_id: DefId, span: Option<Span>) -> ErrorGuaranteed {
+        let name = self.tcx.def_path_str(def_id);
+        let span = span.unwrap_or_else(|| self.tcx.def_span(def_id));
+        let name = Symbol::intern(&name);
+        self.errors
+            .emit(errors::MultipleSpecifications { name, span })
     }
 }
 

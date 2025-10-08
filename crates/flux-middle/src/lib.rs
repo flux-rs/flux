@@ -37,7 +37,7 @@ pub mod rty;
 mod sort_of;
 pub mod timings;
 
-use std::sync::LazyLock;
+use std::{collections::hash_map, sync::LazyLock};
 
 use flux_arc_interner::List;
 use flux_config as config;
@@ -353,14 +353,14 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
 
 #[derive(Default)]
 pub struct Specs {
-    pub fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
-    pub constants: UnordMap<OwnerId, surface::ConstantInfo>,
-    pub structs: UnordMap<OwnerId, surface::StructDef>,
-    pub traits: UnordMap<OwnerId, surface::Trait>,
-    pub impls: UnordMap<OwnerId, surface::Impl>,
-    pub enums: UnordMap<OwnerId, surface::EnumDef>,
+    fn_sigs: UnordMap<OwnerId, surface::FnSpec>,
+    constants: UnordMap<OwnerId, surface::ConstantInfo>,
+    structs: UnordMap<OwnerId, surface::StructDef>,
+    traits: UnordMap<OwnerId, surface::Trait>,
+    impls: UnordMap<OwnerId, surface::Impl>,
+    enums: UnordMap<OwnerId, surface::EnumDef>,
+    ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::FluxItem>>,
-    pub ty_aliases: UnordMap<OwnerId, Option<surface::TyAlias>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
     pub trusted_impl: UnordMap<LocalDefId, fhir::Trusted>,
@@ -403,6 +403,142 @@ impl Specs {
 
     pub fn insert_dummy(&mut self, def_id: LocalDefId) {
         self.dummy_extern.insert(def_id);
+    }
+
+    pub fn get_fn_spec(&self, owner_id: OwnerId) -> Option<&surface::FnSpec> {
+        self.fn_sigs.get(&owner_id)
+    }
+
+    pub fn insert_fn_spec(
+        &mut self,
+        owner_id: OwnerId,
+        fn_spec: surface::FnSpec,
+    ) -> Result<(), ()> {
+        match self.fn_sigs.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(fn_spec);
+                Ok(())
+            }
+            hash_map::Entry::Occupied(mut entry) => {
+                if entry.get().fn_sig.is_some() && fn_spec.fn_sig.is_some() {
+                    Err(())
+                } else {
+                    let existing = entry.get_mut();
+                    if existing.fn_sig.is_none() {
+                        existing.fn_sig = fn_spec.fn_sig;
+                    }
+                    existing.trusted = existing.trusted || fn_spec.trusted;
+                    if fn_spec.trusted {
+                        self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
+                    }
+                    Ok(())
+                }
+            }
+        }
+    }
+
+    pub fn get_type_alias(&self, owner_id: OwnerId) -> Option<&surface::TyAlias> {
+        self.ty_aliases.get(&owner_id).and_then(|opt| opt.as_ref())
+    }
+
+    pub fn insert_type_alias(&mut self, owner_id: OwnerId, ty_alias: Option<surface::TyAlias>) {
+        self.ty_aliases.insert(owner_id, ty_alias);
+    }
+
+    pub fn get_enum_def(&self, owner_id: OwnerId) -> Option<&surface::EnumDef> {
+        self.enums.get(&owner_id)
+    }
+
+    pub fn insert_enum_def(
+        &mut self,
+        owner_id: OwnerId,
+        enum_def: surface::EnumDef,
+    ) -> Result<(), ()> {
+        match self.enums.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(enum_def);
+                Ok(())
+            }
+            hash_map::Entry::Occupied(ref e) if e.get().is_nontrivial() => Err(()),
+            hash_map::Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                *existing = enum_def;
+                Ok(())
+            }
+        }
+    }
+
+    pub fn get_struct_def(&self, owner_id: OwnerId) -> Option<&surface::StructDef> {
+        self.structs.get(&owner_id)
+    }
+
+    pub fn insert_struct_def(
+        &mut self,
+        owner_id: OwnerId,
+        struct_def: surface::StructDef,
+    ) -> Result<(), ()> {
+        match self.structs.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(struct_def);
+                Ok(())
+            }
+            hash_map::Entry::Occupied(ref e) if e.get().is_nontrivial() => Err(()),
+            hash_map::Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                *existing = struct_def;
+                Ok(())
+            }
+        }
+    }
+
+    pub fn get_trait(&self, owner_id: OwnerId) -> Option<&surface::Trait> {
+        self.traits.get(&owner_id)
+    }
+
+    pub fn insert_trait(&mut self, owner_id: OwnerId, trait_def: surface::Trait) -> Result<(), ()> {
+        match self.traits.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(trait_def);
+                Ok(())
+            }
+            hash_map::Entry::Occupied(ref e) if e.get().is_nontrivial() => Err(()),
+            hash_map::Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                existing
+                    .assoc_refinements
+                    .extend(trait_def.assoc_refinements);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn get_impl(&self, owner_id: OwnerId) -> Option<&surface::Impl> {
+        self.impls.get(&owner_id)
+    }
+
+    pub fn insert_impl(&mut self, owner_id: OwnerId, impl_def: surface::Impl) -> Result<(), ()> {
+        match self.impls.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(impl_def);
+                Ok(())
+            }
+            hash_map::Entry::Occupied(ref e) if e.get().is_nontrivial() => Err(()),
+            hash_map::Entry::Occupied(ref mut e) => {
+                let existing = e.get_mut();
+                existing
+                    .assoc_refinements
+                    .extend(impl_def.assoc_refinements);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn get_constant(&self, owner_id: OwnerId) -> Option<&surface::ConstantInfo> {
+        self.constants.get(&owner_id)
+    }
+
+    pub fn insert_constant(&mut self, owner_id: OwnerId, constant_info: surface::ConstantInfo) {
+        self.constants.insert(owner_id, constant_info);
     }
 }
 

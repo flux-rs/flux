@@ -591,7 +591,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
 
         match item.kind {
             ItemKind::Trait(..) => {
-                let trait_ = &self.specs.traits[&def_id.local_id()];
+                let trait_ = &self.specs.get_trait(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
@@ -601,7 +601,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.resolve_trait(trait_).collect_err(&mut self.err);
             }
             ItemKind::Impl(hir::Impl { of_trait, .. }) => {
-                let impl_ = &self.specs.impls[&def_id.local_id()];
+                let impl_ = &self.specs.get_impl(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
@@ -614,13 +614,13 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.resolve_impl(impl_).collect_err(&mut self.err);
             }
             ItemKind::TyAlias(..) => {
-                if let Some(ty_alias) = &self.specs.ty_aliases[&def_id.local_id()] {
+                if let Some(ty_alias) = &self.specs.get_type_alias(def_id.local_id()) {
                     self.define_generics(def_id);
                     self.resolve_type_alias(ty_alias).collect_err(&mut self.err);
                 }
             }
             ItemKind::Enum(..) => {
-                let enum_def = &self.specs.enums[&def_id.local_id()];
+                let enum_def = &self.specs.get_enum_def(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
@@ -630,7 +630,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                 self.resolve_enum_def(enum_def).collect_err(&mut self.err);
             }
             ItemKind::Struct(..) => {
-                let struct_def = &self.specs.structs[&def_id.local_id()];
+                let struct_def = &self.specs.get_struct_def(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.define_res_in(
                     kw::SelfUpper,
@@ -641,12 +641,12 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
                     .collect_err(&mut self.err);
             }
             ItemKind::Const(..) => {
-                if let Some(constant) = self.specs.constants.get(&def_id.local_id()) {
+                if let Some(constant) = self.specs.get_constant(def_id.local_id()) {
                     self.resolve_constant(constant).collect_err(&mut self.err);
                 }
             }
             ItemKind::Fn { .. } => {
-                let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
+                let fn_spec = &self.specs.get_fn_spec(def_id.local_id()).unwrap();
                 self.define_generics(def_id);
                 self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
             }
@@ -668,7 +668,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(def_id);
         if let hir::ImplItemKind::Fn(..) = impl_item.kind {
-            let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
+            let fn_spec = &self.specs.get_fn_spec(def_id.local_id()).unwrap();
             self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
@@ -684,7 +684,7 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
         self.push_rib(TypeNS, RibKind::Normal);
         self.define_generics(def_id);
         if let hir::TraitItemKind::Fn(..) = trait_item.kind {
-            let fn_spec = &self.specs.fn_sigs[&def_id.local_id()];
+            let fn_spec = &self.specs.get_fn_spec(def_id.local_id()).unwrap();
             self.resolve_fn_spec(fn_spec).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
