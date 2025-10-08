@@ -2,11 +2,8 @@ pub(crate) mod refinement_resolver;
 
 use std::collections::hash_map;
 
-use flux_common::{
-    bug,
-    result::{ErrorCollector, ResultExt},
-};
-use flux_errors::{Errors, FluxSession};
+use flux_common::result::{ErrorCollector, ResultExt};
+use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput, Specs,
     def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
@@ -19,13 +16,13 @@ use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::ErrorGuaranteed;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
-    self as hir, AmbigArg, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
+    self as hir, CRATE_HIR_ID, CRATE_OWNER_ID, ParamName, PrimTy,
     def::{
         CtorOf,
         Namespace::{self, *},
         PerNS,
     },
-    def_id::{CRATE_DEF_ID, LocalDefId},
+    def_id::CRATE_DEF_ID,
 };
 use rustc_middle::{metadata::ModChild, ty::TyCtxt};
 use rustc_span::{Span, Symbol, def_id::DefId, sym, symbol::kw};
@@ -311,7 +308,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 .collect_err(&mut self.err);
         }
 
-        ItemResolver::run(self, owner_id, |item_resolver| {
+        ItemResolver::run(self, |item_resolver| {
             item_resolver.visit_trait(trait_);
         })?;
         RefinementResolver::resolve_trait(self, trait_)
@@ -328,7 +325,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 .collect_err(&mut self.err);
         }
 
-        ItemResolver::run(self, owner_id, |item_resolver| {
+        ItemResolver::run(self, |item_resolver| {
             item_resolver.visit_impl(impl_);
         })?;
         RefinementResolver::resolve_impl(self, impl_)
@@ -336,7 +333,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_type_alias(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         if let Some(ty_alias) = &self.specs.ty_aliases[&owner_id.local_id()] {
-            ItemResolver::run(self, owner_id, |item_resolver| {
+            ItemResolver::run(self, |item_resolver| {
                 item_resolver.visit_ty_alias(ty_alias);
             })?;
             RefinementResolver::resolve_ty_alias(self, ty_alias)?;
@@ -346,7 +343,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_struct_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let struct_def = &self.specs.structs[&owner_id.local_id()];
-        ItemResolver::run(self, owner_id, |item_resolver| {
+        ItemResolver::run(self, |item_resolver| {
             item_resolver.visit_struct_def(struct_def);
         })?;
         RefinementResolver::resolve_struct_def(self, struct_def)
@@ -354,7 +351,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_enum_def(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         let enum_def = &self.specs.enums[&owner_id.local_id()];
-        ItemResolver::run(self, owner_id, |item_resolver| {
+        ItemResolver::run(self, |item_resolver| {
             item_resolver.visit_enum_def(enum_def);
         })?;
         RefinementResolver::resolve_enum_def(self, enum_def)
@@ -362,7 +359,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
 
     fn resolve_constant(&mut self, owner_id: MaybeExternId<OwnerId>) -> Result {
         if let Some(constant) = self.specs.constants.get(&owner_id.local_id()) {
-            ItemResolver::run(self, owner_id, |item_resolver| {
+            ItemResolver::run(self, |item_resolver| {
                 item_resolver.visit_constant(constant);
             })?;
             RefinementResolver::resolve_constant(self, constant)?;
@@ -378,7 +375,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
             self.resolve_reveals(owner_id, fn_spec.reveal_names.as_ref())?;
         }
         if let Some(fn_sig) = &fn_spec.fn_sig {
-            ItemResolver::run(self, owner_id, |item_resolver| {
+            ItemResolver::run(self, |item_resolver| {
                 item_resolver.visit_fn_sig(fn_sig);
             })?;
             RefinementResolver::resolve_fn_sig(self, fn_sig)?;
@@ -832,56 +829,22 @@ impl Segment for hir::PathSegment<'_> {
 
 struct ItemResolver<'a, 'genv, 'tcx> {
     resolver: &'a mut CrateResolver<'genv, 'tcx>,
-    opaque: Option<LocalDefId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
     errors: Errors<'genv>,
 }
 
 impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
     fn run(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        owner_id: MaybeExternId<OwnerId>,
         f: impl FnOnce(&mut ItemResolver),
     ) -> Result {
-        let mut item_resolver = ItemResolver::new(resolver, owner_id)?;
+        let mut item_resolver = ItemResolver::new(resolver)?;
         f(&mut item_resolver);
         item_resolver.errors.into_result()
     }
 
-    fn new(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        owner_id: MaybeExternId<OwnerId>,
-    ) -> Result<Self> {
-        let tcx = resolver.genv.tcx();
-        let sess = resolver.genv.sess();
-        let opaque = match tcx.hir_owner_node(owner_id.local_id()) {
-            hir::OwnerNode::Item(item) => OpaqueTypeCollector::collect_item(sess, item)?,
-            hir::OwnerNode::ImplItem(impl_item) => {
-                OpaqueTypeCollector::collect_impl_item(sess, impl_item)?
-            }
-            hir::OwnerNode::TraitItem(trait_item) => {
-                OpaqueTypeCollector::collect_trait_item(sess, trait_item)?
-            }
-            node @ (hir::OwnerNode::ForeignItem(_)
-            | hir::OwnerNode::Crate(_)
-            | hir::OwnerNode::Synthetic) => {
-                bug!("unsupported node {node:?}")
-            }
-        };
-
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Result<Self> {
         let errors = Errors::new(resolver.genv.sess());
-        Ok(Self { resolver, opaque, errors })
-    }
-
-    fn resolve_opaque_impl(&mut self, node_id: surface::NodeId, span: Span) {
-        if let Some(def_id) = self.opaque {
-            self.resolver
-                .output
-                .impl_trait_res_map
-                .insert(node_id, def_id);
-        } else {
-            self.errors
-                .emit(errors::UnresolvedPath { span, path: "opaque type".into() });
-        }
+        Ok(Self { resolver, errors })
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {
@@ -901,19 +864,6 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
 }
 
 impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
-    fn visit_async(&mut self, asyncness: &surface::Async) {
-        if let surface::Async::Yes { node_id, span } = asyncness {
-            self.resolve_opaque_impl(*node_id, *span);
-        }
-    }
-
-    fn visit_ty(&mut self, ty: &surface::Ty) {
-        if let surface::TyKind::ImplTrait(node_id, _) = &ty.kind {
-            self.resolve_opaque_impl(*node_id, ty.span);
-        }
-        surface::visit::walk_ty(self, ty);
-    }
-
     fn visit_generic_arg(&mut self, arg: &surface::GenericArg) {
         if let surface::GenericArgKind::Type(ty) = &arg.kind
             && let Some(path) = ty.is_potential_const_arg()
@@ -939,62 +889,6 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
     fn visit_path(&mut self, path: &surface::Path) {
         self.resolve_type_path(path);
         surface::visit::walk_path(self, path);
-    }
-}
-
-struct OpaqueTypeCollector<'sess> {
-    opaque: Option<LocalDefId>, // TODO: HACK! need to generalize to multiple opaque types/impls in a signature.
-    errors: Errors<'sess>,
-}
-
-impl<'sess> OpaqueTypeCollector<'sess> {
-    fn new(sess: &'sess FluxSession) -> Self {
-        Self { opaque: None, errors: Errors::new(sess) }
-    }
-
-    fn collect_item(sess: &'sess FluxSession, item: &hir::Item) -> Result<Option<LocalDefId>> {
-        let mut collector = Self::new(sess);
-        hir::intravisit::walk_item(&mut collector, item);
-        collector.into_result()
-    }
-
-    fn collect_impl_item(
-        sess: &'sess FluxSession,
-        impl_item: &hir::ImplItem,
-    ) -> Result<Option<LocalDefId>> {
-        let mut collector = Self::new(sess);
-        hir::intravisit::walk_impl_item(&mut collector, impl_item);
-        collector.into_result()
-    }
-
-    fn collect_trait_item(
-        sess: &'sess FluxSession,
-        trait_item: &hir::TraitItem,
-    ) -> Result<Option<LocalDefId>> {
-        let mut collector = Self::new(sess);
-        hir::intravisit::walk_trait_item(&mut collector, trait_item);
-        collector.into_result()
-    }
-
-    fn into_result(self) -> Result<Option<LocalDefId>> {
-        self.errors.into_result()?;
-        Ok(self.opaque)
-    }
-}
-
-impl<'tcx> hir::intravisit::Visitor<'tcx> for OpaqueTypeCollector<'_> {
-    fn visit_ty(&mut self, ty: &'tcx hir::Ty<'tcx, AmbigArg>) {
-        if let hir::TyKind::OpaqueDef(opaque_ty, ..) = ty.kind {
-            if self.opaque.is_some() {
-                self.errors.emit(errors::UnsupportedSignature::new(
-                    ty.span,
-                    "duplicate opaque types in signature",
-                ));
-            } else {
-                self.opaque = Some(opaque_ty.def_id);
-            }
-        }
-        hir::intravisit::walk_ty(self, ty);
     }
 }
 
@@ -1028,21 +922,6 @@ mod errors {
     use flux_syntax::surface;
     use itertools::Itertools;
     use rustc_span::{Ident, Span};
-
-    #[derive(Diagnostic)]
-    #[diag(desugar_unsupported_signature, code = E0999)]
-    #[note]
-    pub(super) struct UnsupportedSignature<'a> {
-        #[primary_span]
-        span: Span,
-        note: &'a str,
-    }
-
-    impl<'a> UnsupportedSignature<'a> {
-        pub(super) fn new(span: Span, note: &'a str) -> Self {
-            Self { span, note }
-        }
-    }
 
     #[derive(Diagnostic)]
     #[diag(desugar_unresolved_path, code = E0999)]
