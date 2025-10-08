@@ -111,26 +111,26 @@ pub struct TyAlias {
 
 #[derive(Debug)]
 pub struct DetachedSpecs {
-    pub items: Vec<Item>,
+    pub items: Vec<DetachedItem>,
 }
 
 #[derive(Debug)]
 pub struct DetachedTraitImpl {
     pub trait_: ExprPath,
-    pub items: Vec<Item<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSpec>>,
     pub refts: Vec<ImplAssocReft>,
     pub span: Span,
 }
 
 #[derive(Debug, Default)]
 pub struct DetachedTrait {
-    pub items: Vec<Item<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSpec>>,
     pub refts: Vec<TraitAssocReft>,
 }
 
 #[derive(Debug)]
 pub struct DetachedInherentImpl {
-    pub items: Vec<Item<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSpec>>,
     pub span: Span,
 }
 
@@ -141,23 +141,23 @@ impl DetachedInherentImpl {
 }
 
 #[derive(Debug)]
-pub struct Item<K = ItemKind> {
+pub struct DetachedItem<K = DetachedItemKind> {
     pub path: ExprPath,
     pub kind: K,
 }
 
-impl Item<ItemKind> {
+impl DetachedItem<DetachedItemKind> {
     pub fn span(&self) -> Span {
         match &self.kind {
-            ItemKind::InherentImpl(impl_) => impl_.span,
-            ItemKind::TraitImpl(trait_impl) => trait_impl.span,
+            DetachedItemKind::InherentImpl(impl_) => impl_.span,
+            DetachedItemKind::TraitImpl(trait_impl) => trait_impl.span,
             _ => self.path.span,
         }
     }
 }
 
 #[derive(Debug)]
-pub enum ItemKind {
+pub enum DetachedItemKind {
     FnSig(FnSpec),
     Mod(DetachedSpecs),
     Struct(StructDef),

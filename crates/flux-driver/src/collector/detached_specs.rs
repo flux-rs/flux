@@ -2,7 +2,7 @@ use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::dbg::{self, SpanTrace};
 use flux_middle::fhir::Trusted;
-use flux_syntax::surface::{self, ExprPath, FnSpec, Item, NodeId, Span};
+use flux_syntax::surface::{self, DetachedItem, ExprPath, FnSpec, NodeId, Span};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -52,16 +52,16 @@ fn path_to_symbol(path: &surface::ExprPath) -> Symbol {
     Symbol::intern(&path_string)
 }
 
-fn item_def_kind(kind: &surface::ItemKind) -> Vec<DefKind> {
+fn item_def_kind(kind: &surface::DetachedItemKind) -> Vec<DefKind> {
     match kind {
-        surface::ItemKind::FnSig(_) => vec![DefKind::Fn],
-        surface::ItemKind::Mod(_) => vec![DefKind::Mod],
-        surface::ItemKind::Struct(_) => vec![DefKind::Struct],
-        surface::ItemKind::Enum(_) => vec![DefKind::Enum],
-        surface::ItemKind::InherentImpl(_) | surface::ItemKind::TraitImpl(_) => {
+        surface::DetachedItemKind::FnSig(_) => vec![DefKind::Fn],
+        surface::DetachedItemKind::Mod(_) => vec![DefKind::Mod],
+        surface::DetachedItemKind::Struct(_) => vec![DefKind::Struct],
+        surface::DetachedItemKind::Enum(_) => vec![DefKind::Enum],
+        surface::DetachedItemKind::InherentImpl(_) | surface::DetachedItemKind::TraitImpl(_) => {
             vec![DefKind::Struct, DefKind::Enum]
         }
-        surface::ItemKind::Trait(_) => vec![DefKind::Trait],
+        surface::DetachedItemKind::Trait(_) => vec![DefKind::Trait],
     }
 }
 
@@ -92,7 +92,7 @@ impl ScopeResolver {
         Self { items }
     }
 
-    fn lookup(&self, path: &ExprPath, item_kind: &surface::ItemKind) -> Option<LookupRes> {
+    fn lookup(&self, path: &ExprPath, item_kind: &surface::DetachedItemKind) -> Option<LookupRes> {
         let symbol = path_to_symbol(path);
         for kind in item_def_kind(item_kind) {
             let key = (symbol, kind);
@@ -165,7 +165,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         &mut self,
         resolver: &ScopeResolver,
         path: &ExprPath,
-        kind: &surface::ItemKind,
+        kind: &surface::DetachedItemKind,
     ) -> Result {
         let Some(res) = resolver.lookup(path, kind) else {
             return Err(self
@@ -181,8 +181,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let resolver = ScopeResolver::new(self.inner.tcx, def_id, &self.impl_resolver);
         for item in &detached_specs.items {
             self.resolve_path_kind(&resolver, &item.path, &item.kind)?;
-            if let surface::ItemKind::TraitImpl(trait_impl) = &item.kind {
-                let kind = surface::ItemKind::Trait(surface::DetachedTrait::default());
+            if let surface::DetachedItemKind::TraitImpl(trait_impl) = &item.kind {
+                let kind = surface::DetachedItemKind::Trait(surface::DetachedTrait::default());
                 self.resolve_path_kind(&resolver, &trait_impl.trait_, &kind)?;
             }
         }
@@ -197,10 +197,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(def_id.as_local())
     }
 
-    fn lookup(&mut self, item: &surface::Item) -> Result<LocalDefId> {
+    fn lookup(&mut self, item: &surface::DetachedItem) -> Result<LocalDefId> {
         let path_def_id = self.id_resolver.get(&item.path.node_id);
 
-        if let surface::ItemKind::TraitImpl(trait_impl) = &item.kind
+        if let surface::DetachedItemKind::TraitImpl(trait_impl) = &item.kind
             && let Some(trait_) = self.id_resolver.get(&trait_impl.trait_.node_id)
             && let Some(self_ty) = path_def_id
             && let Some(impl_id) = self.impl_resolver.resolve(*trait_, *self_ty)
@@ -218,21 +218,27 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             .emit(errors::UnresolvedSpecification::new(&item.path, "item")))
     }
 
-    fn attach(&mut self, item: surface::Item) -> Result {
+    fn attach(&mut self, item: surface::DetachedItem) -> Result {
         let def_id = self.lookup(&item)?;
         let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
         let span = item.span();
         let dst_span = self.inner.tcx.def_span(def_id);
         dbg::hyperlink!(self.inner.tcx, span, dst_span);
         match item.kind {
-            surface::ItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
-            surface::ItemKind::Struct(struct_def) => {
+            surface::DetachedItemKind::FnSig(fn_spec) => self.collect_fn_spec(owner_id, fn_spec)?,
+            surface::DetachedItemKind::Struct(struct_def) => {
                 self.collect_struct(span, owner_id, struct_def)?;
             }
-            surface::ItemKind::Enum(enum_def) => self.collect_enum(span, owner_id, enum_def)?,
-            surface::ItemKind::Mod(detached_specs) => self.run(detached_specs, owner_id.def_id)?,
-            surface::ItemKind::Trait(trait_def) => self.collect_trait(span, owner_id, trait_def)?,
-            surface::ItemKind::InherentImpl(inherent_impl) => {
+            surface::DetachedItemKind::Enum(enum_def) => {
+                self.collect_enum(span, owner_id, enum_def)?
+            }
+            surface::DetachedItemKind::Mod(detached_specs) => {
+                self.run(detached_specs, owner_id.def_id)?;
+            }
+            surface::DetachedItemKind::Trait(trait_def) => {
+                self.collect_trait(span, owner_id, trait_def)?
+            }
+            surface::DetachedItemKind::InherentImpl(inherent_impl) => {
                 let tcx = self.inner.tcx;
                 let assoc_items = tcx
                     .inherent_impls(def_id)
@@ -240,7 +246,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
                 self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
             }
-            surface::ItemKind::TraitImpl(trait_impl) => {
+            surface::DetachedItemKind::TraitImpl(trait_impl) => {
                 self.collect_trait_impl(owner_id, trait_impl, span)?;
             }
         };
@@ -367,7 +373,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
 
     fn collect_assoc_methods(
         &mut self,
-        methods: Vec<Item<FnSpec>>,
+        methods: Vec<DetachedItem<FnSpec>>,
         assoc_items: impl Iterator<Item = &'tcx AssocItem>,
     ) -> Result {
         let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, ExprPath)> =

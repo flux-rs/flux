@@ -16,14 +16,14 @@ use crate::{
         self, Async,
         Attr::{self},
         Attrs, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, DetachedInherentImpl, DetachedSpecs, DetachedTrait, DetachedTraitImpl,
-        Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FluxItem, FnInput,
-        FnOutput, FnRetTy, FnSig, FnSpec, GenericArg, GenericArgKind, GenericBounds, GenericParam,
-        Generics, Ident, ImplAssocReft, Indices, Item, ItemKind, LetDecl, LitKind, Mutability,
-        ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
-        Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef,
-        VariantRet, WhereBoundPredicate,
+        ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
+        DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
+        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, FnSpec,
+        GenericArg, GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft,
+        Indices, LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
+        Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort,
+        SortDecl, SortPath, SpecFunc, Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias,
+        TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -122,14 +122,14 @@ pub(crate) fn parse_detached_specs(cx: &mut ParseCtxt) -> ParseResult<surface::D
 ///           | ⟨mod⟩
 ///           | ⟨impl⟩
 /// ```
-pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<Item> {
+pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     let attrs = parse_attrs(cx)?;
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(kw::Fn) {
         let item = parse_detached_fn_sig(cx, attrs)?;
         let ident = item.path;
-        let kind = ItemKind::FnSig(item.kind);
-        Ok(Item { path: ident, kind })
+        let kind = DetachedItemKind::FnSig(item.kind);
+        Ok(DetachedItem { path: ident, kind })
     } else if lookahead.peek(kw::Mod) {
         parse_detached_mod(cx)
     } else if lookahead.peek(kw::Struct) {
@@ -158,7 +158,7 @@ fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
 ///```text
 /// ⟨enum⟩ := enum Ident ⟨refine_info⟩ { ⟨variant⟩* }
 /// ```
-fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<Item> {
+fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<DetachedItem> {
     cx.expect(kw::Enum)?;
     let path = parse_expr_path(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
@@ -169,10 +169,10 @@ fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<Item
         .map(Some)
         .collect();
     let enum_def = EnumDef { generics, refined_by, variants, invariants, reflected: false };
-    Ok(Item { path, kind: ItemKind::Enum(enum_def) })
+    Ok(DetachedItem { path, kind: DetachedItemKind::Enum(enum_def) })
 }
 
-fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<Item> {
+fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<DetachedItem> {
     cx.expect(kw::Struct)?;
     let path = parse_expr_path(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
@@ -187,7 +187,7 @@ fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<It
         vec![]
     };
     let struct_def = StructDef { generics, opaque: false, refined_by, invariants, fields };
-    Ok(Item { path, kind: ItemKind::Struct(struct_def) })
+    Ok(DetachedItem { path, kind: DetachedItemKind::Struct(struct_def) })
 }
 
 fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
@@ -196,7 +196,7 @@ fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
     ExprPath { segments, span, node_id: cx.next_node_id() }
 }
 
-fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Item<FnSpec>> {
+fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem<FnSpec>> {
     let trusted = attrs.is_trusted();
     let fn_sig = parse_fn_sig(cx, token::Semi)?;
     let span = fn_sig.span;
@@ -211,25 +211,25 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Item<F
         trusted,
         node_id: cx.next_node_id(),
     };
-    Ok(Item { path, kind: fn_spec })
+    Ok(DetachedItem { path, kind: fn_spec })
 }
 
 ///```text
 /// ⟨mod⟩ ::= mod ⟨ident⟩ { ⟨specs⟩ }
 /// ```
-fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<Item> {
+fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     cx.expect(kw::Mod)?;
     let path = parse_expr_path(cx)?;
     cx.expect(TokenKind::open_delim(Brace))?;
     let items = until(cx, TokenKind::close_delim(Brace), parse_detached_item)?;
     cx.expect(TokenKind::close_delim(Brace))?;
-    Ok(Item { path, kind: ItemKind::Mod(DetachedSpecs { items }) })
+    Ok(DetachedItem { path, kind: DetachedItemKind::Mod(DetachedSpecs { items }) })
 }
 
 ///```text
 /// ⟨trait-spec⟩ ::= trait Ident { ⟨fn-spec⟩* }
 /// ```
-fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<Item> {
+fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     cx.expect(kw::Trait)?;
     let path = parse_expr_path(cx)?;
     let _generics = parse_opt_generics(cx)?;
@@ -246,13 +246,13 @@ fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<Item> {
         }
     }
     cx.expect(TokenKind::close_delim(Brace))?;
-    Ok(Item { path, kind: ItemKind::Trait(DetachedTrait { items, refts }) })
+    Ok(DetachedItem { path, kind: DetachedItemKind::Trait(DetachedTrait { items, refts }) })
 }
 
 ///```text
 /// ⟨impl-spec⟩ ::= impl Ident (for Ident)? { ⟨#[assoc] impl_assoc_reft⟩* ⟨fn-spec⟩* }
 /// ```
-fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
+fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     let lo = cx.lo();
     cx.expect(kw::Impl)?;
     let hi = cx.hi();
@@ -281,14 +281,19 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<Item> {
     }
     cx.expect(TokenKind::close_delim(Brace))?;
     if let Some(path) = inner_path {
-        Ok(Item {
+        Ok(DetachedItem {
             path,
-            kind: ItemKind::TraitImpl(DetachedTraitImpl { trait_: outer_path, items, refts, span }),
+            kind: DetachedItemKind::TraitImpl(DetachedTraitImpl {
+                trait_: outer_path,
+                items,
+                refts,
+                span,
+            }),
         })
     } else {
-        Ok(Item {
+        Ok(DetachedItem {
             path: outer_path,
-            kind: ItemKind::InherentImpl(DetachedInherentImpl { items, span }),
+            kind: DetachedItemKind::InherentImpl(DetachedInherentImpl { items, span }),
         })
     }
 }
