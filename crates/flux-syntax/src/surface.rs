@@ -24,6 +24,7 @@ impl NodeId {
 #[derive(Debug)]
 pub struct SortDecl {
     pub name: Ident,
+    pub sort_vars: Vec<Ident>,
 }
 
 #[derive(Debug)]
