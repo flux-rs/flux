@@ -1747,7 +1747,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let reveals: UnordSet<FluxDefId> = self
             .genv
             .reveals_for(def_id.local_id())
-            .into_iter()
+            .iter()
             .copied()
             .collect();
         let proven_externally = self.genv.proven_externally(def_id.local_id());

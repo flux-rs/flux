@@ -201,10 +201,9 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                         surface::Attr::Qualifiers(_) | surface::Attr::Reveal(_) => None,
                     }
                 })
-                .collect_vec()
-                .into_iter(),
+                .collect_vec(),
         ),
-        qualifiers: &resolver_output
+        qualifiers: resolver_output
             .qualifier_res_map
             .get(&node_id)
             .map_or(&[][..], Vec::as_slice),
