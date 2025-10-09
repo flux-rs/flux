@@ -95,8 +95,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
     fn collect_crate(&mut self) -> Result {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
-        self.collect_ignore_and_trusted(&mut attrs, CRATE_DEF_ID);
-        self.collect_infer_opts(&mut attrs, CRATE_DEF_ID);
         DetachedSpecsCollector::collect(self, &mut attrs, CRATE_DEF_ID)?;
 
         self.specs
@@ -111,8 +109,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let owner_id = item.owner_id;
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-        self.collect_infer_opts(&mut attrs, owner_id.def_id);
 
         // Get the parent module's LocalDefId
         let module_id = self
@@ -123,7 +119,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         match &item.kind {
             ItemKind::Fn { .. } => {
-                self.collect_proven_externally(&mut attrs, owner_id.def_id);
                 if attrs.has_attrs() {
                     let fn_sig = attrs.fn_sig();
                     self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
@@ -178,10 +173,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let owner_id = trait_item.owner_id;
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-        self.collect_infer_opts(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
-            self.collect_proven_externally(&mut attrs, owner_id.def_id);
             if attrs.has_attrs() {
                 let sig = attrs.fn_sig();
                 self.check_fn_sig_name(owner_id, sig.as_ref())?;
@@ -200,11 +192,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let owner_id = impl_item.owner_id;
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
-        self.collect_ignore_and_trusted(&mut attrs, owner_id.def_id);
-        self.collect_infer_opts(&mut attrs, owner_id.def_id);
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
-            self.collect_proven_externally(&mut attrs, owner_id.def_id);
             if attrs.has_attrs() {
                 let sig = attrs.fn_sig();
                 self.check_fn_sig_name(owner_id, sig.as_ref())?;
@@ -604,32 +593,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         err.into_result()
     }
 
-    fn collect_ignore_and_trusted(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
-        if let Some(ignored) = attrs.ignore() {
-            self.specs.ignores.insert(def_id, ignored);
-        }
-        if let Some(trusted) = attrs.trusted() {
-            self.specs.trusted.insert(def_id, trusted);
-        }
-        if let Some(trusted_impl) = attrs.trusted_impl() {
-            self.specs.trusted_impl.insert(def_id, trusted_impl);
-        }
-    }
-
-    fn collect_proven_externally(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
-        if let Some(proven_externally) = attrs.proven_externally() {
-            self.specs
-                .proven_externally
-                .insert(def_id, proven_externally);
-        }
-    }
-
-    fn collect_infer_opts(&mut self, attrs: &mut FluxAttrs, def_id: LocalDefId) {
-        if let Some(infer_opts) = attrs.infer_opts() {
-            self.specs.infer_opts.insert(def_id, infer_opts);
-        }
-    }
-
     fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
         match self.specs.insert_item(owner_id, item) {
             Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
@@ -756,22 +719,6 @@ impl FluxAttrs {
             .map(|(name, attrs)| (*name, &attrs[1..]))
     }
 
-    fn trusted(&mut self) -> Option<Trusted> {
-        read_attr!(self, Trusted)
-    }
-
-    fn trusted_impl(&mut self) -> Option<Trusted> {
-        read_attr!(self, TrustedImpl)
-    }
-
-    fn proven_externally(&mut self) -> Option<ProvenExternally> {
-        read_attr!(self, ProvenExternally)
-    }
-
-    fn ignore(&mut self) -> Option<Ignored> {
-        read_attr!(self, Ignore)
-    }
-
     fn opaque(&self) -> bool {
         read_flag!(self, Opaque)
     }
@@ -826,10 +773,6 @@ impl FluxAttrs {
         read_attr!(self, Variant)
     }
 
-    fn infer_opts(&mut self) -> Option<config::PartialInferOpts> {
-        read_attr!(self, InferOpts)
-    }
-
     fn invariants(&mut self) -> Vec<surface::Expr> {
         read_attrs!(self, Invariant)
     }
@@ -847,7 +790,7 @@ impl FluxAttrs {
         for attr in self.map.into_values().flatten() {
             let attr = match attr.kind {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted,
-                FluxAttrKind::TrustedImpl(trusted) => todo!(),
+                FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl,
                 FluxAttrKind::ProvenExternally(proven_externally) => {
                     surface::Attr::ProvenExternally
                 }
@@ -855,7 +798,7 @@ impl FluxAttrs {
                 FluxAttrKind::RevealNames(reveal_names) => {
                     surface::Attr::Reveal(reveal_names.names)
                 }
-                FluxAttrKind::InferOpts(partial_infer_opts) => todo!(),
+                FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore,
                 FluxAttrKind::ShouldFail => todo!(),
                 FluxAttrKind::Opaque

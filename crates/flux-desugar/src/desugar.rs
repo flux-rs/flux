@@ -16,7 +16,7 @@ use flux_middle::{
     def_id::{FluxLocalDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, ParamId, QPathExpr, Res},
     global_env::GlobalEnv,
-    try_alloc_slice,
+    query_bug, try_alloc_slice,
 };
 use flux_syntax::{
     surface::{self, ConstructorArg, NodeId, visit::Visitor as _},
@@ -123,6 +123,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             surface::ItemKind::Impl(impl_) => Ok(self.desugar_impl(impl_)),
             surface::ItemKind::Const(constant_info) => Ok(self.desugar_const(constant_info)),
             surface::ItemKind::TyAlias(ty_alias) => Ok(self.desugar_type_alias(ty_alias)),
+            surface::ItemKind::Mod => Err(self.emit(query_bug!("modules can't be desugared"))),
         }
     }
 

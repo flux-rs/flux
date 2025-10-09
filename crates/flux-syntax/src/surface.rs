@@ -1,6 +1,7 @@
 pub mod visit;
 use std::{borrow::Cow, fmt, ops::Range};
 
+use flux_config::PartialInferOpts;
 pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
@@ -123,6 +124,8 @@ pub enum ItemKind {
     Impl(Impl),
     Const(ConstantInfo),
     TyAlias(Box<TyAlias>),
+    /// Modules can't be refined but we collect attributes for them, e.g., `#[trusted]`
+    Mod,
 }
 
 pub struct TraitItemFn {
@@ -557,6 +560,8 @@ pub enum BindKind {
 pub enum Attr {
     /// A `#[trusted]` attribute
     Trusted,
+    /// A `#[trusted_impl]` attribute
+    TrustedImpl,
     /// A `#[ignore]` attribute
     Ignore,
     /// A `#[proven_externally]` attribute
@@ -567,6 +572,8 @@ pub enum Attr {
     Qualifiers(Vec<Ident>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<Ident>),
+    /// A `#[opts(...)]` attribute
+    InferOpts(PartialInferOpts),
 }
 
 pub enum SyntaxAttr {

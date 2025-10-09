@@ -270,6 +270,7 @@ pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Const(cst) => vis.visit_constant(cst),
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
+        ItemKind::Mod => {}
     }
 }
 
