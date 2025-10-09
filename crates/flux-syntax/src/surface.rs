@@ -110,6 +110,7 @@ pub struct TyAlias {
 }
 
 pub struct Item {
+    pub attrs: Vec<Attr>,
     pub kind: ItemKind,
 }
 
@@ -124,10 +125,12 @@ pub enum ItemKind {
 }
 
 pub struct TraitItemFn {
+    pub attrs: Vec<Attr>,
     pub spec: FnSpec,
 }
 
 pub struct ImplItemFn {
+    pub attrs: Vec<Attr>,
     pub spec: FnSpec,
 }
 
@@ -164,8 +167,15 @@ impl DetachedInherentImpl {
 
 #[derive(Debug)]
 pub struct DetachedItem<K = DetachedItemKind> {
+    pub attrs: Vec<Attr>,
     pub path: ExprPath,
     pub kind: K,
+}
+
+impl<K> DetachedItem<K> {
+    pub fn map_kind<R>(self, f: impl FnOnce(K) -> R) -> DetachedItem<R> {
+        DetachedItem { attrs: self.attrs, path: self.path, kind: f(self.kind) }
+    }
 }
 
 impl DetachedItem<DetachedItemKind> {
@@ -547,10 +557,16 @@ pub enum BindKind {
 pub enum Attr {
     /// A `#[trusted]` attribute
     Trusted,
+    /// A `#[ignore]` attribute
+    Ignore,
     /// A `#[proven_externally]` attribute
     ProvenExternally,
     /// A `#[hide]` attribute
     Hide,
+    /// A `#[qualifiers(...)]` attribute
+    Qualifiers(Vec<Ident>),
+    /// A `#[reveal(...)]` attribute
+    Reveal(Vec<Ident>),
 }
 
 pub enum SyntaxAttr {

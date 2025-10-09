@@ -18,8 +18,8 @@ use flux_middle::{
     fhir::{Ignored, ProvenExternally, Trusted},
 };
 use flux_syntax::{ParseResult, ParseSess, surface};
-use itertools::Itertools;
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
+use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
     self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
@@ -121,10 +121,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 self.collect_proven_externally(&mut attrs, owner_id.def_id);
-                if let Some(fn_spec) = self.collect_fn_spec(owner_id, attrs)? {
+                if attrs.has_attrs() {
+                    let fn_spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
                     self.insert_item(
                         owner_id,
-                        surface::Item { kind: surface::ItemKind::Fn(fn_spec) },
+                        surface::Item {
+                            attrs: attrs.into_attr_vec(),
+                            kind: surface::ItemKind::Fn(fn_spec),
+                        },
                     )?;
                 }
             }
@@ -172,8 +176,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
-            if let Some(spec) = self.collect_fn_spec(owner_id, attrs)? {
-                self.insert_trait_item(owner_id, surface::TraitItemFn { spec })?;
+            if attrs.has_attrs() {
+                let spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                self.insert_trait_item(
+                    owner_id,
+                    surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec },
+                )?;
             }
         }
         hir::intravisit::walk_trait_item(self, trait_item);
@@ -189,8 +197,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
-            if let Some(spec) = self.collect_fn_spec(owner_id, attrs)? {
-                self.insert_impl_item(owner_id, surface::ImplItemFn { spec })?;
+            if attrs.has_attrs() {
+                let spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                self.insert_impl_item(
+                    owner_id,
+                    surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec },
+                )?;
             }
         }
         hir::intravisit::walk_impl_item(self, impl_item);
@@ -217,6 +229,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.insert_item(
             owner_id,
             surface::Item {
+                attrs: attrs.into_attr_vec(),
                 kind: surface::ItemKind::Trait(surface::Trait { generics, assoc_refinements }),
             },
         )
@@ -233,6 +246,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.insert_item(
             owner_id,
             surface::Item {
+                attrs: attrs.into_attr_vec(),
                 kind: surface::ItemKind::Impl(surface::Impl { generics, assoc_refinements }),
             },
         )
@@ -242,7 +256,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let Some(ty_alias) = attrs.ty_alias() {
             self.insert_item(
                 owner_id,
-                surface::Item { kind: surface::ItemKind::TyAlias(ty_alias) },
+                surface::Item {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ItemKind::TyAlias(ty_alias),
+                },
             )?;
         }
         Ok(())
@@ -288,12 +305,24 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
 
         let struct_def = surface::StructDef { generics, refined_by, fields, opaque, invariants };
-        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Struct(struct_def) })
+        self.insert_item(
+            owner_id,
+            surface::Item {
+                attrs: attrs.into_attr_vec(),
+                kind: surface::ItemKind::Struct(struct_def),
+            },
+        )
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
-            self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Const(constant) })?;
+            self.insert_item(
+                owner_id,
+                surface::Item {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ItemKind::Const(constant),
+                },
+            )?;
         }
         Ok(())
     }
@@ -346,7 +375,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
 
         let enum_def = surface::EnumDef { generics, refined_by, variants, invariants, reflected };
-        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Enum(enum_def) })
+        self.insert_item(
+            owner_id,
+            surface::Item { attrs: attrs.into_attr_vec(), kind: surface::ItemKind::Enum(enum_def) },
+        )
     }
 
     fn parse_variant(
@@ -364,15 +396,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_fn_spec(
         &mut self,
         owner_id: OwnerId,
-        mut attrs: FluxAttrs,
-    ) -> Result<Option<surface::FnSpec>> {
-        if !attrs.has_attrs() {
-            return Ok(None);
-        }
-
-        let fn_sig = attrs.fn_sig();
-
-        if let Some(fn_sig) = &fn_sig
+        fn_sig: Option<surface::FnSig>,
+    ) -> Result<surface::FnSpec> {
+        if let Some(fn_sig) = fn_sig.as_ref()
             && let Some(ident) = fn_sig.ident
             && let Some(item_ident) = self.tcx.opt_item_ident(owner_id.to_def_id())
             && ident != item_ident
@@ -384,23 +410,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             )));
         };
 
-        if attrs.should_fail() {
-            self.specs.should_fail.insert(owner_id.def_id);
-        }
-
-        let qual_names: Option<surface::QualNames> = attrs.qual_names();
-
-        let reveal_names: Option<surface::RevealNames> = attrs.reveal_names();
-
-        let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
-
-        Ok(Some(surface::FnSpec {
+        Ok(surface::FnSpec {
             fn_sig,
-            qual_names,
-            reveal_names,
-            trusted,
+            qual_names: None,
+            reveal_names: None,
+            trusted: false,
             node_id: self.parse_sess.next_node_id(),
-        }))
+        })
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -632,7 +648,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
 #[derive(Debug)]
 struct FluxAttrs {
-    map: HashMap<&'static str, Vec<FluxAttr>>,
+    map: FxIndexMap<&'static str, Vec<FluxAttr>>,
 }
 
 #[derive(Debug)]
@@ -677,7 +693,7 @@ macro_rules! read_attrs {
     ($self:expr, $kind:ident) => {
         $self
             .map
-            .remove(attr_name!($kind))
+            .swap_remove(attr_name!($kind))
             .unwrap_or_else(|| vec![])
             .into_iter()
             .filter_map(|attr| if let FluxAttrKind::$kind(v) = attr.kind { Some(v) } else { None })
@@ -704,7 +720,11 @@ impl FluxAttr {
 
 impl FluxAttrs {
     fn new(attrs: Vec<FluxAttr>) -> Self {
-        FluxAttrs { map: attrs.into_iter().into_group_map_by(|attr| attr.kind.name()) }
+        let mut map: FxIndexMap<&'static str, Vec<FluxAttr>> = Default::default();
+        for attr in attrs {
+            map.entry(attr.kind.name()).or_default().push(attr);
+        }
+        FluxAttrs { map }
     }
 
     fn has_attrs(&self) -> bool {
@@ -748,14 +768,6 @@ impl FluxAttrs {
 
     fn fn_sig(&mut self) -> Option<surface::FnSig> {
         read_attr!(self, FnSig)
-    }
-
-    fn qual_names(&mut self) -> Option<surface::QualNames> {
-        read_attr!(self, QualNames)
-    }
-
-    fn reveal_names(&mut self) -> Option<surface::RevealNames> {
-        read_attr!(self, RevealNames)
     }
 
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
@@ -808,12 +820,45 @@ impl FluxAttrs {
         read_flag!(self, ExternSpec)
     }
 
-    fn should_fail(&self) -> bool {
-        read_flag!(self, ShouldFail)
-    }
-
     fn detached_specs(&mut self) -> Option<surface::DetachedSpecs> {
         read_attr!(self, DetachedSpecs)
+    }
+
+    fn into_attr_vec(self) -> Vec<surface::Attr> {
+        let mut attrs = vec![];
+        for attr in self.map.into_values().flatten() {
+            let attr = match attr.kind {
+                FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted,
+                FluxAttrKind::TrustedImpl(trusted) => todo!(),
+                FluxAttrKind::ProvenExternally(proven_externally) => {
+                    surface::Attr::ProvenExternally
+                }
+                FluxAttrKind::QualNames(qual_names) => surface::Attr::Qualifiers(qual_names.names),
+                FluxAttrKind::RevealNames(reveal_names) => {
+                    surface::Attr::Reveal(reveal_names.names)
+                }
+                FluxAttrKind::InferOpts(partial_infer_opts) => todo!(),
+                FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore,
+                FluxAttrKind::ShouldFail => todo!(),
+                FluxAttrKind::Opaque
+                | FluxAttrKind::Reflect
+                | FluxAttrKind::FnSig(_)
+                | FluxAttrKind::TraitAssocReft(_)
+                | FluxAttrKind::ImplAssocReft(_)
+                | FluxAttrKind::RefinedBy(_)
+                | FluxAttrKind::Generics(_)
+                | FluxAttrKind::Items(_)
+                | FluxAttrKind::TypeAlias(_)
+                | FluxAttrKind::Field(_)
+                | FluxAttrKind::Constant(_)
+                | FluxAttrKind::Variant(_)
+                | FluxAttrKind::Invariant(_)
+                | FluxAttrKind::ExternSpec
+                | FluxAttrKind::DetachedSpecs(_) => continue,
+            };
+            attrs.push(attr);
+        }
+        attrs
     }
 }
 

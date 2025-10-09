@@ -66,10 +66,13 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         }
     }
 
-    fn collect_extern_fn(&mut self, item: &hir::Item, attrs: FluxAttrs) -> Result {
-        if let Some(spec) = self.inner.collect_fn_spec(item.owner_id, attrs)? {
-            self.inner
-                .insert_item(item.owner_id, surface::Item { kind: surface::ItemKind::Fn(spec) })?;
+    fn collect_extern_fn(&mut self, item: &hir::Item, mut attrs: FluxAttrs) -> Result {
+        if attrs.has_attrs() {
+            let spec = self.inner.collect_fn_spec(item.owner_id, attrs.fn_sig())?;
+            self.inner.insert_item(
+                item.owner_id,
+                surface::Item { attrs: attrs.into_attr_vec(), kind: surface::ItemKind::Fn(spec) },
+            )?;
         }
 
         let extern_id = self.extract_extern_id_from_fn(item)?;
@@ -198,11 +201,14 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         &mut self,
         impl_of_trait: Option<DefId>,
         item: &hir::ImplItem,
-        attrs: FluxAttrs,
+        mut attrs: FluxAttrs,
     ) -> Result<ExternImplItem> {
-        if let Some(spec) = self.inner.collect_fn_spec(item.owner_id, attrs)? {
-            self.inner
-                .insert_impl_item(item.owner_id, surface::ImplItemFn { spec })?;
+        if attrs.has_attrs() {
+            let spec = self.inner.collect_fn_spec(item.owner_id, attrs.fn_sig())?;
+            self.inner.insert_impl_item(
+                item.owner_id,
+                surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec },
+            )?;
         }
 
         let extern_impl_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
@@ -244,12 +250,15 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         &mut self,
         extern_trait_id: DefId,
         item: &hir::TraitItem,
-        attrs: FluxAttrs,
+        mut attrs: FluxAttrs,
     ) -> Result {
         let item_id = item.owner_id;
-        if let Some(spec) = self.inner.collect_fn_spec(item_id, attrs)? {
-            self.inner
-                .insert_trait_item(item.owner_id, surface::TraitItemFn { spec })?;
+        if attrs.has_attrs() {
+            let spec = self.inner.collect_fn_spec(item_id, attrs.fn_sig())?;
+            self.inner.insert_trait_item(
+                item.owner_id,
+                surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec },
+            )?;
         }
 
         let extern_fn_id = self.extract_extern_id_from_trait_fn(extern_trait_id, item)?;
