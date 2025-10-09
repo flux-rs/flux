@@ -556,14 +556,58 @@ pub enum BindKind {
     Pound,
 }
 
+/// A boolean-like enum used to mark whether some code should be trusted.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Trusted {
+    Yes,
+    No,
+}
+
+impl Trusted {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Trusted::Yes => true,
+            Trusted::No => false,
+        }
+    }
+}
+
+impl From<bool> for Trusted {
+    fn from(value: bool) -> Self {
+        if value { Trusted::Yes } else { Trusted::No }
+    }
+}
+
+/// A boolean-like enum used to mark whether a piece of code is ignored.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Ignored {
+    Yes,
+    No,
+}
+
+impl Ignored {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Ignored::Yes => true,
+            Ignored::No => false,
+        }
+    }
+}
+
+impl From<bool> for Ignored {
+    fn from(value: bool) -> Self {
+        if value { Ignored::Yes } else { Ignored::No }
+    }
+}
+
 #[derive(Debug)]
 pub enum Attr {
-    /// A `#[trusted]` attribute
-    Trusted,
-    /// A `#[trusted_impl]` attribute
-    TrustedImpl,
-    /// A `#[ignore]` attribute
-    Ignore,
+    /// A `#[trusted(...)]` attribute
+    Trusted(Trusted),
+    /// A `#[trusted_impl(...)]` attribute
+    TrustedImpl(Trusted),
+    /// A `#[ignore(...)]` attribute
+    Ignore(Ignored),
     /// A `#[proven_externally]` attribute
     ProvenExternally,
     /// A `#[should_fail]` attribute
@@ -594,16 +638,6 @@ pub struct Attrs {
 }
 
 impl Attrs {
-    pub fn is_trusted(&self) -> bool {
-        self.normal.iter().any(|attr| matches!(attr, Attr::Trusted))
-    }
-
-    pub fn is_proven_externally(&self) -> bool {
-        self.normal
-            .iter()
-            .any(|attr| matches!(attr, Attr::ProvenExternally))
-    }
-
     pub fn is_reft(&self) -> bool {
         self.syntax
             .iter()

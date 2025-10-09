@@ -13,13 +13,10 @@ use flux_common::{
 };
 use flux_config::{self as config, OverflowMode, PartialInferOpts, SmtSolver};
 use flux_errors::{Errors, FluxSession};
-use flux_middle::{
-    Specs,
-    fhir::{Ignored, ProvenExternally, Trusted},
-};
+use flux_middle::Specs;
 use flux_syntax::{
     ParseResult, ParseSess,
-    surface::{self, NodeId},
+    surface::{self, NodeId, Trusted},
 };
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_data_structures::fx::FxIndexMap;
@@ -535,7 +532,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::Ignore(b.into())
                 })?
             }
-            ("ignore", hir::AttrArgs::Empty) => FluxAttrKind::Ignore(Ignored::Yes),
+            ("ignore", hir::AttrArgs::Empty) => FluxAttrKind::Ignore(surface::Ignored::Yes),
             ("trusted", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_yes_or_no_with_reason, |b| {
                     FluxAttrKind::Trusted(b.into())
@@ -547,9 +544,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
             }
-            ("proven_externally", hir::AttrArgs::Empty) => {
-                FluxAttrKind::ProvenExternally(ProvenExternally::Yes)
-            }
+            ("proven_externally", hir::AttrArgs::Empty) => FluxAttrKind::ProvenExternally,
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
             ("opaque", hir::AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
@@ -644,7 +639,7 @@ struct FluxAttr {
 enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
-    ProvenExternally(ProvenExternally),
+    ProvenExternally,
     Opaque,
     Reflect,
     FnSig(surface::FnSig),
@@ -661,7 +656,7 @@ enum FluxAttrKind {
     Variant(surface::VariantDef),
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
-    Ignore(Ignored),
+    Ignore(surface::Ignored),
     ShouldFail,
     ExternSpec,
     /// See `detachXX.rs`
@@ -791,17 +786,15 @@ impl FluxAttrs {
         let mut attrs = vec![];
         for attr in self.map.into_values().flatten() {
             let attr = match attr.kind {
-                FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted,
-                FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl,
-                FluxAttrKind::ProvenExternally(proven_externally) => {
-                    surface::Attr::ProvenExternally
-                }
+                FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
+                FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
+                FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally,
                 FluxAttrKind::QualNames(qual_names) => surface::Attr::Qualifiers(qual_names.names),
                 FluxAttrKind::RevealNames(reveal_names) => {
                     surface::Attr::Reveal(reveal_names.names)
                 }
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
-                FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore,
+                FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
@@ -830,7 +823,7 @@ impl FluxAttrKind {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
-            FluxAttrKind::ProvenExternally(_) => attr_name!(ProvenExternally),
+            FluxAttrKind::ProvenExternally => attr_name!(ProvenExternally),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::Reflect => attr_name!(Reflect),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),

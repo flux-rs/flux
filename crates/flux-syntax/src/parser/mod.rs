@@ -22,8 +22,8 @@ use crate::{
         GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
         LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
         Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort,
-        SortDecl, SortPath, SpecFunc, Spread, StructDef, SyntaxAttr, TraitAssocReft, TraitRef, Ty,
-        TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        SortDecl, SortPath, SpecFunc, Spread, StructDef, SyntaxAttr, TraitAssocReft, TraitRef,
+        Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -320,7 +320,7 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut Attrs) -> ParseResult {
             parse_reason(cx)?;
             cx.expect(token::CloseParen)?;
         }
-        attrs.normal.push(Attr::Trusted);
+        attrs.normal.push(Attr::Trusted(Trusted::Yes));
     } else if lookahead.advance_if(sym::hide) {
         attrs.normal.push(Attr::Hide);
     } else if lookahead.advance_if(kw::Reft) {
