@@ -37,7 +37,7 @@ pub mod rty;
 mod sort_of;
 pub mod timings;
 
-use std::{collections::hash_map, sync::LazyLock};
+use std::sync::LazyLock;
 
 use flux_arc_interner::List;
 use flux_config as config;
@@ -405,36 +405,16 @@ impl Specs {
         self.items.get(&owner_id)
     }
 
-    pub fn get_fn_spec(&self, owner_id: OwnerId) -> Option<&surface::FnSpec> {
-        if let Some(item) = self.get_item(owner_id)
-            && let surface::ItemKind::Fn(spec) = &item.kind
-        {
-            return Some(spec);
-        }
-        if let Some(surface::TraitItemFn { spec }) = self.get_trait_item(owner_id) {
-            return Some(spec);
-        }
-        if let Some(surface::ImplItemFn { spec }) = self.get_impl_item(owner_id) {
-            return Some(spec);
-        }
-        None
-    }
-
-    pub fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result<(), ()> {
-        match self.items.entry(owner_id) {
-            hash_map::Entry::Vacant(v) => {
-                v.insert(item);
-            }
-            hash_map::Entry::Occupied(_) => {
-                return Err(());
-            }
+    pub fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Option<surface::Item> {
+        if let Some(old) = self.items.insert(owner_id, item) {
+            return Some(old);
         }
         if let surface::ItemKind::Fn(fn_spec) = &self.items[&owner_id].kind
             && fn_spec.trusted
         {
             self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
         }
-        Ok(())
+        None
     }
 
     pub fn get_trait_item(&self, owner_id: OwnerId) -> Option<&surface::TraitItemFn> {
@@ -445,17 +425,14 @@ impl Specs {
         &mut self,
         owner_id: OwnerId,
         trait_item: surface::TraitItemFn,
-    ) -> Result<(), ()> {
-        match self.trait_items.entry(owner_id) {
-            hash_map::Entry::Vacant(v) => {
-                v.insert(trait_item);
-            }
-            hash_map::Entry::Occupied(_) => return Err(()),
+    ) -> Option<surface::TraitItemFn> {
+        if let Some(old) = self.trait_items.insert(owner_id, trait_item) {
+            return Some(old);
         }
         if self.trait_items[&owner_id].spec.trusted {
             self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
         }
-        Ok(())
+        None
     }
 
     pub fn get_impl_item(&self, owner_id: OwnerId) -> Option<&surface::ImplItemFn> {
@@ -466,51 +443,14 @@ impl Specs {
         &mut self,
         owner_id: OwnerId,
         impl_item: surface::ImplItemFn,
-    ) -> Result<(), ()> {
-        match self.impl_items.entry(owner_id) {
-            hash_map::Entry::Vacant(v) => {
-                v.insert(impl_item);
-            }
-            hash_map::Entry::Occupied(_) => return Err(()),
+    ) -> Option<surface::ImplItemFn> {
+        if let Some(old) = self.impl_items.insert(owner_id, impl_item) {
+            return Some(old);
         }
         if self.impl_items[&owner_id].spec.trusted {
             self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
         }
-        Ok(())
-    }
-
-    pub fn get_type_alias(&self, owner_id: OwnerId) -> Option<&surface::TyAlias> {
-        let surface::ItemKind::TyAlias(ty_alias) = &self.get_item(owner_id)?.kind else {
-            return None;
-        };
-        Some(ty_alias)
-    }
-
-    pub fn get_enum_def(&self, owner_id: OwnerId) -> Option<&surface::EnumDef> {
-        let surface::ItemKind::Enum(enum_def) = &self.get_item(owner_id)?.kind else { return None };
-        Some(enum_def)
-    }
-
-    pub fn get_struct_def(&self, owner_id: OwnerId) -> Option<&surface::StructDef> {
-        let surface::ItemKind::Struct(struct_def) = &self.get_item(owner_id)?.kind else {
-            return None;
-        };
-        Some(struct_def)
-    }
-
-    pub fn get_trait(&self, owner_id: OwnerId) -> Option<&surface::Trait> {
-        let surface::ItemKind::Trait(trait_) = &self.get_item(owner_id)?.kind else { return None };
-        Some(trait_)
-    }
-
-    pub fn get_impl(&self, owner_id: OwnerId) -> Option<&surface::Impl> {
-        let surface::ItemKind::Impl(impl_) = &self.get_item(owner_id)?.kind else { return None };
-        Some(impl_)
-    }
-
-    pub fn get_constant(&self, owner_id: OwnerId) -> Option<&surface::ConstantInfo> {
-        let surface::ItemKind::Const(const_) = &self.get_item(owner_id)?.kind else { return None };
-        Some(const_)
+        None
     }
 }
 

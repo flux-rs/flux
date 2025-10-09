@@ -601,26 +601,29 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
-        self.specs
-            .insert_item(owner_id, item)
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        match self.specs.insert_item(owner_id, item) {
+            Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
+            None => Ok(()),
+        }
     }
 
     fn insert_trait_item(&mut self, owner_id: OwnerId, item: surface::TraitItemFn) -> Result {
-        self.specs
-            .insert_trait_item(owner_id, item)
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        match self.specs.insert_trait_item(owner_id, item) {
+            Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
+            None => Ok(()),
+        }
     }
 
     fn insert_impl_item(&mut self, owner_id: OwnerId, item: surface::ImplItemFn) -> Result {
-        self.specs
-            .insert_impl_item(owner_id, item)
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        match self.specs.insert_impl_item(owner_id, item) {
+            Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
+            None => Ok(()),
+        }
     }
 
-    fn err_multiple_specs(&mut self, def_id: DefId, span: Option<Span>) -> ErrorGuaranteed {
+    fn err_multiple_specs(&mut self, def_id: DefId) -> ErrorGuaranteed {
         let name = self.tcx.def_path_str(def_id);
-        let span = span.unwrap_or_else(|| self.tcx.def_span(def_id));
+        let span = self.tcx.def_span(def_id);
         let name = Symbol::intern(&name);
         self.errors
             .emit(errors::MultipleSpecifications { name, span })
