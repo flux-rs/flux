@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["iter","ops"]};
+window.SIDEBAR_ITEMS = {"macro":["eq"],"mod":["iter","ops"]};

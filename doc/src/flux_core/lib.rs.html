@@ -15,4 +15,24 @@
 <a href=#15 id=15 data-nosnippet>15</a></span><span class="kw">mod </span>clone;
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a><span class="attr">#[cfg(flux)]
-<a href=#18 id=18 data-nosnippet>18</a></span><span class="kw">mod </span>slice;</code></pre></div></section></main></body></html>
+<a href=#18 id=18 data-nosnippet>18</a></span><span class="kw">mod </span>slice;
+<a href=#19 id=19 data-nosnippet>19</a>
+<a href=#20 id=20 data-nosnippet>20</a><span class="comment">// -------------------------------------------------------------------
+<a href=#21 id=21 data-nosnippet>21</a>
+<a href=#22 id=22 data-nosnippet>22</a></span><span class="attr">#[macro_export]
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="macro">macro_rules!</span> eq {
+<a href=#24 id=24 data-nosnippet>24</a>    (<span class="macro-nonterminal">$type_name</span>:path) =&gt; {
+<a href=#25 id=25 data-nosnippet>25</a>        <span class="attr">#[cfg_attr(flux, flux::specs {
+<a href=#26 id=26 data-nosnippet>26</a>                    <span class="kw">impl </span>std::cmp::PartialEq <span class="kw">for </span><span class="macro-nonterminal">$type_name </span>{
+<a href=#27 id=27 data-nosnippet>27</a>                        <span class="attr">#[reft] </span><span class="kw">fn </span>is_eq(<span class="self">self</span>: <span class="macro-nonterminal">$type_name</span>, other: <span class="macro-nonterminal">$type_name</span>, res: bool) -&gt; bool {
+<a href=#28 id=28 data-nosnippet>28</a>                            res &lt;=&gt; (<span class="self">self </span>== other)
+<a href=#29 id=29 data-nosnippet>29</a>                        }
+<a href=#30 id=30 data-nosnippet>30</a>                        <span class="attr">#[reft] </span><span class="kw">fn </span>is_ne(<span class="self">self</span>: <span class="macro-nonterminal">$type_name</span>, other: <span class="macro-nonterminal">$type_name</span>, res: bool) -&gt; bool {
+<a href=#31 id=31 data-nosnippet>31</a>                            res &lt;=&gt; (<span class="self">self </span>!= other)
+<a href=#32 id=32 data-nosnippet>32</a>                        }
+<a href=#33 id=33 data-nosnippet>33</a>                        <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$type_name</span>[@v1], other: <span class="kw-2">&amp;</span><span class="macro-nonterminal">$type_name</span>[@v2]) -&gt; bool[v1 == v2];
+<a href=#34 id=34 data-nosnippet>34</a>                    }
+<a href=#35 id=35 data-nosnippet>35</a>                })]
+<a href=#36 id=36 data-nosnippet>36</a>        <span class="kw">const _</span>: () = ();
+<a href=#37 id=37 data-nosnippet>37</a>    };
+<a href=#38 id=38 data-nosnippet>38</a>}</code></pre></div></section></main></body></html>
