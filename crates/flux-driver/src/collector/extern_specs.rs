@@ -69,9 +69,14 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     fn collect_extern_fn(&mut self, item: &hir::Item, mut attrs: FluxAttrs) -> Result {
         if attrs.has_attrs() {
             let spec = self.inner.collect_fn_spec(item.owner_id, attrs.fn_sig())?;
+            let node_id = self.inner.next_node_id();
             self.inner.insert_item(
                 item.owner_id,
-                surface::Item { attrs: attrs.into_attr_vec(), kind: surface::ItemKind::Fn(spec) },
+                surface::Item {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ItemKind::Fn(spec),
+                    node_id,
+                },
             )?;
         }
 
@@ -205,9 +210,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result<ExternImplItem> {
         if attrs.has_attrs() {
             let spec = self.inner.collect_fn_spec(item.owner_id, attrs.fn_sig())?;
+            let node_id = self.inner.next_node_id();
             self.inner.insert_impl_item(
                 item.owner_id,
-                surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec },
+                surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
             )?;
         }
 
@@ -255,9 +261,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         let item_id = item.owner_id;
         if attrs.has_attrs() {
             let spec = self.inner.collect_fn_spec(item_id, attrs.fn_sig())?;
+            let node_id = self.inner.next_node_id();
             self.inner.insert_trait_item(
                 item.owner_id,
-                surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec },
+                surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
             )?;
         }
 

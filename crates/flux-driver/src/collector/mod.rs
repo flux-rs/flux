@@ -17,7 +17,10 @@ use flux_middle::{
     Specs,
     fhir::{Ignored, ProvenExternally, Trusted},
 };
-use flux_syntax::{ParseResult, ParseSess, surface};
+use flux_syntax::{
+    ParseResult, ParseSess,
+    surface::{self, NodeId},
+};
 use rustc_ast::{MetaItemInner, MetaItemKind, tokenstream::TokenStream};
 use rustc_data_structures::fx::FxIndexMap;
 use rustc_errors::ErrorGuaranteed;
@@ -123,11 +126,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 self.collect_proven_externally(&mut attrs, owner_id.def_id);
                 if attrs.has_attrs() {
                     let fn_spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                    let node_id = self.next_node_id();
                     self.insert_item(
                         owner_id,
                         surface::Item {
                             attrs: attrs.into_attr_vec(),
                             kind: surface::ItemKind::Fn(fn_spec),
+                            node_id,
                         },
                     )?;
                 }
@@ -178,9 +183,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
             if attrs.has_attrs() {
                 let spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                let node_id = self.next_node_id();
                 self.insert_trait_item(
                     owner_id,
-                    surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec },
+                    surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
                 )?;
             }
         }
@@ -199,9 +205,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
             if attrs.has_attrs() {
                 let spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                let node_id = self.next_node_id();
                 self.insert_impl_item(
                     owner_id,
-                    surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec },
+                    surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
                 )?;
             }
         }
@@ -226,11 +233,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
 
+        let node_id = self.next_node_id();
         self.insert_item(
             owner_id,
             surface::Item {
                 attrs: attrs.into_attr_vec(),
                 kind: surface::ItemKind::Trait(surface::Trait { generics, assoc_refinements }),
+                node_id,
             },
         )
     }
@@ -243,22 +252,26 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
 
+        let node_id = self.next_node_id();
         self.insert_item(
             owner_id,
             surface::Item {
                 attrs: attrs.into_attr_vec(),
                 kind: surface::ItemKind::Impl(surface::Impl { generics, assoc_refinements }),
+                node_id,
             },
         )
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(ty_alias) = attrs.ty_alias() {
+            let node_id = self.next_node_id();
             self.insert_item(
                 owner_id,
                 surface::Item {
                     attrs: attrs.into_attr_vec(),
                     kind: surface::ItemKind::TyAlias(ty_alias),
+                    node_id,
                 },
             )?;
         }
@@ -305,22 +318,26 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
 
         let struct_def = surface::StructDef { generics, refined_by, fields, opaque, invariants };
+        let node_id = self.next_node_id();
         self.insert_item(
             owner_id,
             surface::Item {
                 attrs: attrs.into_attr_vec(),
                 kind: surface::ItemKind::Struct(struct_def),
+                node_id,
             },
         )
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
+            let node_id = self.next_node_id();
             self.insert_item(
                 owner_id,
                 surface::Item {
                     attrs: attrs.into_attr_vec(),
                     kind: surface::ItemKind::Const(constant),
+                    node_id,
                 },
             )?;
         }
@@ -375,9 +392,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         }
 
         let enum_def = surface::EnumDef { generics, refined_by, variants, invariants, reflected };
+        let node_id = self.next_node_id();
         self.insert_item(
             owner_id,
-            surface::Item { attrs: attrs.into_attr_vec(), kind: surface::ItemKind::Enum(enum_def) },
+            surface::Item {
+                attrs: attrs.into_attr_vec(),
+                kind: surface::ItemKind::Enum(enum_def),
+                node_id,
+            },
         )
     }
 
@@ -643,6 +665,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let name = Symbol::intern(&name);
         self.errors
             .emit(errors::MultipleSpecifications { name, span })
+    }
+
+    fn next_node_id(&mut self) -> NodeId {
+        self.parse_sess.next_node_id()
     }
 }
 

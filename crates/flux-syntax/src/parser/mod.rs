@@ -166,7 +166,12 @@ fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<Deta
         .map(Some)
         .collect();
     let enum_def = EnumDef { generics, refined_by, variants, invariants, reflected: false };
-    Ok(DetachedItem { attrs: attrs.normal, path, kind: DetachedItemKind::Enum(enum_def) })
+    Ok(DetachedItem {
+        attrs: attrs.normal,
+        path,
+        kind: DetachedItemKind::Enum(enum_def),
+        node_id: cx.next_node_id(),
+    })
 }
 
 fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<DetachedItem> {
@@ -184,7 +189,12 @@ fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<De
         vec![]
     };
     let struct_def = StructDef { generics, opaque: false, refined_by, invariants, fields };
-    Ok(DetachedItem { attrs: attrs.normal, path, kind: DetachedItemKind::Struct(struct_def) })
+    Ok(DetachedItem {
+        attrs: attrs.normal,
+        path,
+        kind: DetachedItemKind::Struct(struct_def),
+        node_id: cx.next_node_id(),
+    })
 }
 
 fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
@@ -208,7 +218,7 @@ fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Detach
         trusted,
         node_id: cx.next_node_id(),
     };
-    Ok(DetachedItem { attrs: attrs.normal, path, kind: fn_spec })
+    Ok(DetachedItem { attrs: attrs.normal, path, kind: fn_spec, node_id: cx.next_node_id() })
 }
 
 ///```text
@@ -220,7 +230,12 @@ fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     cx.expect(TokenKind::open_delim(Brace))?;
     let items = until(cx, TokenKind::close_delim(Brace), parse_detached_item)?;
     cx.expect(TokenKind::close_delim(Brace))?;
-    Ok(DetachedItem { attrs: vec![], path, kind: DetachedItemKind::Mod(DetachedSpecs { items }) })
+    Ok(DetachedItem {
+        attrs: vec![],
+        path,
+        kind: DetachedItemKind::Mod(DetachedSpecs { items }),
+        node_id: cx.next_node_id(),
+    })
 }
 
 ///```text
@@ -247,6 +262,7 @@ fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
         attrs: vec![],
         path,
         kind: DetachedItemKind::Trait(DetachedTrait { items, refts }),
+        node_id: cx.next_node_id(),
     })
 }
 
@@ -291,12 +307,14 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
                 refts,
                 span,
             }),
+            node_id: cx.next_node_id(),
         })
     } else {
         Ok(DetachedItem {
             attrs: attrs.normal,
             path: outer_path,
             kind: DetachedItemKind::InherentImpl(DetachedInherentImpl { items, span }),
+            node_id: cx.next_node_id(),
         })
     }
 }

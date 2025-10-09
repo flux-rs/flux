@@ -112,6 +112,7 @@ pub struct TyAlias {
 pub struct Item {
     pub attrs: Vec<Attr>,
     pub kind: ItemKind,
+    pub node_id: NodeId,
 }
 
 pub enum ItemKind {
@@ -127,11 +128,13 @@ pub enum ItemKind {
 pub struct TraitItemFn {
     pub attrs: Vec<Attr>,
     pub spec: FnSpec,
+    pub node_id: NodeId,
 }
 
 pub struct ImplItemFn {
     pub attrs: Vec<Attr>,
     pub spec: FnSpec,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -170,11 +173,17 @@ pub struct DetachedItem<K = DetachedItemKind> {
     pub attrs: Vec<Attr>,
     pub path: ExprPath,
     pub kind: K,
+    pub node_id: NodeId,
 }
 
 impl<K> DetachedItem<K> {
     pub fn map_kind<R>(self, f: impl FnOnce(K) -> R) -> DetachedItem<R> {
-        DetachedItem { attrs: self.attrs, path: self.path, kind: f(self.kind) }
+        DetachedItem {
+            attrs: self.attrs,
+            path: self.path,
+            kind: f(self.kind),
+            node_id: self.node_id,
+        }
     }
 }
 
