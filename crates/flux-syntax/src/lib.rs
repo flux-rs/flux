@@ -11,7 +11,9 @@ pub mod symbols;
 mod token;
 use lexer::Cursor;
 use rustc_ast::tokenstream::TokenStream;
-use rustc_span::{BytePos, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition};
+use rustc_span::{
+    BytePos, Ident, Span, Symbol, SyntaxContext, def_id::LocalDefId, edition::Edition,
+};
 use surface::NodeId;
 
 use crate::parser::lookahead::Expected;
@@ -66,20 +68,12 @@ impl ParseSess {
         parser::parse_impl_assoc_refts(&mut self.cx(tokens, span))
     }
 
-    pub fn parse_qual_names(
+    pub fn parse_ident_list(
         &mut self,
         tokens: &TokenStream,
         span: Span,
-    ) -> ParseResult<surface::QualNames> {
-        parser::parse_qual_names(&mut self.cx(tokens, span))
-    }
-
-    pub fn parse_reveal_names(
-        &mut self,
-        tokens: &TokenStream,
-        span: Span,
-    ) -> ParseResult<surface::RevealNames> {
-        parser::parse_reveal_names(&mut self.cx(tokens, span))
+    ) -> ParseResult<Vec<Ident>> {
+        parser::parse_ident_list(&mut self.cx(tokens, span))
     }
 
     pub fn parse_flux_item(

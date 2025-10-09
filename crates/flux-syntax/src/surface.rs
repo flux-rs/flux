@@ -254,16 +254,6 @@ pub struct VariantRet {
 
 pub type RefineParams = Vec<RefineParam>;
 
-#[derive(Debug, Default)]
-pub struct QualNames {
-    pub names: Vec<Ident>,
-}
-
-#[derive(Debug, Default)]
-pub struct RevealNames {
-    pub names: Vec<Ident>,
-}
-
 #[derive(Debug)]
 pub struct RefineParam {
     pub ident: Ident,

@@ -28,7 +28,7 @@ use rustc_hir::{
     def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{Span, Symbol, SyntaxContext};
+use rustc_span::{Ident, Span, Symbol, SyntaxContext};
 
 use crate::collector::detached_specs::DetachedSpecsCollector;
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -504,10 +504,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 }
             }
             ("qualifiers", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_qual_names, FluxAttrKind::QualNames)?
+                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::QualNames)?
             }
             ("reveal", hir::AttrArgs::Delimited(dargs)) => {
-                self.parse(dargs, ParseSess::parse_reveal_names, FluxAttrKind::RevealNames)?
+                self.parse(dargs, ParseSess::parse_ident_list, FluxAttrKind::RevealNames)?
             }
             ("defs", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_flux_item, FluxAttrKind::Items)?
@@ -654,8 +654,8 @@ enum FluxAttrKind {
     ImplAssocReft(Vec<surface::ImplAssocReft>),
     RefinedBy(surface::RefineParams),
     Generics(surface::Generics),
-    QualNames(surface::QualNames),
-    RevealNames(surface::RevealNames),
+    QualNames(Vec<Ident>),
+    RevealNames(Vec<Ident>),
     Items(Vec<surface::FluxItem>),
     TypeAlias(Box<surface::TyAlias>),
     Field(surface::Ty),
@@ -796,10 +796,8 @@ impl FluxAttrs {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
                 FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
                 FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally,
-                FluxAttrKind::QualNames(qual_names) => surface::Attr::Qualifiers(qual_names.names),
-                FluxAttrKind::RevealNames(reveal_names) => {
-                    surface::Attr::Reveal(reveal_names.names)
-                }
+                FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
+                FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,

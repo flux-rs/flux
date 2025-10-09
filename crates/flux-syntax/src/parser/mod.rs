@@ -20,10 +20,10 @@ use crate::{
         DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr,
         FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
         GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
-        ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
-        Spread, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
-        VariantDef, VariantRet, WhereBoundPredicate,
+        ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QuantKind, RefineArg, RefineParam,
+        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
+        TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
+        WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -127,19 +127,10 @@ fn parse_reason(cx: &mut ParseCtxt) -> ParseResult {
 }
 
 /// ```text
-/// ⟨qual_names⟩ := ⟨ident⟩,*
+/// ⟨ident_list⟩ := ⟨ident⟩,*
 /// ```
-pub(crate) fn parse_qual_names(cx: &mut ParseCtxt) -> ParseResult<QualNames> {
-    let names = punctuated_until(cx, Comma, token::Eof, parse_ident)?;
-    Ok(QualNames { names })
-}
-
-/// ```text
-/// ⟨reveal_names⟩ := ⟨ident⟩,*
-/// ```
-pub(crate) fn parse_reveal_names(cx: &mut ParseCtxt) -> ParseResult<RevealNames> {
-    let names = punctuated_until(cx, Comma, token::Eof, parse_ident)?;
-    Ok(RevealNames { names })
+pub(crate) fn parse_ident_list(cx: &mut ParseCtxt) -> ParseResult<Vec<Ident>> {
+    punctuated_until(cx, Comma, token::Eof, parse_ident)
 }
 
 /// ```text
