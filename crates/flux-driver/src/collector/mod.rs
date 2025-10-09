@@ -173,16 +173,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let owner_id = trait_item.owner_id;
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
-        if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
-            if attrs.has_attrs() {
-                let sig = attrs.fn_sig();
-                self.check_fn_sig_name(owner_id, sig.as_ref())?;
-                let node_id = self.next_node_id();
-                self.insert_trait_item(
-                    owner_id,
-                    surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
-                )?;
-            }
+        if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind
+            && attrs.has_attrs()
+        {
+            let sig = attrs.fn_sig();
+            self.check_fn_sig_name(owner_id, sig.as_ref())?;
+            let node_id = self.next_node_id();
+            self.insert_trait_item(
+                owner_id,
+                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+            )?;
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         Ok(())
@@ -193,16 +193,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let mut attrs = self.parse_attrs_and_report_dups(owner_id.def_id)?;
 
-        if let ImplItemKind::Fn(..) = &impl_item.kind {
-            if attrs.has_attrs() {
-                let sig = attrs.fn_sig();
-                self.check_fn_sig_name(owner_id, sig.as_ref())?;
-                let node_id = self.next_node_id();
-                self.insert_impl_item(
-                    owner_id,
-                    surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
-                )?;
-            }
+        if let ImplItemKind::Fn(..) = &impl_item.kind
+            && attrs.has_attrs()
+        {
+            let sig = attrs.fn_sig();
+            self.check_fn_sig_name(owner_id, sig.as_ref())?;
+            let node_id = self.next_node_id();
+            self.insert_impl_item(
+                owner_id,
+                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
+            )?;
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         Ok(())
