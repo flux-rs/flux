@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["FluxItemKind"],"fn":["collect_generics_in_params","collect_opaque_types","desugar_primop_prop","desugar_qualifier","desugar_spec_func"],"mod":["lift"],"struct":["FluxItemCtxt","OpaqueTypeCollector","RustItemCtxt"],"trait":["DesugarCtxt"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["collect_generics_in_params","collect_opaque_types"],"mod":["lift"],"struct":["FluxItemCtxt","OpaqueTypeCollector","RustItemCtxt"],"trait":["DesugarCtxt"],"type":["Result"]};
