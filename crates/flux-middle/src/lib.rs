@@ -425,8 +425,8 @@ impl Specs {
             hash_map::Entry::Vacant(v) => {
                 v.insert(item);
             }
-            hash_map::Entry::Occupied(mut entry) => {
-                entry.get_mut().merge(item)?;
+            hash_map::Entry::Occupied(_) => {
+                return Err(());
             }
         }
         if let surface::ItemKind::Fn(fn_spec) = &self.items[&owner_id].kind
@@ -450,9 +450,7 @@ impl Specs {
             hash_map::Entry::Vacant(v) => {
                 v.insert(trait_item);
             }
-            hash_map::Entry::Occupied(mut entry) => {
-                entry.get_mut().merge(trait_item)?;
-            }
+            hash_map::Entry::Occupied(_) => return Err(()),
         }
         if self.trait_items[&owner_id].spec.trusted {
             self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
@@ -473,9 +471,7 @@ impl Specs {
             hash_map::Entry::Vacant(v) => {
                 v.insert(impl_item);
             }
-            hash_map::Entry::Occupied(mut entry) => {
-                entry.get_mut().merge(impl_item)?;
-            }
+            hash_map::Entry::Occupied(_) => return Err(()),
         }
         if self.impl_items[&owner_id].spec.trusted {
             self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);

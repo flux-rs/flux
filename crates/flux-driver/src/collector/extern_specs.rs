@@ -67,9 +67,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     }
 
     fn collect_extern_fn(&mut self, item: &hir::Item, attrs: FluxAttrs) -> Result {
-        let spec = self.inner.collect_fn_spec(item.owner_id, attrs)?;
-        self.inner
-            .insert_item(item.owner_id, surface::Item { kind: surface::ItemKind::Fn(spec) })?;
+        if let Some(spec) = self.inner.collect_fn_spec(item.owner_id, attrs)? {
+            self.inner
+                .insert_item(item.owner_id, surface::Item { kind: surface::ItemKind::Fn(spec) })?;
+        }
 
         let extern_id = self.extract_extern_id_from_fn(item)?;
         self.insert_extern_id(item.owner_id.def_id, extern_id)?;
@@ -199,9 +200,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         item: &hir::ImplItem,
         attrs: FluxAttrs,
     ) -> Result<ExternImplItem> {
-        let spec = self.inner.collect_fn_spec(item.owner_id, attrs)?;
-        self.inner
-            .insert_impl_item(item.owner_id, surface::ImplItemFn { spec })?;
+        if let Some(spec) = self.inner.collect_fn_spec(item.owner_id, attrs)? {
+            self.inner
+                .insert_impl_item(item.owner_id, surface::ImplItemFn { spec })?;
+        }
 
         let extern_impl_item = self.extract_extern_id_from_impl_fn(impl_of_trait, item)?;
         self.insert_extern_id(item.owner_id.def_id, extern_impl_item.item_id)?;
@@ -245,9 +247,10 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         attrs: FluxAttrs,
     ) -> Result {
         let item_id = item.owner_id;
-        let spec = self.inner.collect_fn_spec(item_id, attrs)?;
-        self.inner
-            .insert_trait_item(item.owner_id, surface::TraitItemFn { spec })?;
+        if let Some(spec) = self.inner.collect_fn_spec(item_id, attrs)? {
+            self.inner
+                .insert_trait_item(item.owner_id, surface::TraitItemFn { spec })?;
+        }
 
         let extern_fn_id = self.extract_extern_id_from_trait_fn(extern_trait_id, item)?;
         self.insert_extern_id(item.owner_id.def_id, extern_fn_id)?;
