@@ -2,6 +2,7 @@ use flux_rs::assert;
 
 #[flux_rs::refined_by(vx: int, vy: int)]
 pub struct MyStruct {
+    //~^ multiple specifications for `MyStruct`
     #[flux_rs::field(usize[vx])]
     x: usize,
     #[flux_rs::field(usize[vx])]
@@ -20,7 +21,7 @@ pub fn use_struct(s: MyStruct) {
 
     #[refined_by(vx: int, vy: int)]
     #[invariant(vx <= vy)]
-    struct MyStruct //~ multiple specifications for `MyStruct`
+    struct MyStruct
     {
         x: usize[vx],
         y: usize[vy],

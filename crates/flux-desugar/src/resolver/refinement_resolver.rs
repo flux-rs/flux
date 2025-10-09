@@ -7,7 +7,7 @@ use flux_middle::{
     fhir::{self, PartialRes, Res},
 };
 use flux_syntax::{
-    surface::{self, Ident, NodeId, visit::Visitor as _},
+    surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},
     symbols::sym,
     walk_list,
 };
@@ -402,92 +402,47 @@ pub(crate) struct RefinementResolver<'a, 'genv, 'tcx> {
 }
 
 impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
-    pub(crate) fn for_flux_item(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        sort_params: &[Ident],
-    ) -> Self {
+    fn for_flux_item(resolver: &'a mut CrateResolver<'genv, 'tcx>, item: &FluxItem) -> Self {
+        let sort_params = match item {
+            FluxItem::FuncDef(defn) => &defn.sort_vars[..],
+            FluxItem::Qualifier(_) | FluxItem::SortDecl(_) | FluxItem::PrimOpProp(_) => &[],
+        };
         Self::new(resolver, sort_params.iter().map(|ident| ident.name).collect())
     }
 
-    pub(crate) fn for_rust_item(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
+    fn for_rust_item(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
         Self::new(resolver, Default::default())
     }
 
-    pub(crate) fn resolve_qualifier(
+    pub(crate) fn resolve_flux_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        qualifier: &surface::Qualifier,
+        item: &FluxItem,
     ) -> Result {
-        Self::for_flux_item(resolver, &[]).run(|r| r.visit_qualifier(qualifier))
+        Self::for_flux_item(resolver, item).run(|r| r.visit_flux_item(item))
     }
 
-    pub(crate) fn resolve_defn(
+    pub(crate) fn resolve_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        defn: &surface::SpecFunc,
+        item: &surface::Item,
     ) -> Result {
-        Self::for_flux_item(resolver, &defn.sort_vars).run(|r| r.visit_defn(defn))
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_item(item))?;
+        Self::for_rust_item(resolver).run(|vis| vis.visit_item(item))
     }
 
-    pub(crate) fn resolve_primop_prop(
+    pub(crate) fn resolve_trait_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        prop: &surface::PrimOpProp,
+        item: &surface::TraitItemFn,
     ) -> Result {
-        Self::for_flux_item(resolver, &[]).run(|r| r.visit_primop_prop(prop))
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait_item(item))?;
+        Self::for_rust_item(resolver).run(|vis| vis.visit_trait_item(item))
     }
 
-    pub(crate) fn resolve_fn_sig(
+    pub(crate) fn resolve_impl_item(
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        fn_sig: &surface::FnSig,
+        item: &surface::ImplItemFn,
     ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_fn_sig(fn_sig))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_fn_sig(fn_sig))
-    }
-
-    pub(crate) fn resolve_struct_def(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        struct_def: &surface::StructDef,
-    ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_struct_def(struct_def))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_struct_def(struct_def))
-    }
-
-    pub(crate) fn resolve_enum_def(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        enum_def: &surface::EnumDef,
-    ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_enum_def(enum_def))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_enum_def(enum_def))
-    }
-
-    pub(crate) fn resolve_constant(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        constant_info: &surface::ConstantInfo,
-    ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_constant(constant_info))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_constant(constant_info))
-    }
-
-    pub(crate) fn resolve_ty_alias(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        ty_alias: &surface::TyAlias,
-    ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_ty_alias(ty_alias))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_ty_alias(ty_alias))
-    }
-
-    pub(crate) fn resolve_impl(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        impl_: &surface::Impl,
-    ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl(impl_))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_impl(impl_))
-    }
-
-    pub(crate) fn resolve_trait(
-        resolver: &'a mut CrateResolver<'genv, 'tcx>,
-        trait_: &surface::Trait,
-    ) -> Result {
-        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait(trait_))?;
-        Self::for_rust_item(resolver).run(|vis| vis.visit_trait(trait_))
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl_item(item))?;
+        Self::for_rust_item(resolver).run(|vis| vis.visit_impl_item(item))
     }
 
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, sort_params: FxIndexSet<Symbol>) -> Self {

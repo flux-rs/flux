@@ -22,17 +22,18 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    ResolverOutput, Specs,
+    ResolverOutput,
     def_id::FluxLocalDefId,
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
 };
-use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{self as hir, OwnerId};
+use rustc_hir::OwnerId;
 use rustc_span::def_id::LocalDefId;
+
+use crate::desugar::FluxItemCtxt;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -55,191 +56,57 @@ pub fn desugar<'genv>(
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
 
-    match genv.tcx().hir_node_by_def_id(def_id) {
-        rustc_hir::Node::Item(item) => {
-            match item.kind {
-                hir::ItemKind::Fn { .. } => {
-                    let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                    let mut opaque_tys = Default::default();
-                    let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
-                        cx.desugar_item_fn(fn_spec)
-                    })?;
-                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
-                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
-                    }));
-                    nodes.insert(def_id, fhir::Node::Item(genv.alloc(item)));
+    let mut opaque_tys = Default::default();
+    let node = match genv.tcx().hir_node_by_def_id(def_id) {
+        rustc_hir::Node::Item(_) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                match specs.get_item(owner_id) {
+                    Some(item) => cx.desugar_item(item),
+                    None => cx.lift_item(),
                 }
-                hir::ItemKind::TyAlias(..) => {
-                    let ty_alias = specs.ty_aliases[&owner_id].as_ref();
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_type_alias(ty_alias)),
-                        )?)),
-                    );
-                }
-
-                hir::ItemKind::Enum(..) => {
-                    let enum_def = &specs.enums[&owner_id];
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| cx.desugar_enum_def(enum_def),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Union(..) => {
-                    let union_def = &specs.structs[&owner_id];
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_struct_def(union_def)),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Struct(..) => {
-                    let struct_def = &specs.structs[&owner_id];
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_struct_def(struct_def)),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Trait(..) => {
-                    let trait_ = &specs.traits[&owner_id];
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| cx.desugar_trait(trait_),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Impl(..) => {
-                    let impl_ = &specs.impls[&owner_id];
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_impl(impl_)),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Const(..) => {
-                    let constant_ = match specs.constants.get(&owner_id) {
-                        Some(constant_) => constant_,
-                        None => &surface::ConstantInfo { expr: None },
-                    };
-
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_const(constant_)),
-                        )?)),
-                    );
-                }
-                _ => Err(query_bug!(def_id, "unsupported item"))?,
-            }
+            })?;
+            fhir::Node::Item(genv.alloc(item))
         }
-        rustc_hir::Node::TraitItem(trait_item) => {
-            match trait_item.kind {
-                rustc_hir::TraitItemKind::Fn(..) => {
-                    let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                    let mut opaque_tys = Default::default();
-                    let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
-                        cx.desugar_trait_fn(fn_spec)
-                    })?;
-                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
-                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
-                    }));
-                    nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
+        rustc_hir::Node::TraitItem(_) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                match specs.get_trait_item(owner_id) {
+                    Some(item) => cx.desugar_trait_item(item),
+                    None => Ok(cx.lift_trait_item()),
                 }
-                rustc_hir::TraitItemKind::Type(..) => {
-                    let item = cx.with_rust_item_ctxt(owner_id, None, |cx| {
-                        Ok(cx.desugar_trait_assoc_ty())
-                    })?;
-                    nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
-                }
-                rustc_hir::TraitItemKind::Const(..) => {
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::TraitItem(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_trait_const()),
-                        )?)),
-                    );
-                }
-            }
+            })?;
+            fhir::Node::TraitItem(genv.alloc(item))
         }
-        rustc_hir::Node::ImplItem(impl_item) => {
-            match &impl_item.kind {
-                rustc_hir::ImplItemKind::Fn(..) => {
-                    let fn_spec = specs.fn_sigs.get(&owner_id).unwrap();
-                    let mut opaque_tys = Default::default();
-                    let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
-                        cx.desugar_impl_fn(fn_spec)
-                    })?;
-                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
-                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
-                    }));
-                    nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
+        rustc_hir::Node::ImplItem(..) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                match specs.get_impl_item(owner_id) {
+                    Some(item) => cx.desugar_impl_item(item),
+                    None => Ok(cx.lift_impl_item()),
                 }
-                rustc_hir::ImplItemKind::Type(..) => {
-                    let item = cx
-                        .with_rust_item_ctxt(owner_id, None, |cx| Ok(cx.desugar_impl_assoc_ty()))?;
-                    nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
-                }
-                rustc_hir::ImplItemKind::Const(..) => {
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::ImplItem(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_impl_const()),
-                        )?)),
-                    );
-                }
-            }
+            })?;
+            fhir::Node::ImplItem(genv.alloc(item))
         }
-        rustc_hir::Node::AnonConst(..) => {
-            nodes.insert(def_id, fhir::Node::AnonConst);
-        }
-        rustc_hir::Node::Expr(..) => {
-            nodes.insert(def_id, fhir::Node::Expr);
-        }
+        rustc_hir::Node::AnonConst(..) => fhir::Node::AnonConst,
+        rustc_hir::Node::Expr(..) => fhir::Node::Expr,
         rustc_hir::Node::ForeignItem(foreign) => {
-            let foreign_item = fhir::Node::ForeignItem(genv.alloc(cx.with_rust_item_ctxt(
-                owner_id,
-                None,
-                |cx| cx.desugar_foreign_item(*foreign),
-            )?));
-            nodes.insert(def_id, foreign_item);
+            let item =
+                cx.with_rust_item_ctxt(owner_id, None, |cx| cx.lift_foreign_item(*foreign))?;
+            fhir::Node::ForeignItem(genv.alloc(item))
         }
-        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => {
-            nodes.insert(def_id, fhir::Node::Ctor);
-        }
+        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
         node => {
             if let Some(ident) = node.ident() {
-                Err(query_bug!(def_id, "unsupported item {ident:?}"))?;
+                return Err(query_bug!(def_id, "unsupported item {ident:?}"));
             } else {
-                Err(query_bug!(def_id, "unsupported item"))?;
+                return Err(query_bug!(def_id, "unsupported item"));
             }
         }
-    }
+    };
+    nodes.insert(def_id, node);
+    nodes.extend(
+        opaque_tys
+            .into_iter()
+            .map(|opaque_ty| (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))),
+    );
     Ok(nodes)
 }
 
@@ -276,89 +143,25 @@ fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv> {
     }
 }
 
+#[allow(clippy::disallowed_methods, reason = "Ths is the source of truth for FluxDefId's")]
 fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItems<'genv>> {
     let specs = genv.collect_specs();
-    let fhir = fhir::FluxItems::new();
     let resolver_output = genv.resolve_crate();
-    let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
-    cx.desugar_flux_items(specs);
 
-    cx.err.into_result()?;
-    Ok(cx.fhir)
-}
-
-struct CrateDesugar<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    fhir: fhir::FluxItems<'genv>,
-    resolver_output: &'genv ResolverOutput,
-    err: Option<ErrorGuaranteed>,
-}
-
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        fhir: fhir::FluxItems<'genv>,
-        resolver_output: &'genv ResolverOutput,
-    ) -> Self {
-        Self { genv, fhir, resolver_output, err: None }
-    }
-}
-
-impl CrateDesugar<'_, '_> {
-    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
-    fn desugar_flux_items(&mut self, specs: &Specs) {
-        for (parent, items) in &specs.flux_items_by_parent {
-            for item in items {
-                let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
-                match item {
-                    surface::FluxItem::Qualifier(qual) => {
-                        self.desugar_qualifier(def_id, qual)
-                            .collect_err(&mut self.err);
-                    }
-                    surface::FluxItem::FuncDef(defn) => {
-                        self.desugar_func_defn(def_id, defn)
-                            .collect_err(&mut self.err);
-                    }
-                    surface::FluxItem::SortDecl(_) => {}
-                    surface::FluxItem::PrimOpProp(primop_prop) => {
-                        self.desugar_primop_prop(def_id, primop_prop)
-                            .collect_err(&mut self.err);
-                    }
+    let mut fhir = fhir::FluxItems::new();
+    let mut err: Option<ErrorGuaranteed> = None;
+    for (parent, items) in &specs.flux_items_by_parent {
+        for item in items {
+            let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
+            FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
+                if let Some(item) = cx.desugar_flux_item(item) {
+                    fhir.items.insert(def_id, item);
                 }
-            }
+            })
+            .collect_err(&mut err);
         }
     }
+    err.into_result()?;
 
-    fn desugar_primop_prop(
-        &mut self,
-        def_id: FluxLocalDefId,
-        prop: &surface::PrimOpProp,
-    ) -> Result {
-        let prop = desugar::desugar_primop_prop(self.genv, self.resolver_output, def_id, prop)?;
-        self.fhir
-            .items
-            .insert(def_id, fhir::FluxItem::PrimOpProp(self.genv.alloc(prop)));
-        Ok(())
-    }
-
-    fn desugar_func_defn(&mut self, def_id: FluxLocalDefId, func: &surface::SpecFunc) -> Result {
-        let func = desugar::desugar_spec_func(self.genv, self.resolver_output, def_id, func)?;
-        self.fhir
-            .items
-            .insert(def_id, fhir::FluxItem::Func(self.genv.alloc(func)));
-        Ok(())
-    }
-
-    fn desugar_qualifier(
-        &mut self,
-        def_id: FluxLocalDefId,
-        qualifier: &surface::Qualifier,
-    ) -> Result {
-        let qualifier =
-            desugar::desugar_qualifier(self.genv, self.resolver_output, def_id, qualifier)?;
-        self.fhir
-            .items
-            .insert(def_id, fhir::FluxItem::Qualifier(self.genv.alloc(qualifier)));
-        Ok(())
-    }
+    Ok(fhir)
 }

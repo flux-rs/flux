@@ -10,11 +10,12 @@ use rustc_span::symbol::Ident;
 use super::{
     Async, BaseSort, BaseTy, BaseTyKind, ConstArg, ConstantInfo, ConstructorArg, Ensures, EnumDef,
     Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FnInput, FnOutput, FnRetTy, FnSig,
-    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, Lit, Path,
-    PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef, Trait,
-    TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet, WhereBoundPredicate,
+    GenericArg, GenericArgKind, GenericParam, Generics, Impl, ImplAssocReft, Indices, ItemKind,
+    Lit, Path, PathSegment, Qualifier, RefineArg, RefineParam, Sort, SortPath, SpecFunc, StructDef,
+    Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
+    WhereBoundPredicate,
 };
-use crate::surface::PrimOpProp;
+use crate::surface::{FluxItem, FnSpec, ImplItemFn, Item, PrimOpProp, TraitItemFn};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -29,6 +30,10 @@ macro_rules! walk_list {
 }
 
 pub trait Visitor: Sized {
+    fn visit_flux_item(&mut self, item: &FluxItem) {
+        walk_flux_item(self, item);
+    }
+
     fn visit_qualifier(&mut self, qualifier: &Qualifier) {
         walk_qualifier(self, qualifier);
     }
@@ -51,6 +56,18 @@ pub trait Visitor: Sized {
 
     fn visit_sort(&mut self, sort: &Sort) {
         walk_sort(self, sort);
+    }
+
+    fn visit_item(&mut self, item: &Item) {
+        walk_item(self, item);
+    }
+
+    fn visit_trait_item(&mut self, item: &TraitItemFn) {
+        walk_trait_item(self, item);
+    }
+
+    fn visit_impl_item(&mut self, item: &ImplItemFn) {
+        walk_impl_item(self, item);
     }
 
     fn visit_trait(&mut self, trait_: &Trait) {
@@ -103,6 +120,10 @@ pub trait Visitor: Sized {
 
     fn visit_variant_ret(&mut self, ret: &VariantRet) {
         walk_variant_ret(self, ret);
+    }
+
+    fn visit_fn_spec(&mut self, fn_spec: &FnSpec) {
+        walk_fn_spec(self, fn_spec);
     }
 
     fn visit_fn_sig(&mut self, fn_sig: &FnSig) {
@@ -189,6 +210,15 @@ pub trait Visitor: Sized {
     fn visit_literal(&mut self, _lit: Lit) {}
 }
 
+pub fn walk_flux_item<V: Visitor>(vis: &mut V, item: &FluxItem) {
+    match item {
+        FluxItem::Qualifier(qualifier) => vis.visit_qualifier(qualifier),
+        FluxItem::FuncDef(spec_func) => vis.visit_defn(spec_func),
+        FluxItem::SortDecl(_sort_decl) => {}
+        FluxItem::PrimOpProp(prim_op_prop) => vis.visit_primop_prop(prim_op_prop),
+    }
+}
+
 pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {
     vis.visit_ident(qualifier.name);
     walk_list!(vis, visit_refine_param, &qualifier.params);
@@ -229,6 +259,26 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
         }
         Sort::Infer => {}
     }
+}
+
+pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
+    match &item.kind {
+        ItemKind::Fn(fn_spec) => vis.visit_fn_spec(fn_spec),
+        ItemKind::Struct(struct_def) => vis.visit_struct_def(struct_def),
+        ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
+        ItemKind::Trait(trait_) => vis.visit_trait(trait_),
+        ItemKind::Impl(impl_) => vis.visit_impl(impl_),
+        ItemKind::Const(cst) => vis.visit_constant(cst),
+        ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
+    }
+}
+
+pub fn walk_trait_item<V: Visitor>(vis: &mut V, item: &TraitItemFn) {
+    vis.visit_fn_spec(&item.spec);
+}
+
+pub fn walk_impl_item<V: Visitor>(vis: &mut V, item: &ImplItemFn) {
+    vis.visit_fn_spec(&item.spec);
 }
 
 pub fn walk_trait<V: Visitor>(vis: &mut V, trait_: &Trait) {
@@ -336,6 +386,12 @@ pub fn walk_fn_trait_ref<V: Visitor>(vis: &mut V, in_arg: &GenericArg, out_arg: 
 pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     vis.visit_path(&ret.path);
     vis.visit_indices(&ret.indices);
+}
+
+pub fn walk_fn_spec<V: Visitor>(vis: &mut V, fn_spec: &FnSpec) {
+    if let Some(fn_sig) = &fn_spec.fn_sig {
+        vis.visit_fn_sig(fn_sig);
+    }
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {

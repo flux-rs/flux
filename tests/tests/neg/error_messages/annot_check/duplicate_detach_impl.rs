@@ -7,6 +7,7 @@ pub enum Nat {
 
 impl Nat {
     fn zero() -> Self {
+        //~^ ERROR multiple specifications
         Nat::Zero
     }
 }
@@ -48,7 +49,7 @@ pub fn test_b() -> Nat {
 
     impl Nat {
 
-        fn zero() -> Nat[0];    //~ ERROR multiple specifications
+        fn zero() -> Nat[0];
 
         fn succ(n:Nat) -> Nat[n+1];
 

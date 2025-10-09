@@ -2,7 +2,7 @@ mod annot_stats;
 mod detached_specs;
 mod extern_specs;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, iter};
 
 use annot_stats::Stats;
 use extern_specs::ExternSpecCollector;
@@ -25,7 +25,7 @@ use rustc_hir::{
     self as hir, Attribute, CRATE_OWNER_ID, EnumDef, ImplItemKind, Item, ItemKind, OwnerId,
     VariantData,
     def::DefKind,
-    def_id::{CRATE_DEF_ID, LocalDefId},
+    def_id::{CRATE_DEF_ID, DefId, LocalDefId},
 };
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{Span, Symbol, SyntaxContext};
@@ -121,7 +121,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         match &item.kind {
             ItemKind::Fn { .. } => {
                 self.collect_proven_externally(&mut attrs, owner_id.def_id);
-                self.collect_fn_spec(owner_id, attrs)?;
+                if let Some(fn_spec) = self.collect_fn_spec(owner_id, attrs)? {
+                    self.insert_item(
+                        owner_id,
+                        surface::Item { kind: surface::ItemKind::Fn(fn_spec) },
+                    )?;
+                }
             }
             ItemKind::Struct(_, _, variant) => {
                 self.collect_struct_def(owner_id, attrs, variant)?;
@@ -167,7 +172,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.collect_infer_opts(&mut attrs, owner_id.def_id);
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
-            self.collect_fn_spec(owner_id, attrs)?;
+            if let Some(spec) = self.collect_fn_spec(owner_id, attrs)? {
+                self.insert_trait_item(owner_id, surface::TraitItemFn { spec })?;
+            }
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         Ok(())
@@ -182,7 +189,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
-            self.collect_fn_spec(owner_id, attrs)?;
+            if let Some(spec) = self.collect_fn_spec(owner_id, attrs)? {
+                self.insert_impl_item(owner_id, surface::ImplItemFn { spec })?;
+            }
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         Ok(())
@@ -198,31 +207,44 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     }
 
     fn collect_trait(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+        if !attrs.has_attrs() {
+            return Ok(());
+        }
+
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
 
-        self.specs
-            .traits
-            .insert(owner_id, surface::Trait { generics, assoc_refinements });
-
-        Ok(())
+        self.insert_item(
+            owner_id,
+            surface::Item {
+                kind: surface::ItemKind::Trait(surface::Trait { generics, assoc_refinements }),
+            },
+        )
     }
 
     fn collect_impl(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
+        if !attrs.has_attrs() {
+            return Ok(());
+        }
+
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
 
-        self.specs
-            .impls
-            .insert(owner_id, surface::Impl { generics, assoc_refinements });
-
-        Ok(())
+        self.insert_item(
+            owner_id,
+            surface::Item {
+                kind: surface::ItemKind::Impl(surface::Impl { generics, assoc_refinements }),
+            },
+        )
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
-        self.specs
-            .ty_aliases
-            .insert(owner_id, attrs.ty_alias().map(|z| *z));
+        if let Some(ty_alias) = attrs.ty_alias() {
+            self.insert_item(
+                owner_id,
+                surface::Item { kind: surface::ItemKind::TyAlias(ty_alias) },
+            )?;
+        }
         Ok(())
     }
 
@@ -231,52 +253,54 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
         data: &VariantData,
-    ) -> Result<&mut surface::StructDef> {
-        let opaque = attrs.opaque();
-        let refined_by = attrs.refined_by();
-        let generics = attrs.generics();
-
-        let fields = data
+    ) -> Result {
+        let fields: Vec<_> = data
             .fields()
             .iter()
             .take(data.fields().len())
-            .map(|field| self.parse_field_spec(field, opaque))
+            .map(|field| self.parse_field(field))
             .try_collect_exhaust()?;
 
+        // We consider the struct unannotatd if the struct itself doesn't have attrs *and* none of
+        // the fields have attributes.
+        let fields_have_attrs = fields.iter().any(|f| f.is_some());
+        if !attrs.has_attrs() && !fields_have_attrs {
+            return Ok(());
+        }
+
+        let opaque = attrs.opaque();
+        let refined_by = attrs.refined_by();
+        let generics = attrs.generics();
         let invariants = attrs.invariants();
 
-        Ok(self
-            .specs
-            .structs
-            .entry(owner_id)
-            .or_insert(surface::StructDef { generics, refined_by, fields, opaque, invariants }))
+        // Report an error if the struct is marked as opaque and there's a field with an annotation
+        for (field, hir_field) in iter::zip(&fields, data.fields()) {
+            // The `flux!` macro unconditionally adds a `#[flux_tool::field(..)]` annotations, even
+            // if the struct is opaque so we only consider the field annotated if it's is refined.
+            if opaque
+                && let Some(ty) = field
+                && ty.is_refined()
+            {
+                return Err(self
+                    .errors
+                    .emit(errors::AttrOnOpaque::new(ty.span, hir_field)));
+            }
+        }
+
+        let struct_def = surface::StructDef { generics, refined_by, fields, opaque, invariants };
+        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Struct(struct_def) })
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
-            self.specs.constants.insert(owner_id, constant);
+            self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Const(constant) })?;
         }
         Ok(())
     }
 
-    fn parse_field_spec(
-        &mut self,
-        field: &rustc_hir::FieldDef,
-        opaque: bool,
-    ) -> Result<Option<surface::Ty>> {
+    fn parse_field(&mut self, field: &rustc_hir::FieldDef) -> Result<Option<surface::Ty>> {
         let mut attrs = self.parse_attrs_and_report_dups(field.def_id)?;
-        let field_attr = attrs.field();
-
-        // We warn if a struct marked as opaque has a refined type annotation. We allow unrefined
-        // annotations, because the `flux!` macro unconditionally adds a `#[flux_tool::field(..)]`
-        // annotation, even if the struct is opaque.
-        if opaque
-            && let Some(ty) = field_attr.as_ref()
-            && ty.is_refined()
-        {
-            return Err(self.errors.emit(errors::AttrOnOpaque::new(ty.span, field)));
-        }
-        Ok(field_attr)
+        Ok(attrs.field())
     }
 
     fn collect_enum_def(
@@ -284,11 +308,27 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
         enum_def: &EnumDef,
-    ) -> Result<&mut surface::EnumDef> {
+    ) -> Result {
+        let variants: Vec<_> = enum_def
+            .variants
+            .iter()
+            .take(enum_def.variants.len())
+            .map(|variant| self.parse_variant(variant))
+            .try_collect_exhaust()?;
+
+        // We consider the enum unannotatd if the enum itself doesn't have attrs *and* none of
+        // the variants have attributes.
+        let variants_have_attrs = variants.iter().any(|v| v.is_some());
+        if !attrs.has_attrs() && !variants_have_attrs {
+            return Ok(());
+        }
+
         let generics = attrs.generics();
         let refined_by = attrs.refined_by();
         let reflected = attrs.reflected();
+        let invariants = attrs.invariants();
 
+        // Can't use `refined_by` and `reflected` at the same time
         if refined_by.is_some() && reflected {
             let span = self.tcx.def_span(owner_id.to_def_id());
             return Err(self
@@ -296,38 +336,25 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 .emit(errors::ReflectedEnumWithRefinedBy::new(span)));
         }
 
-        let variants = enum_def
-            .variants
-            .iter()
-            .take(enum_def.variants.len())
-            .map(|variant| self.collect_variant(variant, refined_by.is_some()))
-            .try_collect_exhaust()?;
-
-        let invariants = attrs.invariants();
-
-        Ok(self
-            .specs
-            .enums
-            .entry(owner_id)
-            .or_insert(surface::EnumDef { generics, refined_by, variants, invariants, reflected }))
-    }
-
-    fn collect_variant(
-        &mut self,
-        hir_variant: &rustc_hir::Variant,
-        has_refined_by: bool,
-    ) -> Result<Option<surface::VariantDef>> {
-        let mut attrs = self.parse_attrs_and_report_dups(hir_variant.def_id)?;
-
-        let variant = attrs.variant();
-
-        if variant.is_none() && has_refined_by {
-            return Err(self
-                .errors
-                .emit(errors::MissingVariant::new(hir_variant.span)));
+        // Report an error if the enum has a refined_by and one of the variants is not annotated
+        for (variant, hir_variant) in iter::zip(&variants, enum_def.variants) {
+            if variant.is_none() && refined_by.is_some() {
+                return Err(self
+                    .errors
+                    .emit(errors::MissingVariant::new(hir_variant.span)));
+            }
         }
 
-        Ok(variant)
+        let enum_def = surface::EnumDef { generics, refined_by, variants, invariants, reflected };
+        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Enum(enum_def) })
+    }
+
+    fn parse_variant(
+        &mut self,
+        hir_variant: &rustc_hir::Variant,
+    ) -> Result<Option<surface::VariantDef>> {
+        let mut attrs = self.parse_attrs_and_report_dups(hir_variant.def_id)?;
+        Ok(attrs.variant())
     }
 
     fn collect_constant(&mut self, owner_id: OwnerId, attrs: FluxAttrs) -> Result {
@@ -338,7 +365,11 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         &mut self,
         owner_id: OwnerId,
         mut attrs: FluxAttrs,
-    ) -> Result<&mut surface::FnSpec> {
+    ) -> Result<Option<surface::FnSpec>> {
+        if !attrs.has_attrs() {
+            return Ok(None);
+        }
+
         let fn_sig = attrs.fn_sig();
 
         if let Some(fn_sig) = &fn_sig
@@ -363,17 +394,13 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         let trusted = matches!(attrs.trusted(), Some(Trusted::Yes));
 
-        Ok(self
-            .specs
-            .fn_sigs
-            .entry(owner_id)
-            .or_insert(surface::FnSpec {
-                fn_sig,
-                qual_names,
-                reveal_names,
-                trusted,
-                node_id: self.parse_sess.next_node_id(),
-            }))
+        Ok(Some(surface::FnSpec {
+            fn_sig,
+            qual_names,
+            reveal_names,
+            trusted,
+            node_id: self.parse_sess.next_node_id(),
+        }))
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -572,6 +599,35 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             self.specs.infer_opts.insert(def_id, infer_opts);
         }
     }
+
+    fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
+        match self.specs.insert_item(owner_id, item) {
+            Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
+            None => Ok(()),
+        }
+    }
+
+    fn insert_trait_item(&mut self, owner_id: OwnerId, item: surface::TraitItemFn) -> Result {
+        match self.specs.insert_trait_item(owner_id, item) {
+            Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
+            None => Ok(()),
+        }
+    }
+
+    fn insert_impl_item(&mut self, owner_id: OwnerId, item: surface::ImplItemFn) -> Result {
+        match self.specs.insert_impl_item(owner_id, item) {
+            Some(_) => Err(self.err_multiple_specs(owner_id.to_def_id())),
+            None => Ok(()),
+        }
+    }
+
+    fn err_multiple_specs(&mut self, def_id: DefId) -> ErrorGuaranteed {
+        let name = self.tcx.def_path_str(def_id);
+        let span = self.tcx.def_span(def_id);
+        let name = Symbol::intern(&name);
+        self.errors
+            .emit(errors::MultipleSpecifications { name, span })
+    }
 }
 
 #[derive(Debug)]
@@ -649,6 +705,10 @@ impl FluxAttr {
 impl FluxAttrs {
     fn new(attrs: Vec<FluxAttr>) -> Self {
         FluxAttrs { map: attrs.into_iter().into_group_map_by(|attr| attr.kind.name()) }
+    }
+
+    fn has_attrs(&self) -> bool {
+        !self.map.is_empty()
     }
 
     fn dups(&self) -> impl Iterator<Item = (&'static str, &[FluxAttr])> {

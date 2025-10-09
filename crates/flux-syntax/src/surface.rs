@@ -109,28 +109,50 @@ pub struct TyAlias {
     pub span: Span,
 }
 
+pub struct Item {
+    pub kind: ItemKind,
+}
+
+pub enum ItemKind {
+    Fn(FnSpec),
+    Struct(StructDef),
+    Enum(EnumDef),
+    Trait(Trait),
+    Impl(Impl),
+    Const(ConstantInfo),
+    TyAlias(Box<TyAlias>),
+}
+
+pub struct TraitItemFn {
+    pub spec: FnSpec,
+}
+
+pub struct ImplItemFn {
+    pub spec: FnSpec,
+}
+
 #[derive(Debug)]
 pub struct DetachedSpecs {
-    pub items: Vec<Item>,
+    pub items: Vec<DetachedItem>,
 }
 
 #[derive(Debug)]
 pub struct DetachedTraitImpl {
     pub trait_: ExprPath,
-    pub items: Vec<Item<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSpec>>,
     pub refts: Vec<ImplAssocReft>,
     pub span: Span,
 }
 
 #[derive(Debug, Default)]
 pub struct DetachedTrait {
-    pub items: Vec<Item<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSpec>>,
     pub refts: Vec<TraitAssocReft>,
 }
 
 #[derive(Debug)]
 pub struct DetachedInherentImpl {
-    pub items: Vec<Item<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSpec>>,
     pub span: Span,
 }
 
@@ -141,23 +163,23 @@ impl DetachedInherentImpl {
 }
 
 #[derive(Debug)]
-pub struct Item<K = ItemKind> {
+pub struct DetachedItem<K = DetachedItemKind> {
     pub path: ExprPath,
     pub kind: K,
 }
 
-impl Item<ItemKind> {
+impl DetachedItem<DetachedItemKind> {
     pub fn span(&self) -> Span {
         match &self.kind {
-            ItemKind::InherentImpl(impl_) => impl_.span,
-            ItemKind::TraitImpl(trait_impl) => trait_impl.span,
+            DetachedItemKind::InherentImpl(impl_) => impl_.span,
+            DetachedItemKind::TraitImpl(trait_impl) => trait_impl.span,
             _ => self.path.span,
         }
     }
 }
 
 #[derive(Debug)]
-pub enum ItemKind {
+pub enum DetachedItemKind {
     FnSig(FnSpec),
     Mod(DetachedSpecs),
     Struct(StructDef),
@@ -181,21 +203,6 @@ pub struct StructDef {
     pub invariants: Vec<Expr>,
 }
 
-impl StructDef {
-    /// Whether the struct contains any path that needs to be resolved.
-    pub fn needs_resolving(&self) -> bool {
-        self.fields.iter().any(Option::is_some)
-    }
-
-    /// Is a non-trivial StructDef
-    pub fn is_nontrivial(&self) -> bool {
-        self.refined_by.is_some()
-            || !self.invariants.is_empty()
-            || self.opaque
-            || self.fields.iter().any(Option::is_some)
-    }
-}
-
 #[derive(Debug)]
 pub struct EnumDef {
     pub generics: Option<Generics>,
@@ -203,20 +210,6 @@ pub struct EnumDef {
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub reflected: bool,
-}
-
-impl EnumDef {
-    /// Whether the enum contains any path that needs to be resolved.
-    pub fn needs_resolving(&self) -> bool {
-        self.variants.iter().any(Option::is_some)
-    }
-
-    pub fn is_nontrivial(&self) -> bool {
-        self.refined_by.is_some()
-            || !self.invariants.is_empty()
-            || self.reflected
-            || self.variants.iter().any(Option::is_some)
-    }
 }
 
 #[derive(Debug)]
@@ -298,12 +291,6 @@ pub struct Impl {
     pub assoc_refinements: Vec<ImplAssocReft>,
 }
 
-impl Impl {
-    pub fn is_nontrivial(&self) -> bool {
-        self.generics.is_some() || !self.assoc_refinements.is_empty()
-    }
-}
-
 #[derive(Debug)]
 pub struct ImplAssocReft {
     pub name: Ident,
@@ -319,11 +306,6 @@ pub struct Trait {
     pub assoc_refinements: Vec<TraitAssocReft>,
 }
 
-impl Trait {
-    pub fn is_nontrivial(&self) -> bool {
-        self.generics.is_some() || !self.assoc_refinements.is_empty()
-    }
-}
 #[derive(Debug)]
 pub struct TraitAssocReft {
     pub name: Ident,
