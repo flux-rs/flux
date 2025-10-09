@@ -1,7 +1,7 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-driver/src/collector/detached_specs.rs`."><title>detached_specs.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e56847b5.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_driver" data-themes="" data-resource-suffix="" data-rustdoc-version="1.91.0-nightly (9c27f27ea 2025-09-08)" data-channel="nightly" data-search-js="search-d846cb6c.js" data-stringdex-js="stringdex-5af928a3.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-6dc2a7f3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_driver/collector/</div>detached_specs.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::collections::{HashMap, hash_map::Entry};
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>flux_common::dbg::{<span class="self">self</span>, SpanTrace};
-<a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, DetachedItem, ExprPath, FnSpec, NodeId};
+<a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>flux_syntax::surface::{<span class="self">self</span>, DetachedItem, ExprPath, NodeId};
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>itertools::Itertools;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>rustc_errors::ErrorGuaranteed;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>rustc_hir::{
@@ -224,142 +224,184 @@
 <a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">let </span>dst_span = <span class="self">self</span>.inner.tcx.def_span(def_id);
 <a href=#225 id=225 data-nosnippet>225</a>        <span class="macro">dbg::hyperlink!</span>(<span class="self">self</span>.inner.tcx, span, dst_span);
 <a href=#226 id=226 data-nosnippet>226</a>        <span class="kw">match </span>item.kind {
-<a href=#227 id=227 data-nosnippet>227</a>            surface::DetachedItemKind::FnSig(fn_spec) =&gt; {
+<a href=#227 id=227 data-nosnippet>227</a>            surface::DetachedItemKind::FnSig(fn_sig) =&gt; {
 <a href=#228 id=228 data-nosnippet>228</a>                <span class="self">self</span>.inner.insert_item(
 <a href=#229 id=229 data-nosnippet>229</a>                    owner_id,
-<a href=#230 id=230 data-nosnippet>230</a>                    surface::Item { kind: surface::ItemKind::Fn(fn_spec) },
-<a href=#231 id=231 data-nosnippet>231</a>                )<span class="question-mark">?</span>;
-<a href=#232 id=232 data-nosnippet>232</a>            }
-<a href=#233 id=233 data-nosnippet>233</a>            surface::DetachedItemKind::Struct(struct_def) =&gt; {
-<a href=#234 id=234 data-nosnippet>234</a>                <span class="self">self</span>.inner.insert_item(
-<a href=#235 id=235 data-nosnippet>235</a>                    owner_id,
-<a href=#236 id=236 data-nosnippet>236</a>                    surface::Item { kind: surface::ItemKind::Struct(struct_def) },
-<a href=#237 id=237 data-nosnippet>237</a>                )<span class="question-mark">?</span>;
-<a href=#238 id=238 data-nosnippet>238</a>            }
-<a href=#239 id=239 data-nosnippet>239</a>            surface::DetachedItemKind::Enum(enum_def) =&gt; {
-<a href=#240 id=240 data-nosnippet>240</a>                <span class="self">self</span>.inner.insert_item(
-<a href=#241 id=241 data-nosnippet>241</a>                    owner_id,
-<a href=#242 id=242 data-nosnippet>242</a>                    surface::Item { kind: surface::ItemKind::Enum(enum_def) },
-<a href=#243 id=243 data-nosnippet>243</a>                )<span class="question-mark">?</span>;
-<a href=#244 id=244 data-nosnippet>244</a>            }
-<a href=#245 id=245 data-nosnippet>245</a>            surface::DetachedItemKind::Mod(detached_specs) =&gt; {
-<a href=#246 id=246 data-nosnippet>246</a>                <span class="self">self</span>.run(detached_specs, owner_id.def_id)<span class="question-mark">?</span>;
-<a href=#247 id=247 data-nosnippet>247</a>            }
-<a href=#248 id=248 data-nosnippet>248</a>            surface::DetachedItemKind::Trait(trait_def) =&gt; {
-<a href=#249 id=249 data-nosnippet>249</a>                <span class="self">self</span>.collect_trait(owner_id, trait_def)<span class="question-mark">?</span>;
-<a href=#250 id=250 data-nosnippet>250</a>            }
-<a href=#251 id=251 data-nosnippet>251</a>            surface::DetachedItemKind::InherentImpl(inherent_impl) =&gt; {
-<a href=#252 id=252 data-nosnippet>252</a>                <span class="kw">let </span>tcx = <span class="self">self</span>.inner.tcx;
-<a href=#253 id=253 data-nosnippet>253</a>                <span class="kw">let </span>assoc_items = tcx
-<a href=#254 id=254 data-nosnippet>254</a>                    .inherent_impls(def_id)
-<a href=#255 id=255 data-nosnippet>255</a>                    .iter()
-<a href=#256 id=256 data-nosnippet>256</a>                    .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
-<a href=#257 id=257 data-nosnippet>257</a>                <span class="self">self</span>.collect_assoc_methods(
-<a href=#258 id=258 data-nosnippet>258</a>                    inherent_impl.items,
-<a href=#259 id=259 data-nosnippet>259</a>                    assoc_items,
-<a href=#260 id=260 data-nosnippet>260</a>                    |this, owner_id, spec| {
-<a href=#261 id=261 data-nosnippet>261</a>                        this.inner
-<a href=#262 id=262 data-nosnippet>262</a>                            .insert_impl_item(owner_id, surface::ImplItemFn { spec })
-<a href=#263 id=263 data-nosnippet>263</a>                    },
-<a href=#264 id=264 data-nosnippet>264</a>                )<span class="question-mark">?</span>;
-<a href=#265 id=265 data-nosnippet>265</a>            }
-<a href=#266 id=266 data-nosnippet>266</a>            surface::DetachedItemKind::TraitImpl(trait_impl) =&gt; {
-<a href=#267 id=267 data-nosnippet>267</a>                <span class="self">self</span>.collect_trait_impl(owner_id, trait_impl)<span class="question-mark">?</span>;
-<a href=#268 id=268 data-nosnippet>268</a>            }
-<a href=#269 id=269 data-nosnippet>269</a>        };
-<a href=#270 id=270 data-nosnippet>270</a>        <span class="prelude-val">Ok</span>(())
-<a href=#271 id=271 data-nosnippet>271</a>    }
-<a href=#272 id=272 data-nosnippet>272</a>
-<a href=#273 id=273 data-nosnippet>273</a>    <span class="kw">fn </span>collect_trait(<span class="kw-2">&amp;mut </span><span class="self">self</span>, owner_id: OwnerId, trait_def: surface::DetachedTrait) -&gt; <span class="prelude-ty">Result</span> {
-<a href=#274 id=274 data-nosnippet>274</a>        <span class="comment">// 1. Collect the associated-refinements
-<a href=#275 id=275 data-nosnippet>275</a>        </span><span class="self">self</span>.inner.insert_item(
-<a href=#276 id=276 data-nosnippet>276</a>            owner_id,
-<a href=#277 id=277 data-nosnippet>277</a>            surface::Item {
-<a href=#278 id=278 data-nosnippet>278</a>                kind: surface::ItemKind::Trait(surface::Trait {
-<a href=#279 id=279 data-nosnippet>279</a>                    generics: <span class="prelude-val">None</span>,
-<a href=#280 id=280 data-nosnippet>280</a>                    assoc_refinements: trait_def.refts,
-<a href=#281 id=281 data-nosnippet>281</a>                }),
-<a href=#282 id=282 data-nosnippet>282</a>            },
-<a href=#283 id=283 data-nosnippet>283</a>        )<span class="question-mark">?</span>;
-<a href=#284 id=284 data-nosnippet>284</a>
-<a href=#285 id=285 data-nosnippet>285</a>        <span class="comment">// 2. Collect the method specifications
-<a href=#286 id=286 data-nosnippet>286</a>        </span><span class="kw">let </span>tcx = <span class="self">self</span>.inner.tcx;
-<a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="self">self</span>.collect_assoc_methods(trait_def.items, assoc_items, |this, owner_id, spec| {
-<a href=#289 id=289 data-nosnippet>289</a>            this.inner
-<a href=#290 id=290 data-nosnippet>290</a>                .insert_trait_item(owner_id, surface::TraitItemFn { spec })
-<a href=#291 id=291 data-nosnippet>291</a>        })
-<a href=#292 id=292 data-nosnippet>292</a>    }
-<a href=#293 id=293 data-nosnippet>293</a>
-<a href=#294 id=294 data-nosnippet>294</a>    <span class="kw">fn </span>collect_trait_impl(
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#296 id=296 data-nosnippet>296</a>        owner_id: OwnerId,
-<a href=#297 id=297 data-nosnippet>297</a>        trait_impl: surface::DetachedTraitImpl,
-<a href=#298 id=298 data-nosnippet>298</a>    ) -&gt; <span class="prelude-ty">Result</span> {
-<a href=#299 id=299 data-nosnippet>299</a>        <span class="comment">// 1. Collect the associated-refinements
-<a href=#300 id=300 data-nosnippet>300</a>        </span><span class="self">self</span>.inner.insert_item(
-<a href=#301 id=301 data-nosnippet>301</a>            owner_id,
-<a href=#302 id=302 data-nosnippet>302</a>            surface::Item {
-<a href=#303 id=303 data-nosnippet>303</a>                kind: surface::ItemKind::Impl(surface::Impl {
+<a href=#230 id=230 data-nosnippet>230</a>                    surface::Item {
+<a href=#231 id=231 data-nosnippet>231</a>                        attrs: item.attrs,
+<a href=#232 id=232 data-nosnippet>232</a>                        kind: surface::ItemKind::Fn(<span class="prelude-val">Some</span>(fn_sig)),
+<a href=#233 id=233 data-nosnippet>233</a>                        node_id: item.node_id,
+<a href=#234 id=234 data-nosnippet>234</a>                    },
+<a href=#235 id=235 data-nosnippet>235</a>                )<span class="question-mark">?</span>;
+<a href=#236 id=236 data-nosnippet>236</a>            }
+<a href=#237 id=237 data-nosnippet>237</a>            surface::DetachedItemKind::Struct(struct_def) =&gt; {
+<a href=#238 id=238 data-nosnippet>238</a>                <span class="self">self</span>.inner.insert_item(
+<a href=#239 id=239 data-nosnippet>239</a>                    owner_id,
+<a href=#240 id=240 data-nosnippet>240</a>                    surface::Item {
+<a href=#241 id=241 data-nosnippet>241</a>                        attrs: item.attrs,
+<a href=#242 id=242 data-nosnippet>242</a>                        kind: surface::ItemKind::Struct(struct_def),
+<a href=#243 id=243 data-nosnippet>243</a>                        node_id: item.node_id,
+<a href=#244 id=244 data-nosnippet>244</a>                    },
+<a href=#245 id=245 data-nosnippet>245</a>                )<span class="question-mark">?</span>;
+<a href=#246 id=246 data-nosnippet>246</a>            }
+<a href=#247 id=247 data-nosnippet>247</a>            surface::DetachedItemKind::Enum(enum_def) =&gt; {
+<a href=#248 id=248 data-nosnippet>248</a>                <span class="self">self</span>.inner.insert_item(
+<a href=#249 id=249 data-nosnippet>249</a>                    owner_id,
+<a href=#250 id=250 data-nosnippet>250</a>                    surface::Item {
+<a href=#251 id=251 data-nosnippet>251</a>                        attrs: item.attrs,
+<a href=#252 id=252 data-nosnippet>252</a>                        kind: surface::ItemKind::Enum(enum_def),
+<a href=#253 id=253 data-nosnippet>253</a>                        node_id: item.node_id,
+<a href=#254 id=254 data-nosnippet>254</a>                    },
+<a href=#255 id=255 data-nosnippet>255</a>                )<span class="question-mark">?</span>;
+<a href=#256 id=256 data-nosnippet>256</a>            }
+<a href=#257 id=257 data-nosnippet>257</a>            surface::DetachedItemKind::Mod(detached_specs) =&gt; {
+<a href=#258 id=258 data-nosnippet>258</a>                <span class="self">self</span>.run(detached_specs, owner_id.def_id)<span class="question-mark">?</span>;
+<a href=#259 id=259 data-nosnippet>259</a>            }
+<a href=#260 id=260 data-nosnippet>260</a>            surface::DetachedItemKind::Trait(trait_def) =&gt; {
+<a href=#261 id=261 data-nosnippet>261</a>                <span class="self">self</span>.collect_trait(owner_id, item.node_id, item.attrs, trait_def)<span class="question-mark">?</span>;
+<a href=#262 id=262 data-nosnippet>262</a>            }
+<a href=#263 id=263 data-nosnippet>263</a>            surface::DetachedItemKind::InherentImpl(inherent_impl) =&gt; {
+<a href=#264 id=264 data-nosnippet>264</a>                <span class="kw">let </span>tcx = <span class="self">self</span>.inner.tcx;
+<a href=#265 id=265 data-nosnippet>265</a>                <span class="kw">let </span>assoc_items = tcx
+<a href=#266 id=266 data-nosnippet>266</a>                    .inherent_impls(def_id)
+<a href=#267 id=267 data-nosnippet>267</a>                    .iter()
+<a href=#268 id=268 data-nosnippet>268</a>                    .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
+<a href=#269 id=269 data-nosnippet>269</a>                <span class="self">self</span>.collect_assoc_methods(
+<a href=#270 id=270 data-nosnippet>270</a>                    inherent_impl.items,
+<a href=#271 id=271 data-nosnippet>271</a>                    assoc_items,
+<a href=#272 id=272 data-nosnippet>272</a>                    |this, owner_id, item| {
+<a href=#273 id=273 data-nosnippet>273</a>                        this.inner.insert_impl_item(
+<a href=#274 id=274 data-nosnippet>274</a>                            owner_id,
+<a href=#275 id=275 data-nosnippet>275</a>                            surface::ImplItemFn {
+<a href=#276 id=276 data-nosnippet>276</a>                                attrs: item.attrs,
+<a href=#277 id=277 data-nosnippet>277</a>                                sig: <span class="prelude-val">Some</span>(item.kind),
+<a href=#278 id=278 data-nosnippet>278</a>                                node_id: item.node_id,
+<a href=#279 id=279 data-nosnippet>279</a>                            },
+<a href=#280 id=280 data-nosnippet>280</a>                        )
+<a href=#281 id=281 data-nosnippet>281</a>                    },
+<a href=#282 id=282 data-nosnippet>282</a>                )<span class="question-mark">?</span>;
+<a href=#283 id=283 data-nosnippet>283</a>            }
+<a href=#284 id=284 data-nosnippet>284</a>            surface::DetachedItemKind::TraitImpl(trait_impl) =&gt; {
+<a href=#285 id=285 data-nosnippet>285</a>                <span class="self">self</span>.collect_trait_impl(owner_id, item.node_id, item.attrs, trait_impl)<span class="question-mark">?</span>;
+<a href=#286 id=286 data-nosnippet>286</a>            }
+<a href=#287 id=287 data-nosnippet>287</a>        };
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="prelude-val">Ok</span>(())
+<a href=#289 id=289 data-nosnippet>289</a>    }
+<a href=#290 id=290 data-nosnippet>290</a>
+<a href=#291 id=291 data-nosnippet>291</a>    <span class="kw">fn </span>collect_trait(
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#293 id=293 data-nosnippet>293</a>        owner_id: OwnerId,
+<a href=#294 id=294 data-nosnippet>294</a>        node_id: NodeId,
+<a href=#295 id=295 data-nosnippet>295</a>        attrs: Vec&lt;surface::Attr&gt;,
+<a href=#296 id=296 data-nosnippet>296</a>        trait_def: surface::DetachedTrait,
+<a href=#297 id=297 data-nosnippet>297</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="comment">// 1. Collect the associated-refinements
+<a href=#299 id=299 data-nosnippet>299</a>        </span><span class="self">self</span>.inner.insert_item(
+<a href=#300 id=300 data-nosnippet>300</a>            owner_id,
+<a href=#301 id=301 data-nosnippet>301</a>            surface::Item {
+<a href=#302 id=302 data-nosnippet>302</a>                attrs,
+<a href=#303 id=303 data-nosnippet>303</a>                kind: surface::ItemKind::Trait(surface::Trait {
 <a href=#304 id=304 data-nosnippet>304</a>                    generics: <span class="prelude-val">None</span>,
-<a href=#305 id=305 data-nosnippet>305</a>                    assoc_refinements: trait_impl.refts,
+<a href=#305 id=305 data-nosnippet>305</a>                    assoc_refinements: trait_def.refts,
 <a href=#306 id=306 data-nosnippet>306</a>                }),
-<a href=#307 id=307 data-nosnippet>307</a>            },
-<a href=#308 id=308 data-nosnippet>308</a>        )<span class="question-mark">?</span>;
-<a href=#309 id=309 data-nosnippet>309</a>
-<a href=#310 id=310 data-nosnippet>310</a>        <span class="comment">// 2. Collect the method specifications
-<a href=#311 id=311 data-nosnippet>311</a>        </span><span class="kw">let </span>tcx = <span class="self">self</span>.inner.tcx;
-<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">let </span>assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="self">self</span>.collect_assoc_methods(trait_impl.items, assoc_items, |this, owner_id, spec| {
-<a href=#314 id=314 data-nosnippet>314</a>            this.inner
-<a href=#315 id=315 data-nosnippet>315</a>                .insert_impl_item(owner_id, surface::ImplItemFn { spec })
-<a href=#316 id=316 data-nosnippet>316</a>        })
-<a href=#317 id=317 data-nosnippet>317</a>    }
-<a href=#318 id=318 data-nosnippet>318</a>
-<a href=#319 id=319 data-nosnippet>319</a>    <span class="kw">fn </span>collect_assoc_methods(
-<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-<a href=#321 id=321 data-nosnippet>321</a>        methods: Vec&lt;DetachedItem&lt;FnSpec&gt;&gt;,
-<a href=#322 id=322 data-nosnippet>322</a>        assoc_items: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>AssocItem&gt;,
-<a href=#323 id=323 data-nosnippet>323</a>        <span class="kw-2">mut </span>insert_item: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, OwnerId, FnSpec) -&gt; <span class="prelude-ty">Result</span>,
-<a href=#324 id=324 data-nosnippet>324</a>    ) -&gt; <span class="prelude-ty">Result</span> {
-<a href=#325 id=325 data-nosnippet>325</a>        <span class="kw">let </span><span class="kw-2">mut </span>table: HashMap&lt;Symbol, (surface::FnSpec, <span class="prelude-ty">Option</span>&lt;DefId&gt;, ExprPath)&gt; =
-<a href=#326 id=326 data-nosnippet>326</a>            HashMap::default();
-<a href=#327 id=327 data-nosnippet>327</a>        <span class="comment">// 1. make a table of the impl-items
-<a href=#328 id=328 data-nosnippet>328</a>        </span><span class="kw">for </span>item <span class="kw">in </span>methods {
-<a href=#329 id=329 data-nosnippet>329</a>            <span class="kw">let </span>name = path_to_symbol(<span class="kw-2">&amp;</span>item.path);
-<a href=#330 id=330 data-nosnippet>330</a>            <span class="kw">let </span>span = item.path.span;
-<a href=#331 id=331 data-nosnippet>331</a>            <span class="kw">if let </span>Entry::Occupied(<span class="kw">_</span>) = table.entry(name) {
-<a href=#332 id=332 data-nosnippet>332</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
-<a href=#333 id=333 data-nosnippet>333</a>                    </span>.inner
-<a href=#334 id=334 data-nosnippet>334</a>                    .errors
-<a href=#335 id=335 data-nosnippet>335</a>                    .emit(errors::MultipleSpecifications { name, span }));
-<a href=#336 id=336 data-nosnippet>336</a>            } <span class="kw">else </span>{
-<a href=#337 id=337 data-nosnippet>337</a>                table.insert(name, (item.kind, <span class="prelude-val">None</span>, item.path));
-<a href=#338 id=338 data-nosnippet>338</a>            }
-<a href=#339 id=339 data-nosnippet>339</a>        }
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="comment">// 2. walk over all the assoc-items to resolve names
-<a href=#341 id=341 data-nosnippet>341</a>        </span><span class="kw">for </span>item <span class="kw">in </span>assoc_items {
-<a href=#342 id=342 data-nosnippet>342</a>            <span class="kw">if let </span>AssocKind::Fn { name, .. } = item.kind
-<a href=#343 id=343 data-nosnippet>343</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(val) = table.get_mut(<span class="kw-2">&amp;</span>name)
-<a href=#344 id=344 data-nosnippet>344</a>                &amp;&amp; val.<span class="number">1</span>.is_none()
-<a href=#345 id=345 data-nosnippet>345</a>            {
-<a href=#346 id=346 data-nosnippet>346</a>                val.<span class="number">1 </span>= <span class="prelude-val">Some</span>(item.def_id);
-<a href=#347 id=347 data-nosnippet>347</a>            }
-<a href=#348 id=348 data-nosnippet>348</a>        }
-<a href=#349 id=349 data-nosnippet>349</a>        <span class="comment">// 3. Attach the `fn_sig` to the resolved `DefId`
-<a href=#350 id=350 data-nosnippet>350</a>        </span><span class="kw">for </span>(_name, (fn_spec, def_id, path)) <span class="kw">in </span>table {
-<a href=#351 id=351 data-nosnippet>351</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(def_id) = def_id <span class="kw">else </span>{
-<a href=#352 id=352 data-nosnippet>352</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
-<a href=#353 id=353 data-nosnippet>353</a>                    </span>.inner
-<a href=#354 id=354 data-nosnippet>354</a>                    .errors
-<a href=#355 id=355 data-nosnippet>355</a>                    .emit(errors::UnresolvedSpecification::new(<span class="kw-2">&amp;</span>path, <span class="string">"identifier"</span>)));
-<a href=#356 id=356 data-nosnippet>356</a>            };
-<a href=#357 id=357 data-nosnippet>357</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.unwrap_def_id(<span class="kw-2">&amp;</span>def_id)<span class="question-mark">? </span>{
-<a href=#358 id=358 data-nosnippet>358</a>                <span class="macro">dbg::hyperlink!</span>(<span class="self">self</span>.inner.tcx, path.span, <span class="self">self</span>.inner.tcx.def_span(def_id));
-<a href=#359 id=359 data-nosnippet>359</a>                <span class="kw">let </span>owner_id = <span class="self">self</span>.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-<a href=#360 id=360 data-nosnippet>360</a>                insert_item(<span class="self">self</span>, owner_id, fn_spec)<span class="question-mark">?</span>;
-<a href=#361 id=361 data-nosnippet>361</a>            }
-<a href=#362 id=362 data-nosnippet>362</a>        }
-<a href=#363 id=363 data-nosnippet>363</a>        <span class="prelude-val">Ok</span>(())
-<a href=#364 id=364 data-nosnippet>364</a>    }
-<a href=#365 id=365 data-nosnippet>365</a>}</code></pre></div></section></main></body></html>
+<a href=#307 id=307 data-nosnippet>307</a>                node_id,
+<a href=#308 id=308 data-nosnippet>308</a>            },
+<a href=#309 id=309 data-nosnippet>309</a>        )<span class="question-mark">?</span>;
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="comment">// 2. Collect the method specifications
+<a href=#312 id=312 data-nosnippet>312</a>        </span><span class="kw">let </span>tcx = <span class="self">self</span>.inner.tcx;
+<a href=#313 id=313 data-nosnippet>313</a>        <span class="kw">let </span>assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="self">self</span>.collect_assoc_methods(trait_def.items, assoc_items, |this, owner_id, item| {
+<a href=#315 id=315 data-nosnippet>315</a>            this.inner.insert_trait_item(
+<a href=#316 id=316 data-nosnippet>316</a>                owner_id,
+<a href=#317 id=317 data-nosnippet>317</a>                surface::TraitItemFn {
+<a href=#318 id=318 data-nosnippet>318</a>                    attrs: item.attrs,
+<a href=#319 id=319 data-nosnippet>319</a>                    sig: <span class="prelude-val">Some</span>(item.kind),
+<a href=#320 id=320 data-nosnippet>320</a>                    node_id: item.node_id,
+<a href=#321 id=321 data-nosnippet>321</a>                },
+<a href=#322 id=322 data-nosnippet>322</a>            )
+<a href=#323 id=323 data-nosnippet>323</a>        })
+<a href=#324 id=324 data-nosnippet>324</a>    }
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a>    <span class="kw">fn </span>collect_trait_impl(
+<a href=#327 id=327 data-nosnippet>327</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#328 id=328 data-nosnippet>328</a>        owner_id: OwnerId,
+<a href=#329 id=329 data-nosnippet>329</a>        node_id: NodeId,
+<a href=#330 id=330 data-nosnippet>330</a>        attrs: Vec&lt;surface::Attr&gt;,
+<a href=#331 id=331 data-nosnippet>331</a>        trait_impl: surface::DetachedTraitImpl,
+<a href=#332 id=332 data-nosnippet>332</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="comment">// 1. Collect the associated-refinements
+<a href=#334 id=334 data-nosnippet>334</a>        </span><span class="self">self</span>.inner.insert_item(
+<a href=#335 id=335 data-nosnippet>335</a>            owner_id,
+<a href=#336 id=336 data-nosnippet>336</a>            surface::Item {
+<a href=#337 id=337 data-nosnippet>337</a>                attrs,
+<a href=#338 id=338 data-nosnippet>338</a>                kind: surface::ItemKind::Impl(surface::Impl {
+<a href=#339 id=339 data-nosnippet>339</a>                    generics: <span class="prelude-val">None</span>,
+<a href=#340 id=340 data-nosnippet>340</a>                    assoc_refinements: trait_impl.refts,
+<a href=#341 id=341 data-nosnippet>341</a>                }),
+<a href=#342 id=342 data-nosnippet>342</a>                node_id,
+<a href=#343 id=343 data-nosnippet>343</a>            },
+<a href=#344 id=344 data-nosnippet>344</a>        )<span class="question-mark">?</span>;
+<a href=#345 id=345 data-nosnippet>345</a>
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="comment">// 2. Collect the method specifications
+<a href=#347 id=347 data-nosnippet>347</a>        </span><span class="kw">let </span>tcx = <span class="self">self</span>.inner.tcx;
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="self">self</span>.collect_assoc_methods(trait_impl.items, assoc_items, |this, owner_id, item| {
+<a href=#350 id=350 data-nosnippet>350</a>            this.inner.insert_impl_item(
+<a href=#351 id=351 data-nosnippet>351</a>                owner_id,
+<a href=#352 id=352 data-nosnippet>352</a>                surface::ImplItemFn {
+<a href=#353 id=353 data-nosnippet>353</a>                    attrs: item.attrs,
+<a href=#354 id=354 data-nosnippet>354</a>                    sig: <span class="prelude-val">Some</span>(item.kind),
+<a href=#355 id=355 data-nosnippet>355</a>                    node_id: item.node_id,
+<a href=#356 id=356 data-nosnippet>356</a>                },
+<a href=#357 id=357 data-nosnippet>357</a>            )
+<a href=#358 id=358 data-nosnippet>358</a>        })
+<a href=#359 id=359 data-nosnippet>359</a>    }
+<a href=#360 id=360 data-nosnippet>360</a>
+<a href=#361 id=361 data-nosnippet>361</a>    <span class="kw">fn </span>collect_assoc_methods(
+<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+<a href=#363 id=363 data-nosnippet>363</a>        methods: Vec&lt;DetachedItem&lt;surface::FnSig&gt;&gt;,
+<a href=#364 id=364 data-nosnippet>364</a>        assoc_items: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>AssocItem&gt;,
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw-2">mut </span>insert_item: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;mut </span><span class="self">Self</span>, OwnerId, DetachedItem&lt;surface::FnSig&gt;) -&gt; <span class="prelude-ty">Result</span>,
+<a href=#366 id=366 data-nosnippet>366</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#367 id=367 data-nosnippet>367</a>        <span class="kw">let </span><span class="kw-2">mut </span>table: HashMap&lt;Symbol, DetachedItem&lt;(surface::FnSig, <span class="prelude-ty">Option</span>&lt;DefId&gt;)&gt;&gt; =
+<a href=#368 id=368 data-nosnippet>368</a>            HashMap::default();
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="comment">// 1. make a table of the impl-items
+<a href=#370 id=370 data-nosnippet>370</a>        </span><span class="kw">for </span>item <span class="kw">in </span>methods {
+<a href=#371 id=371 data-nosnippet>371</a>            <span class="kw">let </span>name = path_to_symbol(<span class="kw-2">&amp;</span>item.path);
+<a href=#372 id=372 data-nosnippet>372</a>            <span class="kw">let </span>span = item.path.span;
+<a href=#373 id=373 data-nosnippet>373</a>            <span class="kw">if let </span>Entry::Occupied(<span class="kw">_</span>) = table.entry(name) {
+<a href=#374 id=374 data-nosnippet>374</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
+<a href=#375 id=375 data-nosnippet>375</a>                    </span>.inner
+<a href=#376 id=376 data-nosnippet>376</a>                    .errors
+<a href=#377 id=377 data-nosnippet>377</a>                    .emit(errors::MultipleSpecifications { name, span }));
+<a href=#378 id=378 data-nosnippet>378</a>            } <span class="kw">else </span>{
+<a href=#379 id=379 data-nosnippet>379</a>                table.insert(name, item.map_kind(|spec| (spec, <span class="prelude-val">None</span>)));
+<a href=#380 id=380 data-nosnippet>380</a>            }
+<a href=#381 id=381 data-nosnippet>381</a>        }
+<a href=#382 id=382 data-nosnippet>382</a>        <span class="comment">// 2. walk over all the assoc-items to resolve names
+<a href=#383 id=383 data-nosnippet>383</a>        </span><span class="kw">for </span>item <span class="kw">in </span>assoc_items {
+<a href=#384 id=384 data-nosnippet>384</a>            <span class="kw">if let </span>AssocKind::Fn { name, .. } = item.kind
+<a href=#385 id=385 data-nosnippet>385</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(val) = table.get_mut(<span class="kw-2">&amp;</span>name)
+<a href=#386 id=386 data-nosnippet>386</a>                &amp;&amp; val.kind.<span class="number">1</span>.is_none()
+<a href=#387 id=387 data-nosnippet>387</a>            {
+<a href=#388 id=388 data-nosnippet>388</a>                val.kind.<span class="number">1 </span>= <span class="prelude-val">Some</span>(item.def_id);
+<a href=#389 id=389 data-nosnippet>389</a>            }
+<a href=#390 id=390 data-nosnippet>390</a>        }
+<a href=#391 id=391 data-nosnippet>391</a>        <span class="comment">// 3. Attach the `fn_sig` to the resolved `DefId`
+<a href=#392 id=392 data-nosnippet>392</a>        </span><span class="kw">for </span>(_name, item) <span class="kw">in </span>table {
+<a href=#393 id=393 data-nosnippet>393</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(def_id) = item.kind.<span class="number">1 </span><span class="kw">else </span>{
+<a href=#394 id=394 data-nosnippet>394</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
+<a href=#395 id=395 data-nosnippet>395</a>                    </span>.inner
+<a href=#396 id=396 data-nosnippet>396</a>                    .errors
+<a href=#397 id=397 data-nosnippet>397</a>                    .emit(errors::UnresolvedSpecification::new(<span class="kw-2">&amp;</span>item.path, <span class="string">"identifier"</span>)));
+<a href=#398 id=398 data-nosnippet>398</a>            };
+<a href=#399 id=399 data-nosnippet>399</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = <span class="self">self</span>.unwrap_def_id(<span class="kw-2">&amp;</span>def_id)<span class="question-mark">? </span>{
+<a href=#400 id=400 data-nosnippet>400</a>                <span class="macro">dbg::hyperlink!</span>(<span class="self">self</span>.inner.tcx, item.path.span, <span class="self">self</span>.inner.tcx.def_span(def_id));
+<a href=#401 id=401 data-nosnippet>401</a>                <span class="kw">let </span>owner_id = <span class="self">self</span>.inner.tcx.local_def_id_to_hir_id(def_id).owner;
+<a href=#402 id=402 data-nosnippet>402</a>                insert_item(<span class="self">self</span>, owner_id, item.map_kind(|k| k.<span class="number">0</span>))<span class="question-mark">?</span>;
+<a href=#403 id=403 data-nosnippet>403</a>            }
+<a href=#404 id=404 data-nosnippet>404</a>        }
+<a href=#405 id=405 data-nosnippet>405</a>        <span class="prelude-val">Ok</span>(())
+<a href=#406 id=406 data-nosnippet>406</a>    }
+<a href=#407 id=407 data-nosnippet>407</a>}</code></pre></div></section></main></body></html>
