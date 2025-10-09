@@ -802,7 +802,7 @@ impl FluxAttrs {
                 }
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore,
-                FluxAttrKind::ShouldFail => todo!(),
+                FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)

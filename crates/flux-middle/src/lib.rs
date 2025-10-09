@@ -462,6 +462,9 @@ impl Specs {
                     surface::Attr::InferOpts(opts) => {
                         self.infer_opts.insert(def_id, opts.clone());
                     }
+                    surface::Attr::ShouldFail => {
+                        self.should_fail.insert(def_id);
+                    }
                     surface::Attr::Hide
                     | surface::Attr::Qualifiers(_)
                     | surface::Attr::Reveal(_) => {}

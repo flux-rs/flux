@@ -566,6 +566,8 @@ pub enum Attr {
     Ignore,
     /// A `#[proven_externally]` attribute
     ProvenExternally,
+    /// A `#[should_fail]` attribute
+    ShouldFail,
     /// A `#[hide]` attribute
     Hide,
     /// A `#[qualifiers(...)]` attribute
