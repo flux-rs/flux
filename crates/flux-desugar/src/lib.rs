@@ -13,6 +13,8 @@ extern crate rustc_span;
 use desugar::RustItemCtxt;
 use flux_common::result::{ErrorCollector, ResultExt};
 use flux_macros::fluent_messages;
+use flux_syntax::surface;
+use itertools::Itertools as _;
 use rustc_data_structures::unord::UnordMap;
 
 fluent_messages! { "../locales/en-US.ftl" }
@@ -40,6 +42,7 @@ type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 pub fn provide(providers: &mut Providers) {
     providers.resolve_crate = resolver::resolve_crate;
     providers.desugar = desugar;
+    providers.fhir_attr_map = fhir_attr_map;
     providers.fhir_crate = desugar_crate;
 }
 
@@ -164,4 +167,49 @@ fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItem
     err.into_result()?;
 
     Ok(fhir)
+}
+
+fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir::AttrMap<'genv> {
+    let owner_id = OwnerId { def_id };
+    let specs = genv.collect_specs();
+
+    let (node_id, attrs) = if let Some(item) = specs.get_item(owner_id) {
+        (item.node_id, &item.attrs)
+    } else if let Some(impl_item) = specs.get_impl_item(owner_id) {
+        (impl_item.node_id, &impl_item.attrs)
+    } else if let Some(trait_item) = specs.get_trait_item(owner_id) {
+        (trait_item.node_id, &trait_item.attrs)
+    } else {
+        return fhir::AttrMap::default();
+    };
+
+    let resolver_output = genv.resolve_crate();
+    fhir::AttrMap {
+        attrs: genv.alloc_slice_fill_iter(
+            attrs
+                .iter()
+                .filter_map(|attr| {
+                    match *attr {
+                        surface::Attr::Trusted(trusted) => Some(fhir::Attr::Trusted(trusted)),
+                        surface::Attr::TrustedImpl(trusted) => {
+                            Some(fhir::Attr::TrustedImpl(trusted))
+                        }
+                        surface::Attr::Ignore(ignored) => Some(fhir::Attr::Ignore(ignored)),
+                        surface::Attr::ProvenExternally => Some(fhir::Attr::ProvenExternally),
+                        surface::Attr::ShouldFail => Some(fhir::Attr::ShouldFail),
+                        surface::Attr::InferOpts(opts) => Some(fhir::Attr::InferOpts(opts)),
+                        surface::Attr::Qualifiers(_) | surface::Attr::Reveal(_) => None,
+                    }
+                })
+                .collect_vec(),
+        ),
+        qualifiers: resolver_output
+            .qualifier_res_map
+            .get(&node_id)
+            .map_or(&[][..], Vec::as_slice),
+        reveals: resolver_output
+            .reveal_res_map
+            .get(&node_id)
+            .map_or(&[][..], Vec::as_slice),
+    }
 }

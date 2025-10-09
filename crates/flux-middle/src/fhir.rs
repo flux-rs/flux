@@ -18,9 +18,10 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_config::PartialInferOpts;
 use flux_rustc_bridge::def_id_to_string;
-use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
+use flux_syntax::surface::{Ignored, ParamMode, Trusted};
 use itertools::Itertools;
 use rustc_abi;
 pub use rustc_abi::VariantIdx;
@@ -40,6 +41,60 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
+
+pub enum Attr {
+    Trusted(Trusted),
+    TrustedImpl(Trusted),
+    Ignore(Ignored),
+    ProvenExternally,
+    ShouldFail,
+    InferOpts(PartialInferOpts),
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct AttrMap<'fhir> {
+    pub attrs: &'fhir [Attr],
+    pub qualifiers: &'fhir [FluxLocalDefId],
+    pub reveals: &'fhir [FluxDefId],
+}
+
+impl AttrMap<'_> {
+    pub(crate) fn proven_externally(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::ProvenExternally))
+    }
+
+    pub(crate) fn ignored(&self) -> Option<Ignored> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::Ignore(ignored) = *attr { Some(ignored) } else { None })
+    }
+
+    pub(crate) fn trusted(&self) -> Option<Trusted> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::Trusted(trusted) = *attr { Some(trusted) } else { None })
+    }
+
+    pub(crate) fn trusted_impl(&self) -> Option<Trusted> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::TrustedImpl(trusted) = *attr { Some(trusted) } else { None }
+        })
+    }
+
+    pub(crate) fn should_fail(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::ShouldFail))
+    }
+
+    pub(crate) fn infer_opts(&self) -> Option<PartialInferOpts> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::InferOpts(opts) = *attr { Some(opts) } else { None })
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
@@ -448,10 +503,6 @@ pub struct Requires<'fhir> {
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
-    //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [FluxLocalDefId],
-    //// List of reveals for this function
-    pub reveals: &'fhir [FluxDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
