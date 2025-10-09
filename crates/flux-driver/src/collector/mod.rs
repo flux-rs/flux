@@ -90,6 +90,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
 
         collector.errors.into_result()?;
 
+        collector.specs.finish(tcx);
+
         Ok(collector.specs)
     }
 

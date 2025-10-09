@@ -441,6 +441,50 @@ impl Specs {
         }
         None
     }
+
+    pub fn finish(&mut self, tcx: TyCtxt) {
+        let mut f = |def_id: LocalDefId, attrs: &[surface::Attr]| {
+            for attr in attrs {
+                match attr {
+                    surface::Attr::Trusted => {
+                        self.trusted.insert(def_id, fhir::Trusted::Yes);
+                    }
+                    surface::Attr::TrustedImpl => {
+                        self.trusted_impl.insert(def_id, fhir::Trusted::Yes);
+                    }
+                    surface::Attr::Ignore => {
+                        self.ignores.insert(def_id, fhir::Ignored::Yes);
+                    }
+                    surface::Attr::ProvenExternally => {
+                        self.proven_externally
+                            .insert(def_id, fhir::ProvenExternally::Yes);
+                    }
+                    surface::Attr::InferOpts(opts) => {
+                        self.infer_opts.insert(def_id, opts.clone());
+                    }
+                    surface::Attr::Hide
+                    | surface::Attr::Qualifiers(_)
+                    | surface::Attr::Reveal(_) => {}
+                }
+            }
+        };
+        let crate_items = tcx.hir_crate_items(());
+        for item_id in crate_items.free_items() {
+            if let Some(item) = self.items.get(&item_id.owner_id) {
+                f(item_id.owner_id.def_id, &item.attrs);
+            }
+        }
+        for impl_item_id in crate_items.impl_items() {
+            if let Some(impl_item) = self.impl_items.get(&impl_item_id.owner_id) {
+                f(impl_item_id.owner_id.def_id, &impl_item.attrs);
+            }
+        }
+        for trait_item_id in crate_items.trait_items() {
+            if let Some(impl_item) = self.trait_items.get(&trait_item_id.owner_id) {
+                f(trait_item_id.owner_id.def_id, &impl_item.attrs);
+            }
+        }
+    }
 }
 
 /// Represents errors that can occur when inserting a mapping between a `LocalDefId` and a `DefId`
