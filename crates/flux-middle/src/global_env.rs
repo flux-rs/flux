@@ -481,10 +481,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn infer_opts(self, def_id: LocalDefId) -> config::InferOpts {
         let mut opts = config::PartialInferOpts::default();
-        let specs = self.collect_specs();
         self.traverse_parents(def_id, |did| {
-            if let Some(o) = specs.infer_opts.get(&did) {
-                opts.merge(o);
+            if let Some(o) = self.fhir_attr_map(did).infer_opts() {
+                opts.merge(&o);
             }
             None::<!>
         });
@@ -495,13 +494,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
+        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted())
             .map(|trusted| trusted.to_bool())
             .unwrap_or_else(config::trusted_default)
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().trusted_impl.get(&did))
+        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted_impl())
             .map(|trusted| trusted.to_bool())
             .unwrap_or(false)
     }
@@ -523,19 +522,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
     /// If no explicit annotation is found, return `false`.
     pub fn ignored(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
+        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).ignored())
             .map(|ignored| ignored.to_bool())
             .unwrap_or_else(config::ignore_default)
     }
 
     /// Whether the function is marked with `#[flux::should_fail]`
     pub fn should_fail(self, def_id: LocalDefId) -> bool {
-        self.collect_specs().should_fail.contains(&def_id)
+        self.fhir_attr_map(def_id).should_fail()
     }
 
     /// Whether the function is marked with `#[proven_externally]`
     pub fn proven_externally(self, def_id: LocalDefId) -> bool {
-        self.collect_specs().proven_externally.contains(&def_id)
+        self.fhir_attr_map(def_id).proven_externally()
     }
 
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].

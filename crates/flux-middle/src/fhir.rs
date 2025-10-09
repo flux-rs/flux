@@ -42,13 +42,6 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
-#[derive(Clone, Copy, Default)]
-pub struct AttrMap<'fhir> {
-    pub attrs: &'fhir [Attr],
-    pub qualifiers: &'fhir [FluxLocalDefId],
-    pub reveals: &'fhir [FluxDefId],
-}
-
 pub enum Attr {
     Trusted(Trusted),
     TrustedImpl(Trusted),
@@ -56,6 +49,51 @@ pub enum Attr {
     ProvenExternally,
     ShouldFail,
     InferOpts(PartialInferOpts),
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct AttrMap<'fhir> {
+    pub attrs: &'fhir [Attr],
+    pub qualifiers: &'fhir [FluxLocalDefId],
+    pub reveals: &'fhir [FluxDefId],
+}
+
+impl AttrMap<'_> {
+    pub(crate) fn proven_externally(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::ProvenExternally))
+    }
+
+    pub(crate) fn ignored(&self) -> Option<Ignored> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::Ignore(ignored) = *attr { Some(ignored) } else { None })
+    }
+
+    pub(crate) fn trusted(&self) -> Option<Trusted> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::Trusted(trusted) = *attr { Some(trusted) } else { None })
+    }
+
+    pub(crate) fn trusted_impl(&self) -> Option<Trusted> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::TrustedImpl(trusted) = *attr { Some(trusted) } else { None }
+        })
+    }
+
+    pub(crate) fn should_fail(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::ShouldFail))
+    }
+
+    pub(crate) fn infer_opts(&self) -> Option<PartialInferOpts> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::InferOpts(opts) = *attr { Some(opts) } else { None })
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
