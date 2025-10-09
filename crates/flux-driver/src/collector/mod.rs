@@ -201,38 +201,32 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let generics = attrs.generics();
         let assoc_refinements = attrs.trait_assoc_refts();
 
-        self.specs
-            .insert_item(
-                owner_id,
-                surface::Item {
-                    kind: surface::ItemKind::Trait(surface::Trait { generics, assoc_refinements }),
-                },
-            )
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        self.insert_item(
+            owner_id,
+            surface::Item {
+                kind: surface::ItemKind::Trait(surface::Trait { generics, assoc_refinements }),
+            },
+        )
     }
 
     fn collect_impl(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         let generics = attrs.generics();
         let assoc_refinements = attrs.impl_assoc_refts();
 
-        self.specs
-            .insert_item(
-                owner_id,
-                surface::Item {
-                    kind: surface::ItemKind::Impl(surface::Impl { generics, assoc_refinements }),
-                },
-            )
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        self.insert_item(
+            owner_id,
+            surface::Item {
+                kind: surface::ItemKind::Impl(surface::Impl { generics, assoc_refinements }),
+            },
+        )
     }
 
     fn collect_type_alias(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(ty_alias) = attrs.ty_alias() {
-            self.specs
-                .insert_item(
-                    owner_id,
-                    surface::Item { kind: surface::ItemKind::TyAlias(*ty_alias) },
-                )
-                .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))?;
+            self.insert_item(
+                owner_id,
+                surface::Item { kind: surface::ItemKind::TyAlias(*ty_alias) },
+            )?;
         }
         Ok(())
     }
@@ -257,16 +251,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let invariants = attrs.invariants();
 
         let struct_def = surface::StructDef { generics, refined_by, fields, opaque, invariants };
-        self.specs
-            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Struct(struct_def) })
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Struct(struct_def) })
     }
 
     fn parse_constant_spec(&mut self, owner_id: OwnerId, mut attrs: FluxAttrs) -> Result {
         if let Some(constant) = attrs.constant() {
-            self.specs
-                .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Const(constant) })
-                .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))?;
+            self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Const(constant) })?;
         }
         Ok(())
     }
@@ -318,9 +308,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         let invariants = attrs.invariants();
 
         let enum_def = surface::EnumDef { generics, refined_by, variants, invariants, reflected };
-        self.specs
-            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Enum(enum_def) })
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Enum(enum_def) })
     }
 
     fn collect_variant(
@@ -378,9 +366,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             node_id: self.parse_sess.next_node_id(),
         };
 
-        self.specs
-            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Fn(fn_spec) })
-            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
+        self.insert_item(owner_id, surface::Item { kind: surface::ItemKind::Fn(fn_spec) })
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {
@@ -578,6 +564,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let Some(infer_opts) = attrs.infer_opts() {
             self.specs.infer_opts.insert(def_id, infer_opts);
         }
+    }
+
+    fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result {
+        self.specs
+            .insert_item(owner_id, item)
+            .map_err(|_| self.err_multiple_specs(owner_id.to_def_id(), None))
     }
 
     fn err_multiple_specs(&mut self, def_id: DefId, span: Option<Span>) -> ErrorGuaranteed {

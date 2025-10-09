@@ -225,15 +225,23 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         dbg::hyperlink!(self.inner.tcx, span, dst_span);
         match item.kind {
             surface::DetachedItemKind::FnSig(fn_spec) => {
-                self.inner
-                    .specs
-                    .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Fn(fn_spec) })
-                    .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
+                self.inner.insert_item(
+                    owner_id,
+                    surface::Item { kind: surface::ItemKind::Fn(fn_spec) },
+                )?;
             }
             surface::DetachedItemKind::Struct(struct_def) => {
-                self.collect_struct(owner_id, struct_def)?;
+                self.inner.insert_item(
+                    owner_id,
+                    surface::Item { kind: surface::ItemKind::Struct(struct_def) },
+                )?;
             }
-            surface::DetachedItemKind::Enum(enum_def) => self.collect_enum(owner_id, enum_def)?,
+            surface::DetachedItemKind::Enum(enum_def) => {
+                self.inner.insert_item(
+                    owner_id,
+                    surface::Item { kind: surface::ItemKind::Enum(enum_def) },
+                )?;
+            }
             surface::DetachedItemKind::Mod(detached_specs) => {
                 self.run(detached_specs, owner_id.def_id)?;
             }
@@ -255,34 +263,17 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         Ok(())
     }
 
-    fn collect_struct(&mut self, owner_id: OwnerId, struct_def: surface::StructDef) -> Result {
-        self.inner
-            .specs
-            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Struct(struct_def) })
-            .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))
-    }
-
-    fn collect_enum(&mut self, owner_id: OwnerId, enum_def: surface::EnumDef) -> Result {
-        self.inner
-            .specs
-            .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Enum(enum_def) })
-            .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))
-    }
-
     fn collect_trait(&mut self, owner_id: OwnerId, trait_def: surface::DetachedTrait) -> Result {
         // 1. Collect the associated-refinements
-        self.inner
-            .specs
-            .insert_item(
-                owner_id,
-                surface::Item {
-                    kind: surface::ItemKind::Trait(surface::Trait {
-                        generics: None,
-                        assoc_refinements: trait_def.refts,
-                    }),
-                },
-            )
-            .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
+        self.inner.insert_item(
+            owner_id,
+            surface::Item {
+                kind: surface::ItemKind::Trait(surface::Trait {
+                    generics: None,
+                    assoc_refinements: trait_def.refts,
+                }),
+            },
+        )?;
 
         // 2. Collect the method specifications
         let tcx = self.inner.tcx;
@@ -296,18 +287,15 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         trait_impl: surface::DetachedTraitImpl,
     ) -> Result {
         // 1. Collect the associated-refinements
-        self.inner
-            .specs
-            .insert_item(
-                owner_id,
-                surface::Item {
-                    kind: surface::ItemKind::Impl(surface::Impl {
-                        generics: None,
-                        assoc_refinements: trait_impl.refts,
-                    }),
-                },
-            )
-            .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
+        self.inner.insert_item(
+            owner_id,
+            surface::Item {
+                kind: surface::ItemKind::Impl(surface::Impl {
+                    generics: None,
+                    assoc_refinements: trait_impl.refts,
+                }),
+            },
+        )?;
 
         // 2. Collect the method specifications
         let tcx = self.inner.tcx;
@@ -355,10 +343,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             if let Some(def_id) = self.unwrap_def_id(&def_id)? {
                 dbg::hyperlink!(self.inner.tcx, path.span, self.inner.tcx.def_span(def_id));
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.inner
-                    .specs
-                    .insert_item(owner_id, surface::Item { kind: surface::ItemKind::Fn(fn_spec) })
-                    .map_err(|_| self.inner.err_multiple_specs(owner_id.to_def_id(), None))?;
+                self.inner.insert_item(
+                    owner_id,
+                    surface::Item { kind: surface::ItemKind::Fn(fn_spec) },
+                )?;
             }
         }
         Ok(())
