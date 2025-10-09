@@ -1744,7 +1744,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<(Vec<fixpoint::FunDef>, Vec<fixpoint::ConstDecl>)> {
-        let reveals: UnordSet<FluxDefId> = self.genv.reveals_for(def_id.local_id())?.collect();
+        let reveals: UnordSet<FluxDefId> = self
+            .genv
+            .reveals_for(def_id.local_id())
+            .into_iter()
+            .copied()
+            .collect();
         let proven_externally = self.genv.proven_externally(def_id.local_id());
         let mut consts = vec![];
         let mut defs = vec![];

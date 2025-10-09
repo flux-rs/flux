@@ -114,7 +114,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn desugar_item(&mut self, item: &surface::Item) -> Result<fhir::Item<'genv>> {
         match &item.kind {
             surface::ItemKind::Fn(fn_sig) => {
-                let (generics, fn_sig) = self.desugar_fn_sig(item.node_id, fn_sig.as_ref())?;
+                let (generics, fn_sig) = self.desugar_fn_sig(fn_sig.as_ref())?;
                 Ok(fhir::Item { generics, kind: fhir::ItemKind::Fn(fn_sig), owner_id: self.owner })
             }
             surface::ItemKind::Struct(struct_def) => Ok(self.desugar_struct_def(struct_def)),
@@ -131,7 +131,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::TraitItemFn,
     ) -> Result<fhir::TraitItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_sig(item.node_id, item.sig.as_ref())?;
+        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
         Ok(fhir::TraitItem {
             generics,
             kind: fhir::TraitItemKind::Fn(fn_sig),
@@ -143,7 +143,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::ImplItemFn,
     ) -> Result<fhir::ImplItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_sig(item.node_id, item.sig.as_ref())?;
+        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
@@ -476,7 +476,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_fn_sig(
         &mut self,
-        node_id: NodeId,
         fn_sig: Option<&surface::FnSig>,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
         let mut header = self.lift_fn_header();
@@ -520,26 +519,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-
-        let qual_names = &self
-            .resolver_output
-            .qualifier_res_map
-            .get(&node_id)
-            .map_or(&[][..], Vec::as_slice);
-        let reveal_names = &self
-            .resolver_output
-            .reveal_res_map
-            .get(&node_id)
-            .map_or(&[][..], Vec::as_slice);
-        Ok((
-            generics,
-            fhir::FnSig {
-                header,
-                qualifiers: self.genv.alloc_slice(qual_names),
-                reveals: self.genv.alloc_slice(reveal_names),
-                decl: self.genv.alloc(decl),
-            },
-        ))
+        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl) }))
     }
 
     fn desugar_fn_sig_refine_params(

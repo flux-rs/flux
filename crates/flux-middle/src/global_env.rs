@@ -152,11 +152,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let quals = if let Some(fn_sig) = self.fhir_expect_owner_node(did)?.fn_sig() {
-            fn_sig.qualifiers
-        } else {
-            &[]
-        };
+        let quals = self.fhir_attr_map(did).qualifiers;
         let names: UnordSet<_> = quals.iter().copied().collect();
         Ok(self
             .qualifiers()?
@@ -165,13 +161,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
-    pub fn reveals_for(self, did: LocalDefId) -> QueryResult<impl Iterator<Item = FluxDefId>> {
-        let reveals = if let Some(fn_sig) = self.fhir_expect_owner_node(did)?.fn_sig() {
-            fn_sig.reveals
-        } else {
-            &[]
-        };
-        Ok(reveals.iter().copied())
+    pub fn reveals_for(self, did: LocalDefId) -> &'genv [FluxDefId] {
+        self.fhir_attr_map(did).reveals
     }
 
     pub fn func_sort(self, def_id: impl IntoQueryParam<FluxDefId>) -> rty::PolyFuncSort {

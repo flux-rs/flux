@@ -465,10 +465,6 @@ pub struct Requires<'fhir> {
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
-    //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [FluxLocalDefId],
-    //// List of reveals for this function
-    pub reveals: &'fhir [FluxDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 
