@@ -77,6 +77,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.desugar(self, def_id)
     }
 
+    pub fn fhir_attr_map(self, def_id: LocalDefId) -> fhir::AttrMap<'genv> {
+        self.inner.queries.fhir_attr_map(self, def_id)
+    }
+
     pub fn fhir_crate(self) -> &'genv fhir::FluxItems<'genv> {
         self.inner.queries.fhir_crate(self)
     }

@@ -18,9 +18,10 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_config::PartialInferOpts;
 use flux_rustc_bridge::def_id_to_string;
-use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
+use flux_syntax::surface::{Ignored, ParamMode, Trusted};
 use itertools::Itertools;
 use rustc_abi;
 pub use rustc_abi::VariantIdx;
@@ -40,6 +41,22 @@ use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
+
+#[derive(Clone, Copy, Default)]
+pub struct AttrMap<'fhir> {
+    pub attrs: &'fhir [Attr],
+    pub qualifiers: &'fhir [FluxLocalDefId],
+    pub reveals: &'fhir [FluxDefId],
+}
+
+pub enum Attr {
+    Trusted(Trusted),
+    TrustedImpl(Trusted),
+    Ignore(Ignored),
+    ProvenExternally,
+    ShouldFail,
+    InferOpts(PartialInferOpts),
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Generics<'fhir> {
