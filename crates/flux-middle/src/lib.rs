@@ -464,9 +464,7 @@ impl Specs {
                     surface::Attr::ShouldFail => {
                         self.should_fail.insert(def_id);
                     }
-                    surface::Attr::Hide
-                    | surface::Attr::Qualifiers(_)
-                    | surface::Attr::Reveal(_) => {}
+                    surface::Attr::Qualifiers(_) | surface::Attr::Reveal(_) => {}
                 }
             }
         };

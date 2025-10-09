@@ -15,19 +15,82 @@ use crate::{
     surface::{
         self, Async,
         Attr::{self},
-        Attrs, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
-        DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
-        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
-        GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
-        LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
-        Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort,
-        SortDecl, SortPath, SpecFunc, Spread, StructDef, SyntaxAttr, TraitAssocReft, TraitRef,
-        Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind, ConstructorArg,
+        DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs, DetachedTrait,
+        DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr,
+        FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
+        GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
+        ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
+        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
+        Spread, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp,
+        VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
 };
+
+/// An attribute that's considered part of the *syntax* of an item.
+///
+/// This is in contrast to a [`surface::Attr`] which changes the behavior of an item. For example,
+/// a `#[refined_by(...)]` is part of the syntax of an adt: we could think of a different syntax
+/// that doesn't use an attribute. The existence of a syntax attribute in the token stream can be
+/// used to decide how to keep parsing, for example, if we see a `#[reft]` we know that the next
+/// item bust be an associated refinement and not a method inside an impl or trait.
+enum SyntaxAttr {
+    /// A `#[reft]` attribute
+    Reft,
+    /// A `#[invariant]` attribute
+    Invariant(Expr),
+    /// A `#[refined_by(...)]` attribute
+    RefinedBy(RefineParams),
+    /// A `#[hide]` attribute
+    ///
+    /// NOTE(nilehmann) This should be considered a normal attribute, but we haven't implemented
+    /// attributes for flux items. If we start seeing more of these we should consider implementing
+    /// the infrastructure necesary to keep a list of attributes inside the flux item like we do
+    /// for rust items.
+    Hide,
+}
+
+#[derive(Default)]
+struct ParsedAttrs {
+    normal: Vec<Attr>,
+    syntax: Vec<SyntaxAttr>,
+}
+
+impl ParsedAttrs {
+    fn is_reft(&self) -> bool {
+        self.syntax
+            .iter()
+            .any(|attr| matches!(attr, SyntaxAttr::Reft))
+    }
+
+    fn is_hide(&self) -> bool {
+        self.syntax
+            .iter()
+            .any(|attr| matches!(attr, SyntaxAttr::Hide))
+    }
+
+    fn refined_by(&mut self) -> Option<RefineParams> {
+        let pos = self
+            .syntax
+            .iter()
+            .position(|x| matches!(x, SyntaxAttr::RefinedBy(_)))?;
+        if let SyntaxAttr::RefinedBy(params) = self.syntax.remove(pos) {
+            Some(params)
+        } else {
+            None
+        }
+    }
+
+    fn invariant(&mut self) -> Option<Expr> {
+        let pos = self
+            .syntax
+            .iter()
+            .position(|x| matches!(x, SyntaxAttr::Invariant(_)))?;
+        if let SyntaxAttr::Invariant(exp) = self.syntax.remove(pos) { Some(exp) } else { None }
+    }
+}
 
 /// ```text
 ///   yes ⟨ , reason = ⟨literal⟩ ⟩?
@@ -155,7 +218,7 @@ fn parse_detached_field(cx: &mut ParseCtxt) -> ParseResult<(Ident, Ty)> {
 ///```text
 /// ⟨enum⟩ := enum Ident ⟨refine_info⟩ { ⟨variant⟩* }
 /// ```
-fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<DetachedItem> {
+fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: ParsedAttrs) -> ParseResult<DetachedItem> {
     cx.expect(kw::Enum)?;
     let path = parse_expr_path(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
@@ -174,7 +237,7 @@ fn parse_detached_enum(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<Deta
     })
 }
 
-fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: Attrs) -> ParseResult<DetachedItem> {
+fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: ParsedAttrs) -> ParseResult<DetachedItem> {
     cx.expect(kw::Struct)?;
     let path = parse_expr_path(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
@@ -203,7 +266,10 @@ fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
     ExprPath { segments, span, node_id: cx.next_node_id() }
 }
 
-fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem<FnSig>> {
+fn parse_detached_fn_sig(
+    cx: &mut ParseCtxt,
+    attrs: ParsedAttrs,
+) -> ParseResult<DetachedItem<FnSig>> {
     let fn_sig = parse_fn_sig(cx, token::Semi)?;
     let span = fn_sig.span;
     let ident = fn_sig
@@ -233,7 +299,7 @@ fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
 ///```text
 /// ⟨trait-spec⟩ ::= trait Ident { ⟨fn-spec⟩* }
 /// ```
-fn parse_detached_trait(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem> {
+fn parse_detached_trait(cx: &mut ParseCtxt, attrs: ParsedAttrs) -> ParseResult<DetachedItem> {
     cx.expect(kw::Trait)?;
     let path = parse_expr_path(cx)?;
     let _generics = parse_opt_generics(cx)?;
@@ -261,7 +327,7 @@ fn parse_detached_trait(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Detache
 ///```text
 /// ⟨impl-spec⟩ ::= impl Ident (for Ident)? { ⟨#[assoc] impl_assoc_reft⟩* ⟨fn-spec⟩* }
 /// ```
-fn parse_detached_impl(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem> {
+fn parse_detached_impl(cx: &mut ParseCtxt, attrs: ParsedAttrs) -> ParseResult<DetachedItem> {
     let lo = cx.lo();
     cx.expect(kw::Impl)?;
     let hi = cx.hi();
@@ -311,7 +377,7 @@ fn parse_detached_impl(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<Detached
     }
 }
 
-fn parse_attr(cx: &mut ParseCtxt, attrs: &mut Attrs) -> ParseResult {
+fn parse_attr(cx: &mut ParseCtxt, attrs: &mut ParsedAttrs) -> ParseResult {
     cx.expect(token::Pound)?;
     cx.expect(token::OpenBracket)?;
     let mut lookahead = cx.lookahead1();
@@ -322,7 +388,7 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut Attrs) -> ParseResult {
         }
         attrs.normal.push(Attr::Trusted(Trusted::Yes));
     } else if lookahead.advance_if(sym::hide) {
-        attrs.normal.push(Attr::Hide);
+        attrs.syntax.push(SyntaxAttr::Hide);
     } else if lookahead.advance_if(kw::Reft) {
         attrs.syntax.push(SyntaxAttr::Reft);
     } else if lookahead.advance_if(kw::RefinedBy) {
@@ -339,8 +405,8 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut Attrs) -> ParseResult {
     cx.expect(token::CloseBracket)
 }
 
-fn parse_attrs(cx: &mut ParseCtxt) -> ParseResult<Attrs> {
-    let mut attrs = Attrs::default();
+fn parse_attrs(cx: &mut ParseCtxt) -> ParseResult<ParsedAttrs> {
+    let mut attrs = ParsedAttrs::default();
     repeat_while(cx, token::Pound, |cx| parse_attr(cx, &mut attrs))?;
     Ok(attrs)
 }

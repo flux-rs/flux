@@ -601,6 +601,14 @@ impl From<bool> for Ignored {
     }
 }
 
+/// An attribute attaches metadata to an item.
+///
+/// Note that some of these attributes correspond to a Rust attribute, but some don't. For example,
+/// when annotating a function, a `#[flux::trusted]` is mapped to [`Attr::Trusted`] because it
+/// corresponds to metadata associated to the function, however, a `#[flux::spec(...)]` doesn't
+/// map to any [`Attr`] because that's considered to be part of the *refined syntax* of the item.
+///
+/// Note that these attributes can also originate from detached specs.
 #[derive(Debug)]
 pub enum Attr {
     /// A `#[trusted(...)]` attribute
@@ -613,61 +621,12 @@ pub enum Attr {
     ProvenExternally,
     /// A `#[should_fail]` attribute
     ShouldFail,
-    /// A `#[hide]` attribute
-    Hide,
     /// A `#[qualifiers(...)]` attribute
     Qualifiers(Vec<Ident>),
     /// A `#[reveal(...)]` attribute
     Reveal(Vec<Ident>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
-}
-
-pub enum SyntaxAttr {
-    /// A `#[reft]` attribute
-    Reft,
-    /// A `#[invariant]` attribute
-    Invariant(Expr),
-    /// A `#[refined_by]` attribute
-    RefinedBy(RefineParams),
-}
-
-#[derive(Default)]
-pub struct Attrs {
-    pub normal: Vec<Attr>,
-    pub syntax: Vec<SyntaxAttr>,
-}
-
-impl Attrs {
-    pub fn is_reft(&self) -> bool {
-        self.syntax
-            .iter()
-            .any(|attr| matches!(attr, SyntaxAttr::Reft))
-    }
-
-    pub fn is_hide(&self) -> bool {
-        self.normal.iter().any(|attr| matches!(attr, Attr::Hide))
-    }
-
-    pub fn refined_by(&mut self) -> Option<RefineParams> {
-        let pos = self
-            .syntax
-            .iter()
-            .position(|x| matches!(x, SyntaxAttr::RefinedBy(_)))?;
-        if let SyntaxAttr::RefinedBy(params) = self.syntax.remove(pos) {
-            Some(params)
-        } else {
-            None
-        }
-    }
-
-    pub fn invariant(&mut self) -> Option<Expr> {
-        let pos = self
-            .syntax
-            .iter()
-            .position(|x| matches!(x, SyntaxAttr::Invariant(_)))?;
-        if let SyntaxAttr::Invariant(exp) = self.syntax.remove(pos) { Some(exp) } else { None }
-    }
 }
 
 #[derive(Debug)]
