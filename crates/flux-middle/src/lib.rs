@@ -57,7 +57,7 @@ use rustc_data_structures::{
     fx::FxIndexMap,
     unord::{UnordMap, UnordSet},
 };
-use rustc_hir::OwnerId;
+use rustc_hir::{CRATE_OWNER_ID, OwnerId, def_id::CRATE_DEF_ID};
 use rustc_macros::extension;
 use rustc_middle::ty::TyCtxt;
 use rustc_span::{
@@ -471,6 +471,9 @@ impl Specs {
             }
         };
         let crate_items = tcx.hir_crate_items(());
+        if let Some(item) = self.items.get(&CRATE_OWNER_ID) {
+            f(CRATE_DEF_ID, &item.attrs);
+        }
         for item_id in crate_items.free_items() {
             if let Some(item) = self.items.get(&item_id.owner_id) {
                 f(item_id.owner_id.def_id, &item.attrs);

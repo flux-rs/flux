@@ -125,6 +125,7 @@ pub enum ItemKind {
     Const(ConstantInfo),
     TyAlias(Box<TyAlias>),
     /// Modules can't be refined but we collect attributes for them, e.g., `#[trusted]`
+    /// This kind is also used for the crate root, for which we also collect attributes.
     Mod,
 }
 

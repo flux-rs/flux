@@ -95,13 +95,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn collect_crate(&mut self) -> Result {
         let mut attrs = self.parse_attrs_and_report_dups(CRATE_DEF_ID)?;
         DetachedSpecsCollector::collect(self, &mut attrs, CRATE_DEF_ID)?;
-
-        self.specs
-            .flux_items_by_parent
-            .entry(CRATE_OWNER_ID)
-            .or_default()
-            .extend(attrs.items());
-        Ok(())
+        self.collect_mod(CRATE_OWNER_ID, attrs)
     }
 
     fn collect_item(&mut self, item: &'tcx Item<'tcx>) -> Result {
@@ -213,6 +207,19 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             .entry(module_id)
             .or_default()
             .extend(attrs.items());
+
+        if attrs.has_attrs() {
+            let node_id = self.next_node_id();
+            self.insert_item(
+                module_id,
+                surface::Item {
+                    attrs: attrs.into_attr_vec(),
+                    kind: surface::ItemKind::Mod,
+                    node_id,
+                },
+            )?;
+        }
+
         Ok(())
     }
 
