@@ -242,7 +242,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let Some(ty_alias) = attrs.ty_alias() {
             self.insert_item(
                 owner_id,
-                surface::Item { kind: surface::ItemKind::TyAlias(*ty_alias) },
+                surface::Item { kind: surface::ItemKind::TyAlias(ty_alias) },
             )?;
         }
         Ok(())

@@ -120,7 +120,7 @@ pub enum ItemKind {
     Trait(Trait),
     Impl(Impl),
     Const(ConstantInfo),
-    TyAlias(TyAlias),
+    TyAlias(Box<TyAlias>),
 }
 
 pub struct TraitItemFn {

@@ -143,6 +143,7 @@ fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv> {
     }
 }
 
+#[allow(clippy::disallowed_methods, reason = "Ths is the source of truth for FluxDefId's")]
 fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItems<'genv>> {
     let specs = genv.collect_specs();
     let resolver_output = genv.resolve_crate();
