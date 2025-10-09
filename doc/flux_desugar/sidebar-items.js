@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["desugar","desugar_crate","provide","try_desugar_crate"],"mod":["desugar","errors","resolver"],"static":["DEFAULT_LOCALE_RESOURCE"],"struct":["DesugarCtxt"],"type":["Result"]};
+window.SIDEBAR_ITEMS = {"fn":["desugar","desugar_crate","fhir_attr_map","provide","try_desugar_crate"],"mod":["desugar","errors","resolver"],"static":["DEFAULT_LOCALE_RESOURCE"],"struct":["DesugarCtxt"],"type":["Result"]};
