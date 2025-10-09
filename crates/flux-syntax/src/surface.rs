@@ -551,6 +551,9 @@ pub enum Attr {
     ProvenExternally,
     /// A `#[hide]` attribute
     Hide,
+}
+
+pub enum SyntaxAttr {
     /// A `#[reft]` attribute
     Reft,
     /// A `#[invariant]` attribute
@@ -559,37 +562,51 @@ pub enum Attr {
     RefinedBy(RefineParams),
 }
 
-pub struct Attrs(pub Vec<Attr>);
+#[derive(Default)]
+pub struct Attrs {
+    pub normal: Vec<Attr>,
+    pub syntax: Vec<SyntaxAttr>,
+}
 
 impl Attrs {
-    pub fn is_reft(&self) -> bool {
-        self.0.iter().any(|attr| matches!(attr, Attr::Reft))
-    }
-
     pub fn is_trusted(&self) -> bool {
-        self.0.iter().any(|attr| matches!(attr, Attr::Trusted))
+        self.normal.iter().any(|attr| matches!(attr, Attr::Trusted))
     }
 
     pub fn is_proven_externally(&self) -> bool {
-        self.0
+        self.normal
             .iter()
             .any(|attr| matches!(attr, Attr::ProvenExternally))
     }
 
+    pub fn is_reft(&self) -> bool {
+        self.syntax
+            .iter()
+            .any(|attr| matches!(attr, SyntaxAttr::Reft))
+    }
+
+    pub fn is_hide(&self) -> bool {
+        self.normal.iter().any(|attr| matches!(attr, Attr::Hide))
+    }
+
     pub fn refined_by(&mut self) -> Option<RefineParams> {
         let pos = self
-            .0
+            .syntax
             .iter()
-            .position(|x| matches!(x, Attr::RefinedBy(_)))?;
-        if let Attr::RefinedBy(params) = self.0.remove(pos) { Some(params) } else { None }
+            .position(|x| matches!(x, SyntaxAttr::RefinedBy(_)))?;
+        if let SyntaxAttr::RefinedBy(params) = self.syntax.remove(pos) {
+            Some(params)
+        } else {
+            None
+        }
     }
 
     pub fn invariant(&mut self) -> Option<Expr> {
         let pos = self
-            .0
+            .syntax
             .iter()
-            .position(|x| matches!(x, Attr::Invariant(_)))?;
-        if let Attr::Invariant(exp) = self.0.remove(pos) { Some(exp) } else { None }
+            .position(|x| matches!(x, SyntaxAttr::Invariant(_)))?;
+        if let SyntaxAttr::Invariant(exp) = self.syntax.remove(pos) { Some(exp) } else { None }
     }
 }
 

@@ -22,8 +22,8 @@ use crate::{
         GenericArg, GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft,
         Indices, LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
         Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort,
-        SortDecl, SortPath, SpecFunc, Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias,
-        TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
+        SortDecl, SortPath, SpecFunc, Spread, StructDef, SyntaxAttr, TraitAssocReft, TraitRef, Ty,
+        TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -298,45 +298,38 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     }
 }
 
-fn parse_attr(cx: &mut ParseCtxt) -> ParseResult<Attr> {
+fn parse_attr(cx: &mut ParseCtxt, attrs: &mut Attrs) -> ParseResult {
     cx.expect(token::Pound)?;
     cx.expect(token::OpenBracket)?;
-    let attr = if cx.advance_if(kw::Trusted) {
+    let mut lookahead = cx.lookahead1();
+    if lookahead.advance_if(kw::Trusted) {
         if cx.advance_if(token::OpenParen) {
             parse_reason(cx)?;
             cx.expect(token::CloseParen)?;
         }
-        Attr::Trusted
-    } else if cx.advance_if(sym::hide) {
-        Attr::Hide
-    } else if cx.advance_if(kw::Reft) {
-        Attr::Reft
-    } else if cx.advance_if(kw::RefinedBy) {
-        Attr::RefinedBy(delimited(cx, Parenthesis, parse_refined_by)?)
-    } else if cx.advance_if(kw::Invariant) {
-        Attr::Invariant(delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?)
+        attrs.normal.push(Attr::Trusted);
+    } else if lookahead.advance_if(sym::hide) {
+        attrs.normal.push(Attr::Hide);
+    } else if lookahead.advance_if(kw::Reft) {
+        attrs.syntax.push(SyntaxAttr::Reft);
+    } else if lookahead.advance_if(kw::RefinedBy) {
+        attrs
+            .syntax
+            .push(SyntaxAttr::RefinedBy(delimited(cx, Parenthesis, parse_refined_by)?));
+    } else if lookahead.advance_if(kw::Invariant) {
+        attrs
+            .syntax
+            .push(SyntaxAttr::Invariant(delimited(cx, Parenthesis, |cx| parse_expr(cx, true))?));
     } else {
-        return Err(cx.unexpected_token(vec![Expected::Str(
-            "trusted, hide, reft, invariant, or refined_by",
-        )]));
+        return Err(lookahead.into_error());
     };
-    cx.expect(token::CloseBracket)?;
-    Ok(attr)
-}
-
-fn parse_attr_opt(cx: &mut ParseCtxt) -> ParseResult<Option<Attr>> {
-    if !cx.peek(token::Pound) {
-        return Ok(None);
-    }
-    Ok(Some(parse_attr(cx)?))
+    cx.expect(token::CloseBracket)
 }
 
 fn parse_attrs(cx: &mut ParseCtxt) -> ParseResult<Attrs> {
-    let mut attrs = vec![];
-    while let Some(attr) = parse_attr_opt(cx)? {
-        attrs.push(attr);
-    }
-    Ok(Attrs(attrs))
+    let mut attrs = Attrs::default();
+    repeat_while(cx, token::Pound, |cx| parse_attr(cx, &mut attrs))?;
+    Ok(attrs)
 }
 
 /// ```text
@@ -347,7 +340,8 @@ fn parse_attrs(cx: &mut ParseCtxt) -> ParseResult<Attrs> {
 ///               ⟨sort⟩
 /// ```
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
-    let hide = matches!(parse_attr_opt(cx)?, Some(Attr::Hide));
+    let attrs = parse_attrs(cx)?;
+    let hide = attrs.is_hide();
     cx.expect(kw::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;
