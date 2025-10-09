@@ -22,17 +22,18 @@ mod errors;
 pub mod resolver;
 
 use flux_middle::{
-    ResolverOutput, Specs,
+    ResolverOutput,
     def_id::FluxLocalDefId,
     fhir,
     global_env::GlobalEnv,
     queries::{Providers, QueryErr, QueryResult},
     query_bug,
 };
-use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::OwnerId;
 use rustc_span::def_id::LocalDefId;
+
+use crate::desugar::FluxItemCtxt;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
@@ -144,87 +145,22 @@ fn desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv> {
 
 fn try_desugar_crate<'genv>(genv: GlobalEnv<'genv, '_>) -> Result<fhir::FluxItems<'genv>> {
     let specs = genv.collect_specs();
-    let fhir = fhir::FluxItems::new();
     let resolver_output = genv.resolve_crate();
-    let mut cx = CrateDesugar::new(genv, fhir, resolver_output);
-    cx.desugar_flux_items(specs);
 
-    cx.err.into_result()?;
-    Ok(cx.fhir)
-}
-
-struct CrateDesugar<'genv, 'tcx> {
-    genv: GlobalEnv<'genv, 'tcx>,
-    fhir: fhir::FluxItems<'genv>,
-    resolver_output: &'genv ResolverOutput,
-    err: Option<ErrorGuaranteed>,
-}
-
-impl<'genv, 'tcx> CrateDesugar<'genv, 'tcx> {
-    fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        fhir: fhir::FluxItems<'genv>,
-        resolver_output: &'genv ResolverOutput,
-    ) -> Self {
-        Self { genv, fhir, resolver_output, err: None }
-    }
-}
-
-impl CrateDesugar<'_, '_> {
-    #[allow(clippy::disallowed_methods, reason = "`flux_items_by_parent` is the source of truth")]
-    fn desugar_flux_items(&mut self, specs: &Specs) {
-        for (parent, items) in &specs.flux_items_by_parent {
-            for item in items {
-                let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
-                match item {
-                    surface::FluxItem::Qualifier(qual) => {
-                        self.desugar_qualifier(def_id, qual)
-                            .collect_err(&mut self.err);
-                    }
-                    surface::FluxItem::FuncDef(defn) => {
-                        self.desugar_func_defn(def_id, defn)
-                            .collect_err(&mut self.err);
-                    }
-                    surface::FluxItem::SortDecl(_) => {}
-                    surface::FluxItem::PrimOpProp(primop_prop) => {
-                        self.desugar_primop_prop(def_id, primop_prop)
-                            .collect_err(&mut self.err);
-                    }
+    let mut fhir = fhir::FluxItems::new();
+    let mut err: Option<ErrorGuaranteed> = None;
+    for (parent, items) in &specs.flux_items_by_parent {
+        for item in items {
+            let def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
+            FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
+                if let Some(item) = cx.desugar_flux_item(item) {
+                    fhir.items.insert(def_id, item);
                 }
-            }
+            })
+            .collect_err(&mut err);
         }
     }
+    err.into_result()?;
 
-    fn desugar_primop_prop(
-        &mut self,
-        def_id: FluxLocalDefId,
-        prop: &surface::PrimOpProp,
-    ) -> Result {
-        let prop = desugar::desugar_primop_prop(self.genv, self.resolver_output, def_id, prop)?;
-        self.fhir
-            .items
-            .insert(def_id, fhir::FluxItem::PrimOpProp(self.genv.alloc(prop)));
-        Ok(())
-    }
-
-    fn desugar_func_defn(&mut self, def_id: FluxLocalDefId, func: &surface::SpecFunc) -> Result {
-        let func = desugar::desugar_spec_func(self.genv, self.resolver_output, def_id, func)?;
-        self.fhir
-            .items
-            .insert(def_id, fhir::FluxItem::Func(self.genv.alloc(func)));
-        Ok(())
-    }
-
-    fn desugar_qualifier(
-        &mut self,
-        def_id: FluxLocalDefId,
-        qualifier: &surface::Qualifier,
-    ) -> Result {
-        let qualifier =
-            desugar::desugar_qualifier(self.genv, self.resolver_output, def_id, qualifier)?;
-        self.fhir
-            .items
-            .insert(def_id, fhir::FluxItem::Qualifier(self.genv.alloc(qualifier)));
-        Ok(())
-    }
+    Ok(fhir)
 }
