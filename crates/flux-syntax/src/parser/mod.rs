@@ -134,9 +134,9 @@ pub(crate) fn parse_detached_item(cx: &mut ParseCtxt) -> ParseResult<DetachedIte
     } else if lookahead.peek(kw::Enum) {
         parse_detached_enum(cx, attrs)
     } else if lookahead.peek(kw::Impl) {
-        parse_detached_impl(cx)
+        parse_detached_impl(cx, attrs)
     } else if lookahead.peek(kw::Trait) {
-        parse_detached_trait(cx)
+        parse_detached_trait(cx, attrs)
     } else {
         Err(lookahead.into_error())
     }
@@ -233,7 +233,7 @@ fn parse_detached_mod(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
 ///```text
 /// ⟨trait-spec⟩ ::= trait Ident { ⟨fn-spec⟩* }
 /// ```
-fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
+fn parse_detached_trait(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem> {
     cx.expect(kw::Trait)?;
     let path = parse_expr_path(cx)?;
     let _generics = parse_opt_generics(cx)?;
@@ -242,16 +242,16 @@ fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     let mut items = vec![];
     let mut refts = vec![];
     while !cx.peek(TokenKind::close_delim(Brace)) {
-        let attrs = parse_attrs(cx)?;
-        if attrs.is_reft() {
+        let assoc_item_attrs = parse_attrs(cx)?;
+        if assoc_item_attrs.is_reft() {
             refts.push(parse_trait_assoc_reft(cx)?);
         } else {
-            items.push(parse_detached_fn_sig(cx, attrs)?);
+            items.push(parse_detached_fn_sig(cx, assoc_item_attrs)?);
         }
     }
     cx.expect(TokenKind::close_delim(Brace))?;
     Ok(DetachedItem {
-        attrs: vec![],
+        attrs: attrs.normal,
         path,
         kind: DetachedItemKind::Trait(DetachedTrait { items, refts }),
         node_id: cx.next_node_id(),
@@ -261,7 +261,7 @@ fn parse_detached_trait(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
 ///```text
 /// ⟨impl-spec⟩ ::= impl Ident (for Ident)? { ⟨#[assoc] impl_assoc_reft⟩* ⟨fn-spec⟩* }
 /// ```
-fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
+fn parse_detached_impl(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem> {
     let lo = cx.lo();
     cx.expect(kw::Impl)?;
     let hi = cx.hi();
@@ -281,17 +281,17 @@ fn parse_detached_impl(cx: &mut ParseCtxt) -> ParseResult<DetachedItem> {
     let mut refts = vec![];
     while !cx.peek(TokenKind::close_delim(Brace)) {
         // if inner_path.is_none, we are parsing an inherent impl with no associated-refts
-        let attrs = parse_attrs(cx)?;
-        if attrs.is_reft() && inner_path.is_some() {
+        let assoc_item_attrs = parse_attrs(cx)?;
+        if assoc_item_attrs.is_reft() && inner_path.is_some() {
             refts.push(parse_impl_assoc_reft(cx)?);
         } else {
-            items.push(parse_detached_fn_sig(cx, attrs)?);
+            items.push(parse_detached_fn_sig(cx, assoc_item_attrs)?);
         }
     }
     cx.expect(TokenKind::close_delim(Brace))?;
     if let Some(path) = inner_path {
         Ok(DetachedItem {
-            attrs: vec![],
+            attrs: attrs.normal,
             path,
             kind: DetachedItemKind::TraitImpl(DetachedTraitImpl {
                 trait_: outer_path,
