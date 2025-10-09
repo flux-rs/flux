@@ -409,11 +409,6 @@ impl Specs {
         if let Some(old) = self.items.insert(owner_id, item) {
             return Some(old);
         }
-        if let surface::ItemKind::Fn(fn_spec) = &self.items[&owner_id].kind
-            && fn_spec.trusted
-        {
-            self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
-        }
         None
     }
 
@@ -429,9 +424,6 @@ impl Specs {
         if let Some(old) = self.trait_items.insert(owner_id, trait_item) {
             return Some(old);
         }
-        if self.trait_items[&owner_id].spec.trusted {
-            self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
-        }
         None
     }
 
@@ -446,9 +438,6 @@ impl Specs {
     ) -> Option<surface::ImplItemFn> {
         if let Some(old) = self.impl_items.insert(owner_id, impl_item) {
             return Some(old);
-        }
-        if self.impl_items[&owner_id].spec.trusted {
-            self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
         }
         None
     }

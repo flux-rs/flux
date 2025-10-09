@@ -68,13 +68,14 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
 
     fn collect_extern_fn(&mut self, item: &hir::Item, mut attrs: FluxAttrs) -> Result {
         if attrs.has_attrs() {
-            let spec = self.inner.collect_fn_spec(item.owner_id, attrs.fn_sig())?;
+            let sig = attrs.fn_sig();
+            self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
             self.inner.insert_item(
                 item.owner_id,
                 surface::Item {
                     attrs: attrs.into_attr_vec(),
-                    kind: surface::ItemKind::Fn(spec),
+                    kind: surface::ItemKind::Fn(sig),
                     node_id,
                 },
             )?;
@@ -209,11 +210,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
         mut attrs: FluxAttrs,
     ) -> Result<ExternImplItem> {
         if attrs.has_attrs() {
-            let spec = self.inner.collect_fn_spec(item.owner_id, attrs.fn_sig())?;
+            let sig = attrs.fn_sig();
+            self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
             self.inner.insert_impl_item(
                 item.owner_id,
-                surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
+                surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
         }
 
@@ -260,11 +262,12 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
     ) -> Result {
         let item_id = item.owner_id;
         if attrs.has_attrs() {
-            let spec = self.inner.collect_fn_spec(item_id, attrs.fn_sig())?;
+            let sig = attrs.fn_sig();
+            self.inner.check_fn_sig_name(item.owner_id, sig.as_ref())?;
             let node_id = self.inner.next_node_id();
             self.inner.insert_trait_item(
                 item.owner_id,
-                surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
+                surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
             )?;
         }
 

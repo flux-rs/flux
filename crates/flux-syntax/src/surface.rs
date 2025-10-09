@@ -116,7 +116,7 @@ pub struct Item {
 }
 
 pub enum ItemKind {
-    Fn(FnSpec),
+    Fn(Option<FnSig>),
     Struct(StructDef),
     Enum(EnumDef),
     Trait(Trait),
@@ -127,13 +127,13 @@ pub enum ItemKind {
 
 pub struct TraitItemFn {
     pub attrs: Vec<Attr>,
-    pub spec: FnSpec,
+    pub sig: Option<FnSig>,
     pub node_id: NodeId,
 }
 
 pub struct ImplItemFn {
     pub attrs: Vec<Attr>,
-    pub spec: FnSpec,
+    pub sig: Option<FnSig>,
     pub node_id: NodeId,
 }
 
@@ -145,20 +145,20 @@ pub struct DetachedSpecs {
 #[derive(Debug)]
 pub struct DetachedTraitImpl {
     pub trait_: ExprPath,
-    pub items: Vec<DetachedItem<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSig>>,
     pub refts: Vec<ImplAssocReft>,
     pub span: Span,
 }
 
 #[derive(Debug, Default)]
 pub struct DetachedTrait {
-    pub items: Vec<DetachedItem<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSig>>,
     pub refts: Vec<TraitAssocReft>,
 }
 
 #[derive(Debug)]
 pub struct DetachedInherentImpl {
-    pub items: Vec<DetachedItem<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSig>>,
     pub span: Span,
 }
 
@@ -199,7 +199,7 @@ impl DetachedItem<DetachedItemKind> {
 
 #[derive(Debug)]
 pub enum DetachedItemKind {
-    FnSig(FnSpec),
+    FnSig(FnSig),
     Mod(DetachedSpecs),
     Struct(StructDef),
     Enum(EnumDef),
@@ -333,15 +333,6 @@ pub struct TraitAssocReft {
     pub body: Option<Expr>,
     pub span: Span,
     pub final_: bool,
-}
-
-#[derive(Debug)]
-pub struct FnSpec {
-    pub fn_sig: Option<FnSig>,
-    pub qual_names: Option<QualNames>,
-    pub reveal_names: Option<RevealNames>,
-    pub trusted: bool,
-    pub node_id: NodeId,
 }
 
 #[derive(Debug)]

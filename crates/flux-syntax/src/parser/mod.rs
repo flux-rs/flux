@@ -18,9 +18,9 @@ use crate::{
         Attrs, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
         ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs,
         DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath,
-        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, FnSpec,
-        GenericArg, GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft,
-        Indices, LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
+        ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg,
+        GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices,
+        LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, QualNames,
         Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, RevealNames, Sort,
         SortDecl, SortPath, SpecFunc, Spread, StructDef, SyntaxAttr, TraitAssocReft, TraitRef, Ty,
         TyAlias, TyKind, UnOp, VariantDef, VariantRet, WhereBoundPredicate,
@@ -203,22 +203,14 @@ fn ident_path(cx: &mut ParseCtxt, ident: Ident) -> ExprPath {
     ExprPath { segments, span, node_id: cx.next_node_id() }
 }
 
-fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem<FnSpec>> {
-    let trusted = attrs.is_trusted();
+fn parse_detached_fn_sig(cx: &mut ParseCtxt, attrs: Attrs) -> ParseResult<DetachedItem<FnSig>> {
     let fn_sig = parse_fn_sig(cx, token::Semi)?;
     let span = fn_sig.span;
     let ident = fn_sig
         .ident
         .ok_or(ParseError { kind: crate::ParseErrorKind::InvalidDetachedSpec, span })?;
     let path = ident_path(cx, ident);
-    let fn_spec = FnSpec {
-        fn_sig: Some(fn_sig),
-        qual_names: None,
-        reveal_names: None,
-        trusted,
-        node_id: cx.next_node_id(),
-    };
-    Ok(DetachedItem { attrs: attrs.normal, path, kind: fn_spec, node_id: cx.next_node_id() })
+    Ok(DetachedItem { attrs: attrs.normal, path, kind: fn_sig, node_id: cx.next_node_id() })
 }
 
 ///```text

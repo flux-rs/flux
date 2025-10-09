@@ -729,12 +729,17 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         }
     }
 
-    fn resolve_qualifiers(
-        &mut self,
-        fn_spec_id: surface::NodeId,
-        quals: Option<&surface::QualNames>,
-    ) {
-        let qual_names = quals.map_or(&[][..], |q| &q.names[..]);
+    fn resolve_reveal_and_qualifiers(&mut self, node_id: surface::NodeId, attrs: &[surface::Attr]) {
+        for attr in attrs {
+            match attr {
+                surface::Attr::Qualifiers(names) => self.resolve_qualifiers(node_id, names),
+                surface::Attr::Reveal(names) => self.resolve_reveals(node_id, names),
+                _ => {}
+            }
+        }
+    }
+
+    fn resolve_qualifiers(&mut self, node_id: surface::NodeId, qual_names: &[Ident]) {
         let mut qualifiers = Vec::with_capacity(qual_names.len());
         for qual in qual_names {
             if let Some(def_id) = self.resolver.qualifiers.get(&qual.name) {
@@ -746,15 +751,10 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         self.resolver
             .output
             .qualifier_res_map
-            .insert(fn_spec_id, qualifiers);
+            .insert(node_id, qualifiers);
     }
 
-    fn resolve_reveals(
-        &mut self,
-        fn_spec_id: surface::NodeId,
-        reveals: Option<&surface::RevealNames>,
-    ) {
-        let reveal_names = reveals.map_or(&[][..], |q| &q.names[..]);
+    fn resolve_reveals(&mut self, item_id: surface::NodeId, reveal_names: &[Ident]) {
         let mut reveals = Vec::with_capacity(reveal_names.len());
         for reveal in reveal_names {
             if let Some(spec) = self.resolver.func_decls.get(&reveal.name)
@@ -766,14 +766,26 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
                     .emit(errors::UnknownRevealDefinition::new(reveal.span));
             }
         }
-        self.resolver
-            .output
-            .reveal_res_map
-            .insert(fn_spec_id, reveals);
+        self.resolver.output.reveal_res_map.insert(item_id, reveals);
     }
 }
 
 impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
+    fn visit_item(&mut self, item: &surface::Item) {
+        self.resolve_reveal_and_qualifiers(item.node_id, &item.attrs);
+        surface::visit::walk_item(self, item);
+    }
+
+    fn visit_trait_item(&mut self, item: &surface::TraitItemFn) {
+        self.resolve_reveal_and_qualifiers(item.node_id, &item.attrs);
+        surface::visit::walk_trait_item(self, item);
+    }
+
+    fn visit_impl_item(&mut self, item: &surface::ImplItemFn) {
+        self.resolve_reveal_and_qualifiers(item.node_id, &item.attrs);
+        surface::visit::walk_impl_item(self, item);
+    }
+
     fn visit_trait(&mut self, trait_: &surface::Trait) {
         let mut definitions = DefinitionMap::default();
         for assoc_reft in &trait_.assoc_refinements {
@@ -788,12 +800,6 @@ impl surface::visit::Visitor for ItemResolver<'_, '_, '_> {
             let _ = definitions.define(assoc_reft.name).emit(&self.errors);
         }
         surface::visit::walk_impl(self, impl_);
-    }
-
-    fn visit_fn_spec(&mut self, fn_spec: &surface::FnSpec) {
-        self.resolve_qualifiers(fn_spec.node_id, fn_spec.qual_names.as_ref());
-        self.resolve_reveals(fn_spec.node_id, fn_spec.reveal_names.as_ref());
-        surface::visit::walk_fn_spec(self, fn_spec);
     }
 
     fn visit_generic_arg(&mut self, arg: &surface::GenericArg) {

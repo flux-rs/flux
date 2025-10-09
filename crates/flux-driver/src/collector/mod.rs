@@ -125,13 +125,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::Fn { .. } => {
                 self.collect_proven_externally(&mut attrs, owner_id.def_id);
                 if attrs.has_attrs() {
-                    let fn_spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                    let fn_sig = attrs.fn_sig();
+                    self.check_fn_sig_name(owner_id, fn_sig.as_ref())?;
                     let node_id = self.next_node_id();
                     self.insert_item(
                         owner_id,
                         surface::Item {
                             attrs: attrs.into_attr_vec(),
-                            kind: surface::ItemKind::Fn(fn_spec),
+                            kind: surface::ItemKind::Fn(fn_sig),
                             node_id,
                         },
                     )?;
@@ -182,11 +183,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let rustc_hir::TraitItemKind::Fn(_, _) = trait_item.kind {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
             if attrs.has_attrs() {
-                let spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                let sig = attrs.fn_sig();
+                self.check_fn_sig_name(owner_id, sig.as_ref())?;
                 let node_id = self.next_node_id();
                 self.insert_trait_item(
                     owner_id,
-                    surface::TraitItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
+                    surface::TraitItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
                 )?;
             }
         }
@@ -204,11 +206,12 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if let ImplItemKind::Fn(..) = &impl_item.kind {
             self.collect_proven_externally(&mut attrs, owner_id.def_id);
             if attrs.has_attrs() {
-                let spec = self.collect_fn_spec(owner_id, attrs.fn_sig())?;
+                let sig = attrs.fn_sig();
+                self.check_fn_sig_name(owner_id, sig.as_ref())?;
                 let node_id = self.next_node_id();
                 self.insert_impl_item(
                     owner_id,
-                    surface::ImplItemFn { attrs: attrs.into_attr_vec(), spec, node_id },
+                    surface::ImplItemFn { attrs: attrs.into_attr_vec(), sig, node_id },
                 )?;
             }
         }
@@ -415,12 +418,8 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         self.parse_constant_spec(owner_id, attrs)
     }
 
-    fn collect_fn_spec(
-        &mut self,
-        owner_id: OwnerId,
-        fn_sig: Option<surface::FnSig>,
-    ) -> Result<surface::FnSpec> {
-        if let Some(fn_sig) = fn_sig.as_ref()
+    fn check_fn_sig_name(&mut self, owner_id: OwnerId, fn_sig: Option<&surface::FnSig>) -> Result {
+        if let Some(fn_sig) = fn_sig
             && let Some(ident) = fn_sig.ident
             && let Some(item_ident) = self.tcx.opt_item_ident(owner_id.to_def_id())
             && ident != item_ident
@@ -431,14 +430,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 owner_id.to_def_id(),
             )));
         };
-
-        Ok(surface::FnSpec {
-            fn_sig,
-            qual_names: None,
-            reveal_names: None,
-            trusted: false,
-            node_id: self.parse_sess.next_node_id(),
-        })
+        Ok(())
     }
 
     fn parse_attrs_and_report_dups(&mut self, def_id: LocalDefId) -> Result<FluxAttrs> {

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, hash_map::Entry};
 
 use flux_common::dbg::{self, SpanTrace};
-use flux_syntax::surface::{self, DetachedItem, ExprPath, FnSpec, NodeId};
+use flux_syntax::surface::{self, DetachedItem, ExprPath, NodeId};
 use itertools::Itertools;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::{
@@ -224,12 +224,12 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         let dst_span = self.inner.tcx.def_span(def_id);
         dbg::hyperlink!(self.inner.tcx, span, dst_span);
         match item.kind {
-            surface::DetachedItemKind::FnSig(fn_spec) => {
+            surface::DetachedItemKind::FnSig(fn_sig) => {
                 self.inner.insert_item(
                     owner_id,
                     surface::Item {
                         attrs: item.attrs,
-                        kind: surface::ItemKind::Fn(fn_spec),
+                        kind: surface::ItemKind::Fn(Some(fn_sig)),
                         node_id: item.node_id,
                     },
                 )?;
@@ -274,7 +274,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                             owner_id,
                             surface::ImplItemFn {
                                 attrs: item.attrs,
-                                spec: item.kind,
+                                sig: Some(item.kind),
                                 node_id: item.node_id,
                             },
                         )
@@ -314,7 +314,11 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         self.collect_assoc_methods(trait_def.items, assoc_items, |this, owner_id, item| {
             this.inner.insert_trait_item(
                 owner_id,
-                surface::TraitItemFn { attrs: item.attrs, spec: item.kind, node_id: item.node_id },
+                surface::TraitItemFn {
+                    attrs: item.attrs,
+                    sig: Some(item.kind),
+                    node_id: item.node_id,
+                },
             )
         })
     }
@@ -345,18 +349,23 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         self.collect_assoc_methods(trait_impl.items, assoc_items, |this, owner_id, item| {
             this.inner.insert_impl_item(
                 owner_id,
-                surface::ImplItemFn { attrs: item.attrs, spec: item.kind, node_id: item.node_id },
+                surface::ImplItemFn {
+                    attrs: item.attrs,
+                    sig: Some(item.kind),
+                    node_id: item.node_id,
+                },
             )
         })
     }
 
     fn collect_assoc_methods(
         &mut self,
-        methods: Vec<DetachedItem<FnSpec>>,
+        methods: Vec<DetachedItem<surface::FnSig>>,
         assoc_items: impl Iterator<Item = &'tcx AssocItem>,
-        mut insert_item: impl FnMut(&mut Self, OwnerId, DetachedItem<FnSpec>) -> Result,
+        mut insert_item: impl FnMut(&mut Self, OwnerId, DetachedItem<surface::FnSig>) -> Result,
     ) -> Result {
-        let mut table: HashMap<Symbol, DetachedItem<(FnSpec, Option<DefId>)>> = HashMap::default();
+        let mut table: HashMap<Symbol, DetachedItem<(surface::FnSig, Option<DefId>)>> =
+            HashMap::default();
         // 1. make a table of the impl-items
         for item in methods {
             let name = path_to_symbol(&item.path);
