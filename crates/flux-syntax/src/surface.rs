@@ -203,21 +203,6 @@ pub struct StructDef {
     pub invariants: Vec<Expr>,
 }
 
-impl StructDef {
-    /// Whether the struct contains any path that needs to be resolved.
-    pub fn needs_resolving(&self) -> bool {
-        self.fields.iter().any(Option::is_some)
-    }
-
-    /// Is a non-trivial StructDef
-    pub fn is_nontrivial(&self) -> bool {
-        self.refined_by.is_some()
-            || !self.invariants.is_empty()
-            || self.opaque
-            || self.fields.iter().any(Option::is_some)
-    }
-}
-
 #[derive(Debug)]
 pub struct EnumDef {
     pub generics: Option<Generics>,
@@ -225,20 +210,6 @@ pub struct EnumDef {
     pub variants: Vec<Option<VariantDef>>,
     pub invariants: Vec<Expr>,
     pub reflected: bool,
-}
-
-impl EnumDef {
-    /// Whether the enum contains any path that needs to be resolved.
-    pub fn needs_resolving(&self) -> bool {
-        self.variants.iter().any(Option::is_some)
-    }
-
-    pub fn is_nontrivial(&self) -> bool {
-        self.refined_by.is_some()
-            || !self.invariants.is_empty()
-            || self.reflected
-            || self.variants.iter().any(Option::is_some)
-    }
 }
 
 #[derive(Debug)]
@@ -320,12 +291,6 @@ pub struct Impl {
     pub assoc_refinements: Vec<ImplAssocReft>,
 }
 
-impl Impl {
-    pub fn is_nontrivial(&self) -> bool {
-        self.generics.is_some() || !self.assoc_refinements.is_empty()
-    }
-}
-
 #[derive(Debug)]
 pub struct ImplAssocReft {
     pub name: Ident,
@@ -341,11 +306,6 @@ pub struct Trait {
     pub assoc_refinements: Vec<TraitAssocReft>,
 }
 
-impl Trait {
-    pub fn is_nontrivial(&self) -> bool {
-        self.generics.is_some() || !self.assoc_refinements.is_empty()
-    }
-}
 #[derive(Debug)]
 pub struct TraitAssocReft {
     pub name: Ident,
