@@ -87,12 +87,15 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         fhir::ImplItem { owner_id: self.owner, generics, kind }
     }
 
-    pub fn lift_generics(&mut self) -> fhir::Generics<'genv> {
+    pub(crate) fn lift_generics(&mut self) -> fhir::Generics<'genv> {
         let generics = self.genv.tcx().hir_get_generics(self.local_id()).unwrap();
         self.lift_generics_inner(generics)
     }
 
-    pub fn lift_generic_param(&mut self, param: &hir::GenericParam) -> fhir::GenericParam<'genv> {
+    pub(crate) fn lift_generic_param(
+        &mut self,
+        param: &hir::GenericParam,
+    ) -> fhir::GenericParam<'genv> {
         let kind = match param.kind {
             hir::GenericParamKind::Lifetime { .. } => fhir::GenericParamKind::Lifetime,
             hir::GenericParamKind::Type { default, .. } => {
@@ -180,7 +183,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         Ok(fhir::OpaqueTy { def_id: MaybeExternId::Local(opaque_ty.def_id), bounds })
     }
 
-    pub fn lift_fn_header(&mut self) -> FnHeader {
+    pub(crate) fn lift_fn_header(&mut self) -> FnHeader {
         let hir_id = self.genv.tcx().local_def_id_to_hir_id(self.local_id());
         self.genv
             .tcx()
@@ -189,7 +192,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
             .header
     }
 
-    pub fn lift_fn_decl(&mut self) -> fhir::FnDecl<'genv> {
+    pub(crate) fn lift_fn_decl(&mut self) -> fhir::FnDecl<'genv> {
         let hir_id = self.genv.tcx().local_def_id_to_hir_id(self.local_id());
         let fn_sig = self
             .genv
@@ -241,7 +244,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         }
     }
 
-    pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> fhir::FieldDef<'genv> {
+    pub(crate) fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> fhir::FieldDef<'genv> {
         let ty = self.lift_ty(field_def.ty);
         fhir::FieldDef { ty, lifted: true }
     }
@@ -262,7 +265,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         }
     }
 
-    pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> fhir::VariantDef<'genv> {
+    pub(crate) fn lift_enum_variant(&mut self, variant: &hir::Variant) -> fhir::VariantDef<'genv> {
         let item = self.genv.tcx().hir_expect_item(self.local_id());
         let hir::ItemKind::Enum(_, generics, _) = &item.kind else { bug!("expected an enum") };
 
@@ -286,7 +289,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         }
     }
 
-    pub fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {
+    pub(crate) fn lift_variant_ret(&mut self) -> fhir::VariantRet<'genv> {
         let item = self.genv.tcx().hir_expect_item(self.local_id());
         let hir::ItemKind::Enum(_, generics, _) = &item.kind else { bug!("expected an enum") };
         self.lift_variant_ret_inner(generics)
@@ -304,7 +307,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         }
     }
 
-    pub fn lift_ty(&mut self, ty: &hir::Ty) -> fhir::Ty<'genv> {
+    fn lift_ty(&mut self, ty: &hir::Ty) -> fhir::Ty<'genv> {
         let kind = match ty.kind {
             hir::TyKind::Slice(ty) => {
                 let ty = self.lift_ty(ty);
@@ -548,7 +551,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         }
     }
 
-    pub fn lift_foreign_item(
+    pub(crate) fn lift_foreign_item(
         &mut self,
         foreign_item: hir::ForeignItem,
     ) -> Result<fhir::ForeignItem<'genv>> {
