@@ -31,7 +31,7 @@ use flux_middle::{
 };
 use flux_syntax::surface;
 use rustc_errors::ErrorGuaranteed;
-use rustc_hir::{self as hir, OwnerId};
+use rustc_hir::OwnerId;
 use rustc_span::def_id::LocalDefId;
 
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
@@ -55,191 +55,57 @@ pub fn desugar<'genv>(
     let owner_id = OwnerId { def_id };
     let mut nodes = UnordMap::default();
 
-    match genv.tcx().hir_node_by_def_id(def_id) {
-        rustc_hir::Node::Item(item) => {
-            match item.kind {
-                hir::ItemKind::Fn { .. } => {
-                    let fn_spec = specs.get_fn_spec(owner_id).unwrap();
-                    let mut opaque_tys = Default::default();
-                    let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
-                        cx.desugar_item_fn(fn_spec)
-                    })?;
-                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
-                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
-                    }));
-                    nodes.insert(def_id, fhir::Node::Item(genv.alloc(item)));
+    let mut opaque_tys = Default::default();
+    let node = match genv.tcx().hir_node_by_def_id(def_id) {
+        rustc_hir::Node::Item(_) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                match specs.get_item(owner_id) {
+                    Some(item) => cx.desugar_item(item),
+                    None => cx.lift_item(),
                 }
-                hir::ItemKind::TyAlias(..) => {
-                    let ty_alias = specs.get_type_alias(owner_id);
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_type_alias(ty_alias)),
-                        )?)),
-                    );
-                }
-
-                hir::ItemKind::Enum(..) => {
-                    let enum_def = specs.get_enum_def(owner_id).unwrap();
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| cx.desugar_enum_def(enum_def),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Union(..) => {
-                    let union_def = specs.get_struct_def(owner_id).unwrap();
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_struct_def(union_def)),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Struct(..) => {
-                    let struct_def = specs.get_struct_def(owner_id).unwrap();
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_struct_def(struct_def)),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Trait(..) => {
-                    let trait_ = &specs.get_trait(owner_id).unwrap();
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| cx.desugar_trait(trait_),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Impl(..) => {
-                    let impl_ = &specs.get_impl(owner_id).unwrap();
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_impl(impl_)),
-                        )?)),
-                    );
-                }
-                hir::ItemKind::Const(..) => {
-                    let constant_ = match specs.get_constant(owner_id) {
-                        Some(constant_) => constant_,
-                        None => &surface::ConstantInfo { expr: None },
-                    };
-
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::Item(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_const(constant_)),
-                        )?)),
-                    );
-                }
-                _ => Err(query_bug!(def_id, "unsupported item"))?,
-            }
+            })?;
+            fhir::Node::Item(genv.alloc(item))
         }
-        rustc_hir::Node::TraitItem(trait_item) => {
-            match trait_item.kind {
-                rustc_hir::TraitItemKind::Fn(..) => {
-                    let fn_spec = specs.get_fn_spec(owner_id).unwrap();
-                    let mut opaque_tys = Default::default();
-                    let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
-                        cx.desugar_trait_fn(fn_spec)
-                    })?;
-                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
-                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
-                    }));
-                    nodes.insert(def_id, fhir::Node::TraitItem(genv.alloc(item)));
+        rustc_hir::Node::TraitItem(_) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                match specs.get_trait_item(owner_id) {
+                    Some(item) => cx.desugar_trait_item(item),
+                    None => Ok(cx.lift_trait_item()),
                 }
-                rustc_hir::TraitItemKind::Type(..) => {
-                    let item = cx.with_rust_item_ctxt(owner_id, None, |cx| {
-                        Ok(cx.desugar_trait_assoc_ty())
-                    })?;
-                    nodes.insert(owner_id.def_id, fhir::Node::TraitItem(genv.alloc(item)));
-                }
-                rustc_hir::TraitItemKind::Const(..) => {
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::TraitItem(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_trait_const()),
-                        )?)),
-                    );
-                }
-            }
+            })?;
+            fhir::Node::TraitItem(genv.alloc(item))
         }
-        rustc_hir::Node::ImplItem(impl_item) => {
-            match &impl_item.kind {
-                rustc_hir::ImplItemKind::Fn(..) => {
-                    let fn_spec = specs.get_fn_spec(owner_id).unwrap();
-                    let mut opaque_tys = Default::default();
-                    let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
-                        cx.desugar_impl_fn(fn_spec)
-                    })?;
-                    nodes.extend(opaque_tys.into_iter().map(|opaque_ty| {
-                        (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))
-                    }));
-                    nodes.insert(def_id, fhir::Node::ImplItem(genv.alloc(item)));
+        rustc_hir::Node::ImplItem(..) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                match specs.get_impl_item(owner_id) {
+                    Some(item) => cx.desugar_impl_item(item),
+                    None => Ok(cx.lift_impl_item()),
                 }
-                rustc_hir::ImplItemKind::Type(..) => {
-                    let item = cx
-                        .with_rust_item_ctxt(owner_id, None, |cx| Ok(cx.desugar_impl_assoc_ty()))?;
-                    nodes.insert(owner_id.def_id, fhir::Node::ImplItem(genv.alloc(item)));
-                }
-                rustc_hir::ImplItemKind::Const(..) => {
-                    nodes.insert(
-                        def_id,
-                        fhir::Node::ImplItem(genv.alloc(cx.with_rust_item_ctxt(
-                            owner_id,
-                            None,
-                            |cx| Ok(cx.desugar_impl_const()),
-                        )?)),
-                    );
-                }
-            }
+            })?;
+            fhir::Node::ImplItem(genv.alloc(item))
         }
-        rustc_hir::Node::AnonConst(..) => {
-            nodes.insert(def_id, fhir::Node::AnonConst);
-        }
-        rustc_hir::Node::Expr(..) => {
-            nodes.insert(def_id, fhir::Node::Expr);
-        }
+        rustc_hir::Node::AnonConst(..) => fhir::Node::AnonConst,
+        rustc_hir::Node::Expr(..) => fhir::Node::Expr,
         rustc_hir::Node::ForeignItem(foreign) => {
-            let foreign_item = fhir::Node::ForeignItem(genv.alloc(cx.with_rust_item_ctxt(
-                owner_id,
-                None,
-                |cx| cx.desugar_foreign_item(*foreign),
-            )?));
-            nodes.insert(def_id, foreign_item);
+            let item =
+                cx.with_rust_item_ctxt(owner_id, None, |cx| cx.lift_foreign_item(*foreign))?;
+            fhir::Node::ForeignItem(genv.alloc(item))
         }
-        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => {
-            nodes.insert(def_id, fhir::Node::Ctor);
-        }
+        rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
         node => {
             if let Some(ident) = node.ident() {
-                Err(query_bug!(def_id, "unsupported item {ident:?}"))?;
+                return Err(query_bug!(def_id, "unsupported item {ident:?}"));
             } else {
-                Err(query_bug!(def_id, "unsupported item"))?;
+                return Err(query_bug!(def_id, "unsupported item"));
             }
         }
-    }
+    };
+    nodes.insert(def_id, node);
+    nodes.extend(
+        opaque_tys
+            .into_iter()
+            .map(|opaque_ty| (opaque_ty.def_id.local_id(), fhir::Node::OpaqueTy(opaque_ty))),
+    );
     Ok(nodes)
 }
 

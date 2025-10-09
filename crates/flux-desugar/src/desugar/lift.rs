@@ -1,11 +1,15 @@
 //! "Lift" HIR types into  FHIR types.
 
-use flux_common::{bug, iter::IterExt, result::ErrorEmitter as _};
+use flux_common::{
+    bug,
+    iter::IterExt,
+    result::{ErrorEmitter as _, ResultExt},
+};
 use flux_errors::ErrorGuaranteed;
 use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, FhirId, FluxOwnerId},
-    try_alloc_slice,
+    query_bug, try_alloc_slice,
 };
 use rustc_hir::{
     self as hir, FnHeader,
@@ -18,6 +22,71 @@ use super::{DesugarCtxt, RustItemCtxt};
 type Result<T = ()> = std::result::Result<T, ErrorGuaranteed>;
 
 impl<'genv> RustItemCtxt<'_, 'genv, '_> {
+    pub(crate) fn lift_item(&mut self) -> Result<fhir::Item<'genv>> {
+        let hir_item = self
+            .genv
+            .tcx()
+            .hir_item(hir::ItemId { owner_id: self.owner.local_id() });
+        let (generics, kind) = match hir_item.kind {
+            hir::ItemKind::Const(_, generics, ..) => (generics, fhir::ItemKind::Const(None)),
+            hir::ItemKind::Fn { sig, generics, .. } => {
+                (generics, fhir::ItemKind::Fn(self.lift_fn_sig(sig)))
+            }
+            hir::ItemKind::TyAlias(_, generics, ty) => {
+                let ty_alias = self.lift_type_alias(hir_item.span, ty);
+                let kind = fhir::ItemKind::TyAlias(self.genv.alloc(ty_alias));
+                (generics, kind)
+            }
+            hir::ItemKind::Enum(_, generics, enum_def) => {
+                (generics, fhir::ItemKind::Enum(self.lift_enum_def(enum_def)))
+            }
+            hir::ItemKind::Struct(_, generics, variant_data) => {
+                (generics, fhir::ItemKind::Struct(self.lift_struct_def(variant_data)))
+            }
+            hir::ItemKind::Union(_, generics, variant_data) => {
+                (generics, fhir::ItemKind::Struct(self.lift_struct_def(variant_data)))
+            }
+            hir::ItemKind::Trait(_, _, _, _, generics, ..) => {
+                (generics, fhir::ItemKind::Trait(fhir::Trait { assoc_refinements: &[] }))
+            }
+            hir::ItemKind::Impl(impl_) => {
+                (impl_.generics, fhir::ItemKind::Impl(fhir::Impl { assoc_refinements: &[] }))
+            }
+            _ => {
+                Err(query_bug!(self.owner.resolved_id(), "unsupported item")).emit(&self.genv())?
+            }
+        };
+        Ok(fhir::Item { owner_id: self.owner, generics: self.lift_generics_inner(generics), kind })
+    }
+
+    pub(crate) fn lift_trait_item(&mut self) -> fhir::TraitItem<'genv> {
+        let hir_trait_item = self
+            .genv
+            .tcx()
+            .hir_trait_item(hir::TraitItemId { owner_id: self.owner.local_id() });
+        let generics = self.lift_generics_inner(hir_trait_item.generics);
+        let kind = match hir_trait_item.kind {
+            hir::TraitItemKind::Fn(fn_sig, ..) => fhir::TraitItemKind::Fn(self.lift_fn_sig(fn_sig)),
+            hir::TraitItemKind::Const(..) => fhir::TraitItemKind::Const,
+            hir::TraitItemKind::Type(..) => fhir::TraitItemKind::Type,
+        };
+        fhir::TraitItem { owner_id: self.owner, generics, kind }
+    }
+
+    pub(crate) fn lift_impl_item(&mut self) -> fhir::ImplItem<'genv> {
+        let hir_impl_item = self
+            .genv
+            .tcx()
+            .hir_impl_item(hir::ImplItemId { owner_id: self.owner.local_id() });
+        let generics = self.lift_generics_inner(hir_impl_item.generics);
+        let kind = match hir_impl_item.kind {
+            hir::ImplItemKind::Fn(fn_sig, ..) => fhir::ImplItemKind::Fn(self.lift_fn_sig(fn_sig)),
+            hir::ImplItemKind::Const(..) => fhir::ImplItemKind::Const,
+            hir::ImplItemKind::Type(..) => fhir::ImplItemKind::Type,
+        };
+        fhir::ImplItem { owner_id: self.owner, generics, kind }
+    }
+
     pub fn lift_generics(&mut self) -> fhir::Generics<'genv> {
         let generics = self.genv.tcx().hir_get_generics(self.local_id()).unwrap();
         self.lift_generics_inner(generics)
@@ -152,24 +221,45 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         }
     }
 
-    pub fn lift_type_alias(&mut self) -> fhir::Item<'genv> {
-        let item = self.genv.tcx().hir_expect_item(self.local_id());
-        let hir::ItemKind::TyAlias(_, _, ty) = item.kind else {
-            bug!("expected type alias");
-        };
-
-        let generics = self.lift_generics();
+    fn lift_type_alias(&mut self, span: Span, ty: &hir::Ty) -> fhir::TyAlias<'genv> {
         let ty = self.lift_ty(ty);
-        let ty_alias =
-            self.genv
-                .alloc(fhir::TyAlias { index: None, ty, span: item.span, lifted: true });
+        fhir::TyAlias { index: None, ty, span, lifted: true }
+    }
 
-        fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner }
+    fn lift_struct_def(&mut self, variant_data: hir::VariantData) -> fhir::StructDef<'genv> {
+        fhir::StructDef {
+            refinement: self
+                .genv
+                .alloc(fhir::RefinementKind::Refined(fhir::RefinedBy::trivial())),
+            params: &[],
+            kind: fhir::StructKind::Transparent {
+                fields: self.genv.alloc_slice_fill_iter(
+                    variant_data.fields().iter().map(|f| self.lift_field_def(f)),
+                ),
+            },
+            invariants: &[],
+        }
     }
 
     pub fn lift_field_def(&mut self, field_def: &hir::FieldDef) -> fhir::FieldDef<'genv> {
         let ty = self.lift_ty(field_def.ty);
         fhir::FieldDef { ty, lifted: true }
+    }
+
+    fn lift_enum_def(&mut self, enum_def: hir::EnumDef) -> fhir::EnumDef<'genv> {
+        fhir::EnumDef {
+            refinement: self
+                .genv
+                .alloc(fhir::RefinementKind::Refined(fhir::RefinedBy::trivial())),
+            params: &[],
+            variants: self.genv.alloc_slice_fill_iter(
+                enum_def
+                    .variants
+                    .iter()
+                    .map(|variant| self.lift_enum_variant(variant)),
+            ),
+            invariants: &[],
+        }
     }
 
     pub fn lift_enum_variant(&mut self, variant: &hir::Variant) -> fhir::VariantDef<'genv> {
