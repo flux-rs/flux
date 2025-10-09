@@ -126,17 +126,7 @@ pub enum ItemKind {
 impl Item {
     pub fn merge(&mut self, other: Item) -> Result<(), ()> {
         match (&mut self.kind, other.kind) {
-            (ItemKind::Fn(a), ItemKind::Fn(b)) => {
-                if a.fn_sig.is_some() && b.fn_sig.is_some() {
-                    Err(())
-                } else {
-                    if a.fn_sig.is_none() {
-                        a.fn_sig = b.fn_sig;
-                    }
-                    a.trusted = a.trusted || b.trusted;
-                    Ok(())
-                }
-            }
+            (ItemKind::Fn(a), ItemKind::Fn(b)) => a.merge(b),
             (ItemKind::Struct(a), ItemKind::Struct(b)) => {
                 if a.is_nontrivial() {
                     Err(())
@@ -172,6 +162,26 @@ impl Item {
             (ItemKind::Const(_), ItemKind::Const(_)) => Err(()),
             _ => panic!("both side must have the same kind"),
         }
+    }
+}
+
+pub struct TraitItemFn {
+    pub spec: FnSpec,
+}
+
+impl TraitItemFn {
+    pub fn merge(&mut self, other: TraitItemFn) -> Result<(), ()> {
+        self.spec.merge(other.spec)
+    }
+}
+
+pub struct ImplItemFn {
+    pub spec: FnSpec,
+}
+
+impl ImplItemFn {
+    pub fn merge(&mut self, other: ImplItemFn) -> Result<(), ()> {
+        self.spec.merge(other.spec)
     }
 }
 
@@ -407,6 +417,20 @@ pub struct FnSpec {
     pub reveal_names: Option<RevealNames>,
     pub trusted: bool,
     pub node_id: NodeId,
+}
+
+impl FnSpec {
+    fn merge(&mut self, other: FnSpec) -> Result<(), ()> {
+        if self.fn_sig.is_some() && other.fn_sig.is_some() {
+            Err(())
+        } else {
+            if self.fn_sig.is_none() {
+                self.fn_sig = other.fn_sig;
+            }
+            self.trusted = self.trusted || other.trusted;
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug)]

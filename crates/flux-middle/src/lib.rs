@@ -354,6 +354,8 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
 #[derive(Default)]
 pub struct Specs {
     items: UnordMap<OwnerId, surface::Item>,
+    trait_items: UnordMap<OwnerId, surface::TraitItemFn>,
+    impl_items: UnordMap<OwnerId, surface::ImplItemFn>,
     pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::FluxItem>>,
     pub ignores: UnordMap<LocalDefId, fhir::Ignored>,
     pub trusted: UnordMap<LocalDefId, fhir::Trusted>,
@@ -404,8 +406,18 @@ impl Specs {
     }
 
     pub fn get_fn_spec(&self, owner_id: OwnerId) -> Option<&surface::FnSpec> {
-        let surface::ItemKind::Fn(fn_spec) = &self.get_item(owner_id)?.kind else { return None };
-        Some(fn_spec)
+        if let Some(item) = self.get_item(owner_id)
+            && let surface::ItemKind::Fn(spec) = &item.kind
+        {
+            return Some(spec);
+        }
+        if let Some(surface::TraitItemFn { spec }) = self.get_trait_item(owner_id) {
+            return Some(spec);
+        }
+        if let Some(surface::ImplItemFn { spec }) = self.get_impl_item(owner_id) {
+            return Some(spec);
+        }
+        None
     }
 
     pub fn insert_item(&mut self, owner_id: OwnerId, item: surface::Item) -> Result<(), ()> {
@@ -420,6 +432,52 @@ impl Specs {
         if let surface::ItemKind::Fn(fn_spec) = &self.items[&owner_id].kind
             && fn_spec.trusted
         {
+            self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
+        }
+        Ok(())
+    }
+
+    pub fn get_trait_item(&self, owner_id: OwnerId) -> Option<&surface::TraitItemFn> {
+        self.trait_items.get(&owner_id)
+    }
+
+    pub fn insert_trait_item(
+        &mut self,
+        owner_id: OwnerId,
+        trait_item: surface::TraitItemFn,
+    ) -> Result<(), ()> {
+        match self.trait_items.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(trait_item);
+            }
+            hash_map::Entry::Occupied(mut entry) => {
+                entry.get_mut().merge(trait_item)?;
+            }
+        }
+        if self.trait_items[&owner_id].spec.trusted {
+            self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
+        }
+        Ok(())
+    }
+
+    pub fn get_impl_item(&self, owner_id: OwnerId) -> Option<&surface::ImplItemFn> {
+        self.impl_items.get(&owner_id)
+    }
+
+    pub fn insert_impl_item(
+        &mut self,
+        owner_id: OwnerId,
+        impl_item: surface::ImplItemFn,
+    ) -> Result<(), ()> {
+        match self.impl_items.entry(owner_id) {
+            hash_map::Entry::Vacant(v) => {
+                v.insert(impl_item);
+            }
+            hash_map::Entry::Occupied(mut entry) => {
+                entry.get_mut().merge(impl_item)?;
+            }
+        }
+        if self.impl_items[&owner_id].spec.trusted {
             self.trusted.insert(owner_id.def_id, fhir::Trusted::Yes);
         }
         Ok(())

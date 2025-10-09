@@ -429,6 +429,22 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         Self::for_rust_item(resolver).run(|vis| vis.visit_item(item))
     }
 
+    pub(crate) fn resolve_trait_item(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        item: &surface::TraitItemFn,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait_item(item))?;
+        Self::for_rust_item(resolver).run(|vis| vis.visit_trait_item(item))
+    }
+
+    pub(crate) fn resolve_impl_item(
+        resolver: &'a mut CrateResolver<'genv, 'tcx>,
+        item: &surface::ImplItemFn,
+    ) -> Result {
+        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl_item(item))?;
+        Self::for_rust_item(resolver).run(|vis| vis.visit_impl_item(item))
+    }
+
     fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>, sort_params: FxIndexSet<Symbol>) -> Self {
         let errors = Errors::new(resolver.genv.sess());
         Self {

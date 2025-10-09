@@ -290,6 +290,16 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
         RefinementResolver::resolve_item(self, item)
     }
 
+    fn resolve_trait_item(&mut self, item: &surface::TraitItemFn) -> Result {
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_trait_item(item))?;
+        RefinementResolver::resolve_trait_item(self, item)
+    }
+
+    fn resolve_impl_item(&mut self, item: &surface::ImplItemFn) -> Result {
+        ItemResolver::run(self, |item_resolver| item_resolver.visit_impl_item(item))?;
+        RefinementResolver::resolve_impl_item(self, item)
+    }
+
     fn resolve_path_with_ribs<S: Segment>(
         &mut self,
         segments: &[S],
@@ -543,9 +553,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .map(|def_id| OwnerId { def_id });
 
         self.push_rib(TypeNS, RibKind::Normal);
-        if let Some(item) = self.specs.get_item(def_id.local_id()) {
+        if let Some(item) = self.specs.get_impl_item(def_id.local_id()) {
             self.define_generics(def_id);
-            self.resolve_item(item).collect_err(&mut self.err);
+            self.resolve_impl_item(item).collect_err(&mut self.err);
         }
         hir::intravisit::walk_impl_item(self, impl_item);
         self.pop_rib(TypeNS);
@@ -558,9 +568,9 @@ impl<'tcx> hir::intravisit::Visitor<'tcx> for CrateResolver<'_, 'tcx> {
             .map(|def_id| OwnerId { def_id });
 
         self.push_rib(TypeNS, RibKind::Normal);
-        if let Some(item) = self.specs.get_item(def_id.local_id()) {
+        if let Some(item) = self.specs.get_trait_item(def_id.local_id()) {
             self.define_generics(def_id);
-            self.resolve_item(item).collect_err(&mut self.err);
+            self.resolve_trait_item(item).collect_err(&mut self.err);
         }
         hir::intravisit::walk_trait_item(self, trait_item);
         self.pop_rib(TypeNS);

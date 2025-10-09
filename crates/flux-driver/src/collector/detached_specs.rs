@@ -254,7 +254,14 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     .inherent_impls(def_id)
                     .iter()
                     .flat_map(|impl_id| tcx.associated_items(impl_id).in_definition_order());
-                self.collect_assoc_methods(inherent_impl.items, assoc_items)?;
+                self.collect_assoc_methods(
+                    inherent_impl.items,
+                    assoc_items,
+                    |this, owner_id, spec| {
+                        this.inner
+                            .insert_impl_item(owner_id, surface::ImplItemFn { spec })
+                    },
+                )?;
             }
             surface::DetachedItemKind::TraitImpl(trait_impl) => {
                 self.collect_trait_impl(owner_id, trait_impl)?;
@@ -278,7 +285,10 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         // 2. Collect the method specifications
         let tcx = self.inner.tcx;
         let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
-        self.collect_assoc_methods(trait_def.items, assoc_items)
+        self.collect_assoc_methods(trait_def.items, assoc_items, |this, owner_id, spec| {
+            this.inner
+                .insert_trait_item(owner_id, surface::TraitItemFn { spec })
+        })
     }
 
     fn collect_trait_impl(
@@ -300,13 +310,17 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
         // 2. Collect the method specifications
         let tcx = self.inner.tcx;
         let assoc_items = tcx.associated_items(owner_id.def_id).in_definition_order();
-        self.collect_assoc_methods(trait_impl.items, assoc_items)
+        self.collect_assoc_methods(trait_impl.items, assoc_items, |this, owner_id, spec| {
+            this.inner
+                .insert_impl_item(owner_id, surface::ImplItemFn { spec })
+        })
     }
 
     fn collect_assoc_methods(
         &mut self,
         methods: Vec<DetachedItem<FnSpec>>,
         assoc_items: impl Iterator<Item = &'tcx AssocItem>,
+        mut insert_item: impl FnMut(&mut Self, OwnerId, FnSpec) -> Result,
     ) -> Result {
         let mut table: HashMap<Symbol, (surface::FnSpec, Option<DefId>, ExprPath)> =
             HashMap::default();
@@ -343,10 +357,7 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
             if let Some(def_id) = self.unwrap_def_id(&def_id)? {
                 dbg::hyperlink!(self.inner.tcx, path.span, self.inner.tcx.def_span(def_id));
                 let owner_id = self.inner.tcx.local_def_id_to_hir_id(def_id).owner;
-                self.inner.insert_item(
-                    owner_id,
-                    surface::Item { kind: surface::ItemKind::Fn(fn_spec) },
-                )?;
+                insert_item(self, owner_id, fn_spec)?;
             }
         }
         Ok(())
