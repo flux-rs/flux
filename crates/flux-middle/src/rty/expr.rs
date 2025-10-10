@@ -786,6 +786,8 @@ pub enum ExprKind {
     /// about the scope).
     Hole(HoleKind),
     ForAll(Binder<Expr>),
+    /// Is the expression constructed from constructor of the given Ctor (should be Enum)
+    IsCtor(Ctor, Expr),
 }
 
 impl ExprKind {

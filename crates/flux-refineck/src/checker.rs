@@ -1053,15 +1053,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
 
-        if remaining.len() == 1 {
+        let guard = if remaining.len() == 1 {
             let (_, variant_idx) = remaining
                 .into_iter()
                 .next()
                 .unwrap_or_else(|| tracked_span_bug!());
-            successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
+            Guard::Match(place.clone(), variant_idx)
         } else {
-            successors.push((targets.otherwise(), Guard::None));
-        }
+            Guard::None
+        };
+        successors.push((targets.otherwise(), guard));
 
         successors
     }
