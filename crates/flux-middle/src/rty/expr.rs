@@ -1388,7 +1388,7 @@ pub(crate) mod pretty {
                     }
                 }
                 ExprKind::IsCtor(def_id, variant_idx, idx) => {
-                    w!(cx, f, "is::{:?}::{:?}( {:?} )", def_id, ^variant_idx, idx)
+                    w!(cx, f, "({:?} is {:?}::{:?})", idx, def_id, ^variant_idx)
                 }
                 ExprKind::Ctor(ctor, flds) => {
                     let def_id = ctor.def_id();
