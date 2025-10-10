@@ -101,6 +101,8 @@ impl WKVarInstantiator<'_> {
         wkvar: &rty::WKVar,
         expr: &rty::Expr,
     ) -> Option<rty::Binder<rty::Expr>> {
+        let expr_without_metadata = expr.erase_metadata();
+        let expr_eta_expanded_rel = expr_without_metadata.expand_bin_rels();
         let mut args_to_param = HashMap::new();
         std::iter::zip(
             wkvar.args.iter().map(|arg| arg.erase_metadata()),
@@ -121,7 +123,7 @@ impl WKVarInstantiator<'_> {
             current_index: INNERMOST,
         };
         instantiator
-            .try_fold_expr(&expr.erase_metadata())
+            .try_fold_expr(&expr_eta_expanded_rel)
             .ok()
             .map(|instantiated_e| {
                 rty::Binder::bind_with_sorts(

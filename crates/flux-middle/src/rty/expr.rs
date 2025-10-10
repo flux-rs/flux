@@ -34,11 +34,10 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        BoundVariableKind, SortArg,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable,
             TypeVisitor,
-        },
+        }, BoundVariableKind, SortArg, SortCtor
     },
 };
 
@@ -690,6 +689,86 @@ impl Expr {
 
     pub fn erase_metadata(&self) -> Expr {
         self.erase_spans().erase_bound_reft_kind()
+    }
+
+    /// Binary relations are lifted to tuples and ADTs, so e.g.
+    ///
+    ///     (1, false) > (0, true)
+    ///
+    /// is treated as
+    ///
+    ///     1 > 0 && false > true
+    ///
+    /// This "expands" the binary relations on tuples and ADTs to the second
+    /// form where their elements are individually compared.
+    ///
+    /// Only some binary relations are lifted in this manner, see
+    /// `bin_op_to_fixpoint` in `fixpoint_encoding.rs`.
+    pub fn expand_bin_rels(&self) -> Expr {
+        struct BinRelExpander;
+        impl BinRelExpander {
+            fn expand_bin_rel(
+                &mut self,
+                sort: &Sort,
+                rel: &BinOp,
+                e1: &Expr,
+                e2: &Expr,
+            ) -> Expr {
+                match sort {
+                    Sort::Tuple(sorts) => {
+                        let arity = sorts.len();
+                        self.apply_bin_rel_rec(sorts, rel, e1, e2, |field| {
+                            FieldProj::Tuple { arity, field }
+                        })
+                    }
+                    Sort::App(SortCtor::Adt(sort_def), args)
+                        if let Some(variant) = sort_def.opt_struct_variant() => {
+                        let def_id = sort_def.did();
+                        let sorts = variant.field_sorts(args);
+                        self.apply_bin_rel_rec(&sorts, rel, e1, e2, |field| {
+                            FieldProj::Adt { def_id, field }
+                        })
+                    }
+                    _ => {
+                        Expr::binary_op(rel.clone(), e1.super_fold_with(self), e2.super_fold_with(self))
+                    }
+                }
+
+            }
+            /// Apply binary relation recursively over aggregate expressions
+            fn apply_bin_rel_rec(
+                &mut self,
+                sorts: &[Sort],
+                rel: &BinOp,
+                e1: &Expr,
+                e2: &Expr,
+                mk_proj: impl Fn(u32) -> FieldProj,
+            ) -> Expr {
+                Expr::and_from_iter(
+                    sorts
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, s)| {
+                            let proj = mk_proj(idx as u32);
+                            let e1 = e1.proj_and_reduce(proj);
+                            let e2 = e2.proj_and_reduce(proj);
+                            self.expand_bin_rel(s, rel, &e1, &e2)
+                        })
+                )
+            }
+        }
+        impl TypeFolder for BinRelExpander {
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::BinaryOp(rel@(BinOp::Le(sort) | BinOp::Lt(sort) | BinOp::Ge(sort) | BinOp::Gt(sort)), e1, e2) = expr.kind() {
+                    self.expand_bin_rel(sort, rel, e1, e2)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+
+        let mut expander = BinRelExpander {};
+        self.fold_with(&mut expander)
     }
 }
 
