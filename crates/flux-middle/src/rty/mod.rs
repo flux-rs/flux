@@ -1649,8 +1649,8 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
             TyKind::Uninit
             | TyKind::Ptr(_, _)
-            | TyKind::Discr(_, _)
-            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Discr(..)
+            | TyKind::Downcast(..)
             | TyKind::Blocked(_) => bug!("TODO: to_rustc for `{self:?}`"),
         }
     }

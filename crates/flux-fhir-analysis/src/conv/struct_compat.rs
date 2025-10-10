@@ -278,7 +278,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
             }
             (
                 rty::TyKind::Ptr(_, _)
-                | rty::TyKind::Discr(_, _)
+                | rty::TyKind::Discr(..)
                 | rty::TyKind::Downcast(_, _, _, _, _)
                 | rty::TyKind::Blocked(_)
                 | rty::TyKind::Uninit,

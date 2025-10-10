@@ -670,7 +670,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
-                    Ok(Self::check_match(&discr_ty, targets))
+                    Ok(Self::check_match(infcx, env, &discr_ty, targets, terminator_span))
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
@@ -1038,8 +1038,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         successors
     }
 
-    fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
+    fn check_match(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        discr_ty: &Ty,
+        targets: &SwitchTargets,
+        span: Span,
+    ) -> Vec<(BasicBlock, Guard)> {
         let (adt_def, place) = discr_ty.expect_discr();
+        let idx = if let Ok(ty) = env.lookup_place(&mut infcx.at(span), place)
+            && let TyKind::Indexed(_, idx) = ty.kind()
+        {
+            Some(idx.clone())
+        } else {
+            None
+        };
 
         let mut successors = vec![];
         let mut remaining: FxHashMap<u128, VariantIdx> = adt_def
@@ -1052,16 +1065,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .expect("value doesn't correspond to any variant");
             successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
-
-        if remaining.len() == 1 {
+        let guard = if remaining.len() == 1 {
+            // If there's only one variant left, we know for sure that this is the one, so can force an unfold
             let (_, variant_idx) = remaining
                 .into_iter()
                 .next()
                 .unwrap_or_else(|| tracked_span_bug!());
-            successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
+            Guard::Match(place.clone(), variant_idx)
+        } else if adt_def.sort_def().is_reflected()
+            && let Some(idx) = idx
+        {
+            // If there's more than one variant left, we can only assume the `is_ctor` holds for one of them
+            let mut cases = vec![];
+            for (_, variant_idx) in remaining {
+                let did = adt_def.did();
+                cases.push(rty::Expr::is_ctor(did, variant_idx, idx.clone()));
+            }
+            Guard::Pred(Expr::or_from_iter(cases))
         } else {
-            successors.push((targets.otherwise(), Guard::None));
-        }
+            Guard::None
+        };
+        successors.push((targets.otherwise(), guard));
 
         successors
     }

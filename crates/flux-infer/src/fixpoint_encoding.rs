@@ -1077,10 +1077,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
         enum_def_id: &DefId,
         idx: VariantIdx,
-    ) -> fixpoint::Expr {
+    ) -> fixpoint::Var {
         let adt_id = scx.declare_adt(*enum_def_id);
-        let var = fixpoint::Var::DataCtor(adt_id, idx);
-        fixpoint::Expr::Var(var)
+        fixpoint::Var::DataCtor(adt_id, idx)
     }
 
     fn struct_fields_to_fixpoint(
@@ -1187,8 +1186,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Ctor(rty::Ctor::Struct(did), flds) => {
                 self.struct_fields_to_fixpoint(did, flds, scx)?
             }
+            rty::ExprKind::IsCtor(def_id, variant_idx, e) => {
+                let ctor = self.variant_to_fixpoint(scx, def_id, *variant_idx);
+                let e = self.expr_to_fixpoint(e, scx)?;
+                fixpoint::Expr::IsCtor(ctor, Box::new(e))
+            }
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
-                self.variant_to_fixpoint(scx, did, *idx)
+                fixpoint::Expr::Var(self.variant_to_fixpoint(scx, did, *idx))
             }
             rty::ExprKind::ConstDefId(did) => {
                 let var = self.define_const_for_rust_const(*did, scx);
