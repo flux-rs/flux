@@ -1410,8 +1410,8 @@ impl Ty {
         Ty::exists(Binder::bind_with_sort(Ty::constr(pred, ty), sort))
     }
 
-    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
-        TyKind::Discr(adt_def, place).intern()
+    pub fn discr(adt_def: AdtDef, place: Place, idx: Option<Expr>) -> Ty {
+        TyKind::Discr(adt_def, place, idx).intern()
     }
 
     pub fn unit() -> Ty {
@@ -1597,9 +1597,9 @@ impl Ty {
     }
 
     #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
-        if let TyKind::Discr(adt_def, place) = self.kind() {
-            (adt_def, place)
+    pub fn expect_discr(&self) -> (&AdtDef, &Place, &Option<Expr>) {
+        if let TyKind::Discr(adt_def, place, idx) = self.kind() {
+            (adt_def, place, idx)
         } else {
             tracked_span_bug!("expected discr")
         }
@@ -1649,8 +1649,8 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
             TyKind::Uninit
             | TyKind::Ptr(_, _)
-            | TyKind::Discr(_, _)
-            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Discr(..)
+            | TyKind::Downcast(..)
             | TyKind::Blocked(_) => bug!("TODO: to_rustc for `{self:?}`"),
         }
     }
@@ -1672,7 +1672,7 @@ pub enum TyKind {
     ///
     /// [`Rvalue::Discriminant`]: flux_rustc_bridge::mir::Rvalue::Discriminant
     /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
-    Discr(AdtDef, Place),
+    Discr(AdtDef, Place, Option<Expr>),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),

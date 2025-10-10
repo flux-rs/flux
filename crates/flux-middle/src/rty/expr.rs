@@ -258,7 +258,13 @@ impl Expr {
     pub fn is_ctor(ctor: Ctor) -> Expr {
         ExprKind::IsCtor(ctor).intern()
     }
-    
+
+    // TODO: should add explicit sort_args here
+    pub fn is_ctor_app(def_id: DefId, idx: VariantIdx, e: impl Into<Expr>) -> Expr {
+        let ctor = Ctor::Enum(def_id, idx);
+        Expr::app(Expr::is_ctor(ctor), List::empty(), List::from_arr([e.into()]))
+    }
+
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
         // FIXME: We are assuming the higher bits are not set. check this assumption
         match bty {

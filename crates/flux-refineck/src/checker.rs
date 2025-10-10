@@ -48,7 +48,10 @@ use rustc_middle::{
     mir::SwitchTargets,
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
-use rustc_span::{Span, sym};
+use rustc_span::{
+    Span,
+    sym::{self},
+};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
@@ -636,7 +639,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     /// For `check_terminator`, the output `Vec<BasicBlock, Guard>` denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
-    /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`) you can assume when checking the corresponding successor.
+    /// - `Guard` are extra control information from, e.g. the `SwitchInt`
+    ///    (or `Assert`) you can assume when checking the corresponding successor.
     fn check_terminator(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -1039,7 +1043,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
-        let (adt_def, place) = discr_ty.expect_discr();
+        let (adt_def, place, idx) = discr_ty.expect_discr();
 
         let mut successors = vec![];
         let mut remaining: FxHashMap<u128, VariantIdx> = adt_def
@@ -1052,13 +1056,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .expect("value doesn't correspond to any variant");
             successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
-
         let guard = if remaining.len() == 1 {
+            // If there's only one variant left, we know for sure that this is the one, so can force an unfold
             let (_, variant_idx) = remaining
                 .into_iter()
                 .next()
                 .unwrap_or_else(|| tracked_span_bug!());
             Guard::Match(place.clone(), variant_idx)
+        } else if adt_def.sort_def().is_reflected()
+            && let Some(idx) = idx
+        {
+            // If there's more than one variant left, we can only assume the `is_ctor` holds for one of them
+            let mut cases = vec![];
+            for (_, variant_idx) in remaining {
+                let did = adt_def.did();
+                cases.push(rty::Expr::is_ctor_app(did, variant_idx, idx.clone()));
+            }
+            Guard::Pred(Expr::or_from_iter(cases))
         } else {
             Guard::None
         };
@@ -1285,7 +1299,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .as_bty_skipping_existentials()
                     .unwrap_or_else(|| tracked_span_bug!())
                     .expect_adt();
-                Ok(Ty::discr(adt_def.clone(), place.clone()))
+                let idx =
+                    if let TyKind::Indexed(_, idx) = ty.kind() { Some(idx.clone()) } else { None };
+                Ok(Ty::discr(adt_def.clone(), place.clone(), idx))
             }
             Rvalue::Aggregate(
                 AggregateKind::Adt(def_id, variant_idx, args, _, field_idx),
@@ -1501,10 +1517,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         uint_int_cast(idx, *uint_ty, *int_ty)
                     }
                     (Int!(_, _), RustTy::Uint(uint_ty)) => Ty::uint(*uint_ty),
-                    (TyKind::Discr(adt_def, _), RustTy::Int(int_ty)) => {
+                    (TyKind::Discr(adt_def, _, _), RustTy::Int(int_ty)) => {
                         Self::discr_to_int_cast(adt_def, BaseTy::Int(*int_ty))
                     }
-                    (TyKind::Discr(adt_def, _place), RustTy::Uint(uint_ty)) => {
+                    (TyKind::Discr(adt_def, _place, _), RustTy::Uint(uint_ty)) => {
                         Self::discr_to_int_cast(adt_def, BaseTy::Uint(*uint_ty))
                     }
                     (Char!(idx), RustTy::Uint(uint_ty)) => char_uint_cast(idx, *uint_ty),
