@@ -48,10 +48,7 @@ use rustc_middle::{
     mir::SwitchTargets,
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
-use rustc_span::{
-    Span,
-    sym::{self},
-};
+use rustc_span::{Span, sym};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
