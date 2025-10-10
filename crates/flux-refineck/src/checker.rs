@@ -639,8 +639,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     /// For `check_terminator`, the output `Vec<BasicBlock, Guard>` denotes,
     /// - `BasicBlock` "successors" of the current terminator, and
-    /// - `Guard` are extra control information from, e.g. the `SwitchInt`
-    ///    (or `Assert`) you can assume when checking the corresponding successor.
+    /// - `Guard` are extra control information from, e.g. the `SwitchInt` (or `Assert`) you can assume when checking the corresponding successor.
     fn check_terminator(
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
