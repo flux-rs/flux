@@ -1264,8 +1264,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::InternalFunc(_) 
-            | rty::ExprKind::IsCtor(rty::Ctor::Struct(..) ) => {
+            | rty::ExprKind::InternalFunc(_)
+            | rty::ExprKind::IsCtor(rty::Ctor::Struct(..)) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
             rty::ExprKind::BoundedQuant(kind, rng, body) => {
