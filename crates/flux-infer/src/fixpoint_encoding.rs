@@ -81,7 +81,6 @@ pub mod fixpoint {
         Global(GlobalVar, Option<Symbol>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
-        IsDataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
         TupleProj { arity: usize, field: u32 },
         DataProj { adt_id: AdtId, /* variant_idx: VariantIdx, */ field: u32 },
@@ -110,9 +109,6 @@ pub mod fixpoint {
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
-                }
-                Var::IsDataCtor(adt_id, variant_idx) => {
-                    write!(f, "is$mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
                 }
                 Var::TupleCtor { arity } => write!(f, "mktuple{arity}"),
                 Var::TupleProj { arity, field } => write!(f, "tuple{arity}${field}"),
@@ -1076,25 +1072,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         }
     }
 
-    fn is_variant_to_fixpoint(
-        &self,
-        scx: &mut SortEncodingCtxt,
-        enum_def_id: &DefId,
-        idx: VariantIdx,
-    ) -> fixpoint::Expr {
-        let adt_id = scx.declare_adt(*enum_def_id);
-        let var = fixpoint::Var::IsDataCtor(adt_id, idx);
-        fixpoint::Expr::Var(var)
-    }
     fn variant_to_fixpoint(
         &self,
         scx: &mut SortEncodingCtxt,
         enum_def_id: &DefId,
         idx: VariantIdx,
-    ) -> fixpoint::Expr {
+    ) -> fixpoint::Var {
         let adt_id = scx.declare_adt(*enum_def_id);
-        let var = fixpoint::Var::DataCtor(adt_id, idx);
-        fixpoint::Expr::Var(var)
+        fixpoint::Var::DataCtor(adt_id, idx)
     }
 
     fn struct_fields_to_fixpoint(
@@ -1202,12 +1187,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 self.struct_fields_to_fixpoint(did, flds, scx)?
             }
             rty::ExprKind::IsCtor(def_id, variant_idx, e) => {
-                let func = self.is_variant_to_fixpoint(scx, def_id, *variant_idx);
-                let args = self.exprs_to_fixpoint([e], scx)?;
-                fixpoint::Expr::App(Box::new(func), args)
+                let ctor = self.variant_to_fixpoint(scx, def_id, *variant_idx);
+                let e = self.expr_to_fixpoint(e, scx)?;
+                fixpoint::Expr::IsCtor(ctor, Box::new(e))
             }
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
-                self.variant_to_fixpoint(scx, did, *idx)
+                fixpoint::Expr::Var(self.variant_to_fixpoint(scx, did, *idx))
             }
             rty::ExprKind::ConstDefId(did) => {
                 let var = self.define_const_for_rust_const(*did, scx);
