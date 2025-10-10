@@ -8,7 +8,7 @@ pub enum Bob {
 }
 
 #[spec(fn (b: Bob) -> bool[b == Bob::A])]
-pub fn test_A(b: Bob) -> bool {
+pub fn test_a(b: Bob) -> bool {
     match b {
         Bob::A => true,
         _ => false,
@@ -16,7 +16,7 @@ pub fn test_A(b: Bob) -> bool {
 }
 
 #[spec(fn (b: Bob) -> bool[b == Bob::A])]
-pub fn test_A_with_macro(b: Bob) -> bool {
+pub fn test_a_with_macro(b: Bob) -> bool {
     matches!(b, Bob::A)
 }
 
@@ -45,7 +45,7 @@ pub fn test_mut_ref(b: &mut Bob) -> Bob {
 }
 
 #[spec(fn (&Bob[@b1], &Bob[@b2]) -> bool[b1 == b2])]
-fn is_eq(b1: &Bob, b2: &Bob) -> bool {
+pub fn is_eq(b1: &Bob, b2: &Bob) -> bool {
     match (b1, b2) {
         (Bob::A, Bob::A) => true,
         (Bob::B, Bob::B) => true,
