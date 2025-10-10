@@ -255,6 +255,10 @@ impl Expr {
         ExprKind::Ctor(ctor, flds).intern()
     }
 
+    pub fn is_ctor(ctor: Ctor) -> Expr {
+        ExprKind::IsCtor(ctor).intern()
+    }
+    
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
         // FIXME: We are assuming the higher bits are not set. check this assumption
         match bty {
@@ -787,7 +791,7 @@ pub enum ExprKind {
     Hole(HoleKind),
     ForAll(Binder<Expr>),
     /// Is the expression constructed from constructor of the given Ctor (should be Enum)
-    IsCtor(Ctor, Expr),
+    IsCtor(Ctor),
 }
 
 impl ExprKind {
@@ -1383,6 +1387,11 @@ pub(crate) mod pretty {
                         w!(cx, f, "({:?})", join!(", ", flds))
                     }
                 }
+                ExprKind::IsCtor(ctor) => {
+                    let def_id = ctor.def_id();
+                    let idx = ctor.variant_idx();
+                    w!(cx, f, "is::{:?}::{:?}", def_id, ^idx)
+                }
                 ExprKind::Ctor(ctor, flds) => {
                     let def_id = ctor.def_id();
                     if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1763,6 +1772,12 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, true),
+                ExprKind::IsCtor(ctor) => {
+                    let def_id = ctor.def_id();
+                    let idx = ctor.variant_idx();
+                    let text = format!("is::{:?}::{:?}", def_id, idx);
+                    Ok(NestedString { text, children: None, key: None })
+                }
                 ExprKind::PathProj(e, field) => {
                     let e_d = e.fmt_nested(cx)?;
                     let text = if e.is_atom() {
