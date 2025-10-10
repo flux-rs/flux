@@ -1410,8 +1410,8 @@ impl Ty {
         Ty::exists(Binder::bind_with_sort(Ty::constr(pred, ty), sort))
     }
 
-    pub fn discr(adt_def: AdtDef, place: Place, idx: Option<Expr>) -> Ty {
-        TyKind::Discr(adt_def, place, idx).intern()
+    pub fn discr(adt_def: AdtDef, place: Place) -> Ty {
+        TyKind::Discr(adt_def, place).intern()
     }
 
     pub fn unit() -> Ty {
@@ -1597,9 +1597,9 @@ impl Ty {
     }
 
     #[track_caller]
-    pub fn expect_discr(&self) -> (&AdtDef, &Place, &Option<Expr>) {
-        if let TyKind::Discr(adt_def, place, idx) = self.kind() {
-            (adt_def, place, idx)
+    pub fn expect_discr(&self) -> (&AdtDef, &Place) {
+        if let TyKind::Discr(adt_def, place) = self.kind() {
+            (adt_def, place)
         } else {
             tracked_span_bug!("expected discr")
         }
@@ -1672,7 +1672,7 @@ pub enum TyKind {
     ///
     /// [`Rvalue::Discriminant`]: flux_rustc_bridge::mir::Rvalue::Discriminant
     /// [`match`]: flux_rustc_bridge::mir::TerminatorKind::SwitchInt
-    Discr(AdtDef, Place, Option<Expr>),
+    Discr(AdtDef, Place),
     Param(ParamTy),
     Downcast(AdtDef, GenericArgs, Ty, VariantIdx, List<Ty>),
     Blocked(Ty),

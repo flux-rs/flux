@@ -255,14 +255,8 @@ impl Expr {
         ExprKind::Ctor(ctor, flds).intern()
     }
 
-    pub fn is_ctor(ctor: Ctor) -> Expr {
-        ExprKind::IsCtor(ctor).intern()
-    }
-
-    // TODO: should add explicit sort_args here
-    pub fn is_ctor_app(def_id: DefId, idx: VariantIdx, e: impl Into<Expr>) -> Expr {
-        let ctor = Ctor::Enum(def_id, idx);
-        Expr::app(Expr::is_ctor(ctor), List::empty(), List::from_arr([e.into()]))
+    pub fn is_ctor(def_id: DefId, variant_idx: VariantIdx, idx: impl Into<Expr>) -> Expr {
+        ExprKind::IsCtor(def_id, variant_idx, idx.into()).intern()
     }
 
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
@@ -796,8 +790,8 @@ pub enum ExprKind {
     /// about the scope).
     Hole(HoleKind),
     ForAll(Binder<Expr>),
-    /// Is the expression constructed from constructor of the given Ctor (should be Enum)
-    IsCtor(Ctor),
+    /// Is the expression constructed from constructor of the given DefId (which should be `reflected` Enum)
+    IsCtor(DefId, VariantIdx, Expr),
 }
 
 impl ExprKind {
@@ -1393,10 +1387,8 @@ pub(crate) mod pretty {
                         w!(cx, f, "({:?})", join!(", ", flds))
                     }
                 }
-                ExprKind::IsCtor(ctor) => {
-                    let def_id = ctor.def_id();
-                    let idx = ctor.variant_idx();
-                    w!(cx, f, "is::{:?}::{:?}", def_id, ^idx)
+                ExprKind::IsCtor(def_id, variant_idx, idx) => {
+                    w!(cx, f, "is::{:?}::{:?}( {:?} )", def_id, ^variant_idx, idx)
                 }
                 ExprKind::Ctor(ctor, flds) => {
                     let def_id = ctor.def_id();
@@ -1778,10 +1770,8 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, true),
-                ExprKind::IsCtor(ctor) => {
-                    let def_id = ctor.def_id();
-                    let idx = ctor.variant_idx();
-                    let text = format!("is::{:?}::{:?}", def_id, idx);
+                ExprKind::IsCtor(def_id, variant_idx, idx) => {
+                    let text = format!("is::{:?}::{:?}( {:?} )", def_id, variant_idx, idx);
                     Ok(NestedString { text, children: None, key: None })
                 }
                 ExprKind::PathProj(e, field) => {

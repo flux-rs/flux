@@ -1201,8 +1201,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Ctor(rty::Ctor::Struct(did), flds) => {
                 self.struct_fields_to_fixpoint(did, flds, scx)?
             }
-            rty::ExprKind::IsCtor(rty::Ctor::Enum(did, idx)) => {
-                self.is_variant_to_fixpoint(scx, did, *idx)
+            rty::ExprKind::IsCtor(def_id, variant_idx, e) => {
+                let func = self.is_variant_to_fixpoint(scx, def_id, *variant_idx);
+                let args = self.exprs_to_fixpoint([e], scx)?;
+                fixpoint::Expr::App(Box::new(func), args)
             }
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
                 self.variant_to_fixpoint(scx, did, *idx)
@@ -1264,8 +1266,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::InternalFunc(_)
-            | rty::ExprKind::IsCtor(rty::Ctor::Struct(..)) => {
+            | rty::ExprKind::InternalFunc(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
             rty::ExprKind::BoundedQuant(kind, rng, body) => {
