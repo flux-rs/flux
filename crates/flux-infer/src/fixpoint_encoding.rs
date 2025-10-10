@@ -403,7 +403,7 @@ enum ConstKey<'tcx> {
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
-    kvars: KVarGen,
+    kvars: Option<KVarGen>,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
@@ -417,7 +417,11 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: Option<MaybeExternId>,
+        kvars: Option<KVarGen>,
+    ) -> Self {
         Self {
             comments: vec![],
             kvars,
@@ -445,16 +449,20 @@ where
         }
         let def_span = self.ecx.def_span();
         let def_id = self.ecx.def_id;
+        let (define_funs, define_constants, qualifiers) = if let Some(def_id) = def_id {
+            let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+            let qualifiers = self
+                .ecx
+                .qualifiers_for(def_id.local_id(), &mut self.scx)?
+                .into_iter()
+                .chain(FIXPOINT_QUALIFIERS.iter().cloned())
+                .collect();
+            (define_funs, define_constants, qualifiers)
+        } else {
+            (vec![], vec![], FIXPOINT_QUALIFIERS.iter().cloned().collect())
+        };
 
         let kvars = self.kcx.into_fixpoint();
-
-        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-        let qualifiers = self
-            .ecx
-            .qualifiers_for(def_id.local_id(), &mut self.scx)?
-            .into_iter()
-            .chain(FIXPOINT_QUALIFIERS.iter().cloned())
-            .collect();
 
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
@@ -495,11 +503,20 @@ where
             solver,
             data_decls: self.scx.into_data_decls(self.genv)?,
         };
-        if config::dump_constraint() {
+        if let Some(def_id) = def_id
+            && config::dump_constraint()
+        {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        match Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache) {
+        let fixpoint_res = if let Some(def_id) = def_id {
+            Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache)
+        } else {
+            task.run()
+                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
+        };
+
+        match fixpoint_res {
             FixpointResult::Safe(_) => Ok(vec![]),
             FixpointResult::Unsafe(_, errors) => {
                 Ok(errors
@@ -516,25 +533,28 @@ where
         mut self,
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
-        let def_id = self.ecx.def_id;
+        if let Some(def_id) = self.ecx.def_id {
+            if !self.kcx.into_fixpoint().is_empty() {
+                tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
+            }
 
-        if !self.kcx.into_fixpoint().is_empty() {
-            tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
+            let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+            let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
+
+            let mut constants = self.ecx.const_map.into_values().collect_vec();
+            constants.extend(define_constants);
+
+            self.ecx.errors.into_result()?;
+
+            let lean_encoder =
+                LeanEncoder::new(def_id, self.genv, define_funs, constants, constraint);
+            let lean_path = std::path::Path::new("./");
+            let project_name = "lean_proofs";
+            lean_encoder.check_proof(lean_path, project_name)
+        } else {
+            Ok(())
         }
-
-        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-
-        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
-
-        let mut constants = self.ecx.const_map.into_values().collect_vec();
-        constants.extend(define_constants);
-
-        self.ecx.errors.into_result()?;
-
-        let lean_encoder = LeanEncoder::new(def_id, self.genv, define_funs, constants, constraint);
-        let lean_path = std::path::Path::new("./");
-        let project_name = "lean_proofs";
-        lean_encoder.check_proof(lean_path, project_name)
     }
 
     fn run_task_with_cache(
@@ -702,7 +722,11 @@ where
         kvar: &rty::KVar,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
-        let decl = self.kvars.get(kvar.kvid);
+        let decl = self
+            .kvars
+            .as_ref()
+            .map(|kvars| kvars.get(kvar.kvid))
+            .unwrap();
         let kvids = self.kcx.encode(kvar.kvid, decl, &mut self.scx);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
@@ -1020,12 +1044,12 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     errors: Errors<'genv>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
     /// invariants for an extern spec on an enum.
-    def_id: MaybeExternId,
+    def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId) -> Self {
+    fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: Option<MaybeExternId>) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
@@ -1043,7 +1067,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn def_span(&self) -> Span {
-        self.genv.tcx().def_span(self.def_id)
+        self.genv.tcx().def_span(self.def_id.unwrap())
     }
 
     fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
@@ -1167,7 +1191,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn structurally_normalize_expr(&self, expr: &rty::Expr) -> QueryResult<rty::Expr> {
-        structurally_normalize_expr(self.genv, self.def_id.resolved_id(), &self.infcx, expr)
+        structurally_normalize_expr(
+            self.genv,
+            self.def_id.unwrap().resolved_id(),
+            &self.infcx,
+            expr,
+        )
     }
 
     fn expr_to_fixpoint(
