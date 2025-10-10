@@ -450,8 +450,9 @@ fn parse_sort_decl(cx: &mut ParseCtxt) -> ParseResult<SortDecl> {
     cx.expect(kw::Opaque)?;
     cx.expect(kw::Sort)?;
     let name = parse_ident(cx)?;
+    let sort_vars = opt_angle(cx, Comma, parse_ident)?;
     cx.expect(token::Semi)?;
-    Ok(SortDecl { name })
+    Ok(SortDecl { name, sort_vars })
 }
 
 /// `⟨bin_op⟩ := ⟨ a binary operator ⟩

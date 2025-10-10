@@ -150,7 +150,11 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                     surface::FluxItem::SortDecl(sort_decl) => {
                         self.sort_decls.insert(
                             sort_decl.name.name,
-                            fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
+                            fhir::SortDecl {
+                                name: sort_decl.name.name,
+                                params: sort_decl.sort_vars.len(),
+                                span: sort_decl.name.span,
+                            },
                         );
                     }
                 }
