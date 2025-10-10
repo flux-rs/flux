@@ -325,6 +325,7 @@ impl<'a, 'genv, 'tcx> Wf<'a, 'genv, 'tcx> {
             fhir::FluxItem::PrimOpProp(prim_op_prop) => {
                 cx.conv_primop_prop(prim_op_prop)?;
             }
+            fhir::FluxItem::SortDecl(_sort_decl) => {}
         }
         Ok(())
     }

@@ -842,26 +842,34 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         Ok(r)
     }
 
-    pub(crate) fn desugar_flux_item(
-        &mut self,
-        item: &surface::FluxItem,
-    ) -> Option<fhir::FluxItem<'genv>> {
+    pub(crate) fn desugar_flux_item(&mut self, item: &surface::FluxItem) -> fhir::FluxItem<'genv> {
         match item {
             surface::FluxItem::Qualifier(qual) => {
                 let qual = self.desugar_qualifier(qual);
-                Some(fhir::FluxItem::Qualifier(self.genv.alloc(qual)))
+                fhir::FluxItem::Qualifier(self.genv.alloc(qual))
             }
             surface::FluxItem::FuncDef(func) => {
                 let func = self.desugar_spec_func(func);
-                Some(fhir::FluxItem::Func(self.genv.alloc(func)))
+                fhir::FluxItem::Func(self.genv.alloc(func))
             }
             surface::FluxItem::PrimOpProp(primop_prop) => {
                 self.allow_primop_app = true;
                 let primop_prop = self.desugar_primop_prop(primop_prop);
                 self.allow_primop_app = false;
-                Some(fhir::FluxItem::PrimOpProp(self.genv.alloc(primop_prop)))
+                fhir::FluxItem::PrimOpProp(self.genv.alloc(primop_prop))
             }
-            surface::FluxItem::SortDecl(_) => None,
+            surface::FluxItem::SortDecl(sort_decl) => {
+                let sort_decl = self.desugar_sort_decl(sort_decl);
+                fhir::FluxItem::SortDecl(self.genv.alloc(sort_decl))
+            }
+        }
+    }
+
+    pub(crate) fn desugar_sort_decl(&mut self, sort_decl: &surface::SortDecl) -> fhir::SortDecl {
+        fhir::SortDecl {
+            def_id: self.owner,
+            params: sort_decl.sort_vars.len(),
+            span: sort_decl.name.span,
         }
     }
 

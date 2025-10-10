@@ -926,15 +926,16 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 self.check_prim_sort_generics(path, fhir::PrimSort::Map)?;
                 rty::SortCtor::Map
             }
-            fhir::SortRes::User { name, params } => {
-                if path.args.len() != params {
-                    let err = errors::GenericsOnUserDefinedOpaqueSort::new(
-                        path.segments.last().unwrap().span,
-                        path.args.len(),
-                    );
-                    Err(self.emit(err))?;
-                }
-                rty::SortCtor::User { name }
+            fhir::SortRes::User(def_id) => {
+                // xcxc
+                // if path.args.len() != params {
+                //     let err = errors::GenericsOnUserDefinedOpaqueSort::new(
+                //         path.segments.last().unwrap().span,
+                //         path.args.len(),
+                //     );
+                //     Err(self.emit(err))?;
+                // }
+                rty::SortCtor::User { name: def_id.name() }
             }
             fhir::SortRes::Adt(def_id) => {
                 let sort_def = self.genv().adt_sort_def_of(def_id)?;

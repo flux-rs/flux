@@ -292,6 +292,7 @@ pub enum FluxItem<'fhir> {
     Qualifier(&'fhir Qualifier<'fhir>),
     Func(&'fhir SpecFunc<'fhir>),
     PrimOpProp(&'fhir PrimOpProp<'fhir>),
+    SortDecl(&'fhir SortDecl),
 }
 
 impl FluxItem<'_> {
@@ -300,6 +301,7 @@ impl FluxItem<'_> {
             FluxItem::Qualifier(qualifier) => qualifier.def_id,
             FluxItem::Func(func) => func.def_id,
             FluxItem::PrimOpProp(prop) => prop.def_id,
+            FluxItem::SortDecl(sort_decl) => sort_decl.def_id,
         }
     }
 }
@@ -319,7 +321,7 @@ pub enum ForeignItemKind<'fhir> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SortDecl {
-    pub name: Symbol,
+    pub def_id: FluxLocalDefId,
     pub params: usize,
     pub span: Span,
 }
@@ -911,7 +913,7 @@ pub enum SortRes {
     /// A primitive sort.
     PrimSort(PrimSort),
     /// A user declared sort.
-    User { name: Symbol, params: usize },
+    User(FluxDefId),
     /// A sort parameter inside a polymorphic function or data sort.
     SortParam(usize),
     /// The sort associated to a (generic) type parameter
@@ -1681,13 +1683,7 @@ impl fmt::Debug for SortRes {
             SortRes::SelfParamAssoc { ident: assoc, .. } => {
                 write!(f, "Self::{assoc}")
             }
-            SortRes::User { name, params } => {
-                if *params > 0 {
-                    write!(f, "for<{}>{:?}", params, name)
-                } else {
-                    write!(f, "{:?}", name)
-                }
-            }
+            SortRes::User(def_id) => write!(f, "{:?}", def_id.name()),
             SortRes::Adt(def_id) => write!(f, "{}::sort", def_id_to_string(*def_id)),
         }
     }
