@@ -223,7 +223,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 let assoc_type_id = tcx
                     .associated_items(impl_def_id)
                     .in_definition_order()
-                    .find(|item| item.trait_item_def_id == Some(obligation.def_id))
+                    .find(|item| item.trait_item_def_id() == Some(obligation.def_id))
                     .map(|item| item.def_id)
                     .ok_or_else(|| {
                         query_bug!("no associated type for {obligation:?} in impl {impl_def_id:?}")
@@ -368,7 +368,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
         candidates: &mut Vec<Candidate>,
     ) -> QueryResult {
         let trait_ref = obligation.to_rustc(self.tcx()).trait_ref(self.tcx());
-        let trait_ref = self.tcx().erase_regions(trait_ref);
+        let trait_ref = self.tcx().erase_and_anonymize_regions(trait_ref);
         let trait_pred = Obligation::new(
             self.tcx(),
             ObligationCause::dummy(),
@@ -727,7 +727,7 @@ fn normalize_projection_ty_with_rustc<'tcx>(
 ) -> QueryResult<(bool, SubsetTyCtor)> {
     let tcx = genv.tcx();
     let projection_ty = obligation.to_rustc(tcx);
-    let projection_ty = tcx.erase_regions(projection_ty);
+    let projection_ty = tcx.erase_and_anonymize_regions(projection_ty);
     let cause = ObligationCause::dummy();
     let param_env = tcx.param_env(def_id);
 
@@ -813,7 +813,7 @@ fn get_impl_data_for_alias_reft<'tcx>(
     let tcx = infcx.tcx;
     let mut selcx = SelectionContext::new(infcx);
     let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
-    let trait_ref = tcx.erase_regions(trait_ref);
+    let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
     let trait_pred =
         Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
     match selcx.select(&trait_pred) {
