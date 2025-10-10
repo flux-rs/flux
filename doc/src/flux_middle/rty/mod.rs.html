@@ -1649,8 +1649,8 @@
 <a href=#1649 id=1649 data-nosnippet>1649</a>            TyKind::Infer(vid) =&gt; rustc_middle::ty::Ty::new_var(tcx, <span class="kw-2">*</span>vid),
 <a href=#1650 id=1650 data-nosnippet>1650</a>            TyKind::Uninit
 <a href=#1651 id=1651 data-nosnippet>1651</a>            | TyKind::Ptr(<span class="kw">_</span>, <span class="kw">_</span>)
-<a href=#1652 id=1652 data-nosnippet>1652</a>            | TyKind::Discr(<span class="kw">_</span>, <span class="kw">_</span>)
-<a href=#1653 id=1653 data-nosnippet>1653</a>            | TyKind::Downcast(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)
+<a href=#1652 id=1652 data-nosnippet>1652</a>            | TyKind::Discr(..)
+<a href=#1653 id=1653 data-nosnippet>1653</a>            | TyKind::Downcast(..)
 <a href=#1654 id=1654 data-nosnippet>1654</a>            | TyKind::Blocked(<span class="kw">_</span>) =&gt; <span class="macro">bug!</span>(<span class="string">"TODO: to_rustc for `{self:?}`"</span>),
 <a href=#1655 id=1655 data-nosnippet>1655</a>        }
 <a href=#1656 id=1656 data-nosnippet>1656</a>    }
