@@ -327,17 +327,17 @@ impl SortEncodingCtxt {
                 fixpoint::Sort::App(fixpoint::SortCtor::Map, args)
             }
             rty::Sort::App(rty::SortCtor::Adt(sort_def), args) => {
-                if let Some(variant) = sort_def.opt_struct_variant() {
-                    let sorts = variant.field_sorts(args);
-                    // do not generate 1-tuples
-                    if let [sort] = &sorts[..] {
-                        self.sort_to_fixpoint(sort)
-                    } else {
-                        let adt_id = self.declare_adt(sort_def.did());
-                        let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id));
-                        let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
-                        fixpoint::Sort::App(ctor, args)
-                    }
+                if let Some(_variant) = sort_def.opt_struct_variant() {
+                    // let sorts = variant.field_sorts(args);
+                    // // do not generate 1-tuples
+                    // if let [sort] = &sorts[..] {
+                    //     self.sort_to_fixpoint(sort)
+                    // } else {
+                    let adt_id = self.declare_adt(sort_def.did());
+                    let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id));
+                    let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                    fixpoint::Sort::App(ctor, args)
+                    // }
                 } else {
                     debug_assert!(args.is_empty());
                     let adt_id = self.declare_adt(sort_def.did());
@@ -348,15 +348,15 @@ impl SortEncodingCtxt {
                 }
             }
             rty::Sort::Tuple(sorts) => {
-                // do not generate 1-tuples
-                if let [sort] = &sorts[..] {
-                    self.sort_to_fixpoint(sort)
-                } else {
-                    self.declare_tuple(sorts.len());
-                    let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
-                    let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect();
-                    fixpoint::Sort::App(ctor, args)
-                }
+                // // do not generate 1-tuples
+                // if let [sort] = &sorts[..] {
+                //     self.sort_to_fixpoint(sort)
+                // } else {
+                self.declare_tuple(sorts.len());
+                let ctor = fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(sorts.len()));
+                let args = sorts.iter().map(|s| self.sort_to_fixpoint(s)).collect();
+                fixpoint::Sort::App(ctor, args)
+                // }
             }
             rty::Sort::Func(sort) => self.func_sort_to_fixpoint(sort),
             rty::Sort::Var(k) => fixpoint::Sort::Var(k.index()),
@@ -1504,18 +1504,18 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         flds: &[rty::Expr],
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        // do not generate 1-tuples
-        if let [fld] = flds {
-            self.expr_to_fixpoint(fld, scx)
-        } else {
-            let adt_id = scx.declare_adt(*did);
-            let ctor = fixpoint::Expr::Var(fixpoint::Var::DataCtor(adt_id, VariantIdx::ZERO));
-            let args = flds
-                .iter()
-                .map(|fld| self.expr_to_fixpoint(fld, scx))
-                .try_collect()?;
-            Ok(fixpoint::Expr::App(Box::new(ctor), None, args))
-        }
+        // // do not generate 1-tuples
+        // if let [fld] = flds {
+        //     self.expr_to_fixpoint(fld, scx)
+        // } else {
+        let adt_id = scx.declare_adt(*did);
+        let ctor = fixpoint::Expr::Var(fixpoint::Var::DataCtor(adt_id, VariantIdx::ZERO));
+        let args = flds
+            .iter()
+            .map(|fld| self.expr_to_fixpoint(fld, scx))
+            .try_collect()?;
+        Ok(fixpoint::Expr::App(Box::new(ctor), None, args))
+        // }
     }
 
     fn fields_to_fixpoint(
@@ -1523,18 +1523,18 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         flds: &[rty::Expr],
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        // do not generate 1-tuples
-        if let [fld] = flds {
-            self.expr_to_fixpoint(fld, scx)
-        } else {
-            scx.declare_tuple(flds.len());
-            let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
-            let args = flds
-                .iter()
-                .map(|fld| self.expr_to_fixpoint(fld, scx))
-                .try_collect()?;
-            Ok(fixpoint::Expr::App(Box::new(ctor), None, args))
-        }
+        // // do not generate 1-tuples
+        // if let [fld] = flds {
+        //     self.expr_to_fixpoint(fld, scx)
+        // } else {
+        scx.declare_tuple(flds.len());
+        let ctor = fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity: flds.len() });
+        let args = flds
+            .iter()
+            .map(|fld| self.expr_to_fixpoint(fld, scx))
+            .try_collect()?;
+        Ok(fixpoint::Expr::App(Box::new(ctor), None, args))
+        // }
     }
 
     fn internal_func_to_fixpoint(
@@ -1736,24 +1736,24 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         proj: rty::FieldProj,
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Expr> {
-        let arity = proj.arity(self.genv)?;
-        // we encode 1-tuples as the single element inside so no projection necessary here
-        if arity == 1 {
-            self.expr_to_fixpoint(e, scx)
-        } else {
-            let proj = match proj {
-                rty::FieldProj::Tuple { arity, field } => {
-                    scx.declare_tuple(arity);
-                    fixpoint::Var::TupleProj { arity, field }
-                }
-                rty::FieldProj::Adt { def_id, field } => {
-                    let adt_id = scx.declare_adt(def_id);
-                    fixpoint::Var::DataProj { adt_id, field }
-                }
-            };
-            let proj = fixpoint::Expr::Var(proj);
-            Ok(fixpoint::Expr::App(Box::new(proj), None, vec![self.expr_to_fixpoint(e, scx)?]))
-        }
+        // let arity = proj.arity(self.genv)?;
+        // // we encode 1-tuples as the single element inside so no projection necessary here
+        // if arity == 1 {
+        //    self.expr_to_fixpoint(e, scx)
+        // } else {
+        let proj = match proj {
+            rty::FieldProj::Tuple { arity, field } => {
+                scx.declare_tuple(arity);
+                fixpoint::Var::TupleProj { arity, field }
+            }
+            rty::FieldProj::Adt { def_id, field } => {
+                let adt_id = scx.declare_adt(def_id);
+                fixpoint::Var::DataProj { adt_id, field }
+            }
+        };
+        let proj = fixpoint::Expr::Var(proj);
+        Ok(fixpoint::Expr::App(Box::new(proj), None, vec![self.expr_to_fixpoint(e, scx)?]))
+        // }
     }
 
     fn un_op_to_fixpoint(
