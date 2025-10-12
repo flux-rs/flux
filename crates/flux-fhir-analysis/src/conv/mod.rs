@@ -20,7 +20,7 @@ use flux_common::{
 };
 use flux_middle::{
     THEORY_FUNCS,
-    def_id::MaybeExternId,
+    def_id::{FluxLocalDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, QPathExpr},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -927,10 +927,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::SortCtor::Map
             }
             fhir::SortRes::User(def_id) => {
-                let sort_args_count = self.genv().sort_decl_param_count(def_id)?;
-                if path.args.len() != sort_args_count {
-                    panic!("ABCDEFG")
-                }
+                self.check_user_defined_sort_param_count(path, def_id)?;
                 rty::SortCtor::User { name: def_id.name() }
             }
             fhir::SortRes::Adt(def_id) => {
@@ -951,6 +948,24 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let args = path.args.iter().map(|t| self.conv_sort(t)).try_collect()?;
 
         Ok(rty::Sort::app(ctor, args))
+    }
+
+    fn check_user_defined_sort_param_count(
+        &mut self,
+        path: &fhir::SortPath<'_>,
+        def_id: FluxLocalDefId,
+    ) -> QueryResult {
+        let expected_param_count = self.genv().sort_decl_param_count(def_id)?;
+        if path.args.len() != expected_param_count {
+            let err = errors::IncorrectGenericsOnUserDefinedOpaqueSort::new(
+                path.segments.last().unwrap().span,
+                def_id.name(),
+                expected_param_count,
+                path.args.len(),
+            );
+            Err(self.emit(err))?;
+        }
+        Ok(())
     }
 
     fn check_prim_sort_generics(
@@ -3078,17 +3093,19 @@ mod errors {
     }
 
     #[derive(Diagnostic)]
-    #[diag(fhir_analysis_generics_on_opaque_sort, code = E0999)]
-    pub(super) struct GenericsOnUserDefinedOpaqueSort {
+    #[diag(fhir_analysis_incorrect_generics_on_opaque_sort, code = E0999)]
+    pub(super) struct IncorrectGenericsOnUserDefinedOpaqueSort {
         #[primary_span]
         #[label]
         span: Span,
+        name: Symbol,
+        expected: usize,
         found: usize,
     }
 
-    impl GenericsOnUserDefinedOpaqueSort {
-        pub(super) fn new(span: Span, found: usize) -> Self {
-            Self { span, found }
+    impl IncorrectGenericsOnUserDefinedOpaqueSort {
+        pub(super) fn new(span: Span, name: Symbol, expected: usize, found: usize) -> Self {
+            Self { span, name, expected, found }
         }
     }
 
