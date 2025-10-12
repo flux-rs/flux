@@ -1649,8 +1649,8 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Infer(vid) => rustc_middle::ty::Ty::new_var(tcx, *vid),
             TyKind::Uninit
             | TyKind::Ptr(_, _)
-            | TyKind::Discr(_, _)
-            | TyKind::Downcast(_, _, _, _, _)
+            | TyKind::Discr(..)
+            | TyKind::Downcast(..)
             | TyKind::Blocked(_) => bug!("TODO: to_rustc for `{self:?}`"),
         }
     }
@@ -2006,7 +2006,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                     .map(|pred| pred.to_rustc(tcx))
                     .collect_vec();
                 let preds = tcx.mk_poly_existential_predicates(&preds);
-                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx), rustc_middle::ty::DynKind::Dyn)
+                ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
             BaseTy::Coroutine(def_id, resume_ty, upvars) => {
                 bug!("TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}")

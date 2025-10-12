@@ -159,6 +159,7 @@ pub struct Providers {
         GlobalEnv<'genv, '_>,
         LocalDefId,
     ) -> QueryResult<UnordMap<LocalDefId, fhir::Node<'genv>>>,
+    pub fhir_attr_map: for<'genv> fn(GlobalEnv<'genv, '_>, LocalDefId) -> fhir::AttrMap<'genv>,
     pub fhir_crate: for<'genv> fn(GlobalEnv<'genv, '_>) -> fhir::FluxItems<'genv>,
     pub qualifiers: fn(GlobalEnv) -> QueryResult<Vec<rty::Qualifier>>,
     pub prim_rel: fn(GlobalEnv) -> QueryResult<UnordMap<rty::BinOp, rty::PrimRel>>,
@@ -205,6 +206,7 @@ impl Default for Providers {
             collect_specs: |_| empty_query!(),
             resolve_crate: |_| empty_query!(),
             desugar: |_, _| empty_query!(),
+            fhir_attr_map: |_, _| empty_query!(),
             fhir_crate: |_| empty_query!(),
             normalized_defns: |_| empty_query!(),
             func_sort: |_, _| empty_query!(),
@@ -237,6 +239,7 @@ pub struct Queries<'genv, 'tcx> {
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
+    fhir_attr_map: Cache<LocalDefId, fhir::AttrMap<'genv>>,
     fhir_crate: OnceCell<fhir::FluxItems<'genv>>,
     lower_generics_of: Cache<DefId, ty::Generics<'tcx>>,
     lower_predicates_of: Cache<DefId, QueryResult<ty::GenericPredicates>>,
@@ -275,6 +278,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             collect_specs: Default::default(),
             resolve_crate: Default::default(),
             desugar: Default::default(),
+            fhir_attr_map: Default::default(),
             fhir_crate: Default::default(),
             lower_generics_of: Default::default(),
             lower_predicates_of: Default::default(),
@@ -353,6 +357,14 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 Err(err)
             }
         }
+    }
+
+    pub(crate) fn fhir_attr_map(
+        &'genv self,
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: LocalDefId,
+    ) -> fhir::AttrMap<'genv> {
+        run_with_cache(&self.fhir_attr_map, def_id, || (self.providers.fhir_attr_map)(genv, def_id))
     }
 
     pub(crate) fn fhir_crate(

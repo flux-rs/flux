@@ -15,7 +15,7 @@ use super::{
     Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
     WhereBoundPredicate,
 };
-use crate::surface::{FluxItem, FnSpec, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
+use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -124,10 +124,6 @@ pub trait Visitor: Sized {
 
     fn visit_variant_ret(&mut self, ret: &VariantRet) {
         walk_variant_ret(self, ret);
-    }
-
-    fn visit_fn_spec(&mut self, fn_spec: &FnSpec) {
-        walk_fn_spec(self, fn_spec);
     }
 
     fn visit_fn_sig(&mut self, fn_sig: &FnSig) {
@@ -272,22 +268,31 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
 
 pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
     match &item.kind {
-        ItemKind::Fn(fn_spec) => vis.visit_fn_spec(fn_spec),
+        ItemKind::Fn(fn_sig) => {
+            if let Some(fn_sig) = fn_sig {
+                vis.visit_fn_sig(fn_sig);
+            }
+        }
         ItemKind::Struct(struct_def) => vis.visit_struct_def(struct_def),
         ItemKind::Enum(enum_def) => vis.visit_enum_def(enum_def),
         ItemKind::Trait(trait_) => vis.visit_trait(trait_),
         ItemKind::Impl(impl_) => vis.visit_impl(impl_),
         ItemKind::Const(cst) => vis.visit_constant(cst),
         ItemKind::TyAlias(ty_alias) => vis.visit_ty_alias(ty_alias),
+        ItemKind::Mod => {}
     }
 }
 
 pub fn walk_trait_item<V: Visitor>(vis: &mut V, item: &TraitItemFn) {
-    vis.visit_fn_spec(&item.spec);
+    if let Some(fn_sig) = item.sig.as_ref() {
+        vis.visit_fn_sig(fn_sig);
+    }
 }
 
 pub fn walk_impl_item<V: Visitor>(vis: &mut V, item: &ImplItemFn) {
-    vis.visit_fn_spec(&item.spec);
+    if let Some(fn_sig) = item.sig.as_ref() {
+        vis.visit_fn_sig(fn_sig);
+    }
 }
 
 pub fn walk_trait<V: Visitor>(vis: &mut V, trait_: &Trait) {
@@ -395,12 +400,6 @@ pub fn walk_fn_trait_ref<V: Visitor>(vis: &mut V, in_arg: &GenericArg, out_arg: 
 pub fn walk_variant_ret<V: Visitor>(vis: &mut V, ret: &VariantRet) {
     vis.visit_path(&ret.path);
     vis.visit_indices(&ret.indices);
-}
-
-pub fn walk_fn_spec<V: Visitor>(vis: &mut V, fn_spec: &FnSpec) {
-    if let Some(fn_sig) = &fn_spec.fn_sig {
-        vis.visit_fn_sig(fn_sig);
-    }
 }
 
 pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {

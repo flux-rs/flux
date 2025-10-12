@@ -36,13 +36,15 @@ impl Sub for BV32 {
     }
 }
 
-#[trusted]
 impl PartialEq for BV32 {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
-flux_core::eq!(BV32);
+flux_core::eq!(
+    #[trusted]
+    BV32
+);
 
 impl PartialOrd for BV32 {
     #[flux::trusted]

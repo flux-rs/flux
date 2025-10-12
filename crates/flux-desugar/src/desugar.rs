@@ -16,7 +16,7 @@ use flux_middle::{
     def_id::{FluxLocalDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, ParamId, QPathExpr, Res},
     global_env::GlobalEnv,
-    try_alloc_slice,
+    query_bug, try_alloc_slice,
 };
 use flux_syntax::{
     surface::{self, ConstructorArg, NodeId, visit::Visitor as _},
@@ -113,8 +113,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn desugar_item(&mut self, item: &surface::Item) -> Result<fhir::Item<'genv>> {
         match &item.kind {
-            surface::ItemKind::Fn(fn_spec) => {
-                let (generics, fn_sig) = self.desugar_fn_spec(fn_spec)?;
+            surface::ItemKind::Fn(fn_sig) => {
+                let (generics, fn_sig) = self.desugar_fn_sig(fn_sig.as_ref())?;
                 Ok(fhir::Item { generics, kind: fhir::ItemKind::Fn(fn_sig), owner_id: self.owner })
             }
             surface::ItemKind::Struct(struct_def) => Ok(self.desugar_struct_def(struct_def)),
@@ -123,6 +123,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             surface::ItemKind::Impl(impl_) => Ok(self.desugar_impl(impl_)),
             surface::ItemKind::Const(constant_info) => Ok(self.desugar_const(constant_info)),
             surface::ItemKind::TyAlias(ty_alias) => Ok(self.desugar_type_alias(ty_alias)),
+            surface::ItemKind::Mod => Err(self.emit(query_bug!("modules can't be desugared"))),
         }
     }
 
@@ -130,7 +131,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::TraitItemFn,
     ) -> Result<fhir::TraitItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_spec(&item.spec)?;
+        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
         Ok(fhir::TraitItem {
             generics,
             kind: fhir::TraitItemKind::Fn(fn_sig),
@@ -142,11 +143,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::ImplItemFn,
     ) -> Result<fhir::ImplItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_spec(&item.spec)?;
+        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
-    pub(crate) fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
+    fn desugar_trait(&mut self, trait_: &surface::Trait) -> Result<fhir::Item<'genv>> {
         let generics = if let Some(generics) = &trait_.generics {
             self.desugar_generics(generics)
         } else {
@@ -191,7 +192,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         Ok(self.genv().alloc_slice_fill_iter(iter))
     }
 
-    pub(crate) fn desugar_impl(&mut self, impl_: &surface::Impl) -> fhir::Item<'genv> {
+    fn desugar_impl(&mut self, impl_: &surface::Impl) -> fhir::Item<'genv> {
         let generics = if let Some(generics) = &impl_.generics {
             self.desugar_generics(generics)
         } else {
@@ -221,10 +222,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             }))
     }
 
-    pub(crate) fn desugar_generics(
-        &mut self,
-        generics: &surface::Generics,
-    ) -> fhir::Generics<'genv> {
+    fn desugar_generics(&mut self, generics: &surface::Generics) -> fhir::Generics<'genv> {
         let params = self.genv.alloc_slice_fill_iter(
             self.genv
                 .tcx()
@@ -309,10 +307,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fhir::RefinedBy::new(fields, generic_id_to_var_idx)
     }
 
-    pub(crate) fn desugar_struct_def(
-        &mut self,
-        struct_def: &surface::StructDef,
-    ) -> fhir::Item<'genv> {
+    fn desugar_struct_def(&mut self, struct_def: &surface::StructDef) -> fhir::Item<'genv> {
         let refined_by = if let Some(refined_by) = &struct_def.refined_by {
             self.desugar_refined_by(refined_by)
         } else {
@@ -370,10 +365,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fhir::Item { generics, kind: fhir::ItemKind::Struct(struct_def), owner_id: self.owner }
     }
 
-    pub(crate) fn desugar_enum_def(
-        &mut self,
-        enum_def: &surface::EnumDef,
-    ) -> Result<fhir::Item<'genv>> {
+    fn desugar_enum_def(&mut self, enum_def: &surface::EnumDef) -> Result<fhir::Item<'genv>> {
         let def_id = self.owner.local_id().def_id;
         let ItemKind::Enum(_, _, hir_enum) = self.genv.tcx().hir_expect_item(def_id).kind else {
             bug!("expected enum");
@@ -453,7 +445,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn desugar_type_alias(&mut self, ty_alias: &surface::TyAlias) -> fhir::Item<'genv> {
+    fn desugar_type_alias(&mut self, ty_alias: &surface::TyAlias) -> fhir::Item<'genv> {
         let mut generics = self.desugar_generics(&ty_alias.generics);
 
         let ty = self.desugar_ty(&ty_alias.ty);
@@ -474,10 +466,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fhir::Item { generics, kind: fhir::ItemKind::TyAlias(ty_alias), owner_id: self.owner }
     }
 
-    pub(crate) fn desugar_const(
-        &mut self,
-        const_info: &surface::ConstantInfo,
-    ) -> fhir::Item<'genv> {
+    fn desugar_const(&mut self, const_info: &surface::ConstantInfo) -> fhir::Item<'genv> {
         let expr = const_info.expr.as_ref().map(|e| self.desugar_expr(e));
         let owner_id = self.owner;
         let generics = self.lift_generics();
@@ -485,12 +474,12 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fhir::Item { owner_id, generics, kind }
     }
 
-    pub(crate) fn desugar_fn_spec(
+    fn desugar_fn_sig(
         &mut self,
-        fn_spec: &surface::FnSpec,
+        fn_sig: Option<&surface::FnSig>,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
         let mut header = self.lift_fn_header();
-        let (generics, decl) = if let Some(fn_sig) = &fn_spec.fn_sig {
+        let (generics, decl) = if let Some(fn_sig) = fn_sig {
             self.fn_sig_scope = Some(fn_sig.node_id);
 
             let mut requires = vec![];
@@ -530,18 +519,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-
-        let qual_names = &self.resolver_output.qualifier_res_map[&fn_spec.node_id];
-        let reveal_names = &self.resolver_output.reveal_res_map[&fn_spec.node_id];
-        Ok((
-            generics,
-            fhir::FnSig {
-                header,
-                qualifiers: self.genv.alloc_slice(qual_names),
-                reveals: self.genv.alloc_slice(reveal_names),
-                decl: self.genv.alloc(decl),
-            },
-        ))
+        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl) }))
     }
 
     fn desugar_fn_sig_refine_params(
@@ -873,10 +851,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn desugar_qualifier(
-        &mut self,
-        qualifier: &surface::Qualifier,
-    ) -> fhir::Qualifier<'genv> {
+    fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> fhir::Qualifier<'genv> {
         fhir::Qualifier {
             def_id: self.owner,
             args: self.desugar_refine_params(&qualifier.params),
@@ -885,7 +860,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn desugar_primop_prop(
+    fn desugar_primop_prop(
         &mut self,
         primop_prop: &surface::PrimOpProp,
     ) -> fhir::PrimOpProp<'genv> {
@@ -900,10 +875,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         }
     }
 
-    pub(crate) fn desugar_spec_func(
-        &mut self,
-        spec_func: &surface::SpecFunc,
-    ) -> fhir::SpecFunc<'genv> {
+    fn desugar_spec_func(&mut self, spec_func: &surface::SpecFunc) -> fhir::SpecFunc<'genv> {
         let body = spec_func.body.as_ref().map(|body| self.desugar_expr(body));
         let params = spec_func.sort_vars.len();
         let sort = self.desugar_sort(&spec_func.output, None);

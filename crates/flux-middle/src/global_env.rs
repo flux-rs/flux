@@ -77,6 +77,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.desugar(self, def_id)
     }
 
+    pub fn fhir_attr_map(self, def_id: LocalDefId) -> fhir::AttrMap<'genv> {
+        self.inner.queries.fhir_attr_map(self, def_id)
+    }
+
     pub fn fhir_crate(self) -> &'genv fhir::FluxItems<'genv> {
         self.inner.queries.fhir_crate(self)
     }
@@ -148,11 +152,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self,
         did: LocalDefId,
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
-        let quals = if let Some(fn_sig) = self.fhir_expect_owner_node(did)?.fn_sig() {
-            fn_sig.qualifiers
-        } else {
-            &[]
-        };
+        let quals = self.fhir_attr_map(did).qualifiers;
         let names: UnordSet<_> = quals.iter().copied().collect();
         Ok(self
             .qualifiers()?
@@ -161,13 +161,8 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
-    pub fn reveals_for(self, did: LocalDefId) -> QueryResult<impl Iterator<Item = FluxDefId>> {
-        let reveals = if let Some(fn_sig) = self.fhir_expect_owner_node(did)?.fn_sig() {
-            fn_sig.reveals
-        } else {
-            &[]
-        };
-        Ok(reveals.iter().copied())
+    pub fn reveals_for(self, did: LocalDefId) -> &'genv [FluxDefId] {
+        self.fhir_attr_map(did).reveals
     }
 
     pub fn func_sort(self, def_id: impl IntoQueryParam<FluxDefId>) -> rty::PolyFuncSort {
@@ -495,10 +490,9 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn infer_opts(self, def_id: LocalDefId) -> config::InferOpts {
         let mut opts = config::PartialInferOpts::default();
-        let specs = self.collect_specs();
         self.traverse_parents(def_id, |did| {
-            if let Some(o) = specs.infer_opts.get(&did) {
-                opts.merge(o);
+            if let Some(o) = self.fhir_attr_map(did).infer_opts() {
+                opts.merge(&o);
             }
             None::<!>
         });
@@ -509,13 +503,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// explicit `#[flux::trusted(..)]` annotation and return whether that item is trusted or not.
     /// If no explicit annotation is found, return `false`.
     pub fn trusted(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().trusted.get(&did))
+        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted())
             .map(|trusted| trusted.to_bool())
             .unwrap_or_else(config::trusted_default)
     }
 
     pub fn trusted_impl(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().trusted_impl.get(&did))
+        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).trusted_impl())
             .map(|trusted| trusted.to_bool())
             .unwrap_or(false)
     }
@@ -537,23 +531,19 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     /// explicit `#[flux::ignore(..)]` annotation and return whether that item is ignored or not.
     /// If no explicit annotation is found, return `false`.
     pub fn ignored(self, def_id: LocalDefId) -> bool {
-        self.traverse_parents(def_id, |did| self.collect_specs().ignores.get(&did))
+        self.traverse_parents(def_id, |did| self.fhir_attr_map(did).ignored())
             .map(|ignored| ignored.to_bool())
             .unwrap_or_else(config::ignore_default)
     }
 
     /// Whether the function is marked with `#[flux::should_fail]`
     pub fn should_fail(self, def_id: LocalDefId) -> bool {
-        self.collect_specs().should_fail.contains(&def_id)
+        self.fhir_attr_map(def_id).should_fail()
     }
 
     /// Whether the function is marked with `#[proven_externally]`
     pub fn proven_externally(self, def_id: LocalDefId) -> bool {
-        self.collect_specs()
-            .proven_externally
-            .get(&def_id)
-            .map(|proven_externally| proven_externally.to_bool())
-            .unwrap_or(false)
+        self.fhir_attr_map(def_id).proven_externally()
     }
 
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].

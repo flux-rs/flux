@@ -207,7 +207,6 @@ pub enum Rvalue {
     Repeat(Operand, Const),
     Ref(Region, BorrowKind, Place),
     RawPtr(RawPtrKind, Place),
-    Len(Place),
     Cast(CastKind, Operand, Ty),
     BinaryOp(BinOp, Operand, Operand),
     NullaryOp(NullOp, Ty),
@@ -721,7 +720,6 @@ impl fmt::Debug for Rvalue {
             Rvalue::Aggregate(AggregateKind::Tuple, args) => {
                 write!(f, "({:?})", args.iter().format(", "))
             }
-            Rvalue::Len(place) => write!(f, "Len({place:?})"),
             Rvalue::Cast(kind, op, ty) => write!(f, "{op:?} as {ty:?} [{kind:?}]"),
             Rvalue::Repeat(op, c) => write!(f, "[{op:?}; {c:?}]"),
             Rvalue::ShallowInitBox(op, ty) => write!(f, "ShallowInitBox({op:?}, {ty:?})"),

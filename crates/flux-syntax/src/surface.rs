@@ -1,6 +1,7 @@
 pub mod visit;
 use std::{borrow::Cow, fmt, ops::Range};
 
+use flux_config::PartialInferOpts;
 pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
@@ -111,25 +112,34 @@ pub struct TyAlias {
 }
 
 pub struct Item {
+    pub attrs: Vec<Attr>,
     pub kind: ItemKind,
+    pub node_id: NodeId,
 }
 
 pub enum ItemKind {
-    Fn(FnSpec),
+    Fn(Option<FnSig>),
     Struct(StructDef),
     Enum(EnumDef),
     Trait(Trait),
     Impl(Impl),
     Const(ConstantInfo),
     TyAlias(Box<TyAlias>),
+    /// Modules can't be refined but we collect attributes for them, e.g., `#[trusted]`
+    /// This kind is also used for the crate root, for which we also collect attributes.
+    Mod,
 }
 
 pub struct TraitItemFn {
-    pub spec: FnSpec,
+    pub attrs: Vec<Attr>,
+    pub sig: Option<FnSig>,
+    pub node_id: NodeId,
 }
 
 pub struct ImplItemFn {
-    pub spec: FnSpec,
+    pub attrs: Vec<Attr>,
+    pub sig: Option<FnSig>,
+    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -140,20 +150,20 @@ pub struct DetachedSpecs {
 #[derive(Debug)]
 pub struct DetachedTraitImpl {
     pub trait_: ExprPath,
-    pub items: Vec<DetachedItem<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSig>>,
     pub refts: Vec<ImplAssocReft>,
     pub span: Span,
 }
 
 #[derive(Debug, Default)]
 pub struct DetachedTrait {
-    pub items: Vec<DetachedItem<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSig>>,
     pub refts: Vec<TraitAssocReft>,
 }
 
 #[derive(Debug)]
 pub struct DetachedInherentImpl {
-    pub items: Vec<DetachedItem<FnSpec>>,
+    pub items: Vec<DetachedItem<FnSig>>,
     pub span: Span,
 }
 
@@ -165,8 +175,21 @@ impl DetachedInherentImpl {
 
 #[derive(Debug)]
 pub struct DetachedItem<K = DetachedItemKind> {
+    pub attrs: Vec<Attr>,
     pub path: ExprPath,
     pub kind: K,
+    pub node_id: NodeId,
+}
+
+impl<K> DetachedItem<K> {
+    pub fn map_kind<R>(self, f: impl FnOnce(K) -> R) -> DetachedItem<R> {
+        DetachedItem {
+            attrs: self.attrs,
+            path: self.path,
+            kind: f(self.kind),
+            node_id: self.node_id,
+        }
+    }
 }
 
 impl DetachedItem<DetachedItemKind> {
@@ -181,7 +204,7 @@ impl DetachedItem<DetachedItemKind> {
 
 #[derive(Debug)]
 pub enum DetachedItemKind {
-    FnSig(FnSpec),
+    FnSig(FnSig),
     Mod(DetachedSpecs),
     Struct(StructDef),
     Enum(EnumDef),
@@ -231,16 +254,6 @@ pub struct VariantRet {
 }
 
 pub type RefineParams = Vec<RefineParam>;
-
-#[derive(Debug, Default)]
-pub struct QualNames {
-    pub names: Vec<Ident>,
-}
-
-#[derive(Debug, Default)]
-pub struct RevealNames {
-    pub names: Vec<Ident>,
-}
 
 #[derive(Debug)]
 pub struct RefineParam {
@@ -315,15 +328,6 @@ pub struct TraitAssocReft {
     pub body: Option<Expr>,
     pub span: Span,
     pub final_: bool,
-}
-
-#[derive(Debug)]
-pub struct FnSpec {
-    pub fn_sig: Option<FnSig>,
-    pub qual_names: Option<QualNames>,
-    pub reveal_names: Option<RevealNames>,
-    pub trusted: bool,
-    pub node_id: NodeId,
 }
 
 #[derive(Debug)]
@@ -544,54 +548,76 @@ pub enum BindKind {
     Pound,
 }
 
-#[derive(Debug)]
-pub enum Attr {
-    /// A `#[trusted]` attribute
-    Trusted,
-    /// A `#[proven_externally]` attribute
-    ProvenExternally,
-    /// A `#[hide]` attribute
-    Hide,
-    /// A `#[reft]` attribute
-    Reft,
-    /// A `#[invariant]` attribute
-    Invariant(Expr),
-    /// A `#[refined_by]` attribute
-    RefinedBy(RefineParams),
+/// A boolean-like enum used to mark whether some code should be trusted.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Trusted {
+    Yes,
+    No,
 }
 
-pub struct Attrs(pub Vec<Attr>);
-
-impl Attrs {
-    pub fn is_reft(&self) -> bool {
-        self.0.iter().any(|attr| matches!(attr, Attr::Reft))
+impl Trusted {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Trusted::Yes => true,
+            Trusted::No => false,
+        }
     }
+}
 
-    pub fn is_trusted(&self) -> bool {
-        self.0.iter().any(|attr| matches!(attr, Attr::Trusted))
+impl From<bool> for Trusted {
+    fn from(value: bool) -> Self {
+        if value { Trusted::Yes } else { Trusted::No }
     }
+}
 
-    pub fn is_proven_externally(&self) -> bool {
-        self.0
-            .iter()
-            .any(|attr| matches!(attr, Attr::ProvenExternally))
-    }
+/// A boolean-like enum used to mark whether a piece of code is ignored.
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum Ignored {
+    Yes,
+    No,
+}
 
-    pub fn refined_by(&mut self) -> Option<RefineParams> {
-        let pos = self
-            .0
-            .iter()
-            .position(|x| matches!(x, Attr::RefinedBy(_)))?;
-        if let Attr::RefinedBy(params) = self.0.remove(pos) { Some(params) } else { None }
+impl Ignored {
+    pub fn to_bool(self) -> bool {
+        match self {
+            Ignored::Yes => true,
+            Ignored::No => false,
+        }
     }
+}
 
-    pub fn invariant(&mut self) -> Option<Expr> {
-        let pos = self
-            .0
-            .iter()
-            .position(|x| matches!(x, Attr::Invariant(_)))?;
-        if let Attr::Invariant(exp) = self.0.remove(pos) { Some(exp) } else { None }
+impl From<bool> for Ignored {
+    fn from(value: bool) -> Self {
+        if value { Ignored::Yes } else { Ignored::No }
     }
+}
+
+/// An attribute attaches metadata to an item.
+///
+/// Note that some of these attributes correspond to a Rust attribute, but some don't. For example,
+/// when annotating a function, a `#[flux::trusted]` is mapped to [`Attr::Trusted`] because it
+/// corresponds to metadata associated to the function, however, a `#[flux::spec(...)]` doesn't
+/// map to any [`Attr`] because that's considered to be part of the *refined syntax* of the item.
+///
+/// Note that these attributes can also originate from detached specs.
+#[derive(Debug)]
+pub enum Attr {
+    /// A `#[trusted(...)]` attribute
+    Trusted(Trusted),
+    /// A `#[trusted_impl(...)]` attribute
+    TrustedImpl(Trusted),
+    /// A `#[ignore(...)]` attribute
+    Ignore(Ignored),
+    /// A `#[proven_externally]` attribute
+    ProvenExternally,
+    /// A `#[should_fail]` attribute
+    ShouldFail,
+    /// A `#[qualifiers(...)]` attribute
+    Qualifiers(Vec<Ident>),
+    /// A `#[reveal(...)]` attribute
+    Reveal(Vec<Ident>),
+    /// A `#[opts(...)]` attribute
+    InferOpts(PartialInferOpts),
 }
 
 #[derive(Debug)]

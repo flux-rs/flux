@@ -18,9 +18,10 @@ pub mod visit;
 use std::{borrow::Cow, fmt};
 
 use flux_common::{bug, span_bug};
+use flux_config::PartialInferOpts;
 use flux_rustc_bridge::def_id_to_string;
-use flux_syntax::surface::ParamMode;
 pub use flux_syntax::surface::{BinOp, UnOp};
+use flux_syntax::surface::{Ignored, ParamMode, Trusted};
 use itertools::Itertools;
 use rustc_abi;
 pub use rustc_abi::VariantIdx;
@@ -41,69 +42,57 @@ use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
 use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
 
-/// A boolean-like enum used to mark whether a piece of code is ignored.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Ignored {
-    Yes,
-    No,
+pub enum Attr {
+    Trusted(Trusted),
+    TrustedImpl(Trusted),
+    Ignore(Ignored),
+    ProvenExternally,
+    ShouldFail,
+    InferOpts(PartialInferOpts),
 }
 
-impl Ignored {
-    pub fn to_bool(self) -> bool {
-        match self {
-            Ignored::Yes => true,
-            Ignored::No => false,
-        }
+#[derive(Clone, Copy, Default)]
+pub struct AttrMap<'fhir> {
+    pub attrs: &'fhir [Attr],
+    pub qualifiers: &'fhir [FluxLocalDefId],
+    pub reveals: &'fhir [FluxDefId],
+}
+
+impl AttrMap<'_> {
+    pub(crate) fn proven_externally(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::ProvenExternally))
     }
-}
 
-impl From<bool> for Ignored {
-    fn from(value: bool) -> Self {
-        if value { Ignored::Yes } else { Ignored::No }
+    pub(crate) fn ignored(&self) -> Option<Ignored> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::Ignore(ignored) = *attr { Some(ignored) } else { None })
     }
-}
 
-/// A boolean-like enum used to mark whether some code should be trusted.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum Trusted {
-    Yes,
-    No,
-}
-
-impl Trusted {
-    pub fn to_bool(self) -> bool {
-        match self {
-            Trusted::Yes => true,
-            Trusted::No => false,
-        }
+    pub(crate) fn trusted(&self) -> Option<Trusted> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::Trusted(trusted) = *attr { Some(trusted) } else { None })
     }
-}
 
-impl From<bool> for Trusted {
-    fn from(value: bool) -> Self {
-        if value { Trusted::Yes } else { Trusted::No }
+    pub(crate) fn trusted_impl(&self) -> Option<Trusted> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::TrustedImpl(trusted) = *attr { Some(trusted) } else { None }
+        })
     }
-}
 
-/// A boolean-like enum used to mark whether some specification is proven correct in lean.
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum ProvenExternally {
-    Yes,
-    No,
-}
-
-impl ProvenExternally {
-    pub fn to_bool(self) -> bool {
-        match self {
-            ProvenExternally::Yes => true,
-            ProvenExternally::No => false,
-        }
+    pub(crate) fn should_fail(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::ShouldFail))
     }
-}
 
-impl From<bool> for ProvenExternally {
-    fn from(value: bool) -> Self {
-        if value { ProvenExternally::Yes } else { ProvenExternally::No }
+    pub(crate) fn infer_opts(&self) -> Option<PartialInferOpts> {
+        self.attrs
+            .iter()
+            .find_map(|attr| if let Attr::InferOpts(opts) = *attr { Some(opts) } else { None })
     }
 }
 
@@ -517,10 +506,6 @@ pub struct Requires<'fhir> {
 #[derive(Clone, Copy)]
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
-    //// List of local qualifiers for this function
-    pub qualifiers: &'fhir [FluxLocalDefId],
-    //// List of reveals for this function
-    pub reveals: &'fhir [FluxDefId],
     pub decl: &'fhir FnDecl<'fhir>,
 }
 

@@ -400,7 +400,7 @@ fn find_trait_item(
         && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
     {
         let impl_trait_ref = impl_trait_ref.instantiate_identity();
-        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id.unwrap();
+        let trait_item_id = tcx.associated_item(def_id).trait_item_def_id().unwrap();
         return Ok(Some((impl_trait_ref, trait_item_id)));
     }
     Ok(None)
@@ -670,7 +670,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 if discr_ty.is_integral() || discr_ty.is_bool() || discr_ty.is_char() {
                     Ok(Self::check_if(&discr_ty, targets))
                 } else {
-                    Ok(Self::check_match(&discr_ty, targets))
+                    Ok(Self::check_match(infcx, env, &discr_ty, targets, terminator_span))
                 }
             }
             TerminatorKind::Call { kind, args, destination, target, .. } => {
@@ -1038,8 +1038,21 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         successors
     }
 
-    fn check_match(discr_ty: &Ty, targets: &SwitchTargets) -> Vec<(BasicBlock, Guard)> {
+    fn check_match(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        env: &mut TypeEnv,
+        discr_ty: &Ty,
+        targets: &SwitchTargets,
+        span: Span,
+    ) -> Vec<(BasicBlock, Guard)> {
         let (adt_def, place) = discr_ty.expect_discr();
+        let idx = if let Ok(ty) = env.lookup_place(&mut infcx.at(span), place)
+            && let TyKind::Indexed(_, idx) = ty.kind()
+        {
+            Some(idx.clone())
+        } else {
+            None
+        };
 
         let mut successors = vec![];
         let mut remaining: FxHashMap<u128, VariantIdx> = adt_def
@@ -1052,16 +1065,27 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .expect("value doesn't correspond to any variant");
             successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
-
-        if remaining.len() == 1 {
+        let guard = if remaining.len() == 1 {
+            // If there's only one variant left, we know for sure that this is the one, so can force an unfold
             let (_, variant_idx) = remaining
                 .into_iter()
                 .next()
                 .unwrap_or_else(|| tracked_span_bug!());
-            successors.push((targets.otherwise(), Guard::Match(place.clone(), variant_idx)));
+            Guard::Match(place.clone(), variant_idx)
+        } else if adt_def.sort_def().is_reflected()
+            && let Some(idx) = idx
+        {
+            // If there's more than one variant left, we can only assume the `is_ctor` holds for one of them
+            let mut cases = vec![];
+            for (_, variant_idx) in remaining {
+                let did = adt_def.did();
+                cases.push(rty::Expr::is_ctor(did, variant_idx, idx.clone()));
+            }
+            Guard::Pred(Expr::or_from_iter(cases))
         } else {
-            successors.push((targets.otherwise(), Guard::None));
-        }
+            Guard::None
+        };
+        successors.push((targets.otherwise(), guard));
 
         successors
     }
@@ -1266,7 +1290,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)
             }
             Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
-            Rvalue::Len(place) => self.check_len(infcx, env, stmt_span, place),
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                 self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
@@ -1364,26 +1387,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             _ => Ok(Ty::unit()),
         }
-    }
-
-    fn check_len(
-        &mut self,
-        infcx: &mut InferCtxt,
-        env: &mut TypeEnv,
-        stmt_span: Span,
-        place: &Place,
-    ) -> Result<Ty> {
-        let ty = env
-            .lookup_place(&mut infcx.at(stmt_span), place)
-            .with_span(stmt_span)?;
-
-        let idx = match ty.kind() {
-            TyKind::Indexed(BaseTy::Array(_, len), _) => Expr::from_const(self.genv.tcx(), len),
-            TyKind::Indexed(BaseTy::Slice(_), idx) => idx.clone(),
-            _ => tracked_span_bug!("check_len: expected array or slice type found  `{ty:?}`"),
-        };
-
-        Ok(Ty::indexed(BaseTy::Uint(UintTy::Usize), idx))
     }
 
     fn check_binary_op(
