@@ -4,7 +4,7 @@ use flux_common::index::IndexGen;
 use flux_errors::Errors;
 use flux_middle::{
     ResolverOutput,
-    fhir::{self, PartialRes, Res, SortDecl},
+    fhir::{self, PartialRes, Res},
 };
 use flux_syntax::{
     surface::{self, FluxItem, Ident, NodeId, visit::Visitor as _},

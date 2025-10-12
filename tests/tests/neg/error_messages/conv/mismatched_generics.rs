@@ -19,11 +19,16 @@ trait MyTrait {}
 
 flux_rs::defs! {
     opaque sort MyOpaqueSort;
+    opaque sort MyOpaqueSort2<T>;
 }
 
 #[flux_rs::opaque]
-#[flux_rs::refined_by(f: MyOpaqueSort<int>)] //~ Error user defined opaque sorts have no generics but found 1
+#[flux_rs::refined_by(f: MyOpaqueSort<int>)] //~ Error opaque sort MyOpaqueSort expects no generics but found 1
 struct Y {}
+
+#[flux_rs::opaque]
+#[flux_rs::refined_by(f: MyOpaqueSort2<int, int>)] //~ Error opaque sort MyOpaqueSort2 expects exactly one generic argument but found 2
+struct Z {}
 
 unsafe extern "C" {
     type A;

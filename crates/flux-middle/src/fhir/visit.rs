@@ -205,7 +205,7 @@ pub trait Visitor<'v>: Sized {
     fn visit_path_expr(&mut self, _path: &PathExpr<'v>) {}
 }
 
-fn walk_sort_decl<'v, V: Visitor<'v>>(vis: &mut V, _sort_decl: &SortDecl) {}
+fn walk_sort_decl<'v, V: Visitor<'v>>(_vis: &mut V, _sort_decl: &SortDecl) {}
 
 fn walk_func<'v, V: Visitor<'v>>(vis: &mut V, func: &SpecFunc<'v>) {
     walk_list!(vis, visit_refine_param, func.args);
