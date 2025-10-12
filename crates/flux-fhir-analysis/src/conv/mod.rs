@@ -927,14 +927,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 rty::SortCtor::Map
             }
             fhir::SortRes::User(def_id) => {
-                // xcxc
-                // if path.args.len() != params {
-                //     let err = errors::GenericsOnUserDefinedOpaqueSort::new(
-                //         path.segments.last().unwrap().span,
-                //         path.args.len(),
-                //     );
-                //     Err(self.emit(err))?;
-                // }
+                let sort_args_count = self.genv().sort_decl_param_count(def_id)?;
+                if path.args.len() != sort_args_count {
+                    panic!("ABCDEFG")
+                }
                 rty::SortCtor::User { name: def_id.name() }
             }
             fhir::SortRes::Adt(def_id) => {

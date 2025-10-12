@@ -616,7 +616,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.resolver
             .sort_decls
             .get(&segment.name)
-            .map(|decl| fhir::SortRes::User(decl.to_def_id()))
+            .map(|decl| fhir::SortRes::User(*decl))
     }
 
     fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {
