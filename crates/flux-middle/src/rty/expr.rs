@@ -790,13 +790,8 @@ pub enum ExprKind {
     /// about the scope).
     Hole(HoleKind),
     ForAll(Binder<Expr>),
-<<<<<<< HEAD
-    /// Is the expression constructed from constructor of the given Ctor (should be Enum)
-    IsCtor(Ctor, Expr),
-=======
     /// Is the expression constructed from constructor of the given DefId (which should be `reflected` Enum)
     IsCtor(DefId, VariantIdx, Expr),
->>>>>>> 280ca7c582726e2ec71f860de2aa1885ec0a1066
 }
 
 impl ExprKind {

@@ -1065,20 +1065,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 .expect("value doesn't correspond to any variant");
             successors.push((bb, Guard::Match(place.clone(), variant_idx)));
         }
-<<<<<<< HEAD
-
-        let guard = if remaining.len() == 1 {
-=======
         let guard = if remaining.len() == 1 {
             // If there's only one variant left, we know for sure that this is the one, so can force an unfold
->>>>>>> 280ca7c582726e2ec71f860de2aa1885ec0a1066
             let (_, variant_idx) = remaining
                 .into_iter()
                 .next()
                 .unwrap_or_else(|| tracked_span_bug!());
             Guard::Match(place.clone(), variant_idx)
-<<<<<<< HEAD
-=======
         } else if adt_def.sort_def().is_reflected()
             && let Some(idx) = idx
         {
@@ -1089,7 +1082,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 cases.push(rty::Expr::is_ctor(did, variant_idx, idx.clone()));
             }
             Guard::Pred(Expr::or_from_iter(cases))
->>>>>>> 280ca7c582726e2ec71f860de2aa1885ec0a1066
         } else {
             Guard::None
         };
