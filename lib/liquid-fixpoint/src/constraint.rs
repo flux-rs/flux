@@ -185,6 +185,7 @@ pub enum Expr<T: Types> {
     Atom(BinRel, Box<[Self; 2]>),
     Let(T::Var, Box<[Self; 2]>),
     ThyFunc(ThyFunc),
+    IsCtor(T::Var, Box<Self>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {

@@ -167,6 +167,9 @@ impl<'a> fmt::Display for LeanExpr<'a> {
             Expr::ThyFunc(thy_func) => {
                 write!(f, "{}", LeanThyFunc(thy_func))
             }
+            Expr::IsCtor(..) => {
+                todo!("not yet implemented: datatypes in lean")
+            }
         }
     }
 }

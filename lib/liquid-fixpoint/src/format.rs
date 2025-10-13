@@ -320,6 +320,9 @@ impl<T: Types> fmt::Display for Expr<T> {
                 write!(f, "(let (({} {e1})) {e2})", name.display())
             }
             Expr::ThyFunc(thy_func) => write!(f, "{}", thy_func),
+            Expr::IsCtor(ctor, e) => {
+                write!(f, "(is${} {})", ctor.display(), e)
+            }
         }
     }
 }

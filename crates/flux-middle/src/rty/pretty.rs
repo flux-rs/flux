@@ -439,7 +439,9 @@ impl Pretty for Ty {
             TyKind::Uninit => w!(cx, f, "uninit"),
             TyKind::StrgRef(re, loc, ty) => w!(cx, f, "&{:?} strg <{:?}: {:?}>", re, loc, ty),
             TyKind::Ptr(pk, loc) => w!(cx, f, "ptr({:?}, {:?})", pk, loc),
-            TyKind::Discr(adt_def, place) => w!(cx, f, "discr({:?}, {:?})", adt_def.did(), ^place),
+            TyKind::Discr(adt_def, place) => {
+                w!(cx, f, "discr({:?}, {:?})", adt_def.did(), ^place)
+            }
             TyKind::Constr(pred, ty) => {
                 if cx.hide_refinements {
                     w!(cx, f, "{:?}", ty)

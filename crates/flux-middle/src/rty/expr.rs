@@ -255,6 +255,10 @@ impl Expr {
         ExprKind::Ctor(ctor, flds).intern()
     }
 
+    pub fn is_ctor(def_id: DefId, variant_idx: VariantIdx, idx: impl Into<Expr>) -> Expr {
+        ExprKind::IsCtor(def_id, variant_idx, idx.into()).intern()
+    }
+
     pub fn from_bits(bty: &BaseTy, bits: u128) -> Expr {
         // FIXME: We are assuming the higher bits are not set. check this assumption
         match bty {
@@ -786,8 +790,13 @@ pub enum ExprKind {
     /// about the scope).
     Hole(HoleKind),
     ForAll(Binder<Expr>),
+<<<<<<< HEAD
     /// Is the expression constructed from constructor of the given Ctor (should be Enum)
     IsCtor(Ctor, Expr),
+=======
+    /// Is the expression constructed from constructor of the given DefId (which should be `reflected` Enum)
+    IsCtor(DefId, VariantIdx, Expr),
+>>>>>>> 280ca7c582726e2ec71f860de2aa1885ec0a1066
 }
 
 impl ExprKind {
@@ -1383,6 +1392,9 @@ pub(crate) mod pretty {
                         w!(cx, f, "({:?})", join!(", ", flds))
                     }
                 }
+                ExprKind::IsCtor(def_id, variant_idx, idx) => {
+                    w!(cx, f, "({:?} is {:?}::{:?})", idx, def_id, ^variant_idx)
+                }
                 ExprKind::Ctor(ctor, flds) => {
                     let def_id = ctor.def_id();
                     if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1763,6 +1775,10 @@ pub(crate) mod pretty {
                     Ok(NestedString { text, children, key: None })
                 }
                 ExprKind::Ctor(ctor, flds) => aggregate_nested(cx, ctor, flds, true),
+                ExprKind::IsCtor(def_id, variant_idx, idx) => {
+                    let text = format!("is::{:?}::{:?}( {:?} )", def_id, variant_idx, idx);
+                    Ok(NestedString { text, children: None, key: None })
+                }
                 ExprKind::PathProj(e, field) => {
                     let e_d = e.fmt_nested(cx)?;
                     let text = if e.is_atom() {
