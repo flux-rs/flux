@@ -233,6 +233,21 @@ fn thy_func_application_to_z3<T: Types>(
             let arg2 = expr_to_z3(&args[1], env).as_set().unwrap();
             ast::Set::set_union(&[&arg1, &arg2]).into()
         }
+        ThyFunc::SetCap => {
+            let arg1 = expr_to_z3(&args[0], env).as_set().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_set().unwrap();
+            ast::Set::intersect(&[&arg1, &arg2]).into()
+        }
+        ThyFunc::SetDif => {
+            let arg1 = expr_to_z3(&args[0], env).as_set().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_set().unwrap();
+            arg1.difference(arg2).into()
+        }
+        ThyFunc::SetSub => {
+            let arg1 = expr_to_z3(&args[0], env).as_set().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_set().unwrap();
+            arg1.set_subset(arg2).into()
+        }
         ThyFunc::IntToBv32 => {
             let arg = expr_to_z3(&args[0], env).as_int().unwrap();
             ast::BV::from_int(&arg, 32).into()
@@ -378,7 +393,18 @@ fn thy_func_application_to_z3<T: Types>(
             let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
             arg.sign_ext(size as u32).into()
         }
-        thy => panic!("unhandled theory function: `{thy}`"),
+        ThyFunc::MapSelect => {
+            let map = expr_to_z3(&args[0], env).as_array().unwrap();
+            let idx = expr_to_z3(&args[1], env);
+            map.select(&idx)
+        }
+        ThyFunc::MapStore => {
+            let map = expr_to_z3(&args[0], env).as_array().unwrap();
+            let idx = expr_to_z3(&args[1], env);
+            let val = expr_to_z3(&args[1], env);
+            map.store(&idx, &val).into()
+        }
+        ThyFunc::MapDefault => todo!("map default needs the elaborated domain sort"),
     }
 }
 
