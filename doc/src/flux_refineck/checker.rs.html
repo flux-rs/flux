@@ -272,7 +272,7 @@
 <a href=#272 id=272 data-nosnippet>272</a>
 <a href=#273 id=273 data-nosnippet>273</a>    <span class="kw">let </span>super_sig = super_sig
 <a href=#274 id=274 data-nosnippet>274</a>        .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
-<a href=#275 id=275 data-nosnippet>275</a>        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx)<span class="question-mark">?</span>;
+<a href=#275 id=275 data-nosnippet>275</a>        .deeply_normalize(<span class="kw-2">&amp;mut </span>infcx)<span class="question-mark">?</span>;
 <a href=#276 id=276 data-nosnippet>276</a>
 <a href=#277 id=277 data-nosnippet>277</a>    <span class="comment">// 1. Unpack `T_g` input types
 <a href=#278 id=278 data-nosnippet>278</a>    </span><span class="kw">let </span>actuals = super_sig
@@ -298,7 +298,7 @@
 <a href=#298 id=298 data-nosnippet>298</a>        <span class="comment">// ... jump right here.
 <a href=#299 id=299 data-nosnippet>299</a>        </span><span class="kw">let </span>sub_sig = sub_sig
 <a href=#300 id=300 data-nosnippet>300</a>            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-<a href=#301 id=301 data-nosnippet>301</a>            .normalize_projections(infcx)<span class="question-mark">?</span>;
+<a href=#301 id=301 data-nosnippet>301</a>            .deeply_normalize(infcx)<span class="question-mark">?</span>;
 <a href=#302 id=302 data-nosnippet>302</a>
 <a href=#303 id=303 data-nosnippet>303</a>        <span class="comment">// 3. INPUT subtyping (g-input &lt;: f-input)
 <a href=#304 id=304 data-nosnippet>304</a>        </span><span class="kw">for </span>requires <span class="kw">in </span>super_sig.requires() {
@@ -469,7 +469,7 @@
 <a href=#469 id=469 data-nosnippet>469</a>
 <a href=#470 id=470 data-nosnippet>470</a>        <span class="kw">let </span>fn_sig = poly_sig
 <a href=#471 id=471 data-nosnippet>471</a>            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
-<a href=#472 id=472 data-nosnippet>472</a>            .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))
+<a href=#472 id=472 data-nosnippet>472</a>            .deeply_normalize(<span class="kw-2">&amp;mut </span>infcx.at(span))
 <a href=#473 id=473 data-nosnippet>473</a>            .with_span(span)<span class="question-mark">?</span>;
 <a href=#474 id=474 data-nosnippet>474</a>
 <a href=#475 id=475 data-nosnippet>475</a>        <span class="kw">let </span><span class="kw-2">mut </span>env = TypeEnv::new(<span class="kw-2">&amp;mut </span>infcx, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>fn_sig);
@@ -834,7 +834,7 @@
 <a href=#834 id=834 data-nosnippet>834</a>            .replace_bound_vars(|<span class="kw">_</span>| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 <a href=#835 id=835 data-nosnippet>835</a>
 <a href=#836 id=836 data-nosnippet>836</a>        <span class="kw">let </span>fn_sig = fn_sig
-<a href=#837 id=837 data-nosnippet>837</a>            .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))
+<a href=#837 id=837 data-nosnippet>837</a>            .deeply_normalize(<span class="kw-2">&amp;mut </span>infcx.at(span))
 <a href=#838 id=838 data-nosnippet>838</a>            .with_span(span)<span class="question-mark">?</span>;
 <a href=#839 id=839 data-nosnippet>839</a>
 <a href=#840 id=840 data-nosnippet>840</a>        <span class="kw">let </span><span class="kw-2">mut </span>at = infcx.at(span);

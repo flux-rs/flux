@@ -806,7 +806,7 @@
 <a href=#806 id=806 data-nosnippet>806</a>    <span class="prelude-val">Ok</span>(struct_variant(infcx.genv, adt.did())<span class="question-mark">?
 <a href=#807 id=807 data-nosnippet>807</a>        </span>.instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
 <a href=#808 id=808 data-nosnippet>808</a>        .replace_bound_refts(<span class="kw-2">&amp;</span>flds)
-<a href=#809 id=809 data-nosnippet>809</a>        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))<span class="question-mark">?
+<a href=#809 id=809 data-nosnippet>809</a>        .deeply_normalize(<span class="kw-2">&amp;mut </span>infcx.at(span))<span class="question-mark">?
 <a href=#810 id=810 data-nosnippet>810</a>        </span>.fields
 <a href=#811 id=811 data-nosnippet>811</a>        .to_vec())
 <a href=#812 id=812 data-nosnippet>812</a>}
@@ -842,7 +842,7 @@
 <a href=#842 id=842 data-nosnippet>842</a>        </span>.expect(<span class="string">"enums cannot be opaque"</span>)
 <a href=#843 id=843 data-nosnippet>843</a>        .instantiate(tcx, args, <span class="kw-2">&amp;</span>[])
 <a href=#844 id=844 data-nosnippet>844</a>        .replace_bound_refts_with(|sort, <span class="kw">_</span>, <span class="kw">_</span>| Expr::fvar(infcx.define_var(sort)))
-<a href=#845 id=845 data-nosnippet>845</a>        .normalize_projections(<span class="kw-2">&amp;mut </span>infcx.at(span))<span class="question-mark">?</span>;
+<a href=#845 id=845 data-nosnippet>845</a>        .deeply_normalize(<span class="kw-2">&amp;mut </span>infcx.at(span))<span class="question-mark">?</span>;
 <a href=#846 id=846 data-nosnippet>846</a>
 <a href=#847 id=847 data-nosnippet>847</a>    infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
 <a href=#848 id=848 data-nosnippet>848</a>

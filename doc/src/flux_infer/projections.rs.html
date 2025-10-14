@@ -35,10 +35,10 @@
 <a href=#35 id=35 data-nosnippet>35</a>};
 <a href=#36 id=36 data-nosnippet>36</a>
 <a href=#37 id=37 data-nosnippet>37</a><span class="kw">pub trait </span>NormalizeExt: TypeFoldable {
-<a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="kw">fn </span>deeply_normalize(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt;;
 <a href=#39 id=39 data-nosnippet>39</a>
-<a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// Normalize projections but only inside sorts
-<a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">fn </span>normalize_sorts&lt;<span class="lifetime">'tcx</span>&gt;(
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// Deeply normalize projections but only inside sorts
+<a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">fn </span>deeply_normalize_sorts&lt;<span class="lifetime">'tcx</span>&gt;(
 <a href=#42 id=42 data-nosnippet>42</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#43 id=43 data-nosnippet>43</a>        def_id: DefId,
 <a href=#44 id=44 data-nosnippet>44</a>        genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -47,7 +47,7 @@
 <a href=#47 id=47 data-nosnippet>47</a>}
 <a href=#48 id=48 data-nosnippet>48</a>
 <a href=#49 id=49 data-nosnippet>49</a><span class="kw">impl</span>&lt;T: TypeFoldable&gt; NormalizeExt <span class="kw">for </span>T {
-<a href=#50 id=50 data-nosnippet>50</a>    <span class="kw">fn </span>normalize_projections(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
+<a href=#50 id=50 data-nosnippet>50</a>    <span class="kw">fn </span>deeply_normalize(<span class="kw-2">&amp;</span><span class="self">self</span>, infcx: <span class="kw-2">&amp;mut </span>InferCtxtAt) -&gt; QueryResult&lt;<span class="self">Self</span>&gt; {
 <a href=#51 id=51 data-nosnippet>51</a>        <span class="kw">let </span>span = infcx.span;
 <a href=#52 id=52 data-nosnippet>52</a>        <span class="kw">let </span>infcx_orig = <span class="kw-2">&amp;mut </span>infcx.infcx;
 <a href=#53 id=53 data-nosnippet>53</a>        <span class="kw">let </span><span class="kw-2">mut </span>infcx = infcx_orig.branch();
@@ -56,7 +56,7 @@
 <a href=#56 id=56 data-nosnippet>56</a>        <span class="self">self</span>.erase_regions().try_fold_with(<span class="kw-2">&amp;mut </span>normalizer)
 <a href=#57 id=57 data-nosnippet>57</a>    }
 <a href=#58 id=58 data-nosnippet>58</a>
-<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">fn </span>normalize_sorts&lt;<span class="lifetime">'tcx</span>&gt;(
+<a href=#59 id=59 data-nosnippet>59</a>    <span class="kw">fn </span>deeply_normalize_sorts&lt;<span class="lifetime">'tcx</span>&gt;(
 <a href=#60 id=60 data-nosnippet>60</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#61 id=61 data-nosnippet>61</a>        def_id: DefId,
 <a href=#62 id=62 data-nosnippet>62</a>        genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
@@ -265,7 +265,7 @@
 <a href=#265 id=265 data-nosnippet>265</a>                    |<span class="kw">_</span>| rty::ReErased,
 <a href=#266 id=266 data-nosnippet>266</a>                    |sort, mode| infcx.fresh_infer_var(sort, mode),
 <a href=#267 id=267 data-nosnippet>267</a>                )
-<a href=#268 id=268 data-nosnippet>268</a>                .normalize_projections(infcx)<span class="question-mark">?</span>;
+<a href=#268 id=268 data-nosnippet>268</a>                .deeply_normalize(infcx)<span class="question-mark">?</span>;
 <a href=#269 id=269 data-nosnippet>269</a>
 <a href=#270 id=270 data-nosnippet>270</a>            <span class="kw">let </span>actuals = actual.projection_ty.args.iter().map(|arg| {
 <a href=#271 id=271 data-nosnippet>271</a>                <span class="kw">match </span>arg {
@@ -551,274 +551,275 @@
 <a href=#551 id=551 data-nosnippet>551</a>    infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
 <a href=#552 id=552 data-nosnippet>552</a>    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 <a href=#553 id=553 data-nosnippet>553</a>}
-<a href=#554 id=554 data-nosnippet>554</a><span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; SortNormalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-<a href=#555 id=555 data-nosnippet>555</a>    <span class="kw">fn </span>new(
-<a href=#556 id=556 data-nosnippet>556</a>        def_id: DefId,
-<a href=#557 id=557 data-nosnippet>557</a>        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
-<a href=#558 id=558 data-nosnippet>558</a>        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-<a href=#559 id=559 data-nosnippet>559</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#560 id=560 data-nosnippet>560</a>        <span class="self">Self </span>{ def_id, infcx, genv }
-<a href=#561 id=561 data-nosnippet>561</a>    }
-<a href=#562 id=562 data-nosnippet>562</a>}
-<a href=#563 id=563 data-nosnippet>563</a>
-<a href=#564 id=564 data-nosnippet>564</a><span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>SortNormalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
-<a href=#565 id=565 data-nosnippet>565</a>    <span class="kw">type </span>Error = QueryErr;
-<a href=#566 id=566 data-nosnippet>566</a>    <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt; {
-<a href=#567 id=567 data-nosnippet>567</a>        <span class="kw">match </span>sort {
-<a href=#568 id=568 data-nosnippet>568</a>            Sort::Alias(AliasKind::Free, alias_ty) =&gt; {
-<a href=#569 id=569 data-nosnippet>569</a>                <span class="self">self</span>.genv
-<a href=#570 id=570 data-nosnippet>570</a>                    .normalize_free_alias_sort(alias_ty)<span class="question-mark">?
-<a href=#571 id=571 data-nosnippet>571</a>                    </span>.try_fold_with(<span class="self">self</span>)
-<a href=#572 id=572 data-nosnippet>572</a>            }
-<a href=#573 id=573 data-nosnippet>573</a>            Sort::Alias(AliasKind::Projection, alias_ty) =&gt; {
-<a href=#574 id=574 data-nosnippet>574</a>                <span class="kw">let </span>(changed, ctor) = normalize_projection_ty_with_rustc(
-<a href=#575 id=575 data-nosnippet>575</a>                    <span class="self">self</span>.genv,
-<a href=#576 id=576 data-nosnippet>576</a>                    <span class="self">self</span>.def_id,
-<a href=#577 id=577 data-nosnippet>577</a>                    <span class="self">self</span>.infcx,
-<a href=#578 id=578 data-nosnippet>578</a>                    alias_ty,
-<a href=#579 id=579 data-nosnippet>579</a>                )<span class="question-mark">?</span>;
-<a href=#580 id=580 data-nosnippet>580</a>                <span class="kw">let </span>sort = ctor.sort();
-<a href=#581 id=581 data-nosnippet>581</a>                <span class="kw">if </span>changed { sort.try_fold_with(<span class="self">self</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(sort) }
-<a href=#582 id=582 data-nosnippet>582</a>            }
-<a href=#583 id=583 data-nosnippet>583</a>            <span class="kw">_ </span>=&gt; sort.try_super_fold_with(<span class="self">self</span>),
-<a href=#584 id=584 data-nosnippet>584</a>        }
-<a href=#585 id=585 data-nosnippet>585</a>    }
-<a href=#586 id=586 data-nosnippet>586</a>}
-<a href=#587 id=587 data-nosnippet>587</a>
-<a href=#588 id=588 data-nosnippet>588</a><span class="kw">impl </span>TVarSubst {
-<a href=#589 id=589 data-nosnippet>589</a>    <span class="kw">fn </span>new(generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics) -&gt; <span class="self">Self </span>{
-<a href=#590 id=590 data-nosnippet>590</a>        <span class="self">Self </span>{ args: <span class="macro">vec!</span>[<span class="prelude-val">None</span>; generics.count()] }
-<a href=#591 id=591 data-nosnippet>591</a>    }
-<a href=#592 id=592 data-nosnippet>592</a>
-<a href=#593 id=593 data-nosnippet>593</a>    <span class="kw">fn </span>instantiate_partial&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: EarlyBinder&lt;T&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
-<a href=#594 id=594 data-nosnippet>594</a>        <span class="kw">let </span><span class="kw-2">mut </span>folder = GenericsSubstFolder::new(<span class="kw-2">&amp;*</span><span class="self">self</span>, <span class="kw-2">&amp;</span>[]);
-<a href=#595 id=595 data-nosnippet>595</a>        pred.skip_binder().try_fold_with(<span class="kw-2">&amp;mut </span>folder).ok()
-<a href=#596 id=596 data-nosnippet>596</a>    }
-<a href=#597 id=597 data-nosnippet>597</a>
-<a href=#598 id=598 data-nosnippet>598</a>    <span class="kw">fn </span>finish&lt;<span class="lifetime">'tcx</span>&gt;(
-<a href=#599 id=599 data-nosnippet>599</a>        <span class="self">self</span>,
-<a href=#600 id=600 data-nosnippet>600</a>        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-<a href=#601 id=601 data-nosnippet>601</a>        generics: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_middle::ty::Generics,
-<a href=#602 id=602 data-nosnippet>602</a>    ) -&gt; QueryResult&lt;Vec&lt;GenericArg&gt;&gt; {
-<a href=#603 id=603 data-nosnippet>603</a>        <span class="self">self</span>.args
-<a href=#604 id=604 data-nosnippet>604</a>            .into_iter()
-<a href=#605 id=605 data-nosnippet>605</a>            .enumerate()
-<a href=#606 id=606 data-nosnippet>606</a>            .map(|(idx, arg)| {
-<a href=#607 id=607 data-nosnippet>607</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(arg) = arg {
-<a href=#608 id=608 data-nosnippet>608</a>                    <span class="prelude-val">Ok</span>(arg)
-<a href=#609 id=609 data-nosnippet>609</a>                } <span class="kw">else </span>{
-<a href=#610 id=610 data-nosnippet>610</a>                    <span class="kw">let </span>param = generics.param_at(idx, tcx);
-<a href=#611 id=611 data-nosnippet>611</a>                    <span class="prelude-val">Err</span>(QueryErr::bug(
-<a href=#612 id=612 data-nosnippet>612</a>                        <span class="prelude-val">None</span>,
-<a href=#613 id=613 data-nosnippet>613</a>                        <span class="macro">format!</span>(<span class="string">"cannot infer substitution for {param:?} at index {idx}"</span>),
-<a href=#614 id=614 data-nosnippet>614</a>                    ))
-<a href=#615 id=615 data-nosnippet>615</a>                }
-<a href=#616 id=616 data-nosnippet>616</a>            })
-<a href=#617 id=617 data-nosnippet>617</a>            .try_collect_vec()
-<a href=#618 id=618 data-nosnippet>618</a>    }
-<a href=#619 id=619 data-nosnippet>619</a>
-<a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">fn </span>generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArg, b: <span class="kw-2">&amp;</span>GenericArg) {
-<a href=#621 id=621 data-nosnippet>621</a>        <span class="kw">match </span>(a, b) {
-<a href=#622 id=622 data-nosnippet>622</a>            (GenericArg::Ty(a), GenericArg::Ty(b)) =&gt; <span class="self">self</span>.tys(a, b),
-<a href=#623 id=623 data-nosnippet>623</a>            (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) =&gt; <span class="self">self</span>.regions(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b),
-<a href=#624 id=624 data-nosnippet>624</a>            (GenericArg::Base(a), GenericArg::Base(b)) =&gt; {
-<a href=#625 id=625 data-nosnippet>625</a>                <span class="self">self</span>.subset_tys(a, b);
-<a href=#626 id=626 data-nosnippet>626</a>            }
-<a href=#627 id=627 data-nosnippet>627</a>            (GenericArg::Const(a), GenericArg::Const(b)) =&gt; <span class="self">self</span>.consts(a, b),
-<a href=#628 id=628 data-nosnippet>628</a>            <span class="kw">_ </span>=&gt; {}
-<a href=#629 id=629 data-nosnippet>629</a>        }
-<a href=#630 id=630 data-nosnippet>630</a>    }
-<a href=#631 id=631 data-nosnippet>631</a>
-<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) {
-<a href=#633 id=633 data-nosnippet>633</a>        <span class="kw">if let </span>TyKind::Param(param_ty) = a.kind() {
-<a href=#634 id=634 data-nosnippet>634</a>            <span class="kw">if </span>!b.has_escaping_bvars() {
-<a href=#635 id=635 data-nosnippet>635</a>                <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Ty(b.clone()));
-<a href=#636 id=636 data-nosnippet>636</a>            }
-<a href=#637 id=637 data-nosnippet>637</a>        } <span class="kw">else </span>{
-<a href=#638 id=638 data-nosnippet>638</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(a_bty) = a.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
-<a href=#639 id=639 data-nosnippet>639</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(b_bty) = b.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
-<a href=#640 id=640 data-nosnippet>640</a>            <span class="self">self</span>.btys(a_bty, b_bty);
-<a href=#641 id=641 data-nosnippet>641</a>        }
-<a href=#642 id=642 data-nosnippet>642</a>    }
-<a href=#643 id=643 data-nosnippet>643</a>
-<a href=#644 id=644 data-nosnippet>644</a>    <span class="kw">fn </span>subset_tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>SubsetTyCtor, b: <span class="kw-2">&amp;</span>SubsetTyCtor) {
-<a href=#645 id=645 data-nosnippet>645</a>        <span class="kw">let </span>bty_a = a.as_bty_skipping_binder();
-<a href=#646 id=646 data-nosnippet>646</a>        <span class="kw">let </span>bty_b = b.as_bty_skipping_binder();
-<a href=#647 id=647 data-nosnippet>647</a>        <span class="kw">if let </span>BaseTy::Param(param_ty) = bty_a {
-<a href=#648 id=648 data-nosnippet>648</a>            <span class="kw">if </span>!b.has_escaping_bvars() {
-<a href=#649 id=649 data-nosnippet>649</a>                <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Base(b.clone()));
-<a href=#650 id=650 data-nosnippet>650</a>            }
-<a href=#651 id=651 data-nosnippet>651</a>        } <span class="kw">else </span>{
-<a href=#652 id=652 data-nosnippet>652</a>            <span class="self">self</span>.btys(bty_a, bty_b);
-<a href=#653 id=653 data-nosnippet>653</a>        }
-<a href=#654 id=654 data-nosnippet>654</a>    }
-<a href=#655 id=655 data-nosnippet>655</a>
-<a href=#656 id=656 data-nosnippet>656</a>    <span class="kw">fn </span>btys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, b: <span class="kw-2">&amp;</span>BaseTy) {
-<a href=#657 id=657 data-nosnippet>657</a>        <span class="kw">match </span>(a, b) {
-<a href=#658 id=658 data-nosnippet>658</a>            (BaseTy::Param(param_ty), <span class="kw">_</span>) =&gt; {
-<a href=#659 id=659 data-nosnippet>659</a>                <span class="kw">if </span>!b.has_escaping_bvars() {
-<a href=#660 id=660 data-nosnippet>660</a>                    <span class="kw">let </span>sort = b.sort();
-<a href=#661 id=661 data-nosnippet>661</a>                    <span class="kw">let </span>ctor =
-<a href=#662 id=662 data-nosnippet>662</a>                        Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
-<a href=#663 id=663 data-nosnippet>663</a>                    <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
-<a href=#664 id=664 data-nosnippet>664</a>                }
-<a href=#665 id=665 data-nosnippet>665</a>            }
-<a href=#666 id=666 data-nosnippet>666</a>            (BaseTy::Adt(<span class="kw">_</span>, a_args), BaseTy::Adt(<span class="kw">_</span>, b_args)) =&gt; {
-<a href=#667 id=667 data-nosnippet>667</a>                <span class="macro">debug_assert_eq!</span>(a_args.len(), b_args.len());
-<a href=#668 id=668 data-nosnippet>668</a>                <span class="kw">for </span>(a_arg, b_arg) <span class="kw">in </span>iter::zip(a_args, b_args) {
-<a href=#669 id=669 data-nosnippet>669</a>                    <span class="self">self</span>.generic_args(a_arg, b_arg);
-<a href=#670 id=670 data-nosnippet>670</a>                }
-<a href=#671 id=671 data-nosnippet>671</a>            }
-<a href=#672 id=672 data-nosnippet>672</a>            (BaseTy::Array(a_ty, a_n), BaseTy::Array(b_ty, b_n)) =&gt; {
-<a href=#673 id=673 data-nosnippet>673</a>                <span class="self">self</span>.tys(a_ty, b_ty);
-<a href=#674 id=674 data-nosnippet>674</a>                <span class="self">self</span>.consts(a_n, b_n);
-<a href=#675 id=675 data-nosnippet>675</a>            }
-<a href=#676 id=676 data-nosnippet>676</a>            (BaseTy::Tuple(a_tys), BaseTy::Tuple(b_tys)) =&gt; {
-<a href=#677 id=677 data-nosnippet>677</a>                <span class="macro">debug_assert_eq!</span>(a_tys.len(), b_tys.len());
-<a href=#678 id=678 data-nosnippet>678</a>                <span class="kw">for </span>(a_ty, b_ty) <span class="kw">in </span>iter::zip(a_tys, b_tys) {
-<a href=#679 id=679 data-nosnippet>679</a>                    <span class="self">self</span>.tys(a_ty, b_ty);
-<a href=#680 id=680 data-nosnippet>680</a>                }
-<a href=#681 id=681 data-nosnippet>681</a>            }
-<a href=#682 id=682 data-nosnippet>682</a>            (BaseTy::Ref(a_re, a_ty, <span class="kw">_</span>), BaseTy::Ref(b_re, b_ty, <span class="kw">_</span>)) =&gt; {
-<a href=#683 id=683 data-nosnippet>683</a>                <span class="self">self</span>.regions(<span class="kw-2">*</span>a_re, <span class="kw-2">*</span>b_re);
-<a href=#684 id=684 data-nosnippet>684</a>                <span class="self">self</span>.tys(a_ty, b_ty);
-<a href=#685 id=685 data-nosnippet>685</a>            }
-<a href=#686 id=686 data-nosnippet>686</a>            (BaseTy::Slice(a_ty), BaseTy::Slice(b_ty)) =&gt; {
-<a href=#687 id=687 data-nosnippet>687</a>                <span class="self">self</span>.tys(a_ty, b_ty);
-<a href=#688 id=688 data-nosnippet>688</a>            }
-<a href=#689 id=689 data-nosnippet>689</a>            <span class="kw">_ </span>=&gt; {}
-<a href=#690 id=690 data-nosnippet>690</a>        }
-<a href=#691 id=691 data-nosnippet>691</a>    }
-<a href=#692 id=692 data-nosnippet>692</a>
-<a href=#693 id=693 data-nosnippet>693</a>    <span class="kw">fn </span>regions(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: Region, b: Region) {
-<a href=#694 id=694 data-nosnippet>694</a>        <span class="kw">if let </span>Region::ReEarlyParam(ebr) = a {
-<a href=#695 id=695 data-nosnippet>695</a>            <span class="self">self</span>.insert_generic_arg(ebr.index, GenericArg::Lifetime(b));
-<a href=#696 id=696 data-nosnippet>696</a>        }
-<a href=#697 id=697 data-nosnippet>697</a>    }
-<a href=#698 id=698 data-nosnippet>698</a>
-<a href=#699 id=699 data-nosnippet>699</a>    <span class="kw">fn </span>consts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Const, b: <span class="kw-2">&amp;</span>Const) {
-<a href=#700 id=700 data-nosnippet>700</a>        <span class="kw">if let </span>ConstKind::Param(param_const) = a.kind {
-<a href=#701 id=701 data-nosnippet>701</a>            <span class="self">self</span>.insert_generic_arg(param_const.index, GenericArg::Const(b.clone()));
-<a href=#702 id=702 data-nosnippet>702</a>        }
-<a href=#703 id=703 data-nosnippet>703</a>    }
-<a href=#704 id=704 data-nosnippet>704</a>
-<a href=#705 id=705 data-nosnippet>705</a>    <span class="kw">fn </span>insert_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: u32, arg: GenericArg) {
-<a href=#706 id=706 data-nosnippet>706</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(old) = <span class="kw-2">&amp;</span><span class="self">self</span>.args[idx <span class="kw">as </span>usize]
-<a href=#707 id=707 data-nosnippet>707</a>            &amp;&amp; old != <span class="kw-2">&amp;</span>arg
-<a href=#708 id=708 data-nosnippet>708</a>        {
-<a href=#709 id=709 data-nosnippet>709</a>            <span class="macro">tracked_span_bug!</span>(<span class="string">"ambiguous substitution: old=`{old:?}`, new: `{arg:?}`"</span>);
-<a href=#710 id=710 data-nosnippet>710</a>        }
-<a href=#711 id=711 data-nosnippet>711</a>        <span class="self">self</span>.args[idx <span class="kw">as </span>usize].replace(arg);
-<a href=#712 id=712 data-nosnippet>712</a>    }
-<a href=#713 id=713 data-nosnippet>713</a>}
-<a href=#714 id=714 data-nosnippet>714</a>
-<a href=#715 id=715 data-nosnippet>715</a><span class="doccomment">/// Normalize an [`rty::AliasTy`] by converting it to rustc, normalizing it using rustc api, and
-<a href=#716 id=716 data-nosnippet>716</a>/// then mapping the result back to `rty`. This will lose refinements and it should only be used
-<a href=#717 id=717 data-nosnippet>717</a>/// to normalize sorts because they should only contain unrefined types. However, we are also using
-<a href=#718 id=718 data-nosnippet>718</a>/// it as a hack to normalize types in cases where we fail to collect a candidate, this is unsound
-<a href=#719 id=719 data-nosnippet>719</a>/// and should be removed.
-<a href=#720 id=720 data-nosnippet>720</a>///
-<a href=#721 id=721 data-nosnippet>721</a>/// [`rty::AliasTy`]: AliasTy
-<a href=#722 id=722 data-nosnippet>722</a></span><span class="kw">fn </span>normalize_projection_ty_with_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
-<a href=#723 id=723 data-nosnippet>723</a>    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
-<a href=#724 id=724 data-nosnippet>724</a>    def_id: DefId,
-<a href=#725 id=725 data-nosnippet>725</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-<a href=#726 id=726 data-nosnippet>726</a>    obligation: <span class="kw-2">&amp;</span>AliasTy,
-<a href=#727 id=727 data-nosnippet>727</a>) -&gt; QueryResult&lt;(bool, SubsetTyCtor)&gt; {
-<a href=#728 id=728 data-nosnippet>728</a>    <span class="kw">let </span>tcx = genv.tcx();
-<a href=#729 id=729 data-nosnippet>729</a>    <span class="kw">let </span>projection_ty = obligation.to_rustc(tcx);
-<a href=#730 id=730 data-nosnippet>730</a>    <span class="kw">let </span>projection_ty = tcx.erase_and_anonymize_regions(projection_ty);
-<a href=#731 id=731 data-nosnippet>731</a>    <span class="kw">let </span>cause = ObligationCause::dummy();
-<a href=#732 id=732 data-nosnippet>732</a>    <span class="kw">let </span>param_env = tcx.param_env(def_id);
-<a href=#733 id=733 data-nosnippet>733</a>
-<a href=#734 id=734 data-nosnippet>734</a>    <span class="kw">let </span>pre_ty = projection_ty.to_ty(tcx);
-<a href=#735 id=735 data-nosnippet>735</a>    <span class="kw">let </span>at = infcx.at(<span class="kw-2">&amp;</span>cause, param_env);
-<a href=#736 id=736 data-nosnippet>736</a>    <span class="kw">let </span>ty = deeply_normalize::&lt;rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;, FulfillmentError&gt;(at, pre_ty)
-<a href=#737 id=737 data-nosnippet>737</a>        .map_err(|err| <span class="macro">query_bug!</span>(<span class="string">"{err:?}"</span>))<span class="question-mark">?</span>;
-<a href=#738 id=738 data-nosnippet>738</a>
-<a href=#739 id=739 data-nosnippet>739</a>    <span class="kw">let </span>changed = pre_ty != ty;
-<a href=#740 id=740 data-nosnippet>740</a>    <span class="kw">let </span>rustc_ty = ty.lower(tcx).map_err(|reason| <span class="macro">query_bug!</span>(<span class="string">"{reason:?}"</span>))<span class="question-mark">?</span>;
-<a href=#741 id=741 data-nosnippet>741</a>
-<a href=#742 id=742 data-nosnippet>742</a>    <span class="prelude-val">Ok</span>((
-<a href=#743 id=743 data-nosnippet>743</a>        changed,
-<a href=#744 id=744 data-nosnippet>744</a>        Refiner::default_for_item(genv, def_id)<span class="question-mark">?
-<a href=#745 id=745 data-nosnippet>745</a>            </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
-<a href=#746 id=746 data-nosnippet>746</a>            </span>.expect_base(),
-<a href=#747 id=747 data-nosnippet>747</a>    ))
-<a href=#748 id=748 data-nosnippet>748</a>}
-<a href=#749 id=749 data-nosnippet>749</a>
-<a href=#750 id=750 data-nosnippet>750</a><span class="doccomment">/// Do one step of normalization, unfolding associated refinements if they are concrete.
-<a href=#751 id=751 data-nosnippet>751</a>///
-<a href=#752 id=752 data-nosnippet>752</a>/// Use this if you are about to match structurally on an [`ExprKind`] and you need associated
-<a href=#753 id=753 data-nosnippet>753</a>/// refinements to be normalized.
-<a href=#754 id=754 data-nosnippet>754</a></span><span class="kw">pub fn </span>structurally_normalize_expr(
-<a href=#755 id=755 data-nosnippet>755</a>    genv: GlobalEnv,
-<a href=#756 id=756 data-nosnippet>756</a>    def_id: DefId,
-<a href=#757 id=757 data-nosnippet>757</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt,
-<a href=#758 id=758 data-nosnippet>758</a>    expr: <span class="kw-2">&amp;</span>Expr,
-<a href=#759 id=759 data-nosnippet>759</a>) -&gt; QueryResult&lt;Expr&gt; {
-<a href=#760 id=760 data-nosnippet>760</a>    <span class="kw">if let </span>ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
-<a href=#761 id=761 data-nosnippet>761</a>        <span class="kw">let </span>(<span class="kw">_</span>, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args)<span class="question-mark">?</span>;
-<a href=#762 id=762 data-nosnippet>762</a>        <span class="prelude-val">Ok</span>(e)
-<a href=#763 id=763 data-nosnippet>763</a>    } <span class="kw">else </span>{
-<a href=#764 id=764 data-nosnippet>764</a>        <span class="prelude-val">Ok</span>(expr.clone())
-<a href=#765 id=765 data-nosnippet>765</a>    }
-<a href=#766 id=766 data-nosnippet>766</a>}
-<a href=#767 id=767 data-nosnippet>767</a>
-<a href=#768 id=768 data-nosnippet>768</a><span class="doccomment">/// Normalizes an [`AliasReft`]. This uses the trait solver to find the [`ImplSourceUserDefinedData`]
-<a href=#769 id=769 data-nosnippet>769</a>/// and uses the `args` there, which we map back to Flux via refining. This loses refinements,
-<a href=#770 id=770 data-nosnippet>770</a>/// but that's fine because [`AliasReft`] should not rely on refinements for trait solving.
-<a href=#771 id=771 data-nosnippet>771</a></span><span class="kw">fn </span>normalize_alias_reft(
-<a href=#772 id=772 data-nosnippet>772</a>    genv: GlobalEnv,
-<a href=#773 id=773 data-nosnippet>773</a>    def_id: DefId,
-<a href=#774 id=774 data-nosnippet>774</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt,
-<a href=#775 id=775 data-nosnippet>775</a>    alias_reft: <span class="kw-2">&amp;</span>AliasReft,
-<a href=#776 id=776 data-nosnippet>776</a>    refine_args: <span class="kw-2">&amp;</span>RefineArgs,
-<a href=#777 id=777 data-nosnippet>777</a>) -&gt; QueryResult&lt;(bool, Expr)&gt; {
-<a href=#778 id=778 data-nosnippet>778</a>    <span class="kw">let </span>is_final = genv.assoc_refinement(alias_reft.assoc_id)<span class="question-mark">?</span>.final_;
-<a href=#779 id=779 data-nosnippet>779</a>    <span class="kw">if </span>is_final {
-<a href=#780 id=780 data-nosnippet>780</a>        <span class="kw">let </span>e = genv
-<a href=#781 id=781 data-nosnippet>781</a>            .default_assoc_refinement_body(alias_reft.assoc_id)<span class="question-mark">?
-<a href=#782 id=782 data-nosnippet>782</a>            </span>.unwrap_or_else(|| {
-<a href=#783 id=783 data-nosnippet>783</a>                <span class="macro">bug!</span>(<span class="string">"final associated refinement without body - should be caught in desugar"</span>)
-<a href=#784 id=784 data-nosnippet>784</a>            })
-<a href=#785 id=785 data-nosnippet>785</a>            .instantiate(genv.tcx(), <span class="kw-2">&amp;</span>alias_reft.args, <span class="kw-2">&amp;</span>[])
-<a href=#786 id=786 data-nosnippet>786</a>            .apply(refine_args);
-<a href=#787 id=787 data-nosnippet>787</a>        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, e))
-<a href=#788 id=788 data-nosnippet>788</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_data) = get_impl_data_for_alias_reft(infcx, def_id, alias_reft)<span class="question-mark">? </span>{
-<a href=#789 id=789 data-nosnippet>789</a>        <span class="kw">let </span>tcx = infcx.tcx;
-<a href=#790 id=790 data-nosnippet>790</a>        <span class="kw">let </span>impl_def_id = impl_data.impl_def_id;
-<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>args = Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>.refine_generic_args(
-<a href=#792 id=792 data-nosnippet>792</a>            impl_def_id,
-<a href=#793 id=793 data-nosnippet>793</a>            <span class="kw-2">&amp;</span>impl_data
-<a href=#794 id=794 data-nosnippet>794</a>                .args
-<a href=#795 id=795 data-nosnippet>795</a>                .lower(tcx)
-<a href=#796 id=796 data-nosnippet>796</a>                .map_err(|reason| <span class="macro">query_bug!</span>(<span class="string">"{reason:?}"</span>))<span class="question-mark">?</span>,
-<a href=#797 id=797 data-nosnippet>797</a>        )<span class="question-mark">?</span>;
-<a href=#798 id=798 data-nosnippet>798</a>        <span class="kw">let </span>e = genv
-<a href=#799 id=799 data-nosnippet>799</a>            .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)<span class="question-mark">?
-<a href=#800 id=800 data-nosnippet>800</a>            </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
-<a href=#801 id=801 data-nosnippet>801</a>            .apply(refine_args);
-<a href=#802 id=802 data-nosnippet>802</a>        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, e))
-<a href=#803 id=803 data-nosnippet>803</a>    } <span class="kw">else </span>{
-<a href=#804 id=804 data-nosnippet>804</a>        <span class="prelude-val">Ok</span>((<span class="bool-val">false</span>, Expr::alias(alias_reft.clone(), refine_args.clone())))
-<a href=#805 id=805 data-nosnippet>805</a>    }
-<a href=#806 id=806 data-nosnippet>806</a>}
-<a href=#807 id=807 data-nosnippet>807</a>
-<a href=#808 id=808 data-nosnippet>808</a><span class="kw">fn </span>get_impl_data_for_alias_reft&lt;<span class="lifetime">'tcx</span>&gt;(
-<a href=#809 id=809 data-nosnippet>809</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
-<a href=#810 id=810 data-nosnippet>810</a>    def_id: DefId,
-<a href=#811 id=811 data-nosnippet>811</a>    alias_reft: <span class="kw-2">&amp;</span>AliasReft,
-<a href=#812 id=812 data-nosnippet>812</a>) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;ImplSourceUserDefinedData&lt;<span class="lifetime">'tcx</span>, PredicateObligation&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;&gt; {
-<a href=#813 id=813 data-nosnippet>813</a>    <span class="kw">let </span>tcx = infcx.tcx;
-<a href=#814 id=814 data-nosnippet>814</a>    <span class="kw">let </span><span class="kw-2">mut </span>selcx = SelectionContext::new(infcx);
-<a href=#815 id=815 data-nosnippet>815</a>    <span class="kw">let </span>trait_ref = alias_reft.to_rustc_trait_ref(tcx);
-<a href=#816 id=816 data-nosnippet>816</a>    <span class="kw">let </span>trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
-<a href=#817 id=817 data-nosnippet>817</a>    <span class="kw">let </span>trait_pred =
-<a href=#818 id=818 data-nosnippet>818</a>        Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
-<a href=#819 id=819 data-nosnippet>819</a>    <span class="kw">match </span>selcx.select(<span class="kw-2">&amp;</span>trait_pred) {
-<a href=#820 id=820 data-nosnippet>820</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ImplSource::UserDefined(impl_data))) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(impl_data)),
-<a href=#821 id=821 data-nosnippet>821</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
-<a href=#822 id=822 data-nosnippet>822</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">"error selecting {trait_pred:?}: {e:?}"</span>),
-<a href=#823 id=823 data-nosnippet>823</a>    }
-<a href=#824 id=824 data-nosnippet>824</a>}</code></pre></div></section></main></body></html>
+<a href=#554 id=554 data-nosnippet>554</a>
+<a href=#555 id=555 data-nosnippet>555</a><span class="kw">impl</span>&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; SortNormalizer&lt;<span class="lifetime">'infcx</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
+<a href=#556 id=556 data-nosnippet>556</a>    <span class="kw">fn </span>new(
+<a href=#557 id=557 data-nosnippet>557</a>        def_id: DefId,
+<a href=#558 id=558 data-nosnippet>558</a>        genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#559 id=559 data-nosnippet>559</a>        infcx: <span class="kw-2">&amp;</span><span class="lifetime">'infcx </span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+<a href=#560 id=560 data-nosnippet>560</a>    ) -&gt; <span class="self">Self </span>{
+<a href=#561 id=561 data-nosnippet>561</a>        <span class="self">Self </span>{ def_id, infcx, genv }
+<a href=#562 id=562 data-nosnippet>562</a>    }
+<a href=#563 id=563 data-nosnippet>563</a>}
+<a href=#564 id=564 data-nosnippet>564</a>
+<a href=#565 id=565 data-nosnippet>565</a><span class="kw">impl </span>FallibleTypeFolder <span class="kw">for </span>SortNormalizer&lt;<span class="lifetime">'_</span>, <span class="lifetime">'_</span>, <span class="lifetime">'_</span>&gt; {
+<a href=#566 id=566 data-nosnippet>566</a>    <span class="kw">type </span>Error = QueryErr;
+<a href=#567 id=567 data-nosnippet>567</a>    <span class="kw">fn </span>try_fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>Sort) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt; {
+<a href=#568 id=568 data-nosnippet>568</a>        <span class="kw">match </span>sort {
+<a href=#569 id=569 data-nosnippet>569</a>            Sort::Alias(AliasKind::Free, alias_ty) =&gt; {
+<a href=#570 id=570 data-nosnippet>570</a>                <span class="self">self</span>.genv
+<a href=#571 id=571 data-nosnippet>571</a>                    .normalize_free_alias_sort(alias_ty)<span class="question-mark">?
+<a href=#572 id=572 data-nosnippet>572</a>                    </span>.try_fold_with(<span class="self">self</span>)
+<a href=#573 id=573 data-nosnippet>573</a>            }
+<a href=#574 id=574 data-nosnippet>574</a>            Sort::Alias(AliasKind::Projection, alias_ty) =&gt; {
+<a href=#575 id=575 data-nosnippet>575</a>                <span class="kw">let </span>(changed, ctor) = normalize_projection_ty_with_rustc(
+<a href=#576 id=576 data-nosnippet>576</a>                    <span class="self">self</span>.genv,
+<a href=#577 id=577 data-nosnippet>577</a>                    <span class="self">self</span>.def_id,
+<a href=#578 id=578 data-nosnippet>578</a>                    <span class="self">self</span>.infcx,
+<a href=#579 id=579 data-nosnippet>579</a>                    alias_ty,
+<a href=#580 id=580 data-nosnippet>580</a>                )<span class="question-mark">?</span>;
+<a href=#581 id=581 data-nosnippet>581</a>                <span class="kw">let </span>sort = ctor.sort();
+<a href=#582 id=582 data-nosnippet>582</a>                <span class="kw">if </span>changed { sort.try_fold_with(<span class="self">self</span>) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(sort) }
+<a href=#583 id=583 data-nosnippet>583</a>            }
+<a href=#584 id=584 data-nosnippet>584</a>            <span class="kw">_ </span>=&gt; sort.try_super_fold_with(<span class="self">self</span>),
+<a href=#585 id=585 data-nosnippet>585</a>        }
+<a href=#586 id=586 data-nosnippet>586</a>    }
+<a href=#587 id=587 data-nosnippet>587</a>}
+<a href=#588 id=588 data-nosnippet>588</a>
+<a href=#589 id=589 data-nosnippet>589</a><span class="kw">impl </span>TVarSubst {
+<a href=#590 id=590 data-nosnippet>590</a>    <span class="kw">fn </span>new(generics: <span class="kw-2">&amp;</span>rustc_middle::ty::Generics) -&gt; <span class="self">Self </span>{
+<a href=#591 id=591 data-nosnippet>591</a>        <span class="self">Self </span>{ args: <span class="macro">vec!</span>[<span class="prelude-val">None</span>; generics.count()] }
+<a href=#592 id=592 data-nosnippet>592</a>    }
+<a href=#593 id=593 data-nosnippet>593</a>
+<a href=#594 id=594 data-nosnippet>594</a>    <span class="kw">fn </span>instantiate_partial&lt;T: TypeFoldable&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pred: EarlyBinder&lt;T&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;T&gt; {
+<a href=#595 id=595 data-nosnippet>595</a>        <span class="kw">let </span><span class="kw-2">mut </span>folder = GenericsSubstFolder::new(<span class="kw-2">&amp;*</span><span class="self">self</span>, <span class="kw-2">&amp;</span>[]);
+<a href=#596 id=596 data-nosnippet>596</a>        pred.skip_binder().try_fold_with(<span class="kw-2">&amp;mut </span>folder).ok()
+<a href=#597 id=597 data-nosnippet>597</a>    }
+<a href=#598 id=598 data-nosnippet>598</a>
+<a href=#599 id=599 data-nosnippet>599</a>    <span class="kw">fn </span>finish&lt;<span class="lifetime">'tcx</span>&gt;(
+<a href=#600 id=600 data-nosnippet>600</a>        <span class="self">self</span>,
+<a href=#601 id=601 data-nosnippet>601</a>        tcx: TyCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+<a href=#602 id=602 data-nosnippet>602</a>        generics: <span class="kw-2">&amp;</span><span class="lifetime">'tcx </span>rustc_middle::ty::Generics,
+<a href=#603 id=603 data-nosnippet>603</a>    ) -&gt; QueryResult&lt;Vec&lt;GenericArg&gt;&gt; {
+<a href=#604 id=604 data-nosnippet>604</a>        <span class="self">self</span>.args
+<a href=#605 id=605 data-nosnippet>605</a>            .into_iter()
+<a href=#606 id=606 data-nosnippet>606</a>            .enumerate()
+<a href=#607 id=607 data-nosnippet>607</a>            .map(|(idx, arg)| {
+<a href=#608 id=608 data-nosnippet>608</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(arg) = arg {
+<a href=#609 id=609 data-nosnippet>609</a>                    <span class="prelude-val">Ok</span>(arg)
+<a href=#610 id=610 data-nosnippet>610</a>                } <span class="kw">else </span>{
+<a href=#611 id=611 data-nosnippet>611</a>                    <span class="kw">let </span>param = generics.param_at(idx, tcx);
+<a href=#612 id=612 data-nosnippet>612</a>                    <span class="prelude-val">Err</span>(QueryErr::bug(
+<a href=#613 id=613 data-nosnippet>613</a>                        <span class="prelude-val">None</span>,
+<a href=#614 id=614 data-nosnippet>614</a>                        <span class="macro">format!</span>(<span class="string">"cannot infer substitution for {param:?} at index {idx}"</span>),
+<a href=#615 id=615 data-nosnippet>615</a>                    ))
+<a href=#616 id=616 data-nosnippet>616</a>                }
+<a href=#617 id=617 data-nosnippet>617</a>            })
+<a href=#618 id=618 data-nosnippet>618</a>            .try_collect_vec()
+<a href=#619 id=619 data-nosnippet>619</a>    }
+<a href=#620 id=620 data-nosnippet>620</a>
+<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">fn </span>generic_args(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>GenericArg, b: <span class="kw-2">&amp;</span>GenericArg) {
+<a href=#622 id=622 data-nosnippet>622</a>        <span class="kw">match </span>(a, b) {
+<a href=#623 id=623 data-nosnippet>623</a>            (GenericArg::Ty(a), GenericArg::Ty(b)) =&gt; <span class="self">self</span>.tys(a, b),
+<a href=#624 id=624 data-nosnippet>624</a>            (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) =&gt; <span class="self">self</span>.regions(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b),
+<a href=#625 id=625 data-nosnippet>625</a>            (GenericArg::Base(a), GenericArg::Base(b)) =&gt; {
+<a href=#626 id=626 data-nosnippet>626</a>                <span class="self">self</span>.subset_tys(a, b);
+<a href=#627 id=627 data-nosnippet>627</a>            }
+<a href=#628 id=628 data-nosnippet>628</a>            (GenericArg::Const(a), GenericArg::Const(b)) =&gt; <span class="self">self</span>.consts(a, b),
+<a href=#629 id=629 data-nosnippet>629</a>            <span class="kw">_ </span>=&gt; {}
+<a href=#630 id=630 data-nosnippet>630</a>        }
+<a href=#631 id=631 data-nosnippet>631</a>    }
+<a href=#632 id=632 data-nosnippet>632</a>
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="kw">fn </span>tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Ty, b: <span class="kw-2">&amp;</span>Ty) {
+<a href=#634 id=634 data-nosnippet>634</a>        <span class="kw">if let </span>TyKind::Param(param_ty) = a.kind() {
+<a href=#635 id=635 data-nosnippet>635</a>            <span class="kw">if </span>!b.has_escaping_bvars() {
+<a href=#636 id=636 data-nosnippet>636</a>                <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Ty(b.clone()));
+<a href=#637 id=637 data-nosnippet>637</a>            }
+<a href=#638 id=638 data-nosnippet>638</a>        } <span class="kw">else </span>{
+<a href=#639 id=639 data-nosnippet>639</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(a_bty) = a.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
+<a href=#640 id=640 data-nosnippet>640</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(b_bty) = b.as_bty_skipping_existentials() <span class="kw">else </span>{ <span class="kw">return </span>};
+<a href=#641 id=641 data-nosnippet>641</a>            <span class="self">self</span>.btys(a_bty, b_bty);
+<a href=#642 id=642 data-nosnippet>642</a>        }
+<a href=#643 id=643 data-nosnippet>643</a>    }
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">fn </span>subset_tys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>SubsetTyCtor, b: <span class="kw-2">&amp;</span>SubsetTyCtor) {
+<a href=#646 id=646 data-nosnippet>646</a>        <span class="kw">let </span>bty_a = a.as_bty_skipping_binder();
+<a href=#647 id=647 data-nosnippet>647</a>        <span class="kw">let </span>bty_b = b.as_bty_skipping_binder();
+<a href=#648 id=648 data-nosnippet>648</a>        <span class="kw">if let </span>BaseTy::Param(param_ty) = bty_a {
+<a href=#649 id=649 data-nosnippet>649</a>            <span class="kw">if </span>!b.has_escaping_bvars() {
+<a href=#650 id=650 data-nosnippet>650</a>                <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Base(b.clone()));
+<a href=#651 id=651 data-nosnippet>651</a>            }
+<a href=#652 id=652 data-nosnippet>652</a>        } <span class="kw">else </span>{
+<a href=#653 id=653 data-nosnippet>653</a>            <span class="self">self</span>.btys(bty_a, bty_b);
+<a href=#654 id=654 data-nosnippet>654</a>        }
+<a href=#655 id=655 data-nosnippet>655</a>    }
+<a href=#656 id=656 data-nosnippet>656</a>
+<a href=#657 id=657 data-nosnippet>657</a>    <span class="kw">fn </span>btys(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>BaseTy, b: <span class="kw-2">&amp;</span>BaseTy) {
+<a href=#658 id=658 data-nosnippet>658</a>        <span class="kw">match </span>(a, b) {
+<a href=#659 id=659 data-nosnippet>659</a>            (BaseTy::Param(param_ty), <span class="kw">_</span>) =&gt; {
+<a href=#660 id=660 data-nosnippet>660</a>                <span class="kw">if </span>!b.has_escaping_bvars() {
+<a href=#661 id=661 data-nosnippet>661</a>                    <span class="kw">let </span>sort = b.sort();
+<a href=#662 id=662 data-nosnippet>662</a>                    <span class="kw">let </span>ctor =
+<a href=#663 id=663 data-nosnippet>663</a>                        Binder::bind_with_sort(SubsetTy::trivial(b.clone(), Expr::nu()), sort);
+<a href=#664 id=664 data-nosnippet>664</a>                    <span class="self">self</span>.insert_generic_arg(param_ty.index, GenericArg::Base(ctor));
+<a href=#665 id=665 data-nosnippet>665</a>                }
+<a href=#666 id=666 data-nosnippet>666</a>            }
+<a href=#667 id=667 data-nosnippet>667</a>            (BaseTy::Adt(<span class="kw">_</span>, a_args), BaseTy::Adt(<span class="kw">_</span>, b_args)) =&gt; {
+<a href=#668 id=668 data-nosnippet>668</a>                <span class="macro">debug_assert_eq!</span>(a_args.len(), b_args.len());
+<a href=#669 id=669 data-nosnippet>669</a>                <span class="kw">for </span>(a_arg, b_arg) <span class="kw">in </span>iter::zip(a_args, b_args) {
+<a href=#670 id=670 data-nosnippet>670</a>                    <span class="self">self</span>.generic_args(a_arg, b_arg);
+<a href=#671 id=671 data-nosnippet>671</a>                }
+<a href=#672 id=672 data-nosnippet>672</a>            }
+<a href=#673 id=673 data-nosnippet>673</a>            (BaseTy::Array(a_ty, a_n), BaseTy::Array(b_ty, b_n)) =&gt; {
+<a href=#674 id=674 data-nosnippet>674</a>                <span class="self">self</span>.tys(a_ty, b_ty);
+<a href=#675 id=675 data-nosnippet>675</a>                <span class="self">self</span>.consts(a_n, b_n);
+<a href=#676 id=676 data-nosnippet>676</a>            }
+<a href=#677 id=677 data-nosnippet>677</a>            (BaseTy::Tuple(a_tys), BaseTy::Tuple(b_tys)) =&gt; {
+<a href=#678 id=678 data-nosnippet>678</a>                <span class="macro">debug_assert_eq!</span>(a_tys.len(), b_tys.len());
+<a href=#679 id=679 data-nosnippet>679</a>                <span class="kw">for </span>(a_ty, b_ty) <span class="kw">in </span>iter::zip(a_tys, b_tys) {
+<a href=#680 id=680 data-nosnippet>680</a>                    <span class="self">self</span>.tys(a_ty, b_ty);
+<a href=#681 id=681 data-nosnippet>681</a>                }
+<a href=#682 id=682 data-nosnippet>682</a>            }
+<a href=#683 id=683 data-nosnippet>683</a>            (BaseTy::Ref(a_re, a_ty, <span class="kw">_</span>), BaseTy::Ref(b_re, b_ty, <span class="kw">_</span>)) =&gt; {
+<a href=#684 id=684 data-nosnippet>684</a>                <span class="self">self</span>.regions(<span class="kw-2">*</span>a_re, <span class="kw-2">*</span>b_re);
+<a href=#685 id=685 data-nosnippet>685</a>                <span class="self">self</span>.tys(a_ty, b_ty);
+<a href=#686 id=686 data-nosnippet>686</a>            }
+<a href=#687 id=687 data-nosnippet>687</a>            (BaseTy::Slice(a_ty), BaseTy::Slice(b_ty)) =&gt; {
+<a href=#688 id=688 data-nosnippet>688</a>                <span class="self">self</span>.tys(a_ty, b_ty);
+<a href=#689 id=689 data-nosnippet>689</a>            }
+<a href=#690 id=690 data-nosnippet>690</a>            <span class="kw">_ </span>=&gt; {}
+<a href=#691 id=691 data-nosnippet>691</a>        }
+<a href=#692 id=692 data-nosnippet>692</a>    }
+<a href=#693 id=693 data-nosnippet>693</a>
+<a href=#694 id=694 data-nosnippet>694</a>    <span class="kw">fn </span>regions(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: Region, b: Region) {
+<a href=#695 id=695 data-nosnippet>695</a>        <span class="kw">if let </span>Region::ReEarlyParam(ebr) = a {
+<a href=#696 id=696 data-nosnippet>696</a>            <span class="self">self</span>.insert_generic_arg(ebr.index, GenericArg::Lifetime(b));
+<a href=#697 id=697 data-nosnippet>697</a>        }
+<a href=#698 id=698 data-nosnippet>698</a>    }
+<a href=#699 id=699 data-nosnippet>699</a>
+<a href=#700 id=700 data-nosnippet>700</a>    <span class="kw">fn </span>consts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>Const, b: <span class="kw-2">&amp;</span>Const) {
+<a href=#701 id=701 data-nosnippet>701</a>        <span class="kw">if let </span>ConstKind::Param(param_const) = a.kind {
+<a href=#702 id=702 data-nosnippet>702</a>            <span class="self">self</span>.insert_generic_arg(param_const.index, GenericArg::Const(b.clone()));
+<a href=#703 id=703 data-nosnippet>703</a>        }
+<a href=#704 id=704 data-nosnippet>704</a>    }
+<a href=#705 id=705 data-nosnippet>705</a>
+<a href=#706 id=706 data-nosnippet>706</a>    <span class="kw">fn </span>insert_generic_arg(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: u32, arg: GenericArg) {
+<a href=#707 id=707 data-nosnippet>707</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(old) = <span class="kw-2">&amp;</span><span class="self">self</span>.args[idx <span class="kw">as </span>usize]
+<a href=#708 id=708 data-nosnippet>708</a>            &amp;&amp; old != <span class="kw-2">&amp;</span>arg
+<a href=#709 id=709 data-nosnippet>709</a>        {
+<a href=#710 id=710 data-nosnippet>710</a>            <span class="macro">tracked_span_bug!</span>(<span class="string">"ambiguous substitution: old=`{old:?}`, new: `{arg:?}`"</span>);
+<a href=#711 id=711 data-nosnippet>711</a>        }
+<a href=#712 id=712 data-nosnippet>712</a>        <span class="self">self</span>.args[idx <span class="kw">as </span>usize].replace(arg);
+<a href=#713 id=713 data-nosnippet>713</a>    }
+<a href=#714 id=714 data-nosnippet>714</a>}
+<a href=#715 id=715 data-nosnippet>715</a>
+<a href=#716 id=716 data-nosnippet>716</a><span class="doccomment">/// Normalize an [`rty::AliasTy`] by converting it to rustc, normalizing it using rustc api, and
+<a href=#717 id=717 data-nosnippet>717</a>/// then mapping the result back to `rty`. This will lose refinements and it should only be used
+<a href=#718 id=718 data-nosnippet>718</a>/// to normalize sorts because they should only contain unrefined types. However, we are also using
+<a href=#719 id=719 data-nosnippet>719</a>/// it as a hack to normalize types in cases where we fail to collect a candidate, this is unsound
+<a href=#720 id=720 data-nosnippet>720</a>/// and should be removed.
+<a href=#721 id=721 data-nosnippet>721</a>///
+<a href=#722 id=722 data-nosnippet>722</a>/// [`rty::AliasTy`]: AliasTy
+<a href=#723 id=723 data-nosnippet>723</a></span><span class="kw">fn </span>normalize_projection_ty_with_rustc&lt;<span class="lifetime">'tcx</span>&gt;(
+<a href=#724 id=724 data-nosnippet>724</a>    genv: GlobalEnv&lt;<span class="lifetime">'_</span>, <span class="lifetime">'tcx</span>&gt;,
+<a href=#725 id=725 data-nosnippet>725</a>    def_id: DefId,
+<a href=#726 id=726 data-nosnippet>726</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+<a href=#727 id=727 data-nosnippet>727</a>    obligation: <span class="kw-2">&amp;</span>AliasTy,
+<a href=#728 id=728 data-nosnippet>728</a>) -&gt; QueryResult&lt;(bool, SubsetTyCtor)&gt; {
+<a href=#729 id=729 data-nosnippet>729</a>    <span class="kw">let </span>tcx = genv.tcx();
+<a href=#730 id=730 data-nosnippet>730</a>    <span class="kw">let </span>projection_ty = obligation.to_rustc(tcx);
+<a href=#731 id=731 data-nosnippet>731</a>    <span class="kw">let </span>projection_ty = tcx.erase_and_anonymize_regions(projection_ty);
+<a href=#732 id=732 data-nosnippet>732</a>    <span class="kw">let </span>cause = ObligationCause::dummy();
+<a href=#733 id=733 data-nosnippet>733</a>    <span class="kw">let </span>param_env = tcx.param_env(def_id);
+<a href=#734 id=734 data-nosnippet>734</a>
+<a href=#735 id=735 data-nosnippet>735</a>    <span class="kw">let </span>pre_ty = projection_ty.to_ty(tcx);
+<a href=#736 id=736 data-nosnippet>736</a>    <span class="kw">let </span>at = infcx.at(<span class="kw-2">&amp;</span>cause, param_env);
+<a href=#737 id=737 data-nosnippet>737</a>    <span class="kw">let </span>ty = deeply_normalize::&lt;rustc_middle::ty::Ty&lt;<span class="lifetime">'tcx</span>&gt;, FulfillmentError&gt;(at, pre_ty)
+<a href=#738 id=738 data-nosnippet>738</a>        .map_err(|err| <span class="macro">query_bug!</span>(<span class="string">"{err:?}"</span>))<span class="question-mark">?</span>;
+<a href=#739 id=739 data-nosnippet>739</a>
+<a href=#740 id=740 data-nosnippet>740</a>    <span class="kw">let </span>changed = pre_ty != ty;
+<a href=#741 id=741 data-nosnippet>741</a>    <span class="kw">let </span>rustc_ty = ty.lower(tcx).map_err(|reason| <span class="macro">query_bug!</span>(<span class="string">"{reason:?}"</span>))<span class="question-mark">?</span>;
+<a href=#742 id=742 data-nosnippet>742</a>
+<a href=#743 id=743 data-nosnippet>743</a>    <span class="prelude-val">Ok</span>((
+<a href=#744 id=744 data-nosnippet>744</a>        changed,
+<a href=#745 id=745 data-nosnippet>745</a>        Refiner::default_for_item(genv, def_id)<span class="question-mark">?
+<a href=#746 id=746 data-nosnippet>746</a>            </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>rustc_ty)<span class="question-mark">?
+<a href=#747 id=747 data-nosnippet>747</a>            </span>.expect_base(),
+<a href=#748 id=748 data-nosnippet>748</a>    ))
+<a href=#749 id=749 data-nosnippet>749</a>}
+<a href=#750 id=750 data-nosnippet>750</a>
+<a href=#751 id=751 data-nosnippet>751</a><span class="doccomment">/// Do one step of normalization, unfolding associated refinements if they are concrete.
+<a href=#752 id=752 data-nosnippet>752</a>///
+<a href=#753 id=753 data-nosnippet>753</a>/// Use this if you are about to match structurally on an [`ExprKind`] and you need associated
+<a href=#754 id=754 data-nosnippet>754</a>/// refinements to be normalized.
+<a href=#755 id=755 data-nosnippet>755</a></span><span class="kw">pub fn </span>structurally_normalize_expr(
+<a href=#756 id=756 data-nosnippet>756</a>    genv: GlobalEnv,
+<a href=#757 id=757 data-nosnippet>757</a>    def_id: DefId,
+<a href=#758 id=758 data-nosnippet>758</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt,
+<a href=#759 id=759 data-nosnippet>759</a>    expr: <span class="kw-2">&amp;</span>Expr,
+<a href=#760 id=760 data-nosnippet>760</a>) -&gt; QueryResult&lt;Expr&gt; {
+<a href=#761 id=761 data-nosnippet>761</a>    <span class="kw">if let </span>ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
+<a href=#762 id=762 data-nosnippet>762</a>        <span class="kw">let </span>(<span class="kw">_</span>, e) = normalize_alias_reft(genv, def_id, infcx, alias_pred, refine_args)<span class="question-mark">?</span>;
+<a href=#763 id=763 data-nosnippet>763</a>        <span class="prelude-val">Ok</span>(e)
+<a href=#764 id=764 data-nosnippet>764</a>    } <span class="kw">else </span>{
+<a href=#765 id=765 data-nosnippet>765</a>        <span class="prelude-val">Ok</span>(expr.clone())
+<a href=#766 id=766 data-nosnippet>766</a>    }
+<a href=#767 id=767 data-nosnippet>767</a>}
+<a href=#768 id=768 data-nosnippet>768</a>
+<a href=#769 id=769 data-nosnippet>769</a><span class="doccomment">/// Normalizes an [`AliasReft`]. This uses the trait solver to find the [`ImplSourceUserDefinedData`]
+<a href=#770 id=770 data-nosnippet>770</a>/// and uses the `args` there, which we map back to Flux via refining. This loses refinements,
+<a href=#771 id=771 data-nosnippet>771</a>/// but that's fine because [`AliasReft`] should not rely on refinements for trait solving.
+<a href=#772 id=772 data-nosnippet>772</a></span><span class="kw">fn </span>normalize_alias_reft(
+<a href=#773 id=773 data-nosnippet>773</a>    genv: GlobalEnv,
+<a href=#774 id=774 data-nosnippet>774</a>    def_id: DefId,
+<a href=#775 id=775 data-nosnippet>775</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt,
+<a href=#776 id=776 data-nosnippet>776</a>    alias_reft: <span class="kw-2">&amp;</span>AliasReft,
+<a href=#777 id=777 data-nosnippet>777</a>    refine_args: <span class="kw-2">&amp;</span>RefineArgs,
+<a href=#778 id=778 data-nosnippet>778</a>) -&gt; QueryResult&lt;(bool, Expr)&gt; {
+<a href=#779 id=779 data-nosnippet>779</a>    <span class="kw">let </span>is_final = genv.assoc_refinement(alias_reft.assoc_id)<span class="question-mark">?</span>.final_;
+<a href=#780 id=780 data-nosnippet>780</a>    <span class="kw">if </span>is_final {
+<a href=#781 id=781 data-nosnippet>781</a>        <span class="kw">let </span>e = genv
+<a href=#782 id=782 data-nosnippet>782</a>            .default_assoc_refinement_body(alias_reft.assoc_id)<span class="question-mark">?
+<a href=#783 id=783 data-nosnippet>783</a>            </span>.unwrap_or_else(|| {
+<a href=#784 id=784 data-nosnippet>784</a>                <span class="macro">bug!</span>(<span class="string">"final associated refinement without body - should be caught in desugar"</span>)
+<a href=#785 id=785 data-nosnippet>785</a>            })
+<a href=#786 id=786 data-nosnippet>786</a>            .instantiate(genv.tcx(), <span class="kw-2">&amp;</span>alias_reft.args, <span class="kw-2">&amp;</span>[])
+<a href=#787 id=787 data-nosnippet>787</a>            .apply(refine_args);
+<a href=#788 id=788 data-nosnippet>788</a>        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, e))
+<a href=#789 id=789 data-nosnippet>789</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_data) = get_impl_data_for_alias_reft(infcx, def_id, alias_reft)<span class="question-mark">? </span>{
+<a href=#790 id=790 data-nosnippet>790</a>        <span class="kw">let </span>tcx = infcx.tcx;
+<a href=#791 id=791 data-nosnippet>791</a>        <span class="kw">let </span>impl_def_id = impl_data.impl_def_id;
+<a href=#792 id=792 data-nosnippet>792</a>        <span class="kw">let </span>args = Refiner::default_for_item(genv, def_id)<span class="question-mark">?</span>.refine_generic_args(
+<a href=#793 id=793 data-nosnippet>793</a>            impl_def_id,
+<a href=#794 id=794 data-nosnippet>794</a>            <span class="kw-2">&amp;</span>impl_data
+<a href=#795 id=795 data-nosnippet>795</a>                .args
+<a href=#796 id=796 data-nosnippet>796</a>                .lower(tcx)
+<a href=#797 id=797 data-nosnippet>797</a>                .map_err(|reason| <span class="macro">query_bug!</span>(<span class="string">"{reason:?}"</span>))<span class="question-mark">?</span>,
+<a href=#798 id=798 data-nosnippet>798</a>        )<span class="question-mark">?</span>;
+<a href=#799 id=799 data-nosnippet>799</a>        <span class="kw">let </span>e = genv
+<a href=#800 id=800 data-nosnippet>800</a>            .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)<span class="question-mark">?
+<a href=#801 id=801 data-nosnippet>801</a>            </span>.instantiate(tcx, <span class="kw-2">&amp;</span>args, <span class="kw-2">&amp;</span>[])
+<a href=#802 id=802 data-nosnippet>802</a>            .apply(refine_args);
+<a href=#803 id=803 data-nosnippet>803</a>        <span class="prelude-val">Ok</span>((<span class="bool-val">true</span>, e))
+<a href=#804 id=804 data-nosnippet>804</a>    } <span class="kw">else </span>{
+<a href=#805 id=805 data-nosnippet>805</a>        <span class="prelude-val">Ok</span>((<span class="bool-val">false</span>, Expr::alias(alias_reft.clone(), refine_args.clone())))
+<a href=#806 id=806 data-nosnippet>806</a>    }
+<a href=#807 id=807 data-nosnippet>807</a>}
+<a href=#808 id=808 data-nosnippet>808</a>
+<a href=#809 id=809 data-nosnippet>809</a><span class="kw">fn </span>get_impl_data_for_alias_reft&lt;<span class="lifetime">'tcx</span>&gt;(
+<a href=#810 id=810 data-nosnippet>810</a>    infcx: <span class="kw-2">&amp;</span>rustc_infer::infer::InferCtxt&lt;<span class="lifetime">'tcx</span>&gt;,
+<a href=#811 id=811 data-nosnippet>811</a>    def_id: DefId,
+<a href=#812 id=812 data-nosnippet>812</a>    alias_reft: <span class="kw-2">&amp;</span>AliasReft,
+<a href=#813 id=813 data-nosnippet>813</a>) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;ImplSourceUserDefinedData&lt;<span class="lifetime">'tcx</span>, PredicateObligation&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt;&gt; {
+<a href=#814 id=814 data-nosnippet>814</a>    <span class="kw">let </span>tcx = infcx.tcx;
+<a href=#815 id=815 data-nosnippet>815</a>    <span class="kw">let </span><span class="kw-2">mut </span>selcx = SelectionContext::new(infcx);
+<a href=#816 id=816 data-nosnippet>816</a>    <span class="kw">let </span>trait_ref = alias_reft.to_rustc_trait_ref(tcx);
+<a href=#817 id=817 data-nosnippet>817</a>    <span class="kw">let </span>trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
+<a href=#818 id=818 data-nosnippet>818</a>    <span class="kw">let </span>trait_pred =
+<a href=#819 id=819 data-nosnippet>819</a>        Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
+<a href=#820 id=820 data-nosnippet>820</a>    <span class="kw">match </span>selcx.select(<span class="kw-2">&amp;</span>trait_pred) {
+<a href=#821 id=821 data-nosnippet>821</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ImplSource::UserDefined(impl_data))) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(impl_data)),
+<a href=#822 id=822 data-nosnippet>822</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+<a href=#823 id=823 data-nosnippet>823</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bug!</span>(<span class="string">"error selecting {trait_pred:?}: {e:?}"</span>),
+<a href=#824 id=824 data-nosnippet>824</a>    }
+<a href=#825 id=825 data-nosnippet>825</a>}</code></pre></div></section></main></body></html>
