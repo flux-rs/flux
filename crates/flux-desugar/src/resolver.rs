@@ -58,7 +58,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     prelude: PerNS<Rib>,
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
-    sort_decls: UnordMap<Symbol, FluxLocalDefId>,
+    sort_decls: UnordMap<Symbol, FluxDefId>,
     primop_props: UnordMap<Symbol, FluxDefId>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
@@ -148,10 +148,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         self.primop_props.insert(name, def_id);
                     }
                     surface::FluxItem::SortDecl(sort_decl) => {
-                        let def_id = FluxLocalDefId::new(
-                            parent.def_id.to_def_id().expect_local(),
-                            sort_decl.name.name,
-                        );
+                        let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
                         self.sort_decls.insert(sort_decl.name.name, def_id);
                     }
                 }

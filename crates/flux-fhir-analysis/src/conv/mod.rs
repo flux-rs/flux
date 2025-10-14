@@ -20,7 +20,7 @@ use flux_common::{
 };
 use flux_middle::{
     THEORY_FUNCS,
-    def_id::{FluxLocalDefId, MaybeExternId},
+    def_id::{FluxDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, QPathExpr},
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
@@ -953,9 +953,9 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn check_user_defined_sort_param_count(
         &mut self,
         path: &fhir::SortPath<'_>,
-        def_id: FluxLocalDefId,
+        def_id: FluxDefId,
     ) -> QueryResult {
-        let expected_param_count = self.genv().sort_decl_param_count(def_id)?;
+        let expected_param_count = self.genv().sort_decl_param_count(def_id);
         if path.args.len() != expected_param_count {
             let err = errors::IncorrectGenericsOnUserDefinedOpaqueSort::new(
                 path.segments.last().unwrap().span,

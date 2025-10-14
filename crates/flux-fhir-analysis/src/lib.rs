@@ -74,10 +74,8 @@ pub fn provide(providers: &mut Providers) {
     providers.sort_decl_param_count = sort_decl_param_count;
 }
 
-fn sort_decl_param_count(genv: GlobalEnv, def_id: FluxId<LocalDefId>) -> QueryResult<usize> {
-    genv.fhir_sort_decl(def_id)
-        .map(|sort_decl| Ok(sort_decl.params))
-        .unwrap_or_else(|| Err(query_bug!(def_id.parent(), "expected sort declaration")))
+fn sort_decl_param_count(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> usize {
+    genv.fhir_sort_decl(def_id.local_id()).unwrap().params
 }
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtSortDef> {

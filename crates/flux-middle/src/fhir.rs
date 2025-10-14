@@ -898,7 +898,7 @@ pub enum SortRes {
     /// A primitive sort.
     PrimSort(PrimSort),
     /// A user declared sort.
-    User(FluxLocalDefId),
+    User(FluxDefId),
     /// A sort parameter inside a polymorphic function or data sort.
     SortParam(usize),
     /// The sort associated to a (generic) type parameter

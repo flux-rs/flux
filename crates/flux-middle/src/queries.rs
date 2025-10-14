@@ -23,7 +23,7 @@ use rustc_macros::{Decodable, Encodable};
 use rustc_span::{Span, Symbol};
 
 use crate::{
-    def_id::{FluxDefId, FluxId, FluxLocalDefId, MaybeExternId, ResolvedDefId},
+    def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
     rty::{
@@ -191,7 +191,7 @@ pub struct Providers {
         fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
-    pub sort_decl_param_count: fn(GlobalEnv, FluxId<LocalDefId>) -> QueryResult<usize>,
+    pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
 }
 
 macro_rules! empty_query {
@@ -267,7 +267,7 @@ pub struct Queries<'genv, 'tcx> {
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
-    sort_decl_param_count: Cache<FluxLocalDefId, QueryResult<usize>>,
+    sort_decl_param_count: Cache<FluxDefId, usize>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -526,13 +526,20 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn sort_decl_param_count(
-        &self,
-        genv: GlobalEnv,
-        def_id: FluxLocalDefId,
-    ) -> QueryResult<usize> {
+    pub(crate) fn sort_decl_param_count(&self, genv: GlobalEnv, def_id: FluxDefId) -> usize {
         run_with_cache(&self.sort_decl_param_count, def_id, || {
-            (self.providers.sort_decl_param_count)(genv, def_id)
+            def_id.dispatch_query(
+                genv,
+                |def_id| {
+                    (self.providers.sort_decl_param_count)(genv, def_id)
+                },
+                |def_id| genv.cstore().sort_decl_param_count(def_id),
+                |_| {
+                    bug!(
+                        "cannot generate default param count for sort declaration, it must be defined somewhere"
+                    )
+                }
+            )
         })
     }
 

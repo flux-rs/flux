@@ -243,10 +243,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .adt_sort_def_of(self, def_id.into_query_param())
     }
 
-    pub fn sort_decl_param_count(
-        self,
-        def_id: impl IntoQueryParam<FluxLocalDefId>,
-    ) -> QueryResult<usize> {
+    pub fn sort_decl_param_count(self, def_id: impl IntoQueryParam<FluxDefId>) -> usize {
         self.inner
             .queries
             .sort_decl_param_count(self, def_id.into_query_param())
