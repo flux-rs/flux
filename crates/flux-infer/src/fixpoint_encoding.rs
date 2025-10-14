@@ -789,7 +789,7 @@ where
                         if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
                             Ok(rty::Expr::var(*var))
                         } else {
-                            Err(FixpointParseError::NoLocalVar(fname))
+                            Err(FixpointParseError::NoLocalVar(*fname))
                         }
                     }
                     fixpoint::Var::DataCtor(_, _) => {
