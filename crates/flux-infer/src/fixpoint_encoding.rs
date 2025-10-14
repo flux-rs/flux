@@ -747,7 +747,7 @@ where
             fixpoint::Expr::Constant(constant) => {
                 let c = match constant {
                     fixpoint::Constant::Numeral(num) => rty::Constant::Int(BigInt::from(*num)),
-                    fixpoint::Constant::Decimal(dec) => rty::Constant::Real(*dec),
+                    fixpoint::Constant::Real(dec) => rty::Constant::Real(rty::Real(*dec)),
                     fixpoint::Constant::Boolean(b) => rty::Constant::Bool(*b),
                     fixpoint::Constant::String(s) => rty::Constant::Str(s.0),
                     fixpoint::Constant::BitVec(bv, size) => rty::Constant::BitVec(*bv, *size),
@@ -995,6 +995,12 @@ where
                 Ok(rty::Expr::let_(e1, e2_binder))
             }
             fixpoint::Expr::ThyFunc(itf) => Ok(rty::Expr::global_func(SpecFuncKind::Thy(*itf))),
+            fixpoint::Expr::IsCtor(var, fe) => {
+                let def_id = todo!();
+                let variant_idx = todo!();
+                let e = self.fixpoint_to_expr(fe)?;
+                Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
+            }
         }
     }
 
