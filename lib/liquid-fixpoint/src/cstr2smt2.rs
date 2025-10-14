@@ -84,7 +84,7 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
         Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
         Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
-        _ => panic!("handling for this kind of const isn't implemented yet"),
+        _ => panic!("handling for this kind of const isn't implemented yet: `{cnst:?}`"),
     }
 }
 
@@ -374,7 +374,7 @@ fn thy_func_application_to_z3<T: Types>(
             let arg = expr_to_z3(&args[0], env).as_bv().unwrap();
             arg.sign_ext(size as u32).into()
         }
-        _ => panic!("unhandled theory function"),
+        thy => panic!("unhandled theory function: `{thy}`"),
     }
 }
 
@@ -411,7 +411,9 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 SortKind::Real => {
                     ast::Real::sub(&[&zero.to_real(), &z3_num.as_real().unwrap()]).into()
                 }
-                _ => panic!("Negation requires numeric operand"),
+                kind => {
+                    panic!("Negation requires numeric operand - kind: `{kind:?}`, expr: `{expr:?}")
+                }
             }
         }
         Expr::Iff(operands) => {

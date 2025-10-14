@@ -434,7 +434,7 @@ impl<T: Types> Expr<T> {
                 args.iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
-            _ => panic!("Not supported yet; implement as needed"),
+            _ => panic!("Not supported yet; implement as needed: `{self}`"),
         }
     }
 
