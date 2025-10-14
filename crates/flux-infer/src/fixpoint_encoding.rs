@@ -756,34 +756,35 @@ where
             fixpoint::Expr::Var(fvar) => {
                 let var = match fvar {
                     fixpoint::Var::Underscore => {
-                        unreachable!("Underscore should not appear in exprs")
-                    }
+                                        unreachable!("Underscore should not appear in exprs")
+                                    }
                     fixpoint::Var::Global(_, _) => {
-                        todo!()
-                    }
+                                        todo!()
+                                    }
                     fixpoint::Var::Local(fname) => {
-                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
-                            var.clone()
-                        } else {
-                            todo!("No entry in reverse map for var {:?}", fname)
-                        }
-                    }
+                                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
+                                            var.clone()
+                                        } else {
+                                            todo!("No entry in reverse map for var {:?}", fname)
+                                        }
+                                    }
                     fixpoint::Var::DataCtor(_, _) => {
-                        todo!()
-                    }
+                                        todo!()
+                                    }
                     fixpoint::Var::TupleCtor { .. }
-                    | fixpoint::Var::TupleProj { .. }
-                    | fixpoint::Var::UIFRel(_) => {
-                        unreachable!(
-                            "Trying to convert an atomic var, but reached a var that should only occur as the head of an app (and be special-cased in conversion as a result)"
-                        )
-                    }
+                                    | fixpoint::Var::TupleProj { .. }
+                                    | fixpoint::Var::DataProj { .. }
+                                    | fixpoint::Var::UIFRel(_) => {
+                                        unreachable!(
+                                            "Trying to convert an atomic var, but reached a var that should only occur as the head of an app (and be special-cased in conversion as a result)"
+                                        )
+                                    }
                     fixpoint::Var::Param(early_reft_param) => {
-                        rty::Var::EarlyParam(*early_reft_param)
-                    }
+                                        rty::Var::EarlyParam(*early_reft_param)
+                                    }
                     fixpoint::Var::ConstGeneric(const_generic) => {
-                        rty::Var::ConstGeneric(*const_generic)
-                    }
+                                        rty::Var::ConstGeneric(*const_generic)
+                                    }
                 };
                 Ok(rty::Expr::var(var))
             }
@@ -797,7 +798,18 @@ where
                                 rty::FieldProj::Tuple { arity: *arity, field: *field },
                             ))
                         } else {
-                            Err(FixpointParseError::TupleProjArityMismatch(fargs.len()))
+                            Err(FixpointParseError::ProjArityMismatch(fargs.len()))
+                        }
+                    }
+                    fixpoint::Expr::Var(fixpoint::Var::DataProj { adt_id, field }) => {
+                        if fargs.len() == 1 {
+                            let earg = self.fixpoint_to_expr(&fargs[0])?;
+                            Ok(rty::Expr::field_proj(
+                                earg,
+                                rty::FieldProj::Adt { def_id: self.scx.adt_sorts[adt_id.as_usize()], field: *field },
+                            ))
+                        } else {
+                            Err(FixpointParseError::ProjArityMismatch(fargs.len()))
                         }
                     }
                     fixpoint::Expr::Var(fixpoint::Var::TupleCtor { arity }) => {
@@ -939,7 +951,7 @@ pub enum FixpointParseError {
     /// Expected arity (based off of the tuple ctor), actual arity (the numer of args)
     TupleCtorArityMismatch(usize, usize),
     /// The number of arguments should only ever be 1 for a tuple proj
-    TupleProjArityMismatch(usize),
+    ProjArityMismatch(usize),
 }
 
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
