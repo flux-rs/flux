@@ -16,7 +16,7 @@ pub(crate) static FIXPOINT_QUALIFIERS: LazyLock<[Qualifier; 13]> = LazyLock::new
     let eqfalse = Qualifier {
         name: String::from("EqFalse"),
         args: vec![(Var::Local(LocalVar::from(0u32)), Sort::Bool)],
-        body: Expr::Neg(Box::new(Expr::Var(Var::Local(LocalVar::from(0u32))))),
+        body: Expr::Not(Box::new(Expr::Var(Var::Local(LocalVar::from(0u32))))),
     };
     let eqzero = Qualifier {
         name: String::from("EqZero"),
