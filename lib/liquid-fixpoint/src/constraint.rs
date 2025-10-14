@@ -211,7 +211,9 @@ impl<T: Types> Expr<T> {
 #[derive_where(Hash, Clone, Debug)]
 pub enum Constant<T: Types> {
     Numeral(u128),
-    Decimal(T::Decimal),
+    // Currently we only support parsing integers as decimals. We should extend this to allow
+    // rational numbers as a numer/denom.
+    Real(u128),
     Boolean(bool),
     String(T::String),
     BitVec(u128, u32),

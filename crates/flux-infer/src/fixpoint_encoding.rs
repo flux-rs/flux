@@ -44,7 +44,7 @@ use crate::{
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::rty::{EarlyReftParam, Real};
+    use flux_middle::rty::EarlyReftParam;
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -171,7 +171,6 @@ pub mod fixpoint {
         type Sort = DataSort;
         type KVar = KVid;
         type Var = Var;
-        type Decimal = Real;
         type String = SymStr;
         type Tag = super::TagIdx;
     }
@@ -748,7 +747,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
                 fixpoint::Constant::Numeral(i.abs()).into()
             }
         }
-        rty::Constant::Real(r) => fixpoint::Constant::Decimal(r).into(),
+        rty::Constant::Real(r) => fixpoint::Constant::Real(r.0).into(),
         rty::Constant::Bool(b) => fixpoint::Constant::Boolean(b).into(),
         rty::Constant::Char(c) => fixpoint::Constant::Numeral(u128::from(c)).into(),
         rty::Constant::Str(s) => fixpoint::Constant::String(fixpoint::SymStr(s)).into(),
@@ -1191,8 +1190,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let e = self.expr_to_fixpoint(e, scx)?;
                 fixpoint::Expr::IsCtor(ctor, Box::new(e))
             }
-            rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
-                fixpoint::Expr::Var(self.variant_to_fixpoint(scx, did, *idx))
+            rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), args) => {
+                let ctor = self.variant_to_fixpoint(scx, did, *idx);
+                let args = self.exprs_to_fixpoint(args, scx)?;
+                fixpoint::Expr::App(Box::new(fixpoint::Expr::Var(ctor)), args)
             }
             rty::ExprKind::ConstDefId(did) => {
                 let var = self.define_const_for_rust_const(*did, scx);

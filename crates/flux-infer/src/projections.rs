@@ -35,10 +35,10 @@ use crate::{
 };
 
 pub trait NormalizeExt: TypeFoldable {
-    fn normalize_projections(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self>;
+    fn deeply_normalize(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self>;
 
-    /// Normalize projections but only inside sorts
-    fn normalize_sorts<'tcx>(
+    /// Deeply normalize projections but only inside sorts
+    fn deeply_normalize_sorts<'tcx>(
         &self,
         def_id: DefId,
         genv: GlobalEnv<'_, 'tcx>,
@@ -47,7 +47,7 @@ pub trait NormalizeExt: TypeFoldable {
 }
 
 impl<T: TypeFoldable> NormalizeExt for T {
-    fn normalize_projections(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self> {
+    fn deeply_normalize(&self, infcx: &mut InferCtxtAt) -> QueryResult<Self> {
         let span = infcx.span;
         let infcx_orig = &mut infcx.infcx;
         let mut infcx = infcx_orig.branch();
@@ -56,7 +56,7 @@ impl<T: TypeFoldable> NormalizeExt for T {
         self.erase_regions().try_fold_with(&mut normalizer)
     }
 
-    fn normalize_sorts<'tcx>(
+    fn deeply_normalize_sorts<'tcx>(
         &self,
         def_id: DefId,
         genv: GlobalEnv<'_, 'tcx>,
@@ -265,7 +265,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                     |_| rty::ReErased,
                     |sort, mode| infcx.fresh_infer_var(sort, mode),
                 )
-                .normalize_projections(infcx)?;
+                .deeply_normalize(infcx)?;
 
             let actuals = actual.projection_ty.args.iter().map(|arg| {
                 match arg {
@@ -551,6 +551,7 @@ struct SortNormalizer<'infcx, 'genv, 'tcx> {
     infcx: &'infcx rustc_infer::infer::InferCtxt<'tcx>,
     genv: GlobalEnv<'genv, 'tcx>,
 }
+
 impl<'infcx, 'genv, 'tcx> SortNormalizer<'infcx, 'genv, 'tcx> {
     fn new(
         def_id: DefId,

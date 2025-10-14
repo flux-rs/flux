@@ -330,8 +330,8 @@ impl<T: Types> fmt::Display for Expr<T> {
 impl<T: Types> fmt::Display for Constant<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Constant::Numeral(i) => write!(f, "{i}"),
-            Constant::Decimal(r) => write!(f, "{}", r.display()),
+            Constant::Numeral(n) => write!(f, "{n}"),
+            Constant::Real(n) => write!(f, "{n}.0"),
             Constant::Boolean(b) => write!(f, "{b}"),
             Constant::String(s) => write!(f, "{}", s.display()),
             Constant::BitVec(i, sz) => {

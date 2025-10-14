@@ -19,7 +19,6 @@ impl Types for ParsingTypes {
     type KVar = String;
     type Var = String;
     type Tag = String;
-    type Decimal = u32;
     type String = String;
 }
 
@@ -408,7 +407,7 @@ fn parse_expr(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
         Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(s.clone()))),
         Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
         Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i as u128))),
-        Sexp::Atom(Atom::F(f)) => Ok(Expr::Constant(Constant::Decimal(*f as u32))),
+        Sexp::Atom(Atom::F(f)) => Ok(Expr::Constant(Constant::Real(*f as u128))),
     }
 }
 

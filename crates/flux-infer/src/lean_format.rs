@@ -94,10 +94,10 @@ impl<'a> fmt::Display for LeanExpr<'a> {
             Expr::Var(v) => write!(f, "{}", LeanVar(v)),
             Expr::Constant(c) => {
                 match c {
-                    Constant::Numeral(n) => write!(f, "{}", n),
-                    Constant::Boolean(b) => write!(f, "{}", b),
+                    Constant::Numeral(n) => write!(f, "{n}",),
+                    Constant::Boolean(b) => write!(f, "{b}"),
                     Constant::String(s) => write!(f, "{}", s.display()),
-                    Constant::Decimal(d) => write!(f, "{}", d.display()),
+                    Constant::Real(n) => write!(f, "{n}.0"),
                     Constant::BitVec(bv, size) => write!(f, "{}#{}", bv, size),
                 }
             }
