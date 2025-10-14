@@ -454,6 +454,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                 _ => panic!("encountered function application but no function"),
             }
         }
+        Expr::IsCtor(..) => todo!("testers not yet implemented"),
         Expr::ThyFunc(_) => panic!("Should not encounter theory func outside of an application"),
     }
 }
