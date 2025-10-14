@@ -157,59 +157,57 @@
 <a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">for </span>item <span class="kw">in </span>items {
 <a href=#158 id=158 data-nosnippet>158</a>            <span class="kw">let </span>def_id = FluxLocalDefId::new(parent.def_id, item.name().name);
 <a href=#159 id=159 data-nosnippet>159</a>            FluxItemCtxt::with(genv, resolver_output, def_id, |cx| {
-<a href=#160 id=160 data-nosnippet>160</a>                <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = cx.desugar_flux_item(item) {
-<a href=#161 id=161 data-nosnippet>161</a>                    fhir.items.insert(def_id, item);
-<a href=#162 id=162 data-nosnippet>162</a>                }
-<a href=#163 id=163 data-nosnippet>163</a>            })
-<a href=#164 id=164 data-nosnippet>164</a>            .collect_err(<span class="kw-2">&amp;mut </span>err);
-<a href=#165 id=165 data-nosnippet>165</a>        }
-<a href=#166 id=166 data-nosnippet>166</a>    }
-<a href=#167 id=167 data-nosnippet>167</a>    err.into_result()<span class="question-mark">?</span>;
-<a href=#168 id=168 data-nosnippet>168</a>
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="prelude-val">Ok</span>(fhir)
-<a href=#170 id=170 data-nosnippet>170</a>}
-<a href=#171 id=171 data-nosnippet>171</a>
-<a href=#172 id=172 data-nosnippet>172</a><span class="kw">fn </span>fhir_attr_map&lt;<span class="lifetime">'genv</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;, def_id: LocalDefId) -&gt; fhir::AttrMap&lt;<span class="lifetime">'genv</span>&gt; {
-<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span>owner_id = OwnerId { def_id };
-<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span>specs = genv.collect_specs();
-<a href=#175 id=175 data-nosnippet>175</a>
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">let </span>(node_id, attrs) = <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = specs.get_item(owner_id) {
-<a href=#177 id=177 data-nosnippet>177</a>        (item.node_id, <span class="kw-2">&amp;</span>item.attrs)
-<a href=#178 id=178 data-nosnippet>178</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_item) = specs.get_impl_item(owner_id) {
-<a href=#179 id=179 data-nosnippet>179</a>        (impl_item.node_id, <span class="kw-2">&amp;</span>impl_item.attrs)
-<a href=#180 id=180 data-nosnippet>180</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(trait_item) = specs.get_trait_item(owner_id) {
-<a href=#181 id=181 data-nosnippet>181</a>        (trait_item.node_id, <span class="kw-2">&amp;</span>trait_item.attrs)
-<a href=#182 id=182 data-nosnippet>182</a>    } <span class="kw">else </span>{
-<a href=#183 id=183 data-nosnippet>183</a>        <span class="kw">return </span>fhir::AttrMap::default();
-<a href=#184 id=184 data-nosnippet>184</a>    };
-<a href=#185 id=185 data-nosnippet>185</a>
-<a href=#186 id=186 data-nosnippet>186</a>    <span class="kw">let </span>resolver_output = genv.resolve_crate();
-<a href=#187 id=187 data-nosnippet>187</a>    fhir::AttrMap {
-<a href=#188 id=188 data-nosnippet>188</a>        attrs: genv.alloc_slice_fill_iter(
-<a href=#189 id=189 data-nosnippet>189</a>            attrs
-<a href=#190 id=190 data-nosnippet>190</a>                .iter()
-<a href=#191 id=191 data-nosnippet>191</a>                .filter_map(|attr| {
-<a href=#192 id=192 data-nosnippet>192</a>                    <span class="kw">match </span><span class="kw-2">*</span>attr {
-<a href=#193 id=193 data-nosnippet>193</a>                        surface::Attr::Trusted(trusted) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::Trusted(trusted)),
-<a href=#194 id=194 data-nosnippet>194</a>                        surface::Attr::TrustedImpl(trusted) =&gt; {
-<a href=#195 id=195 data-nosnippet>195</a>                            <span class="prelude-val">Some</span>(fhir::Attr::TrustedImpl(trusted))
-<a href=#196 id=196 data-nosnippet>196</a>                        }
-<a href=#197 id=197 data-nosnippet>197</a>                        surface::Attr::Ignore(ignored) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::Ignore(ignored)),
-<a href=#198 id=198 data-nosnippet>198</a>                        surface::Attr::ProvenExternally =&gt; <span class="prelude-val">Some</span>(fhir::Attr::ProvenExternally),
-<a href=#199 id=199 data-nosnippet>199</a>                        surface::Attr::ShouldFail =&gt; <span class="prelude-val">Some</span>(fhir::Attr::ShouldFail),
-<a href=#200 id=200 data-nosnippet>200</a>                        surface::Attr::InferOpts(opts) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::InferOpts(opts)),
-<a href=#201 id=201 data-nosnippet>201</a>                        surface::Attr::Qualifiers(<span class="kw">_</span>) | surface::Attr::Reveal(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-<a href=#202 id=202 data-nosnippet>202</a>                    }
-<a href=#203 id=203 data-nosnippet>203</a>                })
-<a href=#204 id=204 data-nosnippet>204</a>                .collect_vec(),
-<a href=#205 id=205 data-nosnippet>205</a>        ),
-<a href=#206 id=206 data-nosnippet>206</a>        qualifiers: resolver_output
-<a href=#207 id=207 data-nosnippet>207</a>            .qualifier_res_map
-<a href=#208 id=208 data-nosnippet>208</a>            .get(<span class="kw-2">&amp;</span>node_id)
-<a href=#209 id=209 data-nosnippet>209</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
-<a href=#210 id=210 data-nosnippet>210</a>        reveals: resolver_output
-<a href=#211 id=211 data-nosnippet>211</a>            .reveal_res_map
-<a href=#212 id=212 data-nosnippet>212</a>            .get(<span class="kw-2">&amp;</span>node_id)
-<a href=#213 id=213 data-nosnippet>213</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
-<a href=#214 id=214 data-nosnippet>214</a>    }
-<a href=#215 id=215 data-nosnippet>215</a>}</code></pre></div></section></main></body></html>
+<a href=#160 id=160 data-nosnippet>160</a>                fhir.items.insert(def_id, cx.desugar_flux_item(item));
+<a href=#161 id=161 data-nosnippet>161</a>            })
+<a href=#162 id=162 data-nosnippet>162</a>            .collect_err(<span class="kw-2">&amp;mut </span>err);
+<a href=#163 id=163 data-nosnippet>163</a>        }
+<a href=#164 id=164 data-nosnippet>164</a>    }
+<a href=#165 id=165 data-nosnippet>165</a>    err.into_result()<span class="question-mark">?</span>;
+<a href=#166 id=166 data-nosnippet>166</a>
+<a href=#167 id=167 data-nosnippet>167</a>    <span class="prelude-val">Ok</span>(fhir)
+<a href=#168 id=168 data-nosnippet>168</a>}
+<a href=#169 id=169 data-nosnippet>169</a>
+<a href=#170 id=170 data-nosnippet>170</a><span class="kw">fn </span>fhir_attr_map&lt;<span class="lifetime">'genv</span>&gt;(genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;, def_id: LocalDefId) -&gt; fhir::AttrMap&lt;<span class="lifetime">'genv</span>&gt; {
+<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">let </span>owner_id = OwnerId { def_id };
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">let </span>specs = genv.collect_specs();
+<a href=#173 id=173 data-nosnippet>173</a>
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span>(node_id, attrs) = <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = specs.get_item(owner_id) {
+<a href=#175 id=175 data-nosnippet>175</a>        (item.node_id, <span class="kw-2">&amp;</span>item.attrs)
+<a href=#176 id=176 data-nosnippet>176</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(impl_item) = specs.get_impl_item(owner_id) {
+<a href=#177 id=177 data-nosnippet>177</a>        (impl_item.node_id, <span class="kw-2">&amp;</span>impl_item.attrs)
+<a href=#178 id=178 data-nosnippet>178</a>    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(trait_item) = specs.get_trait_item(owner_id) {
+<a href=#179 id=179 data-nosnippet>179</a>        (trait_item.node_id, <span class="kw-2">&amp;</span>trait_item.attrs)
+<a href=#180 id=180 data-nosnippet>180</a>    } <span class="kw">else </span>{
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="kw">return </span>fhir::AttrMap::default();
+<a href=#182 id=182 data-nosnippet>182</a>    };
+<a href=#183 id=183 data-nosnippet>183</a>
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="kw">let </span>resolver_output = genv.resolve_crate();
+<a href=#185 id=185 data-nosnippet>185</a>    fhir::AttrMap {
+<a href=#186 id=186 data-nosnippet>186</a>        attrs: genv.alloc_slice_fill_iter(
+<a href=#187 id=187 data-nosnippet>187</a>            attrs
+<a href=#188 id=188 data-nosnippet>188</a>                .iter()
+<a href=#189 id=189 data-nosnippet>189</a>                .filter_map(|attr| {
+<a href=#190 id=190 data-nosnippet>190</a>                    <span class="kw">match </span><span class="kw-2">*</span>attr {
+<a href=#191 id=191 data-nosnippet>191</a>                        surface::Attr::Trusted(trusted) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::Trusted(trusted)),
+<a href=#192 id=192 data-nosnippet>192</a>                        surface::Attr::TrustedImpl(trusted) =&gt; {
+<a href=#193 id=193 data-nosnippet>193</a>                            <span class="prelude-val">Some</span>(fhir::Attr::TrustedImpl(trusted))
+<a href=#194 id=194 data-nosnippet>194</a>                        }
+<a href=#195 id=195 data-nosnippet>195</a>                        surface::Attr::Ignore(ignored) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::Ignore(ignored)),
+<a href=#196 id=196 data-nosnippet>196</a>                        surface::Attr::ProvenExternally =&gt; <span class="prelude-val">Some</span>(fhir::Attr::ProvenExternally),
+<a href=#197 id=197 data-nosnippet>197</a>                        surface::Attr::ShouldFail =&gt; <span class="prelude-val">Some</span>(fhir::Attr::ShouldFail),
+<a href=#198 id=198 data-nosnippet>198</a>                        surface::Attr::InferOpts(opts) =&gt; <span class="prelude-val">Some</span>(fhir::Attr::InferOpts(opts)),
+<a href=#199 id=199 data-nosnippet>199</a>                        surface::Attr::Qualifiers(<span class="kw">_</span>) | surface::Attr::Reveal(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<a href=#200 id=200 data-nosnippet>200</a>                    }
+<a href=#201 id=201 data-nosnippet>201</a>                })
+<a href=#202 id=202 data-nosnippet>202</a>                .collect_vec(),
+<a href=#203 id=203 data-nosnippet>203</a>        ),
+<a href=#204 id=204 data-nosnippet>204</a>        qualifiers: resolver_output
+<a href=#205 id=205 data-nosnippet>205</a>            .qualifier_res_map
+<a href=#206 id=206 data-nosnippet>206</a>            .get(<span class="kw-2">&amp;</span>node_id)
+<a href=#207 id=207 data-nosnippet>207</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
+<a href=#208 id=208 data-nosnippet>208</a>        reveals: resolver_output
+<a href=#209 id=209 data-nosnippet>209</a>            .reveal_res_map
+<a href=#210 id=210 data-nosnippet>210</a>            .get(<span class="kw-2">&amp;</span>node_id)
+<a href=#211 id=211 data-nosnippet>211</a>            .map_or(<span class="kw-2">&amp;</span>[][..], Vec::as_slice),
+<a href=#212 id=212 data-nosnippet>212</a>    }
+<a href=#213 id=213 data-nosnippet>213</a>}</code></pre></div></section></main></body></html>

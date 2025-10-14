@@ -71,578 +71,583 @@
 <a href=#71 id=71 data-nosnippet>71</a>    providers.assoc_refinement_body = assoc_refinement_body;
 <a href=#72 id=72 data-nosnippet>72</a>    providers.default_assoc_refinement_body = default_assoc_refinement_body;
 <a href=#73 id=73 data-nosnippet>73</a>    providers.item_bounds = item_bounds;
-<a href=#74 id=74 data-nosnippet>74</a>}
-<a href=#75 id=75 data-nosnippet>75</a>
-<a href=#76 id=76 data-nosnippet>76</a><span class="kw">fn </span>adt_sort_def_of(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
-<a href=#77 id=77 data-nosnippet>77</a>    <span class="kw">let </span>kind = genv.fhir_expect_refinement_kind(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#78 id=78 data-nosnippet>78</a>    conv::conv_adt_sort_def(genv, def_id, kind)
+<a href=#74 id=74 data-nosnippet>74</a>    providers.sort_decl_param_count = sort_decl_param_count;
+<a href=#75 id=75 data-nosnippet>75</a>}
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a><span class="kw">fn </span>sort_decl_param_count(genv: GlobalEnv, def_id: FluxId&lt;MaybeExternId&gt;) -&gt; usize {
+<a href=#78 id=78 data-nosnippet>78</a>    genv.fhir_sort_decl(def_id.local_id()).unwrap().params
 <a href=#79 id=79 data-nosnippet>79</a>}
 <a href=#80 id=80 data-nosnippet>80</a>
-<a href=#81 id=81 data-nosnippet>81</a><span class="kw">fn </span>func_sort(genv: GlobalEnv, def_id: FluxId&lt;MaybeExternId&gt;) -&gt; rty::PolyFuncSort {
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">let </span>func = genv.fhir_spec_func_body(def_id.local_id()).unwrap();
-<a href=#83 id=83 data-nosnippet>83</a>    <span class="kw">match </span>conv::conv_func_decl(genv, func).emit(<span class="kw-2">&amp;</span>genv) {
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="prelude-val">Ok</span>(normalized) =&gt; normalized,
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="prelude-val">Err</span>(err) =&gt; {
-<a href=#86 id=86 data-nosnippet>86</a>            genv.sess().abort(err);
-<a href=#87 id=87 data-nosnippet>87</a>        }
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>}
-<a href=#90 id=90 data-nosnippet>90</a>
-<a href=#91 id=91 data-nosnippet>91</a><span class="kw">fn </span>flux_def_ident_span(genv: GlobalEnv, def_id: FluxId&lt;MaybeExternId&gt;) -&gt; Span {
-<a href=#92 id=92 data-nosnippet>92</a>    genv.fhir_spec_func_body(def_id.local_id())
-<a href=#93 id=93 data-nosnippet>93</a>        .unwrap()
-<a href=#94 id=94 data-nosnippet>94</a>        .ident_span
-<a href=#95 id=95 data-nosnippet>95</a>}
-<a href=#96 id=96 data-nosnippet>96</a>
-<a href=#97 id=97 data-nosnippet>97</a><span class="kw">fn </span>normalized_defns(genv: GlobalEnv) -&gt; rty::NormalizedDefns {
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">match </span>try_normalized_defns(genv) {
-<a href=#99 id=99 data-nosnippet>99</a>        <span class="prelude-val">Ok</span>(normalized) =&gt; normalized,
-<a href=#100 id=100 data-nosnippet>100</a>        <span class="prelude-val">Err</span>(err) =&gt; {
-<a href=#101 id=101 data-nosnippet>101</a>            genv.sess().abort(err);
-<a href=#102 id=102 data-nosnippet>102</a>        }
-<a href=#103 id=103 data-nosnippet>103</a>    }
-<a href=#104 id=104 data-nosnippet>104</a>}
-<a href=#105 id=105 data-nosnippet>105</a>
-<a href=#106 id=106 data-nosnippet>106</a><span class="kw">fn </span>try_normalized_defns(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;rty::NormalizedDefns, ErrorGuaranteed&gt; {
-<a href=#107 id=107 data-nosnippet>107</a>    <span class="kw">let </span><span class="kw-2">mut </span>defns = <span class="macro">vec!</span>[];
-<a href=#108 id=108 data-nosnippet>108</a>
-<a href=#109 id=109 data-nosnippet>109</a>    <span class="comment">// Collect and emit all errors
-<a href=#110 id=110 data-nosnippet>110</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
-<a href=#111 id=111 data-nosnippet>111</a>    <span class="kw">for </span>(<span class="kw">_</span>, item) <span class="kw">in </span>genv.fhir_iter_flux_items() {
-<a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">let </span>fhir::FluxItem::Func(func) = item <span class="kw">else </span>{ <span class="kw">continue </span>};
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = wf::check_flux_item(genv, item).collect_err(<span class="kw-2">&amp;mut </span>errors) <span class="kw">else </span>{
-<a href=#114 id=114 data-nosnippet>114</a>            <span class="kw">continue</span>;
-<a href=#115 id=115 data-nosnippet>115</a>        };
-<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(defn) = cx.conv_defn(func).emit(<span class="kw-2">&amp;</span>errors) <span class="kw">else </span>{
-<a href=#118 id=118 data-nosnippet>118</a>            <span class="kw">continue</span>;
-<a href=#119 id=119 data-nosnippet>119</a>        };
-<a href=#120 id=120 data-nosnippet>120</a>
-<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = defn {
-<a href=#122 id=122 data-nosnippet>122</a>            defns.push((func.def_id, defn, func.hide));
-<a href=#123 id=123 data-nosnippet>123</a>        }
-<a href=#124 id=124 data-nosnippet>124</a>    }
-<a href=#125 id=125 data-nosnippet>125</a>    errors.into_result()<span class="question-mark">?</span>;
-<a href=#126 id=126 data-nosnippet>126</a>
-<a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">let </span>defns = rty::NormalizedDefns::new(genv, <span class="kw-2">&amp;</span>defns)
-<a href=#128 id=128 data-nosnippet>128</a>        .map_err(|cycle| {
-<a href=#129 id=129 data-nosnippet>129</a>            <span class="kw">let </span>span = genv
-<a href=#130 id=130 data-nosnippet>130</a>                .fhir_spec_func_body(cycle[<span class="number">0</span>])
-<a href=#131 id=131 data-nosnippet>131</a>                .unwrap()
-<a href=#132 id=132 data-nosnippet>132</a>                .body
-<a href=#133 id=133 data-nosnippet>133</a>                .unwrap()
-<a href=#134 id=134 data-nosnippet>134</a>                .span;
-<a href=#135 id=135 data-nosnippet>135</a>            errors::DefinitionCycle::new(span, cycle)
-<a href=#136 id=136 data-nosnippet>136</a>        })
-<a href=#137 id=137 data-nosnippet>137</a>        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
-<a href=#138 id=138 data-nosnippet>138</a>
-<a href=#139 id=139 data-nosnippet>139</a>    <span class="prelude-val">Ok</span>(defns)
-<a href=#140 id=140 data-nosnippet>140</a>}
-<a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a><span class="kw">fn </span>qualifiers(genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt; {
-<a href=#143 id=143 data-nosnippet>143</a>    genv.fhir_qualifiers()
-<a href=#144 id=144 data-nosnippet>144</a>        .map(|qualifier| {
-<a href=#145 id=145 data-nosnippet>145</a>            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Qualifier(qualifier))<span class="question-mark">?</span>;
-<a href=#146 id=146 data-nosnippet>146</a>            <span class="prelude-val">Ok</span>(AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#147 id=147 data-nosnippet>147</a>                .into_conv_ctxt()
-<a href=#148 id=148 data-nosnippet>148</a>                .conv_qualifier(qualifier)<span class="question-mark">?
-<a href=#149 id=149 data-nosnippet>149</a>                </span>.normalize(genv))
-<a href=#150 id=150 data-nosnippet>150</a>        })
-<a href=#151 id=151 data-nosnippet>151</a>        .try_collect()
-<a href=#152 id=152 data-nosnippet>152</a>}
-<a href=#153 id=153 data-nosnippet>153</a>
-<a href=#154 id=154 data-nosnippet>154</a><span class="kw">fn </span>primop_props(genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::PrimOpProp&gt;&gt; {
-<a href=#155 id=155 data-nosnippet>155</a>    genv.fhir_primop_props()
-<a href=#156 id=156 data-nosnippet>156</a>        .map(|primop_prop| {
-<a href=#157 id=157 data-nosnippet>157</a>            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimOpProp(primop_prop))<span class="question-mark">?</span>;
-<a href=#158 id=158 data-nosnippet>158</a>            <span class="prelude-val">Ok</span>(AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#159 id=159 data-nosnippet>159</a>                .into_conv_ctxt()
-<a href=#160 id=160 data-nosnippet>160</a>                .conv_primop_prop(primop_prop)<span class="question-mark">?
-<a href=#161 id=161 data-nosnippet>161</a>                </span>.normalize(genv))
-<a href=#162 id=162 data-nosnippet>162</a>        })
-<a href=#163 id=163 data-nosnippet>163</a>        .try_collect()
-<a href=#164 id=164 data-nosnippet>164</a>}
-<a href=#165 id=165 data-nosnippet>165</a>
-<a href=#166 id=166 data-nosnippet>166</a><span class="kw">fn </span>conjoin_bind_exprs(exprs: Vec&lt;Binder&lt;rty::Expr&gt;&gt;) -&gt; Binder&lt;rty::Expr&gt; {
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">let </span><span class="kw-2">mut </span>iter = exprs.into_iter();
-<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">let </span>first = iter.next().unwrap();
-<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span>sorts = first.sorts();
-<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span>bodies = iter::once(first.skip_binder()).chain(iter.map(|expr| expr.skip_binder()));
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">let </span>expr = rty::Expr::and_from_iter(bodies);
-<a href=#172 id=172 data-nosnippet>172</a>    Binder::bind_with_sorts(expr, <span class="kw-2">&amp;</span>sorts)
-<a href=#173 id=173 data-nosnippet>173</a>}
-<a href=#174 id=174 data-nosnippet>174</a>
-<a href=#175 id=175 data-nosnippet>175</a><span class="kw">fn </span>prim_rel(genv: GlobalEnv) -&gt; QueryResult&lt;UnordMap&lt;rty::BinOp, rty::PrimRel&gt;&gt; {
-<a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">let </span>primop_props = primop_props(genv)<span class="question-mark">?
-<a href=#177 id=177 data-nosnippet>177</a>        </span>.into_iter()
-<a href=#178 id=178 data-nosnippet>178</a>        .into_group_map_by(|primop_prop| primop_prop.op.clone());
+<a href=#81 id=81 data-nosnippet>81</a><span class="kw">fn </span>adt_sort_def_of(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::AdtSortDef&gt; {
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">let </span>kind = genv.fhir_expect_refinement_kind(def_id.local_id())<span class="question-mark">?</span>;
+<a href=#83 id=83 data-nosnippet>83</a>    conv::conv_adt_sort_def(genv, def_id, kind)
+<a href=#84 id=84 data-nosnippet>84</a>}
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a><span class="kw">fn </span>func_sort(genv: GlobalEnv, def_id: FluxId&lt;MaybeExternId&gt;) -&gt; rty::PolyFuncSort {
+<a href=#87 id=87 data-nosnippet>87</a>    <span class="kw">let </span>func = genv.fhir_spec_func_body(def_id.local_id()).unwrap();
+<a href=#88 id=88 data-nosnippet>88</a>    <span class="kw">match </span>conv::conv_func_decl(genv, func).emit(<span class="kw-2">&amp;</span>genv) {
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="prelude-val">Ok</span>(normalized) =&gt; normalized,
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="prelude-val">Err</span>(err) =&gt; {
+<a href=#91 id=91 data-nosnippet>91</a>            genv.sess().abort(err);
+<a href=#92 id=92 data-nosnippet>92</a>        }
+<a href=#93 id=93 data-nosnippet>93</a>    }
+<a href=#94 id=94 data-nosnippet>94</a>}
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a><span class="kw">fn </span>flux_def_ident_span(genv: GlobalEnv, def_id: FluxId&lt;MaybeExternId&gt;) -&gt; Span {
+<a href=#97 id=97 data-nosnippet>97</a>    genv.fhir_spec_func_body(def_id.local_id())
+<a href=#98 id=98 data-nosnippet>98</a>        .unwrap()
+<a href=#99 id=99 data-nosnippet>99</a>        .ident_span
+<a href=#100 id=100 data-nosnippet>100</a>}
+<a href=#101 id=101 data-nosnippet>101</a>
+<a href=#102 id=102 data-nosnippet>102</a><span class="kw">fn </span>normalized_defns(genv: GlobalEnv) -&gt; rty::NormalizedDefns {
+<a href=#103 id=103 data-nosnippet>103</a>    <span class="kw">match </span>try_normalized_defns(genv) {
+<a href=#104 id=104 data-nosnippet>104</a>        <span class="prelude-val">Ok</span>(normalized) =&gt; normalized,
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="prelude-val">Err</span>(err) =&gt; {
+<a href=#106 id=106 data-nosnippet>106</a>            genv.sess().abort(err);
+<a href=#107 id=107 data-nosnippet>107</a>        }
+<a href=#108 id=108 data-nosnippet>108</a>    }
+<a href=#109 id=109 data-nosnippet>109</a>}
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a><span class="kw">fn </span>try_normalized_defns(genv: GlobalEnv) -&gt; <span class="prelude-ty">Result</span>&lt;rty::NormalizedDefns, ErrorGuaranteed&gt; {
+<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">let </span><span class="kw-2">mut </span>defns = <span class="macro">vec!</span>[];
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a>    <span class="comment">// Collect and emit all errors
+<a href=#115 id=115 data-nosnippet>115</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>errors = Errors::new(genv.sess());
+<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">for </span>(<span class="kw">_</span>, item) <span class="kw">in </span>genv.fhir_iter_flux_items() {
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span>fhir::FluxItem::Func(func) = item <span class="kw">else </span>{ <span class="kw">continue </span>};
+<a href=#118 id=118 data-nosnippet>118</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(wfckresults) = wf::check_flux_item(genv, item).collect_err(<span class="kw-2">&amp;mut </span>errors) <span class="kw">else </span>{
+<a href=#119 id=119 data-nosnippet>119</a>            <span class="kw">continue</span>;
+<a href=#120 id=120 data-nosnippet>120</a>        };
+<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(defn) = cx.conv_defn(func).emit(<span class="kw-2">&amp;</span>errors) <span class="kw">else </span>{
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">continue</span>;
+<a href=#124 id=124 data-nosnippet>124</a>        };
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(defn) = defn {
+<a href=#127 id=127 data-nosnippet>127</a>            defns.push((func.def_id, defn, func.hide));
+<a href=#128 id=128 data-nosnippet>128</a>        }
+<a href=#129 id=129 data-nosnippet>129</a>    }
+<a href=#130 id=130 data-nosnippet>130</a>    errors.into_result()<span class="question-mark">?</span>;
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">let </span>defns = rty::NormalizedDefns::new(genv, <span class="kw-2">&amp;</span>defns)
+<a href=#133 id=133 data-nosnippet>133</a>        .map_err(|cycle| {
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">let </span>span = genv
+<a href=#135 id=135 data-nosnippet>135</a>                .fhir_spec_func_body(cycle[<span class="number">0</span>])
+<a href=#136 id=136 data-nosnippet>136</a>                .unwrap()
+<a href=#137 id=137 data-nosnippet>137</a>                .body
+<a href=#138 id=138 data-nosnippet>138</a>                .unwrap()
+<a href=#139 id=139 data-nosnippet>139</a>                .span;
+<a href=#140 id=140 data-nosnippet>140</a>            errors::DefinitionCycle::new(span, cycle)
+<a href=#141 id=141 data-nosnippet>141</a>        })
+<a href=#142 id=142 data-nosnippet>142</a>        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
+<a href=#143 id=143 data-nosnippet>143</a>
+<a href=#144 id=144 data-nosnippet>144</a>    <span class="prelude-val">Ok</span>(defns)
+<a href=#145 id=145 data-nosnippet>145</a>}
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a><span class="kw">fn </span>qualifiers(genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::Qualifier&gt;&gt; {
+<a href=#148 id=148 data-nosnippet>148</a>    genv.fhir_qualifiers()
+<a href=#149 id=149 data-nosnippet>149</a>        .map(|qualifier| {
+<a href=#150 id=150 data-nosnippet>150</a>            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::Qualifier(qualifier))<span class="question-mark">?</span>;
+<a href=#151 id=151 data-nosnippet>151</a>            <span class="prelude-val">Ok</span>(AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#152 id=152 data-nosnippet>152</a>                .into_conv_ctxt()
+<a href=#153 id=153 data-nosnippet>153</a>                .conv_qualifier(qualifier)<span class="question-mark">?
+<a href=#154 id=154 data-nosnippet>154</a>                </span>.normalize(genv))
+<a href=#155 id=155 data-nosnippet>155</a>        })
+<a href=#156 id=156 data-nosnippet>156</a>        .try_collect()
+<a href=#157 id=157 data-nosnippet>157</a>}
+<a href=#158 id=158 data-nosnippet>158</a>
+<a href=#159 id=159 data-nosnippet>159</a><span class="kw">fn </span>primop_props(genv: GlobalEnv) -&gt; QueryResult&lt;Vec&lt;rty::PrimOpProp&gt;&gt; {
+<a href=#160 id=160 data-nosnippet>160</a>    genv.fhir_primop_props()
+<a href=#161 id=161 data-nosnippet>161</a>        .map(|primop_prop| {
+<a href=#162 id=162 data-nosnippet>162</a>            <span class="kw">let </span>wfckresults = wf::check_flux_item(genv, fhir::FluxItem::PrimOpProp(primop_prop))<span class="question-mark">?</span>;
+<a href=#163 id=163 data-nosnippet>163</a>            <span class="prelude-val">Ok</span>(AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#164 id=164 data-nosnippet>164</a>                .into_conv_ctxt()
+<a href=#165 id=165 data-nosnippet>165</a>                .conv_primop_prop(primop_prop)<span class="question-mark">?
+<a href=#166 id=166 data-nosnippet>166</a>                </span>.normalize(genv))
+<a href=#167 id=167 data-nosnippet>167</a>        })
+<a href=#168 id=168 data-nosnippet>168</a>        .try_collect()
+<a href=#169 id=169 data-nosnippet>169</a>}
+<a href=#170 id=170 data-nosnippet>170</a>
+<a href=#171 id=171 data-nosnippet>171</a><span class="kw">fn </span>conjoin_bind_exprs(exprs: Vec&lt;Binder&lt;rty::Expr&gt;&gt;) -&gt; Binder&lt;rty::Expr&gt; {
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">let </span><span class="kw-2">mut </span>iter = exprs.into_iter();
+<a href=#173 id=173 data-nosnippet>173</a>    <span class="kw">let </span>first = iter.next().unwrap();
+<a href=#174 id=174 data-nosnippet>174</a>    <span class="kw">let </span>sorts = first.sorts();
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="kw">let </span>bodies = iter::once(first.skip_binder()).chain(iter.map(|expr| expr.skip_binder()));
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="kw">let </span>expr = rty::Expr::and_from_iter(bodies);
+<a href=#177 id=177 data-nosnippet>177</a>    Binder::bind_with_sorts(expr, <span class="kw-2">&amp;</span>sorts)
+<a href=#178 id=178 data-nosnippet>178</a>}
 <a href=#179 id=179 data-nosnippet>179</a>
-<a href=#180 id=180 data-nosnippet>180</a>    <span class="kw">let </span><span class="kw-2">mut </span>res = UnordMap::default();
-<a href=#181 id=181 data-nosnippet>181</a>    <span class="kw">for </span>(op, props) <span class="kw">in </span>primop_props {
-<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw">let </span>exprs = props
-<a href=#183 id=183 data-nosnippet>183</a>            .iter()
-<a href=#184 id=184 data-nosnippet>184</a>            .map(|prop| prop.body.clone())
-<a href=#185 id=185 data-nosnippet>185</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="kw">let </span>body = conjoin_bind_exprs(exprs);
-<a href=#187 id=187 data-nosnippet>187</a>        res.insert(op, rty::PrimRel { body });
-<a href=#188 id=188 data-nosnippet>188</a>    }
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="prelude-val">Ok</span>(res)
-<a href=#190 id=190 data-nosnippet>190</a>}
-<a href=#191 id=191 data-nosnippet>191</a>
-<a href=#192 id=192 data-nosnippet>192</a><span class="kw">fn </span>adt_def(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::AdtDef&gt; {
-<a href=#193 id=193 data-nosnippet>193</a>    <span class="kw">let </span>item = genv.fhir_expect_item(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#194 id=194 data-nosnippet>194</a>    <span class="kw">let </span>invariants = invariants_of(genv, item)<span class="question-mark">?</span>;
-<a href=#195 id=195 data-nosnippet>195</a>
-<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">let </span>adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
-<a href=#197 id=197 data-nosnippet>197</a>
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">let </span>is_opaque = <span class="macro">matches!</span>(item.kind, fhir::ItemKind::Struct(def) <span class="kw">if </span>def.is_opaque());
-<a href=#199 id=199 data-nosnippet>199</a>
-<a href=#200 id=200 data-nosnippet>200</a>    <span class="prelude-val">Ok</span>(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>, invariants, is_opaque))
-<a href=#201 id=201 data-nosnippet>201</a>}
+<a href=#180 id=180 data-nosnippet>180</a><span class="kw">fn </span>prim_rel(genv: GlobalEnv) -&gt; QueryResult&lt;UnordMap&lt;rty::BinOp, rty::PrimRel&gt;&gt; {
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="kw">let </span>primop_props = primop_props(genv)<span class="question-mark">?
+<a href=#182 id=182 data-nosnippet>182</a>        </span>.into_iter()
+<a href=#183 id=183 data-nosnippet>183</a>        .into_group_map_by(|primop_prop| primop_prop.op.clone());
+<a href=#184 id=184 data-nosnippet>184</a>
+<a href=#185 id=185 data-nosnippet>185</a>    <span class="kw">let </span><span class="kw-2">mut </span>res = UnordMap::default();
+<a href=#186 id=186 data-nosnippet>186</a>    <span class="kw">for </span>(op, props) <span class="kw">in </span>primop_props {
+<a href=#187 id=187 data-nosnippet>187</a>        <span class="kw">let </span>exprs = props
+<a href=#188 id=188 data-nosnippet>188</a>            .iter()
+<a href=#189 id=189 data-nosnippet>189</a>            .map(|prop| prop.body.clone())
+<a href=#190 id=190 data-nosnippet>190</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>body = conjoin_bind_exprs(exprs);
+<a href=#192 id=192 data-nosnippet>192</a>        res.insert(op, rty::PrimRel { body });
+<a href=#193 id=193 data-nosnippet>193</a>    }
+<a href=#194 id=194 data-nosnippet>194</a>    <span class="prelude-val">Ok</span>(res)
+<a href=#195 id=195 data-nosnippet>195</a>}
+<a href=#196 id=196 data-nosnippet>196</a>
+<a href=#197 id=197 data-nosnippet>197</a><span class="kw">fn </span>adt_def(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::AdtDef&gt; {
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">let </span>item = genv.fhir_expect_item(def_id.local_id())<span class="question-mark">?</span>;
+<a href=#199 id=199 data-nosnippet>199</a>    <span class="kw">let </span>invariants = invariants_of(genv, item)<span class="question-mark">?</span>;
+<a href=#200 id=200 data-nosnippet>200</a>
+<a href=#201 id=201 data-nosnippet>201</a>    <span class="kw">let </span>adt_def = genv.tcx().adt_def(def_id.resolved_id()).lower(genv.tcx());
 <a href=#202 id=202 data-nosnippet>202</a>
-<a href=#203 id=203 data-nosnippet>203</a><span class="kw">fn </span>constant_info(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
-<a href=#204 id=204 data-nosnippet>204</a>    <span class="kw">let </span>node = genv.fhir_node(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">let </span>owner = rustc_hir::OwnerId { def_id: def_id.local_id() };
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span><span class="kw">else </span>{
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted);
-<a href=#208 id=208 data-nosnippet>208</a>    };
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">match </span>node {
-<a href=#210 id=210 data-nosnippet>210</a>        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">Some</span>(expr)), .. }) =&gt; {
-<a href=#211 id=211 data-nosnippet>211</a>            <span class="comment">// for these constants we must check and use the expression
-<a href=#212 id=212 data-nosnippet>212</a>            </span><span class="kw">let </span>wfckresults = wf::check_constant_expr(genv, owner, expr, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
-<a href=#213 id=213 data-nosnippet>213</a>            <span class="kw">let </span>expr = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#214 id=214 data-nosnippet>214</a>                .into_conv_ctxt()
-<a href=#215 id=215 data-nosnippet>215</a>                .conv_constant_expr(expr)<span class="question-mark">?</span>;
-<a href=#216 id=216 data-nosnippet>216</a>            <span class="prelude-val">Ok</span>(rty::ConstantInfo::Interpreted(expr, sort))
-<a href=#217 id=217 data-nosnippet>217</a>        }
-<a href=#218 id=218 data-nosnippet>218</a>        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">None</span>), .. })
-<a href=#219 id=219 data-nosnippet>219</a>        | fhir::Node::AnonConst
-<a href=#220 id=220 data-nosnippet>220</a>        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. })
-<a href=#221 id=221 data-nosnippet>221</a>        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) =&gt; {
-<a href=#222 id=222 data-nosnippet>222</a>            <span class="comment">// for these constants we try to evaluate if they are integral and return uninterpreted if we fail
-<a href=#223 id=223 data-nosnippet>223</a>            </span>conv::conv_constant(genv, def_id.resolved_id())
-<a href=#224 id=224 data-nosnippet>224</a>        }
-<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected const item"</span>))<span class="question-mark">?</span>,
-<a href=#226 id=226 data-nosnippet>226</a>    }
-<a href=#227 id=227 data-nosnippet>227</a>}
-<a href=#228 id=228 data-nosnippet>228</a>
-<a href=#229 id=229 data-nosnippet>229</a><span class="kw">fn </span>invariants_of&lt;<span class="lifetime">'genv</span>&gt;(
-<a href=#230 id=230 data-nosnippet>230</a>    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
-<a href=#231 id=231 data-nosnippet>231</a>    item: <span class="kw-2">&amp;</span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt;,
-<a href=#232 id=232 data-nosnippet>232</a>) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
-<a href=#233 id=233 data-nosnippet>233</a>    <span class="kw">let </span>(params, invariants) = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-<a href=#234 id=234 data-nosnippet>234</a>        fhir::ItemKind::Enum(enum_def) =&gt; (enum_def.params, enum_def.invariants),
-<a href=#235 id=235 data-nosnippet>235</a>        fhir::ItemKind::Struct(struct_def) =&gt; (struct_def.params, struct_def.invariants),
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(item.owner_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
-<a href=#237 id=237 data-nosnippet>237</a>    };
-<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">let </span>wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)<span class="question-mark">?</span>;
-<a href=#239 id=239 data-nosnippet>239</a>    AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#240 id=240 data-nosnippet>240</a>        .into_conv_ctxt()
-<a href=#241 id=241 data-nosnippet>241</a>        .conv_invariants(item.owner_id.map(|it| it.def_id), params, invariants)
-<a href=#242 id=242 data-nosnippet>242</a>}
-<a href=#243 id=243 data-nosnippet>243</a>
-<a href=#244 id=244 data-nosnippet>244</a><span class="kw">fn </span>predicates_of(
-<a href=#245 id=245 data-nosnippet>245</a>    genv: GlobalEnv,
-<a href=#246 id=246 data-nosnippet>246</a>    def_id: MaybeExternId,
-<a href=#247 id=247 data-nosnippet>247</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
-<a href=#248 id=248 data-nosnippet>248</a>    <span class="kw">match </span>genv.def_kind(def_id) {
-<a href=#249 id=249 data-nosnippet>249</a>        DefKind::Impl { .. }
-<a href=#250 id=250 data-nosnippet>250</a>        | DefKind::Struct
-<a href=#251 id=251 data-nosnippet>251</a>        | DefKind::Enum
-<a href=#252 id=252 data-nosnippet>252</a>        | DefKind::Union
-<a href=#253 id=253 data-nosnippet>253</a>        | DefKind::TyAlias
-<a href=#254 id=254 data-nosnippet>254</a>        | DefKind::AssocFn
-<a href=#255 id=255 data-nosnippet>255</a>        | DefKind::AssocTy
-<a href=#256 id=256 data-nosnippet>256</a>        | DefKind::Trait
-<a href=#257 id=257 data-nosnippet>257</a>        | DefKind::Fn =&gt; {
-<a href=#258 id=258 data-nosnippet>258</a>            <span class="kw">let </span>did = def_id.local_id();
-<a href=#259 id=259 data-nosnippet>259</a>            <span class="kw">let </span>generics = genv
-<a href=#260 id=260 data-nosnippet>260</a>                .fhir_get_generics(did)<span class="question-mark">?
-<a href=#261 id=261 data-nosnippet>261</a>                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(did, <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
-<a href=#262 id=262 data-nosnippet>262</a>            <span class="kw">let </span>wfckresults = genv.check_wf(did)<span class="question-mark">?</span>;
-<a href=#263 id=263 data-nosnippet>263</a>            AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#264 id=264 data-nosnippet>264</a>                .into_conv_ctxt()
-<a href=#265 id=265 data-nosnippet>265</a>                .conv_generic_predicates(def_id, generics)
-<a href=#266 id=266 data-nosnippet>266</a>        }
-<a href=#267 id=267 data-nosnippet>267</a>        DefKind::OpaqueTy | DefKind::Closure =&gt; {
-<a href=#268 id=268 data-nosnippet>268</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates {
-<a href=#269 id=269 data-nosnippet>269</a>                parent: genv.tcx().predicates_of(def_id).parent,
-<a href=#270 id=270 data-nosnippet>270</a>                predicates: rty::List::empty(),
-<a href=#271 id=271 data-nosnippet>271</a>            }))
-<a href=#272 id=272 data-nosnippet>272</a>        }
-<a href=#273 id=273 data-nosnippet>273</a>        kind =&gt; {
-<a href=#274 id=274 data-nosnippet>274</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-<a href=#275 id=275 data-nosnippet>275</a>                def_id.local_id(),
-<a href=#276 id=276 data-nosnippet>276</a>                <span class="string">"predicates_of called on `{def_id:?}` with kind `{kind:?}`"
-<a href=#277 id=277 data-nosnippet>277</a>            </span>))<span class="question-mark">?
-<a href=#278 id=278 data-nosnippet>278</a>        </span>}
-<a href=#279 id=279 data-nosnippet>279</a>    }
-<a href=#280 id=280 data-nosnippet>280</a>}
-<a href=#281 id=281 data-nosnippet>281</a>
-<a href=#282 id=282 data-nosnippet>282</a><span class="kw">fn </span>assoc_refinements_of(
-<a href=#283 id=283 data-nosnippet>283</a>    genv: GlobalEnv,
-<a href=#284 id=284 data-nosnippet>284</a>    def_id: MaybeExternId,
-<a href=#285 id=285 data-nosnippet>285</a>) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
-<a href=#286 id=286 data-nosnippet>286</a>    <span class="attr">#[allow(
-<a href=#287 id=287 data-nosnippet>287</a>        clippy::disallowed_methods,
-<a href=#288 id=288 data-nosnippet>288</a>        reason = <span class="string">"We are iterationg over associated refinemens in fhir, so this is the *source of of truth*"
-<a href=#289 id=289 data-nosnippet>289</a>    </span>)]
-<a href=#290 id=290 data-nosnippet>290</a>    </span><span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.fhir_expect_item(def_id.local_id())<span class="question-mark">?</span>.kind {
-<a href=#291 id=291 data-nosnippet>291</a>        fhir::ItemKind::Trait(trait_) =&gt; {
-<a href=#292 id=292 data-nosnippet>292</a>            trait_
-<a href=#293 id=293 data-nosnippet>293</a>                .assoc_refinements
-<a href=#294 id=294 data-nosnippet>294</a>                .iter()
-<a href=#295 id=295 data-nosnippet>295</a>                .map(|assoc_reft| {
-<a href=#296 id=296 data-nosnippet>296</a>                    AssocReft::new(
-<a href=#297 id=297 data-nosnippet>297</a>                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name),
-<a href=#298 id=298 data-nosnippet>298</a>                        assoc_reft.final_,
-<a href=#299 id=299 data-nosnippet>299</a>                        assoc_reft.span,
-<a href=#300 id=300 data-nosnippet>300</a>                    )
-<a href=#301 id=301 data-nosnippet>301</a>                })
-<a href=#302 id=302 data-nosnippet>302</a>                .collect()
-<a href=#303 id=303 data-nosnippet>303</a>        }
-<a href=#304 id=304 data-nosnippet>304</a>        fhir::ItemKind::Impl(impl_) =&gt; {
-<a href=#305 id=305 data-nosnippet>305</a>            impl_
-<a href=#306 id=306 data-nosnippet>306</a>                .assoc_refinements
-<a href=#307 id=307 data-nosnippet>307</a>                .iter()
-<a href=#308 id=308 data-nosnippet>308</a>                .map(|assoc_reft| {
-<a href=#309 id=309 data-nosnippet>309</a>                    AssocReft::new(
-<a href=#310 id=310 data-nosnippet>310</a>                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name),
-<a href=#311 id=311 data-nosnippet>311</a>                        <span class="bool-val">false</span>,
-<a href=#312 id=312 data-nosnippet>312</a>                        assoc_reft.span,
-<a href=#313 id=313 data-nosnippet>313</a>                    )
-<a href=#314 id=314 data-nosnippet>314</a>                })
-<a href=#315 id=315 data-nosnippet>315</a>                .collect()
-<a href=#316 id=316 data-nosnippet>316</a>        }
-<a href=#317 id=317 data-nosnippet>317</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.resolved_id(), <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
-<a href=#318 id=318 data-nosnippet>318</a>    };
-<a href=#319 id=319 data-nosnippet>319</a>    <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
-<a href=#320 id=320 data-nosnippet>320</a>}
-<a href=#321 id=321 data-nosnippet>321</a>
-<a href=#322 id=322 data-nosnippet>322</a><span class="kw">fn </span>default_assoc_refinement_body(
-<a href=#323 id=323 data-nosnippet>323</a>    genv: GlobalEnv,
-<a href=#324 id=324 data-nosnippet>324</a>    trait_assoc_id: FluxId&lt;MaybeExternId&gt;,
-<a href=#325 id=325 data-nosnippet>325</a>) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
-<a href=#326 id=326 data-nosnippet>326</a>    <span class="kw">let </span>trait_id = trait_assoc_id.parent();
-<a href=#327 id=327 data-nosnippet>327</a>    <span class="kw">let </span>assoc_reft = genv
-<a href=#328 id=328 data-nosnippet>328</a>        .fhir_expect_item(trait_id.local_id())<span class="question-mark">?
-<a href=#329 id=329 data-nosnippet>329</a>        </span>.expect_trait()
-<a href=#330 id=330 data-nosnippet>330</a>        .find_assoc_reft(trait_assoc_id.name())
-<a href=#331 id=331 data-nosnippet>331</a>        .unwrap();
-<a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-<a href=#333 id=333 data-nosnippet>333</a>    <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
-<a href=#334 id=334 data-nosnippet>334</a>    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-<a href=#336 id=336 data-nosnippet>336</a>    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
-<a href=#337 id=337 data-nosnippet>337</a>}
-<a href=#338 id=338 data-nosnippet>338</a>
-<a href=#339 id=339 data-nosnippet>339</a><span class="kw">fn </span>assoc_refinement_body(
-<a href=#340 id=340 data-nosnippet>340</a>    genv: GlobalEnv,
-<a href=#341 id=341 data-nosnippet>341</a>    impl_assoc_id: FluxId&lt;MaybeExternId&gt;,
-<a href=#342 id=342 data-nosnippet>342</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
-<a href=#343 id=343 data-nosnippet>343</a>    <span class="kw">let </span>impl_id = impl_assoc_id.parent();
-<a href=#344 id=344 data-nosnippet>344</a>
-<a href=#345 id=345 data-nosnippet>345</a>    <span class="kw">let </span>assoc_reft = genv
-<a href=#346 id=346 data-nosnippet>346</a>        .fhir_expect_item(impl_id.local_id())<span class="question-mark">?
-<a href=#347 id=347 data-nosnippet>347</a>        </span>.expect_impl()
-<a href=#348 id=348 data-nosnippet>348</a>        .find_assoc_reft(impl_assoc_id.name())
-<a href=#349 id=349 data-nosnippet>349</a>        .unwrap();
-<a href=#350 id=350 data-nosnippet>350</a>
-<a href=#351 id=351 data-nosnippet>351</a>    <span class="kw">let </span>wfckresults = genv.check_wf(impl_id.local_id())<span class="question-mark">?</span>;
-<a href=#352 id=352 data-nosnippet>352</a>    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#353 id=353 data-nosnippet>353</a>    <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-<a href=#354 id=354 data-nosnippet>354</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(body))
-<a href=#355 id=355 data-nosnippet>355</a>}
-<a href=#356 id=356 data-nosnippet>356</a>
-<a href=#357 id=357 data-nosnippet>357</a><span class="kw">fn </span>sort_of_assoc_reft(
-<a href=#358 id=358 data-nosnippet>358</a>    genv: GlobalEnv,
-<a href=#359 id=359 data-nosnippet>359</a>    assoc_id: FluxId&lt;MaybeExternId&gt;,
-<a href=#360 id=360 data-nosnippet>360</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
-<a href=#361 id=361 data-nosnippet>361</a>    <span class="kw">let </span>container_id = assoc_id.parent();
-<a href=#362 id=362 data-nosnippet>362</a>
-<a href=#363 id=363 data-nosnippet>363</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>genv.fhir_expect_item(container_id.local_id())<span class="question-mark">?</span>.kind {
-<a href=#364 id=364 data-nosnippet>364</a>        fhir::ItemKind::Trait(trait_) =&gt; {
-<a href=#365 id=365 data-nosnippet>365</a>            <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
-<a href=#366 id=366 data-nosnippet>366</a>            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
-<a href=#367 id=367 data-nosnippet>367</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#368 id=368 data-nosnippet>368</a>            <span class="kw">let </span>inputs = assoc_reft
-<a href=#369 id=369 data-nosnippet>369</a>                .params
-<a href=#370 id=370 data-nosnippet>370</a>                .iter()
-<a href=#371 id=371 data-nosnippet>371</a>                .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
-<a href=#372 id=372 data-nosnippet>372</a>                .try_collect_vec()<span class="question-mark">?</span>;
-<a href=#373 id=373 data-nosnippet>373</a>            <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-<a href=#374 id=374 data-nosnippet>374</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
-<a href=#375 id=375 data-nosnippet>375</a>        }
-<a href=#376 id=376 data-nosnippet>376</a>        fhir::ItemKind::Impl(impl_) =&gt; {
-<a href=#377 id=377 data-nosnippet>377</a>            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
-<a href=#378 id=378 data-nosnippet>378</a>            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
-<a href=#379 id=379 data-nosnippet>379</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#380 id=380 data-nosnippet>380</a>            <span class="kw">let </span>inputs = assoc_reft
-<a href=#381 id=381 data-nosnippet>381</a>                .params
-<a href=#382 id=382 data-nosnippet>382</a>                .iter()
-<a href=#383 id=383 data-nosnippet>383</a>                .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
-<a href=#384 id=384 data-nosnippet>384</a>                .try_collect_vec()<span class="question-mark">?</span>;
-<a href=#385 id=385 data-nosnippet>385</a>            <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
-<a href=#386 id=386 data-nosnippet>386</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
-<a href=#387 id=387 data-nosnippet>387</a>        }
-<a href=#388 id=388 data-nosnippet>388</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(container_id.local_id(), <span class="string">"expected trait or impl"</span>)),
-<a href=#389 id=389 data-nosnippet>389</a>    }
-<a href=#390 id=390 data-nosnippet>390</a>}
-<a href=#391 id=391 data-nosnippet>391</a>
-<a href=#392 id=392 data-nosnippet>392</a><span class="kw">fn </span>item_bounds(
-<a href=#393 id=393 data-nosnippet>393</a>    genv: GlobalEnv,
-<a href=#394 id=394 data-nosnippet>394</a>    def_id: MaybeExternId,
-<a href=#395 id=395 data-nosnippet>395</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt; {
-<a href=#396 id=396 data-nosnippet>396</a>    <span class="kw">let </span>parent = genv.tcx().local_parent(def_id.local_id());
-<a href=#397 id=397 data-nosnippet>397</a>    <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
-<a href=#398 id=398 data-nosnippet>398</a>    <span class="kw">let </span>opaque_ty = genv.fhir_node(def_id.local_id())<span class="question-mark">?</span>.expect_opaque_ty();
-<a href=#399 id=399 data-nosnippet>399</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(
-<a href=#400 id=400 data-nosnippet>400</a>        AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#401 id=401 data-nosnippet>401</a>            .into_conv_ctxt()
-<a href=#402 id=402 data-nosnippet>402</a>            .conv_opaque_ty(opaque_ty)<span class="question-mark">?</span>,
-<a href=#403 id=403 data-nosnippet>403</a>    ))
-<a href=#404 id=404 data-nosnippet>404</a>}
-<a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a><span class="kw">fn </span>generics_of(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::Generics&gt; {
-<a href=#407 id=407 data-nosnippet>407</a>    <span class="kw">let </span>def_kind = genv.def_kind(def_id);
-<a href=#408 id=408 data-nosnippet>408</a>    <span class="kw">let </span>generics = <span class="kw">match </span>def_kind {
-<a href=#409 id=409 data-nosnippet>409</a>        DefKind::Impl { .. }
-<a href=#410 id=410 data-nosnippet>410</a>        | DefKind::Struct
-<a href=#411 id=411 data-nosnippet>411</a>        | DefKind::Enum
-<a href=#412 id=412 data-nosnippet>412</a>        | DefKind::Union
-<a href=#413 id=413 data-nosnippet>413</a>        | DefKind::TyAlias
-<a href=#414 id=414 data-nosnippet>414</a>        | DefKind::AssocFn
-<a href=#415 id=415 data-nosnippet>415</a>        | DefKind::AssocTy
-<a href=#416 id=416 data-nosnippet>416</a>        | DefKind::Trait
-<a href=#417 id=417 data-nosnippet>417</a>        | DefKind::Fn =&gt; {
-<a href=#418 id=418 data-nosnippet>418</a>            <span class="kw">let </span>is_trait = def_kind == DefKind::Trait;
-<a href=#419 id=419 data-nosnippet>419</a>            <span class="kw">let </span>generics = genv
-<a href=#420 id=420 data-nosnippet>420</a>                .fhir_get_generics(def_id.local_id())<span class="question-mark">?
-<a href=#421 id=421 data-nosnippet>421</a>                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
-<a href=#422 id=422 data-nosnippet>422</a>            conv::conv_generics(genv, generics, def_id, is_trait)
-<a href=#423 id=423 data-nosnippet>423</a>        }
-<a href=#424 id=424 data-nosnippet>424</a>        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) =&gt; {
-<a href=#425 id=425 data-nosnippet>425</a>            <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id);
-<a href=#426 id=426 data-nosnippet>426</a>            refining::refine_generics(genv, def_id.resolved_id(), <span class="kw-2">&amp;</span>rustc_generics)
-<a href=#427 id=427 data-nosnippet>427</a>        }
-<a href=#428 id=428 data-nosnippet>428</a>        kind =&gt; {
-<a href=#429 id=429 data-nosnippet>429</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-<a href=#430 id=430 data-nosnippet>430</a>                def_id.local_id(),
-<a href=#431 id=431 data-nosnippet>431</a>                <span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"
-<a href=#432 id=432 data-nosnippet>432</a>            </span>))<span class="question-mark">?
-<a href=#433 id=433 data-nosnippet>433</a>        </span>}
-<a href=#434 id=434 data-nosnippet>434</a>    };
-<a href=#435 id=435 data-nosnippet>435</a>    <span class="kw">if </span>config::dump_rty() {
-<a href=#436 id=436 data-nosnippet>436</a>        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics).unwrap();
-<a href=#437 id=437 data-nosnippet>437</a>    }
-<a href=#438 id=438 data-nosnippet>438</a>    <span class="prelude-val">Ok</span>(generics)
-<a href=#439 id=439 data-nosnippet>439</a>}
-<a href=#440 id=440 data-nosnippet>440</a>
-<a href=#441 id=441 data-nosnippet>441</a><span class="kw">fn </span>refinement_generics_of(
-<a href=#442 id=442 data-nosnippet>442</a>    genv: GlobalEnv,
-<a href=#443 id=443 data-nosnippet>443</a>    def_id: MaybeExternId,
-<a href=#444 id=444 data-nosnippet>444</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt; {
-<a href=#445 id=445 data-nosnippet>445</a>    <span class="kw">let </span>parent = genv.tcx().generics_of(def_id).parent;
-<a href=#446 id=446 data-nosnippet>446</a>    <span class="kw">let </span>parent_count =
-<a href=#447 id=447 data-nosnippet>447</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = parent { genv.refinement_generics_of(def_id)<span class="question-mark">?</span>.count() } <span class="kw">else </span>{ <span class="number">0 </span>};
-<a href=#448 id=448 data-nosnippet>448</a>    <span class="kw">let </span>generics = <span class="kw">match </span>genv.fhir_node(def_id.local_id())<span class="question-mark">? </span>{
-<a href=#449 id=449 data-nosnippet>449</a>        fhir::Node::Item(fhir::Item {
-<a href=#450 id=450 data-nosnippet>450</a>            kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
-<a href=#451 id=451 data-nosnippet>451</a>            generics,
-<a href=#452 id=452 data-nosnippet>452</a>            ..
-<a href=#453 id=453 data-nosnippet>453</a>        })
-<a href=#454 id=454 data-nosnippet>454</a>        | fhir::Node::TraitItem(fhir::TraitItem {
-<a href=#455 id=455 data-nosnippet>455</a>            kind: fhir::TraitItemKind::Fn(..),
+<a href=#203 id=203 data-nosnippet>203</a>    <span class="kw">let </span>is_opaque = <span class="macro">matches!</span>(item.kind, fhir::ItemKind::Struct(def) <span class="kw">if </span>def.is_opaque());
+<a href=#204 id=204 data-nosnippet>204</a>
+<a href=#205 id=205 data-nosnippet>205</a>    <span class="prelude-val">Ok</span>(rty::AdtDef::new(adt_def, genv.adt_sort_def_of(def_id)<span class="question-mark">?</span>, invariants, is_opaque))
+<a href=#206 id=206 data-nosnippet>206</a>}
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a><span class="kw">fn </span>constant_info(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::ConstantInfo&gt; {
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">let </span>node = genv.fhir_node(def_id.local_id())<span class="question-mark">?</span>;
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">let </span>owner = rustc_hir::OwnerId { def_id: def_id.local_id() };
+<a href=#211 id=211 data-nosnippet>211</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">? </span><span class="kw">else </span>{
+<a href=#212 id=212 data-nosnippet>212</a>        <span class="kw">return </span><span class="prelude-val">Ok</span>(rty::ConstantInfo::Uninterpreted);
+<a href=#213 id=213 data-nosnippet>213</a>    };
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="kw">match </span>node {
+<a href=#215 id=215 data-nosnippet>215</a>        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">Some</span>(expr)), .. }) =&gt; {
+<a href=#216 id=216 data-nosnippet>216</a>            <span class="comment">// for these constants we must check and use the expression
+<a href=#217 id=217 data-nosnippet>217</a>            </span><span class="kw">let </span>wfckresults = wf::check_constant_expr(genv, owner, expr, <span class="kw-2">&amp;</span>sort)<span class="question-mark">?</span>;
+<a href=#218 id=218 data-nosnippet>218</a>            <span class="kw">let </span>expr = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#219 id=219 data-nosnippet>219</a>                .into_conv_ctxt()
+<a href=#220 id=220 data-nosnippet>220</a>                .conv_constant_expr(expr)<span class="question-mark">?</span>;
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="prelude-val">Ok</span>(rty::ConstantInfo::Interpreted(expr, sort))
+<a href=#222 id=222 data-nosnippet>222</a>        }
+<a href=#223 id=223 data-nosnippet>223</a>        fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(<span class="prelude-val">None</span>), .. })
+<a href=#224 id=224 data-nosnippet>224</a>        | fhir::Node::AnonConst
+<a href=#225 id=225 data-nosnippet>225</a>        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. })
+<a href=#226 id=226 data-nosnippet>226</a>        | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) =&gt; {
+<a href=#227 id=227 data-nosnippet>227</a>            <span class="comment">// for these constants we try to evaluate if they are integral and return uninterpreted if we fail
+<a href=#228 id=228 data-nosnippet>228</a>            </span>conv::conv_constant(genv, def_id.resolved_id())
+<a href=#229 id=229 data-nosnippet>229</a>        }
+<a href=#230 id=230 data-nosnippet>230</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected const item"</span>))<span class="question-mark">?</span>,
+<a href=#231 id=231 data-nosnippet>231</a>    }
+<a href=#232 id=232 data-nosnippet>232</a>}
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a><span class="kw">fn </span>invariants_of&lt;<span class="lifetime">'genv</span>&gt;(
+<a href=#235 id=235 data-nosnippet>235</a>    genv: GlobalEnv&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'_</span>&gt;,
+<a href=#236 id=236 data-nosnippet>236</a>    item: <span class="kw-2">&amp;</span>fhir::Item&lt;<span class="lifetime">'genv</span>&gt;,
+<a href=#237 id=237 data-nosnippet>237</a>) -&gt; QueryResult&lt;Vec&lt;rty::Invariant&gt;&gt; {
+<a href=#238 id=238 data-nosnippet>238</a>    <span class="kw">let </span>(params, invariants) = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
+<a href=#239 id=239 data-nosnippet>239</a>        fhir::ItemKind::Enum(enum_def) =&gt; (enum_def.params, enum_def.invariants),
+<a href=#240 id=240 data-nosnippet>240</a>        fhir::ItemKind::Struct(struct_def) =&gt; (struct_def.params, struct_def.invariants),
+<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(item.owner_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
+<a href=#242 id=242 data-nosnippet>242</a>    };
+<a href=#243 id=243 data-nosnippet>243</a>    <span class="kw">let </span>wfckresults = wf::check_invariants(genv, item.owner_id, params, invariants)<span class="question-mark">?</span>;
+<a href=#244 id=244 data-nosnippet>244</a>    AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#245 id=245 data-nosnippet>245</a>        .into_conv_ctxt()
+<a href=#246 id=246 data-nosnippet>246</a>        .conv_invariants(item.owner_id.map(|it| it.def_id), params, invariants)
+<a href=#247 id=247 data-nosnippet>247</a>}
+<a href=#248 id=248 data-nosnippet>248</a>
+<a href=#249 id=249 data-nosnippet>249</a><span class="kw">fn </span>predicates_of(
+<a href=#250 id=250 data-nosnippet>250</a>    genv: GlobalEnv,
+<a href=#251 id=251 data-nosnippet>251</a>    def_id: MaybeExternId,
+<a href=#252 id=252 data-nosnippet>252</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::GenericPredicates&gt;&gt; {
+<a href=#253 id=253 data-nosnippet>253</a>    <span class="kw">match </span>genv.def_kind(def_id) {
+<a href=#254 id=254 data-nosnippet>254</a>        DefKind::Impl { .. }
+<a href=#255 id=255 data-nosnippet>255</a>        | DefKind::Struct
+<a href=#256 id=256 data-nosnippet>256</a>        | DefKind::Enum
+<a href=#257 id=257 data-nosnippet>257</a>        | DefKind::Union
+<a href=#258 id=258 data-nosnippet>258</a>        | DefKind::TyAlias
+<a href=#259 id=259 data-nosnippet>259</a>        | DefKind::AssocFn
+<a href=#260 id=260 data-nosnippet>260</a>        | DefKind::AssocTy
+<a href=#261 id=261 data-nosnippet>261</a>        | DefKind::Trait
+<a href=#262 id=262 data-nosnippet>262</a>        | DefKind::Fn =&gt; {
+<a href=#263 id=263 data-nosnippet>263</a>            <span class="kw">let </span>did = def_id.local_id();
+<a href=#264 id=264 data-nosnippet>264</a>            <span class="kw">let </span>generics = genv
+<a href=#265 id=265 data-nosnippet>265</a>                .fhir_get_generics(did)<span class="question-mark">?
+<a href=#266 id=266 data-nosnippet>266</a>                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(did, <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
+<a href=#267 id=267 data-nosnippet>267</a>            <span class="kw">let </span>wfckresults = genv.check_wf(did)<span class="question-mark">?</span>;
+<a href=#268 id=268 data-nosnippet>268</a>            AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#269 id=269 data-nosnippet>269</a>                .into_conv_ctxt()
+<a href=#270 id=270 data-nosnippet>270</a>                .conv_generic_predicates(def_id, generics)
+<a href=#271 id=271 data-nosnippet>271</a>        }
+<a href=#272 id=272 data-nosnippet>272</a>        DefKind::OpaqueTy | DefKind::Closure =&gt; {
+<a href=#273 id=273 data-nosnippet>273</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::GenericPredicates {
+<a href=#274 id=274 data-nosnippet>274</a>                parent: genv.tcx().predicates_of(def_id).parent,
+<a href=#275 id=275 data-nosnippet>275</a>                predicates: rty::List::empty(),
+<a href=#276 id=276 data-nosnippet>276</a>            }))
+<a href=#277 id=277 data-nosnippet>277</a>        }
+<a href=#278 id=278 data-nosnippet>278</a>        kind =&gt; {
+<a href=#279 id=279 data-nosnippet>279</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+<a href=#280 id=280 data-nosnippet>280</a>                def_id.local_id(),
+<a href=#281 id=281 data-nosnippet>281</a>                <span class="string">"predicates_of called on `{def_id:?}` with kind `{kind:?}`"
+<a href=#282 id=282 data-nosnippet>282</a>            </span>))<span class="question-mark">?
+<a href=#283 id=283 data-nosnippet>283</a>        </span>}
+<a href=#284 id=284 data-nosnippet>284</a>    }
+<a href=#285 id=285 data-nosnippet>285</a>}
+<a href=#286 id=286 data-nosnippet>286</a>
+<a href=#287 id=287 data-nosnippet>287</a><span class="kw">fn </span>assoc_refinements_of(
+<a href=#288 id=288 data-nosnippet>288</a>    genv: GlobalEnv,
+<a href=#289 id=289 data-nosnippet>289</a>    def_id: MaybeExternId,
+<a href=#290 id=290 data-nosnippet>290</a>) -&gt; QueryResult&lt;rty::AssocRefinements&gt; {
+<a href=#291 id=291 data-nosnippet>291</a>    <span class="attr">#[allow(
+<a href=#292 id=292 data-nosnippet>292</a>        clippy::disallowed_methods,
+<a href=#293 id=293 data-nosnippet>293</a>        reason = <span class="string">"We are iterationg over associated refinemens in fhir, so this is the *source of of truth*"
+<a href=#294 id=294 data-nosnippet>294</a>    </span>)]
+<a href=#295 id=295 data-nosnippet>295</a>    </span><span class="kw">let </span>predicates = <span class="kw">match </span><span class="kw-2">&amp;</span>genv.fhir_expect_item(def_id.local_id())<span class="question-mark">?</span>.kind {
+<a href=#296 id=296 data-nosnippet>296</a>        fhir::ItemKind::Trait(trait_) =&gt; {
+<a href=#297 id=297 data-nosnippet>297</a>            trait_
+<a href=#298 id=298 data-nosnippet>298</a>                .assoc_refinements
+<a href=#299 id=299 data-nosnippet>299</a>                .iter()
+<a href=#300 id=300 data-nosnippet>300</a>                .map(|assoc_reft| {
+<a href=#301 id=301 data-nosnippet>301</a>                    AssocReft::new(
+<a href=#302 id=302 data-nosnippet>302</a>                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name),
+<a href=#303 id=303 data-nosnippet>303</a>                        assoc_reft.final_,
+<a href=#304 id=304 data-nosnippet>304</a>                        assoc_reft.span,
+<a href=#305 id=305 data-nosnippet>305</a>                    )
+<a href=#306 id=306 data-nosnippet>306</a>                })
+<a href=#307 id=307 data-nosnippet>307</a>                .collect()
+<a href=#308 id=308 data-nosnippet>308</a>        }
+<a href=#309 id=309 data-nosnippet>309</a>        fhir::ItemKind::Impl(impl_) =&gt; {
+<a href=#310 id=310 data-nosnippet>310</a>            impl_
+<a href=#311 id=311 data-nosnippet>311</a>                .assoc_refinements
+<a href=#312 id=312 data-nosnippet>312</a>                .iter()
+<a href=#313 id=313 data-nosnippet>313</a>                .map(|assoc_reft| {
+<a href=#314 id=314 data-nosnippet>314</a>                    AssocReft::new(
+<a href=#315 id=315 data-nosnippet>315</a>                        FluxDefId::new(def_id.resolved_id(), assoc_reft.name),
+<a href=#316 id=316 data-nosnippet>316</a>                        <span class="bool-val">false</span>,
+<a href=#317 id=317 data-nosnippet>317</a>                        assoc_reft.span,
+<a href=#318 id=318 data-nosnippet>318</a>                    )
+<a href=#319 id=319 data-nosnippet>319</a>                })
+<a href=#320 id=320 data-nosnippet>320</a>                .collect()
+<a href=#321 id=321 data-nosnippet>321</a>        }
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.resolved_id(), <span class="string">"expected trait or impl"</span>))<span class="question-mark">?</span>,
+<a href=#323 id=323 data-nosnippet>323</a>    };
+<a href=#324 id=324 data-nosnippet>324</a>    <span class="prelude-val">Ok</span>(rty::AssocRefinements { items: predicates })
+<a href=#325 id=325 data-nosnippet>325</a>}
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a><span class="kw">fn </span>default_assoc_refinement_body(
+<a href=#328 id=328 data-nosnippet>328</a>    genv: GlobalEnv,
+<a href=#329 id=329 data-nosnippet>329</a>    trait_assoc_id: FluxId&lt;MaybeExternId&gt;,
+<a href=#330 id=330 data-nosnippet>330</a>) -&gt; QueryResult&lt;<span class="prelude-ty">Option</span>&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt;&gt; {
+<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">let </span>trait_id = trait_assoc_id.parent();
+<a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">let </span>assoc_reft = genv
+<a href=#333 id=333 data-nosnippet>333</a>        .fhir_expect_item(trait_id.local_id())<span class="question-mark">?
+<a href=#334 id=334 data-nosnippet>334</a>        </span>.expect_trait()
+<a href=#335 id=335 data-nosnippet>335</a>        .find_assoc_reft(trait_assoc_id.name())
+<a href=#336 id=336 data-nosnippet>336</a>        .unwrap();
+<a href=#337 id=337 data-nosnippet>337</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(body) = assoc_reft.body <span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+<a href=#338 id=338 data-nosnippet>338</a>    <span class="kw">let </span>wfckresults = genv.check_wf(trait_id.local_id())<span class="question-mark">?</span>;
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#340 id=340 data-nosnippet>340</a>    <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+<a href=#341 id=341 data-nosnippet>341</a>    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(body)))
+<a href=#342 id=342 data-nosnippet>342</a>}
+<a href=#343 id=343 data-nosnippet>343</a>
+<a href=#344 id=344 data-nosnippet>344</a><span class="kw">fn </span>assoc_refinement_body(
+<a href=#345 id=345 data-nosnippet>345</a>    genv: GlobalEnv,
+<a href=#346 id=346 data-nosnippet>346</a>    impl_assoc_id: FluxId&lt;MaybeExternId&gt;,
+<a href=#347 id=347 data-nosnippet>347</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Lambda&gt;&gt; {
+<a href=#348 id=348 data-nosnippet>348</a>    <span class="kw">let </span>impl_id = impl_assoc_id.parent();
+<a href=#349 id=349 data-nosnippet>349</a>
+<a href=#350 id=350 data-nosnippet>350</a>    <span class="kw">let </span>assoc_reft = genv
+<a href=#351 id=351 data-nosnippet>351</a>        .fhir_expect_item(impl_id.local_id())<span class="question-mark">?
+<a href=#352 id=352 data-nosnippet>352</a>        </span>.expect_impl()
+<a href=#353 id=353 data-nosnippet>353</a>        .find_assoc_reft(impl_assoc_id.name())
+<a href=#354 id=354 data-nosnippet>354</a>        .unwrap();
+<a href=#355 id=355 data-nosnippet>355</a>
+<a href=#356 id=356 data-nosnippet>356</a>    <span class="kw">let </span>wfckresults = genv.check_wf(impl_id.local_id())<span class="question-mark">?</span>;
+<a href=#357 id=357 data-nosnippet>357</a>    <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#358 id=358 data-nosnippet>358</a>    <span class="kw">let </span>body = cx.conv_assoc_reft_body(assoc_reft.params, <span class="kw-2">&amp;</span>assoc_reft.body, <span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+<a href=#359 id=359 data-nosnippet>359</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(body))
+<a href=#360 id=360 data-nosnippet>360</a>}
+<a href=#361 id=361 data-nosnippet>361</a>
+<a href=#362 id=362 data-nosnippet>362</a><span class="kw">fn </span>sort_of_assoc_reft(
+<a href=#363 id=363 data-nosnippet>363</a>    genv: GlobalEnv,
+<a href=#364 id=364 data-nosnippet>364</a>    assoc_id: FluxId&lt;MaybeExternId&gt;,
+<a href=#365 id=365 data-nosnippet>365</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::FuncSort&gt;&gt; {
+<a href=#366 id=366 data-nosnippet>366</a>    <span class="kw">let </span>container_id = assoc_id.parent();
+<a href=#367 id=367 data-nosnippet>367</a>
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">match </span><span class="kw-2">&amp;</span>genv.fhir_expect_item(container_id.local_id())<span class="question-mark">?</span>.kind {
+<a href=#369 id=369 data-nosnippet>369</a>        fhir::ItemKind::Trait(trait_) =&gt; {
+<a href=#370 id=370 data-nosnippet>370</a>            <span class="kw">let </span>assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
+<a href=#371 id=371 data-nosnippet>371</a>            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+<a href=#372 id=372 data-nosnippet>372</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#373 id=373 data-nosnippet>373</a>            <span class="kw">let </span>inputs = assoc_reft
+<a href=#374 id=374 data-nosnippet>374</a>                .params
+<a href=#375 id=375 data-nosnippet>375</a>                .iter()
+<a href=#376 id=376 data-nosnippet>376</a>                .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
+<a href=#377 id=377 data-nosnippet>377</a>                .try_collect_vec()<span class="question-mark">?</span>;
+<a href=#378 id=378 data-nosnippet>378</a>            <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+<a href=#379 id=379 data-nosnippet>379</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
+<a href=#380 id=380 data-nosnippet>380</a>        }
+<a href=#381 id=381 data-nosnippet>381</a>        fhir::ItemKind::Impl(impl_) =&gt; {
+<a href=#382 id=382 data-nosnippet>382</a>            <span class="kw">let </span>assoc_reft = impl_.find_assoc_reft(assoc_id.name()).unwrap();
+<a href=#383 id=383 data-nosnippet>383</a>            <span class="kw">let </span>wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
+<a href=#384 id=384 data-nosnippet>384</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#385 id=385 data-nosnippet>385</a>            <span class="kw">let </span>inputs = assoc_reft
+<a href=#386 id=386 data-nosnippet>386</a>                .params
+<a href=#387 id=387 data-nosnippet>387</a>                .iter()
+<a href=#388 id=388 data-nosnippet>388</a>                .map(|p| cx.conv_sort(<span class="kw-2">&amp;</span>p.sort))
+<a href=#389 id=389 data-nosnippet>389</a>                .try_collect_vec()<span class="question-mark">?</span>;
+<a href=#390 id=390 data-nosnippet>390</a>            <span class="kw">let </span>output = cx.conv_sort(<span class="kw-2">&amp;</span>assoc_reft.output)<span class="question-mark">?</span>;
+<a href=#391 id=391 data-nosnippet>391</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(rty::FuncSort::new(inputs, output)))
+<a href=#392 id=392 data-nosnippet>392</a>        }
+<a href=#393 id=393 data-nosnippet>393</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(container_id.local_id(), <span class="string">"expected trait or impl"</span>)),
+<a href=#394 id=394 data-nosnippet>394</a>    }
+<a href=#395 id=395 data-nosnippet>395</a>}
+<a href=#396 id=396 data-nosnippet>396</a>
+<a href=#397 id=397 data-nosnippet>397</a><span class="kw">fn </span>item_bounds(
+<a href=#398 id=398 data-nosnippet>398</a>    genv: GlobalEnv,
+<a href=#399 id=399 data-nosnippet>399</a>    def_id: MaybeExternId,
+<a href=#400 id=400 data-nosnippet>400</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::Clauses&gt;&gt; {
+<a href=#401 id=401 data-nosnippet>401</a>    <span class="kw">let </span>parent = genv.tcx().local_parent(def_id.local_id());
+<a href=#402 id=402 data-nosnippet>402</a>    <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
+<a href=#403 id=403 data-nosnippet>403</a>    <span class="kw">let </span>opaque_ty = genv.fhir_node(def_id.local_id())<span class="question-mark">?</span>.expect_opaque_ty();
+<a href=#404 id=404 data-nosnippet>404</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(
+<a href=#405 id=405 data-nosnippet>405</a>        AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#406 id=406 data-nosnippet>406</a>            .into_conv_ctxt()
+<a href=#407 id=407 data-nosnippet>407</a>            .conv_opaque_ty(opaque_ty)<span class="question-mark">?</span>,
+<a href=#408 id=408 data-nosnippet>408</a>    ))
+<a href=#409 id=409 data-nosnippet>409</a>}
+<a href=#410 id=410 data-nosnippet>410</a>
+<a href=#411 id=411 data-nosnippet>411</a><span class="kw">fn </span>generics_of(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::Generics&gt; {
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">let </span>def_kind = genv.def_kind(def_id);
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">let </span>generics = <span class="kw">match </span>def_kind {
+<a href=#414 id=414 data-nosnippet>414</a>        DefKind::Impl { .. }
+<a href=#415 id=415 data-nosnippet>415</a>        | DefKind::Struct
+<a href=#416 id=416 data-nosnippet>416</a>        | DefKind::Enum
+<a href=#417 id=417 data-nosnippet>417</a>        | DefKind::Union
+<a href=#418 id=418 data-nosnippet>418</a>        | DefKind::TyAlias
+<a href=#419 id=419 data-nosnippet>419</a>        | DefKind::AssocFn
+<a href=#420 id=420 data-nosnippet>420</a>        | DefKind::AssocTy
+<a href=#421 id=421 data-nosnippet>421</a>        | DefKind::Trait
+<a href=#422 id=422 data-nosnippet>422</a>        | DefKind::Fn =&gt; {
+<a href=#423 id=423 data-nosnippet>423</a>            <span class="kw">let </span>is_trait = def_kind == DefKind::Trait;
+<a href=#424 id=424 data-nosnippet>424</a>            <span class="kw">let </span>generics = genv
+<a href=#425 id=425 data-nosnippet>425</a>                .fhir_get_generics(def_id.local_id())<span class="question-mark">?
+<a href=#426 id=426 data-nosnippet>426</a>                </span>.ok_or_else(|| <span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"no generics for {def_id:?}"</span>))<span class="question-mark">?</span>;
+<a href=#427 id=427 data-nosnippet>427</a>            conv::conv_generics(genv, generics, def_id, is_trait)
+<a href=#428 id=428 data-nosnippet>428</a>        }
+<a href=#429 id=429 data-nosnippet>429</a>        DefKind::OpaqueTy | DefKind::Closure | DefKind::TraitAlias | DefKind::Ctor(..) =&gt; {
+<a href=#430 id=430 data-nosnippet>430</a>            <span class="kw">let </span>rustc_generics = genv.lower_generics_of(def_id);
+<a href=#431 id=431 data-nosnippet>431</a>            refining::refine_generics(genv, def_id.resolved_id(), <span class="kw-2">&amp;</span>rustc_generics)
+<a href=#432 id=432 data-nosnippet>432</a>        }
+<a href=#433 id=433 data-nosnippet>433</a>        kind =&gt; {
+<a href=#434 id=434 data-nosnippet>434</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+<a href=#435 id=435 data-nosnippet>435</a>                def_id.local_id(),
+<a href=#436 id=436 data-nosnippet>436</a>                <span class="string">"generics_of called on `{def_id:?}` with kind `{kind:?}`"
+<a href=#437 id=437 data-nosnippet>437</a>            </span>))<span class="question-mark">?
+<a href=#438 id=438 data-nosnippet>438</a>        </span>}
+<a href=#439 id=439 data-nosnippet>439</a>    };
+<a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">if </span>config::dump_rty() {
+<a href=#441 id=441 data-nosnippet>441</a>        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), <span class="string">"generics.rty"</span>, <span class="kw-2">&amp;</span>generics).unwrap();
+<a href=#442 id=442 data-nosnippet>442</a>    }
+<a href=#443 id=443 data-nosnippet>443</a>    <span class="prelude-val">Ok</span>(generics)
+<a href=#444 id=444 data-nosnippet>444</a>}
+<a href=#445 id=445 data-nosnippet>445</a>
+<a href=#446 id=446 data-nosnippet>446</a><span class="kw">fn </span>refinement_generics_of(
+<a href=#447 id=447 data-nosnippet>447</a>    genv: GlobalEnv,
+<a href=#448 id=448 data-nosnippet>448</a>    def_id: MaybeExternId,
+<a href=#449 id=449 data-nosnippet>449</a>) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::RefinementGenerics&gt;&gt; {
+<a href=#450 id=450 data-nosnippet>450</a>    <span class="kw">let </span>parent = genv.tcx().generics_of(def_id).parent;
+<a href=#451 id=451 data-nosnippet>451</a>    <span class="kw">let </span>parent_count =
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(def_id) = parent { genv.refinement_generics_of(def_id)<span class="question-mark">?</span>.count() } <span class="kw">else </span>{ <span class="number">0 </span>};
+<a href=#453 id=453 data-nosnippet>453</a>    <span class="kw">let </span>generics = <span class="kw">match </span>genv.fhir_node(def_id.local_id())<span class="question-mark">? </span>{
+<a href=#454 id=454 data-nosnippet>454</a>        fhir::Node::Item(fhir::Item {
+<a href=#455 id=455 data-nosnippet>455</a>            kind: fhir::ItemKind::Fn(..) | fhir::ItemKind::TyAlias(..),
 <a href=#456 id=456 data-nosnippet>456</a>            generics,
 <a href=#457 id=457 data-nosnippet>457</a>            ..
 <a href=#458 id=458 data-nosnippet>458</a>        })
-<a href=#459 id=459 data-nosnippet>459</a>        | fhir::Node::ImplItem(fhir::ImplItem {
-<a href=#460 id=460 data-nosnippet>460</a>            kind: fhir::ImplItemKind::Fn(..), generics, ..
-<a href=#461 id=461 data-nosnippet>461</a>        }) =&gt; {
-<a href=#462 id=462 data-nosnippet>462</a>            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#463 id=463 data-nosnippet>463</a>            <span class="kw">let </span>params = conv::conv_refinement_generics(generics.refinement_params, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>;
-<a href=#464 id=464 data-nosnippet>464</a>            rty::RefinementGenerics { parent, parent_count, own_params: params }
-<a href=#465 id=465 data-nosnippet>465</a>        }
-<a href=#466 id=466 data-nosnippet>466</a>        <span class="kw">_ </span>=&gt; rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() },
-<a href=#467 id=467 data-nosnippet>467</a>    };
-<a href=#468 id=468 data-nosnippet>468</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(generics))
-<a href=#469 id=469 data-nosnippet>469</a>}
-<a href=#470 id=470 data-nosnippet>470</a>
-<a href=#471 id=471 data-nosnippet>471</a><span class="kw">fn </span>type_of(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt; {
-<a href=#472 id=472 data-nosnippet>472</a>    <span class="kw">let </span>ty = <span class="kw">match </span>genv.def_kind(def_id) {
-<a href=#473 id=473 data-nosnippet>473</a>        DefKind::TyAlias =&gt; {
-<a href=#474 id=474 data-nosnippet>474</a>            <span class="kw">let </span>fhir_ty_alias = genv
-<a href=#475 id=475 data-nosnippet>475</a>                .fhir_expect_item(def_id.local_id())<span class="question-mark">?
-<a href=#476 id=476 data-nosnippet>476</a>                </span>.expect_type_alias();
-<a href=#477 id=477 data-nosnippet>477</a>            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#478 id=478 data-nosnippet>478</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#479 id=479 data-nosnippet>479</a>            <span class="kw">let </span>ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)<span class="question-mark">?</span>;
-<a href=#480 id=480 data-nosnippet>480</a>            struct_compat::type_alias(genv, fhir_ty_alias, <span class="kw-2">&amp;</span>ty_alias, def_id)<span class="question-mark">?</span>;
-<a href=#481 id=481 data-nosnippet>481</a>            rty::TyOrCtor::Ctor(ty_alias)
-<a href=#482 id=482 data-nosnippet>482</a>        }
-<a href=#483 id=483 data-nosnippet>483</a>        DefKind::TyParam =&gt; {
-<a href=#484 id=484 data-nosnippet>484</a>            <span class="kw">match </span>def_id {
-<a href=#485 id=485 data-nosnippet>485</a>                MaybeExternId::Local(local_id) =&gt; {
-<a href=#486 id=486 data-nosnippet>486</a>                    <span class="kw">let </span>owner = genv.tcx().hir_ty_param_owner(local_id);
-<a href=#487 id=487 data-nosnippet>487</a>                    <span class="kw">let </span>param = genv.fhir_get_generics(owner)<span class="question-mark">?</span>.unwrap().get_param(local_id);
-<a href=#488 id=488 data-nosnippet>488</a>                    <span class="kw">match </span>param.kind {
-<a href=#489 id=489 data-nosnippet>489</a>                        fhir::GenericParamKind::Type { default: <span class="prelude-val">Some</span>(ty) } =&gt; {
-<a href=#490 id=490 data-nosnippet>490</a>                            <span class="kw">let </span>parent = genv.tcx().local_parent(local_id);
-<a href=#491 id=491 data-nosnippet>491</a>                            <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
-<a href=#492 id=492 data-nosnippet>492</a>                            conv::conv_default_type_parameter(genv, def_id, <span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
-<a href=#493 id=493 data-nosnippet>493</a>                                </span>.into()
-<a href=#494 id=494 data-nosnippet>494</a>                        }
-<a href=#495 id=495 data-nosnippet>495</a>                        k =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id, <span class="string">"non-type def def {k:?} {def_id:?}"</span>))<span class="question-mark">?</span>,
-<a href=#496 id=496 data-nosnippet>496</a>                    }
-<a href=#497 id=497 data-nosnippet>497</a>                }
-<a href=#498 id=498 data-nosnippet>498</a>                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; {
-<a href=#499 id=499 data-nosnippet>499</a>                    <span class="kw">let </span>ty = genv.lower_type_of(extern_id)<span class="question-mark">?</span>.skip_binder();
-<a href=#500 id=500 data-nosnippet>500</a>                    Refiner::default_for_item(genv, ty_param_owner(genv, extern_id))<span class="question-mark">?
-<a href=#501 id=501 data-nosnippet>501</a>                        </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
-<a href=#502 id=502 data-nosnippet>502</a>                        </span>.into()
-<a href=#503 id=503 data-nosnippet>503</a>                }
-<a href=#504 id=504 data-nosnippet>504</a>            }
-<a href=#505 id=505 data-nosnippet>505</a>        }
-<a href=#506 id=506 data-nosnippet>506</a>        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy =&gt; {
-<a href=#507 id=507 data-nosnippet>507</a>            <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
-<a href=#508 id=508 data-nosnippet>508</a>            Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?
-<a href=#509 id=509 data-nosnippet>509</a>                </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
-<a href=#510 id=510 data-nosnippet>510</a>                </span>.into()
-<a href=#511 id=511 data-nosnippet>511</a>        }
-<a href=#512 id=512 data-nosnippet>512</a>        kind =&gt; {
-<a href=#513 id=513 data-nosnippet>513</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
-<a href=#514 id=514 data-nosnippet>514</a>                def_id.local_id(),
-<a href=#515 id=515 data-nosnippet>515</a>                <span class="string">"`{:?}` not supported"</span>,
-<a href=#516 id=516 data-nosnippet>516</a>                kind.descr(def_id.resolved_id())
-<a href=#517 id=517 data-nosnippet>517</a>            ))<span class="question-mark">?
-<a href=#518 id=518 data-nosnippet>518</a>        </span>}
-<a href=#519 id=519 data-nosnippet>519</a>    };
-<a href=#520 id=520 data-nosnippet>520</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(ty))
-<a href=#521 id=521 data-nosnippet>521</a>}
-<a href=#522 id=522 data-nosnippet>522</a>
-<a href=#523 id=523 data-nosnippet>523</a><span class="kw">fn </span>ty_param_owner(genv: GlobalEnv, def_id: DefId) -&gt; DefId {
-<a href=#524 id=524 data-nosnippet>524</a>    <span class="kw">let </span>def_kind = genv.def_kind(def_id);
-<a href=#525 id=525 data-nosnippet>525</a>    <span class="kw">match </span>def_kind {
-<a href=#526 id=526 data-nosnippet>526</a>        DefKind::Trait | DefKind::TraitAlias =&gt; def_id,
-<a href=#527 id=527 data-nosnippet>527</a>        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam =&gt; {
-<a href=#528 id=528 data-nosnippet>528</a>            genv.tcx().parent(def_id)
-<a href=#529 id=529 data-nosnippet>529</a>        }
-<a href=#530 id=530 data-nosnippet>530</a>        <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"ty_param_owner: {:?} is a {:?} not a type parameter"</span>, def_id, def_kind),
-<a href=#531 id=531 data-nosnippet>531</a>    }
-<a href=#532 id=532 data-nosnippet>532</a>}
-<a href=#533 id=533 data-nosnippet>533</a>
-<a href=#534 id=534 data-nosnippet>534</a><span class="kw">fn </span>variants_of(
-<a href=#535 id=535 data-nosnippet>535</a>    genv: GlobalEnv,
-<a href=#536 id=536 data-nosnippet>536</a>    def_id: MaybeExternId,
-<a href=#537 id=537 data-nosnippet>537</a>) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
-<a href=#538 id=538 data-nosnippet>538</a>    <span class="kw">let </span>local_id = def_id.local_id();
-<a href=#539 id=539 data-nosnippet>539</a>
-<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">let </span>item = <span class="kw-2">&amp;</span>genv.fhir_expect_item(local_id)<span class="question-mark">?</span>;
-<a href=#541 id=541 data-nosnippet>541</a>    <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
-<a href=#542 id=542 data-nosnippet>542</a>        fhir::ItemKind::Enum(enum_def) =&gt; {
-<a href=#543 id=543 data-nosnippet>543</a>            <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
-<a href=#544 id=544 data-nosnippet>544</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#545 id=545 data-nosnippet>545</a>            <span class="kw">let </span>variants = cx.conv_enum_variants(def_id, enum_def)<span class="question-mark">?</span>;
-<a href=#546 id=546 data-nosnippet>546</a>            <span class="kw">let </span>variants = rty::List::from_vec(struct_compat::variants(genv, <span class="kw-2">&amp;</span>variants, def_id)<span class="question-mark">?</span>);
-<a href=#547 id=547 data-nosnippet>547</a>            rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
-<a href=#548 id=548 data-nosnippet>548</a>        }
-<a href=#549 id=549 data-nosnippet>549</a>        fhir::ItemKind::Struct(struct_def) =&gt; {
-<a href=#550 id=550 data-nosnippet>550</a>            <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
-<a href=#551 id=551 data-nosnippet>551</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
-<a href=#552 id=552 data-nosnippet>552</a>            cx.conv_struct_variant(def_id, struct_def)<span class="question-mark">?
-<a href=#553 id=553 data-nosnippet>553</a>                </span>.map(|variant| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
-<a href=#554 id=554 data-nosnippet>554</a>                    <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>[variant], def_id)<span class="question-mark">?</span>;
-<a href=#555 id=555 data-nosnippet>555</a>                    <span class="prelude-val">Ok</span>(rty::List::from_vec(variants))
-<a href=#556 id=556 data-nosnippet>556</a>                })
-<a href=#557 id=557 data-nosnippet>557</a>                .transpose()<span class="question-mark">?
-<a href=#558 id=558 data-nosnippet>558</a>                </span>.map(rty::EarlyBinder)
-<a href=#559 id=559 data-nosnippet>559</a>        }
-<a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
-<a href=#561 id=561 data-nosnippet>561</a>    };
-<a href=#562 id=562 data-nosnippet>562</a>    <span class="kw">if </span>config::dump_rty() {
-<a href=#563 id=563 data-nosnippet>563</a>        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
-<a href=#564 id=564 data-nosnippet>564</a>    }
-<a href=#565 id=565 data-nosnippet>565</a>    <span class="prelude-val">Ok</span>(variants)
-<a href=#566 id=566 data-nosnippet>566</a>}
-<a href=#567 id=567 data-nosnippet>567</a>
-<a href=#568 id=568 data-nosnippet>568</a><span class="kw">fn </span>fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
-<a href=#569 id=569 data-nosnippet>569</a>    <span class="kw">match </span>genv.fhir_node(def_id.local_id())<span class="question-mark">? </span>{
-<a href=#570 id=570 data-nosnippet>570</a>        fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
-<a href=#571 id=571 data-nosnippet>571</a>        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
-<a href=#572 id=572 data-nosnippet>572</a>        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
-<a href=#573 id=573 data-nosnippet>573</a>        | fhir::Node::ForeignItem(ForeignItem {
-<a href=#574 id=574 data-nosnippet>574</a>            kind: ForeignItemKind::Fn(fhir_fn_sig, ..), ..
-<a href=#575 id=575 data-nosnippet>575</a>        }) =&gt; {
-<a href=#576 id=576 data-nosnippet>576</a>            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
-<a href=#577 id=577 data-nosnippet>577</a>            <span class="kw">let </span>fn_sig = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
-<a href=#578 id=578 data-nosnippet>578</a>                .into_conv_ctxt()
-<a href=#579 id=579 data-nosnippet>579</a>                .conv_fn_sig(def_id, fhir_fn_sig)<span class="question-mark">?</span>;
-<a href=#580 id=580 data-nosnippet>580</a>            <span class="kw">let </span>fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, <span class="kw-2">&amp;</span>fn_sig, def_id)<span class="question-mark">?</span>;
-<a href=#581 id=581 data-nosnippet>581</a>            <span class="kw">let </span>fn_sig = fn_sig.hoist_input_binders();
-<a href=#582 id=582 data-nosnippet>582</a>
-<a href=#583 id=583 data-nosnippet>583</a>            <span class="kw">if </span>config::dump_rty() {
-<a href=#584 id=584 data-nosnippet>584</a>                <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
-<a href=#585 id=585 data-nosnippet>585</a>                <span class="kw">let </span>refinement_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
-<a href=#586 id=586 data-nosnippet>586</a>                dbg::dump_item_info(
-<a href=#587 id=587 data-nosnippet>587</a>                    genv.tcx(),
-<a href=#588 id=588 data-nosnippet>588</a>                    def_id.resolved_id(),
-<a href=#589 id=589 data-nosnippet>589</a>                    <span class="string">"rty"</span>,
-<a href=#590 id=590 data-nosnippet>590</a>                    (generics, refinement_generics, <span class="kw-2">&amp;</span>fn_sig),
-<a href=#591 id=591 data-nosnippet>591</a>                )
-<a href=#592 id=592 data-nosnippet>592</a>                .unwrap();
-<a href=#593 id=593 data-nosnippet>593</a>            }
-<a href=#594 id=594 data-nosnippet>594</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(fn_sig))
-<a href=#595 id=595 data-nosnippet>595</a>        }
-<a href=#596 id=596 data-nosnippet>596</a>        fhir::Node::Ctor =&gt; {
-<a href=#597 id=597 data-nosnippet>597</a>            <span class="kw">let </span>tcx = genv.tcx();
-<a href=#598 id=598 data-nosnippet>598</a>            <span class="kw">let </span>(adt_id, variant_idx) = <span class="kw">match </span>tcx.def_kind(def_id) {
-<a href=#599 id=599 data-nosnippet>599</a>                DefKind::Ctor(CtorOf::Struct, <span class="kw">_</span>) =&gt; {
-<a href=#600 id=600 data-nosnippet>600</a>                    <span class="kw">let </span>struct_id = tcx.parent(def_id.resolved_id());
-<a href=#601 id=601 data-nosnippet>601</a>                    (struct_id, FIRST_VARIANT)
-<a href=#602 id=602 data-nosnippet>602</a>                }
-<a href=#603 id=603 data-nosnippet>603</a>                DefKind::Ctor(CtorOf::Variant, <span class="kw">_</span>) =&gt; {
-<a href=#604 id=604 data-nosnippet>604</a>                    <span class="kw">let </span>variant_id = tcx.parent(def_id.resolved_id());
-<a href=#605 id=605 data-nosnippet>605</a>                    <span class="kw">let </span>enum_id = tcx.parent(variant_id);
-<a href=#606 id=606 data-nosnippet>606</a>                    <span class="kw">let </span>variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
-<a href=#607 id=607 data-nosnippet>607</a>                    (enum_id, variant_idx)
-<a href=#608 id=608 data-nosnippet>608</a>                }
-<a href=#609 id=609 data-nosnippet>609</a>                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"invalid `DefKind` for ctor node"</span>)),
-<a href=#610 id=610 data-nosnippet>610</a>            };
-<a href=#611 id=611 data-nosnippet>611</a>            genv.variant_sig(adt_id, variant_idx)<span class="question-mark">?
-<a href=#612 id=612 data-nosnippet>612</a>                </span>.map(|sig| sig.to_poly_fn_sig(<span class="prelude-val">None</span>))
-<a href=#613 id=613 data-nosnippet>613</a>                .ok_or_query_err(adt_id)
-<a href=#614 id=614 data-nosnippet>614</a>        }
-<a href=#615 id=615 data-nosnippet>615</a>        node =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"fn_sig called on unsupported node {node:?}"</span>)),
-<a href=#616 id=616 data-nosnippet>616</a>    }
-<a href=#617 id=617 data-nosnippet>617</a>}
-<a href=#618 id=618 data-nosnippet>618</a>
-<a href=#619 id=619 data-nosnippet>619</a><span class="kw">fn </span>check_wf(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;WfckResults&gt;&gt; {
-<a href=#620 id=620 data-nosnippet>620</a>    <span class="kw">let </span>node = genv.fhir_expect_owner_node(def_id)<span class="question-mark">?</span>;
-<a href=#621 id=621 data-nosnippet>621</a>    <span class="kw">let </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
-<a href=#622 id=622 data-nosnippet>622</a>    <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
-<a href=#623 id=623 data-nosnippet>623</a>}
-<a href=#624 id=624 data-nosnippet>624</a>
-<a href=#625 id=625 data-nosnippet>625</a><span class="kw">mod </span>errors {
-<a href=#626 id=626 data-nosnippet>626</a>    <span class="kw">use </span>flux_errors::E0999;
-<a href=#627 id=627 data-nosnippet>627</a>    <span class="kw">use </span>flux_macros::Diagnostic;
-<a href=#628 id=628 data-nosnippet>628</a>    <span class="kw">use </span>flux_middle::def_id::FluxLocalDefId;
-<a href=#629 id=629 data-nosnippet>629</a>    <span class="kw">use </span>rustc_span::Span;
-<a href=#630 id=630 data-nosnippet>630</a>
-<a href=#631 id=631 data-nosnippet>631</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#632 id=632 data-nosnippet>632</a>    #[diag(fhir_analysis_definition_cycle, code = E0999)]
-<a href=#633 id=633 data-nosnippet>633</a>    </span><span class="kw">pub struct </span>DefinitionCycle {
-<a href=#634 id=634 data-nosnippet>634</a>        <span class="attr">#[primary_span]
-<a href=#635 id=635 data-nosnippet>635</a>        #[label]
-<a href=#636 id=636 data-nosnippet>636</a>        </span>span: Span,
-<a href=#637 id=637 data-nosnippet>637</a>        msg: String,
-<a href=#638 id=638 data-nosnippet>638</a>    }
-<a href=#639 id=639 data-nosnippet>639</a>
-<a href=#640 id=640 data-nosnippet>640</a>    <span class="kw">impl </span>DefinitionCycle {
-<a href=#641 id=641 data-nosnippet>641</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, cycle: Vec&lt;FluxLocalDefId&gt;) -&gt; <span class="self">Self </span>{
-<a href=#642 id=642 data-nosnippet>642</a>            <span class="kw">let </span>root = <span class="macro">format!</span>(<span class="string">"`{}`"</span>, cycle[<span class="number">0</span>].name());
-<a href=#643 id=643 data-nosnippet>643</a>            <span class="kw">let </span>names: Vec&lt;String&gt; = cycle.iter().map(|s| <span class="macro">format!</span>(<span class="string">"`{}`"</span>, s.name())).collect();
-<a href=#644 id=644 data-nosnippet>644</a>            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{} -&gt; {}"</span>, names.join(<span class="string">" -&gt; "</span>), root);
-<a href=#645 id=645 data-nosnippet>645</a>            <span class="self">Self </span>{ span, msg }
-<a href=#646 id=646 data-nosnippet>646</a>        }
-<a href=#647 id=647 data-nosnippet>647</a>    }
-<a href=#648 id=648 data-nosnippet>648</a>}</code></pre></div></section></main></body></html>
+<a href=#459 id=459 data-nosnippet>459</a>        | fhir::Node::TraitItem(fhir::TraitItem {
+<a href=#460 id=460 data-nosnippet>460</a>            kind: fhir::TraitItemKind::Fn(..),
+<a href=#461 id=461 data-nosnippet>461</a>            generics,
+<a href=#462 id=462 data-nosnippet>462</a>            ..
+<a href=#463 id=463 data-nosnippet>463</a>        })
+<a href=#464 id=464 data-nosnippet>464</a>        | fhir::Node::ImplItem(fhir::ImplItem {
+<a href=#465 id=465 data-nosnippet>465</a>            kind: fhir::ImplItemKind::Fn(..), generics, ..
+<a href=#466 id=466 data-nosnippet>466</a>        }) =&gt; {
+<a href=#467 id=467 data-nosnippet>467</a>            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+<a href=#468 id=468 data-nosnippet>468</a>            <span class="kw">let </span>params = conv::conv_refinement_generics(generics.refinement_params, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?</span>;
+<a href=#469 id=469 data-nosnippet>469</a>            rty::RefinementGenerics { parent, parent_count, own_params: params }
+<a href=#470 id=470 data-nosnippet>470</a>        }
+<a href=#471 id=471 data-nosnippet>471</a>        <span class="kw">_ </span>=&gt; rty::RefinementGenerics { parent, parent_count, own_params: rty::List::empty() },
+<a href=#472 id=472 data-nosnippet>472</a>    };
+<a href=#473 id=473 data-nosnippet>473</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(generics))
+<a href=#474 id=474 data-nosnippet>474</a>}
+<a href=#475 id=475 data-nosnippet>475</a>
+<a href=#476 id=476 data-nosnippet>476</a><span class="kw">fn </span>type_of(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::TyOrCtor&gt;&gt; {
+<a href=#477 id=477 data-nosnippet>477</a>    <span class="kw">let </span>ty = <span class="kw">match </span>genv.def_kind(def_id) {
+<a href=#478 id=478 data-nosnippet>478</a>        DefKind::TyAlias =&gt; {
+<a href=#479 id=479 data-nosnippet>479</a>            <span class="kw">let </span>fhir_ty_alias = genv
+<a href=#480 id=480 data-nosnippet>480</a>                .fhir_expect_item(def_id.local_id())<span class="question-mark">?
+<a href=#481 id=481 data-nosnippet>481</a>                </span>.expect_type_alias();
+<a href=#482 id=482 data-nosnippet>482</a>            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+<a href=#483 id=483 data-nosnippet>483</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#484 id=484 data-nosnippet>484</a>            <span class="kw">let </span>ty_alias = cx.conv_type_alias(def_id, fhir_ty_alias)<span class="question-mark">?</span>;
+<a href=#485 id=485 data-nosnippet>485</a>            struct_compat::type_alias(genv, fhir_ty_alias, <span class="kw-2">&amp;</span>ty_alias, def_id)<span class="question-mark">?</span>;
+<a href=#486 id=486 data-nosnippet>486</a>            rty::TyOrCtor::Ctor(ty_alias)
+<a href=#487 id=487 data-nosnippet>487</a>        }
+<a href=#488 id=488 data-nosnippet>488</a>        DefKind::TyParam =&gt; {
+<a href=#489 id=489 data-nosnippet>489</a>            <span class="kw">match </span>def_id {
+<a href=#490 id=490 data-nosnippet>490</a>                MaybeExternId::Local(local_id) =&gt; {
+<a href=#491 id=491 data-nosnippet>491</a>                    <span class="kw">let </span>owner = genv.tcx().hir_ty_param_owner(local_id);
+<a href=#492 id=492 data-nosnippet>492</a>                    <span class="kw">let </span>param = genv.fhir_get_generics(owner)<span class="question-mark">?</span>.unwrap().get_param(local_id);
+<a href=#493 id=493 data-nosnippet>493</a>                    <span class="kw">match </span>param.kind {
+<a href=#494 id=494 data-nosnippet>494</a>                        fhir::GenericParamKind::Type { default: <span class="prelude-val">Some</span>(ty) } =&gt; {
+<a href=#495 id=495 data-nosnippet>495</a>                            <span class="kw">let </span>parent = genv.tcx().local_parent(local_id);
+<a href=#496 id=496 data-nosnippet>496</a>                            <span class="kw">let </span>wfckresults = genv.check_wf(parent)<span class="question-mark">?</span>;
+<a href=#497 id=497 data-nosnippet>497</a>                            conv::conv_default_type_parameter(genv, def_id, <span class="kw-2">&amp;</span>ty, <span class="kw-2">&amp;</span>wfckresults)<span class="question-mark">?
+<a href=#498 id=498 data-nosnippet>498</a>                                </span>.into()
+<a href=#499 id=499 data-nosnippet>499</a>                        }
+<a href=#500 id=500 data-nosnippet>500</a>                        k =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(local_id, <span class="string">"non-type def def {k:?} {def_id:?}"</span>))<span class="question-mark">?</span>,
+<a href=#501 id=501 data-nosnippet>501</a>                    }
+<a href=#502 id=502 data-nosnippet>502</a>                }
+<a href=#503 id=503 data-nosnippet>503</a>                MaybeExternId::Extern(<span class="kw">_</span>, extern_id) =&gt; {
+<a href=#504 id=504 data-nosnippet>504</a>                    <span class="kw">let </span>ty = genv.lower_type_of(extern_id)<span class="question-mark">?</span>.skip_binder();
+<a href=#505 id=505 data-nosnippet>505</a>                    Refiner::default_for_item(genv, ty_param_owner(genv, extern_id))<span class="question-mark">?
+<a href=#506 id=506 data-nosnippet>506</a>                        </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
+<a href=#507 id=507 data-nosnippet>507</a>                        </span>.into()
+<a href=#508 id=508 data-nosnippet>508</a>                }
+<a href=#509 id=509 data-nosnippet>509</a>            }
+<a href=#510 id=510 data-nosnippet>510</a>        }
+<a href=#511 id=511 data-nosnippet>511</a>        DefKind::Impl { .. } | DefKind::Struct | DefKind::Enum | DefKind::AssocTy =&gt; {
+<a href=#512 id=512 data-nosnippet>512</a>            <span class="kw">let </span>ty = genv.lower_type_of(def_id)<span class="question-mark">?</span>.skip_binder();
+<a href=#513 id=513 data-nosnippet>513</a>            Refiner::default_for_item(genv, def_id.resolved_id())<span class="question-mark">?
+<a href=#514 id=514 data-nosnippet>514</a>                </span>.refine_ty_or_base(<span class="kw-2">&amp;</span>ty)<span class="question-mark">?
+<a href=#515 id=515 data-nosnippet>515</a>                </span>.into()
+<a href=#516 id=516 data-nosnippet>516</a>        }
+<a href=#517 id=517 data-nosnippet>517</a>        kind =&gt; {
+<a href=#518 id=518 data-nosnippet>518</a>            <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(
+<a href=#519 id=519 data-nosnippet>519</a>                def_id.local_id(),
+<a href=#520 id=520 data-nosnippet>520</a>                <span class="string">"`{:?}` not supported"</span>,
+<a href=#521 id=521 data-nosnippet>521</a>                kind.descr(def_id.resolved_id())
+<a href=#522 id=522 data-nosnippet>522</a>            ))<span class="question-mark">?
+<a href=#523 id=523 data-nosnippet>523</a>        </span>}
+<a href=#524 id=524 data-nosnippet>524</a>    };
+<a href=#525 id=525 data-nosnippet>525</a>    <span class="prelude-val">Ok</span>(rty::EarlyBinder(ty))
+<a href=#526 id=526 data-nosnippet>526</a>}
+<a href=#527 id=527 data-nosnippet>527</a>
+<a href=#528 id=528 data-nosnippet>528</a><span class="kw">fn </span>ty_param_owner(genv: GlobalEnv, def_id: DefId) -&gt; DefId {
+<a href=#529 id=529 data-nosnippet>529</a>    <span class="kw">let </span>def_kind = genv.def_kind(def_id);
+<a href=#530 id=530 data-nosnippet>530</a>    <span class="kw">match </span>def_kind {
+<a href=#531 id=531 data-nosnippet>531</a>        DefKind::Trait | DefKind::TraitAlias =&gt; def_id,
+<a href=#532 id=532 data-nosnippet>532</a>        DefKind::LifetimeParam | DefKind::TyParam | DefKind::ConstParam =&gt; {
+<a href=#533 id=533 data-nosnippet>533</a>            genv.tcx().parent(def_id)
+<a href=#534 id=534 data-nosnippet>534</a>        }
+<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">_ </span>=&gt; <span class="macro">bug!</span>(<span class="string">"ty_param_owner: {:?} is a {:?} not a type parameter"</span>, def_id, def_kind),
+<a href=#536 id=536 data-nosnippet>536</a>    }
+<a href=#537 id=537 data-nosnippet>537</a>}
+<a href=#538 id=538 data-nosnippet>538</a>
+<a href=#539 id=539 data-nosnippet>539</a><span class="kw">fn </span>variants_of(
+<a href=#540 id=540 data-nosnippet>540</a>    genv: GlobalEnv,
+<a href=#541 id=541 data-nosnippet>541</a>    def_id: MaybeExternId,
+<a href=#542 id=542 data-nosnippet>542</a>) -&gt; QueryResult&lt;rty::Opaqueness&lt;rty::EarlyBinder&lt;rty::PolyVariants&gt;&gt;&gt; {
+<a href=#543 id=543 data-nosnippet>543</a>    <span class="kw">let </span>local_id = def_id.local_id();
+<a href=#544 id=544 data-nosnippet>544</a>
+<a href=#545 id=545 data-nosnippet>545</a>    <span class="kw">let </span>item = <span class="kw-2">&amp;</span>genv.fhir_expect_item(local_id)<span class="question-mark">?</span>;
+<a href=#546 id=546 data-nosnippet>546</a>    <span class="kw">let </span>variants = <span class="kw">match </span><span class="kw-2">&amp;</span>item.kind {
+<a href=#547 id=547 data-nosnippet>547</a>        fhir::ItemKind::Enum(enum_def) =&gt; {
+<a href=#548 id=548 data-nosnippet>548</a>            <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
+<a href=#549 id=549 data-nosnippet>549</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#550 id=550 data-nosnippet>550</a>            <span class="kw">let </span>variants = cx.conv_enum_variants(def_id, enum_def)<span class="question-mark">?</span>;
+<a href=#551 id=551 data-nosnippet>551</a>            <span class="kw">let </span>variants = rty::List::from_vec(struct_compat::variants(genv, <span class="kw-2">&amp;</span>variants, def_id)<span class="question-mark">?</span>);
+<a href=#552 id=552 data-nosnippet>552</a>            rty::Opaqueness::Transparent(rty::EarlyBinder(variants))
+<a href=#553 id=553 data-nosnippet>553</a>        }
+<a href=#554 id=554 data-nosnippet>554</a>        fhir::ItemKind::Struct(struct_def) =&gt; {
+<a href=#555 id=555 data-nosnippet>555</a>            <span class="kw">let </span>wfckresults = genv.check_wf(local_id)<span class="question-mark">?</span>;
+<a href=#556 id=556 data-nosnippet>556</a>            <span class="kw">let </span><span class="kw-2">mut </span>cx = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults).into_conv_ctxt();
+<a href=#557 id=557 data-nosnippet>557</a>            cx.conv_struct_variant(def_id, struct_def)<span class="question-mark">?
+<a href=#558 id=558 data-nosnippet>558</a>                </span>.map(|variant| -&gt; QueryResult&lt;<span class="kw">_</span>&gt; {
+<a href=#559 id=559 data-nosnippet>559</a>                    <span class="kw">let </span>variants = struct_compat::variants(genv, <span class="kw-2">&amp;</span>[variant], def_id)<span class="question-mark">?</span>;
+<a href=#560 id=560 data-nosnippet>560</a>                    <span class="prelude-val">Ok</span>(rty::List::from_vec(variants))
+<a href=#561 id=561 data-nosnippet>561</a>                })
+<a href=#562 id=562 data-nosnippet>562</a>                .transpose()<span class="question-mark">?
+<a href=#563 id=563 data-nosnippet>563</a>                </span>.map(rty::EarlyBinder)
+<a href=#564 id=564 data-nosnippet>564</a>        }
+<a href=#565 id=565 data-nosnippet>565</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(def_id.local_id(), <span class="string">"expected struct or enum"</span>))<span class="question-mark">?</span>,
+<a href=#566 id=566 data-nosnippet>566</a>    };
+<a href=#567 id=567 data-nosnippet>567</a>    <span class="kw">if </span>config::dump_rty() {
+<a href=#568 id=568 data-nosnippet>568</a>        dbg::dump_item_info(genv.tcx(), def_id.resolved_id(), <span class="string">"rty"</span>, <span class="kw-2">&amp;</span>variants).unwrap();
+<a href=#569 id=569 data-nosnippet>569</a>    }
+<a href=#570 id=570 data-nosnippet>570</a>    <span class="prelude-val">Ok</span>(variants)
+<a href=#571 id=571 data-nosnippet>571</a>}
+<a href=#572 id=572 data-nosnippet>572</a>
+<a href=#573 id=573 data-nosnippet>573</a><span class="kw">fn </span>fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -&gt; QueryResult&lt;rty::EarlyBinder&lt;rty::PolyFnSig&gt;&gt; {
+<a href=#574 id=574 data-nosnippet>574</a>    <span class="kw">match </span>genv.fhir_node(def_id.local_id())<span class="question-mark">? </span>{
+<a href=#575 id=575 data-nosnippet>575</a>        fhir::Node::Item(Item { kind: ItemKind::Fn(fhir_fn_sig, ..), .. })
+<a href=#576 id=576 data-nosnippet>576</a>        | fhir::Node::TraitItem(TraitItem { kind: TraitItemKind::Fn(fhir_fn_sig), .. })
+<a href=#577 id=577 data-nosnippet>577</a>        | fhir::Node::ImplItem(ImplItem { kind: ImplItemKind::Fn(fhir_fn_sig), .. })
+<a href=#578 id=578 data-nosnippet>578</a>        | fhir::Node::ForeignItem(ForeignItem {
+<a href=#579 id=579 data-nosnippet>579</a>            kind: ForeignItemKind::Fn(fhir_fn_sig, ..), ..
+<a href=#580 id=580 data-nosnippet>580</a>        }) =&gt; {
+<a href=#581 id=581 data-nosnippet>581</a>            <span class="kw">let </span>wfckresults = genv.check_wf(def_id.local_id())<span class="question-mark">?</span>;
+<a href=#582 id=582 data-nosnippet>582</a>            <span class="kw">let </span>fn_sig = AfterSortck::new(genv, <span class="kw-2">&amp;</span>wfckresults)
+<a href=#583 id=583 data-nosnippet>583</a>                .into_conv_ctxt()
+<a href=#584 id=584 data-nosnippet>584</a>                .conv_fn_sig(def_id, fhir_fn_sig)<span class="question-mark">?</span>;
+<a href=#585 id=585 data-nosnippet>585</a>            <span class="kw">let </span>fn_sig = struct_compat::fn_sig(genv, fhir_fn_sig.decl, <span class="kw-2">&amp;</span>fn_sig, def_id)<span class="question-mark">?</span>;
+<a href=#586 id=586 data-nosnippet>586</a>            <span class="kw">let </span>fn_sig = fn_sig.hoist_input_binders();
+<a href=#587 id=587 data-nosnippet>587</a>
+<a href=#588 id=588 data-nosnippet>588</a>            <span class="kw">if </span>config::dump_rty() {
+<a href=#589 id=589 data-nosnippet>589</a>                <span class="kw">let </span>generics = genv.generics_of(def_id)<span class="question-mark">?</span>;
+<a href=#590 id=590 data-nosnippet>590</a>                <span class="kw">let </span>refinement_generics = genv.refinement_generics_of(def_id)<span class="question-mark">?</span>;
+<a href=#591 id=591 data-nosnippet>591</a>                dbg::dump_item_info(
+<a href=#592 id=592 data-nosnippet>592</a>                    genv.tcx(),
+<a href=#593 id=593 data-nosnippet>593</a>                    def_id.resolved_id(),
+<a href=#594 id=594 data-nosnippet>594</a>                    <span class="string">"rty"</span>,
+<a href=#595 id=595 data-nosnippet>595</a>                    (generics, refinement_generics, <span class="kw-2">&amp;</span>fn_sig),
+<a href=#596 id=596 data-nosnippet>596</a>                )
+<a href=#597 id=597 data-nosnippet>597</a>                .unwrap();
+<a href=#598 id=598 data-nosnippet>598</a>            }
+<a href=#599 id=599 data-nosnippet>599</a>            <span class="prelude-val">Ok</span>(rty::EarlyBinder(fn_sig))
+<a href=#600 id=600 data-nosnippet>600</a>        }
+<a href=#601 id=601 data-nosnippet>601</a>        fhir::Node::Ctor =&gt; {
+<a href=#602 id=602 data-nosnippet>602</a>            <span class="kw">let </span>tcx = genv.tcx();
+<a href=#603 id=603 data-nosnippet>603</a>            <span class="kw">let </span>(adt_id, variant_idx) = <span class="kw">match </span>tcx.def_kind(def_id) {
+<a href=#604 id=604 data-nosnippet>604</a>                DefKind::Ctor(CtorOf::Struct, <span class="kw">_</span>) =&gt; {
+<a href=#605 id=605 data-nosnippet>605</a>                    <span class="kw">let </span>struct_id = tcx.parent(def_id.resolved_id());
+<a href=#606 id=606 data-nosnippet>606</a>                    (struct_id, FIRST_VARIANT)
+<a href=#607 id=607 data-nosnippet>607</a>                }
+<a href=#608 id=608 data-nosnippet>608</a>                DefKind::Ctor(CtorOf::Variant, <span class="kw">_</span>) =&gt; {
+<a href=#609 id=609 data-nosnippet>609</a>                    <span class="kw">let </span>variant_id = tcx.parent(def_id.resolved_id());
+<a href=#610 id=610 data-nosnippet>610</a>                    <span class="kw">let </span>enum_id = tcx.parent(variant_id);
+<a href=#611 id=611 data-nosnippet>611</a>                    <span class="kw">let </span>variant_idx = tcx.adt_def(enum_id).variant_index_with_id(variant_id);
+<a href=#612 id=612 data-nosnippet>612</a>                    (enum_id, variant_idx)
+<a href=#613 id=613 data-nosnippet>613</a>                }
+<a href=#614 id=614 data-nosnippet>614</a>                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"invalid `DefKind` for ctor node"</span>)),
+<a href=#615 id=615 data-nosnippet>615</a>            };
+<a href=#616 id=616 data-nosnippet>616</a>            genv.variant_sig(adt_id, variant_idx)<span class="question-mark">?
+<a href=#617 id=617 data-nosnippet>617</a>                </span>.map(|sig| sig.to_poly_fn_sig(<span class="prelude-val">None</span>))
+<a href=#618 id=618 data-nosnippet>618</a>                .ok_or_query_err(adt_id)
+<a href=#619 id=619 data-nosnippet>619</a>        }
+<a href=#620 id=620 data-nosnippet>620</a>        node =&gt; <span class="prelude-val">Err</span>(<span class="macro">query_bug!</span>(<span class="string">"fn_sig called on unsupported node {node:?}"</span>)),
+<a href=#621 id=621 data-nosnippet>621</a>    }
+<a href=#622 id=622 data-nosnippet>622</a>}
+<a href=#623 id=623 data-nosnippet>623</a>
+<a href=#624 id=624 data-nosnippet>624</a><span class="kw">fn </span>check_wf(genv: GlobalEnv, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;WfckResults&gt;&gt; {
+<a href=#625 id=625 data-nosnippet>625</a>    <span class="kw">let </span>node = genv.fhir_expect_owner_node(def_id)<span class="question-mark">?</span>;
+<a href=#626 id=626 data-nosnippet>626</a>    <span class="kw">let </span>wfckresults = wf::check_node(genv, <span class="kw-2">&amp;</span>node)<span class="question-mark">?</span>;
+<a href=#627 id=627 data-nosnippet>627</a>    <span class="prelude-val">Ok</span>(Rc::new(wfckresults))
+<a href=#628 id=628 data-nosnippet>628</a>}
+<a href=#629 id=629 data-nosnippet>629</a>
+<a href=#630 id=630 data-nosnippet>630</a><span class="kw">mod </span>errors {
+<a href=#631 id=631 data-nosnippet>631</a>    <span class="kw">use </span>flux_errors::E0999;
+<a href=#632 id=632 data-nosnippet>632</a>    <span class="kw">use </span>flux_macros::Diagnostic;
+<a href=#633 id=633 data-nosnippet>633</a>    <span class="kw">use </span>flux_middle::def_id::FluxLocalDefId;
+<a href=#634 id=634 data-nosnippet>634</a>    <span class="kw">use </span>rustc_span::Span;
+<a href=#635 id=635 data-nosnippet>635</a>
+<a href=#636 id=636 data-nosnippet>636</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#637 id=637 data-nosnippet>637</a>    #[diag(fhir_analysis_definition_cycle, code = E0999)]
+<a href=#638 id=638 data-nosnippet>638</a>    </span><span class="kw">pub struct </span>DefinitionCycle {
+<a href=#639 id=639 data-nosnippet>639</a>        <span class="attr">#[primary_span]
+<a href=#640 id=640 data-nosnippet>640</a>        #[label]
+<a href=#641 id=641 data-nosnippet>641</a>        </span>span: Span,
+<a href=#642 id=642 data-nosnippet>642</a>        msg: String,
+<a href=#643 id=643 data-nosnippet>643</a>    }
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a>    <span class="kw">impl </span>DefinitionCycle {
+<a href=#646 id=646 data-nosnippet>646</a>        <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(span: Span, cycle: Vec&lt;FluxLocalDefId&gt;) -&gt; <span class="self">Self </span>{
+<a href=#647 id=647 data-nosnippet>647</a>            <span class="kw">let </span>root = <span class="macro">format!</span>(<span class="string">"`{}`"</span>, cycle[<span class="number">0</span>].name());
+<a href=#648 id=648 data-nosnippet>648</a>            <span class="kw">let </span>names: Vec&lt;String&gt; = cycle.iter().map(|s| <span class="macro">format!</span>(<span class="string">"`{}`"</span>, s.name())).collect();
+<a href=#649 id=649 data-nosnippet>649</a>            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"{} -&gt; {}"</span>, names.join(<span class="string">" -&gt; "</span>), root);
+<a href=#650 id=650 data-nosnippet>650</a>            <span class="self">Self </span>{ span, msg }
+<a href=#651 id=651 data-nosnippet>651</a>        }
+<a href=#652 id=652 data-nosnippet>652</a>    }
+<a href=#653 id=653 data-nosnippet>653</a>}</code></pre></div></section></main></body></html>
