@@ -94,10 +94,10 @@
 <a href=#94 id=94 data-nosnippet>94</a>            Expr::Var(v) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, LeanVar(v)),
 <a href=#95 id=95 data-nosnippet>95</a>            Expr::Constant(c) =&gt; {
 <a href=#96 id=96 data-nosnippet>96</a>                <span class="kw">match </span>c {
-<a href=#97 id=97 data-nosnippet>97</a>                    Constant::Numeral(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, n),
-<a href=#98 id=98 data-nosnippet>98</a>                    Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, b),
+<a href=#97 id=97 data-nosnippet>97</a>                    Constant::Numeral(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}"</span>,),
+<a href=#98 id=98 data-nosnippet>98</a>                    Constant::Boolean(b) =&gt; <span class="macro">write!</span>(f, <span class="string">"{b}"</span>),
 <a href=#99 id=99 data-nosnippet>99</a>                    Constant::String(s) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, s.display()),
-<a href=#100 id=100 data-nosnippet>100</a>                    Constant::Decimal(d) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, d.display()),
+<a href=#100 id=100 data-nosnippet>100</a>                    Constant::Real(n) =&gt; <span class="macro">write!</span>(f, <span class="string">"{n}.0"</span>),
 <a href=#101 id=101 data-nosnippet>101</a>                    Constant::BitVec(bv, size) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}#{}"</span>, bv, size),
 <a href=#102 id=102 data-nosnippet>102</a>                }
 <a href=#103 id=103 data-nosnippet>103</a>            }

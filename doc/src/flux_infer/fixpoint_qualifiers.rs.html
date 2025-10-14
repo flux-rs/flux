@@ -16,7 +16,7 @@
 <a href=#16 id=16 data-nosnippet>16</a>    <span class="kw">let </span>eqfalse = Qualifier {
 <a href=#17 id=17 data-nosnippet>17</a>        name: String::from(<span class="string">"EqFalse"</span>),
 <a href=#18 id=18 data-nosnippet>18</a>        args: <span class="macro">vec!</span>[(Var::Local(LocalVar::from(<span class="number">0u32</span>)), Sort::Bool)],
-<a href=#19 id=19 data-nosnippet>19</a>        body: Expr::Neg(Box::new(Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))))),
+<a href=#19 id=19 data-nosnippet>19</a>        body: Expr::Not(Box::new(Expr::Var(Var::Local(LocalVar::from(<span class="number">0u32</span>))))),
 <a href=#20 id=20 data-nosnippet>20</a>    };
 <a href=#21 id=21 data-nosnippet>21</a>    <span class="kw">let </span>eqzero = Qualifier {
 <a href=#22 id=22 data-nosnippet>22</a>        name: String::from(<span class="string">"EqZero"</span>),

@@ -211,24 +211,26 @@
 <a href=#211 id=211 data-nosnippet>211</a><span class="attr">#[derive_where(Hash, Clone, Debug)]
 <a href=#212 id=212 data-nosnippet>212</a></span><span class="kw">pub enum </span>Constant&lt;T: Types&gt; {
 <a href=#213 id=213 data-nosnippet>213</a>    Numeral(u128),
-<a href=#214 id=214 data-nosnippet>214</a>    Decimal(T::Decimal),
-<a href=#215 id=215 data-nosnippet>215</a>    Boolean(bool),
-<a href=#216 id=216 data-nosnippet>216</a>    String(T::String),
-<a href=#217 id=217 data-nosnippet>217</a>    BitVec(u128, u32),
-<a href=#218 id=218 data-nosnippet>218</a>}
-<a href=#219 id=219 data-nosnippet>219</a>
-<a href=#220 id=220 data-nosnippet>220</a><span class="attr">#[derive_where(Debug, Clone, Hash)]
-<a href=#221 id=221 data-nosnippet>221</a></span><span class="kw">pub struct </span>Qualifier&lt;T: Types&gt; {
-<a href=#222 id=222 data-nosnippet>222</a>    <span class="kw">pub </span>name: String,
-<a href=#223 id=223 data-nosnippet>223</a>    <span class="kw">pub </span>args: Vec&lt;(T::Var, Sort&lt;T&gt;)&gt;,
-<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">pub </span>body: Expr&lt;T&gt;,
-<a href=#225 id=225 data-nosnippet>225</a>}
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-<a href=#228 id=228 data-nosnippet>228</a></span><span class="kw">pub enum </span>BinOp {
-<a href=#229 id=229 data-nosnippet>229</a>    Add,
-<a href=#230 id=230 data-nosnippet>230</a>    Sub,
-<a href=#231 id=231 data-nosnippet>231</a>    Mul,
-<a href=#232 id=232 data-nosnippet>232</a>    Div,
-<a href=#233 id=233 data-nosnippet>233</a>    Mod,
-<a href=#234 id=234 data-nosnippet>234</a>}</code></pre></div></section></main></body></html>
+<a href=#214 id=214 data-nosnippet>214</a>    <span class="comment">// Currently we only support parsing integers as decimals. We should extend this to allow
+<a href=#215 id=215 data-nosnippet>215</a>    // rational numbers as a numer/denom.
+<a href=#216 id=216 data-nosnippet>216</a>    </span>Real(u128),
+<a href=#217 id=217 data-nosnippet>217</a>    Boolean(bool),
+<a href=#218 id=218 data-nosnippet>218</a>    String(T::String),
+<a href=#219 id=219 data-nosnippet>219</a>    BitVec(u128, u32),
+<a href=#220 id=220 data-nosnippet>220</a>}
+<a href=#221 id=221 data-nosnippet>221</a>
+<a href=#222 id=222 data-nosnippet>222</a><span class="attr">#[derive_where(Debug, Clone, Hash)]
+<a href=#223 id=223 data-nosnippet>223</a></span><span class="kw">pub struct </span>Qualifier&lt;T: Types&gt; {
+<a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">pub </span>name: String,
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="kw">pub </span>args: Vec&lt;(T::Var, Sort&lt;T&gt;)&gt;,
+<a href=#226 id=226 data-nosnippet>226</a>    <span class="kw">pub </span>body: Expr&lt;T&gt;,
+<a href=#227 id=227 data-nosnippet>227</a>}
+<a href=#228 id=228 data-nosnippet>228</a>
+<a href=#229 id=229 data-nosnippet>229</a><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+<a href=#230 id=230 data-nosnippet>230</a></span><span class="kw">pub enum </span>BinOp {
+<a href=#231 id=231 data-nosnippet>231</a>    Add,
+<a href=#232 id=232 data-nosnippet>232</a>    Sub,
+<a href=#233 id=233 data-nosnippet>233</a>    Mul,
+<a href=#234 id=234 data-nosnippet>234</a>    Div,
+<a href=#235 id=235 data-nosnippet>235</a>    Mod,
+<a href=#236 id=236 data-nosnippet>236</a>}</code></pre></div></section></main></body></html>
