@@ -718,7 +718,9 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
                         if int > 0 {
                             Ok(Expr::Constant(Constant::Numeral(int as u128)))
                         } else {
-                            Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                            Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral(
+                                (-1 * int) as u128,
+                            )))))
                         }
                     } else {
                         Err(Z3DecodeError::InvalidIntConstant)
@@ -739,46 +741,44 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
             assert!(z3.num_children() == 0);
             z3_const_to_expr(env, z3.decl())
         }
-        AstKind::App if z3.is_app() => {
-            z3_app_to_expr(env, z3.decl(), &z3.children())
-        }
+        AstKind::App if z3.is_app() => z3_app_to_expr(env, z3.decl(), &z3.children()),
         AstKind::App => {
             unreachable!()
         }
         // NOTE: if we add support for quantifiers, we will want to change the
         // return type to Pred<T>.
-        AstKind::Quantifier => {
-            Err(Z3DecodeError::ContainsQuantifier)
-        }
-        AstKind::Var => {
-            Err(Z3DecodeError::ContainsVar)
-        }
+        AstKind::Quantifier => Err(Z3DecodeError::ContainsQuantifier),
+        AstKind::Var => Err(Z3DecodeError::ContainsVar),
         AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
             Err(Z3DecodeError::UnexpectedAstKind(z3.kind()))
         }
     }
 }
 
-fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynamic>) -> Result<Expr<T>, Z3DecodeError> {
+fn z3_app_to_expr<T: Types>(
+    env: &Env<T>,
+    head: FuncDecl,
+    args: &Vec<ast::Dynamic>,
+) -> Result<Expr<T>, Z3DecodeError> {
     // let args: Vec<Expr<T>> = args.iter().map(|arg| z3_to_expr::<T>(arg)).collect::<Result<Vec<_>,_>>()?;
     let head_name = head.name();
     if &head_name == "-" {
         match args.len() {
-            1 => {
-                Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
-            }
+            1 => Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?))),
             2 => {
-                Ok(Expr::BinaryOp(BinOp::Sub, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+                Ok(Expr::BinaryOp(
+                    BinOp::Sub,
+                    Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?]),
+                ))
             }
-            _ => {
-                Err(Z3DecodeError::ArgNumMismatch("-", args.len()))
-            }
+            _ => Err(Z3DecodeError::ArgNumMismatch("-", args.len())),
         }
     } else if &head_name == "if" {
         if args.len() == 3 {
-            Ok(Expr::IfThenElse(Box::new([z3_to_expr(env, &args[0])?,
-                                          z3_to_expr(env, &args[1])?,
-                                          z3_to_expr(env, &args[2])?,
+            Ok(Expr::IfThenElse(Box::new([
+                z3_to_expr(env, &args[0])?,
+                z3_to_expr(env, &args[1])?,
+                z3_to_expr(env, &args[2])?,
             ])))
         } else {
             Err(Z3DecodeError::ArgNumMismatch("if", args.len()))
@@ -786,7 +786,7 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
     } else if &head_name == "let" {
         if args.len() == 3 {
             let var: Expr<T> = z3_to_expr(env, &args[0])?;
-            let e    = z3_to_expr(env, &args[1])?;
+            let e = z3_to_expr(env, &args[1])?;
             let body = z3_to_expr(env, &args[2])?;
             if let Expr::Var(v) = var {
                 Ok(Expr::Let(v, Box::new([e, body])))
@@ -797,9 +797,17 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
             Err(Z3DecodeError::ArgNumMismatch("let", args.len()))
         }
     } else if &head_name == "and" {
-        Ok(Expr::And(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+        Ok(Expr::And(
+            args.iter()
+                .map(|arg| z3_to_expr::<T>(env, arg))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))
     } else if &head_name == "or" {
-        Ok(Expr::Or(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
+        Ok(Expr::Or(
+            args.iter()
+                .map(|arg| z3_to_expr::<T>(env, arg))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))
     } else if &head_name == "not" {
         if args.len() == 1 {
             Ok(Expr::Not(Box::new(z3_to_expr(env, &args[0])?)))
@@ -820,21 +828,33 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
         }
     } else if let Ok(binop) = head_name.parse::<BinOp>() {
         if args.len() == 2 {
-            Ok(Expr::BinaryOp(binop, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+            Ok(Expr::BinaryOp(
+                binop,
+                Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?]),
+            ))
         } else {
             Err(Z3DecodeError::ArgNumMismatch("binop", args.len()))
         }
     } else if let Ok(binrel) = head_name.parse::<BinRel>() {
         if args.len() == 2 {
-            Ok(Expr::Atom(binrel, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+            Ok(Expr::Atom(
+                binrel,
+                Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?]),
+            ))
         } else {
             Err(Z3DecodeError::ArgNumMismatch("binrel", args.len()))
         }
     } else if let Ok(thyfunc) = head_name.parse::<ThyFunc>() {
-        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        let expr_args = args
+            .iter()
+            .map(|arg| z3_to_expr::<T>(env, arg))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), expr_args))
     } else if let Some(var) = env.rev_lookup(&head_name) {
-        let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
+        let expr_args = args
+            .iter()
+            .map(|arg| z3_to_expr::<T>(env, arg))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Expr::App(Box::new(Expr::Var(var.clone())), expr_args))
     } else {
         Err(Z3DecodeError::UnexpectedAppHead(head))

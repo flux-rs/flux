@@ -1,5 +1,7 @@
-use std::fmt::{self, Write};
-use std::str::FromStr;
+use std::{
+    fmt::{self, Write},
+    str::FromStr,
+};
 
 use itertools::Itertools;
 
@@ -422,11 +424,11 @@ impl FromStr for BinRel {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "=" =>  Ok(BinRel::Eq),
+            "=" => Ok(BinRel::Eq),
             "!=" => Ok(BinRel::Ne),
-            ">" =>  Ok(BinRel::Gt),
+            ">" => Ok(BinRel::Gt),
             ">=" => Ok(BinRel::Ge),
-            "<" =>  Ok(BinRel::Lt),
+            "<" => Ok(BinRel::Lt),
             "<=" => Ok(BinRel::Le),
             _ => Err(format!("Unexpected BinRel {}", s)),
         }

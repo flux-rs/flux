@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{hash::Hash, iter, collections::HashMap, };
+use std::{collections::HashMap, hash::Hash, iter};
 
 use fixpoint::AdtId;
 use flux_common::{
@@ -20,7 +20,7 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, EarlyReftParam, ESpan, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
+    rty::{self, ESpan, EarlyReftParam, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
@@ -757,26 +757,28 @@ where
             fixpoint::Expr::Var(fvar) => {
                 match fvar {
                     fixpoint::Var::Underscore => {
-                                        unreachable!("Underscore should not appear in exprs")
-                                    }
+                        unreachable!("Underscore should not appear in exprs")
+                    }
                     fixpoint::Var::Global(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_map_rev.get(global_var) {
                             match const_key {
                                 ConstKey::Uif(def_id) => {
                                     Ok(rty::Expr::global_func(SpecFuncKind::Uif(*def_id)))
                                 }
-                                ConstKey::RustConst(def_id) => {
-                                    Ok(rty::Expr::const_def_id(*def_id))
+                                ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
+                                ConstKey::Alias(flux_id, args) => {
+                                    unreachable!("Should be special-cased as the head of an app")
                                 }
-                                ConstKey::Alias(flux_id, args) => unreachable!("Should be special-cased as the head of an app"),
-                                ConstKey::Lambda(lambda) => {
-                                    Ok(rty::Expr::abs(lambda.clone()))
-                                }
+                                ConstKey::Lambda(lambda) => Ok(rty::Expr::abs(lambda.clone())),
                                 ConstKey::PrimOp(bin_op) => {
-                                    Ok(rty::Expr::internal_func(InternalFuncKind::Rel(bin_op.clone())))
+                                    Ok(rty::Expr::internal_func(InternalFuncKind::Rel(
+                                        bin_op.clone(),
+                                    )))
                                 }
                                 ConstKey::Cast(sort, sort1) => {
-                                    unreachable!("Should be specially handled as the head of a function app.")
+                                    unreachable!(
+                                        "Should be specially handled as the head of a function app."
+                                    )
                                 }
                             }
                         } else {
@@ -784,29 +786,29 @@ where
                         }
                     }
                     fixpoint::Var::Local(fname) => {
-                                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
-                                            Ok(rty::Expr::var(*var))
-                                        } else {
-                                            panic!("No entry in reverse map for var {:?}", fname)
-                                        }
-                                    }
+                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
+                            Ok(rty::Expr::var(*var))
+                        } else {
+                            panic!("No entry in reverse map for var {:?}", fname)
+                        }
+                    }
                     fixpoint::Var::DataCtor(_, _) => {
-                                        todo!()
-                                    }
+                        todo!()
+                    }
                     fixpoint::Var::TupleCtor { .. }
-                                    | fixpoint::Var::TupleProj { .. }
-                                    | fixpoint::Var::DataProj { .. }
-                                    | fixpoint::Var::UIFRel(_) => {
-                                        unreachable!(
-                                            "Trying to convert an atomic var, but reached a var that should only occur as the head of an app (and be special-cased in conversion as a result)"
-                                        )
-                                    }
-                    fixpoint::Var::Param(EarlyReftParam {index, name}) => {
-                                        Ok(rty::Expr::early_param(*index, *name))
-                                    }
+                    | fixpoint::Var::TupleProj { .. }
+                    | fixpoint::Var::DataProj { .. }
+                    | fixpoint::Var::UIFRel(_) => {
+                        unreachable!(
+                            "Trying to convert an atomic var, but reached a var that should only occur as the head of an app (and be special-cased in conversion as a result)"
+                        )
+                    }
+                    fixpoint::Var::Param(EarlyReftParam { index, name }) => {
+                        Ok(rty::Expr::early_param(*index, *name))
+                    }
                     fixpoint::Var::ConstGeneric(const_generic) => {
                         Ok(rty::Expr::const_generic(*const_generic))
-                                    }
+                    }
                 }
             }
             fixpoint::Expr::App(fhead, fargs) => {
@@ -827,7 +829,10 @@ where
                             let earg = self.fixpoint_to_expr(&fargs[0])?;
                             Ok(rty::Expr::field_proj(
                                 earg,
-                                rty::FieldProj::Adt { def_id: self.scx.adt_sorts[adt_id.as_usize()], field: *field },
+                                rty::FieldProj::Adt {
+                                    def_id: self.scx.adt_sorts[adt_id.as_usize()],
+                                    field: *field,
+                                },
                             ))
                         } else {
                             Err(FixpointParseError::ProjArityMismatch(fargs.len()))
@@ -877,24 +882,38 @@ where
                                     if fargs.len() != 2 {
                                         Err(FixpointParseError::PrimOpArityMismatch(fargs.len()))
                                     } else {
-                                        Ok(rty::Expr::prim_val(bin_op.clone(), self.fixpoint_to_expr(&fargs[0])?, self.fixpoint_to_expr(&fargs[1])?))
+                                        Ok(rty::Expr::prim_val(
+                                            bin_op.clone(),
+                                            self.fixpoint_to_expr(&fargs[0])?,
+                                            self.fixpoint_to_expr(&fargs[1])?,
+                                        ))
                                     }
                                 }
                                 ConstKey::Cast(sort1, sort2) => {
                                     if fargs.len() != 1 {
                                         Err(FixpointParseError::CastArityMismatch(fargs.len()))
                                     } else {
-                                        Ok(rty::Expr::cast(sort1.clone(), sort2.clone(), self.fixpoint_to_expr(&fargs[0])?))
+                                        Ok(rty::Expr::cast(
+                                            sort1.clone(),
+                                            sort2.clone(),
+                                            self.fixpoint_to_expr(&fargs[0])?,
+                                        ))
                                     }
                                 }
                                 ConstKey::Alias(assoc_id, generic_args) => {
-                                    let alias_reft = rty::AliasReft { assoc_id: *assoc_id, args: generic_args.clone() };
-                                    let args = fargs.iter().map(|farg| self.fixpoint_to_expr(farg)).collect::<Result<List<_>, _>>()?;
+                                    let alias_reft = rty::AliasReft {
+                                        assoc_id: *assoc_id,
+                                        args: generic_args.clone(),
+                                    };
+                                    let args = fargs
+                                        .iter()
+                                        .map(|farg| self.fixpoint_to_expr(farg))
+                                        .collect::<Result<List<_>, _>>()?;
                                     Ok(rty::Expr::alias(alias_reft, args))
                                 }
-                                ConstKey::Uif(..) |
-                                ConstKey::RustConst(..) |
-                                ConstKey::Lambda(..) => {
+                                ConstKey::Uif(..)
+                                | ConstKey::RustConst(..)
+                                | ConstKey::Lambda(..) => {
                                     // These should be treated as a normal app.
                                     self.fixpoint_app_to_expr(fhead, fargs)
                                 }
@@ -903,9 +922,7 @@ where
                             Err(FixpointParseError::NoGlobalVar(*global_var))
                         }
                     }
-                    fhead => {
-                        self.fixpoint_app_to_expr(fhead, fargs)
-                    }
+                    fhead => self.fixpoint_app_to_expr(fhead, fargs),
                 }
             }
             fixpoint::Expr::Neg(fexpr) => {
@@ -1010,7 +1027,10 @@ where
         fargs: &[fixpoint::Expr],
     ) -> Result<rty::Expr, FixpointParseError> {
         let head = self.fixpoint_to_expr(fhead)?;
-        let args = fargs.iter().map(|farg| self.fixpoint_to_expr(farg)).collect::<Result<List<_>, _>>()?;
+        let args = fargs
+            .iter()
+            .map(|farg| self.fixpoint_to_expr(farg))
+            .collect::<Result<List<_>, _>>()?;
         Ok(rty::Expr::app(head, List::empty(), args))
     }
 }
@@ -1315,7 +1335,7 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     local_var_env: LocalVarEnv,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
     const_map: ConstMap,
-    const_map_rev: HashMap<fixpoint::GlobalVar,ConstKey>,
+    const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey>,
     fun_def_map: FunDefMap,
     errors: Errors<'genv>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
@@ -1432,7 +1452,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         match internal_func {
             InternalFuncKind::Val(op) => {
                 if !sort_args.is_empty() {
-                    println!("sort_args ({:?}) is not empty for val: {:?} with args {:?}" , op, sort_args, args);
+                    println!(
+                        "sort_args ({:?}) is not empty for val: {:?} with args {:?}",
+                        op, sort_args, args
+                    );
                 }
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let args = self.exprs_to_fixpoint(args, scx)?;
@@ -1440,7 +1463,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             InternalFuncKind::Rel(op) => {
                 if !sort_args.is_empty() {
-                    println!("sort_args ({:?}) is not empty for rel: {:?} with args {:?}" , op, sort_args, args);
+                    println!(
+                        "sort_args ({:?}) is not empty for rel: {:?} with args {:?}",
+                        op, sort_args, args
+                    );
                 }
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
