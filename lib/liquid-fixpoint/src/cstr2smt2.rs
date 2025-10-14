@@ -725,26 +725,31 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
                 // SortKind::FloatingPoint => {
                 //     let fp = z3.as_float().unwrap();
                 // }
-                _ => {
-                    panic!("unexpected sort kind: {:?}", z3.sort_kind());
-                }
-            };
-            Pred::Expr(e)
+                _ => Err(Z3DecodeError::UnexpectedSortKindForNumeral(z3.sort_kind())),
+            }
+        }
+        AstKind::App if z3.is_const() => {
+            assert!(z3.num_children() == 0);
+            z3_const_to_expr(env, z3.decl())
+        }
+        AstKind::App if z3.is_app() => {
+            z3_app_to_expr(env, z3.decl(), &z3.children())
         }
         AstKind::App => {
-            println!("app");
+            unreachable!()
+        }
+        // NOTE: if we add support for quantifiers, we will want to change the
+        // return type to Pred<T>.
+        AstKind::Quantifier => {
+            Err(Z3DecodeError::ContainsQuantifier)
         }
         AstKind::Var => {
-            todo!("bound vars");
-        }
-        AstKind::Quantifier => {
-            panic!("unexpected quantifier");
+            Err(Z3DecodeError::ContainsVar)
         }
         AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
-            panic!("unexpected astkind: {:?}", z3.kind());
+            Err(Z3DecodeError::UnexpectedAstKind(z3.kind()))
         }
     }
-    // z3.children().iter().for_each(|child| z3_debug(child));
 }
 
 fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynamic>) -> Result<Expr<T>, Z3DecodeError> {
@@ -790,7 +795,7 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
         Ok(Expr::Or(args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?))
     } else if &head_name == "not" {
         if args.len() == 1 {
-            Ok(Expr::Neg(Box::new(z3_to_expr(env, &args[0])?)))
+            Ok(Expr::Not(Box::new(z3_to_expr(env, &args[0])?)))
         } else {
             Err(Z3DecodeError::ArgNumMismatch("not", args.len()))
         }
@@ -835,9 +840,9 @@ fn z3_const_to_expr<T: Types>(env: &Env<T>, head: FuncDecl) -> Result<Expr<T>, Z
     // see how they're being represented first...
     if let Some(var) = env.rev_lookup(&head_name) {
         Ok(Expr::Var(var.clone()))
-    } else if head_name == "true" {
+    } else if head_name == "true" || head_name == "and" {
         Ok(Expr::Constant(Constant::Boolean(true)))
-    } else if head_name == "false" {
+    } else if head_name == "false" || head_name == "or" {
         Ok(Expr::Constant(Constant::Boolean(false)))
     } else {
         Err(Z3DecodeError::UnexpectedConstHead(head))
