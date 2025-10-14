@@ -543,23 +543,21 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .clone()
     }
 
-    fn normalize_projection_sort(
+    fn normalize_projection_sorts<T: TypeFoldable + Clone>(
         genv: GlobalEnv,
         owner: FluxOwnerId,
-        sort: rty::Sort,
-    ) -> rty::Sort {
+        t: &T,
+    ) -> QueryResult<T> {
         let infcx = genv
             .tcx()
             .infer_ctxt()
             .with_next_trait_solver(true)
             .build(TypingMode::non_body_analysis());
-        if let Some(def_id) = owner.def_id()
-            && let def_id = genv.maybe_extern_id(def_id).resolved_id()
-            && let Ok(sort) = sort.normalize_sorts(def_id, genv, &infcx)
-        {
-            sort
+        if let Some(def_id) = owner.def_id() {
+            let def_id = genv.maybe_extern_id(def_id).resolved_id();
+            t.normalize_sorts(def_id, genv, &infcx)
         } else {
-            sort
+            Ok(t.clone())
         }
     }
 
@@ -568,12 +566,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     // Maybe we can do lazy normalization. Once we do that maybe we can also stop
     // expanding aliases in `ConvCtxt::conv_sort`.
     pub(crate) fn normalize_sorts(&mut self) -> QueryResult {
-        let genv = self.genv;
         for sort in self.node_sort.values_mut() {
-            *sort = Self::normalize_projection_sort(genv, self.owner, sort.clone());
+            *sort = Self::normalize_projection_sorts(self.genv, self.owner, sort)?;
         }
         for fsort in self.sort_of_alias_reft.values_mut() {
-            *fsort = genv.deep_normalize_weak_alias_sorts(fsort)?;
+            *fsort = Self::normalize_projection_sorts(self.genv, self.owner, fsort)?;
         }
         Ok(())
     }
