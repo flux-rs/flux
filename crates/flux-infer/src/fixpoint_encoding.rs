@@ -761,8 +761,12 @@ where
                     fixpoint::Var::Global(_, _) => {
                         todo!()
                     }
-                    fixpoint::Var::Local(_) => {
-                        todo!()
+                    fixpoint::Var::Local(fname) => {
+                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
+                            var.clone()
+                        } else {
+                            todo!("No entry in reverse map for var {:?}", fname)
+                        }
                     }
                     fixpoint::Var::DataCtor(_, _) => {
                         todo!()
@@ -1025,11 +1029,17 @@ struct LocalVarEnv {
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
     /// Layers of late bound variables
     layers: Vec<Vec<fixpoint::LocalVar>>,
+    reverse_map: UnordMap<fixpoint::LocalVar, rty::Var>,
 }
 
 impl LocalVarEnv {
     fn new() -> Self {
-        Self { local_var_gen: IndexGen::new(), fvars: Default::default(), layers: Vec::new() }
+        Self {
+            local_var_gen: IndexGen::new(),
+            fvars: Default::default(),
+            layers: Vec::new(),
+            reverse_map: Default::default(),
+        }
     }
 
     // This doesn't require to be mutable because `IndexGen` uses atomics, but we make it mutable
@@ -1040,7 +1050,8 @@ impl LocalVarEnv {
 
     fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
-        self.fvars.insert(name, fresh);
+        self.fvars.insert(name.clone(), fresh.clone());
+        self.reverse_map.insert(fresh, rty::Var::Free(name));
         fresh
     }
 
@@ -1052,6 +1063,7 @@ impl LocalVarEnv {
     fn push_layer_with_fresh_names(&mut self, count: usize) {
         let layer = (0..count).map(|_| self.fresh_name()).collect();
         self.layers.push(layer);
+        // FIXME: (ck) what to put in reverse_map here?
     }
 
     fn pop_layer(&mut self) -> Vec<fixpoint::LocalVar> {
