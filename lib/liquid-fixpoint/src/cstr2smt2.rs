@@ -699,6 +699,7 @@ pub enum Z3DecodeError {
     LetFirstArgumentNotAVar,
     UnexpectedAppHead(FuncDecl),
     UnexpectedConstHead(FuncDecl),
+    InvalidIntConstant,
 }
 
 fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
@@ -710,11 +711,17 @@ fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3De
         AstKind::Numeral => {
             match z3.sort_kind() {
                 SortKind::Int => {
-                    let int = z3.as_int().unwrap().as_i64().unwrap();
-                    if int > 0 {
-                        Ok(Expr::Constant(Constant::Numeral(int as u128)))
+                    let z3_int = z3.as_int().unwrap();
+                    if let Some(uint) = z3_int.as_u64() {
+                        Ok(Expr::Constant(Constant::Numeral(uint as u128)))
+                    } else if let Some(int) = z3_int.as_i64() {
+                        if int > 0 {
+                            Ok(Expr::Constant(Constant::Numeral(int as u128)))
+                        } else {
+                            Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                        }
                     } else {
-                        Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                        Err(Z3DecodeError::InvalidIntConstant)
                     }
                 }
                 // TODO: other sorts (it seems we don't send these to Z3 yet...)
