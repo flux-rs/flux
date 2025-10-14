@@ -909,7 +909,7 @@ where
                 }
             }
             fixpoint::Expr::Neg(fexpr) => {
-                let e = self.fixpoint_to_expr(&fexpr)?;
+                let e = self.fixpoint_to_expr(fexpr)?;
                 Ok(rty::Expr::neg(&e))
             }
             fixpoint::Expr::BinaryOp(fbinop, boxed_args) => {
@@ -924,15 +924,15 @@ where
                     fixpoint::BinOp::Mod => rty::BinOp::Mod(rty::Sort::Int),
                 };
                 let [fe1, fe2] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(&fe1)?;
-                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e1 = self.fixpoint_to_expr(fe1)?;
+                let e2 = self.fixpoint_to_expr(fe2)?;
                 Ok(rty::Expr::binary_op(binop, e1, e2))
             }
             fixpoint::Expr::IfThenElse(boxed_args) => {
                 let [fe1, fe2, fe3] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(&fe1)?;
-                let e2 = self.fixpoint_to_expr(&fe2)?;
-                let e3 = self.fixpoint_to_expr(&fe3)?;
+                let e1 = self.fixpoint_to_expr(fe1)?;
+                let e2 = self.fixpoint_to_expr(fe2)?;
+                let e3 = self.fixpoint_to_expr(fe3)?;
                 Ok(rty::Expr::ite(e1, e2, e3))
             }
             fixpoint::Expr::And(fexprs) => {
@@ -940,29 +940,29 @@ where
                     .iter()
                     .map(|fexpr| self.fixpoint_to_expr(fexpr))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(rty::Expr::and_from_iter(exprs.into_iter()))
+                Ok(rty::Expr::and_from_iter(exprs))
             }
             fixpoint::Expr::Or(fexprs) => {
                 let exprs = fexprs
                     .iter()
                     .map(|fexpr| self.fixpoint_to_expr(fexpr))
                     .collect::<Result<Vec<_>, _>>()?;
-                Ok(rty::Expr::or_from_iter(exprs.into_iter()))
+                Ok(rty::Expr::or_from_iter(exprs))
             }
             fixpoint::Expr::Not(fexpr) => {
-                let e = self.fixpoint_to_expr(&fexpr)?;
+                let e = self.fixpoint_to_expr(fexpr)?;
                 Ok(rty::Expr::not(&e))
             }
             fixpoint::Expr::Imp(boxed_args) => {
                 let [fe1, fe2] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(&fe1)?;
-                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e1 = self.fixpoint_to_expr(fe1)?;
+                let e2 = self.fixpoint_to_expr(fe2)?;
                 Ok(rty::Expr::binary_op(rty::BinOp::Imp, e1, e2))
             }
             fixpoint::Expr::Iff(boxed_args) => {
                 let [fe1, fe2] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(&fe1)?;
-                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e1 = self.fixpoint_to_expr(fe1)?;
+                let e2 = self.fixpoint_to_expr(fe2)?;
                 Ok(rty::Expr::binary_op(rty::BinOp::Iff, e1, e2))
             }
             fixpoint::Expr::Atom(fbinrel, boxed_args) => {
@@ -982,14 +982,14 @@ where
                     fixpoint::BinRel::Le => rty::BinOp::Le(rty::Sort::Int),
                 };
                 let [fe1, fe2] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(&fe1)?;
-                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e1 = self.fixpoint_to_expr(fe1)?;
+                let e2 = self.fixpoint_to_expr(fe2)?;
                 Ok(rty::Expr::binary_op(binrel, e1, e2))
             }
             fixpoint::Expr::Let(var, boxed_args) => {
                 let [fe1, fe2] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(&fe1)?;
-                let e2 = self.fixpoint_to_expr(&fe2)?;
+                let e1 = self.fixpoint_to_expr(fe1)?;
+                let e2 = self.fixpoint_to_expr(fe2)?;
                 let e2_binder =
                     todo!("Convert `var` in e2 to locally nameless var, then fill in sort");
                 Ok(rty::Expr::let_(e1, e2_binder))
@@ -1138,7 +1138,7 @@ impl LocalVarEnv {
 
     fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
-        self.fvars.insert(name.clone(), fresh.clone());
+        self.fvars.insert(name, fresh);
         self.reverse_map.insert(fresh, rty::Var::Free(name));
         fresh
     }
@@ -1432,7 +1432,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         match internal_func {
             InternalFuncKind::Val(op) => {
                 if !sort_args.is_empty() {
-                    println!("sort_args ({:?}) is not empty for val: {:?} with args {:?}" , op, sort_args, args)
+                    println!("sort_args ({:?}) is not empty for val: {:?} with args {:?}" , op, sort_args, args);
                 }
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let args = self.exprs_to_fixpoint(args, scx)?;
@@ -1440,7 +1440,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             }
             InternalFuncKind::Rel(op) => {
                 if !sort_args.is_empty() {
-                    println!("sort_args ({:?}) is not empty for rel: {:?} with args {:?}" , op, sort_args, args)
+                    println!("sort_args ({:?}) is not empty for rel: {:?} with args {:?}" , op, sort_args, args);
                 }
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
@@ -1900,7 +1900,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
                 let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
+                self.const_map_rev.insert(global_name, key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
@@ -1922,7 +1922,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let sort = scx.func_sort_to_fixpoint(&Self::prim_op_sort(op, span));
                 let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
+                self.const_map_rev.insert(global_name, key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
@@ -1943,7 +1943,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
                 let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
+                self.const_map_rev.insert(global_name, key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, Some(def_id.name())),
                     sort,
@@ -1964,7 +1964,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
+                self.const_map_rev.insert(global_name, key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort: scx.sort_to_fixpoint(&sort),
@@ -1993,7 +1993,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let comment = Some(format!("alias reft: {alias_reft:?}"));
                 let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
+                self.const_map_rev.insert(global_name, key);
                 let name = fixpoint::Var::Global(global_name, None);
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
@@ -2015,7 +2015,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let comment = Some(format!("lambda: {lam:?}"));
                 let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
+                self.const_map_rev.insert(global_name, key);
                 let name = fixpoint::Var::Global(global_name, None);
                 let sort = scx.func_sort_to_fixpoint(&lam.fsort().to_poly());
                 fixpoint::ConstDecl { name, comment, sort }
