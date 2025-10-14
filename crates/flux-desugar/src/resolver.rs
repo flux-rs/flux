@@ -704,14 +704,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         f: impl FnOnce(&mut ItemResolver),
     ) -> Result {
-        let mut item_resolver = ItemResolver::new(resolver)?;
+        let mut item_resolver = ItemResolver::new(resolver);
         f(&mut item_resolver);
         item_resolver.errors.into_result()
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Result<Self> {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
         let errors = Errors::new(resolver.genv.sess());
-        Ok(Self { resolver, errors })
+        Self { resolver, errors }
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {
