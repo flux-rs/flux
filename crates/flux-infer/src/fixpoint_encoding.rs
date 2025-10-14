@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{hash::Hash, iter, collections::{HashMap, HashSet}, };
+use std::{hash::Hash, iter, collections::HashMap, };
 
 use fixpoint::AdtId;
 use flux_common::{
@@ -20,7 +20,7 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
+    rty::{self, EarlyReftParam, ESpan, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
