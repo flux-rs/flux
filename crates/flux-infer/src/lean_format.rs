@@ -249,12 +249,15 @@ impl<'genv, 'tcx> fmt::Display for LeanEncoder<'genv, 'tcx> {
                 writeln!(f, "{}", LeanConstDef(const_def))?;
             }
         }
-        writeln!(f, "-- THEOREM --")?;
-        writeln!(
-            f,
-            "def {} : Prop := {}",
-            self.theorem_name().replace(".", "_"),
-            LeanConstraint(self.constraint())
-        )
+        if let Some(constraint) = self.constraint() {
+            writeln!(f, "-- THEOREM --")?;
+            writeln!(
+                f,
+                "def {} : Prop := {}",
+                self.theorem_name().replace(".", "_"),
+                LeanConstraint(constraint)
+            )?;
+        }
+        Ok(())
     }
 }

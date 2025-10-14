@@ -17,12 +17,12 @@ use crate::fixpoint_encoding::fixpoint::{BinRel, ConstDecl, Constraint, Expr, Fu
 
 pub(crate) struct ConstDef(pub ConstDecl, pub Option<Expr>);
 
-pub(crate) struct LeanEncoder<'genv, 'tcx> {
+pub struct LeanEncoder<'genv, 'tcx> {
     def_id: MaybeExternId,
     genv: GlobalEnv<'genv, 'tcx>,
     fun_defs: Vec<FunDef>,
     constants: Vec<ConstDef>,
-    constraint: Constraint,
+    constraint: Option<Constraint>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
@@ -31,9 +31,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         fun_defs: Vec<FunDef>,
         constants: Vec<ConstDecl>,
-        constraint: Constraint,
+        constraint: Option<Constraint>,
     ) -> Self {
-        let constants = Self::extract_const_defs(constants, &constraint);
+        let constants = Self::extract_const_defs(constants, constraint.as_ref());
         Self { def_id, genv, fun_defs, constants, constraint }
     }
 
@@ -41,8 +41,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self.fun_defs
     }
 
-    pub fn constraint(&self) -> &Constraint {
-        &self.constraint
+    pub fn constraint(&self) -> Option<&Constraint> {
+        self.constraint.as_ref()
     }
 
     pub fn constants(&self) -> &[ConstDef] {
@@ -61,7 +61,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         format!("{}_proof", self.theorem_name()).to_string()
     }
 
-    fn generate_lake_project_if_not_present(
+    pub fn generate_lake_project_if_not_present(
         &self,
         lean_path: &path::Path,
         project_name: &str,
@@ -79,7 +79,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
     }
 
-    fn generate_def_file(
+    pub fn generate_def_file(
         &self,
         lean_path: &path::Path,
         project_name: &str,
@@ -185,7 +185,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .collect::<String>()
     }
 
-    fn extract_const_defs(const_decls: Vec<ConstDecl>, constraint: &Constraint) -> Vec<ConstDef> {
+    fn extract_const_defs(const_decls: Vec<ConstDecl>, constraint: Option<&Constraint>) -> Vec<ConstDef> {
         const_decls
             .into_iter()
             .map(|const_decl| {
@@ -200,8 +200,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .collect_vec()
     }
 
-    fn extract_const_def(const_decl: &ConstDecl, constraint: &Constraint, acc: &mut Vec<Expr>) {
-        match constraint {
+    fn extract_const_def(const_decl: &ConstDecl, constraint: Option<&Constraint>, acc: &mut Vec<Expr>) {
+        if let Some(constraint) = constraint {
+            match constraint {
             Constraint::ForAll(bind, inner) => {
                 if let Pred::Expr(Expr::Atom(BinRel::Eq, equals)) = &bind.pred {
                     if let Expr::Var(vl) = &equals[0]
@@ -214,15 +215,16 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                     {
                         acc.push(equals[0].clone());
                     }
-                    Self::extract_const_def(const_decl, inner.as_ref(), acc);
+                    Self::extract_const_def(const_decl, Some(inner.as_ref()), acc);
                 }
             }
             Constraint::Conj(conjuncts) => {
                 conjuncts
                     .iter()
-                    .for_each(|constraint| Self::extract_const_def(const_decl, constraint, acc));
+                    .for_each(|constraint| Self::extract_const_def(const_decl, Some(&constraint), acc));
             }
             Constraint::Pred(..) => {}
+        }
         }
     }
 }

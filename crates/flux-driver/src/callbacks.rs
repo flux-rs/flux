@@ -3,15 +3,10 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::fixpoint_encoding::FixQueryCache;
+use flux_infer::{fixpoint_encoding::{FixQueryCache, FixpointCtxt}, lean_encoding::{self, LeanEncoder}};
 use flux_metadata::CStore;
 use flux_middle::{
-    Specs,
-    def_id::MaybeExternId,
-    fhir,
-    global_env::GlobalEnv,
-    queries::{Providers, QueryResult},
-    timings,
+    def_id::MaybeExternId, fhir::{self, FluxItem}, global_env::GlobalEnv, queries::{Providers, QueryResult}, timings, Specs
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -148,7 +143,36 @@ struct CrateChecker<'genv, 'tcx> {
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        CrateChecker { genv, cache: QueryCache::load() }
+        let checker = CrateChecker { genv, cache: QueryCache::load() };
+        checker.encode_flux_items_in_lean();
+        checker
+    }
+
+    fn encode_flux_items_in_lean(&self) {
+        let mut fcx: FixpointCtxt<'_, '_, i32> = FixpointCtxt::new(self.genv, None, None);
+        let mut fun_defs = vec![];
+        for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
+            match flux_item {
+                FluxItem::Func(spec_func) => {
+                    fun_defs.push(
+                        fcx.to_fun_def(
+                            spec_func.def_id.to_def_id()
+                        ).unwrap()
+                    );
+                }
+                FluxItem::PrimOpProp(_) | FluxItem::Qualifier(_) => {}
+            }
+        }
+        let encoder = lean_encoding::LeanEncoder::new(
+            MaybeExternId::Local(self.genv.fhir_iter_flux_items().next().unwrap().0.parent()), 
+            self.genv,
+            fun_defs,
+            vec![],
+            None
+        );
+        let lean_path = std::path::Path::new("./");
+        let project_name = "lean_proofs";
+        encoder.generate_def_file(lean_path, project_name);
     }
 
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
