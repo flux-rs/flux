@@ -5,15 +5,13 @@ use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::{
     fixpoint_encoding::fixpoint::{
-        BinOp, BinRel, ConstDecl, Constant, Constraint, Expr, FunDef, Pred, Sort, Var,
+        BinOp, BinRel, Constant, Constraint, Expr, FunDef, Pred, Sort, Var,
     },
-    lean_encoding::{ConstDef, LeanEncoder},
 };
 
 struct LeanSort<'a>(&'a Sort);
-struct LeanFunDef<'a>(&'a FunDef);
-struct LeanConstDef<'a>(&'a ConstDef);
-struct LeanConstraint<'a>(&'a Constraint);
+pub struct LeanFunDef<'a>(pub &'a FunDef);
+pub struct LeanConstraint<'a>(pub &'a Constraint);
 struct LeanPred<'a>(&'a Pred);
 struct LeanExpr<'a>(&'a Expr);
 struct LeanVar<'a>(&'a Var);
@@ -59,17 +57,6 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
 impl<'a> fmt::Display for LeanVar<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.display().to_string().replace("$", "_"))
-    }
-}
-
-impl<'a> fmt::Display for LeanConstDef<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let LeanConstDef(ConstDef(ConstDecl { name, sort, comment: _ }, def)) = self;
-        if let Some(def) = def {
-            write!(f, "def {} : {} := {}", LeanVar(name), LeanSort(sort), LeanExpr(def))
-        } else {
-            write!(f, "axiom {} : {}", LeanVar(name), LeanSort(sort))
-        }
     }
 }
 
@@ -231,33 +218,5 @@ impl<'a> fmt::Display for LeanConstraint<'a> {
                 write!(f, "{}", LeanPred(pred))
             }
         }
-    }
-}
-
-impl<'genv, 'tcx> fmt::Display for LeanEncoder<'genv, 'tcx> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "-- GENERATED; DO NOT EDIT --")?;
-        if !self.fun_defs().is_empty() {
-            writeln!(f, "-- FUNCTIONS --")?;
-            for fun_def in self.fun_defs() {
-                writeln!(f, "{}", LeanFunDef(fun_def))?;
-            }
-        }
-        if !self.constants().is_empty() {
-            writeln!(f, "-- Constants --")?;
-            for const_def in self.constants() {
-                writeln!(f, "{}", LeanConstDef(const_def))?;
-            }
-        }
-        if let Some(constraint) = self.constraint() {
-            writeln!(f, "-- THEOREM --")?;
-            writeln!(
-                f,
-                "def {} : Prop := {}",
-                self.theorem_name().replace(".", "_"),
-                LeanConstraint(constraint)
-            )?;
-        }
-        Ok(())
     }
 }

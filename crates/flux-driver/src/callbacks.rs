@@ -3,7 +3,7 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::{fixpoint_encoding::{FixQueryCache, FixpointCtxt}, lean_encoding::{self, LeanEncoder}};
+use flux_infer::{fixpoint_encoding::{FixQueryCache, FixpointCtxt}, lean_encoding::LeanEncoder};
 use flux_metadata::CStore;
 use flux_middle::{
     def_id::MaybeExternId, fhir::{self, FluxItem}, global_env::GlobalEnv, queries::{Providers, QueryResult}, timings, Specs
@@ -151,7 +151,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn encode_flux_items_in_lean(&self) {
         let mut fcx: FixpointCtxt<'_, '_, i32> = FixpointCtxt::new(self.genv, None, None);
         let mut fun_defs = vec![];
-        for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
+        for (_, flux_item) in self.genv.fhir_iter_flux_items() {
             match flux_item {
                 FluxItem::Func(spec_func) => {
                     fun_defs.push(
@@ -163,16 +163,15 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 FluxItem::PrimOpProp(_) | FluxItem::Qualifier(_) => {}
             }
         }
-        let encoder = lean_encoding::LeanEncoder::new(
-            MaybeExternId::Local(self.genv.fhir_iter_flux_items().next().unwrap().0.parent()), 
+        if !fun_defs.is_empty() {
+            let encoder = LeanEncoder::new(
             self.genv,
-            fun_defs,
-            vec![],
-            None
-        );
-        let lean_path = std::path::Path::new("./");
-        let project_name = "lean_proofs";
-        encoder.generate_def_file(lean_path, project_name);
+            std::path::Path::new("./"),
+            "lean_proofs".to_string(),
+            "Defs".to_string()
+            );
+            encoder.encode_defs(&fun_defs).unwrap();
+        }
     }
 
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {

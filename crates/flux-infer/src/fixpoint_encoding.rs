@@ -14,13 +14,7 @@ use flux_common::{
 use flux_config::{self as config};
 use flux_errors::Errors;
 use flux_middle::{
-    FixpointQueryKind,
-    def_id::{FluxDefId, MaybeExternId},
-    def_id_to_string,
-    global_env::GlobalEnv,
-    queries::QueryResult,
-    rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
-    timings::{self, TimingKind},
+    def_id::{FluxDefId, MaybeExternId}, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx}, timings::{self, TimingKind}, FixpointQueryKind
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -537,7 +531,7 @@ where
     }
     
     pub fn generate_and_check_lean_lemmas(
-        mut self,
+        self,
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
@@ -545,20 +539,16 @@ where
                 tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
             }
 
-            let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-
-            let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
-
-            let mut constants = self.ecx.const_map.into_values().collect_vec();
-            constants.extend(define_constants);
-
             self.ecx.errors.into_result()?;
 
-            let lean_encoder =
-                LeanEncoder::new(def_id, self.genv, vec![], constants, Some(constraint));
-            let lean_path = std::path::Path::new("./");
-            let project_name = "lean_proofs";
-            lean_encoder.check_proof(lean_path, project_name)
+            let lean_encoder = LeanEncoder::new(
+                self.genv,
+                std::path::Path::new("./"),
+                "lean_proofs".to_string(),
+                "Defs".to_string()
+            );
+            lean_encoder.encode_constraint(def_id, &constraint).map_err(|_| query_bug!("could not encode constraint"))?;
+            lean_encoder.check_proof(def_id)
         } else {
             Ok(())
         }
@@ -1072,7 +1062,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .build(TypingMode::non_body_analysis()),
         };
         for (def_id, item) in genv.fhir_iter_flux_items() {
-            if let flux_middle::fhir::FluxItem::Func(spec_func) = item {
+            if let flux_middle::fhir::FluxItem::Func(_spec_func) = item {
                 ecx.declare_fun(def_id.to_def_id());
             }
         }
