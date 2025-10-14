@@ -405,7 +405,8 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
     fn for_flux_item(resolver: &'a mut CrateResolver<'genv, 'tcx>, item: &FluxItem) -> Self {
         let sort_params = match item {
             FluxItem::FuncDef(defn) => &defn.sort_vars[..],
-            FluxItem::Qualifier(_) | FluxItem::SortDecl(_) | FluxItem::PrimOpProp(_) => &[],
+            FluxItem::SortDecl(sort_decl) => &sort_decl.sort_vars[..],
+            FluxItem::Qualifier(_) | FluxItem::PrimOpProp(_) => &[],
         };
         Self::new(resolver, sort_params.iter().map(|ident| ident.name).collect())
     }
@@ -615,7 +616,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
         self.resolver
             .sort_decls
             .get(&segment.name)
-            .map(|decl| fhir::SortRes::User { name: decl.name })
+            .map(|decl| fhir::SortRes::User(*decl))
     }
 
     fn try_resolve_prim_sort(&self, path: &surface::SortPath) -> Option<fhir::SortRes> {

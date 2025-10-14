@@ -191,6 +191,7 @@ pub struct Providers {
         fn(GlobalEnv, FluxId<MaybeExternId>) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>>,
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
+    pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
 }
 
 macro_rules! empty_query {
@@ -227,6 +228,7 @@ impl Default for Providers {
             sort_of_assoc_reft: |_, _| empty_query!(),
             item_bounds: |_, _| empty_query!(),
             constant_info: |_, _| empty_query!(),
+            sort_decl_param_count: |_, _| empty_query!(),
         }
     }
 }
@@ -265,6 +267,7 @@ pub struct Queries<'genv, 'tcx> {
     variants_of: Cache<DefId, QueryResult<rty::Opaqueness<rty::EarlyBinder<rty::PolyVariants>>>>,
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
+    sort_decl_param_count: Cache<FluxDefId, usize>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -302,6 +305,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             variants_of: Default::default(),
             fn_sig: Default::default(),
             lower_late_bound_vars: Default::default(),
+            sort_decl_param_count: Default::default(),
         }
     }
 
@@ -518,6 +522,23 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     let variants = IndexVec::from([rty::AdtSortVariant::new(vec![])]);
                     Ok(rty::AdtSortDef::new(def_id, vec![], variants, false, true))
                 },
+            )
+        })
+    }
+
+    pub(crate) fn sort_decl_param_count(&self, genv: GlobalEnv, def_id: FluxDefId) -> usize {
+        run_with_cache(&self.sort_decl_param_count, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                |def_id| {
+                    (self.providers.sort_decl_param_count)(genv, def_id)
+                },
+                |def_id| genv.cstore().sort_decl_param_count(def_id),
+                |_| {
+                    bug!(
+                        "cannot generate default param count for sort declaration, it must be defined somewhere"
+                    )
+                }
             )
         })
     }

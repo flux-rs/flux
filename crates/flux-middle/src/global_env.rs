@@ -243,6 +243,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .adt_sort_def_of(self, def_id.into_query_param())
     }
 
+    pub fn sort_decl_param_count(self, def_id: impl IntoQueryParam<FluxDefId>) -> usize {
+        self.inner
+            .queries
+            .sort_decl_param_count(self, def_id.into_query_param())
+    }
+
     pub fn check_wf(self, def_id: LocalDefId) -> QueryResult<Rc<rty::WfckResults>> {
         self.inner.queries.check_wf(self, def_id)
     }
@@ -565,6 +571,12 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
             .items
             .iter()
             .map(|(id, item)| (*id, *item))
+    }
+
+    pub fn fhir_sort_decl(&self, def_id: FluxLocalDefId) -> Option<&fhir::SortDecl> {
+        self.fhir_crate().items.get(&def_id).and_then(|item| {
+            if let fhir::FluxItem::SortDecl(sort_decl) = item { Some(*sort_decl) } else { None }
+        })
     }
 
     pub fn fhir_spec_func_body(

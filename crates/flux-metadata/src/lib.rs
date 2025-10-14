@@ -175,6 +175,7 @@ pub struct Tables<K: Eq + Hash> {
     normalized_defns: Rc<rty::NormalizedDefns>,
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
     func_span: UnordMap<FluxId<K>, Span>,
+    sort_decl_param_count: UnordMap<FluxId<K>, usize>,
 }
 
 impl CStore {
@@ -315,6 +316,10 @@ impl CrateStore for CStore {
     fn func_span(&self, key: FluxDefId) -> Option<Span> {
         get!(self, func_span, key)
     }
+
+    fn sort_decl_param_count(&self, key: FluxDefId) -> Option<usize> {
+        get!(self, sort_decl_param_count, key)
+    }
 }
 
 impl CrateMetadata {
@@ -346,13 +351,22 @@ fn encode_flux_defs(genv: GlobalEnv, tables: &mut Tables<DefIndex>) {
     tables.normalized_defns = genv.normalized_defns(LOCAL_CRATE);
 
     for (def_id, item) in genv.fhir_iter_flux_items() {
-        let fhir::FluxItem::Func(spec_func) = item else { continue };
-        tables
-            .func_sort
-            .insert(def_id.local_def_index(), genv.func_sort(def_id));
-        tables
-            .func_span
-            .insert(def_id.local_def_index(), spec_func.ident_span);
+        match item {
+            fhir::FluxItem::Func(spec_func) => {
+                tables
+                    .func_sort
+                    .insert(def_id.local_def_index(), genv.func_sort(def_id));
+                tables
+                    .func_span
+                    .insert(def_id.local_def_index(), spec_func.ident_span);
+            }
+            fhir::FluxItem::SortDecl(_sort_decl) => {
+                tables
+                    .sort_decl_param_count
+                    .insert(def_id.local_def_index(), genv.sort_decl_param_count(def_id));
+            }
+            fhir::FluxItem::PrimOpProp(_) | fhir::FluxItem::Qualifier(_) => {}
+        }
     }
 }
 

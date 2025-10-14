@@ -34,6 +34,7 @@ pub trait CrateStore {
     fn normalized_defns(&self, krate: CrateNum) -> Rc<rty::NormalizedDefns>;
     fn func_sort(&self, def_id: FluxDefId) -> Option<rty::PolyFuncSort>;
     fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;
+    fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;

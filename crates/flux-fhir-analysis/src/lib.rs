@@ -71,6 +71,11 @@ pub fn provide(providers: &mut Providers) {
     providers.assoc_refinement_body = assoc_refinement_body;
     providers.default_assoc_refinement_body = default_assoc_refinement_body;
     providers.item_bounds = item_bounds;
+    providers.sort_decl_param_count = sort_decl_param_count;
+}
+
+fn sort_decl_param_count(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> usize {
+    genv.fhir_sort_decl(def_id.local_id()).unwrap().params
 }
 
 fn adt_sort_def_of(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::AdtSortDef> {
