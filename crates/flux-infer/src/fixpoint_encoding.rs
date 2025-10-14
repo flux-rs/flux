@@ -1191,8 +1191,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let e = self.expr_to_fixpoint(e, scx)?;
                 fixpoint::Expr::IsCtor(ctor, Box::new(e))
             }
-            rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), _) => {
-                fixpoint::Expr::Var(self.variant_to_fixpoint(scx, did, *idx))
+            rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), args) => {
+                let ctor = self.variant_to_fixpoint(scx, did, *idx);
+                let args = self.exprs_to_fixpoint(args, scx)?;
+                fixpoint::Expr::App(Box::new(fixpoint::Expr::Var(ctor)), args)
             }
             rty::ExprKind::ConstDefId(did) => {
                 let var = self.define_const_for_rust_const(*did, scx);
