@@ -1007,7 +1007,7 @@ where
     fn fixpoint_app_to_expr(
         &self,
         fhead: &fixpoint::Expr,
-        fargs: &Vec<fixpoint::Expr>,
+        fargs: &[fixpoint::Expr],
     ) -> Result<rty::Expr, FixpointParseError> {
         let head = self.fixpoint_to_expr(fhead)?;
         let args = fargs.iter().map(|farg| self.fixpoint_to_expr(farg)).collect::<Result<List<_>, _>>()?;
