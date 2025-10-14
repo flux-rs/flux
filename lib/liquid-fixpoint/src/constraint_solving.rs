@@ -415,17 +415,22 @@ impl<T: Types> Expr<T> {
                     *v = v_to.clone();
                 }
             }
-            Expr::Constant(_) => {}
-            Expr::BinaryOp(_, operands) => {
-                operands[0].substitute_in_place(v_from, v_to);
-                operands[1].substitute_in_place(v_from, v_to);
+            Expr::Iff(exprs)
+            | Expr::Imp(exprs)
+            | Expr::BinaryOp(_, exprs)
+            | Expr::Atom(_, exprs) => {
+                let [e1, e2] = &mut **exprs;
+                e1.substitute_in_place(v_from, v_to);
+                e2.substitute_in_place(v_from, v_to);
             }
-            Expr::Atom(_, operands) => {
-                operands[0].substitute_in_place(v_from, v_to);
-                operands[1].substitute_in_place(v_from, v_to);
+            Expr::Let(_, exprs) => {
+                // We are assuming there's no shadowing here.
+                let [e1, e2] = &mut **exprs;
+                e1.substitute_in_place(v_from, v_to);
+                e2.substitute_in_place(v_from, v_to);
             }
-            Expr::And(conjuncts) => {
-                conjuncts
+            Expr::And(exprs) | Expr::Or(exprs) => {
+                exprs
                     .iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
@@ -434,7 +439,16 @@ impl<T: Types> Expr<T> {
                 args.iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
-            _ => panic!("Not supported yet; implement as needed: `{self}`"),
+            Expr::IsCtor(_, e) | Expr::Neg(e) | Expr::Not(e) => {
+                e.substitute_in_place(v_from, v_to);
+            }
+            Expr::IfThenElse(exprs) => {
+                let [p, e1, e2] = &mut **exprs;
+                p.substitute_in_place(v_from, v_to);
+                e1.substitute_in_place(v_from, v_to);
+                e2.substitute_in_place(v_from, v_to);
+            }
+            Expr::Constant(_) | Expr::ThyFunc(_) => {}
         }
     }
 
