@@ -134,7 +134,9 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
             .enumerate()
         {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
-            let sort = param.sort.deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
+            let sort = param
+                .sort
+                .deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
 
             let var =
                 Var::EarlyParam(rty::EarlyReftParam { index: index as u32, name: param.name });
@@ -152,7 +154,9 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
             &mut |param, index| {
                 let index = (index - offset) as u32;
                 let param = param.instantiate_identity();
-                let sort = param.sort.deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
+                let sort = param
+                    .sort
+                    .deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
 
                 let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
                 Ok((var, sort))
