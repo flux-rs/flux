@@ -134,7 +134,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
             .enumerate()
         {
             let param = param.instantiate(self.genv.tcx(), args, &[]);
-            let sort = param.sort.normalize_sorts(def_id, self.genv, self.infcx)?;
+            let sort = param.sort.deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
 
             let var =
                 Var::EarlyParam(rty::EarlyReftParam { index: index as u32, name: param.name });
@@ -152,7 +152,7 @@ impl<'genv, 'tcx> InferCtxtRootBuilder<'_, 'genv, 'tcx> {
             &mut |param, index| {
                 let index = (index - offset) as u32;
                 let param = param.instantiate_identity();
-                let sort = param.sort.normalize_sorts(def_id, self.genv, self.infcx)?;
+                let sort = param.sort.deeply_normalize_sorts(def_id, self.genv, self.infcx)?;
 
                 let var = Var::EarlyParam(rty::EarlyReftParam { index, name: param.name });
                 Ok((var, sort))
@@ -531,8 +531,8 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
             if let rty::ClauseKind::Projection(projection_pred) = clause.kind_skipping_binder() {
                 let impl_elem = BaseTy::projection(projection_pred.projection_ty)
                     .to_ty()
-                    .normalize_projections(self)?;
-                let term = projection_pred.term.to_ty().normalize_projections(self)?;
+                    .deeply_normalize(self)?;
+                let term = projection_pred.term.to_ty().deeply_normalize(self)?;
 
                 // TODO: does this really need to be invariant? https://github.com/flux-rs/flux/pull/478#issuecomment-1654035374
                 self.subtyping(&impl_elem, &term, reason)?;
@@ -1094,7 +1094,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                     let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
                         .to_ty()
-                        .normalize_projections(&mut infcx.at(self.span))?;
+                        .deeply_normalize(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }

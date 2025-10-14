@@ -543,7 +543,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .clone()
     }
 
-    fn normalize_projection_sorts<T: TypeFoldable + Clone>(
+    fn deeply_normalize_sorts<T: TypeFoldable + Clone>(
         genv: GlobalEnv,
         owner: FluxOwnerId,
         t: &T,
@@ -555,7 +555,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .build(TypingMode::non_body_analysis());
         if let Some(def_id) = owner.def_id() {
             let def_id = genv.maybe_extern_id(def_id).resolved_id();
-            t.normalize_sorts(def_id, genv, &infcx)
+            t.deeply_normalize_sorts(def_id, genv, &infcx)
         } else {
             Ok(t.clone())
         }
@@ -567,10 +567,10 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     // expanding aliases in `ConvCtxt::conv_sort`.
     pub(crate) fn normalize_sorts(&mut self) -> QueryResult {
         for sort in self.node_sort.values_mut() {
-            *sort = Self::normalize_projection_sorts(self.genv, self.owner, sort)?;
+            *sort = Self::deeply_normalize_sorts(self.genv, self.owner, sort)?;
         }
         for fsort in self.sort_of_alias_reft.values_mut() {
-            *fsort = Self::normalize_projection_sorts(self.genv, self.owner, fsort)?;
+            *fsort = Self::deeply_normalize_sorts(self.genv, self.owner, fsort)?;
         }
         Ok(())
     }
