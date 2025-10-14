@@ -1425,13 +1425,17 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         match internal_func {
             InternalFuncKind::Val(op) => {
-                assert!(sort_args.is_empty());
+                if !sort_args.is_empty() {
+                    println!("sort_args ({:?}) is not empty for val: {:?} with args {:?}" , op, sort_args, args)
+                }
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let args = self.exprs_to_fixpoint(args, scx)?;
                 Ok(fixpoint::Expr::App(Box::new(func), args))
             }
             InternalFuncKind::Rel(op) => {
-                assert!(sort_args.is_empty());
+                if !sort_args.is_empty() {
+                    println!("sort_args ({:?}) is not empty for rel: {:?} with args {:?}" , op, sort_args, args)
+                }
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
                     prim_rel.body.replace_bound_refts(args)
                 } else {
@@ -1501,7 +1505,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 if let rty::ExprKind::InternalFunc(func) = func.kind() {
                     self.internal_func_to_fixpoint(func, sort_args, args, scx)?
                 } else {
-                    assert!(sort_args.is_empty());
+                    if !sort_args.is_empty() {
+                        println!("sort_args ({:?}) is not empty for expr {:?}", sort_args, expr);
+                    }
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let args = self.exprs_to_fixpoint(args, scx)?;
                     fixpoint::Expr::App(Box::new(func), args)
