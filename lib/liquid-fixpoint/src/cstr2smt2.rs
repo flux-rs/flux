@@ -27,18 +27,21 @@ impl From<ast::Dynamic> for Binding {
 pub(crate) struct Env<T: Types> {
     bindings: HashMap<T::Var, Vec<Binding>>,
     data_types: HashMap<T::Sort, z3::Sort>,
+    rev_bindings: HashMap<String, T::Var>,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: HashMap::new(), data_types: HashMap::new() }
+        Self { bindings: HashMap::new(), data_types: HashMap::new(), rev_bindings: HashMap::new() }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
         self.bindings
-            .entry(name)
+            .entry(name.clone())
             .or_default()
             .push(Into::<Binding>::into(value));
+        self.rev_bindings
+            .insert(name.display().to_string(), name.clone());
     }
 
     pub(crate) fn insert_data_decl(&mut self, name: T::Sort, datatype: z3::Sort) {
@@ -71,6 +74,10 @@ impl<T: Types> Env<T> {
 
     fn lookup(&self, name: &T::Var) -> Option<&Binding> {
         self.bindings.get(name).and_then(|stack| stack.last())
+    }
+
+    fn rev_lookup(&self, name: &str) -> Option<&T::Var> {
+        self.rev_bindings.get(name)
     }
 
     fn datatype_lookup(&self, name: &T::Sort) -> Option<&z3::Sort> {
@@ -669,4 +676,98 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     };
     solver.pop(1);
     res
+}
+
+fn z3_debug(z3: &ast::Dynamic) {
+    println!("node: {:?}", z3);
+    println!("node sort: {:?}", z3.get_sort());
+    println!("node funcdecl: {:?}", z3.safe_decl());
+    println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
+    match z3.kind() {
+        AstKind::Numeral => {
+            println!("numeral");
+        }
+        AstKind::App => {
+            println!("app");
+        }
+        AstKind::Var => {
+            println!("var");
+        }
+        AstKind::Quantifier => {
+            println!("quantifier");
+        }
+        AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
+            println!("func decl; unknown; sort");
+        }
+    }
+    z3.children().iter().for_each(|child| z3_debug(child));
+}
+
+#[derive(Debug)]
+pub enum Z3DecodeError {
+    /// FIXME: (ck) For some reason Z3 dies when doing ast queries on quantifiers (at
+    /// least in testing the formuals we send to it --- it's possible I've done
+    /// something wrong). We don't want quantifiers in our output anyway, so it's fine,
+    /// but we ought to be able to properly deserialize output from Z3.
+    ContainsQuantifier,
+    /// See [`Z3DecodeError::ContainsQuantifier`]. Pretty sure only quantifiers
+    /// introduce Vars.
+    ContainsVar,
+    /// Right now we only expect to see Ints for numerals (can and probably
+    /// should change in the future).
+    UnexpectedSortKindForNumeral(SortKind),
+    UnexpectedAstKind(AstKind),
+    /// We use a string to identify the operator because there are some
+    /// expressions like [`Expr::Neg`] that don't actually identify their
+    /// operator.
+    ArgNumMismatch(&'static str, usize),
+    LetFirstArgumentNotAVar,
+    UnexpectedAppHead(FuncDecl),
+    UnexpectedConstHead(FuncDecl),
+}
+
+fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
+    // println!("node: {:?}", z3);
+    // println!("node sort: {:?}", z3.get_sort());
+    // println!("node funcdecl: {:?}", z3.safe_decl());
+    // println!("node is (app, const): ({}, {})", z3.is_app(), z3.is_const());
+    match z3.kind() {
+        AstKind::Numeral => {
+            match z3.sort_kind() {
+                SortKind::Int => {
+                    let int = z3.as_int().unwrap().as_i64().unwrap();
+                    if int > 0 {
+                        Ok(Expr::Constant(Constant::Numeral(int as u128)))
+                    } else {
+                        Ok(Expr::Neg(Box::new(Expr::Constant(Constant::Numeral((-1 * int) as u128)))))
+                    }
+                }
+                // TODO: other sorts (it seems we don't send these to Z3 yet...)
+                // SortKind::Real => {
+                //     let real = z3.as_real().unwrap();
+                //     Expr::
+                // }
+                // SortKind::FloatingPoint => {
+                //     let fp = z3.as_float().unwrap();
+                // }
+                _ => {
+                    panic!("unexpected sort kind: {:?}", z3.sort_kind());
+                }
+            };
+            Pred::Expr(e)
+        }
+        AstKind::App => {
+            println!("app");
+        }
+        AstKind::Var => {
+            todo!("bound vars");
+        }
+        AstKind::Quantifier => {
+            panic!("unexpected quantifier");
+        }
+        AstKind::FuncDecl | AstKind::Unknown | AstKind::Sort => {
+            panic!("unexpected astkind: {:?}", z3.kind());
+        }
+    }
+    // z3.children().iter().for_each(|child| z3_debug(child));
 }
