@@ -1,5 +1,5 @@
 use core::panic;
-use std::{collections::HashMap, iter, vec};
+use std::{collections::HashMap, iter, str::FromStr, vec};
 
 use itertools::Itertools as _;
 use z3::{
@@ -80,11 +80,15 @@ impl<T: Types> Env<T> {
 
 fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
     match cnst {
-        Constant::Numeral(num) => ast::Int::from_u64(*num as u64).into(),
+        Constant::Numeral(num) => ast::Int::from_str(&num.to_string()).unwrap().into(),
         Constant::Boolean(b) => ast::Bool::from_bool(*b).into(),
         Constant::String(strconst) => ast::String::from(strconst.display().to_string()).into(),
         Constant::BitVec(bv, size) => ast::BV::from_u64(*bv as u64, *size).into(),
-        _ => panic!("handling for this kind of const isn't implemented yet: `{cnst:?}`"),
+        Constant::Real(num) => {
+            ast::Real::from_rational_str(&num.to_string(), "1")
+                .unwrap()
+                .into()
+        }
     }
 }
 

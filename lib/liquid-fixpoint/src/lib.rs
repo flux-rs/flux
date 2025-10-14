@@ -57,7 +57,6 @@ pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
-    type Decimal: FixpointFmt + Hash + Clone + Debug;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
 }
@@ -115,9 +114,7 @@ macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
         type Var = $var:ty;
-        type Decimal = $real:ty;
         type String = $str:ty;
-
         type Tag = $tag:ty;
     ) => {
         pub mod fixpoint_generated {
@@ -144,10 +141,7 @@ macro_rules! declare_types {
             type Sort = $sort;
             type KVar = $kvar;
             type Var = $var;
-
-            type Decimal = $real;
             type String = $str;
-
             type Tag = $tag;
         }
     };
