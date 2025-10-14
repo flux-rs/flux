@@ -766,7 +766,7 @@ where
                                     Ok(rty::Expr::global_func(SpecFuncKind::Uif(*def_id)))
                                 }
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
-                                ConstKey::Alias(flux_id, args) => {
+                                ConstKey::Alias(_flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
                                 }
                                 ConstKey::Lambda(lambda) => Ok(rty::Expr::abs(lambda.clone())),
@@ -775,7 +775,7 @@ where
                                         bin_op.clone(),
                                     )))
                                 }
-                                ConstKey::Cast(sort, sort1) => {
+                                ConstKey::Cast(_sort, _sort1) => {
                                     unreachable!(
                                         "Should be specially handled as the head of a function app."
                                     )
@@ -789,7 +789,7 @@ where
                         if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
                             Ok(rty::Expr::var(*var))
                         } else {
-                            panic!("No entry in reverse map for var {:?}", fname)
+                            Err(FixpointParseError::NoLocalVar(fname))
                         }
                     }
                     fixpoint::Var::DataCtor(_, _) => {
@@ -1048,6 +1048,7 @@ pub enum FixpointParseError {
     /// Casts should only have 1 arg
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),
+    NoLocalVar(fixpoint::LocalVar),
 }
 
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
