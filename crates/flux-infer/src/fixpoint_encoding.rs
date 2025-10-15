@@ -1004,13 +1004,15 @@ where
                 let e2 = self.fixpoint_to_expr(fe2)?;
                 Ok(rty::Expr::binary_op(binrel, e1, e2))
             }
-            fixpoint::Expr::Let(var, boxed_args) => {
-                let [fe1, fe2] = &**boxed_args;
-                let e1 = self.fixpoint_to_expr(fe1)?;
-                let e2 = self.fixpoint_to_expr(fe2)?;
-                let e2_binder =
-                    todo!("Convert `var` in e2 to locally nameless var, then fill in sort");
-                Ok(rty::Expr::let_(e1, e2_binder))
+            fixpoint::Expr::Let(_var, _boxed_args) => {
+                // TODO: (ck) uncomment this and fix the missing code in the todo!()
+                //
+                // let [fe1, fe2] = &**boxed_args;
+                // let e1 = self.fixpoint_to_expr(fe1)?;
+                // let e2 = self.fixpoint_to_expr(fe2)?;
+                // let e2_binder =
+                todo!("Convert `var` in e2 to locally nameless var, then fill in sort");
+                // Ok(rty::Expr::let_(e1, e2_binder))
             }
             fixpoint::Expr::ThyFunc(itf) => Ok(rty::Expr::global_func(SpecFuncKind::Thy(*itf))),
             fixpoint::Expr::IsCtor(var, fe) => {
