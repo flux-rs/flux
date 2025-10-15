@@ -23,7 +23,7 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
-use liquid_fixpoint::{FixpointResult, SmtSolver};
+use liquid_fixpoint::{FixpointStatus, SmtSolver};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -410,7 +410,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags_inv: UnordMap<T, TagIdx>,
 }
 
-pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
+pub type FixQueryCache = QueryCache<FixpointStatus<TagIdx>>;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -499,15 +499,15 @@ where
         }
 
         match Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache) {
-            FixpointResult::Safe(_) => Ok(vec![]),
-            FixpointResult::Unsafe(_, errors) => {
+            FixpointStatus::Safe(_) => Ok(vec![]),
+            FixpointStatus::Unsafe(_, errors) => {
                 Ok(errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
                     .collect_vec())
             }
-            FixpointResult::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
+            FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         }
     }
 
@@ -542,7 +542,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> FixpointResult<TagIdx> {
+    ) -> FixpointStatus<TagIdx> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();
@@ -558,9 +558,9 @@ where
         });
 
         if config::is_cache_enabled() {
-            cache.insert(key, hash, result.clone());
+            cache.insert(key, hash, result.status.clone());
         }
-        result
+        result.status
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx
