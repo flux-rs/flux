@@ -20,6 +20,12 @@ pub(crate) fn fmt_constraint<T: Types>(
     writeln!(f, ")")
 }
 
+impl<T: Types> fmt::Display for Constraint<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt_constraint(self, f)
+    }
+}
+
 impl<T: Types> fmt::Display for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.scrape_quals {
