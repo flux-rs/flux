@@ -11,7 +11,7 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub(crate) fn fixpoint_to_expr(
         &self,
         fexpr: &fixpoint::Expr,
@@ -309,7 +309,7 @@ where
         }
     }
 
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     fn fixpoint_app_to_expr(
         &self,
         fhead: &fixpoint::Expr,
