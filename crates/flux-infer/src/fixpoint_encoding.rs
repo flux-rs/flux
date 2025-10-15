@@ -464,7 +464,7 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let mut constants = self.ecx.const_map.into_values().collect_vec();
+        let mut constants = self.ecx.const_env.const_map.into_values().collect_vec();
         constants.extend(define_constants);
 
         // The rust fixpoint implementation does not yet support polymorphic functions.
@@ -530,7 +530,7 @@ where
 
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let mut constants = self.ecx.const_map.into_values().collect_vec();
+        let mut constants = self.ecx.const_env.const_map.into_values().collect_vec();
         constants.extend(define_constants);
 
         self.ecx.errors.into_result()?;
@@ -763,7 +763,7 @@ where
                         unreachable!("Underscore should not appear in exprs")
                     }
                     fixpoint::Var::Global(global_var, _) => {
-                        if let Some(const_key) = self.ecx.const_map_rev.get(global_var) {
+                        if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 ConstKey::Uif(def_id) => {
                                     Ok(rty::Expr::global_func(SpecFuncKind::Uif(*def_id)))
@@ -877,7 +877,7 @@ where
                         }
                     }
                     fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _)) => {
-                        if let Some(const_key) = self.ecx.const_map_rev.get(global_var) {
+                        if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 // NOTE: Only a few of these are meaningfully needed,
                                 // e.g. ConstKey::Alias because the rty Expr has its
@@ -1351,12 +1351,33 @@ impl std::str::FromStr for TagIdx {
     }
 }
 
+#[derive(Default)]
+struct ConstEnv<'tcx> {
+    const_map: ConstMap<'tcx>,
+    const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey<'tcx>>,
+}
+
+impl<'tcx> ConstEnv<'tcx> {
+    fn get_or_insert(&mut self,
+                     key: ConstKey<'tcx>,
+                     make_name: impl FnOnce() -> fixpoint::GlobalVar,
+                     make_const_decl: impl FnOnce(fixpoint::GlobalVar) -> fixpoint::ConstDecl
+    ) -> &fixpoint::ConstDecl {
+        self.const_map
+            .entry(key.clone())
+            .or_insert_with(|| {
+                let global_name = make_name();
+                self.const_map_rev.insert(global_name, key);
+                make_const_decl(global_name)
+            })
+    }
+}
+
 struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_var_env: LocalVarEnv,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
-    const_map: ConstMap<'tcx>,
-    const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey<'tcx>>,
+    const_env: ConstEnv<'tcx>,
     fun_def_map: FunDefMap,
     errors: Errors<'genv>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
@@ -1371,8 +1392,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             genv,
             local_var_env: LocalVarEnv::new(),
             global_var_gen: IndexGen::new(),
-            const_map: Default::default(),
-            const_map_rev: Default::default(),
+            const_env: Default::default(),
             fun_def_map: Default::default(),
             errors: Errors::new(genv.sess()),
             def_id,
@@ -1925,21 +1945,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
         let key = ConstKey::Cast(from.clone(), to.clone());
-        self.const_map
-            .entry(key.clone())
-            .or_insert_with(|| {
-                let fsort = rty::FuncSort::new(vec![from.clone()], to.clone());
-                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
-                let sort = scx.func_sort_to_fixpoint(&fsort);
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name, key);
-                fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, None),
-                    sort,
-                    comment: Some(format!("cast uif: ({from:?}) -> {to:?}")),
-                }
-            })
-            .name
+        self.const_env.get_or_insert(key, || self.global_var_gen.fresh(), |global_name| {
+            let fsort = rty::FuncSort::new(vec![from.clone()], to.clone());
+            let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+            let sort = scx.func_sort_to_fixpoint(&fsort);
+            fixpoint::ConstDecl {
+                name: fixpoint::Var::Global(global_name, None),
+                sort,
+                comment: Some(format!("cast uif: ({from:?}) -> {to:?}")),
+            }
+        }).name
     }
 
     fn define_const_for_prim_op(
@@ -1949,19 +1964,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> fixpoint::Var {
         let key = ConstKey::PrimOp(op.clone());
         let span = self.def_span();
-        self.const_map
-            .entry(key.clone())
-            .or_insert_with(|| {
-                let sort = scx.func_sort_to_fixpoint(&Self::prim_op_sort(op, span));
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name, key);
-                fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, None),
-                    sort,
-                    comment: Some(format!("prim op uif: {op:?}")),
-                }
-            })
-            .name
+        self.const_env.get_or_insert(key, || self.global_var_gen.fresh(), |global_name| {
+            let sort = scx.func_sort_to_fixpoint(&Self::prim_op_sort(op, span));
+            fixpoint::ConstDecl {
+                name: fixpoint::Var::Global(global_name, None),
+                sort,
+                comment: Some(format!("prim op uif: {op:?}")),
+            }
+        })
+        .name
     }
 
     fn define_const_for_uif(
@@ -1970,19 +1981,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
         let key = ConstKey::Uif(def_id);
-        self.const_map
-            .entry(key.clone())
-            .or_insert_with(|| {
-                let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name, key);
-                fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, Some(def_id.name())),
-                    sort,
-                    comment: Some(format!("uif: {def_id:?}")),
-                }
-            })
-            .name
+        self.const_env.get_or_insert(key, || self.global_var_gen.fresh(), |global_name| {
+            let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
+            fixpoint::ConstDecl {
+                name: fixpoint::Var::Global(global_name, Some(def_id.name())),
+                sort,
+                comment: Some(format!("uif: {def_id:?}")),
+            }
+        })
+        .name
     }
 
     fn define_const_for_rust_const(
@@ -1991,19 +1998,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
         let key = ConstKey::RustConst(def_id);
-        self.const_map
-            .entry(key.clone())
-            .or_insert_with(|| {
-                let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name, key);
-                fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, None),
-                    sort: scx.sort_to_fixpoint(&sort),
-                    comment: Some(format!("rust const: {}", def_id_to_string(def_id))),
-                }
-            })
-            .name
+        self.const_env.get_or_insert(key, || self.global_var_gen.fresh(), |global_name| {
+            let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
+            fixpoint::ConstDecl {
+                name: fixpoint::Var::Global(global_name, None),
+                sort: scx.sort_to_fixpoint(&sort),
+                comment: Some(format!("rust const: {}", def_id_to_string(def_id))),
+            }
+        })
+        .name
     }
 
     /// returns the 'constant' UIF for Var used to represent the alias_pred, creating and adding it
@@ -2020,18 +2023,14 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .to_rustc(tcx)
             .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
         let key = ConstKey::Alias(alias_reft.assoc_id, args);
-        self.const_map
-            .entry(key.clone())
-            .or_insert_with(|| {
-                let comment = Some(format!("alias reft: {alias_reft:?}"));
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name, key);
-                let name = fixpoint::Var::Global(global_name, None);
-                let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
-                let sort = scx.func_sort_to_fixpoint(&fsort);
-                fixpoint::ConstDecl { name, comment, sort }
-            })
-            .name
+        self.const_env.get_or_insert(key, || self.global_var_gen.fresh(), |global_name| {
+            let comment = Some(format!("alias reft: {alias_reft:?}"));
+            let name = fixpoint::Var::Global(global_name, None);
+            let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
+            let sort = scx.func_sort_to_fixpoint(&fsort);
+            fixpoint::ConstDecl { name, comment, sort }
+        })
+        .name
     }
 
     /// We encode lambdas with uninterpreted constant. Two syntactically equal lambdas will be encoded
@@ -2042,17 +2041,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
         let key = ConstKey::Lambda(lam.clone());
-        self.const_map
-            .entry(key.clone())
-            .or_insert_with(|| {
-                let comment = Some(format!("lambda: {lam:?}"));
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name, key);
-                let name = fixpoint::Var::Global(global_name, None);
-                let sort = scx.func_sort_to_fixpoint(&lam.fsort().to_poly());
-                fixpoint::ConstDecl { name, comment, sort }
-            })
-            .name
+        self.const_env.get_or_insert(key, || self.global_var_gen.fresh(), |global_name| {
+            let comment = Some(format!("lambda: {lam:?}"));
+            let name = fixpoint::Var::Global(global_name, None);
+            let sort = scx.func_sort_to_fixpoint(&lam.fsort().to_poly());
+            fixpoint::ConstDecl { name, comment, sort }
+        })
+        .name
     }
 
     fn assume_const_values(
@@ -2063,7 +2058,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         // Encoding the value for a constant could in theory define more constants for which
         // we need to assume values, so we iterate until there are no more constants.
         let mut idx = 0;
-        while let Some((key, const_)) = self.const_map.get_index(idx) {
+        while let Some((key, const_)) = self.const_env.const_map.get_index(idx) {
             idx += 1;
 
             let ConstKey::RustConst(def_id) = key else { continue };
