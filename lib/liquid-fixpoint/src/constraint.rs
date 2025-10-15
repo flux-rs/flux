@@ -122,7 +122,13 @@ impl<T: Types> Pred<T> {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
 
     pub fn and(mut preds: Vec<Self>) -> Self {
-        if preds.len() == 1 { preds.remove(0) } else { Self::And(preds) }
+        if preds.len() == 0 {
+            Pred::TRUE
+        } else if preds.len() == 1 {
+            preds.remove(0)
+        } else {
+            Self::And(preds)
+        }
     }
 
     pub fn is_trivially_true(&self) -> bool {
