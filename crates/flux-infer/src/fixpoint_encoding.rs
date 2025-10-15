@@ -1019,9 +1019,7 @@ where
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         Ok((def_id, *variant_idx))
                     }
-                    _ => {
-                        Err(FixpointParseError::WrongVarInIsCtor(var.clone()))
-                    }
+                    _ => Err(FixpointParseError::WrongVarInIsCtor(var.clone())),
                 }?;
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
