@@ -84,12 +84,10 @@ impl<T: Types> ConstraintWithEnv<T> {
         let kvars_to_fragments = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
         let mut work_list = VecDeque::from_iter(topo_order_fragments.iter());
-        while !work_list.is_empty() {
-            if let Some(fragment) = work_list.pop_front()
-                && let Some(kvar_name) = fragment.fragment_kvar_head()
+        while let Some(fragment) = work_list.pop_front() {
+            if let Some(kvar_name) = fragment.fragment_kvar_head()
                 && let subbed = fragment.sub_kvars_except_head(&assignments)
-                && let assignment = assignments.get_mut(&kvar_name)
-                && let Some(assignment) = assignment
+                && let Some(assignment) = assignments.get_mut(&kvar_name)
             {
                 let initial_length = assignment.len();
                 assignment.retain(|assignment| {
