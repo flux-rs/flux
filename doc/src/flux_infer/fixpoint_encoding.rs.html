@@ -23,7 +23,7 @@
 <a href=#23 id=23 data-nosnippet>23</a>    timings::{<span class="self">self</span>, TimingKind},
 <a href=#24 id=24 data-nosnippet>24</a>};
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>itertools::Itertools;
-<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>liquid_fixpoint::{FixpointResult, SmtSolver};
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use </span>liquid_fixpoint::{FixpointStatus, SmtSolver};
 <a href=#27 id=27 data-nosnippet>27</a><span class="kw">use </span>rustc_data_structures::{
 <a href=#28 id=28 data-nosnippet>28</a>    fx::{FxIndexMap, FxIndexSet},
 <a href=#29 id=29 data-nosnippet>29</a>    unord::{UnordMap, UnordSet},
@@ -410,7 +410,7 @@
 <a href=#410 id=410 data-nosnippet>410</a>    tags_inv: UnordMap&lt;T, TagIdx&gt;,
 <a href=#411 id=411 data-nosnippet>411</a>}
 <a href=#412 id=412 data-nosnippet>412</a>
-<a href=#413 id=413 data-nosnippet>413</a><span class="kw">pub type </span>FixQueryCache = QueryCache&lt;FixpointResult&lt;TagIdx&gt;&gt;;
+<a href=#413 id=413 data-nosnippet>413</a><span class="kw">pub type </span>FixQueryCache = QueryCache&lt;FixpointStatus&lt;TagIdx&gt;&gt;;
 <a href=#414 id=414 data-nosnippet>414</a>
 <a href=#415 id=415 data-nosnippet>415</a><span class="kw">impl</span>&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt; FixpointCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>, Tag&gt;
 <a href=#416 id=416 data-nosnippet>416</a><span class="kw">where
@@ -499,15 +499,15 @@
 <a href=#499 id=499 data-nosnippet>499</a>        }
 <a href=#500 id=500 data-nosnippet>500</a>
 <a href=#501 id=501 data-nosnippet>501</a>        <span class="kw">match </span><span class="self">Self</span>::run_task_with_cache(<span class="self">self</span>.genv, task, def_id.resolved_id(), kind, cache) {
-<a href=#502 id=502 data-nosnippet>502</a>            FixpointResult::Safe(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]),
-<a href=#503 id=503 data-nosnippet>503</a>            FixpointResult::Unsafe(<span class="kw">_</span>, errors) =&gt; {
+<a href=#502 id=502 data-nosnippet>502</a>            FixpointStatus::Safe(<span class="kw">_</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[]),
+<a href=#503 id=503 data-nosnippet>503</a>            FixpointStatus::Unsafe(<span class="kw">_</span>, errors) =&gt; {
 <a href=#504 id=504 data-nosnippet>504</a>                <span class="prelude-val">Ok</span>(errors
 <a href=#505 id=505 data-nosnippet>505</a>                    .into_iter()
 <a href=#506 id=506 data-nosnippet>506</a>                    .map(|err| <span class="self">self</span>.tags[err.tag])
 <a href=#507 id=507 data-nosnippet>507</a>                    .unique()
 <a href=#508 id=508 data-nosnippet>508</a>                    .collect_vec())
 <a href=#509 id=509 data-nosnippet>509</a>            }
-<a href=#510 id=510 data-nosnippet>510</a>            FixpointResult::Crash(err) =&gt; <span class="macro">span_bug!</span>(def_span, <span class="string">"fixpoint crash: {err:?}"</span>),
+<a href=#510 id=510 data-nosnippet>510</a>            FixpointStatus::Crash(err) =&gt; <span class="macro">span_bug!</span>(def_span, <span class="string">"fixpoint crash: {err:?}"</span>),
 <a href=#511 id=511 data-nosnippet>511</a>        }
 <a href=#512 id=512 data-nosnippet>512</a>    }
 <a href=#513 id=513 data-nosnippet>513</a>
@@ -542,7 +542,7 @@
 <a href=#542 id=542 data-nosnippet>542</a>        def_id: DefId,
 <a href=#543 id=543 data-nosnippet>543</a>        kind: FixpointQueryKind,
 <a href=#544 id=544 data-nosnippet>544</a>        cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
-<a href=#545 id=545 data-nosnippet>545</a>    ) -&gt; FixpointResult&lt;TagIdx&gt; {
+<a href=#545 id=545 data-nosnippet>545</a>    ) -&gt; FixpointStatus&lt;TagIdx&gt; {
 <a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">let </span>key = kind.task_key(genv.tcx(), def_id);
 <a href=#547 id=547 data-nosnippet>547</a>
 <a href=#548 id=548 data-nosnippet>548</a>        <span class="kw">let </span>hash = task.hash_with_default();
@@ -558,9 +558,9 @@
 <a href=#558 id=558 data-nosnippet>558</a>        });
 <a href=#559 id=559 data-nosnippet>559</a>
 <a href=#560 id=560 data-nosnippet>560</a>        <span class="kw">if </span>config::is_cache_enabled() {
-<a href=#561 id=561 data-nosnippet>561</a>            cache.insert(key, hash, result.clone());
+<a href=#561 id=561 data-nosnippet>561</a>            cache.insert(key, hash, result.status.clone());
 <a href=#562 id=562 data-nosnippet>562</a>        }
-<a href=#563 id=563 data-nosnippet>563</a>        result
+<a href=#563 id=563 data-nosnippet>563</a>        result.status
 <a href=#564 id=564 data-nosnippet>564</a>    }
 <a href=#565 id=565 data-nosnippet>565</a>
 <a href=#566 id=566 data-nosnippet>566</a>    <span class="kw">fn </span>tag_idx(<span class="kw-2">&amp;mut </span><span class="self">self</span>, tag: Tag) -&gt; TagIdx
