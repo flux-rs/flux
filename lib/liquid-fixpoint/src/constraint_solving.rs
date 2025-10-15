@@ -312,39 +312,24 @@ impl<T: Types> Pred<T> {
                 let qualifiers = assignment
                     .get(kvid)
                     .unwrap_or_else(|| panic!("{:#?} should have an assignment", kvid));
-                if qualifiers.is_empty() {
-                    return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
-                }
-                if qualifiers.len() == 1 {
-                    let qualifier = qualifiers[0].0;
-                    Pred::Expr(
-                        qualifier
-                            .args
-                            .iter()
-                            .map(|arg| &arg.0)
-                            .zip(qualifiers[0].1.iter().map(|arg_idx| &args[*arg_idx]))
-                            .fold(qualifier.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
-                    )
-                } else {
-                    Pred::And(
-                        qualifiers
-                            .iter()
-                            .map(|qualifier| {
-                                Pred::Expr(
-                                    qualifier
-                                        .0
-                                        .args
-                                        .iter()
-                                        .map(|arg| &arg.0)
-                                        .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
-                                        .fold(qualifier.0.body.clone(), |acc, e| {
-                                            acc.substitute(e.0, e.1)
-                                        }),
-                                )
-                            })
-                            .collect(),
-                    )
-                }
+                Pred::and(
+                    qualifiers
+                        .iter()
+                        .map(|qualifier| {
+                            Pred::Expr(
+                                qualifier
+                                    .0
+                                    .args
+                                    .iter()
+                                    .map(|arg| &arg.0)
+                                    .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
+                                    .fold(qualifier.0.body.clone(), |acc, e| {
+                                        acc.substitute(e.0, e.1)
+                                    }),
+                            )
+                        })
+                        .collect(),
+                )
             }
             Pred::Expr(expr) => Pred::Expr(expr.clone()),
             Pred::And(conjuncts) => {
