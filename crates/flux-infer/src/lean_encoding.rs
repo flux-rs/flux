@@ -30,9 +30,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         Self { genv, lean_path, project_name, defs_file_name }
     }
 
-    fn generate_lake_project_if_not_present(
-        &self,
-    ) -> Result<(), io::Error> {
+    fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
         if !self.lean_path.join(self.project_name.as_str()).exists() {
             Command::new("lake")
                 .arg("new")
@@ -55,7 +53,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
                 Self::snake_case_to_pascal_case(self.project_name.as_str()),
                 self.defs_file_name
             )
-            .as_str()
+            .as_str(),
         );
         let mut file = fs::File::create(defs_path)?;
         writeln!(file, "mutual")?;
@@ -65,7 +63,11 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         writeln!(file, "end")
     }
 
-    fn generate_theorem_file(&self, theorem_name: &str, cstr: &fixpoint::Constraint) -> Result<(), io::Error> {
+    fn generate_theorem_file(
+        &self,
+        theorem_name: &str,
+        cstr: &fixpoint::Constraint,
+    ) -> Result<(), io::Error> {
         let theorem_path = self.lean_path.join(
             format!(
                 "{}/{}/{}.lean",
@@ -73,11 +75,11 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
                 Self::snake_case_to_pascal_case(self.project_name.as_str()),
                 Self::snake_case_to_pascal_case(theorem_name)
             )
-            .as_str()
+            .as_str(),
         );
         let mut theorem_file = fs::File::create(theorem_path)?;
         writeln!(
-            theorem_file, 
+            theorem_file,
             "import {}.{}",
             Self::snake_case_to_pascal_case(self.project_name.as_str()),
             self.defs_file_name.as_str()
@@ -90,10 +92,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         )
     }
 
-    fn generate_proof_file_if_not_present(
-        &self,
-        theorem_name: &str
-    ) -> Result<(), io::Error> {
+    fn generate_proof_file_if_not_present(&self, theorem_name: &str) -> Result<(), io::Error> {
         let module_name = Self::snake_case_to_pascal_case(self.project_name.as_str());
         let proof_name = format!("{theorem_name}_proof");
         let proof_path = self.lean_path.join(
@@ -103,10 +102,10 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
                 module_name.as_str(),
                 Self::snake_case_to_pascal_case(proof_name.as_str())
             )
-            .as_str()
+            .as_str(),
         );
         if proof_path.exists() {
-            return Ok(())
+            return Ok(());
         }
         let mut proof_file = fs::File::create(proof_path)?;
         writeln!(
@@ -120,9 +119,17 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         writeln!(proof_file, "  sorry")
     }
 
-    pub fn encode_constraint(&self, def_id: MaybeExternId, cstr: &fixpoint::Constraint) -> Result<(), io::Error> {
+    pub fn encode_constraint(
+        &self,
+        def_id: MaybeExternId,
+        cstr: &fixpoint::Constraint,
+    ) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
-        let theorem_name = self.genv.tcx().def_path(def_id.resolved_id()).to_filename_friendly_no_crate();
+        let theorem_name = self
+            .genv
+            .tcx()
+            .def_path(def_id.resolved_id())
+            .to_filename_friendly_no_crate();
         self.generate_theorem_file(theorem_name.as_str(), &cstr)?;
         self.generate_proof_file_if_not_present(theorem_name.as_str())
     }
@@ -154,7 +161,12 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
     }
 
     pub fn check_proof(&self, def_id: MaybeExternId) -> QueryResult<()> {
-        let theorem_name = self.genv.tcx().def_path(def_id.resolved_id()).to_filename_friendly_no_crate().replace(".", "_");
+        let theorem_name = self
+            .genv
+            .tcx()
+            .def_path(def_id.resolved_id())
+            .to_filename_friendly_no_crate()
+            .replace(".", "_");
         self.check_proof_help(theorem_name.as_str()).map_err(|_| {
             let msg = format!("checking proof for {} failed", theorem_name.as_str());
             let span = self.genv.tcx().def_span(def_id.resolved_id());

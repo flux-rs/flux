@@ -3,10 +3,18 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::{fixpoint_encoding::{FixQueryCache, FixpointCtxt}, lean_encoding::LeanEncoder};
+use flux_infer::{
+    fixpoint_encoding::{FixQueryCache, FixpointCtxt},
+    lean_encoding::LeanEncoder,
+};
 use flux_metadata::CStore;
 use flux_middle::{
-    def_id::MaybeExternId, fhir::{self, FluxItem}, global_env::GlobalEnv, queries::{Providers, QueryResult}, timings, Specs
+    Specs,
+    def_id::MaybeExternId,
+    fhir::{self, FluxItem},
+    global_env::GlobalEnv,
+    queries::{Providers, QueryResult},
+    timings,
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -153,22 +161,18 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let mut fun_defs = vec![];
         for (_, flux_item) in self.genv.fhir_iter_flux_items() {
             match flux_item {
-                FluxItem::Func(spec_func) => {
-                    fun_defs.push(
-                        fcx.to_fun_def(
-                            spec_func.def_id.to_def_id()
-                        ).unwrap()
-                    );
+                FluxItem::Func(spec_func) if spec_func.body.is_some() => {
+                    fun_defs.push(fcx.to_fun_def(spec_func.def_id.to_def_id()).unwrap());
                 }
-                FluxItem::PrimOpProp(_) | FluxItem::Qualifier(_) => {}
+                _ => {}
             }
         }
         if !fun_defs.is_empty() {
             let encoder = LeanEncoder::new(
-            self.genv,
-            std::path::Path::new("./"),
-            "lean_proofs".to_string(),
-            "Defs".to_string()
+                self.genv,
+                std::path::Path::new("./"),
+                "lean_proofs".to_string(),
+                "Defs".to_string(),
             );
             encoder.encode_defs(&fun_defs).unwrap();
         }

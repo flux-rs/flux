@@ -3,10 +3,8 @@ use core::fmt;
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
-use crate::{
-    fixpoint_encoding::fixpoint::{
-        BinOp, BinRel, Constant, Constraint, Expr, FunDef, Pred, Sort, Var,
-    },
+use crate::fixpoint_encoding::fixpoint::{
+    BinOp, BinRel, Constant, Constraint, Expr, FunDef, Pred, Sort, Var,
 };
 
 struct LeanSort<'a>(&'a Sort);

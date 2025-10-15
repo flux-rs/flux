@@ -14,7 +14,14 @@ use flux_common::{
 use flux_config::{self as config};
 use flux_errors::Errors;
 use flux_middle::{
-    def_id::{FluxDefId, MaybeExternId}, def_id_to_string, global_env::GlobalEnv, queries::QueryResult, query_bug, rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx}, timings::{self, TimingKind}, FixpointQueryKind
+    FixpointQueryKind,
+    def_id::{FluxDefId, MaybeExternId},
+    def_id_to_string,
+    global_env::GlobalEnv,
+    queries::QueryResult,
+    query_bug,
+    rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
+    timings::{self, TimingKind},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
@@ -523,13 +530,10 @@ where
         }
     }
 
-    pub fn to_fun_def(
-        &mut self,
-        def_id: FluxDefId
-    ) -> QueryResult<fixpoint::FunDef> {
+    pub fn to_fun_def(&mut self, def_id: FluxDefId) -> QueryResult<fixpoint::FunDef> {
         self.ecx.to_fun_def(def_id, &mut self.scx)
     }
-    
+
     pub fn generate_and_check_lean_lemmas(
         self,
         constraint: fixpoint::Constraint,
@@ -545,9 +549,11 @@ where
                 self.genv,
                 std::path::Path::new("./"),
                 "lean_proofs".to_string(),
-                "Defs".to_string()
+                "Defs".to_string(),
             );
-            lean_encoder.encode_constraint(def_id, &constraint).map_err(|_| query_bug!("could not encode constraint"))?;
+            lean_encoder
+                .encode_constraint(def_id, &constraint)
+                .map_err(|_| query_bug!("could not encode constraint"))?;
             lean_encoder.check_proof(def_id)
         } else {
             Ok(())
@@ -1195,12 +1201,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
     fn structurally_normalize_expr(&self, expr: &rty::Expr) -> QueryResult<rty::Expr> {
         if let Some(def_id) = self.def_id {
-            structurally_normalize_expr(
-                self.genv,
-                def_id.resolved_id(),
-                &self.infcx,
-                expr,
-            )   
+            structurally_normalize_expr(self.genv, def_id.resolved_id(), &self.infcx, expr)
         } else {
             Ok(expr.clone())
         }
@@ -1821,20 +1822,22 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok((defs, consts))
     }
 
-    fn to_fun_def(&mut self, def_id: FluxDefId, scx: &mut SortEncodingCtxt) -> QueryResult<fixpoint::FunDef> {
+    fn to_fun_def(
+        &mut self,
+        def_id: FluxDefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::FunDef> {
         let name = self.fun_def_map.get(&def_id).unwrap().clone();
         let info = self.genv.normalized_info(def_id);
         let out = scx.sort_to_fixpoint(self.genv.func_sort(def_id).expect_mono().output());
         let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
-        Ok(
-            fixpoint::FunDef {
-                name,
-                args,
-                body,
-                out,
-                comment: Some(format!("flux def: {def_id:?}"))
-            }
-        )
+        Ok(fixpoint::FunDef {
+            name,
+            args,
+            body,
+            out,
+            comment: Some(format!("flux def: {def_id:?}")),
+        })
     }
 
     fn body_to_fixpoint(
