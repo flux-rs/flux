@@ -107,7 +107,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    pub fn is_satisfiable(&mut self) -> FixpointResult<T::Tag> {
+    pub fn is_satisfiable(&mut self) -> FixpointStatus<T::Tag> {
         self.solve_by_fusion()
     }
 
@@ -133,13 +133,13 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.constraint.simplify();
     }
 
-    pub fn solve_by_fusion(&mut self) -> FixpointResult<T::Tag> {
+    pub fn solve_by_fusion(&mut self) -> FixpointStatus<T::Tag> {
         self.simplify();
         self.eliminate_acyclic_kvars();
         self.solve_by_predicate_abstraction()
     }
 
-    pub fn solve_by_predicate_abstraction(&mut self) -> FixpointResult<T::Tag> {
+    pub fn solve_by_predicate_abstraction(&mut self) -> FixpointStatus<T::Tag> {
         let solver = Solver::new();
         let mut vars: Env<T> = Env::new();
         self.constants.iter().for_each(|const_decl| {

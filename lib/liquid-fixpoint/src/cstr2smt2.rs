@@ -8,7 +8,7 @@ use z3::{
 };
 
 use crate::{
-    DataDecl, Error, FixpointFmt, FixpointResult, Identifier, SortCtor, Stats, ThyFunc, Types,
+    DataDecl, Error, FixpointFmt, FixpointStatus, Identifier, SortCtor, Stats, ThyFunc, Types,
     constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
 };
 
@@ -635,15 +635,15 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     cstr: &Constraint<T>,
     solver: &Solver,
     env: &mut Env<T>,
-) -> FixpointResult<T::Tag> {
+) -> FixpointStatus<T::Tag> {
     solver.push();
     let res = match cstr {
         Constraint::Pred(pred, tag) => {
             solver.assert(&pred_to_z3(pred, env).not());
             if solver.check() == SatResult::Unsat {
-                FixpointResult::Safe(Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 })
+                FixpointStatus::Safe(Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 })
             } else {
-                FixpointResult::Unsafe(
+                FixpointStatus::Unsafe(
                     Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 },
                     match tag {
                         Some(tag) => vec![Error { id: 0, tag: tag.clone() }],
@@ -654,7 +654,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
         }
         Constraint::Conj(conjuncts) => {
             conjuncts.iter().fold(
-                FixpointResult::Safe(Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }),
+                FixpointStatus::Safe(Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }),
                 |acc, cstr| is_constraint_satisfiable(cstr, solver, env).merge(acc),
             )
         }

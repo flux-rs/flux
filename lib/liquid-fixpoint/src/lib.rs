@@ -299,8 +299,7 @@ impl<T: Types> Task<T> {
             self.constants.clone(),
             self.constraint.clone(),
         );
-        let is_satisfiable = cstr_with_env.is_satisfiable();
-        Ok(is_satisfiable)
+        Ok(FixpointResult { status: cstr_with_env.is_satisfiable() })
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
