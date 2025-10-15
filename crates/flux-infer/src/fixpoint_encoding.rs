@@ -394,7 +394,7 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
 type FunDefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
 type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 
-#[derive(Eq, Hash, PartialEq, Clone)]
+#[derive(Eq, Hash, PartialEq, Clone, Copy)]
 enum ConstKey<'tcx> {
     Uif(FluxDefId),
     RustConst(DefId),
@@ -847,7 +847,7 @@ where
                             let eargs = fargs
                                 .iter()
                                 .map(|farg| self.fixpoint_to_expr(farg))
-                                .collect::<Result<List<_>, _>>()?;
+                                .try_collect()?;
                             Ok(rty::Expr::tuple(eargs))
                         } else {
                             Err(FixpointParseError::TupleCtorArityMismatch(*arity, fargs.len()))
@@ -919,7 +919,7 @@ where
                                     let args = fargs
                                         .iter()
                                         .map(|farg| self.fixpoint_to_expr(farg))
-                                        .collect::<Result<List<_>, _>>()?;
+                                        .try_collect()?;
                                     Ok(rty::Expr::alias(alias_reft, args))
                                 }
                                 ConstKey::Uif(..)
@@ -967,14 +967,14 @@ where
                 let exprs = fexprs
                     .iter()
                     .map(|fexpr| self.fixpoint_to_expr(fexpr))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .try_collect()?;
                 Ok(rty::Expr::and_from_iter(exprs))
             }
             fixpoint::Expr::Or(fexprs) => {
                 let exprs = fexprs
                     .iter()
                     .map(|fexpr| self.fixpoint_to_expr(fexpr))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .try_collect(()?;
                 Ok(rty::Expr::or_from_iter(exprs))
             }
             fixpoint::Expr::Not(fexpr) => {
@@ -1048,7 +1048,7 @@ where
         let args = fargs
             .iter()
             .map(|farg| self.fixpoint_to_expr(farg))
-            .collect::<Result<List<_>, _>>()?;
+            .try_collect()?;
         Ok(rty::Expr::app(head, List::empty(), args))
     }
 }
