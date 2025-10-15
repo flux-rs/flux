@@ -563,14 +563,14 @@ where
             cache.insert(key, hash, result.status.clone());
         }
 
-        println!("TRACE: fixpoint solution");
-        for b in &result.solution {
-            println!("{}", b.dump());
-        }
-        println!("TRACE: fixpoint non-cut solution");
-        for b in &result.non_cuts_solution {
-            println!("{}", b.dump());
-        }
+        // println!("TRACE: fixpoint solution");
+        // for b in &result.solution {
+        //     println!("{}", b.dump());
+        // }
+        // println!("TRACE: fixpoint non-cut solution");
+        // for b in &result.non_cuts_solution {
+        //     println!("{}", b.dump());
+        // }
 
         result.status
     }
