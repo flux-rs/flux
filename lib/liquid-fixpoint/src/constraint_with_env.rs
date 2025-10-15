@@ -2,7 +2,7 @@ use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointResult, Sort, SortCtor,
+        FixpointStatus, Sort, SortCtor,
         cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
         graph,
     },
