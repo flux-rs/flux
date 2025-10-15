@@ -107,7 +107,7 @@
 <a href=#107 id=107 data-nosnippet>107</a>        assignments
 <a href=#108 id=108 data-nosnippet>108</a>    }
 <a href=#109 id=109 data-nosnippet>109</a>
-<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">pub fn </span>is_satisfiable(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">pub fn </span>is_satisfiable(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointStatus&lt;T::Tag&gt; {
 <a href=#111 id=111 data-nosnippet>111</a>        <span class="self">self</span>.solve_by_fusion()
 <a href=#112 id=112 data-nosnippet>112</a>    }
 <a href=#113 id=113 data-nosnippet>113</a>
@@ -133,13 +133,13 @@
 <a href=#133 id=133 data-nosnippet>133</a>        <span class="self">self</span>.constraint.simplify();
 <a href=#134 id=134 data-nosnippet>134</a>    }
 <a href=#135 id=135 data-nosnippet>135</a>
-<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">pub fn </span>solve_by_fusion(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">pub fn </span>solve_by_fusion(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointStatus&lt;T::Tag&gt; {
 <a href=#137 id=137 data-nosnippet>137</a>        <span class="self">self</span>.simplify();
 <a href=#138 id=138 data-nosnippet>138</a>        <span class="self">self</span>.eliminate_acyclic_kvars();
 <a href=#139 id=139 data-nosnippet>139</a>        <span class="self">self</span>.solve_by_predicate_abstraction()
 <a href=#140 id=140 data-nosnippet>140</a>    }
 <a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">pub fn </span>solve_by_predicate_abstraction(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">pub fn </span>solve_by_predicate_abstraction(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointStatus&lt;T::Tag&gt; {
 <a href=#143 id=143 data-nosnippet>143</a>        <span class="kw">let </span>solver = Solver::new();
 <a href=#144 id=144 data-nosnippet>144</a>        <span class="kw">let </span><span class="kw-2">mut </span>vars: Env&lt;T&gt; = Env::new();
 <a href=#145 id=145 data-nosnippet>145</a>        <span class="self">self</span>.constants.iter().for_each(|const_decl| {
@@ -149,7 +149,7 @@
 <a href=#149 id=149 data-nosnippet>149</a>            );
 <a href=#150 id=150 data-nosnippet>150</a>        });
 <a href=#151 id=151 data-nosnippet>151</a>        <span class="self">self</span>.datatype_decls.iter().for_each(|data_decl| {
-<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">let </span>datatype_sort = new_datatype(<span class="kw-2">&amp;</span>data_decl.name, <span class="kw-2">&amp;</span>data_decl, <span class="kw-2">&amp;mut </span>vars);
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">let </span>datatype_sort = new_datatype(<span class="kw-2">&amp;</span>data_decl.name, data_decl, <span class="kw-2">&amp;mut </span>vars);
 <a href=#153 id=153 data-nosnippet>153</a>            vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
 <a href=#154 id=154 data-nosnippet>154</a>        });
 <a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">let </span>kvar_assignment = <span class="self">self</span>.solve_for_kvars(<span class="kw-2">&amp;</span>solver, <span class="kw-2">&amp;mut </span>vars);
