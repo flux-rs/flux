@@ -122,7 +122,7 @@ impl<T: Types> Pred<T> {
     pub const TRUE: Self = Pred::Expr(Expr::Constant(Constant::Boolean(true)));
 
     pub fn and(mut preds: Vec<Self>) -> Self {
-        if preds.len() == 0 {
+        if preds.is_empty() {
             Pred::TRUE
         } else if preds.len() == 1 {
             preds.remove(0)
