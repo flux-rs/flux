@@ -8,7 +8,7 @@ use z3::{
 };
 
 use crate::{
-    DataDecl, Error, FixpointFmt, FixpointResult, Identifier, SortCtor, Stats, ThyFunc, Types,
+    DataDecl, Error, FixpointFmt, FixpointStatus, Identifier, SortCtor, Stats, ThyFunc, Types,
     constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort},
 };
 
@@ -92,7 +92,7 @@ fn const_to_z3<T: Types>(cnst: &Constant<T>) -> ast::Dynamic {
     }
 }
 
-fn atom_to_z3<'ctx, T: Types>(
+fn atom_to_z3<T: Types>(
     bin_rel: &BinRel,
     operands: &[Expr<T>; 2],
     env: &mut Env<T>,
@@ -449,14 +449,14 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::Iff(operands) => {
             let lhs = expr_to_z3(&operands[0], env);
             let rhs = expr_to_z3(&operands[1], env);
-            lhs.as_bool().unwrap().iff(&rhs.as_bool().unwrap()).into()
+            lhs.as_bool().unwrap().iff(rhs.as_bool().unwrap()).into()
         }
         Expr::Imp(operands) => {
             let lhs = expr_to_z3(&operands[0], env);
             let rhs = expr_to_z3(&operands[1], env);
             lhs.as_bool()
                 .unwrap()
-                .implies(&rhs.as_bool().unwrap())
+                .implies(rhs.as_bool().unwrap())
                 .into()
         }
         Expr::Let(variable, exprs) => {
@@ -479,7 +479,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                     let arg_refs = arg_asts.iter().map(|a| a as &dyn Ast).collect_vec();
                     let fun_decl = env
                         .fun_lookup(var)
-                        .expect(format!("error if function not present {:#?}", var).as_str());
+                        .unwrap_or_else(|| panic!("error if function not present {var:#?}"));
                     fun_decl.apply(&arg_refs)
                 }
                 Expr::ThyFunc(func) => thy_func_application_to_z3(*func, args, env),
@@ -525,7 +525,7 @@ pub(crate) fn new_datatype<T: Types>(
         for (name, field) in data_field_names.iter().zip(&data_ctor.fields) {
             fields.push((name.as_str(), z3::DatatypeAccessor::sort(z3_sort(&field.sort, env))));
         }
-        builder = builder.variant(&data_ctor.name.display().to_string(), fields)
+        builder = builder.variant(&data_ctor.name.display().to_string(), fields);
     }
     let z3::DatatypeSort { sort, variants } = builder.finish();
     for (data_ctor, variant) in iter::zip(&data_decl.ctors, variants) {
@@ -597,7 +597,7 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>)
                     Binding::Variable(
                         ast::Datatype::new_const(
                             name.display().to_string(),
-                            &env.datatype_lookup(data_ctor).unwrap(),
+                            env.datatype_lookup(data_ctor).unwrap(),
                         )
                         .into(),
                     )
@@ -609,7 +609,7 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>)
 }
 
 fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
-    match &s {
+    match s {
         Sort::Int => z3::Sort::int(),
         Sort::Real => z3::Sort::real(),
         Sort::Bool => z3::Sort::bool(),
@@ -624,7 +624,7 @@ fn z3_sort<T: Types>(s: &Sort<T>, env: &Env<T>) -> z3::Sort {
             match sort_ctor {
                 SortCtor::Set => z3::Sort::set(&z3_sort(&args[0], env)),
                 SortCtor::Map => z3::Sort::array(&z3_sort(&args[0], env), &z3_sort(&args[1], env)),
-                SortCtor::Data(sort) => env.datatype_lookup(&sort).unwrap().clone(),
+                SortCtor::Data(sort) => env.datatype_lookup(sort).unwrap().clone(),
             }
         }
         _ => panic!("unhandled sort encountered {:#?}", s),
@@ -635,15 +635,15 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     cstr: &Constraint<T>,
     solver: &Solver,
     env: &mut Env<T>,
-) -> FixpointResult<T::Tag> {
+) -> FixpointStatus<T::Tag> {
     solver.push();
     let res = match cstr {
         Constraint::Pred(pred, tag) => {
-            solver.assert(&pred_to_z3(pred, env).not());
+            solver.assert(pred_to_z3(pred, env).not());
             if solver.check() == SatResult::Unsat {
-                FixpointResult::Safe(Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 })
+                FixpointStatus::Safe(Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 })
             } else {
-                FixpointResult::Unsafe(
+                FixpointStatus::Unsafe(
                     Stats { num_cstr: 1, num_iter: 0, num_chck: 0, num_vald: 0 },
                     match tag {
                         Some(tag) => vec![Error { id: 0, tag: tag.clone() }],
@@ -654,15 +654,15 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
         }
         Constraint::Conj(conjuncts) => {
             conjuncts.iter().fold(
-                FixpointResult::Safe(Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }),
+                FixpointStatus::Safe(Stats { num_cstr: 0, num_iter: 0, num_chck: 0, num_vald: 0 }),
                 |acc, cstr| is_constraint_satisfiable(cstr, solver, env).merge(acc),
             )
         }
 
         Constraint::ForAll(bind, inner) => {
-            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort, &env));
-            solver.assert(&pred_to_z3(&bind.pred, env));
-            let inner_soln = is_constraint_satisfiable(&**inner, solver, env);
+            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort, env));
+            solver.assert(pred_to_z3(&bind.pred, env));
+            let inner_soln = is_constraint_satisfiable(inner, solver, env);
             env.pop(&bind.name);
             inner_soln
         }
