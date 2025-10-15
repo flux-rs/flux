@@ -81,15 +81,13 @@ impl<T: Types> ConstraintWithEnv<T> {
 
     fn solve_for_kvars(&self, solver: &Solver, env: &mut Env<T>) -> Assignments<'_, T> {
         let mut assignments = self.compute_initial_assignments();
-        let (kvars_to_fragments, _) = self.constraint.kvar_mappings();
+        let kvars_to_fragments = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
         let mut work_list = VecDeque::from_iter(topo_order_fragments.iter());
-        while !work_list.is_empty() {
-            if let Some(fragment) = work_list.pop_front()
-                && let Some(kvar_name) = fragment.fragment_kvar_head()
+        while let Some(fragment) = work_list.pop_front() {
+            if let Some(kvar_name) = fragment.fragment_kvar_head()
                 && let subbed = fragment.sub_kvars_except_head(&assignments)
-                && let assignment = assignments.get_mut(&kvar_name)
-                && let Some(assignment) = assignment
+                && let Some(assignment) = assignments.get_mut(&kvar_name)
             {
                 let initial_length = assignment.len();
                 assignment.retain(|assignment| {
@@ -113,17 +111,17 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.solve_by_fusion()
     }
 
-    pub fn eliminate_acyclic_kvars(&mut self) {
-        let mut dep_map = self.constraint.kvar_mappings().1;
-        let mut acyclic_kvars: Vec<T::KVar> = dep_map
+    pub(crate) fn eliminate_acyclic_kvars(&mut self) {
+        let mut dep_graph = self.constraint.kvar_dep_graph();
+        let mut acyclic_kvars: Vec<T::KVar> = dep_graph
             .into_iter()
             .filter(|(_, dependencies)| dependencies.is_empty())
             .map(|(kvar, _)| kvar)
             .collect();
         while !acyclic_kvars.is_empty() {
             self.constraint = self.constraint.elim(&acyclic_kvars);
-            dep_map = self.constraint.kvar_mappings().1;
-            acyclic_kvars = dep_map
+            dep_graph = self.constraint.kvar_dep_graph();
+            acyclic_kvars = dep_graph
                 .into_iter()
                 .filter(|(_, dependencies)| dependencies.is_empty())
                 .map(|(kvar, _)| kvar)
