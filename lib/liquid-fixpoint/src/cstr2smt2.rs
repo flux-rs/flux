@@ -27,21 +27,18 @@ impl From<ast::Dynamic> for Binding {
 pub(crate) struct Env<T: Types> {
     bindings: HashMap<T::Var, Vec<Binding>>,
     data_types: HashMap<T::Sort, z3::Sort>,
-    rev_bindings: HashMap<String, T::Var>,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: HashMap::new(), data_types: HashMap::new(), rev_bindings: HashMap::new() }
+        Self { bindings: HashMap::new(), data_types: HashMap::new() }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
         self.bindings
-            .entry(name.clone())
+            .entry(name)
             .or_default()
             .push(Into::<Binding>::into(value));
-        self.rev_bindings
-            .insert(name.display().to_string(), name.clone());
     }
 
     pub(crate) fn insert_data_decl(&mut self, name: T::Sort, datatype: z3::Sort) {
@@ -74,10 +71,6 @@ impl<T: Types> Env<T> {
 
     fn lookup(&self, name: &T::Var) -> Option<&Binding> {
         self.bindings.get(name).and_then(|stack| stack.last())
-    }
-
-    fn rev_lookup(&self, name: &str) -> Option<&T::Var> {
-        self.rev_bindings.get(name)
     }
 
     fn datatype_lookup(&self, name: &T::Sort) -> Option<&z3::Sort> {
