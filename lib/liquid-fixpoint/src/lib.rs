@@ -216,10 +216,15 @@ pub struct FixpointResult<Tag> {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-// #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
 pub struct KVarBind {
     kvar: String,
     val: String,
+}
+
+impl KVarBind {
+    pub fn dump(&self) -> String {
+        format!("{} := {}", self.kvar, self.val)
+    }
 }
 
 impl<Tag> FixpointStatus<Tag> {
