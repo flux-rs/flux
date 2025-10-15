@@ -20,9 +20,13 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
-    rty::{self, ESpan, EarlyReftParam, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
+    rty::{
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
+        VariantIdx,
+    },
     timings::{self, TimingKind},
 };
+use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointResult, SmtSolver};
 use rustc_data_structures::{
@@ -388,14 +392,13 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
 }
 
 type FunDefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
-type ConstMap = FxIndexMap<ConstKey, fixpoint::ConstDecl>;
+type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 
 #[derive(Eq, Hash, PartialEq, Clone)]
-enum ConstKey {
+enum ConstKey<'tcx> {
     Uif(FluxDefId),
     RustConst(DefId),
-    // Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
-    Alias(FluxDefId, rty::GenericArgs),
+    Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
@@ -902,10 +905,17 @@ where
                                     }
                                 }
                                 ConstKey::Alias(assoc_id, generic_args) => {
-                                    let alias_reft = rty::AliasReft {
-                                        assoc_id: *assoc_id,
-                                        args: generic_args.clone(),
-                                    };
+                                    let lowered_args: flux_rustc_bridge::ty::GenericArgs =
+                                        generic_args.lower(self.genv.tcx()).unwrap();
+                                    let generic_args = rty::refining::Refiner::default_for_item(
+                                        self.genv,
+                                        assoc_id.parent(),
+                                    )
+                                    .unwrap()
+                                    .refine_generic_args(assoc_id.parent(), &lowered_args)
+                                    .unwrap();
+                                    let alias_reft =
+                                        rty::AliasReft { assoc_id: *assoc_id, args: generic_args };
                                     let args = fargs
                                         .iter()
                                         .map(|farg| self.fixpoint_to_expr(farg))
@@ -1345,8 +1355,8 @@ struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_var_env: LocalVarEnv,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
-    const_map: ConstMap,
-    const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey>,
+    const_map: ConstMap<'tcx>,
+    const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey<'tcx>>,
     fun_def_map: FunDefMap,
     errors: Errors<'genv>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
@@ -2004,12 +2014,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fsort: rty::FuncSort,
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
-        // let tcx = self.genv.tcx();
-        // let args = alias_reft
-        //     .args
-        //     .to_rustc(tcx)
-        //     .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
-        let key = ConstKey::Alias(alias_reft.assoc_id, alias_reft.args.clone());
+        let tcx = self.genv.tcx();
+        let args = alias_reft
+            .args
+            .to_rustc(tcx)
+            .truncate_to(tcx, tcx.generics_of(alias_reft.assoc_id.parent()));
+        let key = ConstKey::Alias(alias_reft.assoc_id, args);
         self.const_map
             .entry(key.clone())
             .or_insert_with(|| {
