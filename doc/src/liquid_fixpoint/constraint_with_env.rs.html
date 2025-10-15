@@ -81,133 +81,131 @@
 <a href=#81 id=81 data-nosnippet>81</a>
 <a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">fn </span>solve_for_kvars(<span class="kw-2">&amp;</span><span class="self">self</span>, solver: <span class="kw-2">&amp;</span>Solver, env: <span class="kw-2">&amp;mut </span>Env&lt;T&gt;) -&gt; Assignments&lt;<span class="lifetime">'_</span>, T&gt; {
 <a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">let </span><span class="kw-2">mut </span>assignments = <span class="self">self</span>.compute_initial_assignments();
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>(kvars_to_fragments, <span class="kw">_</span>) = <span class="self">self</span>.constraint.kvar_mappings();
+<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>kvars_to_fragments = <span class="self">self</span>.constraint.kvar_mappings();
 <a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">let </span>topo_order_fragments = <span class="self">self</span>.constraint.topo_order_fragments();
 <a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span><span class="kw-2">mut </span>work_list = VecDeque::from_iter(topo_order_fragments.iter());
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">while </span>!work_list.is_empty() {
-<a href=#88 id=88 data-nosnippet>88</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(fragment) = work_list.pop_front()
-<a href=#89 id=89 data-nosnippet>89</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(kvar_name) = fragment.fragment_kvar_head()
-<a href=#90 id=90 data-nosnippet>90</a>                &amp;&amp; <span class="kw">let </span>subbed = fragment.sub_kvars_except_head(<span class="kw-2">&amp;</span>assignments)
-<a href=#91 id=91 data-nosnippet>91</a>                &amp;&amp; <span class="kw">let </span>assignment = assignments.get_mut(<span class="kw-2">&amp;</span>kvar_name)
-<a href=#92 id=92 data-nosnippet>92</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(assignment) = assignment
-<a href=#93 id=93 data-nosnippet>93</a>            {
-<a href=#94 id=94 data-nosnippet>94</a>                <span class="kw">let </span>initial_length = assignment.len();
-<a href=#95 id=95 data-nosnippet>95</a>                assignment.retain(|assignment| {
-<a href=#96 id=96 data-nosnippet>96</a>                    <span class="kw">let </span>vc = subbed.sub_head(assignment);
-<a href=#97 id=97 data-nosnippet>97</a>                    is_constraint_satisfiable(<span class="kw-2">&amp;</span>vc, solver, env).is_safe()
-<a href=#98 id=98 data-nosnippet>98</a>                });
-<a href=#99 id=99 data-nosnippet>99</a>                <span class="kw">if </span>initial_length &gt; assignment.len() {
-<a href=#100 id=100 data-nosnippet>100</a>                    work_list.extend(
-<a href=#101 id=101 data-nosnippet>101</a>                        fragment
-<a href=#102 id=102 data-nosnippet>102</a>                            .kvar_deps()
-<a href=#103 id=103 data-nosnippet>103</a>                            .iter()
-<a href=#104 id=104 data-nosnippet>104</a>                            .flat_map(|kvar| kvars_to_fragments.get(kvar).unwrap().iter()),
-<a href=#105 id=105 data-nosnippet>105</a>                    );
-<a href=#106 id=106 data-nosnippet>106</a>                }
-<a href=#107 id=107 data-nosnippet>107</a>            }
-<a href=#108 id=108 data-nosnippet>108</a>        }
-<a href=#109 id=109 data-nosnippet>109</a>        assignments
-<a href=#110 id=110 data-nosnippet>110</a>    }
-<a href=#111 id=111 data-nosnippet>111</a>
-<a href=#112 id=112 data-nosnippet>112</a>    <span class="kw">pub fn </span>is_satisfiable(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="self">self</span>.solve_by_fusion()
-<a href=#114 id=114 data-nosnippet>114</a>    }
-<a href=#115 id=115 data-nosnippet>115</a>
-<a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">pub fn </span>eliminate_acyclic_kvars(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span><span class="kw-2">mut </span>dep_map = <span class="self">self</span>.constraint.kvar_mappings().<span class="number">1</span>;
-<a href=#118 id=118 data-nosnippet>118</a>        <span class="kw">let </span><span class="kw-2">mut </span>acyclic_kvars: Vec&lt;T::KVar&gt; = dep_map
-<a href=#119 id=119 data-nosnippet>119</a>            .into_iter()
-<a href=#120 id=120 data-nosnippet>120</a>            .filter(|(<span class="kw">_</span>, dependencies)| dependencies.is_empty())
-<a href=#121 id=121 data-nosnippet>121</a>            .map(|(kvar, <span class="kw">_</span>)| kvar)
-<a href=#122 id=122 data-nosnippet>122</a>            .collect();
-<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">while </span>!acyclic_kvars.is_empty() {
-<a href=#124 id=124 data-nosnippet>124</a>            <span class="self">self</span>.constraint = <span class="self">self</span>.constraint.elim(<span class="kw-2">&amp;</span>acyclic_kvars);
-<a href=#125 id=125 data-nosnippet>125</a>            dep_map = <span class="self">self</span>.constraint.kvar_mappings().<span class="number">1</span>;
-<a href=#126 id=126 data-nosnippet>126</a>            acyclic_kvars = dep_map
-<a href=#127 id=127 data-nosnippet>127</a>                .into_iter()
-<a href=#128 id=128 data-nosnippet>128</a>                .filter(|(<span class="kw">_</span>, dependencies)| dependencies.is_empty())
-<a href=#129 id=129 data-nosnippet>129</a>                .map(|(kvar, <span class="kw">_</span>)| kvar)
-<a href=#130 id=130 data-nosnippet>130</a>                .collect();
-<a href=#131 id=131 data-nosnippet>131</a>        }
-<a href=#132 id=132 data-nosnippet>132</a>    }
-<a href=#133 id=133 data-nosnippet>133</a>
-<a href=#134 id=134 data-nosnippet>134</a>    <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="self">self</span>.constraint.simplify();
-<a href=#136 id=136 data-nosnippet>136</a>    }
-<a href=#137 id=137 data-nosnippet>137</a>
-<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">pub fn </span>solve_by_fusion(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
-<a href=#139 id=139 data-nosnippet>139</a>        <span class="self">self</span>.simplify();
-<a href=#140 id=140 data-nosnippet>140</a>        <span class="self">self</span>.eliminate_acyclic_kvars();
-<a href=#141 id=141 data-nosnippet>141</a>        <span class="self">self</span>.solve_by_predicate_abstraction()
-<a href=#142 id=142 data-nosnippet>142</a>    }
-<a href=#143 id=143 data-nosnippet>143</a>
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">pub fn </span>solve_by_predicate_abstraction(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
-<a href=#145 id=145 data-nosnippet>145</a>        <span class="kw">let </span>solver = Solver::new();
-<a href=#146 id=146 data-nosnippet>146</a>        <span class="kw">let </span><span class="kw-2">mut </span>vars: Env&lt;T&gt; = Env::new();
-<a href=#147 id=147 data-nosnippet>147</a>        <span class="self">self</span>.constants.iter().for_each(|const_decl| {
-<a href=#148 id=148 data-nosnippet>148</a>            vars.insert(
-<a href=#149 id=149 data-nosnippet>149</a>                const_decl.name.clone(),
-<a href=#150 id=150 data-nosnippet>150</a>                new_binding(<span class="kw-2">&amp;</span>const_decl.name, <span class="kw-2">&amp;</span>const_decl.sort, <span class="kw-2">&amp;</span>vars),
-<a href=#151 id=151 data-nosnippet>151</a>            );
-<a href=#152 id=152 data-nosnippet>152</a>        });
-<a href=#153 id=153 data-nosnippet>153</a>        <span class="self">self</span>.datatype_decls.iter().for_each(|data_decl| {
-<a href=#154 id=154 data-nosnippet>154</a>            <span class="kw">let </span>datatype_sort = new_datatype(<span class="kw-2">&amp;</span>data_decl.name, <span class="kw-2">&amp;</span>data_decl, <span class="kw-2">&amp;mut </span>vars);
-<a href=#155 id=155 data-nosnippet>155</a>            vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
-<a href=#156 id=156 data-nosnippet>156</a>        });
-<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span>kvar_assignment = <span class="self">self</span>.solve_for_kvars(<span class="kw-2">&amp;</span>solver, <span class="kw-2">&amp;mut </span>vars);
-<a href=#158 id=158 data-nosnippet>158</a>        <span class="self">self</span>.constraint = <span class="self">self</span>.constraint.sub_all_kvars(<span class="kw-2">&amp;</span>kvar_assignment);
-<a href=#159 id=159 data-nosnippet>159</a>        is_constraint_satisfiable(<span class="kw-2">&amp;</span><span class="self">self</span>.constraint, <span class="kw-2">&amp;</span>solver, <span class="kw-2">&amp;mut </span>vars)
-<a href=#160 id=160 data-nosnippet>160</a>    }
-<a href=#161 id=161 data-nosnippet>161</a>
-<a href=#162 id=162 data-nosnippet>162</a>    <span class="kw">fn </span>topo_sort_data_declarations(datatype_decls: Vec&lt;DataDecl&lt;T&gt;&gt;) -&gt; Vec&lt;DataDecl&lt;T&gt;&gt; {
-<a href=#163 id=163 data-nosnippet>163</a>        <span class="kw">let </span><span class="kw-2">mut </span>datatype_dependencies: HashMap&lt;T::Sort, Vec&lt;T::Sort&gt;&gt; = HashMap::new();
-<a href=#164 id=164 data-nosnippet>164</a>        <span class="kw">for </span>datatype_decl <span class="kw">in </span><span class="kw-2">&amp;</span>datatype_decls {
-<a href=#165 id=165 data-nosnippet>165</a>            datatype_dependencies.insert(datatype_decl.name.clone(), <span class="macro">vec!</span>[]);
-<a href=#166 id=166 data-nosnippet>166</a>        }
-<a href=#167 id=167 data-nosnippet>167</a>        <span class="kw">let </span><span class="kw-2">mut </span>data_decls_by_name = HashMap::new();
-<a href=#168 id=168 data-nosnippet>168</a>        <span class="kw">for </span>datatype_decl <span class="kw">in </span>datatype_decls {
-<a href=#169 id=169 data-nosnippet>169</a>            <span class="kw">for </span>data_constructor <span class="kw">in </span><span class="kw-2">&amp;</span>datatype_decl.ctors {
-<a href=#170 id=170 data-nosnippet>170</a>                <span class="kw">for </span>accessor <span class="kw">in </span><span class="kw-2">&amp;</span>data_constructor.fields {
-<a href=#171 id=171 data-nosnippet>171</a>                    <span class="kw">if let </span>Sort::App(ctor, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>accessor.sort
-<a href=#172 id=172 data-nosnippet>172</a>                        &amp;&amp; <span class="kw">let </span>SortCtor::Data(data_ctor) = <span class="kw-2">&amp;</span>ctor
-<a href=#173 id=173 data-nosnippet>173</a>                    {
-<a href=#174 id=174 data-nosnippet>174</a>                        datatype_dependencies
-<a href=#175 id=175 data-nosnippet>175</a>                            .get_mut(<span class="kw-2">&amp;</span>datatype_decl.name)
-<a href=#176 id=176 data-nosnippet>176</a>                            .unwrap()
-<a href=#177 id=177 data-nosnippet>177</a>                            .push(data_ctor.clone());
-<a href=#178 id=178 data-nosnippet>178</a>                    }
-<a href=#179 id=179 data-nosnippet>179</a>                }
-<a href=#180 id=180 data-nosnippet>180</a>            }
-<a href=#181 id=181 data-nosnippet>181</a>            data_decls_by_name.insert(datatype_decl.name.clone(), datatype_decl);
-<a href=#182 id=182 data-nosnippet>182</a>        }
-<a href=#183 id=183 data-nosnippet>183</a>        graph::topological_sort_sccs(<span class="kw-2">&amp;</span>datatype_dependencies)
-<a href=#184 id=184 data-nosnippet>184</a>            .into_iter()
-<a href=#185 id=185 data-nosnippet>185</a>            .flatten()
-<a href=#186 id=186 data-nosnippet>186</a>            .rev()
-<a href=#187 id=187 data-nosnippet>187</a>            .map(|datatype_decl_name| data_decls_by_name.remove(<span class="kw-2">&amp;</span>datatype_decl_name).unwrap())
-<a href=#188 id=188 data-nosnippet>188</a>            .collect_vec()
-<a href=#189 id=189 data-nosnippet>189</a>    }
-<a href=#190 id=190 data-nosnippet>190</a>}
-<a href=#191 id=191 data-nosnippet>191</a>
-<a href=#192 id=192 data-nosnippet>192</a><span class="attr">#[cfg(feature = <span class="string">"rust-fixpoint"</span>)]
-<a href=#193 id=193 data-nosnippet>193</a></span><span class="kw">fn </span>type_signature_matches&lt;T: Types&gt;(
-<a href=#194 id=194 data-nosnippet>194</a>    argument_permutation: <span class="kw-2">&amp;</span>[usize],
-<a href=#195 id=195 data-nosnippet>195</a>    kvar_decl: <span class="kw-2">&amp;</span>KVarDecl&lt;T&gt;,
-<a href=#196 id=196 data-nosnippet>196</a>    qualifier: <span class="kw-2">&amp;</span>Qualifier&lt;T&gt;,
-<a href=#197 id=197 data-nosnippet>197</a>) -&gt; bool {
-<a href=#198 id=198 data-nosnippet>198</a>    <span class="kw">if </span>argument_permutation.len() != qualifier.args.len() {
-<a href=#199 id=199 data-nosnippet>199</a>        <span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#200 id=200 data-nosnippet>200</a>    }
-<a href=#201 id=201 data-nosnippet>201</a>
-<a href=#202 id=202 data-nosnippet>202</a>    <span class="kw">for </span>(qs, ks) <span class="kw">in </span>qualifier.args.iter().map(|arg| arg.<span class="number">1</span>.clone()).zip(
-<a href=#203 id=203 data-nosnippet>203</a>        argument_permutation
-<a href=#204 id=204 data-nosnippet>204</a>            .iter()
-<a href=#205 id=205 data-nosnippet>205</a>            .map(|arg_idx| kvar_decl.sorts[<span class="kw-2">*</span>arg_idx].clone()),
-<a href=#206 id=206 data-nosnippet>206</a>    ) {
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="kw">if </span>qs.to_string().ne(<span class="kw-2">&amp;</span>ks.to_string()) {
-<a href=#208 id=208 data-nosnippet>208</a>            <span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#209 id=209 data-nosnippet>209</a>        }
-<a href=#210 id=210 data-nosnippet>210</a>    }
-<a href=#211 id=211 data-nosnippet>211</a>
-<a href=#212 id=212 data-nosnippet>212</a>    <span class="bool-val">true
-<a href=#213 id=213 data-nosnippet>213</a></span>}</code></pre></div></section></main></body></html>
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">while let </span><span class="prelude-val">Some</span>(fragment) = work_list.pop_front() {
+<a href=#88 id=88 data-nosnippet>88</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(kvar_name) = fragment.fragment_kvar_head()
+<a href=#89 id=89 data-nosnippet>89</a>                &amp;&amp; <span class="kw">let </span>subbed = fragment.sub_kvars_except_head(<span class="kw-2">&amp;</span>assignments)
+<a href=#90 id=90 data-nosnippet>90</a>                &amp;&amp; <span class="kw">let </span><span class="prelude-val">Some</span>(assignment) = assignments.get_mut(<span class="kw-2">&amp;</span>kvar_name)
+<a href=#91 id=91 data-nosnippet>91</a>            {
+<a href=#92 id=92 data-nosnippet>92</a>                <span class="kw">let </span>initial_length = assignment.len();
+<a href=#93 id=93 data-nosnippet>93</a>                assignment.retain(|assignment| {
+<a href=#94 id=94 data-nosnippet>94</a>                    <span class="kw">let </span>vc = subbed.sub_head(assignment);
+<a href=#95 id=95 data-nosnippet>95</a>                    is_constraint_satisfiable(<span class="kw-2">&amp;</span>vc, solver, env).is_safe()
+<a href=#96 id=96 data-nosnippet>96</a>                });
+<a href=#97 id=97 data-nosnippet>97</a>                <span class="kw">if </span>initial_length &gt; assignment.len() {
+<a href=#98 id=98 data-nosnippet>98</a>                    work_list.extend(
+<a href=#99 id=99 data-nosnippet>99</a>                        fragment
+<a href=#100 id=100 data-nosnippet>100</a>                            .kvar_deps()
+<a href=#101 id=101 data-nosnippet>101</a>                            .iter()
+<a href=#102 id=102 data-nosnippet>102</a>                            .flat_map(|kvar| kvars_to_fragments.get(kvar).unwrap().iter()),
+<a href=#103 id=103 data-nosnippet>103</a>                    );
+<a href=#104 id=104 data-nosnippet>104</a>                }
+<a href=#105 id=105 data-nosnippet>105</a>            }
+<a href=#106 id=106 data-nosnippet>106</a>        }
+<a href=#107 id=107 data-nosnippet>107</a>        assignments
+<a href=#108 id=108 data-nosnippet>108</a>    }
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>    <span class="kw">pub fn </span>is_satisfiable(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="self">self</span>.solve_by_fusion()
+<a href=#112 id=112 data-nosnippet>112</a>    }
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>eliminate_acyclic_kvars(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#115 id=115 data-nosnippet>115</a>        <span class="kw">let </span><span class="kw-2">mut </span>dep_graph = <span class="self">self</span>.constraint.kvar_dep_graph();
+<a href=#116 id=116 data-nosnippet>116</a>        <span class="kw">let </span><span class="kw-2">mut </span>acyclic_kvars: Vec&lt;T::KVar&gt; = dep_graph
+<a href=#117 id=117 data-nosnippet>117</a>            .into_iter()
+<a href=#118 id=118 data-nosnippet>118</a>            .filter(|(<span class="kw">_</span>, dependencies)| dependencies.is_empty())
+<a href=#119 id=119 data-nosnippet>119</a>            .map(|(kvar, <span class="kw">_</span>)| kvar)
+<a href=#120 id=120 data-nosnippet>120</a>            .collect();
+<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">while </span>!acyclic_kvars.is_empty() {
+<a href=#122 id=122 data-nosnippet>122</a>            <span class="self">self</span>.constraint = <span class="self">self</span>.constraint.elim(<span class="kw-2">&amp;</span>acyclic_kvars);
+<a href=#123 id=123 data-nosnippet>123</a>            dep_graph = <span class="self">self</span>.constraint.kvar_dep_graph();
+<a href=#124 id=124 data-nosnippet>124</a>            acyclic_kvars = dep_graph
+<a href=#125 id=125 data-nosnippet>125</a>                .into_iter()
+<a href=#126 id=126 data-nosnippet>126</a>                .filter(|(<span class="kw">_</span>, dependencies)| dependencies.is_empty())
+<a href=#127 id=127 data-nosnippet>127</a>                .map(|(kvar, <span class="kw">_</span>)| kvar)
+<a href=#128 id=128 data-nosnippet>128</a>                .collect();
+<a href=#129 id=129 data-nosnippet>129</a>        }
+<a href=#130 id=130 data-nosnippet>130</a>    }
+<a href=#131 id=131 data-nosnippet>131</a>
+<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">fn </span>simplify(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="self">self</span>.constraint.simplify();
+<a href=#134 id=134 data-nosnippet>134</a>    }
+<a href=#135 id=135 data-nosnippet>135</a>
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">pub fn </span>solve_by_fusion(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
+<a href=#137 id=137 data-nosnippet>137</a>        <span class="self">self</span>.simplify();
+<a href=#138 id=138 data-nosnippet>138</a>        <span class="self">self</span>.eliminate_acyclic_kvars();
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="self">self</span>.solve_by_predicate_abstraction()
+<a href=#140 id=140 data-nosnippet>140</a>    }
+<a href=#141 id=141 data-nosnippet>141</a>
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">pub fn </span>solve_by_predicate_abstraction(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; FixpointResult&lt;T::Tag&gt; {
+<a href=#143 id=143 data-nosnippet>143</a>        <span class="kw">let </span>solver = Solver::new();
+<a href=#144 id=144 data-nosnippet>144</a>        <span class="kw">let </span><span class="kw-2">mut </span>vars: Env&lt;T&gt; = Env::new();
+<a href=#145 id=145 data-nosnippet>145</a>        <span class="self">self</span>.constants.iter().for_each(|const_decl| {
+<a href=#146 id=146 data-nosnippet>146</a>            vars.insert(
+<a href=#147 id=147 data-nosnippet>147</a>                const_decl.name.clone(),
+<a href=#148 id=148 data-nosnippet>148</a>                new_binding(<span class="kw-2">&amp;</span>const_decl.name, <span class="kw-2">&amp;</span>const_decl.sort, <span class="kw-2">&amp;</span>vars),
+<a href=#149 id=149 data-nosnippet>149</a>            );
+<a href=#150 id=150 data-nosnippet>150</a>        });
+<a href=#151 id=151 data-nosnippet>151</a>        <span class="self">self</span>.datatype_decls.iter().for_each(|data_decl| {
+<a href=#152 id=152 data-nosnippet>152</a>            <span class="kw">let </span>datatype_sort = new_datatype(<span class="kw-2">&amp;</span>data_decl.name, <span class="kw-2">&amp;</span>data_decl, <span class="kw-2">&amp;mut </span>vars);
+<a href=#153 id=153 data-nosnippet>153</a>            vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
+<a href=#154 id=154 data-nosnippet>154</a>        });
+<a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">let </span>kvar_assignment = <span class="self">self</span>.solve_for_kvars(<span class="kw-2">&amp;</span>solver, <span class="kw-2">&amp;mut </span>vars);
+<a href=#156 id=156 data-nosnippet>156</a>        <span class="self">self</span>.constraint = <span class="self">self</span>.constraint.sub_all_kvars(<span class="kw-2">&amp;</span>kvar_assignment);
+<a href=#157 id=157 data-nosnippet>157</a>        is_constraint_satisfiable(<span class="kw-2">&amp;</span><span class="self">self</span>.constraint, <span class="kw-2">&amp;</span>solver, <span class="kw-2">&amp;mut </span>vars)
+<a href=#158 id=158 data-nosnippet>158</a>    }
+<a href=#159 id=159 data-nosnippet>159</a>
+<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">fn </span>topo_sort_data_declarations(datatype_decls: Vec&lt;DataDecl&lt;T&gt;&gt;) -&gt; Vec&lt;DataDecl&lt;T&gt;&gt; {
+<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">let </span><span class="kw-2">mut </span>datatype_dependencies: HashMap&lt;T::Sort, Vec&lt;T::Sort&gt;&gt; = HashMap::new();
+<a href=#162 id=162 data-nosnippet>162</a>        <span class="kw">for </span>datatype_decl <span class="kw">in </span><span class="kw-2">&amp;</span>datatype_decls {
+<a href=#163 id=163 data-nosnippet>163</a>            datatype_dependencies.insert(datatype_decl.name.clone(), <span class="macro">vec!</span>[]);
+<a href=#164 id=164 data-nosnippet>164</a>        }
+<a href=#165 id=165 data-nosnippet>165</a>        <span class="kw">let </span><span class="kw-2">mut </span>data_decls_by_name = HashMap::new();
+<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">for </span>datatype_decl <span class="kw">in </span>datatype_decls {
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="kw">for </span>data_constructor <span class="kw">in </span><span class="kw-2">&amp;</span>datatype_decl.ctors {
+<a href=#168 id=168 data-nosnippet>168</a>                <span class="kw">for </span>accessor <span class="kw">in </span><span class="kw-2">&amp;</span>data_constructor.fields {
+<a href=#169 id=169 data-nosnippet>169</a>                    <span class="kw">if let </span>Sort::App(ctor, <span class="kw">_</span>) = <span class="kw-2">&amp;</span>accessor.sort
+<a href=#170 id=170 data-nosnippet>170</a>                        &amp;&amp; <span class="kw">let </span>SortCtor::Data(data_ctor) = <span class="kw-2">&amp;</span>ctor
+<a href=#171 id=171 data-nosnippet>171</a>                    {
+<a href=#172 id=172 data-nosnippet>172</a>                        datatype_dependencies
+<a href=#173 id=173 data-nosnippet>173</a>                            .get_mut(<span class="kw-2">&amp;</span>datatype_decl.name)
+<a href=#174 id=174 data-nosnippet>174</a>                            .unwrap()
+<a href=#175 id=175 data-nosnippet>175</a>                            .push(data_ctor.clone());
+<a href=#176 id=176 data-nosnippet>176</a>                    }
+<a href=#177 id=177 data-nosnippet>177</a>                }
+<a href=#178 id=178 data-nosnippet>178</a>            }
+<a href=#179 id=179 data-nosnippet>179</a>            data_decls_by_name.insert(datatype_decl.name.clone(), datatype_decl);
+<a href=#180 id=180 data-nosnippet>180</a>        }
+<a href=#181 id=181 data-nosnippet>181</a>        graph::topological_sort_sccs(<span class="kw-2">&amp;</span>datatype_dependencies)
+<a href=#182 id=182 data-nosnippet>182</a>            .into_iter()
+<a href=#183 id=183 data-nosnippet>183</a>            .flatten()
+<a href=#184 id=184 data-nosnippet>184</a>            .rev()
+<a href=#185 id=185 data-nosnippet>185</a>            .map(|datatype_decl_name| data_decls_by_name.remove(<span class="kw-2">&amp;</span>datatype_decl_name).unwrap())
+<a href=#186 id=186 data-nosnippet>186</a>            .collect_vec()
+<a href=#187 id=187 data-nosnippet>187</a>    }
+<a href=#188 id=188 data-nosnippet>188</a>}
+<a href=#189 id=189 data-nosnippet>189</a>
+<a href=#190 id=190 data-nosnippet>190</a><span class="attr">#[cfg(feature = <span class="string">"rust-fixpoint"</span>)]
+<a href=#191 id=191 data-nosnippet>191</a></span><span class="kw">fn </span>type_signature_matches&lt;T: Types&gt;(
+<a href=#192 id=192 data-nosnippet>192</a>    argument_permutation: <span class="kw-2">&amp;</span>[usize],
+<a href=#193 id=193 data-nosnippet>193</a>    kvar_decl: <span class="kw-2">&amp;</span>KVarDecl&lt;T&gt;,
+<a href=#194 id=194 data-nosnippet>194</a>    qualifier: <span class="kw-2">&amp;</span>Qualifier&lt;T&gt;,
+<a href=#195 id=195 data-nosnippet>195</a>) -&gt; bool {
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">if </span>argument_permutation.len() != qualifier.args.len() {
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#198 id=198 data-nosnippet>198</a>    }
+<a href=#199 id=199 data-nosnippet>199</a>
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">for </span>(qs, ks) <span class="kw">in </span>qualifier.args.iter().map(|arg| arg.<span class="number">1</span>.clone()).zip(
+<a href=#201 id=201 data-nosnippet>201</a>        argument_permutation
+<a href=#202 id=202 data-nosnippet>202</a>            .iter()
+<a href=#203 id=203 data-nosnippet>203</a>            .map(|arg_idx| kvar_decl.sorts[<span class="kw-2">*</span>arg_idx].clone()),
+<a href=#204 id=204 data-nosnippet>204</a>    ) {
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="kw">if </span>qs.to_string().ne(<span class="kw-2">&amp;</span>ks.to_string()) {
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#207 id=207 data-nosnippet>207</a>        }
+<a href=#208 id=208 data-nosnippet>208</a>    }
+<a href=#209 id=209 data-nosnippet>209</a>
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="bool-val">true
+<a href=#211 id=211 data-nosnippet>211</a></span>}</code></pre></div></section></main></body></html>
