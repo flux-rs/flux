@@ -313,7 +313,7 @@ impl<T: Types> Pred<T> {
                     .get(kvid)
                     .unwrap_or_else(|| panic!("{:#?} should have an assignment", kvid));
                 if qualifiers.is_empty() {
-                    return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
+                    return Pred::TRUE;
                 }
                 if qualifiers.len() == 1 {
                     let qualifier = qualifiers[0].0;
