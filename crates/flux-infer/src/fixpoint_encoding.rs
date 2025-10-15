@@ -792,8 +792,9 @@ where
                             Err(FixpointParseError::NoLocalVar(*fname))
                         }
                     }
-                    fixpoint::Var::DataCtor(_, _) => {
-                        todo!()
+                    fixpoint::Var::DataCtor(adt_id, variant_idx) => {
+                        let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+                        Ok(rty::Expr::ctor_enum(def_id, *variant_idx))
                     }
                     fixpoint::Var::TupleCtor { .. }
                     | fixpoint::Var::TupleProj { .. }
@@ -1013,8 +1014,15 @@ where
             }
             fixpoint::Expr::ThyFunc(itf) => Ok(rty::Expr::global_func(SpecFuncKind::Thy(*itf))),
             fixpoint::Expr::IsCtor(var, fe) => {
-                let def_id = todo!();
-                let variant_idx = todo!();
+                let (def_id, variant_idx) = match var {
+                    fixpoint::Var::DataCtor(adt_id, variant_idx) => {
+                        let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+                        Ok((def_id, *variant_idx))
+                    }
+                    _ => {
+                        Err(FixpointParseError::WrongVarInIsCtor(var.clone()))
+                    }
+                }?;
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
@@ -1049,6 +1057,8 @@ pub enum FixpointParseError {
     CastArityMismatch(usize),
     PrimOpArityMismatch(usize),
     NoLocalVar(fixpoint::LocalVar),
+    /// Expecting fixpoint::Var::DataCtor
+    WrongVarInIsCtor(fixpoint::Var),
 }
 
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
