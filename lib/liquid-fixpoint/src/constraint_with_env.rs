@@ -149,7 +149,7 @@ impl<T: Types> ConstraintWithEnv<T> {
             );
         });
         self.datatype_decls.iter().for_each(|data_decl| {
-            let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
+            let datatype_sort = new_datatype(&data_decl.name, data_decl, &mut vars);
             vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
         });
         let kvar_assignment = self.solve_for_kvars(&solver, &mut vars);
