@@ -394,7 +394,7 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
 type FunDefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
 type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy)]
+#[derive(Eq, Hash, PartialEq, Clone)]
 enum ConstKey<'tcx> {
     Uif(FluxDefId),
     RustConst(DefId),
@@ -964,17 +964,17 @@ where
                 Ok(rty::Expr::ite(e1, e2, e3))
             }
             fixpoint::Expr::And(fexprs) => {
-                let exprs = fexprs
+                let exprs: Vec<rty::Expr> = fexprs
                     .iter()
                     .map(|fexpr| self.fixpoint_to_expr(fexpr))
                     .try_collect()?;
                 Ok(rty::Expr::and_from_iter(exprs))
             }
             fixpoint::Expr::Or(fexprs) => {
-                let exprs = fexprs
+                let exprs: Vec<rty::Expr> = fexprs
                     .iter()
                     .map(|fexpr| self.fixpoint_to_expr(fexpr))
-                    .try_collect(()?;
+                    .try_collect()?;
                 Ok(rty::Expr::or_from_iter(exprs))
             }
             fixpoint::Expr::Not(fexpr) => {
