@@ -210,6 +210,16 @@ pub enum FixpointStatus<Tag> {
 #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
 pub struct FixpointResult<Tag> {
     pub status: FixpointStatus<Tag>,
+    pub solution: Vec<KVarBind>,
+    #[serde(rename = "nonCutsSolution")]
+    pub non_cuts_solution: Vec<KVarBind>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+// #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
+pub struct KVarBind {
+    kvar: String,
+    val: String,
 }
 
 impl<Tag> FixpointStatus<Tag> {
