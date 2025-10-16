@@ -23,6 +23,8 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
+// Add this import if SexpParser is defined in another crate or module
+use liquid_fixpoint::sexp::Parser;
 use liquid_fixpoint::{FixpointResult, FixpointStatus, SmtSolver};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
@@ -522,7 +524,13 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = self.convert_solution(&result);
+        let solution = result
+            .solution
+            .iter()
+            .chain(result.non_cuts_solution.iter())
+            .map(|b| self.convert_kvar_bind(b))
+            .try_collect()?;
+
         let unsat = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
@@ -537,29 +545,41 @@ where
         Ok(Answer { errors: unsat, solution })
     }
 
+    fn convert_kvar(kvid: &str) -> QueryResult<fixpoint::KVid> {
+        if kvid.starts_with("k")
+            && let Some(kvid) = kvid[1..].parse::<u32>().ok()
+        {
+            Ok(fixpoint::KVid::from_u32(kvid))
+        } else {
+            tracked_span_bug!("unexpected kvar name {kvid}")
+        }
+    }
+
+    fn convert_expr(
+        &self,
+        expr: &str,
+    ) -> QueryResult<flux_middle::rty::Binder<flux_middle::rty::Expr>> {
+        // 1. convert str -> sexp
+        let mut sexp_parser = Parser::new(expr);
+        let sexp = match sexp_parser.parse() {
+            Ok(sexp) => sexp,
+            Err(err) => {
+                tracked_span_bug!("cannot parse sexp: {expr:?}: {err:?}");
+            }
+        };
+
+        todo!("TRACE: convert_sexp {sexp:?}");
+        // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
+        // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
+    }
+
     fn convert_kvar_bind(
         &self,
         b: &liquid_fixpoint::KVarBind,
-    ) -> (fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>) {
-        todo!();
-        // let expr = self.ecx.reft_to_expr(&b.reft);
-        // flux_middle::rty::Binder::binders(b.args.len(), expr)
-    }
-
-    // #[allow(unreachable_code)] // JUST FOR NOW!
-    fn convert_solution(&self, result: &FixpointResult<TagIdx>) -> Solution {
-        let mut solution = HashMap::new();
-        if result.solution.is_empty() || 1 + 1 + 1 == 3 {
-            return solution;
-        } else {
-            for b in result.solution.iter()
-            // .chain(result.non_cuts_solution.iter())
-            {
-                let (k, expr) = self.convert_kvar_bind(b);
-                solution.insert(k, expr);
-            }
-        }
-        solution
+    ) -> QueryResult<(fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>)> {
+        let kvid = Self::convert_kvar(&b.kvar)?;
+        let expr = self.convert_expr(&b.val)?;
+        Ok((kvid, expr))
     }
 
     pub fn generate_and_check_lean_lemmas(

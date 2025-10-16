@@ -22,7 +22,7 @@ mod format;
 #[cfg(feature = "rust-fixpoint")]
 mod graph;
 mod parser;
-mod sexp;
+pub mod sexp;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -217,8 +217,8 @@ pub struct FixpointResult<Tag> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KVarBind {
-    kvar: String,
-    val: String,
+    pub kvar: String,
+    pub val: String,
 }
 
 impl KVarBind {
