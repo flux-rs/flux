@@ -9,13 +9,13 @@ use flux_config::{
     flags::{self, EXIT_FAILURE},
 };
 use flux_driver::callbacks::FluxCallbacks;
+use flux_middle::metrics;
 use rustc_driver::{catch_with_exit_code, run_compiler};
 
 mod logger;
 
 fn main() -> io::Result<()> {
     if !config::verify() {
-        rustc_driver::install_ice_hook(rustc_driver::DEFAULT_BUG_REPORT_URL, |_| ());
         rustc_driver::main();
     }
 
@@ -45,8 +45,10 @@ fn main() -> io::Result<()> {
     args.push("-Zcrate-attr=register_tool(flux_tool)".to_string());
     args.push("--cfg=flux".to_string());
 
+    let start = std::time::Instant::now();
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
+    let _ = metrics::print_summary(start.elapsed());
     exit(exit_code)
 }

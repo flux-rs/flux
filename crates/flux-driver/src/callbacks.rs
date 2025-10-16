@@ -13,7 +13,7 @@ use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, FluxItem},
     global_env::GlobalEnv,
-    metrics::{self, Metric},
+    metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
 };
 use flux_refineck as refineck;
@@ -74,11 +74,12 @@ impl FluxCallbacks {
         let cstore = CStore::load(tcx, &sess);
         let arena = fhir::Arena::new();
         GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-            let result = metrics::enter(tcx, || check_crate(genv));
+            let result = metrics::time_it(TimingKind::Total, || check_crate(genv));
             if result.is_ok() {
                 encode_and_save_metadata(genv);
             }
         });
+        let _ = metrics::print_and_dump_timings(tcx);
         sess.finish_diagnostics();
     }
 }

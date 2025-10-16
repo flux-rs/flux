@@ -1,5 +1,6 @@
 use std::{
-    fs, io,
+    fs,
+    io::{self, Write as _},
     sync::{Mutex, atomic::AtomicU32},
     time::{Duration, Instant},
 };
@@ -11,6 +12,22 @@ use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
 use crate::FixpointQueryKind;
+
+const BOLD: anstyle::Style = anstyle::Style::new().bold();
+const GREY: anstyle::Style = anstyle::AnsiColor::BrightBlack.on_default();
+
+pub fn print_summary(total_time: Duration) -> io::Result<()> {
+    let mut stderr = anstream::Stderr::always(std::io::stderr());
+    writeln!(
+        &mut stderr,
+        "{BOLD}summary.{BOLD:#} {} functions processed: {} checked; {} trusted; {} ignored; finished in {}{GREY:#}",
+        METRICS.get(Metric::FnTotal),
+        METRICS.get(Metric::FnChecked),
+        METRICS.get(Metric::FnTrusted),
+        METRICS.get(Metric::FnIgnored),
+        fmt_duration(total_time),
+    )
+}
 
 static METRICS: Metrics = Metrics::new();
 
@@ -24,23 +41,25 @@ pub enum Metric {
     FnIgnored,
     /// number of functions that were actually checked
     FnChecked,
-    // /// number of "trivial" functions that did not require fixpoint
-    // FnTrivial,
-    // /// number of functions whose queries hit the cache
-    // FnCached,
 }
 
 struct Metrics {
-    counts: Vec<AtomicU32>,
+    counts: [AtomicU32; 4],
 }
 
 impl Metrics {
     const fn new() -> Self {
-        Self { counts: Vec::new() }
+        Self {
+            counts: [AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)],
+        }
     }
 
     fn incr(&self, metric: Metric) {
         self.counts[metric as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn get(&self, metric: Metric) -> u32 {
+        self.counts[metric as usize].load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 
@@ -57,21 +76,12 @@ pub fn incr_metric_if(cond: bool, metric: Metric) {
 static TIMINGS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
 
 pub enum TimingKind {
+    /// Total time taken to run the complete Flux analysis on the crate
+    Total,
     /// Time taken to check the body of a function
     CheckFn(LocalDefId),
     /// Time taken to run a single fixpoint query
     FixpointQuery(DefId, FixpointQueryKind),
-}
-
-pub fn enter<R>(tcx: TyCtxt, f: impl FnOnce() -> R) -> R {
-    if !config::timings() {
-        return f();
-    }
-    let start = Instant::now();
-    let r = f();
-    print_and_dump_report(tcx, start.elapsed(), std::mem::take(&mut *TIMINGS.lock().unwrap()))
-        .unwrap();
-    r
 }
 
 #[derive(Serialize)]
@@ -100,9 +110,15 @@ fn snd<A, B: Copy>(&(_, b): &(A, B)) -> B {
     b
 }
 
-fn print_and_dump_report(tcx: TyCtxt, total: Duration, timings: Vec<Entry>) -> io::Result<()> {
+pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
+    if !config::timings() {
+        return Ok(());
+    }
+
+    let timings = std::mem::take(&mut *TIMINGS.lock().unwrap());
     let mut functions = vec![];
     let mut queries = vec![];
+    let mut total = Duration::from_secs(0);
     for timing in timings {
         match timing.kind {
             TimingKind::CheckFn(local_def_id) => {
@@ -112,6 +128,10 @@ fn print_and_dump_report(tcx: TyCtxt, total: Duration, timings: Vec<Entry>) -> i
             TimingKind::FixpointQuery(def_id, kind) => {
                 let key = kind.task_key(tcx, def_id);
                 queries.push((key, timing.duration));
+            }
+            TimingKind::Total => {
+                // This should only appear once
+                total = timing.duration;
             }
         }
     }
