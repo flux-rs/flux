@@ -145,8 +145,8 @@ impl<'sess> Errors<'sess> {
         err
     }
 
-    pub fn into_result(self) -> Result<(), ErrorGuaranteed> {
-        if let Some(err) = self.err.into_inner() { Err(err) } else { Ok(()) }
+    pub fn into_result(&self) -> Result<(), ErrorGuaranteed> {
+        if let Some(err) = &self.err.clone().into_inner() { Err(*err) } else { Ok(()) }
     }
 }
 
@@ -165,6 +165,6 @@ impl ErrorCollector<ErrorGuaranteed> for Errors<'_> {
     }
 
     fn into_result(self) -> Self::Result {
-        Errors::into_result(self)
+        Errors::into_result(&self)
     }
 }

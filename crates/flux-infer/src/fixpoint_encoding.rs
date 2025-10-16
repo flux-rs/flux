@@ -23,7 +23,7 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
-use liquid_fixpoint::{FixpointStatus, SmtSolver};
+use liquid_fixpoint::{FixpointResult, FixpointStatus, SmtSolver};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -177,6 +177,21 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
+}
+
+/// A type to represent Solutions for KVars
+pub type Solution = HashMap<fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>>;
+
+#[derive(Debug, Clone, Default)]
+pub struct Answer<Tag> {
+    pub errors: Vec<Tag>,
+    pub solution: Solution,
+}
+
+impl<Tag> Answer<Tag> {
+    pub fn trivial() -> Self {
+        Self { errors: Vec::new(), solution: HashMap::new() }
+    }
 }
 
 newtype_index! {
@@ -366,10 +381,10 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn into_data_decls(mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    fn into_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
-        Self::append_tuple_decls(self.tuples, &mut decls);
+        Self::append_tuple_decls(self.tuples.clone(), &mut decls);
         Ok(decls)
     }
 }
@@ -412,7 +427,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags_inv: UnordMap<T, TagIdx>,
 }
 
-pub type FixQueryCache = QueryCache<FixpointStatus<TagIdx>>;
+pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -438,11 +453,11 @@ where
         kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
-    ) -> QueryResult<Vec<Tag>> {
+    ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
         if !constraint.is_concrete() {
             self.ecx.errors.into_result()?;
-            return Ok(vec![]);
+            return Ok(Answer::trivial());
         }
         let def_span = self.ecx.def_span();
         let def_id = self.ecx.def_id;
@@ -461,7 +476,13 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let mut constants = self.ecx.const_env.const_map.into_values().collect_vec();
+        let mut constants = self
+            .ecx
+            .const_env
+            .const_map
+            .clone()
+            .into_values()
+            .collect_vec();
         constants.extend(define_constants);
 
         // The rust fixpoint implementation does not yet support polymorphic functions.
@@ -486,7 +507,7 @@ where
         self.ecx.errors.into_result()?;
 
         let task = fixpoint::Task {
-            comments: self.comments,
+            comments: self.comments.clone(),
             constants,
             kvars,
             define_funs,
@@ -500,17 +521,37 @@ where
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        match Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache) {
-            FixpointStatus::Safe(_) => Ok(vec![]),
+        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        let solution = self.convert_solution(&result);
+        let unsat = match result.status {
+            FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
-                Ok(errors
+                errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
-                    .collect_vec())
+                    .collect_vec()
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
+        };
+        Ok(Answer { errors: unsat, solution })
+    }
+
+    // #[allow(unreachable_code)] // JUST FOR NOW!
+    fn convert_solution(&self, result: &FixpointResult<TagIdx>) -> Solution {
+        let solution = HashMap::new();
+        if result.solution.is_empty() || 1 + 1 + 1 == 3 {
+            return solution;
+        } else {
+            todo!("HEREHEREHEREHEREHEREHEREHEREHERE: convert_solution!");
         }
+        // for (kvid, reft) in &result.solution {
+        //     let expr = self.ecx.reft_to_expr(reft);
+        //     let binder =
+        //         flux_middle::rty::Binder::binders(self.ecx.kvar_env.kvar_sorts(*kvid).len(), expr);
+        //     solution.insert(*kvid, binder);
+        // }
+        solution
     }
 
     pub fn generate_and_check_lean_lemmas(
@@ -544,7 +585,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> FixpointStatus<TagIdx> {
+    ) -> FixpointResult<TagIdx> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();
@@ -560,19 +601,19 @@ where
         });
 
         if config::is_cache_enabled() {
-            cache.insert(key, hash, result.status.clone());
+            cache.insert(key, hash, result.clone());
         }
 
-        // println!("TRACE: fixpoint solution");
-        // for b in &result.solution {
-        //     println!("{}", b.dump());
-        // }
-        // println!("TRACE: fixpoint non-cut solution");
-        // for b in &result.non_cuts_solution {
-        //     println!("{}", b.dump());
-        // }
+        println!("TRACE: fixpoint solution");
+        for b in &result.solution {
+            println!("{}", b.dump());
+        }
+        println!("TRACE: fixpoint non-cut solution");
+        for b in &result.non_cuts_solution {
+            println!("{}", b.dump());
+        }
 
-        result.status
+        result
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx
@@ -767,6 +808,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     }
 }
 
+#[derive(Debug, Clone)]
 struct FixpointKVar {
     sorts: Vec<fixpoint::Sort>,
     orig: rty::KVid,
@@ -821,8 +863,9 @@ impl KVarEncodingCtxt {
         })
     }
 
-    fn into_fixpoint(self) -> Vec<fixpoint::KVarDecl> {
+    fn into_fixpoint(&self) -> Vec<fixpoint::KVarDecl> {
         self.kvars
+            .clone()
             .into_iter_enumerated()
             .map(|(kvid, kvar)| {
                 fixpoint::KVarDecl::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))

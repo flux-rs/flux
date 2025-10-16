@@ -79,11 +79,15 @@ fn check_invariant(
         let pred = invariant.apply(&variant_sig.idx);
         rcx.check_pred(&pred, Tag::new(ConstrReason::Other, DUMMY_SP));
     }
-    let errors = infcx_root
+    let answer = infcx_root
         .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
         .emit(&genv)?;
 
-    if errors.is_empty() { Ok(()) } else { Err(genv.sess().emit_err(errors::Invalid { span })) }
+    if answer.errors.is_empty() {
+        Ok(())
+    } else {
+        Err(genv.sess().emit_err(errors::Invalid { span }))
+    }
 }
 
 mod errors {
