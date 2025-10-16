@@ -47,10 +47,7 @@ pub mod decoding;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{
-        def_id::FluxDefId,
-        rty::EarlyReftParam,
-    };
+    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
