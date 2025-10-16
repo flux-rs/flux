@@ -58,7 +58,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     prelude: PerNS<Rib>,
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
     func_decls: UnordMap<Symbol, fhir::SpecFuncKind>,
-    sort_decls: UnordMap<Symbol, fhir::SortDecl>,
+    sort_decls: UnordMap<Symbol, FluxDefId>,
     primop_props: UnordMap<Symbol, FluxDefId>,
     err: Option<ErrorGuaranteed>,
     /// The most recent module we have visited. Used to check for visibility of other items from
@@ -148,10 +148,8 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         self.primop_props.insert(name, def_id);
                     }
                     surface::FluxItem::SortDecl(sort_decl) => {
-                        self.sort_decls.insert(
-                            sort_decl.name.name,
-                            fhir::SortDecl { name: sort_decl.name.name, span: sort_decl.name.span },
-                        );
+                        let def_id = FluxDefId::new(parent.def_id.to_def_id(), sort_decl.name.name);
+                        self.sort_decls.insert(sort_decl.name.name, def_id);
                     }
                 }
             }
@@ -704,14 +702,14 @@ impl<'a, 'genv, 'tcx> ItemResolver<'a, 'genv, 'tcx> {
         resolver: &'a mut CrateResolver<'genv, 'tcx>,
         f: impl FnOnce(&mut ItemResolver),
     ) -> Result {
-        let mut item_resolver = ItemResolver::new(resolver)?;
+        let mut item_resolver = ItemResolver::new(resolver);
         f(&mut item_resolver);
         item_resolver.errors.into_result()
     }
 
-    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Result<Self> {
+    fn new(resolver: &'a mut CrateResolver<'genv, 'tcx>) -> Self {
         let errors = Errors::new(resolver.genv.sess());
-        Ok(Self { resolver, errors })
+        Self { resolver, errors }
     }
 
     fn resolve_type_path(&mut self, path: &surface::Path) {

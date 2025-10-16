@@ -39,30 +39,62 @@ impl<T: Types> Constraint<T> {
         }
     }
 
-    #[allow(clippy::type_complexity)]
-    pub fn kvar_mappings(
-        &self,
-    ) -> (HashMap<T::KVar, Vec<Constraint<T>>>, HashMap<T::KVar, Vec<T::KVar>>) {
+    pub(crate) fn kvar_mappings(&self) -> HashMap<T::KVar, Vec<Constraint<T>>> {
         let mut kvar_to_fragments: HashMap<T::KVar, Vec<Constraint<T>>> = HashMap::new();
-        let mut kvar_to_dependencies: HashMap<T::KVar, Vec<T::KVar>> = HashMap::new();
         for frag in self.depth_first_fragments() {
             if let Some(kvar) = frag.fragment_kvar_head() {
-                kvar_to_dependencies
-                    .entry(kvar.clone())
-                    .or_insert_with(Vec::new)
-                    .extend_from_slice(&frag.kvar_deps().into_iter().unique().collect_vec());
                 kvar_to_fragments
                     .entry(kvar.clone())
                     .or_insert_with(Vec::new)
                     .push(frag);
             }
         }
-        (kvar_to_fragments, kvar_to_dependencies)
+        kvar_to_fragments
     }
 
-    pub fn topo_order_fragments(&self) -> Vec<Self> {
-        let (mut kvar_to_fragments, kvar_to_dependencies) = self.kvar_mappings();
-        let topologically_ordered_kvids = topological_sort_sccs(&kvar_to_dependencies);
+    /// Computes the kvar dependency graph as an adjacency list.
+    ///
+    /// There's an edge $k0 -> $k1, if $k1 appears as an assumption when $k0 is a head.
+    pub(crate) fn kvar_dep_graph(&self) -> HashMap<T::KVar, Vec<T::KVar>> {
+        fn go<T: Types>(
+            cstr: &Constraint<T>,
+            deps: &mut Vec<T::KVar>,
+            graph: &mut HashMap<T::KVar, Vec<T::KVar>>,
+        ) {
+            match cstr {
+                Constraint::Pred(pred, _) => {
+                    for kvar in pred.kvars() {
+                        graph
+                            .entry(kvar.clone())
+                            .or_default()
+                            .extend(deps.iter().cloned());
+                    }
+                }
+                Constraint::Conj(cstrs) => {
+                    for cstr in cstrs {
+                        let n = deps.len();
+                        go(cstr, deps, graph);
+                        deps.truncate(n);
+                    }
+                }
+                Constraint::ForAll(bind, cstr) => {
+                    deps.extend(bind.pred.kvars());
+                    go(cstr, deps, graph);
+                }
+            }
+        }
+        let mut graph = Default::default();
+        go(self, &mut vec![], &mut graph);
+        graph
+            .into_iter()
+            .map(|(kvid, deps)| (kvid, deps.into_iter().dedup().collect()))
+            .collect()
+    }
+
+    pub(crate) fn topo_order_fragments(&self) -> Vec<Self> {
+        let dep_graph = self.kvar_dep_graph();
+        let mut kvar_to_fragments = self.kvar_mappings();
+        let topologically_ordered_kvids = topological_sort_sccs(&dep_graph);
         topologically_ordered_kvids
             .into_iter()
             .rev()
@@ -312,39 +344,24 @@ impl<T: Types> Pred<T> {
                 let qualifiers = assignment
                     .get(kvid)
                     .unwrap_or_else(|| panic!("{:#?} should have an assignment", kvid));
-                if qualifiers.is_empty() {
-                    return Pred::Expr(Expr::Constant(Constant::Boolean(false)));
-                }
-                if qualifiers.len() == 1 {
-                    let qualifier = qualifiers[0].0;
-                    Pred::Expr(
-                        qualifier
-                            .args
-                            .iter()
-                            .map(|arg| &arg.0)
-                            .zip(qualifiers[0].1.iter().map(|arg_idx| &args[*arg_idx]))
-                            .fold(qualifier.body.clone(), |acc, e| acc.substitute(e.0, e.1)),
-                    )
-                } else {
-                    Pred::And(
-                        qualifiers
-                            .iter()
-                            .map(|qualifier| {
-                                Pred::Expr(
-                                    qualifier
-                                        .0
-                                        .args
-                                        .iter()
-                                        .map(|arg| &arg.0)
-                                        .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
-                                        .fold(qualifier.0.body.clone(), |acc, e| {
-                                            acc.substitute(e.0, e.1)
-                                        }),
-                                )
-                            })
-                            .collect(),
-                    )
-                }
+                Pred::and(
+                    qualifiers
+                        .iter()
+                        .map(|qualifier| {
+                            Pred::Expr(
+                                qualifier
+                                    .0
+                                    .args
+                                    .iter()
+                                    .map(|arg| &arg.0)
+                                    .zip(qualifier.1.iter().map(|arg_idx| &args[*arg_idx]))
+                                    .fold(qualifier.0.body.clone(), |acc, e| {
+                                        acc.substitute(e.0, e.1)
+                                    }),
+                            )
+                        })
+                        .collect(),
+                )
             }
             Pred::Expr(expr) => Pred::Expr(expr.clone()),
             Pred::And(conjuncts) => {
@@ -415,17 +432,22 @@ impl<T: Types> Expr<T> {
                     *v = v_to.clone();
                 }
             }
-            Expr::Constant(_) => {}
-            Expr::BinaryOp(_, operands) => {
-                operands[0].substitute_in_place(v_from, v_to);
-                operands[1].substitute_in_place(v_from, v_to);
+            Expr::Iff(exprs)
+            | Expr::Imp(exprs)
+            | Expr::BinaryOp(_, exprs)
+            | Expr::Atom(_, exprs) => {
+                let [e1, e2] = &mut **exprs;
+                e1.substitute_in_place(v_from, v_to);
+                e2.substitute_in_place(v_from, v_to);
             }
-            Expr::Atom(_, operands) => {
-                operands[0].substitute_in_place(v_from, v_to);
-                operands[1].substitute_in_place(v_from, v_to);
+            Expr::Let(_, exprs) => {
+                // We are assuming there's no shadowing here.
+                let [e1, e2] = &mut **exprs;
+                e1.substitute_in_place(v_from, v_to);
+                e2.substitute_in_place(v_from, v_to);
             }
-            Expr::And(conjuncts) => {
-                conjuncts
+            Expr::And(exprs) | Expr::Or(exprs) => {
+                exprs
                     .iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
@@ -434,7 +456,16 @@ impl<T: Types> Expr<T> {
                 args.iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
-            _ => panic!("Not supported yet; implement as needed"),
+            Expr::IsCtor(_, e) | Expr::Neg(e) | Expr::Not(e) => {
+                e.substitute_in_place(v_from, v_to);
+            }
+            Expr::IfThenElse(exprs) => {
+                let [p, e1, e2] = &mut **exprs;
+                p.substitute_in_place(v_from, v_to);
+                e1.substitute_in_place(v_from, v_to);
+                e2.substitute_in_place(v_from, v_to);
+            }
+            Expr::Constant(_) | Expr::ThyFunc(_) => {}
         }
     }
 

@@ -15,7 +15,7 @@ use super::{
     Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
     WhereBoundPredicate,
 };
-use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, TraitItemFn};
+use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -36,6 +36,10 @@ pub trait Visitor: Sized {
 
     fn visit_qualifier(&mut self, qualifier: &Qualifier) {
         walk_qualifier(self, qualifier);
+    }
+
+    fn visit_sort_decl(&mut self, sort_decl: &SortDecl) {
+        walk_sort_decl(self, sort_decl);
     }
 
     fn visit_defn(&mut self, defn: &SpecFunc) {
@@ -210,7 +214,7 @@ pub fn walk_flux_item<V: Visitor>(vis: &mut V, item: &FluxItem) {
     match item {
         FluxItem::Qualifier(qualifier) => vis.visit_qualifier(qualifier),
         FluxItem::FuncDef(spec_func) => vis.visit_defn(spec_func),
-        FluxItem::SortDecl(_sort_decl) => {}
+        FluxItem::SortDecl(sort_decl) => vis.visit_sort_decl(sort_decl),
         FluxItem::PrimOpProp(prim_op_prop) => vis.visit_primop_prop(prim_op_prop),
     }
 }
@@ -219,6 +223,11 @@ pub fn walk_qualifier<V: Visitor>(vis: &mut V, qualifier: &Qualifier) {
     vis.visit_ident(qualifier.name);
     walk_list!(vis, visit_refine_param, &qualifier.params);
     vis.visit_expr(&qualifier.expr);
+}
+
+pub fn walk_sort_decl<V: Visitor>(vis: &mut V, sort_decl: &SortDecl) {
+    vis.visit_ident(sort_decl.name);
+    walk_list!(vis, visit_ident, sort_decl.sort_vars.iter().copied());
 }
 
 pub fn walk_defn<V: Visitor>(vis: &mut V, defn: &SpecFunc) {

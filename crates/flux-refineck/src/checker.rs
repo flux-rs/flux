@@ -272,7 +272,7 @@ fn check_fn_subtyping(
 
     let super_sig = super_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
-        .normalize_projections(&mut infcx)?;
+        .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -298,7 +298,7 @@ fn check_fn_subtyping(
         // ... jump right here.
         let sub_sig = sub_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
-            .normalize_projections(infcx)?;
+            .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
         for requires in super_sig.requires() {
@@ -469,7 +469,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
-            .normalize_projections(&mut infcx.at(span))
+            .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
@@ -834,7 +834,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
         let fn_sig = fn_sig
-            .normalize_projections(&mut infcx.at(span))
+            .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
         let mut at = infcx.at(span);

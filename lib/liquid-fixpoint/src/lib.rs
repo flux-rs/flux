@@ -57,7 +57,6 @@ pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
     type Var: Identifier + Hash + Clone + Debug + Eq;
-    type Decimal: FixpointFmt + Hash + Clone + Debug;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
 }
@@ -115,9 +114,7 @@ macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
         type Var = $var:ty;
-        type Decimal = $real:ty;
         type String = $str:ty;
-
         type Tag = $tag:ty;
     ) => {
         pub mod fixpoint_generated {
@@ -144,10 +141,7 @@ macro_rules! declare_types {
             type Sort = $sort;
             type KVar = $kvar;
             type Var = $var;
-
-            type Decimal = $real;
             type String = $str;
-
             type Tag = $tag;
         }
     };
@@ -206,19 +200,25 @@ impl fmt::Display for SmtSolver {
     content = "contents",
     bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString")
 )]
-pub enum FixpointResult<Tag> {
+pub enum FixpointStatus<Tag> {
     Safe(Stats),
     Unsafe(Stats, Vec<Error<Tag>>),
     Crash(CrashInfo),
 }
 
-impl<Tag> FixpointResult<Tag> {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
+pub struct FixpointResult<Tag> {
+    pub status: FixpointStatus<Tag>,
+}
+
+impl<Tag> FixpointStatus<Tag> {
     pub fn is_safe(&self) -> bool {
-        matches!(self, FixpointResult::Safe(_))
+        matches!(self, FixpointStatus::Safe(_))
     }
 
-    pub fn merge(self, other: FixpointResult<Tag>) -> Self {
-        use FixpointResult as FR;
+    pub fn merge(self, other: FixpointStatus<Tag>) -> Self {
+        use FixpointStatus as FR;
         match (self, other) {
             (FR::Safe(stats1), FR::Safe(stats2)) => FR::Safe(stats1.merge(&stats2)),
             (FR::Safe(stats1), FR::Unsafe(stats2, errors)) => {
@@ -299,8 +299,7 @@ impl<T: Types> Task<T> {
             self.constants.clone(),
             self.constraint.clone(),
         );
-        let is_satisfiable = cstr_with_env.is_satisfiable();
-        Ok(is_satisfiable)
+        Ok(FixpointResult { status: cstr_with_env.is_satisfiable() })
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]

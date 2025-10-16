@@ -2,7 +2,7 @@ use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
-        FixpointResult, Sort, SortCtor,
+        FixpointStatus, Sort, SortCtor,
         cstr2smt2::{Env, is_constraint_satisfiable, new_binding, new_datatype},
         graph,
     },
@@ -81,15 +81,13 @@ impl<T: Types> ConstraintWithEnv<T> {
 
     fn solve_for_kvars(&self, solver: &Solver, env: &mut Env<T>) -> Assignments<'_, T> {
         let mut assignments = self.compute_initial_assignments();
-        let (kvars_to_fragments, _) = self.constraint.kvar_mappings();
+        let kvars_to_fragments = self.constraint.kvar_mappings();
         let topo_order_fragments = self.constraint.topo_order_fragments();
         let mut work_list = VecDeque::from_iter(topo_order_fragments.iter());
-        while !work_list.is_empty() {
-            if let Some(fragment) = work_list.pop_front()
-                && let Some(kvar_name) = fragment.fragment_kvar_head()
+        while let Some(fragment) = work_list.pop_front() {
+            if let Some(kvar_name) = fragment.fragment_kvar_head()
                 && let subbed = fragment.sub_kvars_except_head(&assignments)
-                && let assignment = assignments.get_mut(&kvar_name)
-                && let Some(assignment) = assignment
+                && let Some(assignment) = assignments.get_mut(&kvar_name)
             {
                 let initial_length = assignment.len();
                 assignment.retain(|assignment| {
@@ -109,21 +107,21 @@ impl<T: Types> ConstraintWithEnv<T> {
         assignments
     }
 
-    pub fn is_satisfiable(&mut self) -> FixpointResult<T::Tag> {
+    pub fn is_satisfiable(&mut self) -> FixpointStatus<T::Tag> {
         self.solve_by_fusion()
     }
 
-    pub fn eliminate_acyclic_kvars(&mut self) {
-        let mut dep_map = self.constraint.kvar_mappings().1;
-        let mut acyclic_kvars: Vec<T::KVar> = dep_map
+    pub(crate) fn eliminate_acyclic_kvars(&mut self) {
+        let mut dep_graph = self.constraint.kvar_dep_graph();
+        let mut acyclic_kvars: Vec<T::KVar> = dep_graph
             .into_iter()
             .filter(|(_, dependencies)| dependencies.is_empty())
             .map(|(kvar, _)| kvar)
             .collect();
         while !acyclic_kvars.is_empty() {
             self.constraint = self.constraint.elim(&acyclic_kvars);
-            dep_map = self.constraint.kvar_mappings().1;
-            acyclic_kvars = dep_map
+            dep_graph = self.constraint.kvar_dep_graph();
+            acyclic_kvars = dep_graph
                 .into_iter()
                 .filter(|(_, dependencies)| dependencies.is_empty())
                 .map(|(kvar, _)| kvar)
@@ -135,13 +133,13 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.constraint.simplify();
     }
 
-    pub fn solve_by_fusion(&mut self) -> FixpointResult<T::Tag> {
+    pub fn solve_by_fusion(&mut self) -> FixpointStatus<T::Tag> {
         self.simplify();
         self.eliminate_acyclic_kvars();
         self.solve_by_predicate_abstraction()
     }
 
-    pub fn solve_by_predicate_abstraction(&mut self) -> FixpointResult<T::Tag> {
+    pub fn solve_by_predicate_abstraction(&mut self) -> FixpointStatus<T::Tag> {
         let solver = Solver::new();
         let mut vars: Env<T> = Env::new();
         self.constants.iter().for_each(|const_decl| {
@@ -151,7 +149,7 @@ impl<T: Types> ConstraintWithEnv<T> {
             );
         });
         self.datatype_decls.iter().for_each(|data_decl| {
-            let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
+            let datatype_sort = new_datatype(&data_decl.name, data_decl, &mut vars);
             vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
         });
         let kvar_assignment = self.solve_for_kvars(&solver, &mut vars);

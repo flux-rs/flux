@@ -242,9 +242,13 @@ fhir_analysis_fields_on_reflected_enum_variant =
     reflected enum variants cannot have any fields
     .label = found fields on reflected enum variant
 
-fhir_analysis_generics_on_opaque_sort =
-    user defined opaque sorts have no generics but found {$found}
-    .label = found generics on user defined opaque sort
+fhir_analysis_incorrect_generics_on_opaque_sort =
+    opaque sort {$name} expects {$expected ->
+        [0] no generics
+        [one] exactly one generic argument
+        *[other] exactly {$expected} generic arguments
+    } but found {$found}
+    .label = incorrect generics on user defined opaque sort
 
 fhir_analysis_refined_unrefinable_type =
     type cannot be refined

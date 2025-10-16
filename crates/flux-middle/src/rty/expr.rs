@@ -1070,12 +1070,6 @@ impl From<Local> for Loc {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub struct Real(pub u128);
 
-impl liquid_fixpoint::FixpointFmt for Real {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.0", self.0)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encodable, Decodable)]
 pub enum Constant {
     Int(BigInt),
