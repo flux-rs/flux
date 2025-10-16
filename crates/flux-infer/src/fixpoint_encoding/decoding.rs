@@ -4,6 +4,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
 
@@ -68,6 +69,13 @@ where
                     fixpoint::Var::DataCtor(adt_id, variant_idx) => {
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         Ok(rty::Expr::ctor_enum(def_id, *variant_idx))
+                    }
+                    fixpoint::Var::BoundVar(i) => {
+                        Ok(rty::Expr::bvar(
+                            INNERMOST,
+                            BoundVar::from_usize(*i),
+                            rty::BoundReftKind::Anon,
+                        ))
                     }
                     fixpoint::Var::TupleCtor { .. }
                     | fixpoint::Var::TupleProj { .. }

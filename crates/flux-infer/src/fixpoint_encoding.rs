@@ -91,6 +91,8 @@ pub mod fixpoint {
         UIFRel(BinRel),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
+        // for qualifier arguments
+        BoundVar(usize),
     }
 
     impl From<GlobalVar> for Var {
@@ -131,6 +133,7 @@ pub mod fixpoint {
                 Var::Param(param) => {
                     write!(f, "reftgen${}${}", param.name, param.index)
                 }
+                Var::BoundVar(i) => write!(f, "bv{i}"),
             }
         }
     }
@@ -568,7 +571,7 @@ where
             }
         };
 
-        println!("TRACE: convert_sexp {sexp:?}");
+        panic!("TRACE: convert_sexp {sexp:?}");
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
     }

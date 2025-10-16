@@ -42,7 +42,7 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-pub use parser::parse_constraint_with_kvars;
+// CUT pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};
