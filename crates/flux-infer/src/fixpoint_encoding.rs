@@ -18,13 +18,13 @@ use flux_middle::{
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     global_env::GlobalEnv,
+    metrics::{self, TimingKind},
     queries::QueryResult,
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
         VariantIdx, fold::TypeFoldable as _,
     },
-    timings::{self, TimingKind},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
@@ -665,7 +665,7 @@ where
         {
             return result.clone();
         }
-        let result = timings::time_it(TimingKind::FixpointQuery(def_id, kind), || {
+        let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             task.run()
                 .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
         });

@@ -13,8 +13,8 @@ use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, FluxItem},
     global_env::GlobalEnv,
+    metrics,
     queries::{Providers, QueryResult},
-    timings,
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -74,7 +74,7 @@ impl FluxCallbacks {
         let cstore = CStore::load(tcx, &sess);
         let arena = fhir::Arena::new();
         GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-            let result = timings::enter(tcx, || check_crate(genv));
+            let result = metrics::enter(tcx, || check_crate(genv));
             if result.is_ok() {
                 encode_and_save_metadata(genv);
             }

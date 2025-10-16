@@ -40,8 +40,8 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
+    metrics::{self, TimingKind},
     rty::{self, ESpan},
-    timings,
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_errors::ErrorGuaranteed;
@@ -106,7 +106,7 @@ pub fn check_fn(
         return Ok(());
     }
 
-    timings::time_it(timings::TimingKind::CheckFn(def_id), || -> Result<(), ErrorGuaranteed> {
+    metrics::time_it(TimingKind::CheckFn(def_id), || -> Result<(), ErrorGuaranteed> {
         let ghost_stmts = compute_ghost_statements(genv, def_id)
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;

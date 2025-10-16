@@ -1,6 +1,6 @@
 use std::{
     fs, io,
-    sync::Mutex,
+    sync::{Mutex, atomic::AtomicU32},
     time::{Duration, Instant},
 };
 
@@ -11,6 +11,42 @@ use rustc_middle::ty::TyCtxt;
 use serde::Serialize;
 
 use crate::FixpointQueryKind;
+
+static METRICS: Metrics = Metrics::new();
+
+#[repr(u8)]
+pub enum Metric {
+    /// number of functions (i.e., `DefId`s) processed
+    FnTotal,
+    /// number of "trusted" functions
+    FnTrusted,
+    /// number of "ignored" functions
+    FnIgnored,
+    /// number of functions that were actually checked
+    FnChecked,
+    /// number of "trivial" functions that did not require fixpoint
+    FnTrivial,
+    /// number of functions whose queries hit the cache
+    FnCached,
+}
+
+struct Metrics {
+    counts: Vec<AtomicU32>,
+}
+
+impl Metrics {
+    const fn new() -> Self {
+        Self { counts: Vec::new() }
+    }
+
+    fn incr(&self, metric: Metric) {
+        self.counts[metric as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+pub fn record_metric(metric: Metric) {
+    METRICS.incr(metric);
+}
 
 static TIMINGS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
 
@@ -154,10 +190,10 @@ pub fn time_it<R>(kind: TimingKind, f: impl FnOnce() -> R) -> R {
     r
 }
 
-fn stats(durations: &[Duration]) -> Stats {
+fn stats(durations: &[Duration]) -> TimingStats {
     let count = durations.len() as u32;
     if count == 0 {
-        return Stats::default();
+        return TimingStats::default();
     }
     let sum: Duration = durations.iter().sum();
     let mean = sum / count;
@@ -174,11 +210,11 @@ fn stats(durations: &[Duration]) -> Stats {
     }
     let standard_deviation = Duration::from_millis((sum_of_squares / count as f64).sqrt() as u64);
 
-    Stats { count, max, min, mean, standard_deviation }
+    TimingStats { count, max, min, mean, standard_deviation }
 }
 
 #[derive(Default)]
-struct Stats {
+struct TimingStats {
     count: u32,
     max: Duration,
     min: Duration,

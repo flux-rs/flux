@@ -31,11 +31,11 @@ pub mod cstore;
 pub mod def_id;
 pub mod fhir;
 pub mod global_env;
+pub mod metrics;
 pub mod pretty;
 pub mod queries;
 pub mod rty;
 mod sort_of;
-pub mod timings;
 
 use std::sync::LazyLock;
 
