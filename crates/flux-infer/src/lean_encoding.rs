@@ -58,7 +58,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         let mut file = fs::File::create(defs_path)?;
         writeln!(file, "mutual")?;
         for fun_def in defs {
-            writeln!(file, "{}", lean_format::LeanFunDef(fun_def))?;
+            writeln!(file, "{}", lean_format::LeanFunDef(fun_def, self.genv))?;
         }
         writeln!(file, "end")
     }
@@ -88,7 +88,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             theorem_file,
             "def {} := {}",
             theorem_name.replace(".", "_"),
-            lean_format::LeanConstraint(cstr)
+            lean_format::LeanConstraint(cstr, self.genv)
         )
     }
 

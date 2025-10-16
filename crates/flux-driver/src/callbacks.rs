@@ -159,7 +159,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn encode_flux_items_in_lean(&self) {
         let mut fcx: FixpointCtxt<'_, '_, i32> = FixpointCtxt::new(self.genv, None, None);
         let mut fun_defs = vec![];
-        for (_, flux_item) in self.genv.fhir_iter_flux_items() {
+        for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
+            fcx.ecx.declare_fun(def_id.to_def_id());
             match flux_item {
                 FluxItem::Func(spec_func) if spec_func.body.is_some() => {
                     fun_defs.push(fcx.to_fun_def(spec_func.def_id.to_def_id()).unwrap());

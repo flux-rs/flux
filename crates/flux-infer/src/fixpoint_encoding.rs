@@ -45,9 +45,13 @@ use crate::{
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::rty::{EarlyReftParam, Real};
+    use flux_middle::{
+        def_id::FluxDefId,
+        rty::{EarlyReftParam, Real},
+    };
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
+    use rustc_hir::definitions::DefPath;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -79,7 +83,7 @@ pub mod fixpoint {
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
-        Global(GlobalVar, Option<Symbol>),
+        Global(GlobalVar, Option<FluxDefId>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
@@ -106,7 +110,7 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
-                Var::Global(v, Some(sym)) => write!(f, "f${}${}", sym, v.as_u32()),
+                Var::Global(v, Some(sym)) => write!(f, "f${}${}", sym.name(), v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
@@ -407,7 +411,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     kvars: Option<KVarGen>,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
-    ecx: ExprEncodingCtxt<'genv, 'tcx>,
+    pub ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
 }
@@ -1067,11 +1071,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
         };
-        for (def_id, item) in genv.fhir_iter_flux_items() {
-            if let flux_middle::fhir::FluxItem::Func(_spec_func) = item {
-                ecx.declare_fun(def_id.to_def_id());
-            }
-        }
         ecx
     }
 
@@ -1584,7 +1583,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     pub fn declare_fun(&mut self, def_id: FluxDefId) -> fixpoint::Var {
         *self.fun_def_map.entry(def_id).or_insert_with(|| {
             let id = self.global_var_gen.fresh();
-            fixpoint::Var::Global(id, Some(def_id.name()))
+            fixpoint::Var::Global(id, Some(def_id))
         })
     }
 
@@ -1664,7 +1663,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .or_insert_with(|| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
                 fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(self.global_var_gen.fresh(), Some(def_id.name())),
+                    name: fixpoint::Var::Global(self.global_var_gen.fresh(), Some(def_id)),
                     sort,
                     comment: Some(format!("uif: {def_id:?}")),
                 }
