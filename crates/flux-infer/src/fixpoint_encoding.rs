@@ -543,6 +543,14 @@ where
         if result.solution.is_empty() || 1 + 1 + 1 == 3 {
             return solution;
         } else {
+            println!("TRACE: fixpoint solution");
+            for b in &result.solution {
+                println!("{}", b.dump());
+            }
+            println!("TRACE: fixpoint non-cut solution");
+            for b in &result.non_cuts_solution {
+                println!("{}", b.dump());
+            }
             todo!("HEREHEREHEREHEREHEREHEREHEREHERE: convert_solution!");
         }
         // for (kvid, reft) in &result.solution {
@@ -602,15 +610,6 @@ where
 
         if config::is_cache_enabled() {
             cache.insert(key, hash, result.clone());
-        }
-
-        println!("TRACE: fixpoint solution");
-        for b in &result.solution {
-            println!("{}", b.dump());
-        }
-        println!("TRACE: fixpoint non-cut solution");
-        for b in &result.non_cuts_solution {
-            println!("{}", b.dump());
         }
 
         result
