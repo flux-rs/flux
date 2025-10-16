@@ -1,9 +1,10 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Constraint, Expr, Identifier, KVarDecl, Pred, Qualifier, Sort,
     SortCtor, Types,
     constraint_with_env::ConstraintWithEnv,
+    format,
     sexp::{Atom, ParseError as SexpParseError, Parser as SexpParser, Sexp},
 };
 
@@ -13,8 +14,8 @@ pub enum ParseError {
     MalformedSexpError(&'static str),
 }
 
-pub struct ParsingTypes;
-impl Types for ParsingTypes {
+pub struct PT;
+impl Types for PT {
     type Sort = String;
     type KVar = String;
     type Var = String;
@@ -28,7 +29,135 @@ impl Identifier for String {
     }
 }
 
-fn parse_bv_size(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
+struct SexpParseCtxt<T: Types> {
+    _marker: std::marker::PhantomData<T>,
+    names: HashMap<String, T::Var>,
+}
+
+impl<PT: Types> SexpParseCtxt<PT> {
+    fn new() -> Self {
+        Self { _marker: std::marker::PhantomData, names: HashMap::new() }
+    }
+
+    fn mk_var(&self, name: &str) -> Result<PT::Var, ParseError> {
+        self.names
+            .get(name)
+            .cloned()
+            .ok_or(ParseError::MalformedSexpError("Unknown variable name")) // TODO: want to use `name` here but cannot because of static lifetime
+    }
+
+    fn mk_kvar(&self, name: &str) -> Result<PT::KVar, ParseError> {
+        if name.starts_with("$") {
+            Ok(name.to_string())
+        } else {
+            Err(ParseError::MalformedSexpError("KVar name must start with $"))
+        }
+    }
+
+    fn parse_bv_size(&self, sexp: &Sexp) -> Result<Sort<PT>, ParseError> {
+        match sexp {
+            Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => {
+                let maybe_size = s
+                    .strip_prefix("Size")
+                    .and_then(|sz_str| sz_str.parse::<u32>().ok());
+                if let Some(size) = maybe_size {
+                    Ok(Sort::BvSize(size))
+                } else {
+                    Err(ParseError::MalformedSexpError("Could not parse number for bvsize"))
+                }
+            }
+            _ => {
+                Err(ParseError::MalformedSexpError(
+                    "Expected bitvec size to be in the form Size{\\d+}",
+                ))
+            }
+        }
+    }
+
+    fn parse_name(&self, sexp: &Sexp) -> Result<PT::Var, ParseError> {
+        let name = match sexp {
+            Sexp::Atom(Atom::S(s)) => self.mk_var(s),
+            _ => Err(ParseError::MalformedSexpError("Expected bind name to be a string")),
+        }?;
+        Ok(name)
+    }
+
+    fn parse_bind(&self, sexp: &Sexp) -> Result<Bind<PT>, ParseError> {
+        match sexp {
+            Sexp::List(items) => {
+                match &items[0] {
+                    Sexp::List(name_and_sort) => {
+                        let name = self.parse_name(&name_and_sort[0])?;
+                        let sort = parse_sort(&name_and_sort[1])?;
+                        let pred = self.parse_pred_inner(&items[1])?;
+                        Ok(Bind { name, sort, pred })
+                    }
+                    _ => {
+                        Err(ParseError::MalformedSexpError(
+                            "Expected list for name and sort in bind",
+                        ))
+                    }
+                }
+            }
+            _ => Err(ParseError::MalformedSexpError("Expected list for bind")),
+        }
+    }
+
+    fn parse_pred_inner(&self, sexp: &Sexp) -> Result<Pred<PT>, ParseError> {
+        match sexp {
+            Sexp::List(items) => {
+                match &items[0] {
+                    Sexp::Atom(Atom::S(s)) if s == "and" => {
+                        items[1..]
+                            .to_vec()
+                            .iter()
+                            .map(|item| self.parse_pred_inner(item))
+                            .collect::<Result<_, _>>()
+                            .map(Pred::And)
+                    }
+                    Sexp::Atom(Atom::S(s)) if s.starts_with("$") => self.parse_kvar(sexp),
+                    _ => parse_expr_possibly_nested(sexp).map(Pred::Expr),
+                }
+            }
+            _ => Err(ParseError::MalformedSexpError("Expected list for pred")),
+        }
+    }
+
+    fn parse_kvar(&self, sexp: &Sexp) -> Result<Pred<PT>, ParseError> {
+        match sexp {
+            Sexp::List(items) => {
+                if items.len() < 2 {
+                    Err(ParseError::MalformedSexpError(
+                        "Kvar application requires at least two elements",
+                    ))
+                } else {
+                    let maybe_strs: Option<Vec<String>> = items
+                        .iter()
+                        .map(|s| {
+                            if let Sexp::Atom(Atom::S(sym)) = s { Some(sym.clone()) } else { None }
+                        })
+                        .collect();
+                    match maybe_strs {
+                        Some(strs) => {
+                            let kvar = self.mk_kvar(&strs[0])?;
+                            let args =
+                                strs[1..].iter().map(|s| self.mk_var(s)).try_collect_vec()?;
+                            Ok(Pred::KVar(kvar, args))
+                        }
+                        _ => {
+                            Err(ParseError::MalformedSexpError(
+                                "Expected all list elements to be strings",
+                            ))
+                        }
+                    }
+                }
+            }
+            _ => Err(ParseError::MalformedSexpError("Expected list for kvar")),
+        }
+    }
+}
+
+fn parse_bv_size<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     match sexp {
         Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => {
             let maybe_size = s
@@ -46,11 +175,11 @@ fn parse_bv_size(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_func_sort(_sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
+fn parse_func_sort<T: Types>(_sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     Err(ParseError::MalformedSexpError("Func sort hole"))
 }
 
-fn parse_bitvec_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
+fn parse_bitvec_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     match sexp {
         Sexp::List(items) if items.len() == 2 => {
             let bitvec_size = parse_bv_size(&items[1])?;
@@ -60,14 +189,14 @@ fn parse_bitvec_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_list_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
+fn parse_list_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             let args = items[1..]
                 .to_vec()
                 .iter()
                 .map(parse_sort)
-                .collect::<Result<Vec<Sort<ParsingTypes>>, ParseError>>()?;
+                .collect::<Result<Vec<Sort<T>>, ParseError>>()?;
             match &items[0] {
                 Sexp::Atom(Atom::S(s)) if s == "func" => parse_func_sort(sexp),
                 Sexp::Atom(Atom::S(s)) if s == "Set_Set" && args.len() == 1 => {
@@ -86,7 +215,7 @@ fn parse_list_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
+fn parse_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     match sexp {
         Sexp::List(_items) => parse_list_sort(sexp),
         Sexp::Atom(Atom::S(s)) if s == "Int" || s == "int" => Ok(Sort::Int),
@@ -99,29 +228,7 @@ fn parse_sort(sexp: &Sexp) -> Result<Sort<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_bind(sexp: &Sexp) -> Result<Bind<ParsingTypes>, ParseError> {
-    match sexp {
-        Sexp::List(items) => {
-            match &items[0] {
-                Sexp::List(name_and_sort) => {
-                    let name = match &name_and_sort[0] {
-                        Sexp::Atom(Atom::S(s)) => Ok(s.clone()),
-                        _ => {
-                            Err(ParseError::MalformedSexpError("Expected bind name to be a string"))
-                        }
-                    }?;
-                    let sort = parse_sort(&name_and_sort[1])?;
-                    let pred = parse_pred_inner(&items[1])?;
-                    Ok(Bind { name, sort, pred })
-                }
-                _ => Err(ParseError::MalformedSexpError("Expected list for name and sort in bind")),
-            }
-        }
-        _ => Err(ParseError::MalformedSexpError("Expected list for bind")),
-    }
-}
-
-fn parse_forall(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
+fn parse_forall(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -139,7 +246,7 @@ fn parse_forall(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_conj(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
+fn parse_conj(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -160,7 +267,7 @@ fn parse_conj(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_let(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_let(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             through_nested_list(&items[1], |bottom| {
@@ -187,7 +294,7 @@ fn parse_let(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_binary_op(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_binary_op(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             let exp1 = parse_expr_possibly_nested(&items[1])?;
@@ -206,7 +313,7 @@ fn parse_binary_op(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_atom(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_atom(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             let exp1 = parse_expr_possibly_nested(&items[1])?;
@@ -226,7 +333,7 @@ fn parse_atom(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_iff(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_iff(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -242,7 +349,7 @@ fn parse_iff(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_imp(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_imp(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -258,14 +365,14 @@ fn parse_imp(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_not(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_not(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => Ok(Expr::Not(Box::new(parse_expr_possibly_nested(&items[1])?))),
         _ => Err(ParseError::MalformedSexpError("Expected list for \"not\"")),
     }
 }
 
-fn parse_or(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_or(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -288,7 +395,7 @@ fn parse_or(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_and(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_and(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -311,18 +418,18 @@ fn parse_and(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_neg(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_neg(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => Ok(Expr::Neg(Box::new(parse_expr_possibly_nested(&items[1])?))),
         _ => Err(ParseError::MalformedSexpError("Expected list for neg")),
     }
 }
 
-fn parse_app(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_app(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             let exp1 = parse_expr_possibly_nested(&items[0])?;
-            let args: Vec<Expr<ParsingTypes>> = items[1..]
+            let args: Vec<Expr<PT>> = items[1..]
                 .to_vec()
                 .iter()
                 .map(parse_expr_possibly_nested)
@@ -333,7 +440,7 @@ fn parse_app(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn size_form_bv_sort(sort: Sort<ParsingTypes>) -> Result<u32, ParseError> {
+fn size_form_bv_sort(sort: Sort<PT>) -> Result<u32, ParseError> {
     match sort {
         Sort::BitVec(ref bv_size_box) => {
             match **bv_size_box {
@@ -345,7 +452,7 @@ fn size_form_bv_sort(sort: Sort<ParsingTypes>) -> Result<u32, ParseError> {
     }
 }
 
-fn parse_bitvec(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_bitvec(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[1] {
@@ -376,11 +483,11 @@ where
     at_bottom(current)
 }
 
-fn parse_expr_possibly_nested(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_expr_possibly_nested(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     through_nested_list(sexp, parse_expr)
 }
 
-fn parse_expr(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
+fn parse_expr(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -411,56 +518,7 @@ fn parse_expr(sexp: &Sexp) -> Result<Expr<ParsingTypes>, ParseError> {
     }
 }
 
-fn parse_kvar(sexp: &Sexp) -> Result<Pred<ParsingTypes>, ParseError> {
-    match sexp {
-        Sexp::List(items) => {
-            if items.len() < 2 {
-                Err(ParseError::MalformedSexpError(
-                    "Kvar application requires at least two elements",
-                ))
-            } else {
-                let maybe_strs: Option<Vec<String>> =
-                    items
-                        .iter()
-                        .map(|s| {
-                            if let Sexp::Atom(Atom::S(sym)) = s { Some(sym.clone()) } else { None }
-                        })
-                        .collect();
-                match maybe_strs {
-                    Some(strs) => Ok(Pred::KVar(strs[0].clone(), strs[1..].to_vec())),
-                    _ => {
-                        Err(ParseError::MalformedSexpError(
-                            "Expected all list elements to be strings",
-                        ))
-                    }
-                }
-            }
-        }
-        _ => Err(ParseError::MalformedSexpError("Expected list for kvar")),
-    }
-}
-
-fn parse_pred_inner(sexp: &Sexp) -> Result<Pred<ParsingTypes>, ParseError> {
-    match sexp {
-        Sexp::List(items) => {
-            match &items[0] {
-                Sexp::Atom(Atom::S(s)) if s == "and" => {
-                    items[1..]
-                        .to_vec()
-                        .iter()
-                        .map(parse_pred_inner)
-                        .collect::<Result<_, _>>()
-                        .map(Pred::And)
-                }
-                Sexp::Atom(Atom::S(s)) if s.starts_with("$") => parse_kvar(sexp),
-                _ => parse_expr_possibly_nested(sexp).map(Pred::Expr),
-            }
-        }
-        _ => Err(ParseError::MalformedSexpError("Expected list for pred")),
-    }
-}
-
-fn parse_tagged_pred(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
+fn parse_tagged_pred(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[2] {
@@ -475,7 +533,7 @@ fn parse_tagged_pred(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError
     }
 }
 
-fn parse_pred(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
+fn parse_pred(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
     if let Sexp::List(items) = sexp
         && let Sexp::Atom(Atom::S(s)) = &items[0]
         && s == "tag"
@@ -486,7 +544,7 @@ fn parse_pred(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
     Ok(Constraint::Pred(pred, None))
 }
 
-fn sexp_to_constraint_inner(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
+fn sexp_to_constraint_inner(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -499,7 +557,7 @@ fn sexp_to_constraint_inner(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, Par
     }
 }
 
-fn sexp_to_constraint(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseError> {
+fn sexp_to_constraint(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -517,14 +575,14 @@ fn sexp_to_constraint(sexp: &Sexp) -> Result<Constraint<ParsingTypes>, ParseErro
     }
 }
 
-fn parse_kvar_decl_args(sexp: &Sexp) -> Result<Vec<Sort<ParsingTypes>>, ParseError> {
+fn parse_kvar_decl_args(sexp: &Sexp) -> Result<Vec<Sort<PT>>, ParseError> {
     match sexp {
         Sexp::List(items) => items.iter().map(parse_sort).collect(),
         _ => Err(ParseError::MalformedSexpError("Expected list of sorts for kvar declaration")),
     }
 }
 
-fn sexp_to_kvar_decl_inner(sexp: &Sexp) -> Result<KVarDecl<ParsingTypes>, ParseError> {
+fn sexp_to_kvar_decl_inner(sexp: &Sexp) -> Result<KVarDecl<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[1] {
@@ -539,7 +597,7 @@ fn sexp_to_kvar_decl_inner(sexp: &Sexp) -> Result<KVarDecl<ParsingTypes>, ParseE
     }
 }
 
-fn sexp_to_kvar_decl(sexp: &Sexp) -> Result<KVarDecl<ParsingTypes>, ParseError> {
+fn sexp_to_kvar_decl(sexp: &Sexp) -> Result<KVarDecl<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -555,7 +613,7 @@ fn sexp_to_kvar_decl(sexp: &Sexp) -> Result<KVarDecl<ParsingTypes>, ParseError> 
     }
 }
 
-fn parse_qualifier_arg(sexp: &Sexp) -> Result<(String, Sort<ParsingTypes>), ParseError> {
+fn parse_qualifier_arg(sexp: &Sexp) -> Result<(String, Sort<PT>), ParseError> {
     match sexp {
         Sexp::List(items) => {
             if let Sexp::Atom(Atom::S(var_name)) = &items[0] {
@@ -571,14 +629,14 @@ fn parse_qualifier_arg(sexp: &Sexp) -> Result<(String, Sort<ParsingTypes>), Pars
     }
 }
 
-fn parse_qualifier_args(sexp: &Sexp) -> Result<Vec<(String, Sort<ParsingTypes>)>, ParseError> {
+fn parse_qualifier_args(sexp: &Sexp) -> Result<Vec<(String, Sort<PT>)>, ParseError> {
     match sexp {
         Sexp::List(args) => args.iter().map(parse_qualifier_arg).collect(),
         _ => Err(ParseError::MalformedSexpError("Expected list for qualifier arguments")),
     }
 }
 
-fn sexp_to_qualifier_inner(sexp: &Sexp) -> Result<Qualifier<ParsingTypes>, ParseError> {
+fn sexp_to_qualifier_inner(sexp: &Sexp) -> Result<Qualifier<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             if let Sexp::Atom(Atom::S(name)) = &items[1] {
@@ -595,7 +653,7 @@ fn sexp_to_qualifier_inner(sexp: &Sexp) -> Result<Qualifier<ParsingTypes>, Parse
     }
 }
 
-fn sexp_to_qualifier(sexp: &Sexp) -> Result<Qualifier<ParsingTypes>, ParseError> {
+fn sexp_to_qualifier(sexp: &Sexp) -> Result<Qualifier<PT>, ParseError> {
     match sexp {
         Sexp::List(items) => {
             match &items[0] {
@@ -617,9 +675,7 @@ fn sexp_to_qualifier(sexp: &Sexp) -> Result<Qualifier<ParsingTypes>, ParseError>
 //     sexp_to_constraint(&sexp)
 // }
 
-pub fn parse_constraint_with_kvars(
-    input: &str,
-) -> Result<ConstraintWithEnv<ParsingTypes>, ParseError> {
+pub fn parse_constraint_with_kvars(input: &str) -> Result<ConstraintWithEnv<PT>, ParseError> {
     let mut sexp_parser = SexpParser::new(input);
     let sexps = sexp_parser
         .parse_all()

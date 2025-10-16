@@ -568,7 +568,7 @@ where
             }
         };
 
-        todo!("TRACE: convert_sexp {sexp:?}");
+        println!("TRACE: convert_sexp {sexp:?}");
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
     }
