@@ -24,10 +24,10 @@ pub enum Metric {
     FnIgnored,
     /// number of functions that were actually checked
     FnChecked,
-    /// number of "trivial" functions that did not require fixpoint
-    FnTrivial,
-    /// number of functions whose queries hit the cache
-    FnCached,
+    // /// number of "trivial" functions that did not require fixpoint
+    // FnTrivial,
+    // /// number of functions whose queries hit the cache
+    // FnCached,
 }
 
 struct Metrics {
@@ -44,8 +44,14 @@ impl Metrics {
     }
 }
 
-pub fn record_metric(metric: Metric) {
+pub fn incr_metric(metric: Metric) {
     METRICS.incr(metric);
+}
+
+pub fn incr_metric_if(cond: bool, metric: Metric) {
+    if cond {
+        incr_metric(metric);
+    }
 }
 
 static TIMINGS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
