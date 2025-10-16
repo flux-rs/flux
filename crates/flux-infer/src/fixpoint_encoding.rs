@@ -537,28 +537,28 @@ where
         Ok(Answer { errors: unsat, solution })
     }
 
+    fn convert_kvar_bind(
+        &self,
+        b: &liquid_fixpoint::KVarBind,
+    ) -> (fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>) {
+        todo!();
+        // let expr = self.ecx.reft_to_expr(&b.reft);
+        // flux_middle::rty::Binder::binders(b.args.len(), expr)
+    }
+
     // #[allow(unreachable_code)] // JUST FOR NOW!
     fn convert_solution(&self, result: &FixpointResult<TagIdx>) -> Solution {
-        let solution = HashMap::new();
+        let mut solution = HashMap::new();
         if result.solution.is_empty() || 1 + 1 + 1 == 3 {
             return solution;
         } else {
-            println!("TRACE: fixpoint solution");
-            for b in &result.solution {
-                println!("{}", b.dump());
+            for b in result.solution.iter()
+            // .chain(result.non_cuts_solution.iter())
+            {
+                let (k, expr) = self.convert_kvar_bind(b);
+                solution.insert(k, expr);
             }
-            println!("TRACE: fixpoint non-cut solution");
-            for b in &result.non_cuts_solution {
-                println!("{}", b.dump());
-            }
-            todo!("HEREHEREHEREHEREHEREHEREHEREHERE: convert_solution!");
         }
-        // for (kvid, reft) in &result.solution {
-        //     let expr = self.ecx.reft_to_expr(reft);
-        //     let binder =
-        //         flux_middle::rty::Binder::binders(self.ecx.kvar_env.kvar_sorts(*kvid).len(), expr);
-        //     solution.insert(*kvid, binder);
-        // }
         solution
     }
 
