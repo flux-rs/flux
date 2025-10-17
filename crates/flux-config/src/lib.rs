@@ -75,10 +75,6 @@ pub fn smt_define_fun() -> bool {
     FLAGS.smt_define_fun
 }
 
-pub fn verbose() -> bool {
-    FLAGS.verbose
-}
-
 fn solver() -> SmtSolver {
     FLAGS.solver
 }
