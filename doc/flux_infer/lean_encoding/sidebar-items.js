@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ConstDef","LeanEncoder"]};
+window.SIDEBAR_ITEMS = {"struct":["LeanEncoder"]};
