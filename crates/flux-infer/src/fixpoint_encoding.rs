@@ -1374,6 +1374,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
+            | rty::ExprKind::Exists(_)
             | rty::ExprKind::InternalFunc(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }

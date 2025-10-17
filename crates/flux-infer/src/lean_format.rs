@@ -170,6 +170,9 @@ impl<'a> fmt::Display for LeanExpr<'a> {
             Expr::IsCtor(..) => {
                 todo!("not yet implemented: datatypes in lean")
             }
+            Expr::Exists(..) => {
+                todo!("not yet implemented: exists in lean")
+            }
         }
     }
 }

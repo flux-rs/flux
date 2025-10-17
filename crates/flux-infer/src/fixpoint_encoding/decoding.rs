@@ -346,6 +346,7 @@ where
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
+            liquid_fixpoint::Expr::Exists(items, expr) => todo!(),
         }
     }
 
