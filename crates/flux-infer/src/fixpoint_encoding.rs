@@ -95,7 +95,7 @@ pub mod fixpoint {
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
         // for qualifier arguments
-        BoundVar(usize),
+        BoundVar { level: usize, idx: usize },
     }
 
     impl From<GlobalVar> for Var {
@@ -136,7 +136,7 @@ pub mod fixpoint {
                 Var::Param(param) => {
                     write!(f, "reftgen${}${}", param.name, param.index)
                 }
-                Var::BoundVar(i) => write!(f, "bv{i}"),
+                Var::BoundVar { level, idx } => write!(f, "bv{level}_{idx}"),
             }
         }
     }
@@ -576,7 +576,7 @@ where
         };
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
-        let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
+        let (sorts, expr) = parse_solution_sexp(&self, &sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
@@ -1945,30 +1945,83 @@ fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoin
     )
 }
 
-struct SexpParseCtxt {
-    kvar_args: FxIndexSet<String>,
+struct SexpParseCtxt<'a, 'genv, 'tcx, Tag: Eq + Hash> {
+    fixpoint_ctxt: &'a FixpointCtxt<'genv, 'tcx, Tag>,
+    scopes: Vec<FxIndexSet<String>>,
 }
 
-impl FromSexp<FixpointTypes> for SexpParseCtxt {
-    fn kvar(&self, _name: &str) -> Result<fixpoint::KVid, ParseError> {
-        todo!()
+impl<'a, 'genv, 'tcx, Tag: Eq + Hash> FromSexp<FixpointTypes>
+    for SexpParseCtxt<'a, 'genv, 'tcx, Tag>
+{
+    fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
+        bug!("TODO: SexpParse: kvar: {name}")
     }
 
-    fn string(&self, _s: &str) -> Result<fixpoint::SymStr, ParseError> {
-        todo!()
+    fn string(&self, s: &str) -> Result<fixpoint::SymStr, ParseError> {
+        todo!("TODO: SexpParse: string: {s}")
     }
 
     fn var(&self, name: &str) -> Result<fixpoint::Var, ParseError> {
-        match self.kvar_args.get_index_of(name) {
-            Some(idx) => Ok(fixpoint::Var::BoundVar(idx)),
-            None => Err(ParseError::err(format!("Unknown variable: {name}"))),
-        }
+        let (level, idx) = self
+            .scopes
+            .iter()
+            .rev()
+            .enumerate()
+            .find_map(|(level, scope)| scope.get_index_of(name).map(|idx| (level, idx)))
+            .ok_or_else(|| ParseError::err(format!("Unknown variable: {name}")))?;
+
+        Ok(fixpoint::Var::BoundVar { level, idx })
+    }
+
+    fn sort(&self, name: &str) -> Result<fixpoint::DataSort, ParseError> {
+        todo!("TODO: SexpParse: sort")
     }
 }
 
 type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
 
-fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
+impl<'a, 'genv, 'tcx, Tag: Eq + Hash> SexpParseCtxt<'a, 'genv, 'tcx, Tag> {
+    fn new(fixpoint_ctxt: &'a FixpointCtxt<'genv, 'tcx, Tag>) -> Self {
+        Self { fixpoint_ctxt, scopes: vec![] }
+    }
+
+    // fn parse_solution_sexp(&mut self, sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
+    //     if let Sexp::List(items) = sexp
+    //         && let &[ref _lambda, ref params, ref body] = &items[..]
+    //         && let Sexp::List(sexp_params) = params
+    //     {
+    //         let mut kvar_args = FxIndexSet::default();
+    //         let mut sorts = vec![];
+
+    //         for param in sexp_params {
+    //             if let Sexp::List(bind) = param
+    //                 && let &[ref _name, ref sort] = &bind[..]
+    //                 && let Sexp::Atom(Atom::S(s)) = _name
+    //             {
+    //                 kvar_args.insert(s.clone());
+    //                 sorts.push(sort);
+    //             } else {
+    //                 return Err(ParseError::err("expected parameter names to be symbols"));
+    //             }
+    //         }
+    //         let sorts = sorts
+    //             .into_iter()
+    //             .map(liquid_fixpoint::parser::parse_sort)
+    //             .try_collect()?;
+    //         let ctx = SexpParseCtxt { kvar_args };
+    //         let expr = ctx.parse_expr(body)?;
+    //         Ok((sorts, expr))
+    //     } else {
+    //         Err(ParseError::err("expected (lambda (params) body)"))
+    //     }
+    // }
+}
+
+fn parse_solution_sexp<'a, 'genv, 'tcx, Tag: Eq + Hash>(
+    fixpoint_ctx: &'a FixpointCtxt<'genv, 'tcx, Tag>,
+    sexp: &Sexp,
+) -> Result<FixpointKvarSolution, ParseError> {
+    let mut sexp_ctx = SexpParseCtxt::new(fixpoint_ctx);
     if let Sexp::List(items) = sexp
         && let &[ref _lambda, ref params, ref body] = &items[..]
         && let Sexp::List(sexp_params) = params
@@ -1989,10 +2042,10 @@ fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> 
         }
         let sorts = sorts
             .into_iter()
-            .map(liquid_fixpoint::parser::parse_sort)
+            .map(|sexp| sexp_ctx.parse_sort(sexp))
             .try_collect()?;
-        let ctx = SexpParseCtxt { kvar_args };
-        let expr = ctx.parse_expr(body)?;
+        sexp_ctx.scopes.push(kvar_args);
+        let expr = sexp_ctx.parse_expr(body)?;
         Ok((sorts, expr))
     } else {
         Err(ParseError::err("expected (lambda (params) body)"))

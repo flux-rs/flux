@@ -24,10 +24,13 @@ impl Identifier for String {
 }
 
 pub trait FromSexp<T: Types> {
+    // These are the only methods required to implement FromSexp
     fn var(&self, name: &str) -> Result<T::Var, ParseError>;
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
     fn string(&self, s: &str) -> Result<T::String, ParseError>;
+    fn sort(&self, name: &str) -> Result<T::Sort, ParseError>;
 
+    // The rest have default implementations
     fn parse_bv_size(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         match sexp {
             Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => {
@@ -58,7 +61,7 @@ pub trait FromSexp<T: Types> {
                 match &items[0] {
                     Sexp::List(name_and_sort) => {
                         let name = self.parse_name(&name_and_sort[0])?;
-                        let sort = parse_sort(&name_and_sort[1])?;
+                        let sort = self.parse_sort(&name_and_sort[1])?;
                         let pred = self.parse_pred_inner(&items[1])?;
                         Ok(Bind { name, sort, pred })
                     }
@@ -322,18 +325,66 @@ pub trait FromSexp<T: Types> {
             _ => Err(ParseError::err("Expected list for let")),
         }
     }
-}
 
-pub fn parse_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
-    match sexp {
-        Sexp::List(_items) => parse_list_sort(sexp),
-        Sexp::Atom(Atom::S(s)) if s == "Int" || s == "int" => Ok(Sort::Int),
-        Sexp::Atom(Atom::S(s)) if s == "Bool" || s == "bool" => Ok(Sort::Bool),
-        Sexp::Atom(Atom::S(s)) if s == "Real" || s == "real" => Ok(Sort::Real),
-        Sexp::Atom(Atom::S(s)) if s == "Str" || s == "str" => Ok(Sort::Str),
-        Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => parse_bv_size(sexp),
-        // Sexp::Atom(Atom::S(ref s)) => Ok(Sort::Var(s.clone())),
-        _ => panic!("Unknown sort encountered {sexp:?}"), // Err(ParseError::err(format!("Unknown sort encountered {sexp:?}"))),
+    fn parse_list_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
+        let Sexp::List(items) = sexp else {
+            return Err(ParseError::err("Expected list for func or app sort"));
+        };
+        if items.is_empty() {
+            return Err(ParseError::err("Empty list encountered when parsing sort"));
+        }
+        let Sexp::Atom(Atom::S(ctor)) = &items[0] else {
+            return Err(ParseError::err("Unexpected sort constructor encountered"));
+        };
+        if ctor == "func" && items.len() == 4 {
+            return self.parse_func_sort(&items[1..]);
+        }
+        let args = items[1..]
+            .to_vec()
+            .iter()
+            .map(|sexp| self.parse_sort(sexp))
+            .collect::<Result<Vec<Sort<T>>, ParseError>>()?;
+        if ctor == "Set_Set" && args.len() == 1 {
+            return Ok(Sort::App(SortCtor::Set, args));
+        }
+        if (ctor == "Map_t") && args.len() == 2 {
+            return Ok(Sort::App(SortCtor::Map, args));
+        }
+        if ctor == "BitVec" && args.len() == 1 {
+            return parse_bitvec_sort(sexp);
+        }
+        let ctor = SortCtor::Data(self.sort(ctor)?);
+        Ok(Sort::App(ctor, args))
+    }
+
+    fn parse_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
+        match sexp {
+            Sexp::List(_items) => self.parse_list_sort(sexp),
+            Sexp::Atom(Atom::S(s)) if s == "Int" || s == "int" => Ok(Sort::Int),
+            Sexp::Atom(Atom::S(s)) if s == "Bool" || s == "bool" => Ok(Sort::Bool),
+            Sexp::Atom(Atom::S(s)) if s == "Real" || s == "real" => Ok(Sort::Real),
+            Sexp::Atom(Atom::S(s)) if s == "Str" || s == "str" => Ok(Sort::Str),
+            Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => parse_bv_size(sexp),
+            // Sexp::Atom(Atom::S(ref s)) => Ok(Sort::Var(s.clone())),
+            _ => panic!("Unknown sort encountered {sexp:?}"), // Err(ParseError::err(format!("Unknown sort encountered {sexp:?}"))),
+        }
+    }
+
+    fn parse_func_sort(&self, items: &[Sexp]) -> Result<Sort<T>, ParseError> {
+        if let Sexp::Atom(Atom::I(params)) = &items[0]
+            && *params >= 0
+            && let Sexp::List(inputs) = &items[1]
+        {
+            let params = *params as usize;
+            let inputs = inputs
+                .iter()
+                .map(|sexp| self.parse_sort(sexp))
+                .collect::<Result<Vec<_>, _>>()?;
+            let output = self.parse_sort(&items[2])?;
+            Ok(Sort::mk_func(params, inputs, output))
+        } else {
+            Err(ParseError::err("Expected arity to be an integer"))
+        }
     }
 }
 
@@ -353,23 +404,6 @@ fn parse_bv_size<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     }
 }
 
-fn parse_func_sort<T: Types>(items: &[Sexp]) -> Result<Sort<T>, ParseError> {
-    if let Sexp::Atom(Atom::I(params)) = &items[0]
-        && *params >= 0
-        && let Sexp::List(inputs) = &items[1]
-    {
-        let params = *params as usize;
-        let inputs = inputs
-            .iter()
-            .map(parse_sort::<T>)
-            .collect::<Result<Vec<_>, _>>()?;
-        let output = parse_sort::<T>(&items[2])?;
-        Ok(Sort::mk_func(params, inputs, output))
-    } else {
-        Err(ParseError::err("Expected arity to be an integer"))
-    }
-}
-
 fn parse_bitvec_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     match sexp {
         Sexp::List(items) if items.len() == 2 => {
@@ -378,36 +412,6 @@ fn parse_bitvec_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         }
         _ => Err(ParseError::err("Expected list of length 2 for bitvec sort")),
     }
-}
-
-fn parse_list_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
-    let Sexp::List(items) = sexp else {
-        return Err(ParseError::err("Expected list for func or app sort"));
-    };
-    if items.is_empty() {
-        return Err(ParseError::err("Empty list encountered when parsing sort"));
-    }
-    let Sexp::Atom(Atom::S(ctor)) = &items[0] else {
-        return Err(ParseError::err("Unexpected sort constructor encountered"));
-    };
-    if ctor == "func" && items.len() == 4 {
-        return parse_func_sort(&items[1..]);
-    }
-    let args = items[1..]
-        .to_vec()
-        .iter()
-        .map(parse_sort)
-        .collect::<Result<Vec<Sort<T>>, ParseError>>()?;
-    if ctor == "Set_Set" && args.len() == 1 {
-        return Ok(Sort::App(SortCtor::Set, args));
-    }
-    if ctor == "Map_t" && args.len() == 2 {
-        return Ok(Sort::App(SortCtor::Map, args));
-    }
-    if ctor == "BitVec" && args.len() == 1 {
-        return parse_bitvec_sort(sexp);
-    }
-    Err(ParseError::err("Unexpected sort constructor {ctor:?}"))
 }
 
 fn size_form_bv_sort(sort: Sort<StringTypes>) -> Result<u32, ParseError> {
@@ -474,5 +478,9 @@ impl FromSexp<StringTypes> for StringTypes {
 
     fn string(&self, s: &str) -> Result<String, ParseError> {
         Ok(s.to_string())
+    }
+
+    fn sort(&self, name: &str) -> Result<String, ParseError> {
+        Ok(name.to_string())
     }
 }

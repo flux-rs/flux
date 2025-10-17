@@ -102,10 +102,10 @@ where
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         Ok(rty::Expr::ctor_enum(def_id, *variant_idx))
                     }
-                    fixpoint::Var::BoundVar(i) => {
+                    fixpoint::Var::BoundVar { level, idx } => {
                         Ok(rty::Expr::bvar(
-                            INNERMOST,
-                            BoundVar::from_usize(*i),
+                            rty::DebruijnIndex::from_usize(*level),
+                            BoundVar::from_usize(*idx),
                             rty::BoundReftKind::Anon,
                         ))
                     }
