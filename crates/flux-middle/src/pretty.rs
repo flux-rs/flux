@@ -292,22 +292,6 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         Ok(r2)
     }
 
-    // pub fn with_fn_root_bound_vars<R1, R2>(
-    //     &self,
-    //     vars: &[BoundVariableKind],
-    //     vars_to_remove: FxHashSet<BoundVar>,
-    //     fn_root_layer_type: FnRootLayerType,
-    //     fmt_body: impl FnOnce(&mut String) -> Result<R1, fmt::Error>,
-    //     fmt_vars_with_body: impl FnOnce(R1, BoundVarLayer, String) -> Result<R2, fmt::Error>,
-    // ) -> Result<R2, fmt::Error> {
-    //     self.bvar_env.push_layer(vars, vars_to_remove, Some(fn_root_layer_type));
-    //     let r = f();
-    //     match self.bvar_env.pop_layer() {
-    //         Some(BoundVarLayer {layer_map: BoundVarLayerMap::FnRootLayerMap(fn_root_layer), ..}) => (r, fn_root_layer.seen_vars),
-    //         _ => unreachable!("The popped layer must exist and be an FnRootLayer"),
-    //     }
-    // }
-
     pub fn fmt_bound_vars(
         &self,
         print_infer_mode: bool,
