@@ -4,7 +4,7 @@ use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
-    fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, FixpointCtxt, SortEncodingCtxt},
+    fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
     lean_encoding::LeanEncoder,
 };
 use flux_metadata::CStore;
@@ -165,7 +165,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             match flux_item {
                 FluxItem::Func(spec_func) if spec_func.body.is_some() => {
                     fun_defs.push(
-                        ecx.to_fun_def(spec_func.def_id.to_def_id(), &mut scx)
+                        ecx.fun_def_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx)
                             .unwrap(),
                     );
                 }

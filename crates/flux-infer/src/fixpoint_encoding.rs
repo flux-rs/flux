@@ -33,7 +33,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
 use rustc_middle::ty::TypingMode;
-use rustc_span::Span;
+use rustc_span::{DUMMY_SP, Span};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -108,7 +108,7 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
-                Var::Global(v, Some(sym)) => write!(f, "f${}${}", sym.name(), v.as_u32()),
+                Var::Global(v, Some(did)) => write!(f, "f${}${}", did.name(), v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
@@ -439,6 +439,7 @@ where
     pub fn check(
         mut self,
         cache: &mut FixQueryCache,
+        def_id: Option<MaybeExternId>,
         constraint: fixpoint::Constraint,
         kind: FixpointQueryKind,
         scrape_quals: bool,
@@ -450,7 +451,6 @@ where
             return Ok(vec![]);
         }
         let def_span = self.ecx.def_span();
-        let def_id = self.ecx.def_id;
         let (define_funs, define_constants, qualifiers) = if let Some(def_id) = def_id {
             let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
             let qualifiers = self
@@ -533,7 +533,7 @@ where
     }
 
     pub fn to_fun_def(&mut self, def_id: FluxDefId) -> QueryResult<fixpoint::FunDef> {
-        self.ecx.to_fun_def(def_id, &mut self.scx)
+        self.ecx.fun_def_to_fixpoint(def_id, &mut self.scx)
     }
 
     pub fn generate_and_check_lean_lemmas(
@@ -1095,7 +1095,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn def_span(&self) -> Span {
-        self.genv.tcx().def_span(self.def_id.unwrap())
+        self.def_id
+            .map_or(DUMMY_SP, |def_id| self.genv.tcx().def_span(def_id))
     }
 
     fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
@@ -1823,7 +1824,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(did));
                 consts.push(fixpoint::ConstDecl { name, sort, comment: Some(comment) });
             } else {
-                defs.push((info.rank, self.to_fun_def(did, scx)?));
+                defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));
             };
         }
 
@@ -1837,7 +1838,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok((defs, consts))
     }
 
-    pub fn to_fun_def(
+    pub fn fun_def_to_fixpoint(
         &mut self,
         def_id: FluxDefId,
         scx: &mut SortEncodingCtxt,
