@@ -23,9 +23,12 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
+use liquid_fixpoint::{FixpointResult, FixpointStatus, SmtSolver, parser::FromSexp};
 // Add this import if SexpParser is defined in another crate or module
-use liquid_fixpoint::sexp::Parser;
-use liquid_fixpoint::{FixpointResult, FixpointStatus, SmtSolver};
+use liquid_fixpoint::{
+    parser::ParseError,
+    sexp::{Atom, Parser, Sexp},
+};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -39,8 +42,8 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    fixpoint_qualifiers::FIXPOINT_QUALIFIERS, lean_encoding::LeanEncoder,
-    projections::structurally_normalize_expr,
+    fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
+    lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
 };
 
 pub mod decoding;
@@ -533,7 +536,7 @@ where
             .chain(result.non_cuts_solution.iter())
             .map(|b| self.convert_kvar_bind(b))
             .try_collect()?;
-
+        // println!("TRACE: fixpoint solution for {def_id:?}: {solution:?}");
         let unsat = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
@@ -558,7 +561,7 @@ where
         }
     }
 
-    fn convert_expr(
+    fn convert_solution(
         &self,
         expr: &str,
     ) -> QueryResult<flux_middle::rty::Binder<flux_middle::rty::Expr>> {
@@ -571,9 +574,23 @@ where
             }
         };
 
-        panic!("TRACE: convert_sexp {sexp:?}");
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
+        let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
+            tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
+        });
+
         // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
+        let sorts = sorts
+            .iter()
+            .map(|s| self.fixpoint_to_sort(s))
+            .try_collect_vec()
+            .unwrap_or_else(|err| {
+                tracked_span_bug!("failed to convert sorts: {err:?}");
+            });
+        let expr = self
+            .fixpoint_to_expr(&expr)
+            .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
+        Ok(flux_middle::rty::Binder::bind_with_sorts(expr, &sorts))
     }
 
     fn convert_kvar_bind(
@@ -581,7 +598,7 @@ where
         b: &liquid_fixpoint::KVarBind,
     ) -> QueryResult<(fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>)> {
         let kvid = Self::convert_kvar(&b.kvar)?;
-        let expr = self.convert_expr(&b.val)?;
+        let expr = self.convert_solution(&b.val)?;
         Ok((kvid, expr))
     }
 
@@ -1925,4 +1942,58 @@ fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoin
         },
         Box::new(cstr),
     )
+}
+
+struct SexpParseCtxt {
+    kvar_args: FxIndexSet<String>,
+}
+
+impl FromSexp<FixpointTypes> for SexpParseCtxt {
+    fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
+        todo!()
+    }
+
+    fn string(&self, s: &str) -> Result<fixpoint::SymStr, ParseError> {
+        todo!()
+    }
+
+    fn var(&self, name: &str) -> Result<fixpoint::Var, ParseError> {
+        match self.kvar_args.get_index_of(name) {
+            Some(idx) => Ok(fixpoint::Var::BoundVar(idx)),
+            None => Err(ParseError::err(format!("Unknown variable: {name}"))),
+        }
+    }
+}
+
+type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
+
+fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
+    if let Sexp::List(items) = sexp
+        && let &[ref _lambda, ref params, ref body] = &items[..]
+        && let Sexp::List(sexp_params) = params
+    {
+        let mut kvar_args = FxIndexSet::default();
+        let mut sorts = vec![];
+
+        for param in sexp_params {
+            if let Sexp::List(bind) = param
+                && let &[ref _name, ref sort] = &bind[..]
+                && let Sexp::Atom(Atom::S(s)) = _name
+            {
+                kvar_args.insert(s.clone());
+                sorts.push(sort);
+            } else {
+                return Err(ParseError::err("expected parameter names to be symbols"));
+            }
+        }
+        let sorts = sorts
+            .into_iter()
+            .map(liquid_fixpoint::parser::parse_sort)
+            .try_collect()?;
+        let ctx = SexpParseCtxt { kvar_args };
+        let expr = ctx.parse_expr(body)?;
+        Ok((sorts, expr))
+    } else {
+        Err(ParseError::err("expected (lambda (params) body)"))
+    }
 }

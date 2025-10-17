@@ -12,6 +12,31 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
+    pub(crate) fn fixpoint_to_sort(
+        &self,
+        fsort: &fixpoint::Sort,
+    ) -> Result<rty::Sort, FixpointParseError> {
+        match fsort {
+            fixpoint::Sort::Int => Ok(rty::Sort::Int),
+            fixpoint::Sort::Real => Ok(rty::Sort::Real),
+            fixpoint::Sort::Bool => Ok(rty::Sort::Bool),
+            fixpoint::Sort::Str => Ok(rty::Sort::Str),
+            _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
+            // fixpoint::Sort::BitVec(_) => Ok(rty::Sort::BitVec(*size)),
+            // fixpoint::Sort::Data(adt_id, _args) => {
+            //     let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+            //     Ok(rty::Sort::Adt(def_id))
+            // }
+            // fixpoint::Sort::Tuple(arity) => {
+            //     let sorts = vec![rty::Sort::Int; *arity]; // placeholder sorts
+            //     Ok(rty::Sort::Tuple(sorts))
+            // }
+            // fixpoint::Sort::Uif(_name, _args) => {
+            //     todo!()
+            // }
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn fixpoint_to_expr(
         &self,

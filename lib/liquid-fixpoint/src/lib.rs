@@ -21,7 +21,7 @@ mod cstr2smt2;
 mod format;
 #[cfg(feature = "rust-fixpoint")]
 mod graph;
-mod parser;
+pub mod parser;
 pub mod sexp;
 
 use std::{

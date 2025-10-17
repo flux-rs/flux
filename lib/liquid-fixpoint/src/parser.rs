@@ -11,16 +11,14 @@ use crate::{
 #[derive(Debug)]
 pub enum ParseError {
     SexpParseError(SexpParseError),
-    MalformedSexpError(&'static str),
+    // MalformedSexpError(&'static str),
+    MalformedSexpError(String),
 }
 
-pub struct PT;
-impl Types for PT {
-    type Sort = String;
-    type KVar = String;
-    type Var = String;
-    type Tag = String;
-    type String = String;
+impl ParseError {
+    pub fn err(msg: impl Into<String>) -> Self {
+        ParseError::err(msg.into())
+    }
 }
 
 impl Identifier for String {
@@ -29,12 +27,7 @@ impl Identifier for String {
     }
 }
 
-pub trait Parseable<T: Types> {
-    fn to_kvar(&self, s: &str) -> Result<T::KVar, ParseError>;
-    fn to_var(&self, s: &str) -> Result<T::Var, ParseError>;
-}
-
-trait FromSexp<PT: Types> {
+pub trait FromSexp<PT: Types> {
     fn var(&self, name: &str) -> Result<PT::Var, ParseError>;
     fn kvar(&self, name: &str) -> Result<PT::KVar, ParseError>;
     fn string(&self, s: &str) -> Result<PT::String, ParseError>;
@@ -48,21 +41,17 @@ trait FromSexp<PT: Types> {
                 if let Some(size) = maybe_size {
                     Ok(Sort::BvSize(size))
                 } else {
-                    Err(ParseError::MalformedSexpError("Could not parse number for bvsize"))
+                    Err(ParseError::err("Could not parse number for bvsize"))
                 }
             }
-            _ => {
-                Err(ParseError::MalformedSexpError(
-                    "Expected bitvec size to be in the form Size{\\d+}",
-                ))
-            }
+            _ => Err(ParseError::err("Expected bitvec size to be in the form Size{\\d+}")),
         }
     }
 
     fn parse_name(&self, sexp: &Sexp) -> Result<PT::Var, ParseError> {
         let name = match sexp {
             Sexp::Atom(Atom::S(s)) => self.var(s),
-            _ => Err(ParseError::MalformedSexpError("Expected bind name to be a string")),
+            _ => Err(ParseError::err("Expected bind name to be a string")),
         }?;
         Ok(name)
     }
@@ -77,14 +66,10 @@ trait FromSexp<PT: Types> {
                         let pred = self.parse_pred_inner(&items[1])?;
                         Ok(Bind { name, sort, pred })
                     }
-                    _ => {
-                        Err(ParseError::MalformedSexpError(
-                            "Expected list for name and sort in bind",
-                        ))
-                    }
+                    _ => Err(ParseError::err("Expected list for name and sort in bind")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for bind")),
+            _ => Err(ParseError::err("Expected list for bind")),
         }
     }
 
@@ -104,7 +89,7 @@ trait FromSexp<PT: Types> {
                     _ => self.parse_expr_possibly_nested(sexp).map(Pred::Expr),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for pred")),
+            _ => Err(ParseError::err("Expected list for pred")),
         }
     }
 
@@ -112,9 +97,7 @@ trait FromSexp<PT: Types> {
         match sexp {
             Sexp::List(items) => {
                 if items.len() < 2 {
-                    Err(ParseError::MalformedSexpError(
-                        "Kvar application requires at least two elements",
-                    ))
+                    Err(ParseError::err("Kvar application requires at least two elements"))
                 } else {
                     let maybe_strs: Option<Vec<String>> = items
                         .iter()
@@ -131,20 +114,23 @@ trait FromSexp<PT: Types> {
                                 .collect::<Result<Vec<_>, _>>()?;
                             Ok(Pred::KVar(kvar, args))
                         }
-                        _ => {
-                            Err(ParseError::MalformedSexpError(
-                                "Expected all list elements to be strings",
-                            ))
-                        }
+                        _ => Err(ParseError::err("Expected all list elements to be strings")),
                     }
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for kvar")),
+            _ => Err(ParseError::err("Expected list for kvar")),
         }
     }
 
     fn parse_expr_possibly_nested(&self, sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
         through_nested_list(sexp, |s| self.parse_expr(s))
+    }
+
+    fn parse_params(&self, sexp: &Sexp) -> Result<Vec<(PT::Var, PT::Sort)>, ParseError> {
+        match sexp {
+            Sexp::List(items) => todo!(), //items.iter().map(|s| self.parse_name(s)).collect(),
+            _ => Err(ParseError::err("Expected list for params")),
+        }
     }
 
     fn parse_expr(&self, sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
@@ -185,7 +171,7 @@ trait FromSexp<PT: Types> {
             Sexp::List(items) => {
                 Ok(Expr::Neg(Box::new(self.parse_expr_possibly_nested(&items[1])?)))
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for neg")),
+            _ => Err(ParseError::err("Expected list for neg")),
         }
     }
 
@@ -194,7 +180,7 @@ trait FromSexp<PT: Types> {
             Sexp::List(items) => {
                 Ok(Expr::Not(Box::new(self.parse_expr_possibly_nested(&items[1])?)))
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for \"not\"")),
+            _ => Err(ParseError::err("Expected list for \"not\"")),
         }
     }
 
@@ -207,10 +193,10 @@ trait FromSexp<PT: Types> {
                         let exp2 = self.parse_expr_possibly_nested(&items[2])?;
                         Ok(Expr::Iff(Box::new([exp1, exp2])))
                     }
-                    _ => Err(ParseError::MalformedSexpError("Expected iff to start with \"<=>\"")),
+                    _ => Err(ParseError::err("Expected iff to start with \"<=>\"")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for iff")),
+            _ => Err(ParseError::err("Expected list for iff")),
         }
     }
 
@@ -223,10 +209,10 @@ trait FromSexp<PT: Types> {
                         let exp2 = self.parse_expr_possibly_nested(&items[2])?;
                         Ok(Expr::Imp(Box::new([exp1, exp2])))
                     }
-                    _ => Err(ParseError::MalformedSexpError("Expected imp to start with \"=>\"")),
+                    _ => Err(ParseError::err("Expected imp to start with \"=>\"")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for implication")),
+            _ => Err(ParseError::err("Expected list for implication")),
         }
     }
 
@@ -242,14 +228,10 @@ trait FromSexp<PT: Types> {
                             .collect::<Result<_, _>>()
                             .map(Expr::And)
                     }
-                    _ => {
-                        Err(ParseError::MalformedSexpError(
-                            "Expected \"and\" expression to start with \"and\"",
-                        ))
-                    }
+                    _ => Err(ParseError::err("Expected \"and\" expression to start with \"and\"")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for \"and\"")),
+            _ => Err(ParseError::err("Expected list for \"and\"")),
         }
     }
 
@@ -265,14 +247,10 @@ trait FromSexp<PT: Types> {
                             .collect::<Result<_, _>>()
                             .map(Expr::Or)
                     }
-                    _ => {
-                        Err(ParseError::MalformedSexpError(
-                            "Expected \"or\" expression to start with \"or\"",
-                        ))
-                    }
+                    _ => Err(ParseError::err("Expected \"or\" expression to start with \"or\"")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for \"or\"")),
+            _ => Err(ParseError::err("Expected list for \"or\"")),
         }
     }
 
@@ -289,10 +267,10 @@ trait FromSexp<PT: Types> {
                     Sexp::Atom(Atom::S(s)) if s == "<" => Ok(Expr::Atom(BinRel::Lt, exp_pair)),
                     Sexp::Atom(Atom::S(s)) if s == ">=" => Ok(Expr::Atom(BinRel::Ge, exp_pair)),
                     Sexp::Atom(Atom::S(s)) if s == ">" => Ok(Expr::Atom(BinRel::Gt, exp_pair)),
-                    _ => Err(ParseError::MalformedSexpError("Unsupported atom")),
+                    _ => Err(ParseError::err("Unsupported atom")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for atom")),
+            _ => Err(ParseError::err("Expected list for atom")),
         }
     }
 
@@ -307,7 +285,7 @@ trait FromSexp<PT: Types> {
                     .collect::<Result<_, _>>()?;
                 Ok(Expr::App(Box::new(exp1), args))
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for app")),
+            _ => Err(ParseError::err("Expected list for app")),
         }
     }
 
@@ -325,10 +303,10 @@ trait FromSexp<PT: Types> {
                     Sexp::Atom(Atom::S(s)) if s == "mod" => {
                         Ok(Expr::BinaryOp(BinOp::Mod, exp_pair))
                     }
-                    _ => Err(ParseError::MalformedSexpError("Unsupported atom")),
+                    _ => Err(ParseError::err("Unsupported atom")),
                 }
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for binary operation")),
+            _ => Err(ParseError::err("Expected list for binary operation")),
         }
     }
     fn parse_let(&self, sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
@@ -345,25 +323,19 @@ trait FromSexp<PT: Types> {
                                     let var = self.var(s)?;
                                     Ok(Expr::Let(var, Box::new([binding, body])))
                                 }
-                                _ => {
-                                    Err(ParseError::MalformedSexpError(
-                                        "Expected variable name to be string",
-                                    ))
-                                }
+                                _ => Err(ParseError::err("Expected variable name to be string")),
                             }
                         }
-                        _ => {
-                            Err(ParseError::MalformedSexpError("Expected list for var and binding"))
-                        }
+                        _ => Err(ParseError::err("Expected list for var and binding")),
                     }
                 })
             }
-            _ => Err(ParseError::MalformedSexpError("Expected list for let")),
+            _ => Err(ParseError::err("Expected list for let")),
         }
     }
 }
 
-fn parse_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
+pub fn parse_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
     match sexp {
         Sexp::List(_items) => parse_list_sort(sexp),
         Sexp::Atom(Atom::S(s)) if s == "Int" || s == "int" => Ok(Sort::Int),
@@ -372,7 +344,7 @@ fn parse_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         Sexp::Atom(Atom::S(s)) if s == "Str" || s == "str" => Ok(Sort::Str),
         Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => parse_bv_size(sexp),
         // Sexp::Atom(Atom::S(ref s)) => Ok(Sort::Var(s.clone())),
-        _ => Err(ParseError::MalformedSexpError("Unknown sort encountered")),
+        _ => Err(ParseError::err("Unknown sort encountered")),
     }
 }
 
@@ -385,17 +357,15 @@ fn parse_bv_size<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
             if let Some(size) = maybe_size {
                 Ok(Sort::BvSize(size))
             } else {
-                Err(ParseError::MalformedSexpError("Could not parse number for bvsize"))
+                Err(ParseError::err("Could not parse number for bvsize"))
             }
         }
-        _ => {
-            Err(ParseError::MalformedSexpError("Expected bitvec size to be in the form Size{\\d+}"))
-        }
+        _ => Err(ParseError::err("Expected bitvec size to be in the form Size{\\d+}")),
     }
 }
 
 fn parse_func_sort<T: Types>(_sexp: &Sexp) -> Result<Sort<T>, ParseError> {
-    Err(ParseError::MalformedSexpError("Func sort hole"))
+    Err(ParseError::err("Func sort hole"))
 }
 
 fn parse_bitvec_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
@@ -404,7 +374,7 @@ fn parse_bitvec_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
             let bitvec_size = parse_bv_size(&items[1])?;
             Ok(Sort::BitVec(Box::new(bitvec_size)))
         }
-        _ => Err(ParseError::MalformedSexpError("Expected list of length 2 for bitvec sort")),
+        _ => Err(ParseError::err("Expected list of length 2 for bitvec sort")),
     }
 }
 
@@ -427,22 +397,22 @@ fn parse_list_sort<T: Types>(sexp: &Sexp) -> Result<Sort<T>, ParseError> {
                 Sexp::Atom(Atom::S(s)) if s == "BitVec" && args.len() == 1 => {
                     parse_bitvec_sort(sexp)
                 }
-                _ => Err(ParseError::MalformedSexpError("Unexpected sort constructor encountered")),
+                _ => Err(ParseError::err("Unexpected sort constructor encountered")),
             }
         }
-        _ => Err(ParseError::MalformedSexpError("Expected list for func or app sort")),
+        _ => Err(ParseError::err("Expected list for func or app sort")),
     }
 }
 
-fn size_form_bv_sort(sort: Sort<PT>) -> Result<u32, ParseError> {
+fn size_form_bv_sort(sort: Sort<StringTypes>) -> Result<u32, ParseError> {
     match sort {
         Sort::BitVec(ref bv_size_box) => {
             match **bv_size_box {
                 Sort::BvSize(size) => Ok(size),
-                _ => Err(ParseError::MalformedSexpError("BitVec sort should contain BvSize sort")),
+                _ => Err(ParseError::err("BitVec sort should contain BvSize sort")),
             }
         }
-        _ => Err(ParseError::MalformedSexpError("Expected BitVec variant to be provided")),
+        _ => Err(ParseError::err("Expected BitVec variant to be provided")),
     }
 }
 
@@ -455,10 +425,10 @@ fn parse_bitvec<PT: Types>(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
                     let bvsize = size_form_bv_sort(parse_bitvec_sort(&items[2])?)?;
                     Ok(Expr::Constant(Constant::BitVec(bitvec, bvsize)))
                 }
-                _ => Err(ParseError::MalformedSexpError("Expected binary literal for bitvec")),
+                _ => Err(ParseError::err("Expected binary literal for bitvec")),
             }
         }
-        _ => Err(ParseError::MalformedSexpError("Expected list for bitvector literal")),
+        _ => Err(ParseError::err("Expected list for bitvector literal")),
     }
 }
 
@@ -487,11 +457,11 @@ where
 //                     Ok(Constraint::ForAll(bind, Box::new(c)))
 //                 }
 //                 _ => {
-//                     Err(ParseError::MalformedSexpError("Expected forall to start with \"forall\""))
+//                     Err(ParseError::err("Expected forall to start with \"forall\""))
 //                 }
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for forall expression")),
+//         _ => Err(ParseError::err("Expected list for forall expression")),
 //     }
 // }
 
@@ -508,11 +478,11 @@ where
 //                         .map(Constraint::Conj)
 //                 }
 //                 _ => {
-//                     Err(ParseError::MalformedSexpError("Expected conjuction to start with \"and\""))
+//                     Err(ParseError::err("Expected conjuction to start with \"and\""))
 //                 }
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for constraint conjunction")),
+//         _ => Err(ParseError::err("Expected list for constraint conjunction")),
 //     }
 // }
 // fn parse_tagged_pred(sexp: &Sexp) -> Result<Constraint<PT>, ParseError> {
@@ -523,10 +493,10 @@ where
 //                     let pred = todo!("parse_pred_inner(&items[1])?");
 //                     Ok(Constraint::Pred(pred, Some(s.clone())))
 //                 }
-//                 _ => Err(ParseError::MalformedSexpError("Expected quoted string for tag")),
+//                 _ => Err(ParseError::err("Expected quoted string for tag")),
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for tagged predicate")),
+//         _ => Err(ParseError::err("Expected list for tagged predicate")),
 //     }
 // }
 
@@ -550,7 +520,7 @@ where
 //                 _ => parse_pred(sexp),
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected constraint body to be list")),
+//         _ => Err(ParseError::err("Expected constraint body to be list")),
 //     }
 // }
 
@@ -562,20 +532,20 @@ where
 //                     sexp_to_constraint_inner(&items[1])
 //                 }
 //                 _ => {
-//                     Err(ParseError::MalformedSexpError(
+//                     Err(ParseError::err(
 //                         "Expected constraint definition to start with \"constraint\"",
 //                     ))
 //                 }
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for constraint definition")),
+//         _ => Err(ParseError::err("Expected list for constraint definition")),
 //     }
 // }
 
 // fn parse_kvar_decl_args(sexp: &Sexp) -> Result<Vec<Sort<PT>>, ParseError> {
 //     match sexp {
 //         Sexp::List(items) => items.iter().map(parse_sort).collect(),
-//         _ => Err(ParseError::MalformedSexpError("Expected list of sorts for kvar declaration")),
+//         _ => Err(ParseError::err("Expected list of sorts for kvar declaration")),
 //     }
 // }
 
@@ -587,10 +557,10 @@ where
 //                     let sorts = parse_kvar_decl_args(&items[2])?;
 //                     Ok(KVarDecl { kvid: s.clone(), sorts, comment: String::new() })
 //                 }
-//                 _ => Err(ParseError::MalformedSexpError("Expected kvar name to start with $")),
+//                 _ => Err(ParseError::err("Expected kvar name to start with $")),
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for kvar declaration")),
+//         _ => Err(ParseError::err("Expected list for kvar declaration")),
 //     }
 // }
 
@@ -600,13 +570,13 @@ where
 //             match &items[0] {
 //                 Sexp::Atom(Atom::S(atom)) if atom == "var" => sexp_to_kvar_decl_inner(sexp),
 //                 _ => {
-//                     Err(ParseError::MalformedSexpError(
+//                     Err(ParseError::err(
 //                         "Expected kvar declaration to start with \"var\"",
 //                     ))
 //                 }
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for constraint definition")),
+//         _ => Err(ParseError::err("Expected list for constraint definition")),
 //     }
 // }
 
@@ -617,19 +587,19 @@ where
 //                 let arg_sort = parse_sort(&items[1])?;
 //                 Ok((var_name.clone(), arg_sort))
 //             } else {
-//                 Err(ParseError::MalformedSexpError(
+//                 Err(ParseError::err(
 //                     "Expected qualifier argument to have variable name",
 //                 ))
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for qualifier argument")),
+//         _ => Err(ParseError::err("Expected list for qualifier argument")),
 //     }
 // }
 
 // fn parse_qualifier_args(sexp: &Sexp) -> Result<Vec<(String, Sort<PT>)>, ParseError> {
 //     match sexp {
 //         Sexp::List(args) => args.iter().map(parse_qualifier_arg).collect(),
-//         _ => Err(ParseError::MalformedSexpError("Expected list for qualifier arguments")),
+//         _ => Err(ParseError::err("Expected list for qualifier arguments")),
 //     }
 // }
 
@@ -641,12 +611,12 @@ where
 //                 let qualifier_body = parse_expr_possibly_nested(&items[3])?;
 //                 Ok(Qualifier { name: name.clone(), args: qualifier_args, body: qualifier_body })
 //             } else {
-//                 Err(ParseError::MalformedSexpError(
+//                 Err(ParseError::err(
 //                     "Expected qualifier declaration to provide name",
 //                 ))
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for qualifier declaration")),
+//         _ => Err(ParseError::err("Expected list for qualifier declaration")),
 //     }
 // }
 
@@ -656,13 +626,13 @@ where
 //             match &items[0] {
 //                 Sexp::Atom(Atom::S(atom)) if atom == "qualif" => sexp_to_qualifier_inner(sexp),
 //                 _ => {
-//                     Err(ParseError::MalformedSexpError(
+//                     Err(ParseError::err(
 //                         "Expected qualifier declaration to start with \"qualif\"",
 //                     ))
 //                 }
 //             }
 //         }
-//         _ => Err(ParseError::MalformedSexpError("Expected list for qualifier declaration")),
+//         _ => Err(ParseError::err("Expected list for qualifier declaration")),
 //     }
 // }
 
@@ -688,5 +658,29 @@ where
 //             return Ok(ConstraintWithEnv::new(vec![], kvar_decls, qualifiers, vec![], constraint));
 //         }
 //     }
-//     Err(ParseError::MalformedSexpError("No constraint found"))
+//     Err(ParseError::err("No constraint found"))
 // }
+
+/// Trivial implementation of Types using `String` for all associated types -----------------------------------
+pub struct StringTypes;
+impl Types for StringTypes {
+    type Sort = String;
+    type KVar = String;
+    type Var = String;
+    type Tag = String;
+    type String = String;
+}
+
+impl FromSexp<StringTypes> for StringTypes {
+    fn var(&self, name: &str) -> Result<String, ParseError> {
+        Ok(name.to_string())
+    }
+
+    fn kvar(&self, name: &str) -> Result<String, ParseError> {
+        Ok(name.to_string())
+    }
+
+    fn string(&self, s: &str) -> Result<String, ParseError> {
+        Ok(s.to_string())
+    }
+}
