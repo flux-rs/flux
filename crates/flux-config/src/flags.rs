@@ -61,6 +61,7 @@ pub struct Flags {
     pub trusted_default: bool,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
     pub ignore_default: bool,
+    pub emit_lean_defs: bool,
 }
 
 impl Default for Flags {
@@ -87,6 +88,7 @@ impl Default for Flags {
             full_compilation: false,
             trusted_default: false,
             ignore_default: false,
+            emit_lean_defs: false,
         }
     }
 }
@@ -119,6 +121,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
+            "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);

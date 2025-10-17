@@ -19,6 +19,7 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     queries::QueryResult,
+    query_bug,
     rty::{self, ESpan, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
     timings::{self, TimingKind},
 };
@@ -32,7 +33,7 @@ use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
 use rustc_middle::ty::TypingMode;
-use rustc_span::Span;
+use rustc_span::{DUMMY_SP, Span};
 use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -46,7 +47,7 @@ pub mod decoding;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::rty::EarlyReftParam;
+    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -80,7 +81,7 @@ pub mod fixpoint {
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
-        Global(GlobalVar, Option<Symbol>),
+        Global(GlobalVar, Option<FluxDefId>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
@@ -107,7 +108,7 @@ pub mod fixpoint {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
                 Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
-                Var::Global(v, Some(sym)) => write!(f, "f${}${}", sym, v.as_u32()),
+                Var::Global(v, Some(did)) => write!(f, "f${}${}", did.name(), v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
@@ -199,7 +200,7 @@ impl<'de> Deserialize<'de> for TagIdx {
 
 /// Keep track of all the data sorts that we need to define in fixpoint to encode the constraint.
 #[derive(Default)]
-struct SortEncodingCtxt {
+pub struct SortEncodingCtxt {
     /// Set of all the tuple arities that need to be defined
     tuples: UnordSet<usize>,
     /// Set of all the [`AdtDefSortDef`](flux_middle::rty::AdtSortDef) that need to be declared as
@@ -208,7 +209,7 @@ struct SortEncodingCtxt {
 }
 
 impl SortEncodingCtxt {
-    fn sort_to_fixpoint(&mut self, sort: &rty::Sort) -> fixpoint::Sort {
+    pub fn sort_to_fixpoint(&mut self, sort: &rty::Sort) -> fixpoint::Sort {
         match sort {
             rty::Sort::Int => fixpoint::Sort::Int,
             rty::Sort::Real => fixpoint::Sort::Real,
@@ -388,7 +389,7 @@ fn bv_size_to_fixpoint(size: rty::BvSize) -> fixpoint::Sort {
     }
 }
 
-type FunDefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
+pub type FunDefMap = FxIndexMap<FluxDefId, fixpoint::Var>;
 type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 
 #[derive(Eq, Hash, PartialEq, Clone)]
@@ -424,7 +425,7 @@ where
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, def_id),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id)),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
@@ -434,6 +435,7 @@ where
     pub fn check(
         mut self,
         cache: &mut FixQueryCache,
+        def_id: MaybeExternId,
         constraint: fixpoint::Constraint,
         kind: FixpointQueryKind,
         scrape_quals: bool,
@@ -445,10 +447,6 @@ where
             return Ok(vec![]);
         }
         let def_span = self.ecx.def_span();
-        let def_id = self.ecx.def_id;
-
-        let kvars = self.kcx.into_fixpoint();
-
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
         let qualifiers = self
             .ecx
@@ -456,6 +454,8 @@ where
             .into_iter()
             .chain(FIXPOINT_QUALIFIERS.iter().cloned())
             .collect();
+
+        let kvars = self.kcx.into_fixpoint();
 
         // Assuming values should happen after all encoding is done so we are sure we've collected
         // all constants.
@@ -514,28 +514,29 @@ where
     }
 
     pub fn generate_and_check_lean_lemmas(
-        mut self,
+        self,
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
-        let def_id = self.ecx.def_id;
+        if let Some(def_id) = self.ecx.def_id {
+            if !self.kcx.into_fixpoint().is_empty() {
+                tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
+            }
 
-        if !self.kcx.into_fixpoint().is_empty() {
-            tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
+            self.ecx.errors.into_result()?;
+
+            let lean_encoder = LeanEncoder::new(
+                self.genv,
+                std::path::Path::new("./"),
+                "lean_proofs".to_string(),
+                "Defs".to_string(),
+            );
+            lean_encoder
+                .encode_constraint(def_id, &constraint)
+                .map_err(|_| query_bug!("could not encode constraint"))?;
+            lean_encoder.check_proof(def_id)
+        } else {
+            Ok(())
         }
-
-        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-
-        let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
-
-        let mut constants = self.ecx.const_env.const_map.into_values().collect_vec();
-        constants.extend(define_constants);
-
-        self.ecx.errors.into_result()?;
-
-        let lean_encoder = LeanEncoder::new(def_id, self.genv, define_funs, constants, constraint);
-        let lean_path = std::path::Path::new("./");
-        let project_name = "lean_proofs";
-        lean_encoder.check_proof(lean_path, project_name)
     }
 
     fn run_task_with_cache(
@@ -1025,7 +1026,7 @@ struct ConstEnv<'tcx> {
     const_map: ConstMap<'tcx>,
     const_map_rev: HashMap<fixpoint::GlobalVar, ConstKey<'tcx>>,
     global_var_gen: IndexGen<fixpoint::GlobalVar>,
-    fun_def_map: FunDefMap,
+    pub fun_def_map: FunDefMap,
 }
 
 impl<'tcx> ConstEnv<'tcx> {
@@ -1043,19 +1044,19 @@ impl<'tcx> ConstEnv<'tcx> {
     }
 }
 
-struct ExprEncodingCtxt<'genv, 'tcx> {
+pub struct ExprEncodingCtxt<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     local_var_env: LocalVarEnv,
     const_env: ConstEnv<'tcx>,
     errors: Errors<'genv>,
     /// Id of the item being checked. This is a [`MaybeExternId`] because we may be encoding
     /// invariants for an extern spec on an enum.
-    def_id: MaybeExternId,
+    def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: Option<MaybeExternId>) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
@@ -1071,7 +1072,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn def_span(&self) -> Span {
-        self.genv.tcx().def_span(self.def_id)
+        self.def_id
+            .map_or(DUMMY_SP, |def_id| self.genv.tcx().def_span(def_id))
     }
 
     fn var_to_fixpoint(&self, var: &rty::Var) -> fixpoint::Var {
@@ -1195,7 +1197,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     }
 
     fn structurally_normalize_expr(&self, expr: &rty::Expr) -> QueryResult<rty::Expr> {
-        structurally_normalize_expr(self.genv, self.def_id.resolved_id(), &self.infcx, expr)
+        if let Some(def_id) = self.def_id {
+            structurally_normalize_expr(self.genv, def_id.resolved_id(), &self.infcx, expr)
+        } else {
+            Ok(expr.clone())
+        }
     }
 
     fn expr_to_fixpoint(
@@ -1574,10 +1580,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     /// Declare that the `def_id` of a Flux function definition needs to be encoded and assigns
     /// a name to it if it hasn't yet been declared. The encoding of the function body happens
     /// in [`Self::define_funs`].
-    fn declare_fun(&mut self, def_id: FluxDefId) -> fixpoint::Var {
+    pub fn declare_fun(&mut self, def_id: FluxDefId) -> fixpoint::Var {
         *self.const_env.fun_def_map.entry(def_id).or_insert_with(|| {
             let id = self.const_env.global_var_gen.fresh();
-            fixpoint::Var::Global(id, Some(def_id.name()))
+            fixpoint::Var::Global(id, Some(def_id))
         })
     }
 
@@ -1654,7 +1660,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .get_or_insert(key, |global_name| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
                 fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, Some(def_id.name())),
+                    name: fixpoint::Var::Global(global_name, Some(def_id)),
                     sort,
                     comment: Some(format!("uif: {def_id:?}")),
                 }
@@ -1795,10 +1801,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(did));
                 consts.push(fixpoint::ConstDecl { name, sort, comment: Some(comment) });
             } else {
-                let out = scx.sort_to_fixpoint(self.genv.func_sort(did).expect_mono().output());
-                let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
-                let fun_def = fixpoint::FunDef { name, args, body, out, comment: Some(comment) };
-                defs.push((info.rank, fun_def));
+                defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));
             };
         }
 
@@ -1810,6 +1813,24 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
 
         Ok((defs, consts))
+    }
+
+    pub fn fun_def_to_fixpoint(
+        &mut self,
+        def_id: FluxDefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> QueryResult<fixpoint::FunDef> {
+        let name = *self.const_env.fun_def_map.get(&def_id).unwrap();
+        let info = self.genv.normalized_info(def_id);
+        let out = scx.sort_to_fixpoint(self.genv.func_sort(def_id).expect_mono().output());
+        let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
+        Ok(fixpoint::FunDef {
+            name,
+            args,
+            body,
+            out,
+            comment: Some(format!("flux def: {def_id:?}")),
+        })
     }
 
     fn body_to_fixpoint(
