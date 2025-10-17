@@ -209,7 +209,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let mut fcx = FixpointCtxt::new(self.genv, Some(def_id), Some(kvars));
+        let mut fcx = FixpointCtxt::new(self.genv, Some(def_id), kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
         fcx.generate_and_check_lean_lemmas(cstr)
     }
@@ -240,7 +240,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, Some(def_id), Some(kvars));
+        let mut fcx = FixpointCtxt::new(self.genv, Some(def_id), kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
         let backend = match self.opts.solver {

@@ -405,10 +405,10 @@ enum ConstKey<'tcx> {
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
-    kvars: Option<KVarGen>,
+    kvars: KVarGen,
     scx: SortEncodingCtxt,
     kcx: KVarEncodingCtxt,
-    pub ecx: ExprEncodingCtxt<'genv, 'tcx>,
+    ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
 }
@@ -422,7 +422,7 @@ where
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: Option<MaybeExternId>,
-        kvars: Option<KVarGen>,
+        kvars: KVarGen,
     ) -> Self {
         Self {
             comments: vec![],
@@ -727,11 +727,7 @@ where
         kvar: &rty::KVar,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
-        let decl = self
-            .kvars
-            .as_ref()
-            .map(|kvars| kvars.get(kvar.kvid))
-            .unwrap();
+        let decl = self.kvars.get(kvar.kvid);
         let kvids = self.kcx.encode(kvar.kvid, decl, &mut self.scx);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
@@ -1083,7 +1079,7 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: Option<MaybeExternId>) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: Option<MaybeExternId>) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),

@@ -4,7 +4,7 @@ use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
-    fixpoint_encoding::{FixQueryCache, FixpointCtxt},
+    fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, FixpointCtxt, SortEncodingCtxt},
     lean_encoding::LeanEncoder,
 };
 use flux_metadata::CStore;
@@ -157,13 +157,17 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     fn encode_flux_items_in_lean(&self) {
-        let mut fcx: FixpointCtxt<'_, '_, i32> = FixpointCtxt::new(self.genv, None, None);
+        let mut ecx = ExprEncodingCtxt::new(self.genv, None);
+        let mut scx = SortEncodingCtxt::default();
         let mut fun_defs = vec![];
         for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
-            fcx.ecx.declare_fun(def_id.to_def_id());
+            ecx.declare_fun(def_id.to_def_id());
             match flux_item {
                 FluxItem::Func(spec_func) if spec_func.body.is_some() => {
-                    fun_defs.push(fcx.to_fun_def(spec_func.def_id.to_def_id()).unwrap());
+                    fun_defs.push(
+                        ecx.to_fun_def(spec_func.def_id.to_def_id(), &mut scx)
+                            .unwrap(),
+                    );
                 }
                 _ => {}
             }
