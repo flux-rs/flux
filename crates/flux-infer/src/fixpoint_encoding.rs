@@ -419,17 +419,13 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        def_id: Option<MaybeExternId>,
-        kvars: KVarGen,
-    ) -> Self {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
         Self {
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, def_id),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id)),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
@@ -439,7 +435,7 @@ where
     pub fn check(
         mut self,
         cache: &mut FixQueryCache,
-        def_id: Option<MaybeExternId>,
+        def_id: MaybeExternId,
         constraint: fixpoint::Constraint,
         kind: FixpointQueryKind,
         scrape_quals: bool,
@@ -451,18 +447,13 @@ where
             return Ok(vec![]);
         }
         let def_span = self.ecx.def_span();
-        let (define_funs, define_constants, qualifiers) = if let Some(def_id) = def_id {
-            let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
-            let qualifiers = self
-                .ecx
-                .qualifiers_for(def_id.local_id(), &mut self.scx)?
-                .into_iter()
-                .chain(FIXPOINT_QUALIFIERS.iter().cloned())
-                .collect();
-            (define_funs, define_constants, qualifiers)
-        } else {
-            (vec![], vec![], FIXPOINT_QUALIFIERS.iter().cloned().collect())
-        };
+        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+        let qualifiers = self
+            .ecx
+            .qualifiers_for(def_id.local_id(), &mut self.scx)?
+            .into_iter()
+            .chain(FIXPOINT_QUALIFIERS.iter().cloned())
+            .collect();
 
         let kvars = self.kcx.into_fixpoint();
 
@@ -505,21 +496,11 @@ where
             solver,
             data_decls: self.scx.into_data_decls(self.genv)?,
         };
-        if let Some(def_id) = def_id
-            && config::dump_constraint()
-        {
+        if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        let fixpoint_res = if let Some(def_id) = def_id {
-            Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache)
-        } else {
-            task.run()
-                .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
-                .status
-        };
-
-        match fixpoint_res {
+        match Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache) {
             FixpointStatus::Safe(_) => Ok(vec![]),
             FixpointStatus::Unsafe(_, errors) => {
                 Ok(errors
@@ -530,10 +511,6 @@ where
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         }
-    }
-
-    pub fn to_fun_def(&mut self, def_id: FluxDefId) -> QueryResult<fixpoint::FunDef> {
-        self.ecx.fun_def_to_fixpoint(def_id, &mut self.scx)
     }
 
     pub fn generate_and_check_lean_lemmas(

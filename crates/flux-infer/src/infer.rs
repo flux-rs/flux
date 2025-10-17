@@ -209,7 +209,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let mut fcx = FixpointCtxt::new(self.genv, Some(def_id), kvars);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
         fcx.generate_and_check_lean_lemmas(cstr)
     }
@@ -240,7 +240,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, Some(def_id), kvars);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
         let backend = match self.opts.solver {
@@ -248,7 +248,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, Some(def_id), cstr, kind, self.opts.scrape_quals, backend)
+        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
