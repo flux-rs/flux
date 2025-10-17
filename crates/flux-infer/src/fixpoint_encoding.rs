@@ -548,6 +548,7 @@ where
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
+        // println!("TRACE: Fixpoint result for {def_id:?}\n{solution:?}");
         Ok(Answer { errors: unsat, solution })
     }
 
