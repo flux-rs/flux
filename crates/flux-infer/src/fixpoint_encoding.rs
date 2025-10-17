@@ -537,7 +537,6 @@ where
             // .chain(result.non_cuts_solution.iter())
             .map(|b| self.convert_kvar_bind(b))
             .try_collect()?;
-        // println!("TRACE: fixpoint solution for {def_id:?}: {solution:?}");
         let unsat = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
@@ -549,6 +548,7 @@ where
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
+        println!("TRACE: Fixpoint result for {def_id:?}\n{solution:?}");
         Ok(Answer { errors: unsat, solution })
     }
 
@@ -577,8 +577,6 @@ where
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
-            println!("TRACE: oh dear: cannot parse!\n");
-            println!("{expr}");
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
