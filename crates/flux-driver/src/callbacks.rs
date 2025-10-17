@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{io, path::Path};
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
@@ -91,6 +91,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
+        if config::emit_lean_defs() {
+            ck.encode_flux_items_in_lean().unwrap_or(());
+        }
 
         let crate_items = genv.tcx().hir_crate_items(());
 
@@ -151,12 +154,10 @@ struct CrateChecker<'genv, 'tcx> {
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        let checker = CrateChecker { genv, cache: QueryCache::load() };
-        checker.encode_flux_items_in_lean();
-        checker
+        Self { genv, cache: QueryCache::load() }
     }
 
-    fn encode_flux_items_in_lean(&self) {
+    pub(crate) fn encode_flux_items_in_lean(&self) -> Result<(), io::Error> {
         let mut ecx = ExprEncodingCtxt::new(self.genv, None);
         let mut scx = SortEncodingCtxt::default();
         let mut fun_defs = vec![];
@@ -179,8 +180,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 "lean_proofs".to_string(),
                 "Defs".to_string(),
             );
-            encoder.encode_defs(&fun_defs).unwrap();
+            return encoder.encode_defs(&fun_defs);
         }
+        Ok(())
     }
 
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {

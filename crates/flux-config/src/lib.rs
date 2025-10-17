@@ -51,6 +51,10 @@ pub fn ignore_default() -> bool {
     FLAGS.ignore_default
 }
 
+pub fn emit_lean_defs() -> bool {
+    FLAGS.emit_lean_defs
+}
+
 pub fn cache_path() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
 }

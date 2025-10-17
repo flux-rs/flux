@@ -130,7 +130,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .tcx()
             .def_path(def_id.resolved_id())
             .to_filename_friendly_no_crate();
-        self.generate_theorem_file(theorem_name.as_str(), &cstr)?;
+        self.generate_theorem_file(theorem_name.as_str(), cstr)?;
         self.generate_proof_file_if_not_present(theorem_name.as_str())
     }
 
