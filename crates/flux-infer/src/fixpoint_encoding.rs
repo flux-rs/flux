@@ -23,7 +23,12 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
-use liquid_fixpoint::{FixpointStatus, SmtSolver};
+use liquid_fixpoint::{FixpointResult, FixpointStatus, SmtSolver, parser::FromSexp};
+// Add this import if SexpParser is defined in another crate or module
+use liquid_fixpoint::{
+    parser::ParseError,
+    sexp::{Atom, Parser, Sexp},
+};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -37,8 +42,8 @@ use rustc_type_ir::{BoundVar, DebruijnIndex};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    fixpoint_qualifiers::FIXPOINT_QUALIFIERS, lean_encoding::LeanEncoder,
-    projections::structurally_normalize_expr,
+    fixpoint_encoding::fixpoint::FixpointTypes, fixpoint_qualifiers::FIXPOINT_QUALIFIERS,
+    lean_encoding::LeanEncoder, projections::structurally_normalize_expr,
 };
 
 pub mod decoding;
@@ -89,6 +94,8 @@ pub mod fixpoint {
         UIFRel(BinRel),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
+        // for qualifier arguments
+        BoundVar(usize),
     }
 
     impl From<GlobalVar> for Var {
@@ -129,6 +136,7 @@ pub mod fixpoint {
                 Var::Param(param) => {
                     write!(f, "reftgen${}${}", param.name, param.index)
                 }
+                Var::BoundVar(i) => write!(f, "bv{i}"),
             }
         }
     }
@@ -177,6 +185,21 @@ pub mod fixpoint {
         type Tag = super::TagIdx;
     }
     pub use fixpoint_generated::*;
+}
+
+/// A type to represent Solutions for KVars
+pub type Solution = HashMap<fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>>;
+
+#[derive(Debug, Clone, Default)]
+pub struct Answer<Tag> {
+    pub errors: Vec<Tag>,
+    pub solution: Solution,
+}
+
+impl<Tag> Answer<Tag> {
+    pub fn trivial() -> Self {
+        Self { errors: Vec::new(), solution: HashMap::new() }
+    }
 }
 
 newtype_index! {
@@ -366,10 +389,10 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn into_data_decls(mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    fn into_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
-        Self::append_tuple_decls(self.tuples, &mut decls);
+        Self::append_tuple_decls(self.tuples.clone(), &mut decls);
         Ok(decls)
     }
 }
@@ -412,7 +435,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     tags_inv: UnordMap<T, TagIdx>,
 }
 
-pub type FixQueryCache = QueryCache<FixpointStatus<TagIdx>>;
+pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
@@ -438,11 +461,11 @@ where
         kind: FixpointQueryKind,
         scrape_quals: bool,
         solver: SmtSolver,
-    ) -> QueryResult<Vec<Tag>> {
+    ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
         if !constraint.is_concrete() {
             self.ecx.errors.into_result()?;
-            return Ok(vec![]);
+            return Ok(Answer::trivial());
         }
         let def_span = self.ecx.def_span();
         let def_id = self.ecx.def_id;
@@ -461,7 +484,13 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let mut constants = self.ecx.const_env.const_map.into_values().collect_vec();
+        let mut constants = self
+            .ecx
+            .const_env
+            .const_map
+            .clone()
+            .into_values()
+            .collect_vec();
         constants.extend(define_constants);
 
         // The rust fixpoint implementation does not yet support polymorphic functions.
@@ -486,7 +515,7 @@ where
         self.ecx.errors.into_result()?;
 
         let task = fixpoint::Task {
-            comments: self.comments,
+            comments: self.comments.clone(),
             constants,
             kvars,
             define_funs,
@@ -500,17 +529,78 @@ where
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
         }
 
-        match Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache) {
-            FixpointStatus::Safe(_) => Ok(vec![]),
+        let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
+        let solution = result
+            .solution
+            .iter()
+            // TODO: add `Exists` to `rty::ExprKind` and then we can do these
+            // .chain(result.non_cuts_solution.iter())
+            .map(|b| self.convert_kvar_bind(b))
+            .try_collect()?;
+        let unsat = match result.status {
+            FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
-                Ok(errors
+                errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
                     .unique()
-                    .collect_vec())
+                    .collect_vec()
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
+        };
+        // println!("TRACE: Fixpoint result for {def_id:?}\n{solution:?}");
+        Ok(Answer { errors: unsat, solution })
+    }
+
+    fn convert_kvar(kvid: &str) -> QueryResult<fixpoint::KVid> {
+        if kvid.starts_with("k")
+            && let Some(kvid) = kvid[1..].parse::<u32>().ok()
+        {
+            Ok(fixpoint::KVid::from_u32(kvid))
+        } else {
+            tracked_span_bug!("unexpected kvar name {kvid}")
         }
+    }
+
+    fn convert_solution(
+        &self,
+        expr: &str,
+    ) -> QueryResult<flux_middle::rty::Binder<flux_middle::rty::Expr>> {
+        // 1. convert str -> sexp
+        let mut sexp_parser = Parser::new(expr);
+        let sexp = match sexp_parser.parse() {
+            Ok(sexp) => sexp,
+            Err(err) => {
+                tracked_span_bug!("cannot parse sexp: {expr:?}: {err:?}");
+            }
+        };
+
+        // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
+        let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
+            tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
+        });
+
+        // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
+        let sorts = sorts
+            .iter()
+            .map(|s| self.fixpoint_to_sort(s))
+            .try_collect_vec()
+            .unwrap_or_else(|err| {
+                tracked_span_bug!("failed to convert sorts: {err:?}");
+            });
+        let expr = self
+            .fixpoint_to_expr(&expr)
+            .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
+        Ok(flux_middle::rty::Binder::bind_with_sorts(expr, &sorts))
+    }
+
+    fn convert_kvar_bind(
+        &self,
+        b: &liquid_fixpoint::KVarBind,
+    ) -> QueryResult<(fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>)> {
+        let kvid = Self::convert_kvar(&b.kvar)?;
+        let expr = self.convert_solution(&b.val)?;
+        Ok((kvid, expr))
     }
 
     pub fn generate_and_check_lean_lemmas(
@@ -544,7 +634,7 @@ where
         def_id: DefId,
         kind: FixpointQueryKind,
         cache: &mut FixQueryCache,
-    ) -> FixpointStatus<TagIdx> {
+    ) -> FixpointResult<TagIdx> {
         let key = kind.task_key(genv.tcx(), def_id);
 
         let hash = task.hash_with_default();
@@ -560,9 +650,10 @@ where
         });
 
         if config::is_cache_enabled() {
-            cache.insert(key, hash, result.status.clone());
+            cache.insert(key, hash, result.clone());
         }
-        result.status
+
+        result
     }
 
     fn tag_idx(&mut self, tag: Tag) -> TagIdx
@@ -757,6 +848,7 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     }
 }
 
+#[derive(Debug, Clone)]
 struct FixpointKVar {
     sorts: Vec<fixpoint::Sort>,
     orig: rty::KVid,
@@ -811,8 +903,9 @@ impl KVarEncodingCtxt {
         })
     }
 
-    fn into_fixpoint(self) -> Vec<fixpoint::KVarDecl> {
+    fn into_fixpoint(&self) -> Vec<fixpoint::KVarDecl> {
         self.kvars
+            .clone()
             .into_iter_enumerated()
             .map(|(kvid, kvar)| {
                 fixpoint::KVarDecl::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
@@ -1850,4 +1943,58 @@ fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoin
         },
         Box::new(cstr),
     )
+}
+
+struct SexpParseCtxt {
+    kvar_args: FxIndexSet<String>,
+}
+
+impl FromSexp<FixpointTypes> for SexpParseCtxt {
+    fn kvar(&self, _name: &str) -> Result<fixpoint::KVid, ParseError> {
+        todo!()
+    }
+
+    fn string(&self, _s: &str) -> Result<fixpoint::SymStr, ParseError> {
+        todo!()
+    }
+
+    fn var(&self, name: &str) -> Result<fixpoint::Var, ParseError> {
+        match self.kvar_args.get_index_of(name) {
+            Some(idx) => Ok(fixpoint::Var::BoundVar(idx)),
+            None => Err(ParseError::err(format!("Unknown variable: {name}"))),
+        }
+    }
+}
+
+type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
+
+fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
+    if let Sexp::List(items) = sexp
+        && let &[ref _lambda, ref params, ref body] = &items[..]
+        && let Sexp::List(sexp_params) = params
+    {
+        let mut kvar_args = FxIndexSet::default();
+        let mut sorts = vec![];
+
+        for param in sexp_params {
+            if let Sexp::List(bind) = param
+                && let &[ref _name, ref sort] = &bind[..]
+                && let Sexp::Atom(Atom::S(s)) = _name
+            {
+                kvar_args.insert(s.clone());
+                sorts.push(sort);
+            } else {
+                return Err(ParseError::err("expected parameter names to be symbols"));
+            }
+        }
+        let sorts = sorts
+            .into_iter()
+            .map(liquid_fixpoint::parser::parse_sort)
+            .try_collect()?;
+        let ctx = SexpParseCtxt { kvar_args };
+        let expr = ctx.parse_expr(body)?;
+        Ok((sorts, expr))
+    } else {
+        Err(ParseError::err("expected (lambda (params) body)"))
+    }
 }

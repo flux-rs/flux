@@ -4,6 +4,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
 
@@ -11,6 +12,38 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
+    pub(crate) fn fixpoint_to_sort(
+        &self,
+        fsort: &fixpoint::Sort,
+    ) -> Result<rty::Sort, FixpointParseError> {
+        match fsort {
+            fixpoint::Sort::Int => Ok(rty::Sort::Int),
+            fixpoint::Sort::Real => Ok(rty::Sort::Real),
+            fixpoint::Sort::Bool => Ok(rty::Sort::Bool),
+            fixpoint::Sort::Str => Ok(rty::Sort::Str),
+            fixpoint::Sort::Func(sorts) => {
+                let sort1 = self.fixpoint_to_sort(&sorts[0])?;
+                let sort2 = self.fixpoint_to_sort(&sorts[1])?;
+                let fsort = rty::FuncSort::new(vec![sort1], sort2);
+                let poly_sort = rty::PolyFuncSort::new(List::empty(), fsort);
+                Ok(rty::Sort::Func(poly_sort))
+            }
+            _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
+            // fixpoint::Sort::BitVec(_) => Ok(rty::Sort::BitVec(*size)),
+            // fixpoint::Sort::Data(adt_id, _args) => {
+            //     let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+            //     Ok(rty::Sort::Adt(def_id))
+            // }
+            // fixpoint::Sort::Tuple(arity) => {
+            //     let sorts = vec![rty::Sort::Int; *arity]; // placeholder sorts
+            //     Ok(rty::Sort::Tuple(sorts))
+            // }
+            // fixpoint::Sort::Uif(_name, _args) => {
+            //     todo!()
+            // }
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn fixpoint_to_expr(
         &self,
@@ -68,6 +101,13 @@ where
                     fixpoint::Var::DataCtor(adt_id, variant_idx) => {
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         Ok(rty::Expr::ctor_enum(def_id, *variant_idx))
+                    }
+                    fixpoint::Var::BoundVar(i) => {
+                        Ok(rty::Expr::bvar(
+                            INNERMOST,
+                            BoundVar::from_usize(*i),
+                            rty::BoundReftKind::Anon,
+                        ))
                     }
                     fixpoint::Var::TupleCtor { .. }
                     | fixpoint::Var::TupleProj { .. }
