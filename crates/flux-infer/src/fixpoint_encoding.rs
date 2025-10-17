@@ -533,7 +533,8 @@ where
         let solution = result
             .solution
             .iter()
-            // TODO! parse-exists .chain(result.non_cuts_solution.iter())
+            // TODO: add `Exists` to `rty::ExprKind` and then we can do these
+            // .chain(result.non_cuts_solution.iter())
             .map(|b| self.convert_kvar_bind(b))
             .try_collect()?;
         // println!("TRACE: fixpoint solution for {def_id:?}: {solution:?}");
@@ -1951,11 +1952,11 @@ struct SexpParseCtxt {
 }
 
 impl FromSexp<FixpointTypes> for SexpParseCtxt {
-    fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
+    fn kvar(&self, _name: &str) -> Result<fixpoint::KVid, ParseError> {
         todo!()
     }
 
-    fn string(&self, s: &str) -> Result<fixpoint::SymStr, ParseError> {
+    fn string(&self, _s: &str) -> Result<fixpoint::SymStr, ParseError> {
         todo!()
     }
 
