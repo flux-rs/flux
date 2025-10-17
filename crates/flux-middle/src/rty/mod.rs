@@ -809,7 +809,7 @@ pub enum SortCtor {
     Set,
     Map,
     Adt(AdtSortDef),
-    User { name: Symbol },
+    User(FluxDefId),
 }
 
 newtype_index! {

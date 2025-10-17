@@ -161,6 +161,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let mut ecx = ExprEncodingCtxt::new(self.genv, None);
         let mut scx = SortEncodingCtxt::default();
         let mut fun_defs = vec![];
+        let mut opaque_fun_defs = vec![];
         for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
             ecx.declare_fun(def_id.to_def_id());
             match flux_item {
@@ -169,6 +170,10 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                         ecx.fun_def_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx)
                             .unwrap(),
                     );
+                }
+                FluxItem::Func(spec_func) => {
+                    opaque_fun_defs
+                        .push(ecx.const_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx))
                 }
                 _ => {}
             }

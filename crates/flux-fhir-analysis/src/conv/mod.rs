@@ -928,7 +928,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::SortRes::User(def_id) => {
                 self.check_user_defined_sort_param_count(path, def_id)?;
-                rty::SortCtor::User { name: def_id.name() }
+                rty::SortCtor::User(def_id)
             }
             fhir::SortRes::Adt(def_id) => {
                 let sort_def = self.genv().adt_sort_def_of(def_id)?;
