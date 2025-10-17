@@ -21,6 +21,13 @@ where
             fixpoint::Sort::Real => Ok(rty::Sort::Real),
             fixpoint::Sort::Bool => Ok(rty::Sort::Bool),
             fixpoint::Sort::Str => Ok(rty::Sort::Str),
+            fixpoint::Sort::Func(sorts) => {
+                let sort1 = self.fixpoint_to_sort(&sorts[0])?;
+                let sort2 = self.fixpoint_to_sort(&sorts[1])?;
+                let fsort = rty::FuncSort::new(vec![sort1], sort2);
+                let poly_sort = rty::PolyFuncSort::new(List::empty(), fsort);
+                Ok(rty::Sort::Func(poly_sort))
+            }
             _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
             // fixpoint::Sort::BitVec(_) => Ok(rty::Sort::BitVec(*size)),
             // fixpoint::Sort::Data(adt_id, _args) => {

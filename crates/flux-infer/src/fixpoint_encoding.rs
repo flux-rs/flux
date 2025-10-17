@@ -533,7 +533,7 @@ where
         let solution = result
             .solution
             .iter()
-            .chain(result.non_cuts_solution.iter())
+            // TODO! parse-exists .chain(result.non_cuts_solution.iter())
             .map(|b| self.convert_kvar_bind(b))
             .try_collect()?;
         // println!("TRACE: fixpoint solution for {def_id:?}: {solution:?}");
@@ -576,6 +576,8 @@ where
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
+            println!("TRACE: oh dear: cannot parse!\n");
+            println!("{expr}");
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
