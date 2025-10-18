@@ -352,7 +352,7 @@ fn sort_of_thy_func(func: liquid_fixpoint::ThyFunc) -> Option<rty::PolyFuncSort>
 
 #[derive(Default)]
 pub struct Specs {
-    items: UnordMap<OwnerId, surface::Item>,
+    items: FxIndexMap<OwnerId, surface::Item>,
     trait_items: UnordMap<OwnerId, surface::TraitItemFn>,
     impl_items: UnordMap<OwnerId, surface::ImplItemFn>,
     pub flux_items_by_parent: FxIndexMap<OwnerId, Vec<surface::FluxItem>>,
@@ -391,6 +391,13 @@ impl Specs {
 
     pub fn insert_dummy(&mut self, def_id: LocalDefId) {
         self.dummy_extern.insert(def_id);
+    }
+
+    pub fn get_lemma_bank(&self) -> Vec<&surface::Item> {
+        self.items
+            .values()
+            .filter(|item| item.attrs.iter().any(|attr| matches!(attr, surface::Attr::LemmaBank)))
+            .collect()
     }
 
     pub fn get_item(&self, owner_id: OwnerId) -> Option<&surface::Item> {
