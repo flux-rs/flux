@@ -2,8 +2,6 @@ extern crate flux_core;
 
 use std::ops::{Add, Sub};
 
-use flux_rs::*;
-
 #[flux::opaque]
 #[flux::refined_by(x: bitvec<32>)]
 pub struct BV32(u32);

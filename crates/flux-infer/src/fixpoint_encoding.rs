@@ -578,7 +578,7 @@ where
         };
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
-        let (sorts, expr) = parse_solution_sexp(&self, &sexp).unwrap_or_else(|err| {
+        let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
@@ -1948,14 +1948,89 @@ fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoin
     )
 }
 
-struct SexpParseCtxt<'a, 'genv, 'tcx, Tag: Eq + Hash> {
-    fixpoint_ctxt: &'a FixpointCtxt<'genv, 'tcx, Tag>,
+fn parse_bound_var(scopes: &Vec<FxIndexSet<String>>, name: &str) -> Option<fixpoint::Var> {
+    for (level, scope) in scopes.iter().rev().enumerate() {
+        if let Some(idx) = scope.get_index_of(name) {
+            return Some(fixpoint::Var::BoundVar { level, idx });
+        }
+    }
+    None
+}
+
+fn parse_local_var(name: &str) -> Option<fixpoint::Var> {
+    if let Some(rest) = name.strip_prefix('a')
+        && let Ok(idx) = rest.parse::<u32>()
+    {
+        return Some(fixpoint::Var::Local(fixpoint::LocalVar::from(idx)));
+    }
+    None
+}
+
+fn parse_global_var(name: &str) -> Option<fixpoint::Var> {
+    if let Some(rest) = name.strip_prefix('c')
+        && let Ok(idx) = rest.parse::<u32>()
+    {
+        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(idx), None));
+    }
+    // try parsing as a named global variable
+    if let Some(rest) = name.strip_prefix("f$")
+        && let parts = rest.split('$').collect::<Vec<_>>()
+        && parts.len() == 2
+        && let Ok(global_idx) = parts[1].parse::<u32>()
+    {
+        return Some(fixpoint::Var::Global(
+            fixpoint::GlobalVar::from(global_idx),
+            Some(Symbol::intern(parts[0])),
+        ));
+    }
+    None
+}
+
+fn parse_param(name: &str) -> Option<fixpoint::Var> {
+    if let Some(rest) = name.strip_prefix("reftgen$")
+        && let parts = rest.split('$').collect::<Vec<_>>()
+        && parts.len() == 2
+        && let Ok(index) = parts[1].parse::<u32>()
+    {
+        let name = Symbol::intern(parts[0]);
+        let param = EarlyReftParam { index, name };
+        return Some(fixpoint::Var::Param(param));
+    }
+    None
+}
+
+fn parse_data_proj(name: &str) -> Option<fixpoint::Var> {
+    if let Some(rest) = name.strip_prefix("fld")
+        && let parts = rest.split('$').collect::<Vec<_>>()
+        && parts.len() == 2
+        && let Ok(adt_id) = parts[0].parse::<u32>()
+        && let Ok(field) = parts[1].parse::<u32>()
+    {
+        let adt_id = fixpoint::AdtId::from(adt_id);
+        return Some(fixpoint::Var::DataProj { adt_id, field });
+    }
+    None
+}
+
+fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
+    if let Some(rest) = name.strip_prefix("mkadt")
+        && let parts = rest.split('$').collect::<Vec<_>>()
+        && parts.len() == 2
+        && let Ok(adt_id) = parts[0].parse::<u32>()
+        && let Ok(variant_idx) = parts[1].parse::<u32>()
+    {
+        let adt_id = fixpoint::AdtId::from(adt_id);
+        let variant_idx = VariantIdx::from(variant_idx);
+        return Some(fixpoint::Var::DataCtor(adt_id, variant_idx));
+    }
+    None
+}
+
+struct SexpParseCtxt {
     scopes: Vec<FxIndexSet<String>>,
 }
 
-impl<'a, 'genv, 'tcx, Tag: Eq + Hash> FromSexp<FixpointTypes>
-    for SexpParseCtxt<'a, 'genv, 'tcx, Tag>
-{
+impl FromSexp<FixpointTypes> for SexpParseCtxt {
     fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
         bug!("TODO: SexpParse: kvar: {name}")
     }
@@ -1965,60 +2040,24 @@ impl<'a, 'genv, 'tcx, Tag: Eq + Hash> FromSexp<FixpointTypes>
     }
 
     fn var(&self, name: &str) -> Result<fixpoint::Var, ParseError> {
-        // try parsing as a bound variable
-        if let Some((level, idx)) = self
-            .scopes
-            .iter()
-            .rev()
-            .enumerate()
-            .find_map(|(level, scope)| scope.get_index_of(name).map(|idx| (level, idx)))
-        {
-            return Ok(fixpoint::Var::BoundVar { level, idx });
+        if let Some(var) = parse_bound_var(&self.scopes, name) {
+            return Ok(var);
         }
-        // try parsing as a local variable
-        if let Some(rest) = name.strip_prefix('a')
-            && let Ok(idx) = rest.parse::<u32>()
-        {
-            return Ok(fixpoint::Var::Local(fixpoint::LocalVar::from(idx)));
+        if let Some(var) = parse_local_var(name) {
+            return Ok(var);
         }
-        // try parsing as a global variable
-        if let Some(rest) = name.strip_prefix('c')
-            && let Ok(idx) = rest.parse::<u32>()
-        {
-            return Ok(fixpoint::Var::Global(fixpoint::GlobalVar::from(idx), None));
+        if let Some(var) = parse_global_var(name) {
+            return Ok(var);
         }
-        // try parsing as a named global variable
-        if let Some(rest) = name.strip_prefix("f$")
-            && let parts = rest.split('$').collect::<Vec<_>>()
-            && parts.len() == 2
-            && let Ok(global_idx) = parts[1].parse::<u32>()
-        {
-            return Ok(fixpoint::Var::Global(
-                fixpoint::GlobalVar::from(global_idx),
-                Some(Symbol::intern(parts[0])),
-            ));
+        if let Some(var) = parse_param(name) {
+            return Ok(var);
         }
-        // try parsing as a param
-        if let Some(rest) = name.strip_prefix("reftgen$")
-            && let parts = rest.split('$').collect::<Vec<_>>()
-            && parts.len() == 2
-            && let Ok(index) = parts[1].parse::<u32>()
-        {
-            let name = Symbol::intern(parts[0]);
-            let param = EarlyReftParam { index, name };
-            return Ok(fixpoint::Var::Param(param));
+        if let Some(var) = parse_data_proj(name) {
+            return Ok(var);
         }
-        // try parsing as DataProj
-        if let Some(rest) = name.strip_prefix("fld")
-            && let parts = rest.split('$').collect::<Vec<_>>()
-            && parts.len() == 2
-            && let Ok(adt_id) = parts[0].parse::<u32>()
-            && let Ok(field) = parts[1].parse::<u32>()
-        {
-            let adt_id = fixpoint::AdtId::from(adt_id);
-            return Ok(fixpoint::Var::DataProj { adt_id, field });
+        if let Some(var) = parse_data_ctor(name) {
+            return Ok(var);
         }
-
         return Err(ParseError::err(format!("Unknown variable: {name}")));
     }
 
@@ -2043,17 +2082,14 @@ impl<'a, 'genv, 'tcx, Tag: Eq + Hash> FromSexp<FixpointTypes>
 
 type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
 
-impl<'a, 'genv, 'tcx, Tag: Eq + Hash> SexpParseCtxt<'a, 'genv, 'tcx, Tag> {
-    fn new(fixpoint_ctxt: &'a FixpointCtxt<'genv, 'tcx, Tag>) -> Self {
-        Self { fixpoint_ctxt, scopes: vec![] }
+impl SexpParseCtxt {
+    fn new() -> Self {
+        Self { scopes: vec![] }
     }
 }
 
-fn parse_solution_sexp<'a, 'genv, 'tcx, Tag: Eq + Hash>(
-    fixpoint_ctx: &'a FixpointCtxt<'genv, 'tcx, Tag>,
-    sexp: &Sexp,
-) -> Result<FixpointKvarSolution, ParseError> {
-    let mut sexp_ctx = SexpParseCtxt::new(fixpoint_ctx);
+fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
+    let mut sexp_ctx = SexpParseCtxt::new();
     if let Sexp::List(items) = sexp
         && let &[ref _lambda, ref params, ref body] = &items[..]
         && let Sexp::List(sexp_params) = params

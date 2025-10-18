@@ -42,8 +42,6 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-use flux_config as config;
-// CUT pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};

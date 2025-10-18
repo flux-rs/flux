@@ -58,9 +58,10 @@ where
                     .map_err(|e| e)?;
                 Ok(rty::Sort::App(ctor, args))
             }
+            fixpoint::Sort::BitVec(fsort) if let fixpoint::Sort::BvSize(size) = **fsort => {
+                Ok(rty::Sort::BitVec(rty::BvSize::Fixed(size)))
+            }
             _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
-            // fixpoint::Sort::BitVec(_) => Ok(rty::Sort::BitVec(*size)),
-
             // fixpoint::Sort::Tuple(arity) => {
             //     let sorts = vec![rty::Sort::Int; *arity]; // placeholder sorts
             //     Ok(rty::Sort::Tuple(sorts))

@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crate::{
-    BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, Types,
+    BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -127,33 +127,41 @@ pub trait FromSexp<T: Types> {
         through_nested_list(sexp, |s| self.parse_expr(s))
     }
 
+    fn parse_is_ctor(&mut self, ctor_name: &str, arg: &Sexp) -> Result<Expr<T>, ParseError> {
+        let ctor = self.var(ctor_name)?;
+        let arg = self.parse_expr(arg)?;
+        Ok(Expr::IsCtor(ctor, Box::new(arg)))
+    }
+
     fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
-                match &items[0] {
-                    Sexp::Atom(Atom::S(s)) if s == "exists" => self.parse_exists(&items[1..]),
-                    Sexp::Atom(Atom::S(s)) if s == "let" => self.parse_let(sexp),
-                    Sexp::Atom(Atom::S(s)) if s == "not" => self.parse_not(sexp),
-                    Sexp::Atom(Atom::S(s)) if s == "or" => self.parse_or(sexp),
-                    Sexp::Atom(Atom::S(s)) if s == "and" => self.parse_and(sexp),
-                    Sexp::Atom(Atom::S(s)) if s == "lit" => parse_bitvec(sexp),
-                    Sexp::Atom(Atom::S(s)) if s == "-" && items.len() == 2 => self.parse_neg(sexp),
-                    Sexp::Atom(Atom::S(s))
-                        if matches!(s.as_str(), "+" | "-" | "*" | "/" | "mod") =>
-                    {
-                        self.parse_binary_op(sexp)
+                if let Sexp::Atom(Atom::S(s)) = &items[0] {
+                    match s.as_str() {
+                        "exists" => self.parse_exists(&items[1..]),
+                        "let" => self.parse_let(sexp),
+                        "not" => self.parse_not(sexp),
+                        "or" => self.parse_or(sexp),
+                        "and" => self.parse_and(sexp),
+                        "lit" => parse_bitvec(sexp),
+                        "-" if items.len() == 2 => self.parse_neg(sexp),
+                        "+" | "-" | "*" | "/" | "mod" => self.parse_binary_op(sexp),
+                        "=" | "!=" | "<" | "<=" | ">" | ">=" => self.parse_atom(sexp),
+                        "<=>" => self.parse_iff(sexp),
+                        "=>" => self.parse_imp(sexp),
+                        _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
+                        _ => self.parse_app(sexp),
                     }
-                    Sexp::Atom(Atom::S(s))
-                        if matches!(s.as_str(), "=" | "!=" | "<" | "<=" | ">" | ">=") =>
-                    {
-                        self.parse_atom(sexp)
-                    }
-                    Sexp::Atom(Atom::S(s)) if s == "<=>" => self.parse_iff(sexp),
-                    Sexp::Atom(Atom::S(s)) if s == "=>" => self.parse_imp(sexp),
-                    _ => self.parse_app(sexp),
+                } else {
+                    self.parse_app(sexp)
                 }
             }
-            Sexp::Atom(Atom::S(s)) => Ok(Expr::Var(self.var(s)?)),
+            Sexp::Atom(Atom::S(s)) => {
+                match parse_thy_func(s) {
+                    Some(thy_func) => Ok(Expr::ThyFunc(thy_func)),
+                    None => Ok(Expr::Var(self.var(s)?)),
+                }
+            }
             Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
             Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i as u128))),
@@ -488,6 +496,66 @@ fn parse_bitvec<PT: Types>(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     }
 }
 
+fn parse_thy_func(name: &str) -> Option<ThyFunc> {
+    match name {
+        // STRINGS
+        "strLen" => Some(ThyFunc::StrLen),
+
+        // BIT VECTORS - conversions
+        "int_to_bv8" => Some(ThyFunc::IntToBv8),
+        "bv8_to_int" => Some(ThyFunc::Bv8ToInt),
+        "int_to_bv32" => Some(ThyFunc::IntToBv32),
+        "bv32_to_int" => Some(ThyFunc::Bv32ToInt),
+        "int_to_bv64" => Some(ThyFunc::IntToBv64),
+        "bv64_to_int" => Some(ThyFunc::Bv64ToInt),
+
+        // BIT VECTORS - comparisons
+        "bvule" => Some(ThyFunc::BvUle),
+        "bvsle" => Some(ThyFunc::BvSle),
+        "bvuge" => Some(ThyFunc::BvUge),
+        "bvsge" => Some(ThyFunc::BvSge),
+        "bvugt" => Some(ThyFunc::BvUgt),
+        "bvsgt" => Some(ThyFunc::BvSgt),
+        "bvult" => Some(ThyFunc::BvUlt),
+        "bvslt" => Some(ThyFunc::BvSlt),
+
+        // BIT VECTORS - arithmetic/logical operations
+        "bvudiv" => Some(ThyFunc::BvUdiv),
+        "bvsdiv" => Some(ThyFunc::BvSdiv),
+        "bvurem" => Some(ThyFunc::BvUrem),
+        "bvsrem" => Some(ThyFunc::BvSrem),
+        "bvlshr" => Some(ThyFunc::BvLshr),
+        "bvashr" => Some(ThyFunc::BvAshr),
+        "bvand" => Some(ThyFunc::BvAnd),
+        "bvor" => Some(ThyFunc::BvOr),
+        "bvxor" => Some(ThyFunc::BvXor),
+        "bvnot" => Some(ThyFunc::BvNot),
+        "bvadd" => Some(ThyFunc::BvAdd),
+        "bvneg" => Some(ThyFunc::BvNeg),
+        "bvsub" => Some(ThyFunc::BvSub),
+        "bvmul" => Some(ThyFunc::BvMul),
+        "bvshl" => Some(ThyFunc::BvShl),
+
+        // SETS
+        "Set_empty" => Some(ThyFunc::SetEmpty),
+        "Set_sng" => Some(ThyFunc::SetSng),
+        "Set_cup" => Some(ThyFunc::SetCup),
+        "Set_cap" => Some(ThyFunc::SetCap),
+        "Set_dif" => Some(ThyFunc::SetDif),
+        "Set_mem" => Some(ThyFunc::SetMem),
+        "Set_sub" => Some(ThyFunc::SetSub),
+
+        // MAPS
+        "Map_default" => Some(ThyFunc::MapDefault),
+        "Map_select" => Some(ThyFunc::MapSelect),
+        "Map_store" => Some(ThyFunc::MapStore),
+
+        // Note: BvZeroExtend and BvSignExtend have parametric forms like "app (_ zero_extend N)"
+        // These would need special parsing in the caller
+        _ => None,
+    }
+}
+
 fn through_nested_list<T, F>(sexp: &Sexp, mut at_bottom: F) -> T
 where
     F: FnMut(&Sexp) -> T,
@@ -530,7 +598,7 @@ impl FromSexp<StringTypes> for StringTypes {
         Ok(name.to_string())
     }
 
-    fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError> {
+    fn push_scope(&mut self, _names: &[String]) -> Result<(), ParseError> {
         Ok(())
     }
 
