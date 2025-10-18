@@ -4,6 +4,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_hir::def_id::DefId;
 use rustc_type_ir::BoundVar;
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
@@ -12,6 +13,26 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
+    fn fixpoint_to_sort_ctor(
+        &self,
+        ctor: &fixpoint::SortCtor,
+    ) -> Result<rty::SortCtor, FixpointParseError> {
+        match ctor {
+            fixpoint::SortCtor::Set => Ok(rty::SortCtor::Set),
+            fixpoint::SortCtor::Map => Ok(rty::SortCtor::Map),
+            fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(_)) => {
+                panic!("oh no! tuple!") // Ok(rty::SortCtor::Tuple(*size))
+            }
+            fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)) => {
+                let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+                let Ok(adt_sort_def) = self.genv.adt_sort_def_of(def_id) else {
+                    return Err(FixpointParseError::UnknownAdt(def_id));
+                };
+                Ok(rty::SortCtor::Adt(adt_sort_def))
+            }
+        }
+    }
+
     pub(crate) fn fixpoint_to_sort(
         &self,
         fsort: &fixpoint::Sort,
@@ -28,12 +49,18 @@ where
                 let poly_sort = rty::PolyFuncSort::new(List::empty(), fsort);
                 Ok(rty::Sort::Func(poly_sort))
             }
+            fixpoint::Sort::App(ctor, args) => {
+                let ctor = self.fixpoint_to_sort_ctor(ctor)?;
+                let args = args
+                    .iter()
+                    .map(|fsort| self.fixpoint_to_sort(fsort))
+                    .try_collect()
+                    .map_err(|e| e)?;
+                Ok(rty::Sort::App(ctor, args))
+            }
             _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
             // fixpoint::Sort::BitVec(_) => Ok(rty::Sort::BitVec(*size)),
-            // fixpoint::Sort::Data(adt_id, _args) => {
-            //     let def_id = self.scx.adt_sorts[adt_id.as_usize()];
-            //     Ok(rty::Sort::Adt(def_id))
-            // }
+
             // fixpoint::Sort::Tuple(arity) => {
             //     let sorts = vec![rty::Sort::Int; *arity]; // placeholder sorts
             //     Ok(rty::Sort::Tuple(sorts))
@@ -387,4 +414,5 @@ pub enum FixpointParseError {
     NoLocalVar(fixpoint::LocalVar),
     /// Expecting fixpoint::Var::DataCtor
     WrongVarInIsCtor(fixpoint::Var),
+    UnknownAdt(DefId),
 }

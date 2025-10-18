@@ -369,6 +369,11 @@ pub trait FromSexp<T: Types> {
         if ctor == "func" && items.len() == 4 {
             return self.parse_func_sort(&items[1..]);
         }
+        if ctor == "function" && items.len() == 3 {
+            let input = self.parse_sort(&items[1])?;
+            let output = self.parse_sort(&items[2])?;
+            return Ok(Sort::mk_func(0, vec![input], output));
+        }
         let args = items[1..]
             .to_vec()
             .iter()
@@ -390,11 +395,22 @@ pub trait FromSexp<T: Types> {
     fn parse_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         match sexp {
             Sexp::List(_items) => self.parse_list_sort(sexp),
-            Sexp::Atom(Atom::S(s)) if s == "Int" || s == "int" => Ok(Sort::Int),
-            Sexp::Atom(Atom::S(s)) if s == "Bool" || s == "bool" => Ok(Sort::Bool),
-            Sexp::Atom(Atom::S(s)) if s == "Real" || s == "real" => Ok(Sort::Real),
-            Sexp::Atom(Atom::S(s)) if s == "Str" || s == "str" => Ok(Sort::Str),
-            Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => parse_bv_size(sexp),
+            Sexp::Atom(Atom::S(s)) => {
+                if s == "Int" || s == "int" {
+                    Ok(Sort::Int)
+                } else if s == "Bool" || s == "bool" {
+                    Ok(Sort::Bool)
+                } else if s == "Real" || s == "real" {
+                    Ok(Sort::Real)
+                } else if s == "Str" || s == "str" {
+                    Ok(Sort::Str)
+                } else if s.starts_with("Size") {
+                    self.parse_bv_size(sexp)
+                } else {
+                    let ctor = SortCtor::Data(self.sort(s)?);
+                    Ok(Sort::App(ctor, vec![]))
+                }
+            }
             // Sexp::Atom(Atom::S(ref s)) => Ok(Sort::Var(s.clone())),
             _ => panic!("Unknown sort encountered {sexp:?}"), // Err(ParseError::err(format!("Unknown sort encountered {sexp:?}"))),
         }

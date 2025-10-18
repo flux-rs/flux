@@ -1961,7 +1961,7 @@ impl<'a, 'genv, 'tcx, Tag: Eq + Hash> FromSexp<FixpointTypes>
     }
 
     fn string(&self, s: &str) -> Result<fixpoint::SymStr, ParseError> {
-        todo!("TODO: SexpParse: string: {s}")
+        Ok(fixpoint::SymStr(Symbol::intern(s)))
     }
 
     fn var(&self, name: &str) -> Result<fixpoint::Var, ParseError> {
@@ -2008,12 +2008,27 @@ impl<'a, 'genv, 'tcx, Tag: Eq + Hash> FromSexp<FixpointTypes>
             let param = EarlyReftParam { index, name };
             return Ok(fixpoint::Var::Param(param));
         }
+        // try parsing as DataProj
+        if let Some(rest) = name.strip_prefix("fld")
+            && let parts = rest.split('$').collect::<Vec<_>>()
+            && parts.len() == 2
+            && let Ok(adt_id) = parts[0].parse::<u32>()
+            && let Ok(field) = parts[1].parse::<u32>()
+        {
+            let adt_id = fixpoint::AdtId::from(adt_id);
+            return Ok(fixpoint::Var::DataProj { adt_id, field });
+        }
 
         return Err(ParseError::err(format!("Unknown variable: {name}")));
     }
 
     fn sort(&self, name: &str) -> Result<fixpoint::DataSort, ParseError> {
-        todo!("TODO: SexpParse: sort")
+        if let Some(idx) = name.strip_prefix("Adt")
+            && let Ok(adt_id) = idx.parse::<u32>()
+        {
+            return Ok(fixpoint::DataSort::Adt(fixpoint::AdtId::from(adt_id)));
+        }
+        Err(ParseError::err(format!("Unknown sort: {name}")))
     }
 
     fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError> {
