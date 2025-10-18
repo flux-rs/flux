@@ -1567,9 +1567,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             Ok(var)
         } else {
             let fresh = self.local_var_env.fresh_name();
-            self.local_var_env
-                .reverse_map
-                .insert(fresh, arg.clone());
+            self.local_var_env.reverse_map.insert(fresh, arg.clone());
             let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), farg);
             bindings.push(fixpoint::Bind {
                 name: fresh.into(),
