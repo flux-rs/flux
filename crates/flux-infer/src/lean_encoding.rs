@@ -11,7 +11,7 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
 };
 
-use crate::{fixpoint_encoding::fixpoint, lean_format};
+use crate::{fixpoint_encoding::fixpoint, lean_format::{self, LeanDataDecl, LeanConstDecl}};
 
 pub struct LeanEncoder<'genv, 'tcx, 'a> {
     genv: GlobalEnv<'genv, 'tcx>,
@@ -44,7 +44,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         }
     }
 
-    pub fn encode_defs(&self, defs: &[fixpoint::FunDef]) -> Result<(), io::Error> {
+    pub fn encode_defs(&self, opaque_sorts: &[fixpoint::DataDecl], opaque_funs: &[fixpoint::ConstDecl], data_decls: &[fixpoint::DataDecl], func_defs: &[fixpoint::FunDef]) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
         let defs_path = self.lean_path.join(
             format!(
@@ -56,11 +56,33 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .as_str(),
         );
         let mut file = fs::File::create(defs_path)?;
-        writeln!(file, "mutual")?;
-        for fun_def in defs {
-            writeln!(file, "{}", lean_format::LeanFunDef(fun_def, self.genv))?;
+        if !opaque_sorts.is_empty() || !opaque_funs.is_empty() {
+            writeln!(file, "-- OPAQUE DEFS --")?;
+            writeln!(file, "class FluxDefs where")?;
+            for sort in opaque_sorts {
+                writeln!(file, "  {}", LeanDataDecl(&sort, self.genv))?;
+            }
+            for fun in opaque_funs {
+                writeln!(file, "  {}", LeanConstDecl(&fun, self.genv))?;
+            }
         }
-        writeln!(file, "end")
+        if !data_decls.is_empty() {
+            writeln!(file, "-- STRUCT DECLS --")?;
+            writeln!(file, "mutual")?;
+            for data_decl in data_decls {
+                writeln!(file, "{}", lean_format::LeanDataDecl(&data_decl, self.genv))?;
+            }
+            writeln!(file, "end")?;
+        }
+        if !func_defs.is_empty() {
+            writeln!(file, "-- FUNC DECLS --")?;
+            writeln!(file, "mutual")?;
+            for fun_def in func_defs {
+                writeln!(file, "{}", lean_format::LeanFunDef(fun_def, self.genv))?;
+            }
+            writeln!(file, "end")?;
+        }
+        Ok(())
     }
 
     fn generate_theorem_file(

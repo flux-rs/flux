@@ -400,7 +400,7 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn into_data_decls(mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    pub fn into_data_decls(mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
         self.append_user_sorts(genv, &mut decls)?;

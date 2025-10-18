@@ -178,14 +178,16 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 _ => {}
             }
         }
-        if !fun_defs.is_empty() {
+        let adt_defs = scx.into_data_decls(self.genv).unwrap();
+        let (opaque_sorts, adt_defs): (Vec<_>, Vec<_>) = adt_defs.into_iter().partition(|decl| decl.ctors.is_empty());
+        if !opaque_sorts.is_empty() || !opaque_fun_defs.is_empty() || !adt_defs.is_empty() || !fun_defs.is_empty() {
             let encoder = LeanEncoder::new(
                 self.genv,
                 std::path::Path::new("./"),
                 "lean_proofs".to_string(),
                 "Defs".to_string(),
             );
-            return encoder.encode_defs(&fun_defs);
+            encoder.encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs).unwrap();
         }
         Ok(())
     }
