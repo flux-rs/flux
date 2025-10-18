@@ -550,6 +550,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                 })?
             }
             ("proven_externally", hir::AttrArgs::Empty) => FluxAttrKind::ProvenExternally,
+            ("lemma_bank", hir::AttrArgs::Empty) => FluxAttrKind::LemmaBank,
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
             ("opaque", hir::AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
@@ -644,6 +645,7 @@ struct FluxAttr {
 enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
+    LemmaBank,
     ProvenExternally,
     Opaque,
     Reflect,
@@ -793,6 +795,7 @@ impl FluxAttrs {
             let attr = match attr.kind {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
                 FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
+                FluxAttrKind::LemmaBank => surface::Attr::LemmaBank,
                 FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally,
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
@@ -826,6 +829,7 @@ impl FluxAttrKind {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
+            FluxAttrKind::LemmaBank => attr_name!(LemmaBank),
             FluxAttrKind::ProvenExternally => attr_name!(ProvenExternally),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::Reflect => attr_name!(Reflect),

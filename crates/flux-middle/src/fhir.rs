@@ -46,6 +46,7 @@ pub enum Attr {
     Trusted(Trusted),
     TrustedImpl(Trusted),
     Ignore(Ignored),
+    LemmaBank,
     ProvenExternally,
     ShouldFail,
     InferOpts(PartialInferOpts),
@@ -59,6 +60,12 @@ pub struct AttrMap<'fhir> {
 }
 
 impl AttrMap<'_> {
+    pub(crate) fn lemma_bank(&self) -> bool {
+        self.attrs
+            .iter()
+            .any(|attr| matches!(attr, Attr::LemmaBank))
+    }
+
     pub(crate) fn proven_externally(&self) -> bool {
         self.attrs
             .iter()

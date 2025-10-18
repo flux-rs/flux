@@ -608,6 +608,8 @@ pub enum Attr {
     TrustedImpl(Trusted),
     /// A `#[ignore(...)]` attribute
     Ignore(Ignored),
+    /// A `#[lemma_bank]` attribute
+    LemmaBank,
     /// A `#[proven_externally]` attribute
     ProvenExternally,
     /// A `#[should_fail]` attribute

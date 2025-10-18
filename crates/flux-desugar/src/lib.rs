@@ -193,6 +193,7 @@ fn fhir_attr_map<'genv>(genv: GlobalEnv<'genv, '_>, def_id: LocalDefId) -> fhir:
                             Some(fhir::Attr::TrustedImpl(trusted))
                         }
                         surface::Attr::Ignore(ignored) => Some(fhir::Attr::Ignore(ignored)),
+                        surface::Attr::LemmaBank => Some(fhir::Attr::LemmaBank),
                         surface::Attr::ProvenExternally => Some(fhir::Attr::ProvenExternally),
                         surface::Attr::ShouldFail => Some(fhir::Attr::ShouldFail),
                         surface::Attr::InferOpts(opts) => Some(fhir::Attr::InferOpts(opts)),

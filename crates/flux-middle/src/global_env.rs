@@ -543,6 +543,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
+    pub fn in_lemma_bank(self, def_id: LocalDefId) -> bool {
+        self.fhir_attr_map(def_id).lemma_bank()
+    }
+
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,

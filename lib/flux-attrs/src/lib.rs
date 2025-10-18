@@ -80,6 +80,11 @@ pub fn proven_externally(attr: TokenStream, tokens: TokenStream) -> TokenStream 
 }
 
 #[proc_macro_attribute]
+pub fn lemma_bank(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::lemma_bank(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn generics(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::generics(attr, tokens)
 }
@@ -160,6 +165,7 @@ mod attr_sysroot {
         trusted,
         trusted_impl,
         proven_externally,
+        lemma_bank,
         generics,
         assoc,
         ignore,
@@ -209,6 +215,7 @@ mod attr_dummy {
         trusted,
         trusted_impl,
         proven_externally,
+        lemma_bank,
         generics,
         assoc,
         ignore,
