@@ -1,10 +1,10 @@
 use flux_middle::{
     big_int::BigInt,
-    rty::{self, EarlyReftParam, InternalFuncKind, List, SpecFuncKind},
+    rty::{self, Binder, EarlyReftParam, InternalFuncKind, List, SpecFuncKind},
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
-use rustc_type_ir::{BoundVar, INNERMOST};
+use rustc_type_ir::BoundVar;
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
 
@@ -346,7 +346,14 @@ where
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
-            liquid_fixpoint::Expr::Exists(items, expr) => todo!(),
+            liquid_fixpoint::Expr::Exists(sorts, body) => {
+                let sorts: Vec<_> = sorts
+                    .iter()
+                    .map(|fsort| self.fixpoint_to_sort(fsort))
+                    .try_collect()?;
+                let body = self.fixpoint_to_expr(body)?;
+                Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
+            }
         }
     }
 

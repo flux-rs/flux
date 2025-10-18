@@ -29,6 +29,8 @@ pub trait FromSexp<T: Types> {
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
     fn string(&self, s: &str) -> Result<T::String, ParseError>;
     fn sort(&self, name: &str) -> Result<T::Sort, ParseError>;
+    fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError>;
+    fn pop_scope(&mut self) -> Result<(), ParseError>;
 
     // The rest have default implementations
     fn parse_bv_size(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
@@ -55,7 +57,7 @@ pub trait FromSexp<T: Types> {
         Ok(name)
     }
 
-    fn parse_bind(&self, sexp: &Sexp) -> Result<Bind<T>, ParseError> {
+    fn parse_bind(&mut self, sexp: &Sexp) -> Result<Bind<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -72,7 +74,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_pred_inner(&self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
+    fn parse_pred_inner(&mut self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -121,14 +123,15 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_expr_possibly_nested(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_expr_possibly_nested(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         through_nested_list(sexp, |s| self.parse_expr(s))
     }
 
-    fn parse_expr(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
+                    Sexp::Atom(Atom::S(s)) if s == "exists" => self.parse_exists(&items[1..]),
                     Sexp::Atom(Atom::S(s)) if s == "let" => self.parse_let(sexp),
                     Sexp::Atom(Atom::S(s)) if s == "not" => self.parse_not(sexp),
                     Sexp::Atom(Atom::S(s)) if s == "or" => self.parse_or(sexp),
@@ -158,7 +161,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_neg(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_neg(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 Ok(Expr::Neg(Box::new(self.parse_expr_possibly_nested(&items[1])?)))
@@ -167,7 +170,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_not(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_not(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 Ok(Expr::Not(Box::new(self.parse_expr_possibly_nested(&items[1])?)))
@@ -176,7 +179,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_iff(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_iff(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -192,7 +195,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_imp(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_imp(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -208,7 +211,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_and(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_and(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -227,7 +230,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_or(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_or(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -246,7 +249,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_atom(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_atom(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 let exp1 = self.parse_expr_possibly_nested(&items[1])?;
@@ -266,7 +269,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_app(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_app(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 let exp1 = self.parse_expr_possibly_nested(&items[0])?;
@@ -281,7 +284,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_binary_op(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_binary_op(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 let exp1 = self.parse_expr_possibly_nested(&items[1])?;
@@ -301,7 +304,34 @@ pub trait FromSexp<T: Types> {
             _ => Err(ParseError::err("Expected list for binary operation")),
         }
     }
-    fn parse_let(&self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    fn parse_exists(&mut self, items: &[Sexp]) -> Result<Expr<T>, ParseError> {
+        let [Sexp::List(var_sorts), body] = items else {
+            return Err(ParseError::err("Expected list for vars and sorts in exists"));
+        };
+        let mut names = Vec::new();
+        let mut sorts = Vec::new();
+        for var_sort in var_sorts {
+            if let Sexp::List(items) = var_sort
+                && let [var, sort] = &items[..]
+            {
+                let Sexp::Atom(Atom::S(name)) = var else {
+                    return Err(ParseError::err("Expected variable name to be string {var:?}"));
+                };
+                names.push(name.clone());
+                sorts.push(self.parse_sort(sort)?);
+            } else {
+                return Err(ParseError::err(format!(
+                    "Expected list for var and sort in exists {var_sort:?}"
+                )));
+            }
+        }
+        self.push_scope(&names)?;
+        let body = self.parse_expr_possibly_nested(body)?;
+        self.pop_scope()?;
+        Ok(Expr::Exists(sorts, Box::new(body)))
+    }
+
+    fn parse_let(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 through_nested_list(&items[1], |bottom| {
@@ -442,9 +472,9 @@ fn parse_bitvec<PT: Types>(sexp: &Sexp) -> Result<Expr<PT>, ParseError> {
     }
 }
 
-fn through_nested_list<T, F>(sexp: &Sexp, at_bottom: F) -> T
+fn through_nested_list<T, F>(sexp: &Sexp, mut at_bottom: F) -> T
 where
-    F: Fn(&Sexp) -> T,
+    F: FnMut(&Sexp) -> T,
 {
     let mut current = sexp;
     while let Sexp::List(items) = current {
@@ -482,5 +512,13 @@ impl FromSexp<StringTypes> for StringTypes {
 
     fn sort(&self, name: &str) -> Result<String, ParseError> {
         Ok(name.to_string())
+    }
+
+    fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError> {
+        Ok(())
+    }
+
+    fn pop_scope(&mut self) -> Result<(), ParseError> {
+        Ok(())
     }
 }

@@ -15,6 +15,20 @@ use std::{
 use flags::FLAGS;
 use serde::Deserialize;
 
+pub fn dump_checker_trace_info() -> bool {
+    match FLAGS.dump_checker_trace {
+        Some(l) => Level::INFO <= l,
+        None => false,
+    }
+}
+
+pub fn solution() -> bool {
+    match FLAGS.dump_checker_trace {
+        Some(l) => Level::INFO <= l,
+        None => false,
+    }
+}
+
 pub fn dump_checker_trace() -> Option<Level> {
     FLAGS.dump_checker_trace
 }

@@ -42,6 +42,7 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
+use flux_config as config;
 // CUT pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
@@ -319,10 +320,12 @@ impl<T: Types> Task<T> {
 
     #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
+        let trace = true; // config::dump_checker_trace_info();
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
             .arg("--json")
+            .args(trace.then_some("--fullsolution"))
             .arg("--allowho")
             .arg("--allowhoqs")
             .arg(format!("--solver={}", self.solver))
