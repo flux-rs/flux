@@ -392,7 +392,7 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn into_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    fn encode_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
         Self::append_tuple_decls(self.tuples.clone(), &mut decls);
@@ -473,7 +473,7 @@ where
         let def_span = self.ecx.def_span();
         let def_id = self.ecx.def_id;
 
-        let kvars = self.kcx.into_fixpoint();
+        let kvars = self.kcx.encode_kvars();
 
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
         let qualifiers = self
@@ -526,7 +526,7 @@ where
             qualifiers,
             scrape_quals,
             solver,
-            data_decls: self.scx.into_data_decls(self.genv)?,
+            data_decls: self.scx.encode_data_decls(self.genv)?,
         };
         if config::dump_constraint() {
             dbg::dump_item_info(self.genv.tcx(), def_id.resolved_id(), "smt2", &task).unwrap();
@@ -611,7 +611,7 @@ where
     ) -> QueryResult<()> {
         let def_id = self.ecx.def_id;
 
-        if !self.kcx.into_fixpoint().is_empty() {
+        if !self.kcx.encode_kvars().is_empty() {
             tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
         }
 
@@ -905,7 +905,7 @@ impl KVarEncodingCtxt {
         })
     }
 
-    fn into_fixpoint(&self) -> Vec<fixpoint::KVarDecl> {
+    fn encode_kvars(&self) -> Vec<fixpoint::KVarDecl> {
         self.kvars
             .clone()
             .into_iter_enumerated()
@@ -1948,7 +1948,7 @@ fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoin
     )
 }
 
-fn parse_bound_var(scopes: &Vec<FxIndexSet<String>>, name: &str) -> Option<fixpoint::Var> {
+fn parse_bound_var(scopes: &[FxIndexSet<String>], name: &str) -> Option<fixpoint::Var> {
     for (level, scope) in scopes.iter().rev().enumerate() {
         if let Some(idx) = scope.get_index_of(name) {
             return Some(fixpoint::Var::BoundVar { level, idx });
@@ -2058,7 +2058,7 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt {
         if let Some(var) = parse_data_ctor(name) {
             return Ok(var);
         }
-        return Err(ParseError::err(format!("Unknown variable: {name}")));
+        Err(ParseError::err(format!("Unknown variable: {name}")))
     }
 
     fn sort(&self, name: &str) -> Result<fixpoint::DataSort, ParseError> {
@@ -2097,7 +2097,7 @@ impl SexpParseCtxt {
 fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
     let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
     if let Sexp::List(items) = sexp
-        && let &[ref _lambda, ref params, ref body] = &items[..]
+        && let [_lambda, params, body] = &items[..]
         && let Sexp::List(sexp_params) = params
     {
         let mut kvar_args = vec![]; // FxIndexSet::default();
@@ -2105,7 +2105,7 @@ fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> 
 
         for param in sexp_params {
             if let Sexp::List(bind) = param
-                && let &[ref _name, ref sort] = &bind[..]
+                && let [_name, sort] = &bind[..]
                 && let Sexp::Atom(Atom::S(s)) = _name
             {
                 kvar_args.push(s.clone());

@@ -54,8 +54,7 @@ where
                 let args = args
                     .iter()
                     .map(|fsort| self.fixpoint_to_sort(fsort))
-                    .try_collect()
-                    .map_err(|e| e)?;
+                    .try_collect()?;
                 Ok(rty::Sort::App(ctor, args))
             }
             fixpoint::Sort::BitVec(fsort) if let fixpoint::Sort::BvSize(size) = **fsort => {
