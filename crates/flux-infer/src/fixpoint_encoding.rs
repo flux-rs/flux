@@ -532,12 +532,17 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = result
-            .solution
-            .iter()
-            .chain(result.non_cuts_solution.iter())
-            .map(|b| self.convert_kvar_bind(b))
-            .try_collect()?;
+        let solution = if config::dump_checker_trace_info() {
+            result
+                .solution
+                .iter()
+                .chain(result.non_cuts_solution.iter())
+                .map(|b| self.convert_kvar_bind(b))
+                .try_collect()?
+        } else {
+            HashMap::default()
+        };
+
         let unsat = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
