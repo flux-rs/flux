@@ -149,6 +149,7 @@ pub trait FromSexp<T: Types> {
                         "=" | "!=" | "<" | "<=" | ">" | ">=" => self.parse_atom(sexp),
                         "<=>" => self.parse_iff(sexp),
                         "=>" => self.parse_imp(sexp),
+                        "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
                         _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
                         _ => self.parse_app(sexp),
                     }
@@ -547,8 +548,8 @@ fn parse_thy_func(name: &str) -> Option<ThyFunc> {
 
         // MAPS
         "Map_default" => Some(ThyFunc::MapDefault),
-        "Map_select" => Some(ThyFunc::MapSelect),
-        "Map_store" => Some(ThyFunc::MapStore),
+        "Map_select" | "arr_select_m" => Some(ThyFunc::MapSelect),
+        "Map_store" | "arr_store_m" => Some(ThyFunc::MapStore),
 
         // Note: BvZeroExtend and BvSignExtend have parametric forms like "app (_ zero_extend N)"
         // These would need special parsing in the caller
