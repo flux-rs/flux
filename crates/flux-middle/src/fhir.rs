@@ -1047,19 +1047,6 @@ pub struct LetDecl<'fhir> {
     pub init: Expr<'fhir>,
 }
 
-impl Expr<'_> {
-    pub fn is_colon_param(&self) -> Option<ParamId> {
-        if let ExprKind::Var(QPathExpr::Resolved(path, Some(ParamKind::Colon))) = &self.kind
-            && let Res::Param(kind, id) = path.res
-        {
-            debug_assert_eq!(kind, ParamKind::Colon);
-            Some(id)
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 pub enum NumLitKind {
     Int,

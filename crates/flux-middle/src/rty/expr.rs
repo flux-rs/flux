@@ -448,10 +448,6 @@ impl Expr {
         }
     }
 
-    pub fn is_binary_op(&self) -> bool {
-        matches!(self.kind(), ExprKind::BinaryOp(..))
-    }
-
     fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
         match op {
             BinOp::Iff => c1.iff(c2),
@@ -554,10 +550,6 @@ impl Expr {
         }
         proj.reverse();
         Some(Path::new(expr.to_loc()?, proj))
-    }
-
-    pub fn is_abs(&self) -> bool {
-        matches!(self.kind(), ExprKind::Abs(..))
     }
 
     /// Whether this is an aggregate expression with no fields.
@@ -810,15 +802,6 @@ impl ExprKind {
 pub enum AggregateKind {
     Tuple(usize),
     Adt(DefId),
-}
-
-impl AggregateKind {
-    pub fn to_proj(self, field: u32) -> FieldProj {
-        match self {
-            AggregateKind::Tuple(arity) => FieldProj::Tuple { arity, field },
-            AggregateKind::Adt(def_id) => FieldProj::Adt { def_id, field },
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]

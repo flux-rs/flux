@@ -248,7 +248,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, cstr, kind, self.opts.scrape_quals, backend)
+        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {

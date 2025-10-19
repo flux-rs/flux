@@ -1,14 +1,17 @@
-use std::path::Path;
+use std::{io, path::Path};
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::fixpoint_encoding::FixQueryCache;
+use flux_infer::{
+    fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
+    lean_encoding::LeanEncoder,
+};
 use flux_metadata::CStore;
 use flux_middle::{
     Specs,
     def_id::MaybeExternId,
-    fhir,
+    fhir::{self, FluxItem},
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
     timings,
@@ -88,6 +91,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
+        if config::emit_lean_defs() {
+            ck.encode_flux_items_in_lean().unwrap_or(());
+        }
 
         let crate_items = genv.tcx().hir_crate_items(());
 
@@ -148,7 +154,35 @@ struct CrateChecker<'genv, 'tcx> {
 
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
-        CrateChecker { genv, cache: QueryCache::load() }
+        Self { genv, cache: QueryCache::load() }
+    }
+
+    pub(crate) fn encode_flux_items_in_lean(&self) -> Result<(), io::Error> {
+        let mut ecx = ExprEncodingCtxt::new(self.genv, None);
+        let mut scx = SortEncodingCtxt::default();
+        let mut fun_defs = vec![];
+        for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
+            ecx.declare_fun(def_id.to_def_id());
+            match flux_item {
+                FluxItem::Func(spec_func) if spec_func.body.is_some() => {
+                    fun_defs.push(
+                        ecx.fun_def_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx)
+                            .unwrap(),
+                    );
+                }
+                _ => {}
+            }
+        }
+        if !fun_defs.is_empty() {
+            let encoder = LeanEncoder::new(
+                self.genv,
+                std::path::Path::new("./"),
+                "lean_proofs".to_string(),
+                "Defs".to_string(),
+            );
+            return encoder.encode_defs(&fun_defs);
+        }
+        Ok(())
     }
 
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {

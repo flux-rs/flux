@@ -84,24 +84,6 @@ impl TokenKind {
         }
     }
 
-    pub fn as_open_delim(&self) -> Option<Delimiter> {
-        match self {
-            Self::OpenParen => Some(Delimiter::Parenthesis),
-            Self::OpenBrace => Some(Delimiter::Brace),
-            Self::OpenBracket => Some(Delimiter::Bracket),
-            _ => None,
-        }
-    }
-
-    pub fn as_close_delim(&self) -> Option<Delimiter> {
-        match self {
-            Self::CloseParen => Some(Delimiter::Parenthesis),
-            Self::CloseBrace => Some(Delimiter::Brace),
-            Self::CloseBracket => Some(Delimiter::Bracket),
-            _ => None,
-        }
-    }
-
     pub fn descr(&self) -> &'static str {
         match self {
             TokenKind::Caret => "^",
