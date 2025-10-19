@@ -20,7 +20,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::QueryResult,
     query_bug,
-    rty::{self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind, VariantIdx},
+    rty::{
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
+        VariantIdx,
+    },
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
@@ -470,7 +473,6 @@ where
             return Ok(Answer::trivial());
         }
         let def_span = self.ecx.def_span();
-        let def_id = self.ecx.def_id;
         let kvars = self.kcx.encode_kvars();
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
         let qualifiers = self
@@ -607,7 +609,7 @@ where
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
-            if !self.kcx.into_fixpoint().is_empty() {
+            if !self.kcx.encode_kvars().is_empty() {
                 tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
             }
 
@@ -1996,10 +1998,7 @@ fn parse_global_var(name: &str) -> Option<fixpoint::Var> {
         && parts.len() == 2
         && let Ok(global_idx) = parts[1].parse::<u32>()
     {
-        return Some(fixpoint::Var::Global(
-            fixpoint::GlobalVar::from(global_idx),
-            Some(Symbol::intern(parts[0])),
-        ));
+        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), None));
     }
     None
 }
