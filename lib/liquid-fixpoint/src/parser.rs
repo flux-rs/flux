@@ -31,9 +31,16 @@ pub trait FromSexp<T: Types> {
     fn sort(&self, name: &str) -> Result<T::Sort, ParseError>;
     fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError>;
     fn pop_scope(&mut self) -> Result<(), ParseError>;
-
-    fn into_wrapper(self) -> FromSexpWrapper<T>;
+    fn into_wrapper(self) -> FromSexpWrapper<T, Self>
+    where
+        Self: Sized;
 }
+pub struct FromSexpWrapper<T: Types, Parser>(pub Parser, pub std::marker::PhantomData<T>);
+
+impl<T, Parser: FromSexp<T>> FromSexpWrapper<T, Parser>
+where
+    T: Types,
+{
     // The rest have default implementations
     fn parse_bv_size(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         match sexp {
@@ -51,15 +58,15 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_name(&self, sexp: &Sexp) -> Result<T::Var, ParseError> {
+    pub fn parse_name(&self, sexp: &Sexp) -> Result<T::Var, ParseError> {
         let name = match sexp {
-            Sexp::Atom(Atom::S(s)) => self.var(s),
+            Sexp::Atom(Atom::S(s)) => self.0.var(s),
             _ => Err(ParseError::err("Expected bind name to be a string")),
         }?;
         Ok(name)
     }
 
-    fn parse_bind(&mut self, sexp: &Sexp) -> Result<Bind<T>, ParseError> {
+    pub fn parse_bind(&mut self, sexp: &Sexp) -> Result<Bind<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 match &items[0] {
@@ -96,7 +103,7 @@ pub trait FromSexp<T: Types> {
         }
     }
 
-    fn parse_kvar(&self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
+    pub fn parse_kvar(&self, sexp: &Sexp) -> Result<Pred<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 if items.len() < 2 {
@@ -110,10 +117,10 @@ pub trait FromSexp<T: Types> {
                         .collect();
                     match maybe_strs {
                         Some(strs) => {
-                            let kvar = self.kvar(&strs[0])?;
+                            let kvar = self.0.kvar(&strs[0])?;
                             let args = strs[1..]
                                 .iter()
-                                .map(|s| self.var(s))
+                                .map(|s| self.0.var(s))
                                 .collect::<Result<Vec<_>, _>>()?;
                             Ok(Pred::KVar(kvar, args))
                         }
@@ -130,12 +137,12 @@ pub trait FromSexp<T: Types> {
     }
 
     fn parse_is_ctor(&mut self, ctor_name: &str, arg: &Sexp) -> Result<Expr<T>, ParseError> {
-        let ctor = self.var(ctor_name)?;
+        let ctor = self.0.var(ctor_name)?;
         let arg = self.parse_expr(arg)?;
         Ok(Expr::IsCtor(ctor, Box::new(arg)))
     }
 
-    fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
+    pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
                 if let Sexp::Atom(Atom::S(s)) = &items[0] {
@@ -162,10 +169,10 @@ pub trait FromSexp<T: Types> {
             Sexp::Atom(Atom::S(s)) => {
                 match parse_thy_func(s) {
                     Some(thy_func) => Ok(Expr::ThyFunc(thy_func)),
-                    None => Ok(Expr::Var(self.var(s)?)),
+                    None => Ok(Expr::Var(self.0.var(s)?)),
                 }
             }
-            Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.string(s)?))),
+            Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.0.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
             Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i as u128))),
             Sexp::Atom(Atom::F(f)) => Ok(Expr::Constant(Constant::Real(*f as u128))),
@@ -336,9 +343,9 @@ pub trait FromSexp<T: Types> {
                 )));
             }
         }
-        self.push_scope(&names)?;
+        self.0.push_scope(&names)?;
         let body = self.parse_expr_possibly_nested(body)?;
-        self.pop_scope()?;
+        self.0.pop_scope()?;
         Ok(Expr::Exists(sorts, Box::new(body)))
     }
 
@@ -353,7 +360,7 @@ pub trait FromSexp<T: Types> {
                                     let binding =
                                         self.parse_expr_possibly_nested(&var_and_binding[1])?;
                                     let body = self.parse_expr_possibly_nested(&items[2])?;
-                                    let var = self.var(s)?;
+                                    let var = self.0.var(s)?;
                                     Ok(Expr::Let(var, Box::new([binding, body])))
                                 }
                                 _ => Err(ParseError::err("Expected variable name to be string")),
@@ -399,11 +406,11 @@ pub trait FromSexp<T: Types> {
         if ctor == "BitVec" && args.len() == 1 {
             return parse_bitvec_sort(sexp);
         }
-        let ctor = SortCtor::Data(self.sort(ctor)?);
+        let ctor = SortCtor::Data(self.0.sort(ctor)?);
         Ok(Sort::App(ctor, args))
     }
 
-    fn parse_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
+    pub fn parse_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         match sexp {
             Sexp::List(_items) => self.parse_list_sort(sexp),
             Sexp::Atom(Atom::S(s)) => {
@@ -418,7 +425,7 @@ pub trait FromSexp<T: Types> {
                 } else if s.starts_with("Size") {
                     self.parse_bv_size(sexp)
                 } else {
-                    let ctor = SortCtor::Data(self.sort(s)?);
+                    let ctor = SortCtor::Data(self.0.sort(s)?);
                     Ok(Sort::App(ctor, vec![]))
                 }
             }
@@ -607,5 +614,9 @@ impl FromSexp<StringTypes> for StringTypes {
 
     fn pop_scope(&mut self) -> Result<(), ParseError> {
         Ok(())
+    }
+
+    fn into_wrapper(self) -> FromSexpWrapper<StringTypes, Self> {
+        FromSexpWrapper(self, std::marker::PhantomData)
     }
 }

@@ -2078,6 +2078,12 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt {
         self.scopes.pop();
         Ok(())
     }
+    fn into_wrapper(self) -> liquid_fixpoint::parser::FromSexpWrapper<FixpointTypes, Self>
+    where
+        Self: Sized,
+    {
+        liquid_fixpoint::parser::FromSexpWrapper(self, std::marker::PhantomData)
+    }
 }
 
 type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
@@ -2089,7 +2095,7 @@ impl SexpParseCtxt {
 }
 
 fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
-    let mut sexp_ctx = SexpParseCtxt::new();
+    let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
     if let Sexp::List(items) = sexp
         && let &[ref _lambda, ref params, ref body] = &items[..]
         && let Sexp::List(sexp_params) = params
@@ -2113,7 +2119,7 @@ fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> 
             .map(|sexp| sexp_ctx.parse_sort(sexp))
             .try_collect()?;
         // sexp_ctx.scopes.push(kvar_args);
-        sexp_ctx.push_scope(&kvar_args)?;
+        sexp_ctx.0.push_scope(&kvar_args)?;
 
         let expr = sexp_ctx.parse_expr(body)?;
         Ok((sorts, expr))
