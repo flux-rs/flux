@@ -32,6 +32,8 @@ pub trait FromSexp<T: Types> {
     fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError>;
     fn pop_scope(&mut self) -> Result<(), ParseError>;
 
+    fn into_wrapper(self) -> FromSexpWrapper<T>;
+}
     // The rest have default implementations
     fn parse_bv_size(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         match sexp {
