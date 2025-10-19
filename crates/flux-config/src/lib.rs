@@ -51,6 +51,10 @@ pub fn ignore_default() -> bool {
     FLAGS.ignore_default
 }
 
+pub fn emit_lean_defs() -> bool {
+    FLAGS.emit_lean_defs
+}
+
 pub fn cache_path() -> Option<&'static Path> {
     FLAGS.cache.as_deref()
 }
@@ -73,10 +77,6 @@ fn scrape_quals() -> bool {
 
 pub fn smt_define_fun() -> bool {
     FLAGS.smt_define_fun
-}
-
-pub fn verbose() -> bool {
-    FLAGS.verbose
 }
 
 fn solver() -> SmtSolver {

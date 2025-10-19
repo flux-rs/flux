@@ -127,10 +127,13 @@ pub fn check_fn(
         .map_err(|err| err.emit(genv, def_id))?;
 
         if genv.proven_externally(def_id) {
-            infcx_root
-                .execute_lean_query(MaybeExternId::Local(def_id))
-                .emit(&genv)?;
-            Ok(())
+            if flux_config::emit_lean_defs() {
+                infcx_root
+                    .execute_lean_query(MaybeExternId::Local(def_id))
+                    .emit(&genv)
+            } else {
+                panic!("emit_lean_defs should be enabled if there are externally proven items");
+            }
         } else {
             // PHASE 3: invoke fixpoint on the constraint
             let errors = infcx_root

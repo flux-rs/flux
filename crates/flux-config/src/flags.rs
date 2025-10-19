@@ -1,6 +1,5 @@
 use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 
-use serde::Deserialize;
 pub use toml::Value;
 use tracing::Level;
 
@@ -21,7 +20,6 @@ pub struct Flags {
     pub pointer_width: PointerWidth,
     /// If present switches on query caching and saves the cache in the provided path
     pub cache: Option<PathBuf>,
-    pub verbose: bool,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
     pub annots: bool,
     /// Print statistics about time taked to analyze each fuction. Also dumps a file with the raw
@@ -61,6 +59,7 @@ pub struct Flags {
     pub trusted_default: bool,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
     pub ignore_default: bool,
+    pub emit_lean_defs: bool,
 }
 
 impl Default for Flags {
@@ -80,13 +79,13 @@ impl Default for Flags {
             allow_uninterpreted_cast: false,
             solver: SmtSolver::default(),
             smt_define_fun: false,
-            verbose: false,
             annots: false,
             timings: false,
             verify: false,
             full_compilation: false,
             trusted_default: false,
             ignore_default: false,
+            emit_lean_defs: false,
         }
     }
 }
@@ -109,7 +108,6 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "scrape-quals" => parse_bool(&mut flags.scrape_quals, value),
             "allow-uninterpreted-cast" => parse_bool(&mut flags.allow_uninterpreted_cast, value),
             "solver" => parse_solver(&mut flags.solver, value),
-            "verbose" => parse_bool(&mut flags.verbose, value),
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
@@ -119,6 +117,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
+            "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
@@ -138,37 +137,6 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
     }
     flags
 });
-
-#[derive(Default)]
-pub struct Paths {
-    paths: Option<Vec<PathBuf>>,
-}
-
-impl Paths {
-    pub fn is_checked_file(&self, file: &str) -> bool {
-        self.paths
-            .as_ref()
-            .is_none_or(|p| p.iter().any(|p| p.to_str().unwrap() == file))
-    }
-}
-
-impl<'de> Deserialize<'de> for Paths {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let paths: Vec<PathBuf> = String::deserialize(deserializer)?
-            .split(",")
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from)
-            .collect();
-
-        let paths = if paths.is_empty() { None } else { Some(paths) };
-
-        Ok(Paths { paths })
-    }
-}
 
 pub fn is_flux_arg(arg: &str) -> bool {
     parse_flux_arg(arg).is_some()
