@@ -251,7 +251,8 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .genv
             .tcx()
             .def_path(def_id.resolved_id())
-            .to_filename_friendly_no_crate();
+            .to_filename_friendly_no_crate()
+            .replace("-", "_");
         self.generate_theorem_file(theorem_name.as_str(), cstr)?;
         self.generate_proof_file_if_not_present(theorem_name.as_str())
     }
@@ -288,7 +289,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .tcx()
             .def_path(def_id.resolved_id())
             .to_filename_friendly_no_crate()
-            .replace(".", "_");
+            .replace("-", "_");
         self.check_proof_help(theorem_name.as_str()).map_err(|_| {
             let msg = format!("checking proof for {} failed", theorem_name.as_str());
             let span = self.genv.tcx().def_span(def_id.resolved_id());
