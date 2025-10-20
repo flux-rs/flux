@@ -27,7 +27,7 @@ fn test01() {
         #[reft]
         fn f(x: int) -> int;
 
-        fn baz(&Self) -> usize[<Self as MyTrait>::f(0)];
+        fn baz(&Self) -> usize[Self::f(0)];
 
     }
 
