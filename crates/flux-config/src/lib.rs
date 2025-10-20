@@ -16,7 +16,7 @@ use flags::FLAGS;
 use serde::Deserialize;
 
 pub fn dump_checker_trace_info() -> bool {
-    true || match FLAGS.dump_checker_trace {
+    match FLAGS.dump_checker_trace {
         Some(l) => Level::INFO <= l,
         None => false,
     }
