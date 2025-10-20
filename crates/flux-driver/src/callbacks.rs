@@ -178,9 +178,8 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 _ => {}
             }
         }
+        let opaque_sorts = scx.user_sorts_to_fixpoint(self.genv);
         let adt_defs = scx.into_data_decls(self.genv).unwrap();
-        let (opaque_sorts, adt_defs): (Vec<_>, Vec<_>) =
-            adt_defs.into_iter().partition(|decl| decl.ctors.is_empty());
         if !opaque_sorts.is_empty()
             || !opaque_fun_defs.is_empty()
             || !adt_defs.is_empty()

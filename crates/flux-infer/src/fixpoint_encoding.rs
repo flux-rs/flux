@@ -319,20 +319,18 @@ impl SortEncodingCtxt {
         }
     }
 
-    fn append_user_sorts(
-        &mut self,
-        genv: GlobalEnv,
-        decls: &mut Vec<fixpoint::DataDecl>,
-    ) -> QueryResult {
-        for sort in &self.user_sorts {
-            let param_count = genv.sort_decl_param_count(sort);
-            decls.push(fixpoint::DataDecl {
-                name: fixpoint::DataSort::User(sort.name()),
-                vars: param_count,
-                ctors: vec![],
-            });
-        }
-        Ok(())
+    pub fn user_sorts_to_fixpoint(&mut self, genv: GlobalEnv) -> Vec<fixpoint::DataDecl> {
+        self.user_sorts
+            .iter()
+            .map(|sort| {
+                let param_count = genv.sort_decl_param_count(sort);
+                fixpoint::DataDecl {
+                    name: fixpoint::DataSort::User(sort.name()),
+                    vars: param_count,
+                    ctors: vec![],
+                }
+            })
+            .collect()
     }
 
     fn append_adt_decls(
@@ -403,7 +401,6 @@ impl SortEncodingCtxt {
     pub fn into_data_decls(mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
-        self.append_user_sorts(genv, &mut decls)?;
         Self::append_tuple_decls(self.tuples, &mut decls);
         Ok(decls)
     }
