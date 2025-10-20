@@ -542,7 +542,6 @@ where
         } else {
             HashMap::default()
         };
-        // println!("TRACE: Fixpoint result for {def_id:?}:\n {:?}", solution);
 
         let unsat = match result.status {
             FixpointStatus::Safe(_) => vec![],

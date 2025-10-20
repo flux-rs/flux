@@ -318,7 +318,6 @@ impl<T: Types> Task<T> {
 
     #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
-        // flag to guard whether we want fixpoint to cough up the full solution.
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
