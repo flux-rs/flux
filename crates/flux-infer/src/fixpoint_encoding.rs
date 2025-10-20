@@ -330,7 +330,7 @@ impl SortEncodingCtxt {
                 name: fixpoint::DataSort::User(sort.name()),
                 vars: param_count,
                 ctors: vec![],
-            })
+            });
         }
         Ok(())
     }
@@ -1825,7 +1825,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         // We iterate until encoding the body of functions doesn't require any more functions
         // to be encoded.
         let mut idx = 0;
-        while let Some((&did, &name)) = self.const_env.fun_def_map.get_index(idx) {
+        while let Some((&did, _)) = self.const_env.fun_def_map.get_index(idx) {
             idx += 1;
 
             let info = self.genv.normalized_info(did);

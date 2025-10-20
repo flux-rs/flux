@@ -173,21 +173,28 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 }
                 FluxItem::Func(spec_func) => {
                     opaque_fun_defs
-                        .push(ecx.const_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx))
+                        .push(ecx.const_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx));
                 }
                 _ => {}
             }
         }
         let adt_defs = scx.into_data_decls(self.genv).unwrap();
-        let (opaque_sorts, adt_defs): (Vec<_>, Vec<_>) = adt_defs.into_iter().partition(|decl| decl.ctors.is_empty());
-        if !opaque_sorts.is_empty() || !opaque_fun_defs.is_empty() || !adt_defs.is_empty() || !fun_defs.is_empty() {
+        let (opaque_sorts, adt_defs): (Vec<_>, Vec<_>) =
+            adt_defs.into_iter().partition(|decl| decl.ctors.is_empty());
+        if !opaque_sorts.is_empty()
+            || !opaque_fun_defs.is_empty()
+            || !adt_defs.is_empty()
+            || !fun_defs.is_empty()
+        {
             let encoder = LeanEncoder::new(
                 self.genv,
                 std::path::Path::new("./"),
                 "lean_proofs".to_string(),
                 "Defs".to_string(),
             );
-            encoder.encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs).unwrap();
+            encoder
+                .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
+                .unwrap();
         }
         Ok(())
     }

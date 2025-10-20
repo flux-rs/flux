@@ -5,19 +5,20 @@ use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::fixpoint_encoding::fixpoint::{
-    BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef, Pred, Sort, SortCtor, Var
+    BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
+    Pred, Sort, SortCtor, Var,
 };
 
 struct LeanSort<'a>(&'a Sort);
 pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanConstDecl<'a, 'genv, 'tcx>(pub &'a ConstDecl, pub GlobalEnv<'genv, 'tcx>);
-struct LeanSortVar<'a>(&'a DataSort);
+pub struct LeanSortVar<'a>(pub &'a DataSort);
 struct LeanDataField<'a, 'genv, 'tcx>(&'a DataField, GlobalEnv<'genv, 'tcx>);
 pub struct LeanConstraint<'a, 'genv, 'tcx>(pub &'a Constraint, pub GlobalEnv<'genv, 'tcx>);
 struct LeanPred<'a, 'genv, 'tcx>(&'a Pred, GlobalEnv<'genv, 'tcx>);
 struct LeanExpr<'a, 'genv, 'tcx>(&'a Expr, GlobalEnv<'genv, 'tcx>);
-struct LeanVar<'a, 'genv, 'tcx>(&'a Var, GlobalEnv<'genv, 'tcx>);
+pub struct LeanVar<'a, 'genv, 'tcx>(pub &'a Var, pub GlobalEnv<'genv, 'tcx>);
 struct LeanThyFunc<'a>(&'a ThyFunc);
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanConstDecl<'a, 'genv, 'tcx> {
@@ -36,7 +37,7 @@ impl<'a> fmt::Display for LeanSortVar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             DataSort::User(symbol) => write!(f, "{}", symbol),
-            _ => write!(f, "{}", self.0.display().to_string().replace("$", "_"))
+            _ => write!(f, "{}", self.0.display().to_string().replace("$", "_")),
         }
     }
 }
@@ -45,21 +46,27 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.ctors.is_empty() {
             write!(
-                f, 
-                "{} {} : Type", 
+                f,
+                "{} {} : Type",
                 LeanSortVar(&self.0.name),
-                (0..(self.0.vars)).map(|i| format!("(t{i} : Type)")).format(" ")
+                (0..(self.0.vars))
+                    .map(|i| format!("(t{i} : Type)"))
+                    .format(" ")
             )?;
         } else {
             writeln!(f, "inductive {} where", LeanSortVar(&self.0.name))?;
             for data_ctor in &self.0.ctors {
                 writeln!(
-                    f, 
-                    "| {} {}", 
-                    LeanVar(&data_ctor.name, self.1), 
-                    data_ctor.fields.iter().map(|field| LeanDataField(field, self.1)).format(" ")
+                    f,
+                    "| {} {}",
+                    LeanVar(&data_ctor.name, self.1),
+                    data_ctor
+                        .fields
+                        .iter()
+                        .map(|field| LeanDataField(field, self.1))
+                        .format(" ")
                 )?;
-            }   
+            }
         }
         Ok(())
     }
@@ -105,16 +112,17 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanVar<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Var::Global(_gvar, Some(def_id)) = self.0 {
-            write!(
-                f,
-                "{}_{}",
-                self.1
-                    .tcx()
-                    .def_path(def_id.parent())
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_"),
-                def_id.name()
-            )
+            let path = self
+                .1
+                .tcx()
+                .def_path(def_id.parent())
+                .to_filename_friendly_no_crate()
+                .replace("-", "_");
+            if path.is_empty() {
+                write!(f, "{}", def_id.name())
+            } else {
+                write!(f, "{path}_{}", def_id.name())
+            }
         } else {
             write!(f, "{}", self.0.display().to_string().replace("$", "_"))
         }
@@ -135,22 +143,24 @@ impl<'a> fmt::Display for LeanSort<'a> {
                 match sort_ctor {
                     SortCtor::Data(sort) => {
                         if args.is_empty() {
-                            write!(f, "{}", LeanSortVar(&sort))
+                            write!(f, "{}", LeanSortVar(sort))
                         } else {
                             write!(
-                            f, 
-                            "({} {})", 
-                            LeanSortVar(&sort), 
-                            args.iter().map(LeanSort).format(" ")
-                        )
+                                f,
+                                "({} {})",
+                                LeanSortVar(sort),
+                                args.iter().map(LeanSort).format(" ")
+                            )
                         }
                     }
-                    _ => todo!()
+                    _ => todo!(),
                 }
             }
-            Sort::BitVec(bv_size) => match bv_size.as_ref() {
-                Sort::BvSize(size) => write!(f, "BitVec {}", size),
-                s => panic!("encountered sort {} where bitvec size was expected", LeanSort(&s))
+            Sort::BitVec(bv_size) => {
+                match bv_size.as_ref() {
+                    Sort::BvSize(size) => write!(f, "BitVec {}", size),
+                    s => panic!("encountered sort {} where bitvec size was expected", LeanSort(s)),
+                }
             }
             Sort::Abs(v, sort) => {
                 write!(f, "{{t{v} : Type}} -> {}", LeanSort(sort.as_ref()))
