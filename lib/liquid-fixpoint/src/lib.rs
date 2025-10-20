@@ -319,12 +319,10 @@ impl<T: Types> Task<T> {
     #[cfg(not(feature = "rust-fixpoint"))]
     pub fn run(&self) -> io::Result<FixpointResult<T::Tag>> {
         // flag to guard whether we want fixpoint to cough up the full solution.
-        let compute_solution = flux_config::dump_checker_trace_info();
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
             .arg("--json")
-            .args(compute_solution.then_some("--fullsolution"))
             .arg("--allowho")
             .arg("--allowhoqs")
             .arg(format!("--solver={}", self.solver))
