@@ -138,7 +138,7 @@ pub mod fixpoint {
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
-        User(Symbol),
+        User(FluxDefId),
     }
 
     impl Identifier for DataSort {
@@ -150,6 +150,10 @@ pub mod fixpoint {
                 DataSort::Adt(adt_id) => {
                     write!(f, "Adt{}", adt_id.as_u32())
                 }
+                // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
+                // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
+                // integers. Well-formedness should ensure values of these sorts are used "opaquely",
+                // i.e., the only values of these sorts are variables.
                 DataSort::User(..) => {
                     write!(f, "int")
                 }
@@ -223,15 +227,11 @@ impl SortEncodingCtxt {
             rty::Sort::Str => fixpoint::Sort::Str,
             rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
-            // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
-            // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
-            // integers. Well-formedness should ensure values of these sorts are used "opaquely",
-            // i.e., the only values of these sorts are variables.
             rty::Sort::App(rty::SortCtor::User(def_id), args) => {
                 self.declare_opaque_sort(*def_id);
                 let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
                 fixpoint::Sort::App(
-                    fixpoint::SortCtor::Data(fixpoint::DataSort::User(def_id.name())),
+                    fixpoint::SortCtor::Data(fixpoint::DataSort::User(*def_id)),
                     args,
                 )
             }
@@ -319,15 +319,14 @@ impl SortEncodingCtxt {
         }
     }
 
-    pub fn user_sorts_to_fixpoint(&mut self, genv: GlobalEnv) -> Vec<fixpoint::DataDecl> {
+    pub fn user_sorts_to_fixpoint(&mut self, genv: GlobalEnv) -> Vec<fixpoint::SortDecl> {
         self.user_sorts
             .iter()
             .map(|sort| {
                 let param_count = genv.sort_decl_param_count(sort);
-                fixpoint::DataDecl {
-                    name: fixpoint::DataSort::User(sort.name()),
+                fixpoint::SortDecl {
+                    name: fixpoint::DataSort::User(*sort),
                     vars: param_count,
-                    ctors: vec![],
                 }
             })
             .collect()
@@ -1828,7 +1827,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
             if info.hide && !revealed && !proven_externally {
-                consts.push(self.const_decl_to_fixpoint(did, scx));
+                consts.push(self.fun_decl_to_fixpoint(did, scx));
             } else {
                 defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));
             };
@@ -1844,12 +1843,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         Ok((defs, consts))
     }
 
-    pub fn const_decl_to_fixpoint(
+    pub fn fun_decl_to_fixpoint(
         &mut self,
         def_id: FluxDefId,
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::ConstDecl {
-        let name = *self.const_env.fun_def_map.get(&def_id).unwrap();
+        let name = self.const_env.fun_def_map[&def_id];
         let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
         fixpoint::ConstDecl { name, sort, comment: Some(format!("flux def: {def_id:?}")) }
     }

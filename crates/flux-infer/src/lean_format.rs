@@ -5,21 +5,35 @@ use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::fixpoint_encoding::fixpoint::{
-    BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
+    BinOp, BinRel, ConstDecl, Constant, Constraint, SortDecl, DataDecl, DataField, DataSort, Expr, FunDef,
     Pred, Sort, SortCtor, Var,
 };
 
-struct LeanSort<'a>(&'a Sort);
+pub struct LeanSort<'a>(pub &'a Sort);
 pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
+pub struct LeanSortDecl<'a, 'genv, 'tcx>(pub &'a SortDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanConstDecl<'a, 'genv, 'tcx>(pub &'a ConstDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortVar<'a>(pub &'a DataSort);
-struct LeanDataField<'a, 'genv, 'tcx>(&'a DataField, GlobalEnv<'genv, 'tcx>);
+pub struct LeanDataField<'a, 'genv, 'tcx>(pub &'a DataField, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanConstraint<'a, 'genv, 'tcx>(pub &'a Constraint, pub GlobalEnv<'genv, 'tcx>);
 struct LeanPred<'a, 'genv, 'tcx>(&'a Pred, GlobalEnv<'genv, 'tcx>);
 struct LeanExpr<'a, 'genv, 'tcx>(&'a Expr, GlobalEnv<'genv, 'tcx>);
 pub struct LeanVar<'a, 'genv, 'tcx>(pub &'a Var, pub GlobalEnv<'genv, 'tcx>);
 struct LeanThyFunc<'a>(&'a ThyFunc);
+
+impl<'a, 'genv, 'tcx> fmt::Display for LeanSortDecl<'a, 'genv, 'tcx> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+                f,
+                "{} {} : Type",
+                LeanSortVar(&self.0.name),
+                (0..(self.0.vars))
+                    .map(|i| format!("(t{i} : Type)"))
+                    .format(" ")
+            )
+    }
+}
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanConstDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -36,7 +50,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanDataField<'a, 'genv, 'tcx> {
 impl<'a> fmt::Display for LeanSortVar<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
-            DataSort::User(symbol) => write!(f, "{}", symbol),
+            DataSort::User(def_id) => write!(f, "{}", def_id.name()),
             _ => write!(f, "{}", self.0.display().to_string().replace("$", "_")),
         }
     }
@@ -44,15 +58,11 @@ impl<'a> fmt::Display for LeanSortVar<'a> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.0.ctors.is_empty() {
-            write!(
-                f,
-                "{} {} : Type",
-                LeanSortVar(&self.0.name),
-                (0..(self.0.vars))
-                    .map(|i| format!("(t{i} : Type)"))
-                    .format(" ")
-            )?;
+        if self.0.ctors.len() == 1 {
+            writeln!(f, "structure {} where", LeanSortVar(&self.0.name))?;
+            for field in &self.0.ctors[0].fields {
+                writeln!(f, "  {}", LeanDataField(field, self.1))?;
+            }
         } else {
             writeln!(f, "inductive {} where", LeanSortVar(&self.0.name))?;
             for data_ctor in &self.0.ctors {

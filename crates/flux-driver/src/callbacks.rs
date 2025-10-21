@@ -173,7 +173,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                 }
                 FluxItem::Func(spec_func) => {
                     opaque_fun_defs
-                        .push(ecx.const_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx));
+                        .push(ecx.fun_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx));
                 }
                 _ => {}
             }

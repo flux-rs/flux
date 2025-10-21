@@ -39,7 +39,7 @@ use std::{
 
 pub use constraint::{
     BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
-    Qualifier, Sort, SortCtor,
+    Qualifier, Sort, SortCtor, SortDecl
 };
 use derive_where::derive_where;
 pub use parser::parse_constraint_with_kvars;
@@ -129,6 +129,7 @@ macro_rules! declare_types {
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
             pub type SortCtor = $crate::SortCtor<FixpointTypes>;
+            pub type SortDecl = $crate::SortDecl<FixpointTypes>;
             pub type DataDecl = $crate::DataDecl<FixpointTypes>;
             pub type DataCtor = $crate::DataCtor<FixpointTypes>;
             pub type DataField = $crate::DataField<FixpointTypes>;

@@ -10,10 +10,11 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
 };
+use itertools::Itertools;
 
 use crate::{
     fixpoint_encoding::fixpoint,
-    lean_format::{self, LeanConstDecl, LeanDataDecl, LeanSortVar, LeanVar},
+    lean_format::{self, LeanConstDecl, LeanSortDecl, LeanDataField, LeanSortVar, LeanVar, LeanSort},
 };
 
 pub struct LeanEncoder<'genv, 'tcx, 'a> {
@@ -49,7 +50,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
 
     fn generate_instance_file_if_not_present(
         &self,
-        sorts: &[fixpoint::DataDecl],
+        sorts: &[fixpoint::SortDecl],
         funs: &[fixpoint::ConstDecl],
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(self.project_name.as_str());
@@ -73,7 +74,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
 
     fn generate_inferred_instance_file(
         &self,
-        sorts: &[fixpoint::DataDecl],
+        sorts: &[fixpoint::SortDecl],
         funs: &[fixpoint::ConstDecl],
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(self.project_name.as_str());
@@ -105,7 +106,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
 
     fn generate_typeclass_file(
         &self,
-        sorts: &[fixpoint::DataDecl],
+        sorts: &[fixpoint::SortDecl],
         funs: &[fixpoint::ConstDecl],
     ) -> Result<(), io::Error> {
         let mut opaque_defs_file = fs::File::create(self.lean_path.join(format!(
@@ -116,7 +117,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         writeln!(opaque_defs_file, "-- OPAQUE DEFS --")?;
         writeln!(opaque_defs_file, "class FluxDefs where")?;
         for sort in sorts {
-            writeln!(opaque_defs_file, "  {}", LeanDataDecl(sort, self.genv))?;
+            writeln!(opaque_defs_file, "  {}", LeanSortDecl(sort, self.genv))?;
         }
         for fun in funs {
             writeln!(opaque_defs_file, "  {}", LeanConstDecl(fun, self.genv))?;
@@ -146,11 +147,51 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         if has_opaques {
             writeln!(file, "import {}.InferredInstance", pascal_project_name.as_str())?;
         }
+        let structs = data_decls
+            .iter()
+            .filter(|decl| decl.ctors.len() == 1)
+            .collect_vec();
         if !data_decls.is_empty() {
             writeln!(file, "-- STRUCT DECLS --")?;
             writeln!(file, "mutual")?;
             for data_decl in data_decls {
                 writeln!(file, "{}", lean_format::LeanDataDecl(data_decl, self.genv))?;
+            }
+            writeln!(file, "end")?;
+        }
+        if !structs.is_empty() {
+            writeln!(file, "-- CONSTRUCTORS & Projections --")?;
+            writeln!(file, "mutual")?;
+            for struct_decl in &structs {
+                writeln!(
+                    file,
+                    "def {} {} : {} := {{ {} }}",
+                    LeanVar(&struct_decl.ctors[0].name, self.genv),
+                    struct_decl.ctors[0]
+                        .fields
+                        .iter()
+                        .map(|field| LeanDataField(field, self.genv))
+                        .format(" "),
+                    LeanSortVar(&struct_decl.name),
+                    struct_decl.ctors[0]
+                        .fields
+                        .iter()
+                        .map(|field| LeanVar(&field.name, self.genv))
+                        .format(", "),
+                )?;
+            }
+            for struct_decl in &structs {
+                for field in &struct_decl.ctors[0].fields {
+                    writeln!(
+                        file,
+                        "def {} (s : {}) : {} := {}.{} s",
+                        LeanVar(&field.name, self.genv),
+                        LeanSortVar(&struct_decl.name),
+                        LeanSort(&field.sort),
+                        LeanSortVar(&struct_decl.name),
+                        LeanVar(&field.name, self.genv),
+                    )?;
+                }
             }
             writeln!(file, "end")?;
         }
@@ -167,7 +208,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
 
     pub fn encode_defs(
         &self,
-        opaque_sorts: &[fixpoint::DataDecl],
+        opaque_sorts: &[fixpoint::SortDecl],
         opaque_funs: &[fixpoint::ConstDecl],
         data_decls: &[fixpoint::DataDecl],
         func_defs: &[fixpoint::FunDef],
