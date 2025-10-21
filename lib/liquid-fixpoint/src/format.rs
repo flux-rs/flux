@@ -334,10 +334,6 @@ impl<T: Types> fmt::Display for Expr<T> {
                     f,
                     "(exists ({}) {})",
                     sorts.iter().join(" "),
-                    // binds
-                    //     .iter()
-                    //     .map(|sort| format!("{}", name.display(), sort))
-                    //     .format(" "),
                     body
                 )
             }
