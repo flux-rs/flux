@@ -201,6 +201,9 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
             Expr::IsCtor(..) => {
                 todo!("not yet implemented: datatypes in lean")
             }
+            Expr::Exists(..) => {
+                todo!("not yet implemented: exists in lean")
+            }
         }
     }
 }

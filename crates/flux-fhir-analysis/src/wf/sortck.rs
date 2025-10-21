@@ -908,7 +908,7 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
         let errors = Errors::new(infcx.genv.sess());
         let mut vis = Self { infcx, errors };
         vis.visit_node(node);
-        vis.errors.into_result()
+        vis.errors.to_result()
     }
 
     fn infer_implicit_params(&mut self, idx: &fhir::Expr, expected: &rty::Sort) {

@@ -50,7 +50,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
 
     fn run(mut self, f: impl FnOnce(&mut Self)) -> Result {
         f(&mut self);
-        self.errors.into_result()
+        self.errors.to_result()
     }
 
     /// Insert params that are considered to be value determined to `xi`.

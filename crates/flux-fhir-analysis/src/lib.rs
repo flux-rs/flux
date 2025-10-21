@@ -127,7 +127,7 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             defns.push((func.def_id, defn, func.hide));
         }
     }
-    errors.into_result()?;
+    errors.to_result()?;
 
     let defns = rty::NormalizedDefns::new(genv, &defns)
         .map_err(|cycle| {

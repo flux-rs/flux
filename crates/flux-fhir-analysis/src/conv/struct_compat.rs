@@ -42,7 +42,7 @@ pub(crate) fn type_alias(
             .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
     }
 
-    zipper.errors.into_result()?;
+    zipper.errors.to_result()?;
 
     Ok(zipper.holes.replace_holes(alias_ty))
 }
@@ -62,7 +62,7 @@ pub(crate) fn fn_sig(
         zipper.emit_fn_sig_err(err, decl);
     }
 
-    zipper.errors.into_result()?;
+    zipper.errors.to_result()?;
 
     Ok(zipper.holes.replace_holes(fn_sig))
 }
@@ -81,7 +81,7 @@ pub(crate) fn variants(
         zipper.zip_variant(variant, &expected, variant_idx);
     }
 
-    zipper.errors.into_result()?;
+    zipper.errors.to_result()?;
 
     Ok(variants
         .iter()

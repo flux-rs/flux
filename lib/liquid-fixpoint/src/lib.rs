@@ -21,8 +21,8 @@ mod cstr2smt2;
 mod format;
 #[cfg(feature = "rust-fixpoint")]
 mod graph;
-mod parser;
-mod sexp;
+pub mod parser;
+pub mod sexp;
 
 use std::{
     collections::{HashMap, hash_map::DefaultHasher},
@@ -42,7 +42,6 @@ pub use constraint::{
     Qualifier, Sort, SortCtor,
 };
 use derive_where::derive_where;
-pub use parser::parse_constraint_with_kvars;
 #[cfg(feature = "nightly")]
 use rustc_macros::{Decodable, Encodable};
 use serde::{Deserialize, Serialize, de};
@@ -210,6 +209,21 @@ pub enum FixpointStatus<Tag> {
 #[serde(bound(deserialize = "Tag: FromStr", serialize = "Tag: ToString"))]
 pub struct FixpointResult<Tag> {
     pub status: FixpointStatus<Tag>,
+    pub solution: Vec<KVarBind>,
+    #[serde(rename = "nonCutsSolution")]
+    pub non_cuts_solution: Vec<KVarBind>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KVarBind {
+    pub kvar: String,
+    pub val: String,
+}
+
+impl KVarBind {
+    pub fn dump(&self) -> String {
+        format!("{} := {}", self.kvar, self.val)
+    }
 }
 
 impl<Tag> FixpointStatus<Tag> {
@@ -299,7 +313,11 @@ impl<T: Types> Task<T> {
             self.constants.clone(),
             self.constraint.clone(),
         );
-        Ok(FixpointResult { status: cstr_with_env.is_satisfiable() })
+        Ok(FixpointResult {
+            status: cstr_with_env.is_satisfiable(),
+            solution: vec![],
+            non_cuts_solution: vec![],
+        })
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]

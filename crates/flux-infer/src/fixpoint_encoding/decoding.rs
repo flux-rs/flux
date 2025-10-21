@@ -1,9 +1,11 @@
 use flux_middle::{
     big_int::BigInt,
-    rty::{self, EarlyReftParam, InternalFuncKind, List, SpecFuncKind},
+    rty::{self, Binder, EarlyReftParam, InternalFuncKind, List, SpecFuncKind},
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
+use rustc_hir::def_id::DefId;
+use rustc_type_ir::BoundVar;
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
 
@@ -11,6 +13,57 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
+    fn fixpoint_to_sort_ctor(
+        &self,
+        ctor: &fixpoint::SortCtor,
+    ) -> Result<rty::SortCtor, FixpointParseError> {
+        match ctor {
+            fixpoint::SortCtor::Set => Ok(rty::SortCtor::Set),
+            fixpoint::SortCtor::Map => Ok(rty::SortCtor::Map),
+            fixpoint::SortCtor::Data(fixpoint::DataSort::Tuple(_)) => {
+                panic!("oh no! tuple!") // Ok(rty::SortCtor::Tuple(*size))
+            }
+            fixpoint::SortCtor::Data(fixpoint::DataSort::Adt(adt_id)) => {
+                let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+                let Ok(adt_sort_def) = self.genv.adt_sort_def_of(def_id) else {
+                    return Err(FixpointParseError::UnknownAdt(def_id));
+                };
+                Ok(rty::SortCtor::Adt(adt_sort_def))
+            }
+        }
+    }
+
+    pub(crate) fn fixpoint_to_sort(
+        &self,
+        fsort: &fixpoint::Sort,
+    ) -> Result<rty::Sort, FixpointParseError> {
+        match fsort {
+            fixpoint::Sort::Int => Ok(rty::Sort::Int),
+            fixpoint::Sort::Real => Ok(rty::Sort::Real),
+            fixpoint::Sort::Bool => Ok(rty::Sort::Bool),
+            fixpoint::Sort::Str => Ok(rty::Sort::Str),
+            fixpoint::Sort::Func(sorts) => {
+                let sort1 = self.fixpoint_to_sort(&sorts[0])?;
+                let sort2 = self.fixpoint_to_sort(&sorts[1])?;
+                let fsort = rty::FuncSort::new(vec![sort1], sort2);
+                let poly_sort = rty::PolyFuncSort::new(List::empty(), fsort);
+                Ok(rty::Sort::Func(poly_sort))
+            }
+            fixpoint::Sort::App(ctor, args) => {
+                let ctor = self.fixpoint_to_sort_ctor(ctor)?;
+                let args = args
+                    .iter()
+                    .map(|fsort| self.fixpoint_to_sort(fsort))
+                    .try_collect()?;
+                Ok(rty::Sort::App(ctor, args))
+            }
+            fixpoint::Sort::BitVec(fsort) if let fixpoint::Sort::BvSize(size) = **fsort => {
+                Ok(rty::Sort::BitVec(rty::BvSize::Fixed(size)))
+            }
+            _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
+        }
+    }
+
     #[allow(dead_code)]
     pub(crate) fn fixpoint_to_expr(
         &self,
@@ -59,8 +112,8 @@ where
                         }
                     }
                     fixpoint::Var::Local(fname) => {
-                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
-                            Ok(rty::Expr::var(*var))
+                        if let Some(expr) = self.ecx.local_var_env.reverse_map.get(fname) {
+                            Ok(expr.clone())
                         } else {
                             Err(FixpointParseError::NoLocalVar(*fname))
                         }
@@ -68,6 +121,13 @@ where
                     fixpoint::Var::DataCtor(adt_id, variant_idx) => {
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         Ok(rty::Expr::ctor_enum(def_id, *variant_idx))
+                    }
+                    fixpoint::Var::BoundVar { level, idx } => {
+                        Ok(rty::Expr::bvar(
+                            rty::DebruijnIndex::from_usize(*level),
+                            BoundVar::from_usize(*idx),
+                            rty::BoundReftKind::Anon,
+                        ))
                     }
                     fixpoint::Var::TupleCtor { .. }
                     | fixpoint::Var::TupleProj { .. }
@@ -306,6 +366,14 @@ where
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
+            liquid_fixpoint::Expr::Exists(sorts, body) => {
+                let sorts: Vec<_> = sorts
+                    .iter()
+                    .map(|fsort| self.fixpoint_to_sort(fsort))
+                    .try_collect()?;
+                let body = self.fixpoint_to_expr(body)?;
+                Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
+            }
         }
     }
 
@@ -339,4 +407,5 @@ pub enum FixpointParseError {
     NoLocalVar(fixpoint::LocalVar),
     /// Expecting fixpoint::Var::DataCtor
     WrongVarInIsCtor(fixpoint::Var),
+    UnknownAdt(DefId),
 }
