@@ -1,4 +1,4 @@
-// use derive_where::derive_where;
+use derive_where::derive_where;
 #[cfg(feature = "rust-fixpoint")]
 use {
     crate::{
@@ -11,33 +11,35 @@ use {
     z3::Solver,
 };
 
-// #[derive_where(Hash)]
-// pub struct ConstraintWithEnv<T: Types> {
-//     datatype_decls: Vec<DataDecl<T>>,
-//     kvar_decls: Vec<KVarDecl<T>>,
-//     qualifiers: Vec<Qualifier<T>>,
-//     constants: Vec<ConstDecl<T>>,
-//     constraint: Constraint<T>,
-// }
-// #[cfg(feature = "rust-fixpoint")]
-// use crate::Assignments;
-// use crate::{
-//     ConstDecl, DataDecl, KVarDecl, Types,
-//     constraint::{Constraint, Qualifier},
-// };
+#[allow(unused)]
+#[derive_where(Hash)]
+pub struct ConstraintWithEnv<T: Types> {
+    datatype_decls: Vec<DataDecl<T>>,
+    kvar_decls: Vec<KVarDecl<T>>,
+    qualifiers: Vec<Qualifier<T>>,
+    constants: Vec<ConstDecl<T>>,
+    constraint: Constraint<T>,
+}
+#[cfg(feature = "rust-fixpoint")]
+use crate::Assignments;
+use crate::{
+    ConstDecl, DataDecl, KVarDecl, Types,
+    constraint::{Constraint, Qualifier},
+};
 
-// #[cfg(not(feature = "rust-fixpoint"))]
-// impl<T: Types> ConstraintWithEnv<T> {
-//     pub fn new(
-//         datatype_decls: Vec<DataDecl<T>>,
-//         kvar_decls: Vec<KVarDecl<T>>,
-//         qualifiers: Vec<Qualifier<T>>,
-//         constants: Vec<ConstDecl<T>>,
-//         constraint: Constraint<T>,
-//     ) -> Self {
-//         Self { datatype_decls, kvar_decls, qualifiers, constants, constraint }
-//     }
-// }
+#[cfg(not(feature = "rust-fixpoint"))]
+impl<T: Types> ConstraintWithEnv<T> {
+    #[allow(unused)]
+    pub fn new(
+        datatype_decls: Vec<DataDecl<T>>,
+        kvar_decls: Vec<KVarDecl<T>>,
+        qualifiers: Vec<Qualifier<T>>,
+        constants: Vec<ConstDecl<T>>,
+        constraint: Constraint<T>,
+    ) -> Self {
+        Self { datatype_decls, kvar_decls, qualifiers, constants, constraint }
+    }
+}
 
 #[cfg(feature = "rust-fixpoint")]
 impl<T: Types> ConstraintWithEnv<T> {

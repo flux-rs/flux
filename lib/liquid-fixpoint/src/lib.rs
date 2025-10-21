@@ -313,7 +313,11 @@ impl<T: Types> Task<T> {
             self.constants.clone(),
             self.constraint.clone(),
         );
-        Ok(FixpointResult { status: cstr_with_env.is_satisfiable() })
+        Ok(FixpointResult {
+            status: cstr_with_env.is_satisfiable(),
+            solution: vec![],
+            non_cuts_solution: vec![],
+        })
     }
 
     #[cfg(not(feature = "rust-fixpoint"))]
