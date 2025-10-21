@@ -315,7 +315,7 @@ impl<'a, 'sess, 'tcx> ExternSpecCollector<'a, 'sess, 'tcx> {
             } else {
                 let opt_extern_impl_id = self.tcx().impl_of_assoc(callee_id);
                 if let Some(extern_impl_id) = opt_extern_impl_id {
-                    debug_assert!(self.tcx().trait_id_of_impl(extern_impl_id).is_none());
+                    debug_assert!(!self.tcx().impl_is_of_trait(extern_impl_id));
                     Ok(ExternImplItem { impl_id: extern_impl_id, item_id: callee_id })
                 } else {
                     Err(self.invalid_item_in_inherent_impl(item.owner_id, callee_id))

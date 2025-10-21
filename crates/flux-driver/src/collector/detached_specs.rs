@@ -114,12 +114,11 @@ impl TraitImplResolver {
         for (trait_id, impl_ids) in tcx.all_local_trait_impls(()) {
             let trait_ = LookupRes::DefId(*trait_id);
             for impl_id in impl_ids {
-                if let Some(poly_trait_ref) = tcx.impl_trait_ref(*impl_id) {
-                    let self_ty = poly_trait_ref.instantiate_identity().self_ty();
-                    let self_ty = LookupRes::new(&self_ty);
-                    let key = TraitImplKey { trait_, self_ty };
-                    items.insert(key, *impl_id);
-                }
+                let poly_trait_ref = tcx.impl_trait_ref(*impl_id);
+                let self_ty = poly_trait_ref.instantiate_identity().self_ty();
+                let self_ty = LookupRes::new(&self_ty);
+                let key = TraitImplKey { trait_, self_ty };
+                items.insert(key, *impl_id);
             }
         }
         Self { items }

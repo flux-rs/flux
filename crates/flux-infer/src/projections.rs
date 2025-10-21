@@ -201,11 +201,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Normalizer<'a, 'infcx, 'genv, 'tcx> {
                 //        IntoIter<{v. i32[v] | v > 0}, Global> MATCH IntoIter<T, A>
                 //            => {T -> {v. i32[v] | v > 0}, A -> Global}
 
-                let impl_trait_ref = self
-                    .genv()
-                    .impl_trait_ref(impl_def_id)?
-                    .unwrap()
-                    .skip_binder();
+                let impl_trait_ref = self.genv().impl_trait_ref(impl_def_id)?.skip_binder();
 
                 let generics = self.tcx().generics_of(impl_def_id);
 

@@ -15,7 +15,7 @@ use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
 
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> QueryResult {
-    let trait_id = genv.tcx().trait_id_of_impl(impl_id.resolved_id()).unwrap();
+    let trait_id = genv.tcx().impl_trait_id(impl_id.resolved_id());
 
     let impl_assoc_refts = genv.assoc_refinements_of(impl_id)?;
     let trait_assoc_refts = genv.assoc_refinements_of(trait_id)?;
@@ -37,7 +37,6 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
 
     let impl_trait_ref = genv
         .impl_trait_ref(impl_id.resolved_id())?
-        .unwrap()
         .instantiate_identity();
 
     let rustc_infcx = genv
