@@ -81,7 +81,7 @@ pub mod fixpoint {
     }
 
     newtype_index! {
-        /// Unique id assigned to each [`flux_middle::rty::AdtSortDef`] that needs to be encoded
+        /// Unique id assigned to each [`rty::AdtSortDef`] that needs to be encoded
         /// into fixpoint
         pub struct AdtId {}
     }
@@ -192,7 +192,7 @@ pub mod fixpoint {
 }
 
 /// A type to represent Solutions for KVars
-pub type Solution = HashMap<fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>>;
+pub type Solution = HashMap<fixpoint::KVid, rty::Binder<rty::Expr>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
@@ -229,7 +229,7 @@ impl<'de> Deserialize<'de> for TagIdx {
 pub struct SortEncodingCtxt {
     /// Set of all the tuple arities that need to be defined
     tuples: UnordSet<usize>,
-    /// Set of all the [`AdtDefSortDef`](flux_middle::rty::AdtSortDef) that need to be declared as
+    /// Set of all the [`AdtDefSortDef`](rty::AdtSortDef) that need to be declared as
     /// Fixpoint data-decls
     adt_sorts: FxIndexSet<DefId>,
 }
@@ -367,22 +367,22 @@ impl SortEncodingCtxt {
         Ok(())
     }
 
-    fn append_tuple_decls(tuples: UnordSet<usize>, decls: &mut Vec<fixpoint::DataDecl>) {
+    fn append_tuple_decls(tuples: &UnordSet<usize>, decls: &mut Vec<fixpoint::DataDecl>) {
         decls.extend(
             tuples
-                .into_items()
+                .items()
                 .into_sorted_stable_ord()
                 .into_iter()
                 .map(|arity| {
                     fixpoint::DataDecl {
-                        name: fixpoint::DataSort::Tuple(arity),
-                        vars: arity,
+                        name: fixpoint::DataSort::Tuple(*arity),
+                        vars: *arity,
                         ctors: vec![fixpoint::DataCtor {
-                            name: fixpoint::Var::TupleCtor { arity },
-                            fields: (0..(arity as u32))
+                            name: fixpoint::Var::TupleCtor { arity: *arity },
+                            fields: (0..(*arity as u32))
                                 .map(|field| {
                                     fixpoint::DataField {
-                                        name: fixpoint::Var::TupleProj { arity, field },
+                                        name: fixpoint::Var::TupleProj { arity: *arity, field },
                                         sort: fixpoint::Sort::Var(field as usize),
                                     }
                                 })
@@ -396,7 +396,7 @@ impl SortEncodingCtxt {
     fn encode_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
-        Self::append_tuple_decls(self.tuples.clone(), &mut decls);
+        Self::append_tuple_decls(&self.tuples, &mut decls);
         Ok(decls)
     }
 }
@@ -486,13 +486,7 @@ where
         // all constants.
         let constraint = self.ecx.assume_const_values(constraint, &mut self.scx)?;
 
-        let mut constants = self
-            .ecx
-            .const_env
-            .const_map
-            .clone()
-            .into_values()
-            .collect_vec();
+        let mut constants = self.ecx.const_env.const_map.values().cloned().collect_vec();
         constants.extend(define_constants);
 
         // The rust fixpoint implementation does not yet support polymorphic functions.
@@ -543,7 +537,7 @@ where
             HashMap::default()
         };
 
-        let unsat = match result.status {
+        let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
                 errors
@@ -554,11 +548,10 @@ where
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
-        // println!("TRACE: Fixpoint result for {def_id:?}\n{solution:?}");
-        Ok(Answer { errors: unsat, solution })
+        Ok(Answer { errors, solution })
     }
 
-    fn convert_kvar(kvid: &str) -> QueryResult<fixpoint::KVid> {
+    fn parse_kvid(kvid: &str) -> QueryResult<fixpoint::KVid> {
         if kvid.starts_with("k")
             && let Some(kvid) = kvid[1..].parse::<u32>().ok()
         {
@@ -568,10 +561,7 @@ where
         }
     }
 
-    fn convert_solution(
-        &self,
-        expr: &str,
-    ) -> QueryResult<flux_middle::rty::Binder<flux_middle::rty::Expr>> {
+    fn convert_solution(&self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
         // 1. convert str -> sexp
         let mut sexp_parser = Parser::new(expr);
         let sexp = match sexp_parser.parse() {
@@ -597,14 +587,14 @@ where
         let expr = self
             .fixpoint_to_expr(&expr)
             .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
-        Ok(flux_middle::rty::Binder::bind_with_sorts(expr, &sorts))
+        Ok(rty::Binder::bind_with_sorts(expr, &sorts))
     }
 
     fn convert_kvar_bind(
         &self,
         b: &liquid_fixpoint::KVarBind,
-    ) -> QueryResult<(fixpoint::KVid, flux_middle::rty::Binder<flux_middle::rty::Expr>)> {
-        let kvid = Self::convert_kvar(&b.kvar)?;
+    ) -> QueryResult<(fixpoint::KVid, rty::Binder<rty::Expr>)> {
+        let kvid = Self::parse_kvid(&b.kvar)?;
         let expr = self.convert_solution(&b.val)?;
         Ok((kvid, expr))
     }
@@ -912,10 +902,9 @@ impl KVarEncodingCtxt {
 
     fn encode_kvars(&self) -> Vec<fixpoint::KVarDecl> {
         self.kvars
-            .clone()
-            .into_iter_enumerated()
+            .iter_enumerated()
             .map(|(kvid, kvar)| {
-                fixpoint::KVarDecl::new(kvid, kvar.sorts, format!("orig: {:?}", kvar.orig))
+                fixpoint::KVarDecl::new(kvid, kvar.sorts.clone(), format!("orig: {:?}", kvar.orig))
             })
             .collect()
     }
