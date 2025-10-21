@@ -828,6 +828,10 @@ struct LocalVarEnv {
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
     /// Layers of late bound variables
     layers: Vec<Vec<fixpoint::LocalVar>>,
+    /// While it might seem like the signature should be
+    /// [`UnordMap<fixpoint::LocalVar, rty::Var>`], we encode the arguments to
+    /// kvars (which can be arbitrary expressions) as local variables; thus
+    /// we need to keep the output as an [`rty::Expr`] to reflect this.
     reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
 }
 
