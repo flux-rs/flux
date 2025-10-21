@@ -33,7 +33,10 @@ pub trait FromSexp<T: Types> {
     fn pop_scope(&mut self) -> Result<(), ParseError>;
     fn into_wrapper(self) -> FromSexpWrapper<T, Self>
     where
-        Self: Sized;
+        Self: Sized 
+    {
+        FromSexpWrapper(self, std::marker::PhantomData)
+    }
 }
 pub struct FromSexpWrapper<T: Types, Parser>(pub Parser, pub std::marker::PhantomData<T>);
 
