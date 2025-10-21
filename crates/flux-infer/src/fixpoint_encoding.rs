@@ -828,7 +828,11 @@ struct LocalVarEnv {
     fvars: UnordMap<rty::Name, fixpoint::LocalVar>,
     /// Layers of late bound variables
     layers: Vec<Vec<fixpoint::LocalVar>>,
-    reverse_map: UnordMap<fixpoint::LocalVar, rty::Var>,
+    /// While it might seem like the signature should be
+    /// [`UnordMap<fixpoint::LocalVar, rty::Var>`], we encode the arguments to
+    /// kvars (which can be arbitrary expressions) as local variables; thus we
+    /// need to keep the output as an [`rty::Expr`] to reflect this.
+    reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
 }
 
 impl LocalVarEnv {
@@ -850,7 +854,7 @@ impl LocalVarEnv {
     fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
-        self.reverse_map.insert(fresh, rty::Var::Free(name));
+        self.reverse_map.insert(fresh, rty::Expr::fvar(name));
         fresh
     }
 
@@ -1560,14 +1564,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Var> {
-        let arg = self.expr_to_fixpoint(arg, scx)?;
+        let farg = self.expr_to_fixpoint(arg, scx)?;
         // Check if it's a variable after encoding, in case the encoding produced a variable from a
         // non-variable.
-        if let fixpoint::Expr::Var(var) = arg {
+        if let fixpoint::Expr::Var(var) = farg {
             Ok(var)
         } else {
             let fresh = self.local_var_env.fresh_name();
-            let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), arg);
+            self.local_var_env.reverse_map.insert(fresh, arg.clone());
+            let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), farg);
             bindings.push(fixpoint::Bind {
                 name: fresh.into(),
                 sort: scx.sort_to_fixpoint(sort),

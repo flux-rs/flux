@@ -59,8 +59,8 @@ where
                         }
                     }
                     fixpoint::Var::Local(fname) => {
-                        if let Some(var) = self.ecx.local_var_env.reverse_map.get(fname) {
-                            Ok(rty::Expr::var(*var))
+                        if let Some(expr) = self.ecx.local_var_env.reverse_map.get(fname) {
+                            Ok(expr.clone())
                         } else {
                             Err(FixpointParseError::NoLocalVar(*fname))
                         }
