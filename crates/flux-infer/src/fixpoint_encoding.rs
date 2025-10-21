@@ -2094,38 +2094,3 @@ impl SexpParseCtxt {
         Self { scopes: vec![] }
     }
 }
-
-// type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
-
-// fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
-//     let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
-//     if let Sexp::List(items) = sexp
-//         && let [_lambda, params, body] = &items[..]
-//         && let Sexp::List(sexp_params) = params
-//     {
-//         let mut kvar_args = vec![]; // FxIndexSet::default();
-//         let mut sorts = vec![];
-
-//         for param in sexp_params {
-//             if let Sexp::List(bind) = param
-//                 && let [_name, sort] = &bind[..]
-//                 && let Sexp::Atom(Atom::S(s)) = _name
-//             {
-//                 kvar_args.push(s.clone());
-//                 sorts.push(sort);
-//             } else {
-//                 return Err(ParseError::err("expected parameter names to be symbols"));
-//             }
-//         }
-//         let sorts = sorts
-//             .into_iter()
-//             .map(|sexp| sexp_ctx.parse_sort(sexp))
-//             .try_collect()?;
-//         sexp_ctx.0.push_scope(&kvar_args);
-
-//         let expr = sexp_ctx.parse_expr(body)?;
-//         Ok((sorts, expr))
-//     } else {
-//         Err(ParseError::err("expected (lambda (params) body)"))
-//     }
-// }
