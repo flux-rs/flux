@@ -22,13 +22,6 @@ pub fn dump_checker_trace_info() -> bool {
     }
 }
 
-pub fn solution() -> bool {
-    match FLAGS.dump_checker_trace {
-        Some(l) => Level::INFO <= l,
-        None => false,
-    }
-}
-
 pub fn dump_checker_trace() -> Option<Level> {
     FLAGS.dump_checker_trace
 }

@@ -146,7 +146,7 @@ impl<'sess> Errors<'sess> {
     }
 
     pub fn to_result(&self) -> Result<(), ErrorGuaranteed> {
-        if let Some(err) = &self.err.clone().into_inner() { Err(*err) } else { Ok(()) }
+        if let Some(err) = self.err.get() { Err(err) } else { Ok(()) }
     }
 }
 
