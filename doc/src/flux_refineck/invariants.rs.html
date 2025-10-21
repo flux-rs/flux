@@ -79,22 +79,26 @@
 <a href=#79 id=79 data-nosnippet>79</a>        <span class="kw">let </span>pred = invariant.apply(<span class="kw-2">&amp;</span>variant_sig.idx);
 <a href=#80 id=80 data-nosnippet>80</a>        rcx.check_pred(<span class="kw-2">&amp;</span>pred, Tag::new(ConstrReason::Other, DUMMY_SP));
 <a href=#81 id=81 data-nosnippet>81</a>    }
-<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">let </span>errors = infcx_root
+<a href=#82 id=82 data-nosnippet>82</a>    <span class="kw">let </span>answer = infcx_root
 <a href=#83 id=83 data-nosnippet>83</a>        .execute_fixpoint_query(cache, def_id, FixpointQueryKind::Invariant)
 <a href=#84 id=84 data-nosnippet>84</a>        .emit(<span class="kw-2">&amp;</span>genv)<span class="question-mark">?</span>;
 <a href=#85 id=85 data-nosnippet>85</a>
-<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">if </span>errors.is_empty() { <span class="prelude-val">Ok</span>(()) } <span class="kw">else </span>{ <span class="prelude-val">Err</span>(genv.sess().emit_err(errors::Invalid { span })) }
-<a href=#87 id=87 data-nosnippet>87</a>}
-<a href=#88 id=88 data-nosnippet>88</a>
-<a href=#89 id=89 data-nosnippet>89</a><span class="kw">mod </span>errors {
-<a href=#90 id=90 data-nosnippet>90</a>    <span class="kw">use </span>flux_errors::E0999;
-<a href=#91 id=91 data-nosnippet>91</a>    <span class="kw">use </span>flux_macros::Diagnostic;
-<a href=#92 id=92 data-nosnippet>92</a>    <span class="kw">use </span>rustc_span::Span;
-<a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a>    <span class="attr">#[derive(Diagnostic)]
-<a href=#95 id=95 data-nosnippet>95</a>    #[diag(refineck_invalid_invariant, code = E0999)]
-<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">pub struct </span>Invalid {
-<a href=#97 id=97 data-nosnippet>97</a>        <span class="attr">#[primary_span]
-<a href=#98 id=98 data-nosnippet>98</a>        </span><span class="kw">pub </span>span: Span,
-<a href=#99 id=99 data-nosnippet>99</a>    }
-<a href=#100 id=100 data-nosnippet>100</a>}</code></pre></div></section></main></body></html>
+<a href=#86 id=86 data-nosnippet>86</a>    <span class="kw">if </span>answer.errors.is_empty() {
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="prelude-val">Ok</span>(())
+<a href=#88 id=88 data-nosnippet>88</a>    } <span class="kw">else </span>{
+<a href=#89 id=89 data-nosnippet>89</a>        <span class="prelude-val">Err</span>(genv.sess().emit_err(errors::Invalid { span }))
+<a href=#90 id=90 data-nosnippet>90</a>    }
+<a href=#91 id=91 data-nosnippet>91</a>}
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a><span class="kw">mod </span>errors {
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">use </span>flux_errors::E0999;
+<a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">use </span>flux_macros::Diagnostic;
+<a href=#96 id=96 data-nosnippet>96</a>    <span class="kw">use </span>rustc_span::Span;
+<a href=#97 id=97 data-nosnippet>97</a>
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="attr">#[derive(Diagnostic)]
+<a href=#99 id=99 data-nosnippet>99</a>    #[diag(refineck_invalid_invariant, code = E0999)]
+<a href=#100 id=100 data-nosnippet>100</a>    </span><span class="kw">pub struct </span>Invalid {
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="attr">#[primary_span]
+<a href=#102 id=102 data-nosnippet>102</a>        </span><span class="kw">pub </span>span: Span,
+<a href=#103 id=103 data-nosnippet>103</a>    }
+<a href=#104 id=104 data-nosnippet>104</a>}</code></pre></div></section></main></body></html>

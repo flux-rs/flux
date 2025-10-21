@@ -29,7 +29,7 @@
 <a href=#29 id=29 data-nosnippet>29</a>
 <a href=#30 id=30 data-nosnippet>30</a><span class="kw">use crate</span>::{
 <a href=#31 id=31 data-nosnippet>31</a>    evars::{EVarState, EVarStore},
-<a href=#32 id=32 data-nosnippet>32</a>    fixpoint_encoding::{FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+<a href=#32 id=32 data-nosnippet>32</a>    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
 <a href=#33 id=33 data-nosnippet>33</a>    projections::NormalizeExt <span class="kw">as _</span>,
 <a href=#34 id=34 data-nosnippet>34</a>    refine_tree::{Cursor, Marker, RefineTree, Scope},
 <a href=#35 id=35 data-nosnippet>35</a>};
@@ -219,7 +219,7 @@
 <a href=#219 id=219 data-nosnippet>219</a>        cache: <span class="kw-2">&amp;mut </span>FixQueryCache,
 <a href=#220 id=220 data-nosnippet>220</a>        def_id: MaybeExternId,
 <a href=#221 id=221 data-nosnippet>221</a>        kind: FixpointQueryKind,
-<a href=#222 id=222 data-nosnippet>222</a>    ) -&gt; QueryResult&lt;Vec&lt;Tag&gt;&gt; {
+<a href=#222 id=222 data-nosnippet>222</a>    ) -&gt; QueryResult&lt;Answer&lt;Tag&gt;&gt; {
 <a href=#223 id=223 data-nosnippet>223</a>        <span class="kw">let </span>inner = <span class="self">self</span>.inner.into_inner();
 <a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">let </span>kvars = inner.kvars;
 <a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">let </span>evars = inner.evars;

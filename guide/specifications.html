@@ -2457,8 +2457,6 @@ pub fn test_07(x: BV32, y: BV32) -&gt; bool {
 
 use std::ops::{Add, Sub};
 
-use flux_rs::*;
-
 #[flux::opaque]
 #[flux::refined_by(x: bitvec&lt;32&gt;)]
 pub struct BV32(u32);

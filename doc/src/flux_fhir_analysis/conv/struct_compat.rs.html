@@ -42,7 +42,7 @@
 <a href=#42 id=42 data-nosnippet>42</a>            .emit(errors::IncompatibleRefinement::type_alias(genv, def_id, alias));
 <a href=#43 id=43 data-nosnippet>43</a>    }
 <a href=#44 id=44 data-nosnippet>44</a>
-<a href=#45 id=45 data-nosnippet>45</a>    zipper.errors.into_result()<span class="question-mark">?</span>;
+<a href=#45 id=45 data-nosnippet>45</a>    zipper.errors.to_result()<span class="question-mark">?</span>;
 <a href=#46 id=46 data-nosnippet>46</a>
 <a href=#47 id=47 data-nosnippet>47</a>    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(alias_ty))
 <a href=#48 id=48 data-nosnippet>48</a>}
@@ -62,7 +62,7 @@
 <a href=#62 id=62 data-nosnippet>62</a>        zipper.emit_fn_sig_err(err, decl);
 <a href=#63 id=63 data-nosnippet>63</a>    }
 <a href=#64 id=64 data-nosnippet>64</a>
-<a href=#65 id=65 data-nosnippet>65</a>    zipper.errors.into_result()<span class="question-mark">?</span>;
+<a href=#65 id=65 data-nosnippet>65</a>    zipper.errors.to_result()<span class="question-mark">?</span>;
 <a href=#66 id=66 data-nosnippet>66</a>
 <a href=#67 id=67 data-nosnippet>67</a>    <span class="prelude-val">Ok</span>(zipper.holes.replace_holes(fn_sig))
 <a href=#68 id=68 data-nosnippet>68</a>}
@@ -81,7 +81,7 @@
 <a href=#81 id=81 data-nosnippet>81</a>        zipper.zip_variant(variant, <span class="kw-2">&amp;</span>expected, variant_idx);
 <a href=#82 id=82 data-nosnippet>82</a>    }
 <a href=#83 id=83 data-nosnippet>83</a>
-<a href=#84 id=84 data-nosnippet>84</a>    zipper.errors.into_result()<span class="question-mark">?</span>;
+<a href=#84 id=84 data-nosnippet>84</a>    zipper.errors.to_result()<span class="question-mark">?</span>;
 <a href=#85 id=85 data-nosnippet>85</a>
 <a href=#86 id=86 data-nosnippet>86</a>    <span class="prelude-val">Ok</span>(variants
 <a href=#87 id=87 data-nosnippet>87</a>        .iter()

@@ -684,7 +684,7 @@
 <a href=#684 id=684 data-nosnippet>684</a>                    .push((param_def.ident, param_id));
 <a href=#685 id=685 data-nosnippet>685</a>            }
 <a href=#686 id=686 data-nosnippet>686</a>        }
-<a href=#687 id=687 data-nosnippet>687</a>        <span class="self">self</span>.errors.into_result()
+<a href=#687 id=687 data-nosnippet>687</a>        <span class="self">self</span>.errors.to_result()
 <a href=#688 id=688 data-nosnippet>688</a>    }
 <a href=#689 id=689 data-nosnippet>689</a>
 <a href=#690 id=690 data-nosnippet>690</a>    <span class="kw">fn </span>resolver_output(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ResolverOutput {
@@ -796,7 +796,7 @@
 <a href=#796 id=796 data-nosnippet>796</a>    <span class="kw">fn </span>run(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ScopedVisitorWrapper&lt;<span class="self">Self</span>&gt;)) -&gt; <span class="prelude-ty">Result</span> {
 <a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span><span class="kw-2">mut </span>vis = <span class="self">self</span>.wrap();
 <a href=#798 id=798 data-nosnippet>798</a>        f(<span class="kw-2">&amp;mut </span>vis);
-<a href=#799 id=799 data-nosnippet>799</a>        vis.<span class="number">0</span>.errors.into_result()
+<a href=#799 id=799 data-nosnippet>799</a>        vis.<span class="number">0</span>.errors.to_result()
 <a href=#800 id=800 data-nosnippet>800</a>    }
 <a href=#801 id=801 data-nosnippet>801</a>}
 <a href=#802 id=802 data-nosnippet>802</a>

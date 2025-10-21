@@ -145,8 +145,8 @@
 <a href=#145 id=145 data-nosnippet>145</a>        err
 <a href=#146 id=146 data-nosnippet>146</a>    }
 <a href=#147 id=147 data-nosnippet>147</a>
-<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">pub fn </span>into_result(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
-<a href=#149 id=149 data-nosnippet>149</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = <span class="self">self</span>.err.into_inner() { <span class="prelude-val">Err</span>(err) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
+<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">pub fn </span>to_result(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorGuaranteed&gt; {
+<a href=#149 id=149 data-nosnippet>149</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(err) = <span class="self">self</span>.err.get() { <span class="prelude-val">Err</span>(err) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(()) }
 <a href=#150 id=150 data-nosnippet>150</a>    }
 <a href=#151 id=151 data-nosnippet>151</a>}
 <a href=#152 id=152 data-nosnippet>152</a>
@@ -165,6 +165,6 @@
 <a href=#165 id=165 data-nosnippet>165</a>    }
 <a href=#166 id=166 data-nosnippet>166</a>
 <a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">fn </span>into_result(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Result {
-<a href=#168 id=168 data-nosnippet>168</a>        Errors::into_result(<span class="self">self</span>)
+<a href=#168 id=168 data-nosnippet>168</a>        Errors::to_result(<span class="kw-2">&amp;</span><span class="self">self</span>)
 <a href=#169 id=169 data-nosnippet>169</a>    }
 <a href=#170 id=170 data-nosnippet>170</a>}</code></pre></div></section></main></body></html>

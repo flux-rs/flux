@@ -11,26 +11,26 @@
 <a href=#11 id=11 data-nosnippet>11</a>    z3::Solver,
 <a href=#12 id=12 data-nosnippet>12</a>};
 <a href=#13 id=13 data-nosnippet>13</a>
-<a href=#14 id=14 data-nosnippet>14</a><span class="kw">use crate</span>::{
-<a href=#15 id=15 data-nosnippet>15</a>    ConstDecl, DataDecl, KVarDecl, Types,
-<a href=#16 id=16 data-nosnippet>16</a>    constraint::{Constraint, Qualifier},
-<a href=#17 id=17 data-nosnippet>17</a>};
-<a href=#18 id=18 data-nosnippet>18</a>
-<a href=#19 id=19 data-nosnippet>19</a><span class="attr">#[derive_where(Hash)]
-<a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">pub struct </span>ConstraintWithEnv&lt;T: Types&gt; {
-<a href=#21 id=21 data-nosnippet>21</a>    datatype_decls: Vec&lt;DataDecl&lt;T&gt;&gt;,
-<a href=#22 id=22 data-nosnippet>22</a>    kvar_decls: Vec&lt;KVarDecl&lt;T&gt;&gt;,
-<a href=#23 id=23 data-nosnippet>23</a>    qualifiers: Vec&lt;Qualifier&lt;T&gt;&gt;,
-<a href=#24 id=24 data-nosnippet>24</a>    constants: Vec&lt;ConstDecl&lt;T&gt;&gt;,
-<a href=#25 id=25 data-nosnippet>25</a>    constraint: Constraint&lt;T&gt;,
-<a href=#26 id=26 data-nosnippet>26</a>}
-<a href=#27 id=27 data-nosnippet>27</a>
-<a href=#28 id=28 data-nosnippet>28</a><span class="attr">#[cfg(feature = <span class="string">"rust-fixpoint"</span>)]
-<a href=#29 id=29 data-nosnippet>29</a></span><span class="kw">use </span><span class="kw">crate</span>::Assignments;
-<a href=#30 id=30 data-nosnippet>30</a>
-<a href=#31 id=31 data-nosnippet>31</a><span class="attr">#[cfg(not(feature = <span class="string">"rust-fixpoint"</span>))]
-<a href=#32 id=32 data-nosnippet>32</a></span><span class="kw">impl</span>&lt;T: Types&gt; ConstraintWithEnv&lt;T&gt; {
-<a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">pub fn </span>new(
+<a href=#14 id=14 data-nosnippet>14</a><span class="attr">#[allow(unused)]
+<a href=#15 id=15 data-nosnippet>15</a>#[derive_where(Hash)]
+<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">pub struct </span>ConstraintWithEnv&lt;T: Types&gt; {
+<a href=#17 id=17 data-nosnippet>17</a>    datatype_decls: Vec&lt;DataDecl&lt;T&gt;&gt;,
+<a href=#18 id=18 data-nosnippet>18</a>    kvar_decls: Vec&lt;KVarDecl&lt;T&gt;&gt;,
+<a href=#19 id=19 data-nosnippet>19</a>    qualifiers: Vec&lt;Qualifier&lt;T&gt;&gt;,
+<a href=#20 id=20 data-nosnippet>20</a>    constants: Vec&lt;ConstDecl&lt;T&gt;&gt;,
+<a href=#21 id=21 data-nosnippet>21</a>    constraint: Constraint&lt;T&gt;,
+<a href=#22 id=22 data-nosnippet>22</a>}
+<a href=#23 id=23 data-nosnippet>23</a><span class="attr">#[cfg(feature = <span class="string">"rust-fixpoint"</span>)]
+<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span><span class="kw">crate</span>::Assignments;
+<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use crate</span>::{
+<a href=#26 id=26 data-nosnippet>26</a>    ConstDecl, DataDecl, KVarDecl, Types,
+<a href=#27 id=27 data-nosnippet>27</a>    constraint::{Constraint, Qualifier},
+<a href=#28 id=28 data-nosnippet>28</a>};
+<a href=#29 id=29 data-nosnippet>29</a>
+<a href=#30 id=30 data-nosnippet>30</a><span class="attr">#[cfg(not(feature = <span class="string">"rust-fixpoint"</span>))]
+<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">impl</span>&lt;T: Types&gt; ConstraintWithEnv&lt;T&gt; {
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="attr">#[allow(unused)]
+<a href=#33 id=33 data-nosnippet>33</a>    </span><span class="kw">pub fn </span>new(
 <a href=#34 id=34 data-nosnippet>34</a>        datatype_decls: Vec&lt;DataDecl&lt;T&gt;&gt;,
 <a href=#35 id=35 data-nosnippet>35</a>        kvar_decls: Vec&lt;KVarDecl&lt;T&gt;&gt;,
 <a href=#36 id=36 data-nosnippet>36</a>        qualifiers: Vec&lt;Qualifier&lt;T&gt;&gt;,

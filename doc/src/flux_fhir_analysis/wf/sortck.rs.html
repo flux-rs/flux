@@ -908,7 +908,7 @@
 <a href=#908 id=908 data-nosnippet>908</a>        <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
 <a href=#909 id=909 data-nosnippet>909</a>        <span class="kw">let </span><span class="kw-2">mut </span>vis = <span class="self">Self </span>{ infcx, errors };
 <a href=#910 id=910 data-nosnippet>910</a>        vis.visit_node(node);
-<a href=#911 id=911 data-nosnippet>911</a>        vis.errors.into_result()
+<a href=#911 id=911 data-nosnippet>911</a>        vis.errors.to_result()
 <a href=#912 id=912 data-nosnippet>912</a>    }
 <a href=#913 id=913 data-nosnippet>913</a>
 <a href=#914 id=914 data-nosnippet>914</a>    <span class="kw">fn </span>infer_implicit_params(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: <span class="kw-2">&amp;</span>fhir::Expr, expected: <span class="kw-2">&amp;</span>rty::Sort) {
