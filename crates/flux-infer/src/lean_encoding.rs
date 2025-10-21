@@ -14,7 +14,9 @@ use itertools::Itertools;
 
 use crate::{
     fixpoint_encoding::fixpoint,
-    lean_format::{self, LeanConstDecl, LeanSortDecl, LeanDataField, LeanSortVar, LeanVar, LeanSort},
+    lean_format::{
+        self, LeanConstDecl, LeanDataField, LeanSort, LeanSortDecl, LeanSortVar, LeanVar,
+    },
 };
 
 pub struct LeanEncoder<'genv, 'tcx, 'a> {

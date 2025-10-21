@@ -349,10 +349,7 @@ impl SortEncodingCtxt {
             .iter()
             .map(|sort| {
                 let param_count = genv.sort_decl_param_count(sort);
-                fixpoint::SortDecl {
-                    name: fixpoint::DataSort::User(*sort),
-                    vars: param_count,
-                }
+                fixpoint::SortDecl { name: fixpoint::DataSort::User(*sort), vars: param_count }
             })
             .collect()
     }

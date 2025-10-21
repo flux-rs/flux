@@ -5,8 +5,8 @@ use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::fixpoint_encoding::fixpoint::{
-    BinOp, BinRel, ConstDecl, Constant, Constraint, SortDecl, DataDecl, DataField, DataSort, Expr, FunDef,
-    Pred, Sort, SortCtor, Var,
+    BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
+    Pred, Sort, SortCtor, SortDecl, Var,
 };
 
 pub struct LeanSort<'a>(pub &'a Sort);
@@ -25,13 +25,13 @@ struct LeanThyFunc<'a>(&'a ThyFunc);
 impl<'a, 'genv, 'tcx> fmt::Display for LeanSortDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
-                f,
-                "{} {} : Type",
-                LeanSortVar(&self.0.name),
-                (0..(self.0.vars))
-                    .map(|i| format!("(t{i} : Type)"))
-                    .format(" ")
-            )
+            f,
+            "{} {} : Type",
+            LeanSortVar(&self.0.name),
+            (0..(self.0.vars))
+                .map(|i| format!("(t{i} : Type)"))
+                .format(" ")
+        )
     }
 }
 
