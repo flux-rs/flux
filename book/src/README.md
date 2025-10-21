@@ -26,7 +26,7 @@ classes of run-time problems.
 
 You can try it on the [**online playground**](https://flux.goto.ucsd.edu/).
 
-Better still, read the [**interactive tutorial**](./01-refinements.md),
+Better still, read the [**interactive tutorial**](./tutorial/01-refinements.md),
 to learn how you can use Flux on your Rust code.
 
 [jhala-vazou]: https://arxiv.org/abs/2010.07763
