@@ -15,7 +15,7 @@ type checkers with logical constraints that _specify_ additional
 correctness requirements that can be _verified_ by the compiler,
 thereby entirely eliminating various classes of run-time problems.
 
-To begin, lets see how flux lets you refine _basic_ or _primitive_
+To begin, let's see how flux lets you refine _basic_ or _primitive_
 types like `i32` or `usize` or `bool` with logical constraints that
 can be checked at compile time.
 
