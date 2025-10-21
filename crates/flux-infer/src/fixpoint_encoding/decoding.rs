@@ -61,13 +61,6 @@ where
                 Ok(rty::Sort::BitVec(rty::BvSize::Fixed(size)))
             }
             _ => unimplemented!("fixpoint_to_sort:  {fsort:?}"),
-            // fixpoint::Sort::Tuple(arity) => {
-            //     let sorts = vec![rty::Sort::Int; *arity]; // placeholder sorts
-            //     Ok(rty::Sort::Tuple(sorts))
-            // }
-            // fixpoint::Sort::Uif(_name, _args) => {
-            //     todo!()
-            // }
         }
     }
 

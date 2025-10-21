@@ -684,7 +684,7 @@ impl<'a, 'genv, 'tcx> RefinementResolver<'a, 'genv, 'tcx> {
                     .push((param_def.ident, param_id));
             }
         }
-        self.errors.into_result()
+        self.errors.to_result()
     }
 
     fn resolver_output(&self) -> &ResolverOutput {
@@ -796,7 +796,7 @@ impl<'a, 'genv, 'tcx> IllegalBinderVisitor<'a, 'genv, 'tcx> {
     fn run(self, f: impl FnOnce(&mut ScopedVisitorWrapper<Self>)) -> Result {
         let mut vis = self.wrap();
         f(&mut vis);
-        vis.0.errors.into_result()
+        vis.0.errors.to_result()
     }
 }
 

@@ -1,5 +1,7 @@
 use std::fmt;
 
+use itertools::Itertools;
+
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
@@ -29,22 +31,23 @@ pub trait FromSexp<T: Types> {
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
     fn string(&self, s: &str) -> Result<T::String, ParseError>;
     fn sort(&self, name: &str) -> Result<T::Sort, ParseError>;
-    fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError>;
-    fn pop_scope(&mut self) -> Result<(), ParseError>;
+    fn push_scope(&mut self, names: &[String]);
+    fn pop_scope(&mut self);
     fn into_wrapper(self) -> FromSexpWrapper<T, Self>
     where
-        Self: Sized 
+        Self: Sized,
     {
         FromSexpWrapper(self, std::marker::PhantomData)
     }
 }
 pub struct FromSexpWrapper<T: Types, Parser>(pub Parser, pub std::marker::PhantomData<T>);
 
+type KvarSolution<T> = (Vec<Sort<T>>, Expr<T>);
+
 impl<T, Parser: FromSexp<T>> FromSexpWrapper<T, Parser>
 where
     T: Types,
 {
-    // The rest have default implementations
     fn parse_bv_size(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
         match sexp {
             Sexp::Atom(Atom::S(s)) if s.starts_with("Size") => {
@@ -95,7 +98,7 @@ where
                             .to_vec()
                             .iter()
                             .map(|item| self.parse_pred_inner(item))
-                            .collect::<Result<_, _>>()
+                            .try_collect()
                             .map(Pred::And)
                     }
                     Sexp::Atom(Atom::S(s)) if s.starts_with("$") => self.parse_kvar(sexp),
@@ -121,10 +124,7 @@ where
                     match maybe_strs {
                         Some(strs) => {
                             let kvar = self.0.kvar(&strs[0])?;
-                            let args = strs[1..]
-                                .iter()
-                                .map(|s| self.0.var(s))
-                                .collect::<Result<Vec<_>, _>>()?;
+                            let args = strs[1..].iter().map(|s| self.0.var(s)).try_collect()?;
                             Ok(Pred::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),
@@ -241,7 +241,7 @@ where
                             .to_vec()
                             .iter()
                             .map(|sexp| self.parse_expr_possibly_nested(sexp))
-                            .collect::<Result<_, _>>()
+                            .try_collect()
                             .map(Expr::And)
                     }
                     _ => Err(ParseError::err("Expected \"and\" expression to start with \"and\"")),
@@ -260,7 +260,7 @@ where
                             .to_vec()
                             .iter()
                             .map(|sexp| self.parse_expr_possibly_nested(sexp))
-                            .collect::<Result<_, _>>()
+                            .try_collect()
                             .map(Expr::Or)
                     }
                     _ => Err(ParseError::err("Expected \"or\" expression to start with \"or\"")),
@@ -298,7 +298,7 @@ where
                     .to_vec()
                     .iter()
                     .map(|sexp| self.parse_expr_possibly_nested(sexp))
-                    .collect::<Result<_, _>>()?;
+                    .try_collect()?;
                 Ok(Expr::App(Box::new(exp1), args))
             }
             _ => Err(ParseError::err("Expected list for app")),
@@ -346,9 +346,9 @@ where
                 )));
             }
         }
-        self.0.push_scope(&names)?;
+        self.0.push_scope(&names);
         let body = self.parse_expr_possibly_nested(body)?;
-        self.0.pop_scope()?;
+        self.0.pop_scope();
         Ok(Expr::Exists(sorts, Box::new(body)))
     }
 
@@ -395,11 +395,11 @@ where
             let output = self.parse_sort(&items[2])?;
             return Ok(Sort::mk_func(0, vec![input], output));
         }
-        let args = items[1..]
+        let args: Vec<_> = items[1..]
             .to_vec()
             .iter()
             .map(|sexp| self.parse_sort(sexp))
-            .collect::<Result<Vec<Sort<T>>, ParseError>>()?;
+            .try_collect()?;
         if ctor == "Set_Set" && args.len() == 1 {
             return Ok(Sort::App(SortCtor::Set, args));
         }
@@ -443,14 +443,46 @@ where
             && let Sexp::List(inputs) = &items[1]
         {
             let params = *params as usize;
-            let inputs = inputs
+            let inputs: Vec<_> = inputs
                 .iter()
                 .map(|sexp| self.parse_sort(sexp))
-                .collect::<Result<Vec<_>, _>>()?;
+                .try_collect()?;
             let output = self.parse_sort(&items[2])?;
             Ok(Sort::mk_func(params, inputs, output))
         } else {
             Err(ParseError::err("Expected arity to be an integer"))
+        }
+    }
+
+    pub fn parse_solution(&mut self, sexp: &Sexp) -> Result<KvarSolution<T>, ParseError> {
+        if let Sexp::List(items) = sexp
+            && let [_lambda, params, body] = &items[..]
+            && let Sexp::List(sexp_params) = params
+        {
+            let mut kvar_args = vec![];
+            let mut sorts = vec![];
+
+            for param in sexp_params {
+                if let Sexp::List(bind) = param
+                    && let [_name, sort] = &bind[..]
+                    && let Sexp::Atom(Atom::S(s)) = _name
+                {
+                    kvar_args.push(s.clone());
+                    sorts.push(sort);
+                } else {
+                    return Err(ParseError::err("expected parameter names to be symbols"));
+                }
+            }
+            let sorts = sorts
+                .into_iter()
+                .map(|sexp| self.parse_sort(sexp))
+                .try_collect()?;
+            self.0.push_scope(&kvar_args);
+
+            let expr = self.parse_expr(body)?;
+            Ok((sorts, expr))
+        } else {
+            Err(ParseError::err("expected (lambda (params) body)"))
         }
     }
 }
@@ -611,15 +643,7 @@ impl FromSexp<StringTypes> for StringTypes {
         Ok(name.to_string())
     }
 
-    fn push_scope(&mut self, _names: &[String]) -> Result<(), ParseError> {
-        Ok(())
-    }
+    fn push_scope(&mut self, _names: &[String]) {}
 
-    fn pop_scope(&mut self) -> Result<(), ParseError> {
-        Ok(())
-    }
-
-    fn into_wrapper(self) -> FromSexpWrapper<StringTypes, Self> {
-        FromSexpWrapper(self, std::marker::PhantomData)
-    }
+    fn pop_scope(&mut self) {}
 }

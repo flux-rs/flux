@@ -27,11 +27,10 @@ use flux_middle::{
     timings::{self, TimingKind},
 };
 use itertools::Itertools;
-use liquid_fixpoint::{FixpointResult, FixpointStatus, SmtSolver, parser::FromSexp};
-// Add this import if SexpParser is defined in another crate or module
 use liquid_fixpoint::{
-    parser::ParseError,
-    sexp::{Atom, Parser, Sexp},
+    FixpointResult, FixpointStatus, SmtSolver,
+    parser::{FromSexp, ParseError},
+    sexp::Parser,
 };
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
@@ -469,7 +468,7 @@ where
     ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
         if !constraint.is_concrete() {
-            self.ecx.errors.into_result()?;
+            self.ecx.errors.to_result()?;
             return Ok(Answer::trivial());
         }
         let def_span = self.ecx.def_span();
@@ -508,7 +507,7 @@ where
         }
 
         // We are done encoding expressions. Check if there are any errors.
-        self.ecx.errors.into_result()?;
+        self.ecx.errors.to_result()?;
 
         let task = fixpoint::Task {
             comments: self.comments.clone(),
@@ -572,7 +571,8 @@ where
         };
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
-        let (sorts, expr) = parse_solution_sexp(&sexp).unwrap_or_else(|err| {
+        let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
+        let (sorts, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
@@ -608,7 +608,7 @@ where
                 tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
             }
 
-            self.ecx.errors.into_result()?;
+            self.ecx.errors.to_result()?;
 
             let lean_encoder = LeanEncoder::new(
                 self.genv,
@@ -2081,23 +2081,13 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt {
         Err(ParseError::err(format!("Unknown sort: {name}")))
     }
 
-    fn push_scope(&mut self, names: &[String]) -> Result<(), ParseError> {
+    fn push_scope(&mut self, names: &[String]) {
         self.scopes.push(names.iter().cloned().collect());
-        Ok(())
     }
-    fn pop_scope(&mut self) -> Result<(), ParseError> {
+    fn pop_scope(&mut self) {
         self.scopes.pop();
-        Ok(())
-    }
-    fn into_wrapper(self) -> liquid_fixpoint::parser::FromSexpWrapper<FixpointTypes, Self>
-    where
-        Self: Sized,
-    {
-        liquid_fixpoint::parser::FromSexpWrapper(self, std::marker::PhantomData)
     }
 }
-
-type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
 
 impl SexpParseCtxt {
     fn new() -> Self {
@@ -2105,36 +2095,37 @@ impl SexpParseCtxt {
     }
 }
 
-fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
-    let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
-    if let Sexp::List(items) = sexp
-        && let [_lambda, params, body] = &items[..]
-        && let Sexp::List(sexp_params) = params
-    {
-        let mut kvar_args = vec![]; // FxIndexSet::default();
-        let mut sorts = vec![];
+// type FixpointKvarSolution = (Vec<fixpoint::Sort>, fixpoint::Expr);
 
-        for param in sexp_params {
-            if let Sexp::List(bind) = param
-                && let [_name, sort] = &bind[..]
-                && let Sexp::Atom(Atom::S(s)) = _name
-            {
-                kvar_args.push(s.clone());
-                sorts.push(sort);
-            } else {
-                return Err(ParseError::err("expected parameter names to be symbols"));
-            }
-        }
-        let sorts = sorts
-            .into_iter()
-            .map(|sexp| sexp_ctx.parse_sort(sexp))
-            .try_collect()?;
-        // sexp_ctx.scopes.push(kvar_args);
-        sexp_ctx.0.push_scope(&kvar_args)?;
+// fn parse_solution_sexp(sexp: &Sexp) -> Result<FixpointKvarSolution, ParseError> {
+//     let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
+//     if let Sexp::List(items) = sexp
+//         && let [_lambda, params, body] = &items[..]
+//         && let Sexp::List(sexp_params) = params
+//     {
+//         let mut kvar_args = vec![]; // FxIndexSet::default();
+//         let mut sorts = vec![];
 
-        let expr = sexp_ctx.parse_expr(body)?;
-        Ok((sorts, expr))
-    } else {
-        Err(ParseError::err("expected (lambda (params) body)"))
-    }
-}
+//         for param in sexp_params {
+//             if let Sexp::List(bind) = param
+//                 && let [_name, sort] = &bind[..]
+//                 && let Sexp::Atom(Atom::S(s)) = _name
+//             {
+//                 kvar_args.push(s.clone());
+//                 sorts.push(sort);
+//             } else {
+//                 return Err(ParseError::err("expected parameter names to be symbols"));
+//             }
+//         }
+//         let sorts = sorts
+//             .into_iter()
+//             .map(|sexp| sexp_ctx.parse_sort(sexp))
+//             .try_collect()?;
+//         sexp_ctx.0.push_scope(&kvar_args);
+
+//         let expr = sexp_ctx.parse_expr(body)?;
+//         Ok((sorts, expr))
+//     } else {
+//         Err(ParseError::err("expected (lambda (params) body)"))
+//     }
+// }
