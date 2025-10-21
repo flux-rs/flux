@@ -179,7 +179,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             }
         }
         let opaque_sorts = scx.user_sorts_to_fixpoint(self.genv);
-        let adt_defs = scx.into_data_decls(self.genv).unwrap();
+        let adt_defs = scx.encode_data_decls(self.genv).unwrap();
         if !opaque_sorts.is_empty()
             || !opaque_fun_defs.is_empty()
             || !adt_defs.is_empty()

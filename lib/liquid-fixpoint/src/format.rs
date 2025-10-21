@@ -329,6 +329,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             Expr::IsCtor(ctor, e) => {
                 write!(f, "(is${} {})", ctor.display(), e)
             }
+            Expr::Exists(sorts, body) => {
+                write!(f, "(exists ({}) {})", sorts.iter().format(" "), body)
+            }
         }
     }
 }

@@ -308,6 +308,10 @@ impl Expr {
         ExprKind::ForAll(expr).intern()
     }
 
+    pub fn exists(expr: Binder<Expr>) -> Expr {
+        ExprKind::Exists(expr).intern()
+    }
+
     pub fn binary_op(op: BinOp, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::BinaryOp(op, e1.into(), e2.into()).intern()
     }
@@ -444,10 +448,6 @@ impl Expr {
         }
     }
 
-    pub fn is_binary_op(&self) -> bool {
-        matches!(self.kind(), ExprKind::BinaryOp(..))
-    }
-
     fn const_op(op: &BinOp, c1: &Constant, c2: &Constant) -> Option<Constant> {
         match op {
             BinOp::Iff => c1.iff(c2),
@@ -550,10 +550,6 @@ impl Expr {
         }
         proj.reverse();
         Some(Path::new(expr.to_loc()?, proj))
-    }
-
-    pub fn is_abs(&self) -> bool {
-        matches!(self.kind(), ExprKind::Abs(..))
     }
 
     /// Whether this is an aggregate expression with no fields.
@@ -790,6 +786,8 @@ pub enum ExprKind {
     /// about the scope).
     Hole(HoleKind),
     ForAll(Binder<Expr>),
+    /// Only for non-cuts solutions from fixpoint
+    Exists(Binder<Expr>),
     /// Is the expression constructed from constructor of the given DefId (which should be `reflected` Enum)
     IsCtor(DefId, VariantIdx, Expr),
 }
@@ -804,15 +802,6 @@ impl ExprKind {
 pub enum AggregateKind {
     Tuple(usize),
     Adt(DefId),
-}
-
-impl AggregateKind {
-    pub fn to_proj(self, field: u32) -> FieldProj {
-        match self {
-            AggregateKind::Tuple(arity) => FieldProj::Tuple { arity, field },
-            AggregateKind::Adt(def_id) => FieldProj::Adt { def_id, field },
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable, Debug)]
@@ -1466,6 +1455,15 @@ pub(crate) mod pretty {
                         w!(cx, f, "{:?}", expr.skip_binder_ref())
                     })
                 }
+                ExprKind::Exists(expr) => {
+                    let vars = expr.vars();
+                    cx.with_bound_vars(vars, || {
+                        if !vars.is_empty() {
+                            cx.fmt_bound_vars(false, "∃", vars, ". ", f)?;
+                        }
+                        w!(cx, f, "{:?}", expr.skip_binder_ref())
+                    })
+                }
                 ExprKind::BoundedQuant(kind, rng, body) => {
                     let vars = body.vars();
                     cx.with_bound_vars(vars, || {
@@ -1829,6 +1827,13 @@ pub(crate) mod pretty {
                     })
                 }
                 ExprKind::ForAll(expr) => {
+                    nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
+                        let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
+                        let text = format!("{}{}", all_str, expr_d.text);
+                        Ok(NestedString { text, children: expr_d.children, key: None })
+                    })
+                }
+                ExprKind::Exists(expr) => {
                     nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
                         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);

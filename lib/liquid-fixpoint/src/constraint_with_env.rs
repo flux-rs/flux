@@ -11,11 +11,7 @@ use {
     z3::Solver,
 };
 
-use crate::{
-    ConstDecl, DataDecl, KVarDecl, Types,
-    constraint::{Constraint, Qualifier},
-};
-
+#[allow(unused)]
 #[derive_where(Hash)]
 pub struct ConstraintWithEnv<T: Types> {
     datatype_decls: Vec<DataDecl<T>>,
@@ -24,12 +20,16 @@ pub struct ConstraintWithEnv<T: Types> {
     constants: Vec<ConstDecl<T>>,
     constraint: Constraint<T>,
 }
-
 #[cfg(feature = "rust-fixpoint")]
 use crate::Assignments;
+use crate::{
+    ConstDecl, DataDecl, KVarDecl, Types,
+    constraint::{Constraint, Qualifier},
+};
 
 #[cfg(not(feature = "rust-fixpoint"))]
 impl<T: Types> ConstraintWithEnv<T> {
+    #[allow(unused)]
     pub fn new(
         datatype_decls: Vec<DataDecl<T>>,
         kvar_decls: Vec<KVarDecl<T>>,

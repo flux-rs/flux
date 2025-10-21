@@ -198,6 +198,7 @@ pub enum Expr<T: Types> {
     Let(T::Var, Box<[Self; 2]>),
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
+    Exists(Vec<Sort<T>>, Box<Self>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {

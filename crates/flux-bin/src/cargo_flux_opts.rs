@@ -46,14 +46,6 @@ impl CargoFluxCommand {
         cmd.args(["--config".as_ref(), config_file.as_os_str()]);
     }
 
-    /// Returns the cargo subcommand
-    pub fn cargo_subcommand(&self) -> &'static str {
-        match self {
-            CargoFluxCommand::Clean(_) => "clean",
-            CargoFluxCommand::Check(_) => "check",
-        }
-    }
-
     pub fn metadata(&self) -> MetadataCommand {
         let mut meta = cargo_metadata::MetadataCommand::new();
         match self {

@@ -1011,10 +1011,6 @@ impl Sort {
         matches!(self, Self::Bool)
     }
 
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, Self::Int | Self::Real)
-    }
-
     pub fn cast_kind(self: &Sort, to: &Sort) -> CastKind {
         if self == to
             || (matches!(self, Sort::Char | Sort::Int) && matches!(to, Sort::Char | Sort::Int))
@@ -1799,10 +1795,6 @@ impl BaseTy {
         matches!(self, BaseTy::Int(_) | BaseTy::Uint(_))
     }
 
-    pub fn is_numeric(&self) -> bool {
-        matches!(self, BaseTy::Int(_) | BaseTy::Uint(_) | BaseTy::Float(_))
-    }
-
     pub fn is_signed(&self) -> bool {
         matches!(self, BaseTy::Int(_))
     }
@@ -1841,16 +1833,6 @@ impl BaseTy {
 
     pub fn is_str(&self) -> bool {
         matches!(self, BaseTy::Str)
-    }
-
-    pub fn unpack_box(&self) -> Option<(&Ty, &Ty)> {
-        if let BaseTy::Adt(adt_def, args) = self
-            && adt_def.is_box()
-        {
-            Some(args.box_args())
-        } else {
-            None
-        }
     }
 
     pub fn invariants(
@@ -2466,20 +2448,6 @@ impl RefinementGenerics {
     pub fn own_count(&self) -> usize {
         self.own_params.len()
     }
-
-    // /// Iterate and collect all parameters in this item including parents
-    // pub fn collect_all_params<T, S>(
-    //     &self,
-    //     genv: GlobalEnv,
-    //     mut f: impl FnMut(RefineParam) -> T,
-    // ) -> QueryResult<S>
-    // where
-    //     S: FromIterator<T>,
-    // {
-    //     (0..self.count())
-    //         .map(|i| Ok(f(self.param_at(i, genv)?)))
-    //         .try_collect()
-    // }
 }
 
 impl EarlyBinder<RefinementGenerics> {
