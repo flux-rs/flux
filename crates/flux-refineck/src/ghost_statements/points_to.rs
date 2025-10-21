@@ -84,10 +84,6 @@ impl<'a> PointsToAnalysis<'a> {
                 // StorageDead makes it UB to access the local afterwards.
                 state.flood_with(mir::Place::from(*local).as_ref(), self.map, FlatSet::BOTTOM);
             }
-            mir::StatementKind::Deinit(box place) => {
-                // Deinit makes the place uninitialized.
-                state.flood_with(place.as_ref(), self.map, FlatSet::BOTTOM);
-            }
             mir::StatementKind::Retag(..)
             | mir::StatementKind::Intrinsic(..)
             | mir::StatementKind::SetDiscriminant { .. }
