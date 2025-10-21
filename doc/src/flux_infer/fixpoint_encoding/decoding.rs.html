@@ -59,8 +59,8 @@
 <a href=#59 id=59 data-nosnippet>59</a>                        }
 <a href=#60 id=60 data-nosnippet>60</a>                    }
 <a href=#61 id=61 data-nosnippet>61</a>                    fixpoint::Var::Local(fname) =&gt; {
-<a href=#62 id=62 data-nosnippet>62</a>                        <span class="kw">if let </span><span class="prelude-val">Some</span>(var) = <span class="self">self</span>.ecx.local_var_env.reverse_map.get(fname) {
-<a href=#63 id=63 data-nosnippet>63</a>                            <span class="prelude-val">Ok</span>(rty::Expr::var(<span class="kw-2">*</span>var))
+<a href=#62 id=62 data-nosnippet>62</a>                        <span class="kw">if let </span><span class="prelude-val">Some</span>(expr) = <span class="self">self</span>.ecx.local_var_env.reverse_map.get(fname) {
+<a href=#63 id=63 data-nosnippet>63</a>                            <span class="prelude-val">Ok</span>(expr.clone())
 <a href=#64 id=64 data-nosnippet>64</a>                        } <span class="kw">else </span>{
 <a href=#65 id=65 data-nosnippet>65</a>                            <span class="prelude-val">Err</span>(FixpointParseError::NoLocalVar(<span class="kw-2">*</span>fname))
 <a href=#66 id=66 data-nosnippet>66</a>                        }
