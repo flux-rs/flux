@@ -23,8 +23,10 @@ use flux_middle::{
     pretty::{NestedString, PrettyCx, PrettyNested},
     queries::QueryResult,
     query_bug,
-    rty::{self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
-        VariantIdx, fold::TypeFoldable as _, fold::TypeVisitable},
+    rty::{
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
+        VariantIdx, fold::TypeFoldable as _, fold::TypeVisitable,
+    },
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
