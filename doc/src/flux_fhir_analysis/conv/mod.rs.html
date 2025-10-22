@@ -928,7 +928,7 @@
 <a href=#928 id=928 data-nosnippet>928</a>            }
 <a href=#929 id=929 data-nosnippet>929</a>            fhir::SortRes::User(def_id) =&gt; {
 <a href=#930 id=930 data-nosnippet>930</a>                <span class="self">self</span>.check_user_defined_sort_param_count(path, def_id)<span class="question-mark">?</span>;
-<a href=#931 id=931 data-nosnippet>931</a>                rty::SortCtor::User { name: def_id.name() }
+<a href=#931 id=931 data-nosnippet>931</a>                rty::SortCtor::User(def_id)
 <a href=#932 id=932 data-nosnippet>932</a>            }
 <a href=#933 id=933 data-nosnippet>933</a>            fhir::SortRes::Adt(def_id) =&gt; {
 <a href=#934 id=934 data-nosnippet>934</a>                <span class="kw">let </span>sort_def = <span class="self">self</span>.genv().adt_sort_def_of(def_id)<span class="question-mark">?</span>;
