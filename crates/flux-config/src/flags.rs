@@ -126,9 +126,9 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
             "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
             _ => {
-            eprintln!("error: unknown flux option: `{key}`");
-            process::exit(EXIT_FAILURE);
-        }
+                eprintln!("error: unknown flux option: `{key}`");
+                process::exit(EXIT_FAILURE);
+            }
         };
         if let Err(reason) = result {
             eprintln!("error: incorrect value for flux option `{key}` - `{reason}`");
