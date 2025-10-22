@@ -129,6 +129,16 @@ impl Shl for BV32 {
     }
 }
 
+impl Shl<u8> for BV32 {
+    type Output = BV32;
+
+    #[trusted]
+    #[sig(fn(BV32[@x], u8[@y]) -> BV32[bv_shl(x, bv_int_to_bv32(y))])]
+    fn shl(self, rhs: u8) -> BV32 {
+        BV32(self.0 << rhs)
+    }
+}
+
 impl Shl<u32> for BV32 {
     type Output = BV32;
 
@@ -155,6 +165,16 @@ impl Shr<u32> for BV32 {
     #[trusted]
     #[sig(fn(BV32[@x], u32[@y]) -> BV32[bv_lshr(x, bv_int_to_bv32(y))])]
     fn shr(self, rhs: u32) -> BV32 {
+        BV32(self.0 >> rhs)
+    }
+}
+
+impl Shr<u8> for BV32 {
+    type Output = BV32;
+
+    #[trusted]
+    #[sig(fn(BV32[@x], u8[@y]) -> BV32[bv_lshr(x, bv_int_to_bv32(y))])]
+    fn shr(self, rhs: u8) -> BV32 {
         BV32(self.0 >> rhs)
     }
 }
