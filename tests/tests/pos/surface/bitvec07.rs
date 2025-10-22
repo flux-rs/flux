@@ -10,17 +10,20 @@ pub fn test_shl_8(x: BV8) -> BV8 {
 
 #[spec(fn (x:BV32[1]) -> BV32[8])]
 pub fn test_shl_32(x: BV32) -> BV32 {
-    x << 3
+    let three: u32 = 3;
+    x << three
 }
 
 #[spec(fn (x:BV8[8]) -> BV8[1])]
 pub fn test_shr_8(x: BV8) -> BV8 {
-    x >> 3
+    let three: u8 = 3;
+    x >> three
 }
 
 #[spec(fn (x:BV32[8]) -> BV32[1])]
 pub fn test_shr_32(x: BV32) -> BV32 {
-    x >> 3
+    let three: u32 = 3;
+    x >> three
 }
 
 #[spec(fn (x:BV8[4]) -> BV8[5])]
