@@ -21,7 +21,7 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, Name, SpecFuncKind,
         VariantIdx, fold::TypeFoldable as _,
     },
     timings::{self, TimingKind},
@@ -50,6 +50,7 @@ use crate::{
 };
 
 pub mod decoding;
+use crate::refine_tree::BinderProvenance;
 
 pub mod fixpoint {
     use std::fmt;
@@ -464,6 +465,7 @@ pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     ecx: ExprEncodingCtxt<'genv, 'tcx>,
     tags: IndexVec<TagIdx, T>,
     tags_inv: UnordMap<T, TagIdx>,
+    blame_spans: IndexVec<TagIdx, Vec<(Name, BinderProvenance)>>,
 }
 
 pub type FixQueryCache = QueryCache<FixpointResult<TagIdx>>;
@@ -482,6 +484,7 @@ where
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
+            blame_spans: IndexVec::new(),
         }
     }
 
@@ -759,6 +762,7 @@ where
                 Ok(fixpoint::Constraint::foralls(bindings, cstr))
             }
             _ => {
+                // TODO: need to thread binder_deps and generate the blame spans here
                 let tag_idx = self.tag_idx(mk_tag(expr.span()));
                 let pred = fixpoint::Pred::Expr(self.ecx.expr_to_fixpoint(expr, &mut self.scx)?);
                 Ok(fixpoint::Constraint::Pred(pred, Some(tag_idx)))
