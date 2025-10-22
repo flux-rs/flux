@@ -302,6 +302,16 @@ impl BitAnd for BV8 {
     }
 }
 
+impl BitAnd<u8> for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], u8[@y]) -> BV8[bv_and(x, bv_int_to_bv8(y))])]
+    fn bitand(self, rhs: u8) -> BV8 {
+        BV8(self.0 & rhs)
+    }
+}
+
 impl BitOr for BV8 {
     type Output = BV8;
 
@@ -309,6 +319,16 @@ impl BitOr for BV8 {
     #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_or(x, y)])]
     fn bitor(self, rhs: Self) -> BV8 {
         BV8(self.0 | rhs.0)
+    }
+}
+
+impl BitOr<u8> for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], u8[@y]) -> BV8[bv_or(x, bv_int_to_bv8(y))])]
+    fn bitor(self, rhs: u8) -> BV8 {
+        BV8(self.0 | rhs)
     }
 }
 
@@ -322,6 +342,16 @@ impl Shl for BV8 {
     }
 }
 
+impl Shl<u8> for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], u8[@y]) -> BV8[bv_shl(x, bv_int_to_bv8(y))])]
+    fn shl(self, rhs: u8) -> BV8 {
+        BV8(self.0 << rhs)
+    }
+}
+
 impl Shr for BV8 {
     type Output = BV8;
 
@@ -329,6 +359,16 @@ impl Shr for BV8 {
     #[sig(fn(BV8[@x], BV8[@y]) -> BV8[bv_lshr(x, y)])]
     fn shr(self, rhs: Self) -> BV8 {
         BV8(self.0 >> rhs.0)
+    }
+}
+
+impl Shr<u8> for BV8 {
+    type Output = BV8;
+
+    #[trusted]
+    #[sig(fn(BV8[@x], u8[@y]) -> BV8[bv_lshr(x, bv_int_to_bv8(y))])]
+    fn shr(self, rhs: u8) -> BV8 {
+        BV8(self.0 >> rhs)
     }
 }
 
@@ -372,6 +412,19 @@ impl PartialEq for BV8 {
     #[sig(fn(&BV8[@val1], &BV8[@val2]) -> bool[val1 != val2])]
     fn ne(&self, other: &Self) -> bool {
         self.0 != other.0
+    }
+}
+
+#[trusted]
+impl PartialEq<u8> for BV8 {
+    #[sig(fn(&BV8[@val1], &u8[@val2]) -> bool[val1 == bv_int_to_bv8(val2)])]
+    fn eq(&self, other: &u8) -> bool {
+        self.0 == *other
+    }
+
+    #[sig(fn(&BV8[@val1], &u8[@val2]) -> bool[val1 != bv_int_to_bv8(val2)])]
+    fn ne(&self, other: &u8) -> bool {
+        self.0 != *other
     }
 }
 
