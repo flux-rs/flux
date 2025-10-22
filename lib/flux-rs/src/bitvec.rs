@@ -10,6 +10,7 @@ use flux_attrs::*;
 #[derive(Debug, Clone, Copy, Hash)]
 #[opaque]
 #[refined_by(x: bitvec<32>)]
+#[repr(transparent)]
 pub struct BV32(u32);
 
 #[trusted]
@@ -88,6 +89,16 @@ impl BitAnd for BV32 {
     }
 }
 
+impl BitAnd<u32> for BV32 {
+    type Output = BV32;
+
+    #[trusted]
+    #[sig(fn(BV32[@x], u32[@y]) -> BV32[bv_and(x, bv_int_to_bv32(y))])]
+    fn bitand(self, rhs: u32) -> BV32 {
+        BV32(self.0 & rhs)
+    }
+}
+
 impl BitOr for BV32 {
     type Output = BV32;
 
@@ -95,6 +106,16 @@ impl BitOr for BV32 {
     #[sig(fn(BV32[@x], BV32[@y]) -> BV32[bv_or(x, y)])]
     fn bitor(self, rhs: Self) -> BV32 {
         BV32(self.0 | rhs.0)
+    }
+}
+
+impl BitOr<u32> for BV32 {
+    type Output = BV32;
+
+    #[trusted]
+    #[sig(fn(BV32[@x], u32[@y]) -> BV32[bv_or(x, bv_int_to_bv32(y))])]
+    fn bitor(self, rhs: u32) -> BV32 {
+        BV32(self.0 | rhs)
     }
 }
 
@@ -108,6 +129,16 @@ impl Shl for BV32 {
     }
 }
 
+impl Shl<u32> for BV32 {
+    type Output = BV32;
+
+    #[trusted]
+    #[sig(fn(BV32[@x], u32[@y]) -> BV32[bv_shl(x, bv_int_to_bv32(y))])]
+    fn shl(self, rhs: u32) -> BV32 {
+        BV32(self.0 << rhs)
+    }
+}
+
 impl Shr for BV32 {
     type Output = BV32;
 
@@ -115,6 +146,16 @@ impl Shr for BV32 {
     #[sig(fn(BV32[@x], BV32[@y]) -> BV32[bv_lshr(x, y)])]
     fn shr(self, rhs: Self) -> BV32 {
         BV32(self.0 >> rhs.0)
+    }
+}
+
+impl Shr<u32> for BV32 {
+    type Output = BV32;
+
+    #[trusted]
+    #[sig(fn(BV32[@x], u32[@y]) -> BV32[bv_lshr(x, bv_int_to_bv32(y))])]
+    fn shr(self, rhs: u32) -> BV32 {
+        BV32(self.0 >> rhs)
     }
 }
 
@@ -158,6 +199,19 @@ impl PartialEq for BV32 {
     #[sig(fn(&BV32[@val1], &BV32[@val2]) -> bool[val1 != val2])]
     fn ne(&self, other: &Self) -> bool {
         self.0 != other.0
+    }
+}
+
+#[trusted]
+impl PartialEq<u32> for BV32 {
+    #[sig(fn(&BV32[@val1], &u32[@val2]) -> bool[val1 == bv_int_to_bv32(val2)])]
+    fn eq(&self, other: &u32) -> bool {
+        self.0 == *other
+    }
+
+    #[sig(fn(&BV32[@val1], &u32[@val2]) -> bool[val1 != bv_int_to_bv32(val2)])]
+    fn ne(&self, other: &u32) -> bool {
+        self.0 != *other
     }
 }
 
