@@ -161,6 +161,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let mut ecx = ExprEncodingCtxt::new(self.genv, None);
         let mut scx = SortEncodingCtxt::default();
         let mut fun_defs = vec![];
+        let mut opaque_fun_defs = vec![];
         for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
             ecx.declare_fun(def_id.to_def_id());
             match flux_item {
@@ -170,17 +171,29 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                             .unwrap(),
                     );
                 }
+                FluxItem::Func(spec_func) => {
+                    opaque_fun_defs
+                        .push(ecx.fun_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx));
+                }
                 _ => {}
             }
         }
-        if !fun_defs.is_empty() {
+        let opaque_sorts = scx.user_sorts_to_fixpoint(self.genv);
+        let adt_defs = scx.encode_data_decls(self.genv).unwrap();
+        if !opaque_sorts.is_empty()
+            || !opaque_fun_defs.is_empty()
+            || !adt_defs.is_empty()
+            || !fun_defs.is_empty()
+        {
             let encoder = LeanEncoder::new(
                 self.genv,
                 std::path::Path::new("./"),
                 "lean_proofs".to_string(),
                 "Defs".to_string(),
             );
-            return encoder.encode_defs(&fun_defs);
+            encoder
+                .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
+                .unwrap();
         }
         Ok(())
     }
