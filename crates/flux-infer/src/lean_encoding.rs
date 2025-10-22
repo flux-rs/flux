@@ -10,13 +10,10 @@ use flux_middle::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
 };
-use itertools::Itertools;
 
 use crate::{
     fixpoint_encoding::fixpoint,
-    lean_format::{
-        self, LeanConstDecl, LeanDataField, LeanSort, LeanSortDecl, LeanSortVar, LeanVar,
-    },
+    lean_format::{self, LeanConstDecl, LeanSortDecl, LeanSortVar, LeanVar},
 };
 
 pub struct LeanEncoder<'genv, 'tcx, 'a> {
@@ -149,51 +146,11 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         if has_opaques {
             writeln!(file, "import {}.InferredInstance", pascal_project_name.as_str())?;
         }
-        let structs = data_decls
-            .iter()
-            .filter(|decl| decl.ctors.len() == 1)
-            .collect_vec();
         if !data_decls.is_empty() {
             writeln!(file, "-- STRUCT DECLS --")?;
             writeln!(file, "mutual")?;
             for data_decl in data_decls {
                 writeln!(file, "{}", lean_format::LeanDataDecl(data_decl, self.genv))?;
-            }
-            writeln!(file, "end")?;
-        }
-        if !structs.is_empty() {
-            writeln!(file, "-- CONSTRUCTORS & Projections --")?;
-            writeln!(file, "mutual")?;
-            for struct_decl in &structs {
-                writeln!(
-                    file,
-                    "def {} {} : {} := {{ {} }}",
-                    LeanVar(&struct_decl.ctors[0].name, self.genv),
-                    struct_decl.ctors[0]
-                        .fields
-                        .iter()
-                        .map(|field| LeanDataField(field, self.genv))
-                        .format(" "),
-                    LeanSortVar(&struct_decl.name),
-                    struct_decl.ctors[0]
-                        .fields
-                        .iter()
-                        .map(|field| LeanVar(&field.name, self.genv))
-                        .format(", "),
-                )?;
-            }
-            for struct_decl in &structs {
-                for field in &struct_decl.ctors[0].fields {
-                    writeln!(
-                        file,
-                        "def {} (s : {}) : {} := {}.{} s",
-                        LeanVar(&field.name, self.genv),
-                        LeanSortVar(&struct_decl.name),
-                        LeanSort(&field.sort),
-                        LeanSortVar(&struct_decl.name),
-                        LeanVar(&field.name, self.genv),
-                    )?;
-                }
             }
             writeln!(file, "end")?;
         }
