@@ -125,13 +125,6 @@ where
                         let def_id = self.scx.adt_sorts[adt_id.as_usize()];
                         Ok(rty::Expr::ctor_enum(def_id, *variant_idx))
                     }
-                    fixpoint::Var::BoundVar { level, idx } => {
-                        Ok(rty::Expr::bvar(
-                            rty::DebruijnIndex::from_usize(*level),
-                            BoundVar::from_usize(*idx),
-                            rty::BoundReftKind::Anon,
-                        ))
-                    }
                     fixpoint::Var::TupleCtor { .. }
                     | fixpoint::Var::TupleProj { .. }
                     | fixpoint::Var::DataProj { .. }
@@ -369,13 +362,20 @@ where
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
-            liquid_fixpoint::Expr::Exists(sorts, body) => {
+            fixpoint::Expr::Exists(sorts, body) => {
                 let sorts: Vec<_> = sorts
                     .iter()
                     .map(|fsort| self.fixpoint_to_sort(fsort))
                     .try_collect()?;
                 let body = self.fixpoint_to_expr(body)?;
                 Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
+            }
+            fixpoint::Expr::BoundVar(fixpoint::BoundVar { level, idx }) => {
+                Ok(rty::Expr::bvar(
+                    rty::DebruijnIndex::from_usize(*level),
+                    BoundVar::from_usize(*idx),
+                    rty::BoundReftKind::Anon,
+                ))
             }
         }
     }

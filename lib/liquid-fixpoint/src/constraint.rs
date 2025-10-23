@@ -1,4 +1,5 @@
-use std::hash::Hash;
+use std::{collections::{HashMap, HashSet}, hash::Hash};
+use itertools::Itertools;
 
 use derive_where::derive_where;
 
@@ -181,10 +182,26 @@ impl BinRel {
     pub const INEQUALITIES: [BinRel; 4] = [BinRel::Gt, BinRel::Ge, BinRel::Lt, BinRel::Le];
 }
 
+#[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
+pub struct BoundVar {
+    pub level: usize,
+    pub idx: usize,
+}
+
+impl BoundVar {
+    pub fn new(level: usize, idx: usize) -> Self {
+        Self { level, idx }
+    }
+}
+
 #[derive_where(Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
+    // This is kept separate from [`T::Var`] because we need to always support
+    // having bound variables for [`Expr::Exists`]. We reuse these as well
+    // for kvar solutions, which is a bit of a hack.
+    BoundVar(BoundVar),
     App(Box<Self>, Vec<Self>),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
@@ -218,6 +235,115 @@ impl<T: Types> Expr<T> {
 
     pub fn and(mut exprs: Vec<Self>) -> Self {
         if exprs.len() == 1 { exprs.remove(0) } else { Self::And(exprs) }
+    }
+
+    pub fn free_vars(&self) -> HashSet<T::Var> {
+        let mut vars = HashSet::new();
+        match self {
+            Expr::Constant(_) | Expr::ThyFunc(_) | Expr::BoundVar { .. } => {}
+            Expr::Var(x) => {
+                vars.insert(x.clone());
+            }
+            Expr::App(func, args) => {
+                vars.extend(func.free_vars().into_iter());
+                for arg in args {
+                    vars.extend(arg.free_vars().into_iter());
+                }
+            }
+            Expr::Neg(e) | Expr::Not(e) => {
+                vars = e.free_vars();
+            }
+            Expr::BinaryOp(_, exprs) | Expr::Imp(exprs) | Expr::Iff(exprs) | Expr::Atom(_, exprs) => {
+                let [e1, e2] = &**exprs;
+                vars.extend(e1.free_vars().into_iter());
+                vars.extend(e2.free_vars().into_iter());
+            }
+            Expr::IfThenElse(exprs) => {
+                let [p, e1, e2] = &**exprs;
+                vars.extend(p.free_vars().into_iter());
+                vars.extend(e1.free_vars().into_iter());
+                vars.extend(e2.free_vars().into_iter());
+            }
+            Expr::And(exprs) | Expr::Or(exprs) => {
+                for e in exprs {
+                    vars.extend(e.free_vars().into_iter());
+                }
+            }
+            Expr::Let(name, exprs) => {
+                // Fixpoint only support one binder per let expressions, but it parses a singleton
+                // list of binders to be forward-compatible
+                let [var_e, body_e] = &**exprs;
+                vars.extend(var_e.free_vars().into_iter());
+                let mut body_vars = body_e.free_vars();
+                body_vars.remove(name);
+                vars.extend(body_vars.into_iter());
+            }
+            Expr::IsCtor(_v, expr) => {
+                // NOTE: (ck) I'm pretty sure this isn't a binder so I'm not going to
+                // bother with `v`.
+                vars.extend(expr.free_vars().into_iter());
+            }
+            Expr::Exists(_sorts, expr) => {
+                // NOTE: (ck) No variable names here so it seems this is nameless.
+                vars.extend(expr.free_vars().into_iter());
+            }
+        };
+        vars
+    }
+
+    pub fn substitute_bvar(&self, substs: &HashMap<BoundVar, Expr<T>>) -> Self {
+        match self {
+            Expr::Constant(_) | Expr::Var(_) | Expr::ThyFunc(_) => self.clone(),
+            Expr::BoundVar(bound_var) => {
+                if let Some(subst) = substs.get(bound_var) {
+                    subst.clone()
+                } else {
+                    self.clone()
+                }
+            }
+            Expr::App(expr, exprs) => {
+                Expr::App(Box::new(expr.substitute_bvar(substs)), exprs.iter().map(|e| e.substitute_bvar(substs)).collect_vec())
+            }
+            Expr::Neg(expr) => {
+                Expr::Neg(Box::new(expr.substitute_bvar(substs)))
+            }
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(*bin_op, Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+            }
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs), args[2].substitute_bvar(substs)]))
+            }
+            Expr::And(exprs) => {
+                Expr::And(exprs.iter().map(|e| e.substitute_bvar(substs)).collect_vec())
+            }
+            Expr::Or(exprs) => {
+                Expr::Or(exprs.iter().map(|e| e.substitute_bvar(substs)).collect_vec())
+            }
+            Expr::Not(expr) => {
+                Expr::Not(Box::new(expr.substitute_bvar(substs)))
+            }
+            Expr::Imp(args) => {
+                Expr::Imp(Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+            }
+            Expr::Iff(args) => {
+                Expr::Iff(Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+            }
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(*bin_rel, Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(var.clone(), Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+            }
+            Expr::IsCtor(var, expr) => {
+                Expr::IsCtor(var.clone(), Box::new(expr.substitute_bvar(substs)))
+            }
+            Expr::Exists(sorts, expr) => {
+                let new_substs = substs.iter().map(|(bvar, subst)| {
+                    (BoundVar { level: bvar.level + 1, idx: bvar.idx }, subst.clone())
+                }).collect();
+                Expr::Exists(sorts.clone(), Box::new(expr.substitute_bvar(&new_substs)))
+            }
+        }
     }
 }
 
