@@ -15,7 +15,7 @@ use super::{
     Trait, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, VariantDef, VariantRet,
     WhereBoundPredicate,
 };
-use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn};
+use crate::surface::{FluxItem, ImplItemFn, Item, PrimOpProp, SortDecl, TraitItemFn, WeakKvar};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -128,6 +128,10 @@ pub trait Visitor: Sized {
 
     fn visit_fn_sig(&mut self, fn_sig: &FnSig) {
         walk_fn_sig(self, fn_sig);
+    }
+
+    fn visit_weak_kvar(&mut self, wk: &WeakKvar) {
+        walk_weak_kvar(self, wk);
     }
 
     fn visit_fn_output(&mut self, fn_output: &FnOutput) {
@@ -268,7 +272,10 @@ pub fn walk_sort<V: Visitor>(vis: &mut V, sort: &Sort) {
 
 pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
     match &item.kind {
-        ItemKind::Fn(fn_sig) => {
+        ItemKind::Fn(weak_kvars, fn_sig) => {
+            for weak_kvar in weak_kvars {
+                vis.visit_weak_kvar(weak_kvar);
+            }
             if let Some(fn_sig) = fn_sig {
                 vis.visit_fn_sig(fn_sig);
             }
@@ -284,12 +291,18 @@ pub fn walk_item<V: Visitor>(vis: &mut V, item: &Item) {
 }
 
 pub fn walk_trait_item<V: Visitor>(vis: &mut V, item: &TraitItemFn) {
+    for weak_kvar in &item.weak_kvars {
+        vis.visit_weak_kvar(weak_kvar);
+    }
     if let Some(fn_sig) = item.sig.as_ref() {
         vis.visit_fn_sig(fn_sig);
     }
 }
 
 pub fn walk_impl_item<V: Visitor>(vis: &mut V, item: &ImplItemFn) {
+    for weak_kvar in &item.weak_kvars {
+        vis.visit_weak_kvar(weak_kvar);
+    }
     if let Some(fn_sig) = item.sig.as_ref() {
         vis.visit_fn_sig(fn_sig);
     }
@@ -412,6 +425,11 @@ pub fn walk_fn_sig<V: Visitor>(vis: &mut V, fn_sig: &FnSig) {
     }
     walk_list!(vis, visit_fn_input, &fn_sig.inputs);
     vis.visit_fn_output(&fn_sig.output);
+}
+
+pub fn walk_weak_kvar<V: Visitor>(vis: &mut V, wk: &WeakKvar) {
+    walk_list!(vis, visit_refine_param, &wk.params);
+    walk_list!(vis, visit_expr, &wk.solutions);
 }
 
 pub fn walk_fn_output<V: Visitor>(vis: &mut V, fn_output: &FnOutput) {

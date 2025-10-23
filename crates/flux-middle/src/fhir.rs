@@ -512,6 +512,13 @@ pub struct Requires<'fhir> {
 pub struct FnSig<'fhir> {
     pub header: FnHeader,
     pub decl: &'fhir FnDecl<'fhir>,
+    pub weak_kvars: &'fhir [WeakKvar<'fhir>],
+}
+
+pub struct WeakKvar<'fhir> {
+    pub num: u32,
+    pub params: &'fhir [RefineParam<'fhir>],
+    pub solutions: &'fhir [Expr<'fhir>],
 }
 
 #[derive(Clone, Copy)]

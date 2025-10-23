@@ -117,6 +117,14 @@ impl ParseSess {
         parser::parse_yes_or_no_with_reason(&mut self.cx(tokens, span))
     }
 
+    pub fn parse_weak_kvars(
+        &mut self,
+        tokens: &TokenStream,
+        span: Span,
+    ) -> ParseResult<Vec<surface::WeakKvar>> {
+        parser::parse_weak_kvars(&mut self.cx(tokens, span))
+    }
+
     pub fn next_node_id(&mut self) -> NodeId {
         let id = NodeId(self.next_node_id);
         self.next_node_id += 1;

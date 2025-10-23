@@ -115,8 +115,8 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     pub(crate) fn desugar_item(&mut self, item: &surface::Item) -> Result<fhir::Item<'genv>> {
         match &item.kind {
-            surface::ItemKind::Fn(fn_sig) => {
-                let (generics, fn_sig) = self.desugar_fn_sig(fn_sig.as_ref())?;
+            surface::ItemKind::Fn(weak_kvars, fn_sig) => {
+                let (generics, fn_sig) = self.desugar_fn_sig(weak_kvars, fn_sig.as_ref())?;
                 Ok(fhir::Item { generics, kind: fhir::ItemKind::Fn(fn_sig), owner_id: self.owner })
             }
             surface::ItemKind::Struct(struct_def) => Ok(self.desugar_struct_def(struct_def)),
@@ -133,7 +133,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::TraitItemFn,
     ) -> Result<fhir::TraitItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
+        let (generics, fn_sig) = self.desugar_fn_sig(&item.weak_kvars, item.sig.as_ref())?;
         Ok(fhir::TraitItem {
             generics,
             kind: fhir::TraitItemKind::Fn(fn_sig),
@@ -145,7 +145,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         &mut self,
         item: &surface::ImplItemFn,
     ) -> Result<fhir::ImplItem<'genv>> {
-        let (generics, fn_sig) = self.desugar_fn_sig(item.sig.as_ref())?;
+        let (generics, fn_sig) = self.desugar_fn_sig(&item.weak_kvars, item.sig.as_ref())?;
         Ok(fhir::ImplItem { generics, kind: fhir::ImplItemKind::Fn(fn_sig), owner_id: self.owner })
     }
 
@@ -478,6 +478,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
 
     fn desugar_fn_sig(
         &mut self,
+        weak_kvars: &[surface::WeakKvar],
         fn_sig: Option<&surface::FnSig>,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
         let mut header = self.lift_fn_header();
@@ -521,7 +522,21 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl) }))
+        Ok((generics, fhir::FnSig {
+            header,
+            decl: self.genv.alloc(decl),
+            weak_kvars: self.desugar_weak_kvars(weak_kvars),
+        }))
+    }
+
+    fn desugar_weak_kvars(&mut self, wks: &[surface::WeakKvar]) -> &'genv [fhir::WeakKvar<'genv>] {
+        self.genv.alloc_slice_fill_iter(wks.iter().map(|wk| {
+            fhir::WeakKvar {
+                num: wk.num,
+                params: self.desugar_refine_params(&wk.params),
+                solutions: self.desugar_exprs(&wk.solutions),
+            }
+        }))
     }
 
     fn desugar_fn_sig_refine_params(

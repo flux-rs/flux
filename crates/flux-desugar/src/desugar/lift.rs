@@ -543,7 +543,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
 
     fn lift_fn_sig(&mut self, fn_sig: hir::FnSig) -> fhir::FnSig<'genv> {
         let decl = self.lift_fn_decl_inner(fn_sig.span, fn_sig.decl);
-        fhir::FnSig { header: fn_sig.header, decl: self.genv.alloc(decl) }
+        fhir::FnSig { header: fn_sig.header, decl: self.genv.alloc(decl), weak_kvars: &[], }
     }
 
     pub(crate) fn lift_foreign_item(
