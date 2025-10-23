@@ -1,7 +1,10 @@
-use std::{collections::{HashMap, HashSet}, hash::Hash};
-use itertools::Itertools;
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
 use derive_where::derive_where;
+use itertools::Itertools;
 
 use crate::{ThyFunc, Types};
 
@@ -245,47 +248,50 @@ impl<T: Types> Expr<T> {
                 vars.insert(x.clone());
             }
             Expr::App(func, args) => {
-                vars.extend(func.free_vars().into_iter());
+                vars.extend(func.free_vars());
                 for arg in args {
-                    vars.extend(arg.free_vars().into_iter());
+                    vars.extend(arg.free_vars());
                 }
             }
             Expr::Neg(e) | Expr::Not(e) => {
                 vars = e.free_vars();
             }
-            Expr::BinaryOp(_, exprs) | Expr::Imp(exprs) | Expr::Iff(exprs) | Expr::Atom(_, exprs) => {
+            Expr::BinaryOp(_, exprs)
+            | Expr::Imp(exprs)
+            | Expr::Iff(exprs)
+            | Expr::Atom(_, exprs) => {
                 let [e1, e2] = &**exprs;
-                vars.extend(e1.free_vars().into_iter());
-                vars.extend(e2.free_vars().into_iter());
+                vars.extend(e1.free_vars());
+                vars.extend(e2.free_vars());
             }
             Expr::IfThenElse(exprs) => {
                 let [p, e1, e2] = &**exprs;
-                vars.extend(p.free_vars().into_iter());
-                vars.extend(e1.free_vars().into_iter());
-                vars.extend(e2.free_vars().into_iter());
+                vars.extend(p.free_vars());
+                vars.extend(e1.free_vars());
+                vars.extend(e2.free_vars());
             }
             Expr::And(exprs) | Expr::Or(exprs) => {
                 for e in exprs {
-                    vars.extend(e.free_vars().into_iter());
+                    vars.extend(e.free_vars());
                 }
             }
             Expr::Let(name, exprs) => {
                 // Fixpoint only support one binder per let expressions, but it parses a singleton
                 // list of binders to be forward-compatible
                 let [var_e, body_e] = &**exprs;
-                vars.extend(var_e.free_vars().into_iter());
+                vars.extend(var_e.free_vars());
                 let mut body_vars = body_e.free_vars();
                 body_vars.remove(name);
-                vars.extend(body_vars.into_iter());
+                vars.extend(body_vars);
             }
             Expr::IsCtor(_v, expr) => {
                 // NOTE: (ck) I'm pretty sure this isn't a binder so I'm not going to
                 // bother with `v`.
-                vars.extend(expr.free_vars().into_iter());
+                vars.extend(expr.free_vars());
             }
             Expr::Exists(_sorts, expr) => {
                 // NOTE: (ck) No variable names here so it seems this is nameless.
-                vars.extend(expr.free_vars().into_iter());
+                vars.extend(expr.free_vars());
             }
         };
         vars
@@ -302,45 +308,79 @@ impl<T: Types> Expr<T> {
                 }
             }
             Expr::App(expr, exprs) => {
-                Expr::App(Box::new(expr.substitute_bvar(substs)), exprs.iter().map(|e| e.substitute_bvar(substs)).collect_vec())
+                Expr::App(
+                    Box::new(expr.substitute_bvar(substs)),
+                    exprs
+                        .iter()
+                        .map(|e| e.substitute_bvar(substs))
+                        .collect_vec(),
+                )
             }
-            Expr::Neg(expr) => {
-                Expr::Neg(Box::new(expr.substitute_bvar(substs)))
-            }
+            Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute_bvar(substs))),
             Expr::BinaryOp(bin_op, args) => {
-                Expr::BinaryOp(*bin_op, Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+                Expr::BinaryOp(
+                    *bin_op,
+                    Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]),
+                )
             }
             Expr::IfThenElse(args) => {
-                Expr::IfThenElse(Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs), args[2].substitute_bvar(substs)]))
+                Expr::IfThenElse(Box::new([
+                    args[0].substitute_bvar(substs),
+                    args[1].substitute_bvar(substs),
+                    args[2].substitute_bvar(substs),
+                ]))
             }
             Expr::And(exprs) => {
-                Expr::And(exprs.iter().map(|e| e.substitute_bvar(substs)).collect_vec())
+                Expr::And(
+                    exprs
+                        .iter()
+                        .map(|e| e.substitute_bvar(substs))
+                        .collect_vec(),
+                )
             }
             Expr::Or(exprs) => {
-                Expr::Or(exprs.iter().map(|e| e.substitute_bvar(substs)).collect_vec())
+                Expr::Or(
+                    exprs
+                        .iter()
+                        .map(|e| e.substitute_bvar(substs))
+                        .collect_vec(),
+                )
             }
-            Expr::Not(expr) => {
-                Expr::Not(Box::new(expr.substitute_bvar(substs)))
-            }
+            Expr::Not(expr) => Expr::Not(Box::new(expr.substitute_bvar(substs))),
             Expr::Imp(args) => {
-                Expr::Imp(Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+                Expr::Imp(Box::new([
+                    args[0].substitute_bvar(substs),
+                    args[1].substitute_bvar(substs),
+                ]))
             }
             Expr::Iff(args) => {
-                Expr::Iff(Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+                Expr::Iff(Box::new([
+                    args[0].substitute_bvar(substs),
+                    args[1].substitute_bvar(substs),
+                ]))
             }
             Expr::Atom(bin_rel, args) => {
-                Expr::Atom(*bin_rel, Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+                Expr::Atom(
+                    *bin_rel,
+                    Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]),
+                )
             }
             Expr::Let(var, args) => {
-                Expr::Let(var.clone(), Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]))
+                Expr::Let(
+                    var.clone(),
+                    Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]),
+                )
             }
             Expr::IsCtor(var, expr) => {
                 Expr::IsCtor(var.clone(), Box::new(expr.substitute_bvar(substs)))
             }
             Expr::Exists(sorts, expr) => {
-                let new_substs = substs.iter().map(|(bvar, subst)| {
-                    (BoundVar { level: bvar.level + 1, idx: bvar.idx }, subst.clone())
-                }).collect();
+                let new_substs = substs
+                    .iter()
+                    .map(|(bvar, subst)| {
+                        (BoundVar { level: bvar.level + 1, idx: bvar.idx }, subst.clone())
+                    })
+                    .collect();
                 Expr::Exists(sorts.clone(), Box::new(expr.substitute_bvar(&new_substs)))
             }
         }

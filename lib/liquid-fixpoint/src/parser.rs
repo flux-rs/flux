@@ -4,7 +4,9 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 
 use crate::{
-    BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types, constraint::BoundVar, sexp::{Atom, ParseError as SexpParseError, Sexp}
+    BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
+    constraint::BoundVar,
+    sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
 #[derive(Debug)]
@@ -35,11 +37,7 @@ pub trait FromSexp<T: Types> {
     where
         Self: Sized,
     {
-        FromSexpWrapper {
-            parser: self,
-            _phantom: std::marker::PhantomData,
-            scopes: vec![],
-        }
+        FromSexpWrapper { parser: self, _phantom: std::marker::PhantomData, scopes: vec![] }
     }
 }
 
@@ -131,7 +129,8 @@ where
                     match maybe_strs {
                         Some(strs) => {
                             let kvar = self.parser.kvar(&strs[0])?;
-                            let args = strs[1..].iter().map(|s| self.parser.var(s)).try_collect()?;
+                            let args =
+                                strs[1..].iter().map(|s| self.parser.var(s)).try_collect()?;
                             Ok(Pred::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),
@@ -668,5 +667,4 @@ impl FromSexp<StringTypes> for StringTypes {
     fn sort(&self, name: &str) -> Result<String, ParseError> {
         Ok(name.to_string())
     }
-
 }

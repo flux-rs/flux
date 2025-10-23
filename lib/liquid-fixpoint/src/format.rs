@@ -2,10 +2,10 @@ use std::fmt::{self, Write};
 
 use itertools::Itertools;
 
-use crate::constraint::BoundVar;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    constraint::BoundVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
