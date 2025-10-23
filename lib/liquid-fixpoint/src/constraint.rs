@@ -51,6 +51,12 @@ pub struct DataDecl<T: Types> {
 }
 
 #[derive_where(Hash, Clone)]
+pub struct SortDecl<T: Types> {
+    pub name: T::Sort,
+    pub vars: usize,
+}
+
+#[derive_where(Hash, Clone)]
 pub struct DataCtor<T: Types> {
     pub name: T::Var,
     pub fields: Vec<DataField<T>>,

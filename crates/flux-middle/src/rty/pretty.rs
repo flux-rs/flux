@@ -126,7 +126,7 @@ impl Pretty for SortCtor {
         match self {
             SortCtor::Set => w!(cx, f, "Set"),
             SortCtor::Map => w!(cx, f, "Map"),
-            SortCtor::User { name, .. } => w!(cx, f, "{}", ^name),
+            SortCtor::User(def_id) => w!(cx, f, "{}", ^def_id.name()),
             SortCtor::Adt(adt_sort_def) => {
                 w!(cx, f, "{:?}", adt_sort_def.did())
             }

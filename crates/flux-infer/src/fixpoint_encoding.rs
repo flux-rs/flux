@@ -148,6 +148,7 @@ pub mod fixpoint {
     pub enum DataSort {
         Tuple(usize),
         Adt(AdtId),
+        User(FluxDefId),
     }
 
     impl Identifier for DataSort {
@@ -158,6 +159,12 @@ pub mod fixpoint {
                 }
                 DataSort::Adt(adt_id) => {
                     write!(f, "Adt{}", adt_id.as_u32())
+                }
+                // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
+                // declared opaque sorts as integers. Well-formedness should ensure values of these
+                // sorts are used "opaquely", i.e., the only values of these sorts are variables.
+                DataSort::User(..) => {
+                    write!(f, "int")
                 }
             }
         }
@@ -231,6 +238,8 @@ pub struct SortEncodingCtxt {
     /// Set of all the [`AdtDefSortDef`](rty::AdtSortDef) that need to be declared as
     /// Fixpoint data-decls
     adt_sorts: FxIndexSet<DefId>,
+    /// Set of all opaque types that need to be defined
+    user_sorts: FxIndexSet<FluxDefId>,
 }
 
 impl SortEncodingCtxt {
@@ -242,12 +251,19 @@ impl SortEncodingCtxt {
             rty::Sort::Str => fixpoint::Sort::Str,
             rty::Sort::Char => fixpoint::Sort::Int,
             rty::Sort::BitVec(size) => fixpoint::Sort::BitVec(Box::new(bv_size_to_fixpoint(*size))),
-            // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode user
-            // declared opaque sorts, type parameter sorts, and (unormalizable) type alias sorts as
-            // integers. Well-formedness should ensure values of these sorts are used "opaquely",
-            // i.e., the only values of these sorts are variables.
-            rty::Sort::App(rty::SortCtor::User { .. }, _)
-            | rty::Sort::Param(_)
+            rty::Sort::App(rty::SortCtor::User(def_id), args) => {
+                self.declare_opaque_sort(*def_id);
+                let args = args.iter().map(|s| self.sort_to_fixpoint(s)).collect_vec();
+                fixpoint::Sort::App(
+                    fixpoint::SortCtor::Data(fixpoint::DataSort::User(*def_id)),
+                    args,
+                )
+            }
+            // There's no way to declare opaque sorts in the fixpoint horn syntax so we encode type
+            // parameter sorts and (unormalizable) type alias sorts as integers. Well-formedness
+            // should ensure values of these sorts are used "opaquely", i.e., the only values of
+            // these sorts are variables.
+            rty::Sort::Param(_)
             | rty::Sort::Alias(rty::AliasKind::Opaque | rty::AliasKind::Projection, ..) => {
                 fixpoint::Sort::Int
             }
@@ -317,6 +333,10 @@ impl SortEncodingCtxt {
         self.tuples.insert(arity);
     }
 
+    pub fn declare_opaque_sort(&mut self, def_id: FluxDefId) {
+        self.user_sorts.insert(def_id);
+    }
+
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
         if let Some(idx) = self.adt_sorts.get_index_of(&did) {
             AdtId::from_usize(idx)
@@ -325,6 +345,16 @@ impl SortEncodingCtxt {
             self.adt_sorts.insert(did);
             adt_id
         }
+    }
+
+    pub fn user_sorts_to_fixpoint(&mut self, genv: GlobalEnv) -> Vec<fixpoint::SortDecl> {
+        self.user_sorts
+            .iter()
+            .map(|sort| {
+                let param_count = genv.sort_decl_param_count(sort);
+                fixpoint::SortDecl { name: fixpoint::DataSort::User(*sort), vars: param_count }
+            })
+            .collect()
     }
 
     fn append_adt_decls(
@@ -392,7 +422,7 @@ impl SortEncodingCtxt {
         );
     }
 
-    fn encode_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
+    pub fn encode_data_decls(&mut self, genv: GlobalEnv) -> QueryResult<Vec<fixpoint::DataDecl>> {
         let mut decls = vec![];
         self.append_adt_decls(genv, &mut decls)?;
         Self::append_tuple_decls(&self.tuples, &mut decls);
@@ -1885,15 +1915,13 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         // We iterate until encoding the body of functions doesn't require any more functions
         // to be encoded.
         let mut idx = 0;
-        while let Some((&did, &name)) = self.const_env.fun_def_map.get_index(idx) {
+        while let Some((&did, _)) = self.const_env.fun_def_map.get_index(idx) {
             idx += 1;
 
-            let comment = format!("flux def: {did:?}");
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
             if info.hide && !revealed && !proven_externally {
-                let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(did));
-                consts.push(fixpoint::ConstDecl { name, sort, comment: Some(comment) });
+                consts.push(self.fun_decl_to_fixpoint(did, scx));
             } else {
                 defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));
             };
@@ -1907,6 +1935,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .collect();
 
         Ok((defs, consts))
+    }
+
+    pub fn fun_decl_to_fixpoint(
+        &mut self,
+        def_id: FluxDefId,
+        scx: &mut SortEncodingCtxt,
+    ) -> fixpoint::ConstDecl {
+        let name = self.const_env.fun_def_map[&def_id];
+        let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
+        fixpoint::ConstDecl { name, sort, comment: Some(format!("flux def: {def_id:?}")) }
     }
 
     pub fn fun_def_to_fixpoint(
