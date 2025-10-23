@@ -19,7 +19,6 @@ impl ParseError {
     pub fn err(msg: impl Into<String>) -> Self {
         ParseError::MalformedSexpError(msg.into())
     }
-    type WKVar = String;
 }
 
 impl Identifier for String {
@@ -651,6 +650,7 @@ impl Types for StringTypes {
     type Var = String;
     type Tag = String;
     type String = String;
+    type WKVar = String;
 }
 
 impl FromSexp<StringTypes> for StringTypes {
