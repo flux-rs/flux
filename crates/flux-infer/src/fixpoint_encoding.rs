@@ -1,6 +1,6 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{collections::HashMap, hash::Hash, iter};
+use std::{collections::HashMap, hash::Hash, iter, ops::Range};
 
 use fixpoint::AdtId;
 use flux_common::{
@@ -62,6 +62,7 @@ pub mod fixpoint {
     use rustc_span::Symbol;
 
     newtype_index! {
+        #[orderable]
         pub struct KVid {}
     }
 
@@ -812,15 +813,14 @@ where
                     fixpoint::Expr::int(0),
                 )),
             });
-            return Ok(fixpoint::Pred::KVar(kvids[0], vec![var]));
+            return Ok(fixpoint::Pred::KVar(kvids.start, vec![var]));
         }
 
         let kvars = kvids
-            .iter()
             .enumerate()
             .map(|(i, kvid)| {
                 let args = all_args[i..].to_vec();
-                fixpoint::Pred::KVar(*kvid, args)
+                fixpoint::Pred::KVar(kvid, args)
             })
             .collect_vec();
 
@@ -857,8 +857,10 @@ struct FixpointKVar {
 struct KVarEncodingCtxt {
     /// List of all kvars that need to be defined in fixpoint
     kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
-    /// A mapping from [`rty::KVid`] to the list of [`fixpoint::KVid`]s encoding the kvar.
-    map: UnordMap<rty::KVid, Vec<fixpoint::KVid>>,
+    /// A mapping from [`rty::KVid`] to the range of [`fixpoint::KVid`]s encoding the kvar.
+    ///
+    /// See [`KVarEncoding`]
+    map: UnordMap<rty::KVid, Range<fixpoint::KVid>>,
 }
 
 impl KVarEncodingCtxt {
@@ -867,37 +869,40 @@ impl KVarEncodingCtxt {
         kvid: rty::KVid,
         decl: &KVarDecl,
         scx: &mut SortEncodingCtxt,
-    ) -> &[fixpoint::KVid] {
-        self.map.entry(kvid).or_insert_with(|| {
-            let all_args = decl
-                .sorts
-                .iter()
-                .map(|s| scx.sort_to_fixpoint(s))
-                .collect_vec();
+    ) -> Range<fixpoint::KVid> {
+        self.map
+            .entry(kvid)
+            .or_insert_with(|| {
+                let all_args = decl
+                    .sorts
+                    .iter()
+                    .map(|s| scx.sort_to_fixpoint(s))
+                    .collect_vec();
 
-            // See comment in `kvar_to_fixpoint`
-            if all_args.is_empty() {
-                let sorts = vec![fixpoint::Sort::Int];
-                let kvid = self.kvars.push(FixpointKVar::new(sorts, kvid));
-                return vec![kvid];
-            }
-
-            match decl.encoding {
-                KVarEncoding::Single => {
-                    let kvid = self.kvars.push(FixpointKVar::new(all_args, kvid));
-                    vec![kvid]
+                // See comment in `kvar_to_fixpoint`
+                if all_args.is_empty() {
+                    let sorts = vec![fixpoint::Sort::Int];
+                    let kvid = self.kvars.push(FixpointKVar::new(sorts, kvid));
+                    return kvid..kvid + 1;
                 }
-                KVarEncoding::Conj => {
-                    let n = usize::max(decl.self_args, 1);
-                    (0..n)
-                        .map(|i| {
+
+                match decl.encoding {
+                    KVarEncoding::Single => {
+                        let kvid = self.kvars.push(FixpointKVar::new(all_args, kvid));
+                        kvid..kvid + 1
+                    }
+                    KVarEncoding::Conj => {
+                        let n = usize::max(decl.self_args, 1);
+                        let start = self.kvars.next_index();
+                        for i in 0..n {
                             let sorts = all_args[i..].to_vec();
-                            self.kvars.push(FixpointKVar::new(sorts, kvid))
-                        })
-                        .collect_vec()
+                            self.kvars.push(FixpointKVar::new(sorts, kvid));
+                        }
+                        start..start + n
+                    }
                 }
-            }
-        })
+            })
+            .clone()
     }
 
     fn encode_kvars(&self) -> Vec<fixpoint::KVarDecl> {
