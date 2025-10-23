@@ -229,7 +229,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     owner_id,
                     surface::Item {
                         attrs: item.attrs,
-                        kind: surface::ItemKind::Fn(Some(fn_sig)),
+                        // FIXME: a proper implementation would parse the weak kvars here
+                        kind: surface::ItemKind::Fn(vec![], Some(fn_sig)),
                         node_id: item.node_id,
                     },
                 )?;
@@ -276,6 +277,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                                 attrs: item.attrs,
                                 sig: Some(item.kind),
                                 node_id: item.node_id,
+                                // FIXME: a proper implementation would parse these
+                                weak_kvars: vec![],
                             },
                         )
                     },
@@ -318,6 +321,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     attrs: item.attrs,
                     sig: Some(item.kind),
                     node_id: item.node_id,
+                    // FIXME: a proper implementation would parse these
+                    weak_kvars: vec![],
                 },
             )
         })
@@ -353,6 +358,8 @@ impl<'a, 'sess, 'tcx> DetachedSpecsCollector<'a, 'sess, 'tcx> {
                     attrs: item.attrs,
                     sig: Some(item.kind),
                     node_id: item.node_id,
+                    // FIXME: a proper implementation would parse these
+                    weak_kvars: vec![],
                 },
             )
         })

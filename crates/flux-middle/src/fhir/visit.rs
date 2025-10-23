@@ -7,7 +7,7 @@ use super::{
     StructDef, TraitAssocReft, TraitItem, TraitItemKind, Ty, TyAlias, TyKind, VariantDef,
     VariantRet, WhereBoundPredicate,
 };
-use crate::fhir::{PrimOpProp, QPathExpr, SortDecl, StructKind};
+use crate::fhir::{PrimOpProp, QPathExpr, SortDecl, StructKind, WeakKvar};
 
 #[macro_export]
 macro_rules! walk_list {
@@ -382,6 +382,14 @@ pub fn walk_where_predicate<'v, V: Visitor<'v>>(vis: &mut V, predicate: &WhereBo
 
 pub fn walk_fn_sig<'v, V: Visitor<'v>>(vis: &mut V, sig: &FnSig<'v>) {
     vis.visit_fn_decl(sig.decl);
+    for wk in sig.weak_kvars {
+        walk_weak_kvar(vis, wk);
+    }
+}
+
+pub fn walk_weak_kvar<'v, V: Visitor<'v>>(vis: &mut V, wk: &WeakKvar<'v>) {
+    walk_list!(vis, visit_refine_param, wk.params);
+    walk_list!(vis, visit_expr, wk.solutions);
 }
 
 pub fn walk_fn_decl<'v, V: Visitor<'v>>(vis: &mut V, decl: &FnDecl<'v>) {

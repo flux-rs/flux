@@ -206,6 +206,12 @@ impl<V: ScopedVisitor> surface::visit::Visitor for ScopedVisitorWrapper<V> {
         });
     }
 
+    fn visit_weak_kvar(&mut self, wk: &surface::WeakKvar) {
+        self.with_scope(ScopeKind::Misc, |this| {
+            surface::visit::walk_weak_kvar(this, wk);
+        });
+    }
+
     fn visit_fn_output(&mut self, output: &surface::FnOutput) {
         self.with_scope(ScopeKind::FnOutput, |this| {
             this.on_fn_output(output);

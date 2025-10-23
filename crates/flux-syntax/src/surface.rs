@@ -118,7 +118,7 @@ pub struct Item {
 }
 
 pub enum ItemKind {
-    Fn(Option<FnSig>),
+    Fn(Vec<WeakKvar>, Option<FnSig>),
     Struct(StructDef),
     Enum(EnumDef),
     Trait(Trait),
@@ -134,12 +134,14 @@ pub struct TraitItemFn {
     pub attrs: Vec<Attr>,
     pub sig: Option<FnSig>,
     pub node_id: NodeId,
+    pub weak_kvars: Vec<WeakKvar>,
 }
 
 pub struct ImplItemFn {
     pub attrs: Vec<Attr>,
     pub sig: Option<FnSig>,
     pub node_id: NodeId,
+    pub weak_kvars: Vec<WeakKvar>,
 }
 
 #[derive(Debug)]
@@ -328,6 +330,13 @@ pub struct TraitAssocReft {
     pub body: Option<Expr>,
     pub span: Span,
     pub final_: bool,
+}
+
+#[derive(Debug)]
+pub struct WeakKvar {
+    pub num: u32,
+    pub params: RefineParams,
+    pub solutions: Vec<Expr>,
 }
 
 #[derive(Debug)]
