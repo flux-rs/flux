@@ -22,7 +22,7 @@ use flux_middle::{
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
-        VariantIdx,
+        VariantIdx, fold::TypeFoldable as _,
     },
     timings::{self, TimingKind},
 };
@@ -192,7 +192,7 @@ pub mod fixpoint {
 }
 
 /// A type to represent Solutions for KVars
-pub type Solution = HashMap<fixpoint::KVid, rty::Binder<rty::Expr>>;
+pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
@@ -527,12 +527,7 @@ where
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
         let solution = if config::dump_checker_trace_info() {
-            result
-                .solution
-                .iter()
-                .chain(result.non_cuts_solution.iter())
-                .map(|b| self.convert_kvar_bind(b))
-                .try_collect()?
+            self.parse_kvar_solutions(&result)?
         } else {
             HashMap::default()
         };
@@ -551,14 +546,29 @@ where
         Ok(Answer { errors, solution })
     }
 
-    fn parse_kvid(kvid: &str) -> QueryResult<fixpoint::KVid> {
-        if kvid.starts_with("k")
-            && let Some(kvid) = kvid[1..].parse::<u32>().ok()
-        {
-            Ok(fixpoint::KVid::from_u32(kvid))
-        } else {
-            tracked_span_bug!("unexpected kvar name {kvid}")
-        }
+    fn parse_kvar_solutions(&self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
+        let solution = result
+            .solution
+            .iter()
+            .chain(&result.non_cuts_solution)
+            .map(|b| self.convert_kvar_bind(b))
+            .try_collect_vec()?;
+
+        Ok(self
+            .kcx
+            .group_by_orig(solution)
+            .into_iter()
+            .map(|(kvid, solutions)| {
+                let vars = solutions[0].vars().clone();
+                let conj = rty::Expr::and_from_iter(
+                    solutions
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, sol)| sol.skip_binder().shift_horizontally(i)),
+                );
+                (kvid, rty::Binder::bind_with_vars(conj, vars))
+            })
+            .collect())
     }
 
     fn convert_solution(&self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
@@ -595,7 +605,7 @@ where
         &self,
         b: &liquid_fixpoint::KVarBind,
     ) -> QueryResult<(fixpoint::KVid, rty::Binder<rty::Expr>)> {
-        let kvid = Self::parse_kvid(&b.kvar)?;
+        let kvid = parse_kvid(&b.kvar);
         let expr = self.convert_solution(&b.val)?;
         Ok((kvid, expr))
     }
@@ -912,6 +922,16 @@ impl KVarEncodingCtxt {
                 fixpoint::KVarDecl::new(kvid, kvar.sorts.clone(), format!("orig: {:?}", kvar.orig))
             })
             .collect()
+    }
+
+    fn group_by_orig<T>(&self, mut vec: Vec<(fixpoint::KVid, T)>) -> HashMap<rty::KVid, Vec<T>> {
+        let mut map: HashMap<_, Vec<_>> = HashMap::default();
+        vec.sort_by_key(|(kvid, _)| *kvid);
+        for (kvid, t) in vec {
+            let orig = self.kvars[kvid].orig;
+            map.entry(orig).or_default().push(t);
+        }
+        map
     }
 }
 
@@ -1970,6 +1990,16 @@ fn mk_implies(assumption: fixpoint::Pred, cstr: fixpoint::Constraint) -> fixpoin
         },
         Box::new(cstr),
     )
+}
+
+fn parse_kvid(kvid: &str) -> fixpoint::KVid {
+    if kvid.starts_with("k")
+        && let Some(kvid) = kvid[1..].parse::<u32>().ok()
+    {
+        fixpoint::KVid::from_u32(kvid)
+    } else {
+        tracked_span_bug!("unexpected kvar name {kvid}")
+    }
 }
 
 fn parse_bound_var(scopes: &[FxIndexSet<String>], name: &str) -> Option<fixpoint::Var> {
