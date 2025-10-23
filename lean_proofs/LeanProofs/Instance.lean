@@ -10,32 +10,32 @@ def slice {α : Type} (xs : List α) (left right : Int) : List α :=
   else
     xs.drop l |>.take (r - l)
 
-def list_get (xs : List Int) (i : Int) : Int :=
+def list_get { a : Type } [Inhabited a] (xs : List a) (i : Int) : a :=
   let n := xs.length
   if 0 ≤ i ∧ i < (n : Int) then
     match xs[i.toNat]? with
     | some v => v
-    | none   => -1  -- should not happen because of the guard, but keep safe
+    | none   => (inferInstance : Inhabited a).default  -- should not happen because of the guard, but keep safe
   else
-    -1
+    (inferInstance : Inhabited a).default
 
-def set (xs : List Int) (i : Int) (v : Int) : List Int :=
+def list_set { a : Type } (xs : List a) (i : Int) (v : a) : List a :=
   match xs, i with
   | [], _ => []
   | x :: xs', i =>
     if i = 0 then
       v :: xs'
     else if i > 0 then
-      x :: set xs' (i - 1) v
+      x :: list_set xs' (i - 1) v
     else
       x :: xs'  -- negative index, unchanged
 
 instance : FluxDefs where
-  ISeq := List Int
-  svec_iseq_empty := []
-  svec_iseq_singleton := fun x => [x]
-  svec_iseq_append := List.append
-  svec_iseq_get := list_get
-  svec_iseq_slice := slice
-  svec_iseq_len := fun x => Int.ofNat x.length
-  svec_iseq_set := set
+  VSeq (a : Type) [Inhabited a] := List a
+  svec_vseq_empty := []
+  svec_vseq_singleton := fun x => [x]
+  svec_vseq_append := List.append
+  svec_vseq_get := list_get
+  svec_vseq_set := list_set
+  svec_vseq_slice := slice
+  svec_vseq_len := Int.ofNat ∘ List.length

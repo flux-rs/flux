@@ -1,39 +1,39 @@
 #![allow(dead_code)]
 
 flux_rs::defs! {
-    opaque sort ISeq;
-    fn iseq_empty() -> ISeq;
-    fn iseq_singleton(v: int) -> ISeq;
-    fn iseq_append(s1: ISeq, s2: ISeq) -> ISeq;
-    fn iseq_get(s1: ISeq, pos: int) -> int;
-    fn iseq_set(s1: ISeq, pos: int, val: int) -> ISeq;
-    fn iseq_slice(s1: ISeq, left: int, right: int) -> ISeq;
-    fn iseq_len(s1: ISeq) -> int;
-    fn iseq_push(s1: ISeq, e: int) -> ISeq {
-        iseq_append(s1, iseq_singleton(e))
+    opaque sort VSeq<T>;
+    fn vseq_empty<T>() -> VSeq<T>;
+    fn vseq_singleton<T>(v: T) -> VSeq<T>;
+    fn vseq_append<T>(s1: VSeq<T>, s2: VSeq<T>) -> VSeq<T>;
+    fn vseq_get<T>(s1: VSeq<T>, pos: int) -> T;
+    fn vseq_set<T>(s1: VSeq<T>, pos: int, val: T) -> VSeq<T>;
+    fn vseq_slice<T>(s1: VSeq<T>, left: int, right: int) -> VSeq<T>;
+    fn vseq_len<T>(s1: VSeq<T>) -> int;
+    fn iseq_push(s1: VSeq<int>, e: int) -> VSeq<int> {
+        vseq_append(s1, vseq_singleton(e))
     }
-    fn iseq_pop(s1: ISeq) -> int {
-        iseq_get(s1, iseq_len(s1) - 1)
+    fn iseq_pop(s1: VSeq<int>) -> int {
+        vseq_get(s1, vseq_len(s1) - 1)
     }
 }
 
 #[flux::opaque]
-#[flux::refined_by(elems: ISeq)]
-pub struct SVec {
-    inner: Vec<i32>,
+#[flux::refined_by(elems: VSeq<T>)]
+pub struct SVec<T> {
+    inner: Vec<T>,
 }
 
-impl SVec {
+impl<T> SVec<T> {
 
     #[flux::trusted]
-    #[flux::sig(fn() -> SVec[iseq_empty()] ensures iseq_len(iseq_empty()) == 0)]
+    #[flux::sig(fn() -> SVec<T>[vseq_empty()])]
     pub fn new() -> Self {
         Self { inner: Vec::new() }
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(self: &mut Self[@elems], i32[@item]) ensures self : Self[iseq_append(elems, iseq_singleton(item))])]
-    pub fn push(&mut self, item: i32) {
+    #[flux::sig(fn(self: &mut Self[@elems], T[@item]) ensures self : Self[vseq_append(elems, vseq_singleton(item))])]
+    pub fn push(&mut self, item: T) {
         self.inner.push(item);
     }
 
@@ -43,25 +43,28 @@ impl SVec {
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(&Self[@elems]) -> bool[elems == iseq_empty()] ensures iseq_len(elems) == 0)]
+    #[flux::sig(fn(&Self[@elems]) -> bool[elems == vseq_empty()] ensures vseq_len(elems) == 0)]
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(&Self[@elems], usize[@pos]) -> &i32[iseq_get(elems, pos)])]
-    pub fn get(&self, i: usize) -> &i32 {
+    #[flux::sig(fn(&Self[@elems], pos: usize{ 0 <= pos && pos < vseq_len(elems) }) -> &T[vseq_get(elems, pos)])]
+    pub fn get(&self, i: usize) -> &T {
         &self.inner[i]
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(self: &mut Self[@elems]) -> i32[iseq_get(elems, iseq_len(elems) - 1)] ensures self : Self[iseq_slice(elems, 0, iseq_len(elems) - 1)])]
-    pub fn pop(&mut self) -> i32 {
+    #[flux::sig(fn(self: &mut Self[@elems]) -> T[vseq_get(elems, vseq_len(elems) - 1)]
+        requires vseq_len(elems) > 0
+        ensures self : Self[vseq_slice(elems, 0, vseq_len(elems) - 1)]
+    )]
+    pub fn pop(&mut self) -> T {
         self.inner.pop().unwrap()
     }
 
     #[flux::trusted]
-    #[flux::sig(fn(self: &mut Self[@elems], usize[@a], usize[@b]) ensures self : Self[iseq_set(iseq_set(elems, b, iseq_get(elems, a)), a, iseq_get(elems, b))])]
+    #[flux::sig(fn(self: &mut Self[@elems], usize[@a], usize[@b]) ensures self : Self[vseq_set(vseq_set(elems, b, vseq_get(elems, a)), a, vseq_get(elems, b))])]
     pub fn swap(&mut self, a: usize, b: usize) {
         self.inner.swap(a, b);
     }

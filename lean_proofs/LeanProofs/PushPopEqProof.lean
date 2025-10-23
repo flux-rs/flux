@@ -5,10 +5,10 @@ def push_pop_eq_proof : push_pop_eq := by
   unfold push_pop_eq
   intros elems v
   rw [
-    iseq_singleton_singleton,
-    iseq_len_len,
-    iseq_append_append,
-    iseq_get_get
+    vseq_singleton_singleton,
+    vseq_len_len,
+    vseq_append_append,
+    vseq_get_get
   ]
   unfold list_get
   simp

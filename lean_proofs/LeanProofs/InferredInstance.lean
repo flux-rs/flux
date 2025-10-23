@@ -2,11 +2,11 @@ import LeanProofs.Instance
 
 def fluxDefsInstance : FluxDefs := inferInstance
 
-def ISeq := fluxDefsInstance.ISeq
-def svec_iseq_empty : ISeq := fluxDefsInstance.svec_iseq_empty
-def svec_iseq_singleton : (Int -> ISeq) := fluxDefsInstance.svec_iseq_singleton
-def svec_iseq_append : (ISeq -> (ISeq -> ISeq)) := fluxDefsInstance.svec_iseq_append
-def svec_iseq_get : (ISeq -> (Int -> Int)) := fluxDefsInstance.svec_iseq_get
-def svec_iseq_set : (ISeq -> (Int -> (Int -> ISeq))) := fluxDefsInstance.svec_iseq_set
-def svec_iseq_slice : (ISeq -> (Int -> (Int -> ISeq))) := fluxDefsInstance.svec_iseq_slice
-def svec_iseq_len : (ISeq -> Int) := fluxDefsInstance.svec_iseq_len
+def VSeq := fluxDefsInstance.VSeq
+def svec_vseq_empty : {t0 : Type} -> [Inhabited t0] -> (VSeq t0) := fluxDefsInstance.svec_vseq_empty
+def svec_vseq_singleton : {t0 : Type} -> [Inhabited t0] -> (t0 -> (VSeq t0)) := fluxDefsInstance.svec_vseq_singleton
+def svec_vseq_append : {t0 : Type} -> [Inhabited t0] -> ((VSeq t0) -> ((VSeq t0) -> (VSeq t0))) := fluxDefsInstance.svec_vseq_append
+def svec_vseq_get : {t0 : Type} -> [Inhabited t0] -> ((VSeq t0) -> (Int -> t0)) := fluxDefsInstance.svec_vseq_get
+def svec_vseq_set : {t0 : Type} -> [Inhabited t0] -> ((VSeq t0) -> (Int -> (t0 -> (VSeq t0)))) := fluxDefsInstance.svec_vseq_set
+def svec_vseq_slice : {t0 : Type} -> [Inhabited t0] -> ((VSeq t0) -> (Int -> (Int -> (VSeq t0)))) := fluxDefsInstance.svec_vseq_slice
+def svec_vseq_len : {t0 : Type} -> [Inhabited t0] -> ((VSeq t0) -> Int) := fluxDefsInstance.svec_vseq_len
