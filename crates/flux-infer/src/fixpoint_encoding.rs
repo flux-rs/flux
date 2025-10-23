@@ -211,6 +211,7 @@ pub mod fixpoint {
 
 /// A type to represent Solutions for KVars
 pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
+pub type FixpointSolution = HashMap<fixpoint::KVid, (Vec<fixpoint::Sort>, fixpoint::Expr)>;
 
 /// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
@@ -661,11 +662,7 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = if config::dump_checker_trace_info() {
-            self.parse_kvar_solutions(&result)?
-        } else {
-            HashMap::default()
-        };
+        let (fixpoint_solution, solution) = self.parse_kvar_solutions(&result)?;
 
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
@@ -745,18 +742,18 @@ where
         Ok(Answer { errors, solution })
     }
 
-    fn parse_kvar_solutions(&self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
-        Ok(self.kcx.group_kvar_solution(
-            result
-                .solution
-                .iter()
-                .chain(&result.non_cuts_solution)
-                .map(|b| self.convert_kvar_bind(b))
-                .try_collect_vec()?,
-        ))
+    fn parse_kvar_solutions(&self, result: &FixpointResult<TagIdx>) -> QueryResult<(FixpointSolution, Solution)> {
+        let fixpoint_solution = result
+            .solution
+            .iter()
+            .chain(&result.non_cuts_solution)
+            .map(|b| self.convert_kvar_bind(b))
+            .try_collect()?;
+        let solution = self.fixpoint_to_kvar_solutions(&fixpoint_solution)?;
+        Ok((fixpoint_solution, solution))
     }
 
-    fn convert_solution(&self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
+    fn convert_solution(&self, expr: &str) -> QueryResult<(Vec<fixpoint::Sort>, fixpoint::Expr)> {
         // 1. convert str -> sexp
         let mut sexp_parser = Parser::new(expr);
         let sexp = match sexp_parser.parse() {
@@ -768,31 +765,43 @@ where
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let mut sexp_ctx = SexpParseCtxt.into_wrapper();
-        let (sorts, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
+        Ok(sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
-        });
-
-        // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
-        let sorts = sorts
-            .iter()
-            .map(|s| self.fixpoint_to_sort(s))
-            .try_collect_vec()
-            .unwrap_or_else(|err| {
-                tracked_span_bug!("failed to convert sorts: {err:?}");
-            });
-        let expr = self
-            .fixpoint_to_expr(&expr)
-            .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
-        Ok(rty::Binder::bind_with_sorts(expr, &sorts))
+        }))
     }
 
     fn convert_kvar_bind(
         &self,
         b: &liquid_fixpoint::KVarBind,
-    ) -> QueryResult<(fixpoint::KVid, rty::Binder<rty::Expr>)> {
+    ) -> QueryResult<(fixpoint::KVid, (Vec<fixpoint::Sort>, fixpoint::Expr))> {
         let kvid = parse_kvid(&b.kvar);
-        let expr = self.convert_solution(&b.val)?;
-        Ok((kvid, expr))
+        let sol = self.convert_solution(&b.val)?;
+        Ok((kvid, sol))
+    }
+
+    fn fixpoint_to_kvar_solutions(&self, fixpoint_solution: &FixpointSolution) -> QueryResult<Solution> {
+        // convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
+        // (leaving the kvids in fixpoint for now).
+        let solution_only_expr_conv = fixpoint_solution.iter().map(|(fixpoint_kvid, (sorts, expr))| {
+            let sorts = sorts
+                .iter()
+                .map(|s| self.fixpoint_to_sort(s))
+                .try_collect_vec()
+                .unwrap_or_else(|err| {
+                    tracked_span_bug!("failed to convert sorts: {err:?}");
+                });
+            let expr = self
+                .fixpoint_to_expr(&expr)
+                .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
+            let binder = rty::Binder::bind_with_sorts(expr, &sorts);
+            (*fixpoint_kvid, binder)
+        }).collect_vec();
+
+        // Convert the kvids, which requires that we group them up because there is a
+        // one-to-many relation between rty::KVid and fixpoint::KVid.
+        Ok(self
+            .kcx
+            .group_kvar_solution(solution_only_expr_conv))
     }
 
     pub fn generate_and_check_lean_lemmas(
