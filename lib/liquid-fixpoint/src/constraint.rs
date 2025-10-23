@@ -432,6 +432,15 @@ impl<T: Types> Expr<T> {
                 // NOTE: (ck) No variable names here so it seems this is nameless.
                 vars.extend(expr.free_vars());
             }
+            Expr::IsCtor(_v, expr) => {
+                // NOTE: (ck) I'm pretty sure this isn't a binder so I'm not going to
+                // bother with `v`.
+                vars.extend(expr.free_vars().into_iter());
+            }
+            Expr::Exists(_sorts, expr) => {
+                // NOTE: (ck) No variable names here so it seems this is nameless.
+                vars.extend(expr.free_vars().into_iter());
+            }
         };
         vars
     }

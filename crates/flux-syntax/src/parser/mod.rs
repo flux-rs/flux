@@ -37,25 +37,6 @@ use crate::{
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
 };
-use crate::{
-    ParseCtxt, ParseError, ParseResult,
-    parser::lookahead::{AnyOf, Expected, PeekExpected},
-    surface::{
-        self, Async,
-        Attr::{self},
-        Attrs, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind,
-        ConstructorArg, DetachedInherentImpl, DetachedSpecs, DetachedTrait, DetachedTraitImpl,
-        Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FluxItem, FnInput,
-        FnOutput, FnRetTy, FnSig, FnSpec, GenericArg, GenericArgKind, GenericBounds, GenericParam,
-        Generics, Ident, ImplAssocReft, Indices, Item, ItemKind, LetDecl, LitKind, Mutability,
-        ParamMode, Path, PathSegment, PrimOpProp, QualNames, Qualifier, QuantKind, RefineArg,
-        RefineParam, RefineParams, Requires, RevealNames, Sort, SortDecl, SortPath, SpecFunc,
-        Spread, StructDef, TraitAssocReft, TraitRef, Ty, TyAlias, TyKind, UnOp, VariantDef,
-        VariantRet, WeakKvar, WhereBoundPredicate,
-    },
-    symbols::{kw, sym},
-    token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
-};
 
 /// An attribute that's considered part of the *syntax* of an item.
 ///

@@ -688,14 +688,15 @@ pub fn iterative_solve(
             solved_refine_tree.simplify(genv);
             let fcstr = solved_refine_tree.into_fixpoint(&mut fcx)?;
             // println!("converted to fixpoint");
-            let errors = fcx.check(
+            let fixpoint_answer = fcx.check(
                 &mut QueryCache::new(),
+                cstr.def_id,
                 fcstr,
                 cstr.query_kind,
                 cstr.scrape_quals,
                 cstr.backend,
             )?;
-            for error in &errors {
+            for error in &fixpoint_answer.errors {
                 // println!("failing constraint {:?}", &error.blame_ctx.expr);
                 // let solution_candidates = _find_solution_candidates(&error.blame_ctx);
                 let wkvars = error
@@ -752,8 +753,8 @@ pub fn iterative_solve(
                 }
             }
             let local_id = cstr.def_id.expect_local();
-            if !errors.is_empty() {
-                all_errors.push((local_id, errors));
+            if !fixpoint_answer.errors.is_empty() {
+                all_errors.push((local_id, fixpoint_answer.errors));
             }
         }
         // Early exit if there are no errors to process.

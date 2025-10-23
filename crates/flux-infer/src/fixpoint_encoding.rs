@@ -19,7 +19,6 @@ use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
     FixpointQueryKind,
-    big_int::BigInt,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     global_env::GlobalEnv,
@@ -37,8 +36,8 @@ use liquid_fixpoint::{
     FixpointResult, FixpointStatus, SmtSolver,
     parser::{FromSexp, ParseError},
     sexp::Parser,
+    qe_and_simplify
 };
-use liquid_fixpoint::{FixpointResult, SmtSolver, qe_and_simplify};
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
@@ -62,7 +61,7 @@ use crate::refine_tree::BlameAnalysis;
 pub mod fixpoint {
     use std::fmt;
 
-    use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam, self};
+    use flux_middle::{def_id::FluxDefId, rty::{self, EarlyReftParam}, self};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
     use rustc_index::newtype_index;
@@ -502,8 +501,7 @@ type ConstMap<'tcx> = FxIndexMap<ConstKey<'tcx>, fixpoint::ConstDecl>;
 enum ConstKey<'tcx> {
     Uif(FluxDefId),
     RustConst(DefId),
-    // Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
-    Alias(FluxDefId, rty::GenericArgs),
+    Alias(FluxDefId, rustc_middle::ty::GenericArgsRef<'tcx>),
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
@@ -619,7 +617,7 @@ where
             })
             .collect();
 
-        let mut constants =  self.ecx.const_env.const_map.values().cloned().cloned().collect_vec();
+        let mut constants =  self.ecx.const_env.const_map.values().cloned().collect_vec();
         constants.extend(define_constants);
 
         let constants_without_inequalities = constants.clone();
@@ -1087,6 +1085,7 @@ where
         Ok(fixpoint::Pred::WKVar(fixpoint::WKVar { wkvid: wkvar.wkvid.clone(), args }))
     }
 
+}
 
 fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     match cst {
@@ -2079,8 +2078,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let fsort = rty::FuncSort::new(vec![from.clone()], to.clone());
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort);
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
@@ -2100,8 +2097,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let sort = scx.func_sort_to_fixpoint(&Self::prim_op_sort(op, span));
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
@@ -2120,8 +2115,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let sort = scx.func_sort_to_fixpoint(&self.genv.func_sort(def_id));
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, Some(def_id)),
                     sort,
@@ -2140,8 +2133,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
-                let global_name = self.global_var_gen.fresh();
-                self.const_map_rev.insert(global_name.clone(), key);
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort: scx.sort_to_fixpoint(&sort),
