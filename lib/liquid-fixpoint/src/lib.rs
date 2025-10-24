@@ -38,7 +38,7 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField,
+    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField,
     Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl
 };
 use constraint_with_env::{topo_sort_data_declarations, ConstraintWithEnv};
