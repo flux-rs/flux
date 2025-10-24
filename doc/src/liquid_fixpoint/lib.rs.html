@@ -38,7 +38,7 @@
 <a href=#38 id=38 data-nosnippet>38</a>};
 <a href=#39 id=39 data-nosnippet>39</a>
 <a href=#40 id=40 data-nosnippet>40</a><span class="kw">pub use </span>constraint::{
-<a href=#41 id=41 data-nosnippet>41</a>    BinOp, BinRel, Bind, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
+<a href=#41 id=41 data-nosnippet>41</a>    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
 <a href=#42 id=42 data-nosnippet>42</a>    Qualifier, Sort, SortCtor, SortDecl,
 <a href=#43 id=43 data-nosnippet>43</a>};
 <a href=#44 id=44 data-nosnippet>44</a><span class="kw">use </span>derive_where::derive_where;
@@ -134,7 +134,7 @@
 <a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">pub type </span>DataField = <span class="macro-nonterminal">$crate::DataField</span>&lt;FixpointTypes&gt;;
 <a href=#135 id=135 data-nosnippet>135</a>            <span class="kw">pub type </span>Bind = <span class="macro-nonterminal">$crate::Bind</span>&lt;FixpointTypes&gt;;
 <a href=#136 id=136 data-nosnippet>136</a>            <span class="kw">pub type </span>Constant = <span class="macro-nonterminal">$crate::Constant</span>&lt;FixpointTypes&gt;;
-<a href=#137 id=137 data-nosnippet>137</a>            <span class="kw">pub use </span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::{<span class="macro-nonterminal">BinOp</span>, BinRel, ThyFunc};
+<a href=#137 id=137 data-nosnippet>137</a>            <span class="kw">pub use </span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::{<span class="macro-nonterminal">BinOp</span>, BinRel, BoundVar, ThyFunc};
 <a href=#138 id=138 data-nosnippet>138</a>        }
 <a href=#139 id=139 data-nosnippet>139</a>
 <a href=#140 id=140 data-nosnippet>140</a>        <span class="kw">impl </span><span class="macro-nonterminal">$crate::Types </span><span class="kw">for </span>fixpoint_generated::FixpointTypes {
