@@ -1024,3 +1024,12 @@ A `def_id` is checked if it matches any of the patterns.
 ```
 cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
 ```
+
+## Scraping Qualifiers
+
+Sometimes it is useful to tell fixpoint to automatically "scrape" qualifiers from constraints etc. to synthesize
+solutions for constraints.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/scrape01.rs}}
+```
