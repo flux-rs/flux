@@ -5,6 +5,7 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
+    constraint::BoundVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -331,6 +332,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             }
             Expr::Exists(sorts, body) => {
                 write!(f, "(exists ({}) {})", sorts.iter().format(" "), body)
+            }
+            Expr::BoundVar(BoundVar { level, idx }) => {
+                write!(f, "bv{level}_{idx}")
             }
         }
     }

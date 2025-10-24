@@ -98,8 +98,6 @@ pub mod fixpoint {
         UIFRel(BinRel),
         Param(EarlyReftParam),
         ConstGeneric(ParamConst),
-        // for qualifier arguments, existentially quantified variables.
-        BoundVar { level: usize, idx: usize },
     }
 
     impl From<GlobalVar> for Var {
@@ -140,7 +138,6 @@ pub mod fixpoint {
                 Var::Param(param) => {
                     write!(f, "reftgen${}${}", param.name, param.index)
                 }
-                Var::BoundVar { level, idx } => write!(f, "bv{level}_{idx}"),
             }
         }
     }
@@ -612,7 +609,7 @@ where
         };
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
-        let mut sexp_ctx = SexpParseCtxt::new().into_wrapper();
+        let mut sexp_ctx = SexpParseCtxt.into_wrapper();
         let (sorts, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
@@ -2040,15 +2037,6 @@ fn parse_kvid(kvid: &str) -> fixpoint::KVid {
     }
 }
 
-fn parse_bound_var(scopes: &[FxIndexSet<String>], name: &str) -> Option<fixpoint::Var> {
-    for (level, scope) in scopes.iter().rev().enumerate() {
-        if let Some(idx) = scope.get_index_of(name) {
-            return Some(fixpoint::Var::BoundVar { level, idx });
-        }
-    }
-    None
-}
-
 fn parse_local_var(name: &str) -> Option<fixpoint::Var> {
     if let Some(rest) = name.strip_prefix('a')
         && let Ok(idx) = rest.parse::<u32>()
@@ -2115,9 +2103,7 @@ fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
     None
 }
 
-struct SexpParseCtxt {
-    scopes: Vec<FxIndexSet<String>>,
-}
+struct SexpParseCtxt;
 
 impl FromSexp<FixpointTypes> for SexpParseCtxt {
     fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
@@ -2129,9 +2115,6 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt {
     }
 
     fn var(&self, name: &str) -> Result<fixpoint::Var, ParseError> {
-        if let Some(var) = parse_bound_var(&self.scopes, name) {
-            return Ok(var);
-        }
         if let Some(var) = parse_local_var(name) {
             return Ok(var);
         }
@@ -2157,18 +2140,5 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt {
             return Ok(fixpoint::DataSort::Adt(fixpoint::AdtId::from(adt_id)));
         }
         Err(ParseError::err(format!("Unknown sort: {name}")))
-    }
-
-    fn push_scope(&mut self, names: &[String]) {
-        self.scopes.push(names.iter().cloned().collect());
-    }
-    fn pop_scope(&mut self) {
-        self.scopes.pop();
-    }
-}
-
-impl SexpParseCtxt {
-    fn new() -> Self {
-        Self { scopes: vec![] }
     }
 }
