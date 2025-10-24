@@ -498,6 +498,7 @@ where
     fn push_scope(&mut self, names: &[String]) {
         self.scopes.push(names.iter().cloned().collect());
     }
+
     fn pop_scope(&mut self) {
         self.scopes.pop();
     }
