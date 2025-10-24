@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
 use itertools::Itertools;
@@ -297,11 +294,13 @@ impl<T: Types> Expr<T> {
         vars
     }
 
-    pub fn substitute_bvar(&self, substs: &HashMap<BoundVar, Expr<T>>) -> Self {
+    pub fn substitute_bvar(&self, subst_layer: &[Expr<T>], current_level: usize) -> Self {
         match self {
             Expr::Constant(_) | Expr::Var(_) | Expr::ThyFunc(_) => self.clone(),
             Expr::BoundVar(bound_var) => {
-                if let Some(subst) = substs.get(bound_var) {
+                if bound_var.level == current_level
+                    && let Some(subst) = subst_layer.get(bound_var.idx)
+                {
                     subst.clone()
                 } else {
                     self.clone()
@@ -309,32 +308,37 @@ impl<T: Types> Expr<T> {
             }
             Expr::App(expr, exprs) => {
                 Expr::App(
-                    Box::new(expr.substitute_bvar(substs)),
+                    Box::new(expr.substitute_bvar(subst_layer, current_level)),
                     exprs
                         .iter()
-                        .map(|e| e.substitute_bvar(substs))
+                        .map(|e| e.substitute_bvar(subst_layer, current_level))
                         .collect_vec(),
                 )
             }
-            Expr::Neg(expr) => Expr::Neg(Box::new(expr.substitute_bvar(substs))),
+            Expr::Neg(expr) => {
+                Expr::Neg(Box::new(expr.substitute_bvar(subst_layer, current_level)))
+            }
             Expr::BinaryOp(bin_op, args) => {
                 Expr::BinaryOp(
                     *bin_op,
-                    Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]),
+                    Box::new([
+                        args[0].substitute_bvar(subst_layer, current_level),
+                        args[1].substitute_bvar(subst_layer, current_level),
+                    ]),
                 )
             }
             Expr::IfThenElse(args) => {
                 Expr::IfThenElse(Box::new([
-                    args[0].substitute_bvar(substs),
-                    args[1].substitute_bvar(substs),
-                    args[2].substitute_bvar(substs),
+                    args[0].substitute_bvar(subst_layer, current_level),
+                    args[1].substitute_bvar(subst_layer, current_level),
+                    args[2].substitute_bvar(subst_layer, current_level),
                 ]))
             }
             Expr::And(exprs) => {
                 Expr::And(
                     exprs
                         .iter()
-                        .map(|e| e.substitute_bvar(substs))
+                        .map(|e| e.substitute_bvar(subst_layer, current_level))
                         .collect_vec(),
                 )
             }
@@ -342,46 +346,54 @@ impl<T: Types> Expr<T> {
                 Expr::Or(
                     exprs
                         .iter()
-                        .map(|e| e.substitute_bvar(substs))
+                        .map(|e| e.substitute_bvar(subst_layer, current_level))
                         .collect_vec(),
                 )
             }
-            Expr::Not(expr) => Expr::Not(Box::new(expr.substitute_bvar(substs))),
+            Expr::Not(expr) => {
+                Expr::Not(Box::new(expr.substitute_bvar(subst_layer, current_level)))
+            }
             Expr::Imp(args) => {
                 Expr::Imp(Box::new([
-                    args[0].substitute_bvar(substs),
-                    args[1].substitute_bvar(substs),
+                    args[0].substitute_bvar(subst_layer, current_level),
+                    args[1].substitute_bvar(subst_layer, current_level),
                 ]))
             }
             Expr::Iff(args) => {
                 Expr::Iff(Box::new([
-                    args[0].substitute_bvar(substs),
-                    args[1].substitute_bvar(substs),
+                    args[0].substitute_bvar(subst_layer, current_level),
+                    args[1].substitute_bvar(subst_layer, current_level),
                 ]))
             }
             Expr::Atom(bin_rel, args) => {
                 Expr::Atom(
                     *bin_rel,
-                    Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]),
+                    Box::new([
+                        args[0].substitute_bvar(subst_layer, current_level),
+                        args[1].substitute_bvar(subst_layer, current_level),
+                    ]),
                 )
             }
             Expr::Let(var, args) => {
                 Expr::Let(
                     var.clone(),
-                    Box::new([args[0].substitute_bvar(substs), args[1].substitute_bvar(substs)]),
+                    Box::new([
+                        args[0].substitute_bvar(subst_layer, current_level),
+                        args[1].substitute_bvar(subst_layer, current_level),
+                    ]),
                 )
             }
             Expr::IsCtor(var, expr) => {
-                Expr::IsCtor(var.clone(), Box::new(expr.substitute_bvar(substs)))
+                Expr::IsCtor(
+                    var.clone(),
+                    Box::new(expr.substitute_bvar(subst_layer, current_level)),
+                )
             }
             Expr::Exists(sorts, expr) => {
-                let new_substs = substs
-                    .iter()
-                    .map(|(bvar, subst)| {
-                        (BoundVar { level: bvar.level + 1, idx: bvar.idx }, subst.clone())
-                    })
-                    .collect();
-                Expr::Exists(sorts.clone(), Box::new(expr.substitute_bvar(&new_substs)))
+                Expr::Exists(
+                    sorts.clone(),
+                    Box::new(expr.substitute_bvar(subst_layer, current_level + 1)),
+                )
             }
         }
     }
