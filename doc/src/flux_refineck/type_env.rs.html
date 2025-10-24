@@ -566,7 +566,7 @@
 <a href=#566 id=566 data-nosnippet>566</a>        <span class="kw">for </span>path <span class="kw">in </span><span class="kw-2">&amp;</span>paths {
 <a href=#567 id=567 data-nosnippet>567</a>            <span class="kw">let </span>ty1 = <span class="self">self</span>.bindings.get(path);
 <a href=#568 id=568 data-nosnippet>568</a>            <span class="kw">let </span>ty2 = other.bindings.get(path);
-<a href=#569 id=569 data-nosnippet>569</a>            <span class="kw">let </span>ty = <span class="self">self</span>.join_ty(<span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2);
+<a href=#569 id=569 data-nosnippet>569</a>            <span class="kw">let </span>ty = <span class="kw">if </span>ty1 == ty2 { ty1.clone() } <span class="kw">else </span>{ <span class="self">self</span>.join_ty(<span class="kw-2">&amp;</span>ty1, <span class="kw-2">&amp;</span>ty2) };
 <a href=#570 id=570 data-nosnippet>570</a>            modified |= ty1 != ty;
 <a href=#571 id=571 data-nosnippet>571</a>            <span class="self">self</span>.update(path, ty, span);
 <a href=#572 id=572 data-nosnippet>572</a>        }

@@ -6439,6 +6439,29 @@ const _: () = ();</code></pre>
 A <code>def_id</code> is checked if it matches any of the patterns.</p>
 <pre><code>cargo x run tests/tests/pos/detached/detach00.rs -- -Fdump-checker-trace -Fdump-constraint -Finclude=span:tests/tests/pos/detached/detach00.rs:13:1 -Finclude=def:id -Finclude=path/to/file.rs
 </code></pre>
+<h2 id="scraping-qualifiers"><a class="header" href="#scraping-qualifiers">Scraping Qualifiers</a></h2>
+<p>Sometimes it is useful to tell fixpoint to automatically "scrape" qualifiers from constraints etc. to synthesize
+solutions for constraints.</p>
+<pre><code class="language-rust noplayground">#![flux::opts(scrape_quals = "true")]
+
+#[path = "../../lib/rvec.rs"]
+mod rvec;
+use rvec::RVec;
+
+// test that the (fixpoint) `--scrape` mechanism suffices to get
+// the qualifier needed for the loop invariant below.
+
+#[flux::sig(fn(lo: usize, hi:usize{lo&lt;=hi}) -&gt; RVec&lt;usize&gt;[hi-lo] )]
+pub fn range(lo: usize, hi: usize) -&gt; RVec&lt;usize&gt; {
+    let mut i = lo;
+    let mut res = RVec::new();
+    while i &lt; hi {
+        // inv: res.len() = i - lo
+        res.push(i);
+        i += 1;
+    }
+    res
+}</code></pre>
 <hr>
 <ol class="footnote-definition"><li id="footnote-ignore-shorthand">
 <p><code>#[flux_rs::ignore]</code> (resp. <code>#[flux_rs::trusted]</code>) is shorthand for <code>#[flux_rs::ignore(yes)]</code> (resp. <code>#[flux_rs::trusted(yes)]</code>). <a href="#fr-ignore-shorthand-1">↩</a></p>
