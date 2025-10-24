@@ -1,5 +1,5 @@
 use core::panic;
-use std::{ str::FromStr, iter, collections::{HashMap, HashSet}, vec};
+use std::{ collections::{HashMap, HashSet}, iter, str::FromStr, vec};
 
 use itertools::Itertools;
 use z3::{
@@ -8,12 +8,21 @@ use z3::{
 };
 
 use crate::{
-    DataDecl, FixpointStatus, SortCtor, constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort}, ConstDecl, Error, FixpointFmt, FixpointResult, FlatConstraint, Identifier, Stats, ThyFunc, Types, };
+    BoundVar, ConstDecl, DataDecl, Error, FixpointFmt, FixpointResult, FixpointStatus, FlatConstraint, Identifier, SortCtor, Stats, ThyFunc, Types, constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort} };
 
 #[derive(Debug)]
 pub(crate) enum Binding {
     Variable(ast::Dynamic),
     Function(FuncDecl, ast::Dynamic),
+}
+
+impl Binding {
+    pub fn to_var(&self) -> &ast::Dynamic {
+        match self {
+            Binding::Variable(var) => var,
+            Binding::Function(_, c) => c,
+        }
+    }
 }
 
 impl From<ast::Dynamic> for Binding {
@@ -26,11 +35,13 @@ pub(crate) struct Env<T: Types> {
     bindings: HashMap<T::Var, Vec<Binding>>,
     data_types: HashMap<T::Sort, z3::Sort>,
     rev_bindings: HashMap<String, T::Var>,
+    bound_vars: Vec<Vec<(String, Binding)>>,
+    fresh_var_counter: usize,
 }
 
 impl<T: Types> Env<T> {
     pub(crate) fn new() -> Self {
-        Self { bindings: HashMap::new(), data_types: HashMap::new(), rev_bindings: HashMap::new() }
+        Self { bindings: HashMap::new(), data_types: HashMap::new(), rev_bindings: HashMap::new(), bound_vars: vec![], fresh_var_counter: 0 }
     }
 
     pub(crate) fn insert<B: Into<Binding>>(&mut self, name: T::Var, value: B) {
@@ -57,8 +68,7 @@ impl<T: Types> Env<T> {
 
     fn var_lookup(&self, name: &T::Var) -> Option<&ast::Dynamic> {
         match &self.lookup(name) {
-            Some(Binding::Variable(var)) => Some(var),
-            Some(Binding::Function(_, c)) => Some(c),
+            Some(b) => Some(b.to_var()),
             _ => None,
         }
     }
@@ -80,6 +90,28 @@ impl<T: Types> Env<T> {
 
     fn datatype_lookup(&self, name: &T::Sort) -> Option<&z3::Sort> {
         self.data_types.get(name)
+    }
+
+    fn push_bvar_layer(&mut self, layer: Vec<(String, Binding)>) {
+        self.bound_vars.push(layer);
+    }
+
+    fn lookup_bvar(&self, bvar: BoundVar) -> Option<&ast::Dynamic> {
+        self.bound_vars.get((self.bound_vars.len() - bvar.level) - 1).and_then(|layer| {
+            layer.get(bvar.idx).map(|(_name, binding)| {
+                binding.to_var()
+            })
+        })
+    }
+
+    fn pop_layer(&mut self) -> Option<Vec<(String, Binding)>> {
+        self.bound_vars.pop()
+    }
+
+    fn fresh_var(&mut self, sort: &Sort<T>) -> String {
+        let r = format!("fresh_{}_{}", sort, self.fresh_var_counter);
+        self.fresh_var_counter += 1;
+        r
     }
 }
 
@@ -515,8 +547,35 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::ThyFunc(_) => {
             unreachable!("Should not encounter theory func outside of an application")
         }
-        Expr::Exists(..) => todo!("exists not yet implemented"),
-        Expr::BoundVar(_) => unreachable!("Bound vars should only be present in fixpoint's output"),
+        Expr::Exists(sorts, e) => {
+            let bindings = sorts.iter().map(|sort| {
+                let fresh_name = env.fresh_var(sort);
+                let binding = new_binding(&fresh_name, sort, env);
+                (fresh_name, binding)
+            }).collect();
+            env.push_bvar_layer(bindings);
+            let mut body = expr_to_z3(e, env).as_bool().expect("expecting boolean expression");
+            let bindings: Vec<_> = env.pop_layer().expect("no layer of bound variables to pop");
+            // It shouldn't matter, but the order we expect to see the binders is
+            // actually the reverse order.
+            for (name, binding) in bindings.into_iter().rev() {
+                let var = binding.to_var();
+                body = z3::ast::quantifier_const(
+                    false,
+                    0,
+                    format!("{}_binder", name),
+                    "",
+                    &[var],
+                    &[],
+                    &[],
+                    &body,
+                );
+            }
+            body.into()
+        }
+        Expr::BoundVar(bvar) => {
+            env.lookup_bvar(*bvar).cloned().expect(&format!("bound var {:?} not present", bvar))
+        }
     }
 }
 
@@ -589,12 +648,12 @@ pub(crate) fn new_datatype<T: Types>(
     sort
 }
 
-pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>) -> Binding {
+pub(crate) fn new_binding<T: Types>(name: &str, sort: &Sort<T>, env: &Env<T>) -> Binding {
     match &sort {
-        Sort::Int => Binding::Variable(ast::Int::new_const(name.display().to_string()).into()),
-        Sort::Real => Binding::Variable(ast::Real::new_const(name.display().to_string()).into()),
-        Sort::Bool => Binding::Variable(ast::Bool::new_const(name.display().to_string()).into()),
-        Sort::Str => Binding::Variable(ast::String::new_const(name.display().to_string()).into()),
+        Sort::Int => Binding::Variable(ast::Int::new_const(name).into()) ,
+        Sort::Real => Binding::Variable(ast::Real::new_const(name).into()),
+        Sort::Bool => Binding::Variable(ast::Bool::new_const(name).into()),
+        Sort::Str => Binding::Variable(ast::String::new_const(name).into()),
         Sort::Func(sorts) => {
             let mut domain = vec![z3_sort(&sorts[0], env)];
             let mut current = sorts.as_ref();
@@ -606,13 +665,13 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>)
             }
             let domain_refs = domain.iter().collect_vec();
             let fun_decl =
-                FuncDecl::new(name.display().to_string(), &domain_refs, &z3_sort(range, env));
-            Binding::Function(fun_decl, ast::Int::new_const(name.display().to_string()).into())
+                FuncDecl::new(name, &domain_refs, &z3_sort(range, env));
+            Binding::Function(fun_decl, ast::Int::new_const(name).into())
         }
         Sort::BitVec(bv_size) => {
             match **bv_size {
                 Sort::BvSize(size) => {
-                    Binding::Variable(ast::BV::new_const(name.display().to_string(), size).into())
+                    Binding::Variable(ast::BV::new_const(name, size).into())
                 }
                 _ => panic!("incorrect bitvector size specification"),
             }
@@ -621,14 +680,14 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>)
             match sort_ctor {
                 SortCtor::Set => {
                     Binding::Variable(
-                        ast::Set::new_const(name.display().to_string(), &z3_sort(&args[0], env))
+                        ast::Set::new_const(name, &z3_sort(&args[0], env))
                             .into(),
                     )
                 }
                 SortCtor::Map => {
                     Binding::Variable(
                         ast::Array::new_const(
-                            name.display().to_string(),
+                            name,
                             &z3_sort(&args[0], env),
                             &z3_sort(&args[1], env),
                         )
@@ -638,7 +697,7 @@ pub(crate) fn new_binding<T: Types>(name: &T::Var, sort: &Sort<T>, env: &Env<T>)
                 SortCtor::Data(data_ctor) => {
                     Binding::Variable(
                         ast::Datatype::new_const(
-                            name.display().to_string(),
+                            name,
                             env.datatype_lookup(data_ctor).unwrap(),
                         )
                         .into(),
@@ -702,7 +761,7 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
         }
 
         Constraint::ForAll(bind, inner) => {
-            env.insert(bind.name.clone(), new_binding(&bind.name, &bind.sort, env));
+            env.insert(bind.name.clone(), new_binding(&bind.name.display().to_string(), &bind.sort, env));
             solver.assert(pred_to_z3(&bind.pred, env, AllowKVars::NoKVars));
             let inner_soln = is_constraint_satisfiable(inner, solver, env);
             env.pop(&bind.name);
@@ -725,16 +784,17 @@ pub fn qe_and_simplify<T: Types>(
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
     consts.iter().for_each(|const_decl| {
-        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name, &const_decl.sort, &vars))
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
     });
     let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
     // These are going to be the bound vars, so we declare the free vars above them.
     for (var, sort) in &cstr.binders {
         // TODO: eliminate binders that are unused.
-        vars.insert(var.clone(), new_binding(var, sort, &vars));
+        vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
     }
     let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().filter_map(|pred| {
-        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::ReplaceKVarsWithTrue);
+        // println!("converting {}", pred);
+        let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
         // Assumptions that only pertain to non-quantified variables will
         // just be asserted.
         if pred.free_vars().is_subset(&free_vars) {
@@ -744,6 +804,7 @@ pub fn qe_and_simplify<T: Types>(
             Some(pred_ast)
         }
     }).collect_vec());
+    // println!("converting {}", &cstr.head);
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
     let mut body = z3::ast::Bool::implies(&lhs, &rhs);
     for (var, _sort) in &cstr.binders {
@@ -763,7 +824,6 @@ pub fn qe_and_simplify<T: Types>(
         }
     }
     goal.assert(&body);
-    // println!("goal before qe + simplify: {:?}", goal);
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify"));
     match qe_and_simplify.apply(&goal, None) {
         Ok(apply_result) => {
@@ -772,7 +832,7 @@ pub fn qe_and_simplify<T: Types>(
                     return z3_to_expr(&vars, &new_cstr);
                 }
             }
-            panic!("No goals/formulas after qe + simplfiy");
+            Err(Z3DecodeError::NoResults)
         }
         Err(_) => panic!("Failed to qe + simplify"),
     }
@@ -801,6 +861,7 @@ pub enum Z3DecodeError {
     UnexpectedAppHead(FuncDecl),
     UnexpectedConstHead(FuncDecl),
     InvalidIntConstant,
+    NoResults,
 }
 
 fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
@@ -920,8 +981,18 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
             Err(Z3DecodeError::ArgNumMismatch("<=>", args.len()))
         }
     } else if let Ok(binop) = head_name.parse::<BinOp>() {
-        if args.len() == 2 {
-            Ok(Expr::BinaryOp(binop, Box::new([z3_to_expr(env, &args[0])?, z3_to_expr(env, &args[1])?])))
+        // NOTE: (ck) It seems like we can get back > 2 for addition (+). I'm
+        // assuming it'll only do this with commutative things, but I did try to
+        // ensure left-to-right ordering just in case.
+        if args.len() >= 2 {
+            let mut exprs: Vec<_> = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).try_collect()?;
+            let e1 = exprs.pop().unwrap();
+            let e2 = exprs.pop().unwrap();
+            let mut bin_op_e = Expr::BinaryOp(binop, Box::new([e1, e2]));
+            for e in exprs.into_iter().rev() {
+                bin_op_e = Expr::BinaryOp(binop, Box::new([e, bin_op_e]));
+            }
+            Ok(bin_op_e)
         } else {
             Err(Z3DecodeError::ArgNumMismatch("binop", args.len()))
         }

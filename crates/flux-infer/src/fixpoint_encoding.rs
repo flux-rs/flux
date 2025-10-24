@@ -701,13 +701,24 @@ where
                                     new_flat_constraint.binders.retain(|(var, _)| {
                                         !matches!(var, fixpoint::Var::Underscore)
                                     });
-                                    // Remove all trivially true assumptions
-                                    // (and kvars for now; ideally we would sub their values but we'll
-                                    // underapproximate with true)
-                                    new_flat_constraint.assumptions.retain(|pred| {
-                                        !pred.is_trivially_true()
-                                            && !matches!(pred, fixpoint::Pred::KVar(..))
-                                    });
+                                    new_flat_constraint.assumptions = new_flat_constraint.assumptions.into_iter().filter_map(|pred| {
+                                        // Remove all trivially true assumptions
+                                        if pred.is_trivially_true() {
+                                            None
+                                        // Substitute the kvar solutions in
+                                        } else if let fixpoint::Pred::KVar(kvid, args) = pred {
+                                            if let Some((sorts, solution)) = &fixpoint_solution.get(&kvid) {
+                                                assert!(sorts.len() == args.len());
+                                                let arg_exprs = args.into_iter().map(|arg| fixpoint::Expr::Var(arg)).collect_vec();
+                                                Some(fixpoint::Pred::Expr(solution.substitute_bvar(&arg_exprs, 0)))
+                                            } else {
+                                                println!("Missing kvar solution for kvid {:?}", kvid);
+                                                None
+                                            }
+                                        } else {
+                                            Some(pred)
+                                        }
+                                    }).collect();
                                     consts.extend(constants_without_inequalities.iter().cloned());
                                     match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
                                         Ok(fe) => {

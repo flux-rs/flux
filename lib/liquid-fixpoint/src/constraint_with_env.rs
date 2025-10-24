@@ -145,7 +145,7 @@ impl<T: Types> ConstraintWithEnv<T> {
         self.constants.iter().for_each(|const_decl| {
             vars.insert(
                 const_decl.name.clone(),
-                new_binding(&const_decl.name, &const_decl.sort, &vars),
+                new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars),
             );
         });
         self.datatype_decls.iter().for_each(|data_decl| {
