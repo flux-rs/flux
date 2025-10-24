@@ -500,7 +500,7 @@ where
             return Ok(Answer::trivial());
         }
         let def_span = self.ecx.def_span();
-        let kvars = self.kcx.encode_kvars();
+        let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
         let qualifiers = self
             .ecx
@@ -574,28 +574,14 @@ where
     }
 
     fn parse_kvar_solutions(&self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
-        let solution = result
-            .solution
-            .iter()
-            .chain(&result.non_cuts_solution)
-            .map(|b| self.convert_kvar_bind(b))
-            .try_collect_vec()?;
-
-        Ok(self
-            .kcx
-            .group_by_orig(solution)
-            .into_iter()
-            .map(|(kvid, solutions)| {
-                let vars = solutions[0].vars().clone();
-                let conj = rty::Expr::and_from_iter(
-                    solutions
-                        .into_iter()
-                        .enumerate()
-                        .map(|(i, sol)| sol.skip_binder().shift_horizontally(i)),
-                );
-                (kvid, rty::Binder::bind_with_vars(conj, vars))
-            })
-            .collect())
+        Ok(self.kcx.group_kvar_solution(
+            result
+                .solution
+                .iter()
+                .chain(&result.non_cuts_solution)
+                .map(|b| self.convert_kvar_bind(b))
+                .try_collect_vec()?,
+        ))
     }
 
     fn convert_solution(&self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
@@ -642,7 +628,7 @@ where
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
-            if !self.kcx.encode_kvars().is_empty() {
+            if !self.kcx.is_empty() {
                 tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
             }
 
@@ -830,7 +816,7 @@ where
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
-        let kvids = self.kcx.encode(kvar.kvid, decl, &mut self.scx);
+        let kvids = self.kcx.declare(kvar.kvid, decl);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
@@ -882,59 +868,38 @@ fn const_to_fixpoint(cst: rty::Constant) -> fixpoint::Expr {
     }
 }
 
-#[derive(Debug, Clone)]
-struct FixpointKVar {
-    sorts: Vec<fixpoint::Sort>,
-    orig: rty::KVid,
-}
-
 /// During encoding into fixpoint we generate multiple fixpoint kvars per kvar in flux. A
 /// [`KVarEncodingCtxt`] is used to keep track of the state needed for this.
+///
+/// See [`KVarEncoding`]
 #[derive(Default)]
 struct KVarEncodingCtxt {
-    /// List of all kvars that need to be defined in fixpoint
-    kvars: IndexVec<fixpoint::KVid, FixpointKVar>,
-    /// A mapping from [`rty::KVid`] to the range of [`fixpoint::KVid`]s encoding the kvar.
-    ///
-    /// See [`KVarEncoding`]
-    map: UnordMap<rty::KVid, Range<fixpoint::KVid>>,
+    /// A map from a [`rty::KVid`] to the range of [`fixpoint::KVid`]s that will be used to
+    /// encode it.
+    ranges: FxIndexMap<rty::KVid, Range<fixpoint::KVid>>,
 }
 
 impl KVarEncodingCtxt {
-    fn encode(
-        &mut self,
-        kvid: rty::KVid,
-        decl: &KVarDecl,
-        scx: &mut SortEncodingCtxt,
-    ) -> Range<fixpoint::KVid> {
-        self.map
+    fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
+    /// Declares that a kvar has to be encoded into fixpoint and assigns a range of
+    /// [`fixpoint::KVid`]'s to it.
+    fn declare(&mut self, kvid: rty::KVid, decl: &KVarDecl) -> Range<fixpoint::KVid> {
+        // The start of the next range
+        let start = self
+            .ranges
+            .last()
+            .map_or(fixpoint::KVid::from_u32(0), |(_, r)| r.end);
+
+        self.ranges
             .entry(kvid)
             .or_insert_with(|| {
-                let all_args = decl
-                    .sorts
-                    .iter()
-                    .map(|s| scx.sort_to_fixpoint(s))
-                    .collect_vec();
-
-                // See comment in `kvar_to_fixpoint`
-                if all_args.is_empty() {
-                    let sorts = vec![fixpoint::Sort::Int];
-                    let kvid = self.kvars.push(FixpointKVar::new(sorts, kvid));
-                    return kvid..kvid + 1;
-                }
-
                 match decl.encoding {
-                    KVarEncoding::Single => {
-                        let kvid = self.kvars.push(FixpointKVar::new(all_args, kvid));
-                        kvid..kvid + 1
-                    }
+                    KVarEncoding::Single => start..start + 1,
                     KVarEncoding::Conj => {
                         let n = usize::max(decl.self_args, 1);
-                        let start = self.kvars.next_index();
-                        for i in 0..n {
-                            let sorts = all_args[i..].to_vec();
-                            self.kvars.push(FixpointKVar::new(sorts, kvid));
-                        }
                         start..start + n
                     }
                 }
@@ -942,21 +907,61 @@ impl KVarEncodingCtxt {
             .clone()
     }
 
-    fn encode_kvars(&self) -> Vec<fixpoint::KVarDecl> {
-        self.kvars
-            .iter_enumerated()
-            .map(|(kvid, kvar)| {
-                fixpoint::KVarDecl::new(kvid, kvar.sorts.clone(), format!("orig: {:?}", kvar.orig))
+    fn encode_kvars(&self, kvars: &KVarGen, scx: &mut SortEncodingCtxt) -> Vec<fixpoint::KVarDecl> {
+        self.ranges
+            .iter()
+            .flat_map(|(orig, range)| {
+                let mut all_sorts = kvars
+                    .get(*orig)
+                    .sorts
+                    .iter()
+                    .map(|s| scx.sort_to_fixpoint(s))
+                    .collect_vec();
+
+                // See comment in `kvar_to_fixpoint`
+                if all_sorts.is_empty() {
+                    all_sorts = vec![fixpoint::Sort::Int];
+                }
+
+                range.clone().enumerate().map(move |(i, kvid)| {
+                    let sorts = all_sorts[i..].to_vec();
+                    fixpoint::KVarDecl::new(kvid, sorts, format!("orig: {:?}", orig))
+                })
             })
             .collect()
     }
 
-    fn group_by_orig<T>(&self, mut vec: Vec<(fixpoint::KVid, T)>) -> HashMap<rty::KVid, Vec<T>> {
-        let mut map: HashMap<_, Vec<_>> = HashMap::default();
-        vec.sort_by_key(|(kvid, _)| *kvid);
-        for (kvid, t) in vec {
-            let orig = self.kvars[kvid].orig;
-            map.entry(orig).or_default().push(t);
+    /// For each [`rty::KVid`] `$k`, this function collects all predicates associated
+    /// with the [`fixpoint::KVid`]s that encode `$k` and combines them into a single
+    /// predicate by conjoining them.
+    ///
+    /// A group (i.e., a combined predicate) is included in the result only if *all*
+    /// [`fixpoint::KVid`]s in the encoding range of `$k` are present in the input.
+    fn group_kvar_solution(
+        &self,
+        mut items: Vec<(fixpoint::KVid, rty::Binder<rty::Expr>)>,
+    ) -> HashMap<rty::KVid, rty::Binder<rty::Expr>> {
+        let mut map = HashMap::default();
+
+        items.sort_by_key(|(kvid, _)| *kvid);
+        items.reverse();
+
+        for (orig, range) in &self.ranges {
+            let mut preds = vec![];
+            while let Some((_, t)) = items.pop_if(|(k, _)| range.contains(k)) {
+                preds.push(t);
+            }
+            // We only put it in the map if the entire range is present.
+            if preds.len() == range.end.as_usize() - range.start.as_usize() {
+                let vars = preds[0].vars().clone();
+                let conj = rty::Expr::and_from_iter(
+                    preds
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, e)| e.skip_binder().shift_horizontally(i)),
+                );
+                map.insert(*orig, rty::Binder::bind_with_vars(conj, vars));
+            }
         }
         map
     }
@@ -1020,12 +1025,6 @@ impl LocalVarEnv {
     fn get_late_bvar(&self, debruijn: DebruijnIndex, var: BoundVar) -> Option<fixpoint::LocalVar> {
         let depth = self.layers.len().checked_sub(debruijn.as_usize() + 1)?;
         self.layers[depth].get(var.as_usize()).copied()
-    }
-}
-
-impl FixpointKVar {
-    fn new(sorts: Vec<fixpoint::Sort>, orig: rty::KVid) -> Self {
-        Self { sorts, orig }
     }
 }
 
