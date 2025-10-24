@@ -575,7 +575,7 @@ impl BasicBlockEnvShape {
     }
 
     fn join_ty(&self, ty1: &Ty, ty2: &Ty) -> Ty {
-        let res = match (ty1.kind(), ty2.kind()) {
+        match (ty1.kind(), ty2.kind()) {
             (TyKind::Blocked(ty1), _) => Ty::blocked(self.join_ty(ty1, &ty2.unblocked())),
             (_, TyKind::Blocked(ty2)) => Ty::blocked(self.join_ty(&ty1.unblocked(), ty2)),
             (TyKind::Uninit, _) | (_, TyKind::Uninit) => Ty::uninit(),
@@ -618,9 +618,7 @@ impl BasicBlockEnvShape {
                 Ty::downcast(adt1.clone(), args1.clone(), ty1.clone(), *variant1, fields)
             }
             _ => tracked_span_bug!("unexpected types: `{ty1:?}` - `{ty2:?}`"),
-        };
-        // println!("TRACE: join_ty: ty1: {:?} --- ty2: {:?} ====> ty: {:?}", ty1, ty2, res);
-        res
+        }
     }
 
     fn join_idx(&self, e1: &Expr, e2: &Expr, sort: &Sort, bound_sorts: &mut Vec<Sort>) -> Expr {
