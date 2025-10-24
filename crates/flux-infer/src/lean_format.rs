@@ -1,6 +1,6 @@
 use core::fmt;
 
-use flux_middle::global_env::GlobalEnv;
+use flux_middle::{global_env::GlobalEnv};
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
@@ -64,13 +64,23 @@ impl<'a> fmt::Display for LeanSortVar<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.ctors.len() == 1 {
-            writeln!(f, "structure {} where", LeanSortVar(&self.0.name))?;
+            writeln!(
+                f, 
+                "structure {} {} where",
+                LeanSortVar(&self.0.name),
+                (0..self.0.vars).map(|i| format!("(t{i} : Type) [Inhabited t{i}]")).format(" ")
+            )?;
             writeln!(f, "  {}::", self.0.ctors[0].name.display().to_string().replace("$", "_"),)?;
             for field in &self.0.ctors[0].fields {
                 writeln!(f, "  {}", LeanDataField(field))?;
             }
         } else {
-            writeln!(f, "inductive {} where", LeanSortVar(&self.0.name))?;
+            writeln!(
+                f, 
+                "inductive {} {} where", 
+                LeanSortVar(&self.0.name),
+                (0..self.0.vars).map(|i| format!("(t{i} : Type) [Inhabited t{i}]")).format(" ")
+            )?;
             for data_ctor in &self.0.ctors {
                 writeln!(
                     f,
@@ -108,14 +118,19 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
             ThyFunc::BvSlt => write!(f, "BitVec.slt"),
             ThyFunc::BvUle => write!(f, "BitVec.ule"),
             ThyFunc::BvUlt => write!(f, "BitVec.ult"),
-            ThyFunc::BvAshr => write!(f, "BitVec.sshiftRight"),
-            ThyFunc::BvLshr => write!(f, "BitVec.ushiftRight"),
-            ThyFunc::BvShl => write!(f, "BitVec.shiftLeft"),
+            ThyFunc::BvAshr => write!(f, "BitVec_sshiftRight"),
+            ThyFunc::BvLshr => write!(f, "BitVec_ushiftRight"),
+            ThyFunc::BvShl => write!(f, "BitVec_shiftLeft"),
             ThyFunc::BvSignExtend(size) => write!(f, "BitVec.signExtend {}", size),
             ThyFunc::BvZeroExtend(size) => write!(f, "BitVec.zeroExtend {}", size),
-            ThyFunc::BvUrem | ThyFunc::BvSge | ThyFunc::BvSgt | ThyFunc::BvUge | ThyFunc::BvUgt => {
-                todo!("No builtin {}, define a local function {} and call it here", self.0, self.0)
-            }
+            ThyFunc::BvUrem => write!(f, "BitVec.umod"),
+            ThyFunc::BvSge => write!(f, "BitVec_sge"),
+            ThyFunc::BvSgt => write!(f, "BitVec_sgt"),
+            ThyFunc::BvUge => write!(f, "BitVec_uge"),
+            ThyFunc::BvUgt => write!(f, "BitVec_ugt"),
+            ThyFunc::MapDefault => write!(f, "SmtMap_default"),
+            ThyFunc::MapSelect => write!(f, "SmtMap_select"),
+            ThyFunc::MapStore => write!(f, "SmtMap_store"),
             func => panic!("Unsupported theory function {}", func),
         }
     }
@@ -175,6 +190,14 @@ impl<'a> fmt::Display for LeanSort<'a> {
                                 args.iter().map(LeanSort).format(" ")
                             )
                         }
+                    }
+                    SortCtor::Map => {
+                        write!(
+                            f,
+                            "(SmtMap {} {})",
+                            LeanSort(&args[0]),
+                            LeanSort(&args[1])
+                        )
                     }
                     _ => todo!(),
                 }
