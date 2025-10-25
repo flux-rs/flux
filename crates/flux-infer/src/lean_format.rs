@@ -1,17 +1,21 @@
 use core::fmt;
 
-use flux_middle::{global_env::GlobalEnv};
+use flux_middle::global_env::GlobalEnv;
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::fixpoint_encoding::fixpoint::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
-    Pred, Sort, SortCtor, SortDecl, Var, KVarDecl
+    KVarDecl, Pred, Sort, SortCtor, SortDecl, Var,
 };
 
 struct LeanSort<'a>(&'a Sort);
 struct LeanKVarDecl<'a>(&'a KVarDecl);
-pub struct LeanKConstraint<'a, 'genv, 'tcx>(pub &'a [KVarDecl], pub &'a Constraint, pub GlobalEnv<'genv, 'tcx>);
+pub struct LeanKConstraint<'a, 'genv, 'tcx>(
+    pub &'a [KVarDecl],
+    pub &'a Constraint,
+    pub GlobalEnv<'genv, 'tcx>,
+);
 pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortDecl<'a, 'genv, 'tcx>(pub &'a SortDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
@@ -67,10 +71,12 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.ctors.len() == 1 {
             writeln!(
-                f, 
+                f,
                 "structure {} {} where",
                 LeanSortVar(&self.0.name),
-                (0..self.0.vars).map(|i| format!("(t{i} : Type) [Inhabited t{i}]")).format(" ")
+                (0..self.0.vars)
+                    .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
+                    .format(" ")
             )?;
             writeln!(f, "  {}::", self.0.ctors[0].name.display().to_string().replace("$", "_"),)?;
             for field in &self.0.ctors[0].fields {
@@ -78,10 +84,12 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
             }
         } else {
             writeln!(
-                f, 
-                "inductive {} {} where", 
+                f,
+                "inductive {} {} where",
                 LeanSortVar(&self.0.name),
-                (0..self.0.vars).map(|i| format!("(t{i} : Type) [Inhabited t{i}]")).format(" ")
+                (0..self.0.vars)
+                    .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
+                    .format(" ")
             )?;
             for data_ctor in &self.0.ctors {
                 writeln!(
@@ -194,12 +202,7 @@ impl<'a> fmt::Display for LeanSort<'a> {
                         }
                     }
                     SortCtor::Map => {
-                        write!(
-                            f,
-                            "(SmtMap {} {})",
-                            LeanSort(&args[0]),
-                            LeanSort(&args[1])
-                        )
+                        write!(f, "(SmtMap {} {})", LeanSort(&args[0]), LeanSort(&args[1]))
                     }
                     _ => todo!(),
                 }
@@ -390,16 +393,14 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
 
 impl<'a> fmt::Display for LeanKVarDecl<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let sorts = self.0.sorts.iter().enumerate().map(|(i, sort)| format!(
-            "(a{i} : {})",
-            LeanSort(sort)
-        )).format(" -> ");
-        write!(
-            f,
-            "∃ {} : {} -> Prop",
-            self.0.kvid.display().to_string().replace("$", "_"),
-            sorts
-        )
+        let sorts = self
+            .0
+            .sorts
+            .iter()
+            .enumerate()
+            .map(|(i, sort)| format!("(a{i} : {})", LeanSort(sort)))
+            .format(" -> ");
+        write!(f, "∃ {} : {} -> Prop", self.0.kvid.display().to_string().replace("$", "_"), sorts)
     }
 }
 
@@ -411,7 +412,10 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
             write!(
                 f,
                 "{}, {}",
-                self.0.iter().map(|kvar_decl| LeanKVarDecl(&kvar_decl)).format(", "),
+                self.0
+                    .iter()
+                    .map(|kvar_decl| LeanKVarDecl(&kvar_decl))
+                    .format(", "),
                 LeanConstraint(&self.1, self.2)
             )
         }

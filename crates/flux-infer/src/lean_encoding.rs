@@ -172,22 +172,53 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
 
     fn generate_lib_file(&self) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(self.project_name.as_str());
-        let mut lib_file = fs::File::create(self.lean_path.join(format!(
-            "{}/{}/Lib.lean",
-            self.project_name,
-            pascal_project_name.as_str()
-        ).as_str()))?;
-        writeln!(lib_file, "def BitVec_shiftLeft {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.shiftLeft x (s.toNat)")?;
-        writeln!(lib_file, "def BitVec_ushiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.ushiftRight x (s.toNat)")?;
-        writeln!(lib_file, "def BitVec_sshiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.sshiftRight x (s.toNat)")?;
-        writeln!(lib_file, "def BitVec_uge {{ n : Nat }} (x y : BitVec n) := (BitVec.ult x y).not")?;
-        writeln!(lib_file, "def BitVec_sge {{ n : Nat }} (x y : BitVec n) := (BitVec.slt x y).not")?;
-        writeln!(lib_file, "def BitVec_ugt {{ n : Nat }} (x y : BitVec n) := (BitVec.ule x y).not")?;
-        writeln!(lib_file, "def BitVec_sgt {{ n : Nat }} (x y : BitVec n) := (BitVec.sle x y).not")?;
-        writeln!(lib_file, "def SmtMap (Key Val : Type) [Inhabited Key] [BEq Key] [Inhabited Val] : Type := Key -> Val")?;
-        writeln!(lib_file, "def SmtMapDefault {{ Key Val: Type }} (v : Val) [Inhabited Key] [BEq Key] [Inhabited Val] : SmtMap Key Val := fun _ => v")?;
-        writeln!(lib_file, "def SmtMapStore {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) (v : Val) : SmtMap Key Val :=\n  fun x => if x == k then v else m x")?;
-        writeln!(lib_file, "def SmtMapSelect {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) := m k")?;
+        let mut lib_file = fs::File::create(self.lean_path.join(
+            format!("{}/{}/Lib.lean", self.project_name, pascal_project_name.as_str()).as_str(),
+        ))?;
+        writeln!(
+            lib_file,
+            "def BitVec_shiftLeft {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.shiftLeft x (s.toNat)"
+        )?;
+        writeln!(
+            lib_file,
+            "def BitVec_ushiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.ushiftRight x (s.toNat)"
+        )?;
+        writeln!(
+            lib_file,
+            "def BitVec_sshiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.sshiftRight x (s.toNat)"
+        )?;
+        writeln!(
+            lib_file,
+            "def BitVec_uge {{ n : Nat }} (x y : BitVec n) := (BitVec.ult x y).not"
+        )?;
+        writeln!(
+            lib_file,
+            "def BitVec_sge {{ n : Nat }} (x y : BitVec n) := (BitVec.slt x y).not"
+        )?;
+        writeln!(
+            lib_file,
+            "def BitVec_ugt {{ n : Nat }} (x y : BitVec n) := (BitVec.ule x y).not"
+        )?;
+        writeln!(
+            lib_file,
+            "def BitVec_sgt {{ n : Nat }} (x y : BitVec n) := (BitVec.sle x y).not"
+        )?;
+        writeln!(
+            lib_file,
+            "def SmtMap (Key Val : Type) [Inhabited Key] [BEq Key] [Inhabited Val] : Type := Key -> Val"
+        )?;
+        writeln!(
+            lib_file,
+            "def SmtMapDefault {{ Key Val: Type }} (v : Val) [Inhabited Key] [BEq Key] [Inhabited Val] : SmtMap Key Val := fun _ => v"
+        )?;
+        writeln!(
+            lib_file,
+            "def SmtMapStore {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) (v : Val) : SmtMap Key Val :=\n  fun x => if x == k then v else m x"
+        )?;
+        writeln!(
+            lib_file,
+            "def SmtMapSelect {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) := m k"
+        )?;
         Ok(())
     }
 
@@ -200,7 +231,8 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
     ) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_file()?;
-        let has_opaques = !opaque_sorts.is_empty() || !opaque_funs.is_empty() || !data_decls.is_empty();
+        let has_opaques =
+            !opaque_sorts.is_empty() || !opaque_funs.is_empty() || !data_decls.is_empty();
         if has_opaques {
             self.generate_typeclass_file(opaque_sorts, opaque_funs, data_decls)?;
         }
@@ -227,17 +259,20 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .as_str(),
         );
         let mut theorem_file = fs::File::create(theorem_path)?;
-        writeln!(
-            theorem_file,
-            "import {}.Lib",
-            pascal_project_name.as_str()
-        )?;
-        if self.lean_path.join(format!(
-            "{}/{}/{}.lean",
-            self.project_name.as_str(),
-            pascal_project_name.as_str(),
-            self.defs_file_name.as_str()
-        ).as_str()).exists() {
+        writeln!(theorem_file, "import {}.Lib", pascal_project_name.as_str())?;
+        if self
+            .lean_path
+            .join(
+                format!(
+                    "{}/{}/{}.lean",
+                    self.project_name.as_str(),
+                    pascal_project_name.as_str(),
+                    self.defs_file_name.as_str()
+                )
+                .as_str(),
+            )
+            .exists()
+        {
             writeln!(
                 theorem_file,
                 "import {}.{}",
@@ -245,11 +280,18 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
                 self.defs_file_name.as_str()
             )?;
         }
-        if self.lean_path.join(format!(
-            "{}/{}/InferredInstance.lean",
-            self.project_name.as_str(),
-            pascal_project_name.as_str(),
-        ).as_str()).exists() {
+        if self
+            .lean_path
+            .join(
+                format!(
+                    "{}/{}/InferredInstance.lean",
+                    self.project_name.as_str(),
+                    pascal_project_name.as_str(),
+                )
+                .as_str(),
+            )
+            .exists()
+        {
             writeln!(theorem_file, "import {}.InferredInstance", pascal_project_name.as_str())?;
         }
         writeln!(
@@ -276,11 +318,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             return Ok(());
         }
         let mut proof_file = fs::File::create(proof_path)?;
-        writeln!(
-            proof_file,
-            "import {}.Lib",
-            module_name.as_str()
-        )?;
+        writeln!(proof_file, "import {}.Lib", module_name.as_str())?;
         writeln!(
             proof_file,
             "import {}.{}",

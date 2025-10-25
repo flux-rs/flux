@@ -638,7 +638,7 @@ where
                 "Defs".to_string(),
             );
             lean_encoder
-                .encode_constraint(def_id,&kvar_decls,  &constraint)
+                .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
             lean_encoder.check_proof(def_id)
         } else {
@@ -877,7 +877,6 @@ struct KVarEncodingCtxt {
 }
 
 impl KVarEncodingCtxt {
-
     /// Declares that a kvar has to be encoded into fixpoint and assigns a range of
     /// [`fixpoint::KVid`]'s to it.
     fn declare(&mut self, kvid: rty::KVid, decl: &KVarDecl) -> Range<fixpoint::KVid> {
