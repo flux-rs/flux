@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    rty::{BoundReft, Var, VariantSig, expr::HoleKind},
+    rty::{BoundReft, BoundRegion, Var, VariantSig, expr::HoleKind},
 };
 
 pub trait TypeVisitor: Sized {
@@ -427,6 +427,45 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         self.try_fold_with(&mut Folder(f))
+    }
+
+    /// Shift the [`BoundVar`] of all the the variables at index [`INNERMOST`] "horizontally" to the
+    /// right by the specified `amount`.
+    fn shift_horizontally(&self, amount: usize) -> Self {
+        struct Shifter {
+            current_index: DebruijnIndex,
+            amount: usize,
+        }
+
+        impl TypeFolder for Shifter {
+            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+                self.current_index.shift_in(1);
+                let t = t.super_fold_with(self);
+                self.current_index.shift_out(1);
+                t
+            }
+
+            fn fold_region(&mut self, re: &Region) -> Region {
+                if let ReBound(debruijn, br) = *re
+                    && debruijn == self.current_index
+                {
+                    ReBound(debruijn, BoundRegion { var: br.var + self.amount, kind: br.kind })
+                } else {
+                    *re
+                }
+            }
+
+            fn fold_expr(&mut self, expr: &Expr) -> Expr {
+                if let ExprKind::Var(Var::Bound(debruijn, breft)) = expr.kind()
+                    && debruijn == &self.current_index
+                {
+                    Expr::bvar(*debruijn, breft.var + self.amount, breft.kind)
+                } else {
+                    expr.super_fold_with(self)
+                }
+            }
+        }
+        self.fold_with(&mut Shifter { amount, current_index: INNERMOST })
     }
 
     fn shift_in_escaping(&self, amount: u32) -> Self {

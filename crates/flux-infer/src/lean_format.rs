@@ -336,6 +336,9 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
             Expr::Exists(..) => {
                 todo!("not yet implemented: exists in lean")
             }
+            Expr::BoundVar(_) => {
+                unreachable!("bound vars should only be present in fixpoint output")
+            }
         }
     }
 }

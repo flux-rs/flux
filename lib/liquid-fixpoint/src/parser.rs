@@ -1,9 +1,11 @@
 use std::fmt;
 
+use indexmap::IndexSet;
 use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
+    constraint::BoundVar,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -31,16 +33,19 @@ pub trait FromSexp<T: Types> {
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
     fn string(&self, s: &str) -> Result<T::String, ParseError>;
     fn sort(&self, name: &str) -> Result<T::Sort, ParseError>;
-    fn push_scope(&mut self, names: &[String]);
-    fn pop_scope(&mut self);
     fn into_wrapper(self) -> FromSexpWrapper<T, Self>
     where
         Self: Sized,
     {
-        FromSexpWrapper(self, std::marker::PhantomData)
+        FromSexpWrapper { parser: self, _phantom: std::marker::PhantomData, scopes: vec![] }
     }
 }
-pub struct FromSexpWrapper<T: Types, Parser>(pub Parser, pub std::marker::PhantomData<T>);
+
+pub struct FromSexpWrapper<T: Types, Parser> {
+    pub parser: Parser,
+    pub _phantom: std::marker::PhantomData<T>,
+    scopes: Vec<IndexSet<String>>,
+}
 
 type KvarSolution<T> = (Vec<Sort<T>>, Expr<T>);
 
@@ -66,7 +71,7 @@ where
 
     pub fn parse_name(&self, sexp: &Sexp) -> Result<T::Var, ParseError> {
         let name = match sexp {
-            Sexp::Atom(Atom::S(s)) => self.0.var(s),
+            Sexp::Atom(Atom::S(s)) => self.parser.var(s),
             _ => Err(ParseError::err("Expected bind name to be a string")),
         }?;
         Ok(name)
@@ -123,8 +128,9 @@ where
                         .collect();
                     match maybe_strs {
                         Some(strs) => {
-                            let kvar = self.0.kvar(&strs[0])?;
-                            let args = strs[1..].iter().map(|s| self.0.var(s)).try_collect()?;
+                            let kvar = self.parser.kvar(&strs[0])?;
+                            let args =
+                                strs[1..].iter().map(|s| self.parser.var(s)).try_collect()?;
                             Ok(Pred::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),
@@ -140,7 +146,7 @@ where
     }
 
     fn parse_is_ctor(&mut self, ctor_name: &str, arg: &Sexp) -> Result<Expr<T>, ParseError> {
-        let ctor = self.0.var(ctor_name)?;
+        let ctor = self.parser.var(ctor_name)?;
         let arg = self.parse_expr(arg)?;
         Ok(Expr::IsCtor(ctor, Box::new(arg)))
     }
@@ -170,12 +176,15 @@ where
                 }
             }
             Sexp::Atom(Atom::S(s)) => {
-                match parse_thy_func(s) {
-                    Some(thy_func) => Ok(Expr::ThyFunc(thy_func)),
-                    None => Ok(Expr::Var(self.0.var(s)?)),
+                if let Some(thy_func) = parse_thy_func(s) {
+                    Ok(Expr::ThyFunc(thy_func))
+                } else if let Some(bv) = self.parse_bound_var(s) {
+                    Ok(bv)
+                } else {
+                    Ok(Expr::Var(self.parser.var(s)?))
                 }
             }
-            Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.0.string(s)?))),
+            Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.parser.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
             Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i as u128))),
             Sexp::Atom(Atom::F(f)) => Ok(Expr::Constant(Constant::Real(*f as u128))),
@@ -346,9 +355,9 @@ where
                 )));
             }
         }
-        self.0.push_scope(&names);
+        self.push_scope(&names);
         let body = self.parse_expr_possibly_nested(body)?;
-        self.0.pop_scope();
+        self.pop_scope();
         Ok(Expr::Exists(sorts, Box::new(body)))
     }
 
@@ -363,7 +372,7 @@ where
                                     let binding =
                                         self.parse_expr_possibly_nested(&var_and_binding[1])?;
                                     let body = self.parse_expr_possibly_nested(&items[2])?;
-                                    let var = self.0.var(s)?;
+                                    let var = self.parser.var(s)?;
                                     Ok(Expr::Let(var, Box::new([binding, body])))
                                 }
                                 _ => Err(ParseError::err("Expected variable name to be string")),
@@ -409,7 +418,7 @@ where
         if ctor == "BitVec" && args.len() == 1 {
             return parse_bitvec_sort(sexp);
         }
-        let ctor = SortCtor::Data(self.0.sort(ctor)?);
+        let ctor = SortCtor::Data(self.parser.sort(ctor)?);
         Ok(Sort::App(ctor, args))
     }
 
@@ -428,7 +437,7 @@ where
                 } else if s.starts_with("Size") {
                     self.parse_bv_size(sexp)
                 } else {
-                    let ctor = SortCtor::Data(self.0.sort(s)?);
+                    let ctor = SortCtor::Data(self.parser.sort(s)?);
                     Ok(Sort::App(ctor, vec![]))
                 }
             }
@@ -477,13 +486,30 @@ where
                 .into_iter()
                 .map(|sexp| self.parse_sort(sexp))
                 .try_collect()?;
-            self.0.push_scope(&kvar_args);
+            self.push_scope(&kvar_args);
 
             let expr = self.parse_expr(body)?;
             Ok((sorts, expr))
         } else {
             Err(ParseError::err("expected (lambda (params) body)"))
         }
+    }
+
+    fn push_scope(&mut self, names: &[String]) {
+        self.scopes.push(names.iter().cloned().collect());
+    }
+
+    fn pop_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    fn parse_bound_var(&self, name: &str) -> Option<Expr<T>> {
+        for (level, scope) in self.scopes.iter().rev().enumerate() {
+            if let Some(idx) = scope.get_index_of(name) {
+                return Some(Expr::BoundVar(BoundVar { level, idx }));
+            }
+        }
+        None
     }
 }
 
@@ -642,8 +668,4 @@ impl FromSexp<StringTypes> for StringTypes {
     fn sort(&self, name: &str) -> Result<String, ParseError> {
         Ok(name.to_string())
     }
-
-    fn push_scope(&mut self, _names: &[String]) {}
-
-    fn pop_scope(&mut self) {}
 }
