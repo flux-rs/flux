@@ -35,7 +35,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanSortDecl<'a, 'genv, 'tcx> {
             "{} {} : Type",
             LeanSortVar(&self.0.name),
             (0..(self.0.vars))
-                .map(|i| format!("(t{i} : Type)"))
+                .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                 .format(" ")
         )
     }
@@ -214,7 +214,7 @@ impl<'a> fmt::Display for LeanSort<'a> {
                 }
             }
             Sort::Abs(v, sort) => {
-                write!(f, "{{t{v} : Type}} -> {}", LeanSort(sort.as_ref()))
+                write!(f, "{{t{v} : Type}} -> [Inhabited t{v}] -> {}", LeanSort(sort.as_ref()))
             }
             Sort::Var(v) => write!(f, "t{v}"),
             s => todo!("{:?}", s),

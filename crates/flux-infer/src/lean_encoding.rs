@@ -209,15 +209,15 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         )?;
         writeln!(
             lib_file,
-            "def SmtMapDefault {{ Key Val: Type }} (v : Val) [Inhabited Key] [BEq Key] [Inhabited Val] : SmtMap Key Val := fun _ => v"
+            "def SmtMap_default {{ Key Val: Type }} (v : Val) [Inhabited Key] [BEq Key] [Inhabited Val] : SmtMap Key Val := fun _ => v"
         )?;
         writeln!(
             lib_file,
-            "def SmtMapStore {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) (v : Val) : SmtMap Key Val :=\n  fun x => if x == k then v else m x"
+            "def SmtMap_store {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) (v : Val) : SmtMap Key Val :=\n  fun x => if x == k then v else m x"
         )?;
         writeln!(
             lib_file,
-            "def SmtMapSelect {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) := m k"
+            "def SmtMap_select {{ Key Val : Type }} [Inhabited Key] [BEq Key] [Inhabited Val] (m : SmtMap Key Val) (k : Key) := m k"
         )?;
         Ok(())
     }
