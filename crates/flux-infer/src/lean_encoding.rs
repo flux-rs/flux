@@ -213,6 +213,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
     fn generate_theorem_file(
         &self,
         theorem_name: &str,
+        kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(self.project_name.as_str());
@@ -231,18 +232,31 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             "import {}.Lib",
             pascal_project_name.as_str()
         )?;
-        writeln!(
-            theorem_file,
-            "import {}.{}",
+        if self.lean_path.join(format!(
+            "{}/{}/{}.lean",
+            self.project_name.as_str(),
             pascal_project_name.as_str(),
             self.defs_file_name.as_str()
-        )?;
-        writeln!(theorem_file, "import {}.InferredInstance", pascal_project_name.as_str())?;
+        ).as_str()).exists() {
+            writeln!(
+                theorem_file,
+                "import {}.{}",
+                pascal_project_name.as_str(),
+                self.defs_file_name.as_str()
+            )?;
+        }
+        if self.lean_path.join(format!(
+            "{}/{}/InferredInstance.lean",
+            self.project_name.as_str(),
+            pascal_project_name.as_str(),
+        ).as_str()).exists() {
+            writeln!(theorem_file, "import {}.InferredInstance", pascal_project_name.as_str())?;
+        }
         writeln!(
             theorem_file,
             "def {} := {}",
             theorem_name.replace(".", "_"),
-            lean_format::LeanConstraint(cstr, self.genv)
+            lean_format::LeanKConstraint(kvars, cstr, self.genv)
         )
     }
 
@@ -281,6 +295,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
     pub fn encode_constraint(
         &self,
         def_id: MaybeExternId,
+        kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
     ) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
@@ -291,7 +306,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .def_path(def_id.resolved_id())
             .to_filename_friendly_no_crate()
             .replace("-", "_");
-        self.generate_theorem_file(theorem_name.as_str(), cstr)?;
+        self.generate_theorem_file(theorem_name.as_str(), kvars, cstr)?;
         self.generate_proof_file_if_not_present(theorem_name.as_str())
     }
 

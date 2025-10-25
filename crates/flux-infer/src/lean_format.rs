@@ -6,17 +6,19 @@ use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::fixpoint_encoding::fixpoint::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
-    Pred, Sort, SortCtor, SortDecl, Var,
+    Pred, Sort, SortCtor, SortDecl, Var, KVarDecl
 };
 
 struct LeanSort<'a>(&'a Sort);
+struct LeanKVarDecl<'a>(&'a KVarDecl);
+pub struct LeanKConstraint<'a, 'genv, 'tcx>(pub &'a [KVarDecl], pub &'a Constraint, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortDecl<'a, 'genv, 'tcx>(pub &'a SortDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanConstDecl<'a, 'genv, 'tcx>(pub &'a ConstDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortVar<'a>(pub &'a DataSort);
 struct LeanDataField<'a>(&'a DataField);
-pub struct LeanConstraint<'a, 'genv, 'tcx>(pub &'a Constraint, pub GlobalEnv<'genv, 'tcx>);
+struct LeanConstraint<'a, 'genv, 'tcx>(&'a Constraint, GlobalEnv<'genv, 'tcx>);
 struct LeanPred<'a, 'genv, 'tcx>(&'a Pred, GlobalEnv<'genv, 'tcx>);
 struct LeanExpr<'a, 'genv, 'tcx>(&'a Expr, GlobalEnv<'genv, 'tcx>);
 pub struct LeanVar<'a, 'genv, 'tcx>(pub &'a Var, pub GlobalEnv<'genv, 'tcx>);
@@ -371,7 +373,44 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                         .format(" ∧ ")
                 )
             }
-            Pred::KVar(_, _) => panic!("kvars should not appear when encoding in lean"),
+            Pred::KVar(kvid, args) => {
+                write!(
+                    f,
+                    "({} {})",
+                    kvid.display().to_string().replace("$", "_"),
+                    args.iter().map(|var| LeanVar(var, self.1)).format(" ")
+                )
+            }
+        }
+    }
+}
+
+impl<'a> fmt::Display for LeanKVarDecl<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let sorts = self.0.sorts.iter().enumerate().map(|(i, sort)| format!(
+            "(a{i} : {})",
+            LeanSort(sort)
+        )).format(" -> ");
+        write!(
+            f,
+            "∃ {} : {} -> Prop",
+            self.0.kvid.display().to_string().replace("$", "_"),
+            sorts
+        )
+    }
+}
+
+impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            write!(f, "{}", LeanConstraint(&self.1, self.2))
+        } else {
+            write!(
+                f,
+                "{}, {}",
+                self.0.iter().map(|kvar_decl| LeanKVarDecl(&kvar_decl)).format(", "),
+                LeanConstraint(&self.1, self.2)
+            )
         }
     }
 }

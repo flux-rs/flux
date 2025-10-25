@@ -634,10 +634,7 @@ where
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
-            if !self.kcx.encode_kvars().is_empty() {
-                tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
-            }
-
+            let kvar_decls = self.kcx.encode_kvars();
             self.ecx.errors.to_result()?;
 
             let lean_encoder = LeanEncoder::new(
@@ -647,7 +644,7 @@ where
                 "Defs".to_string(),
             );
             lean_encoder
-                .encode_constraint(def_id, &constraint)
+                .encode_constraint(def_id,&kvar_decls,  &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
             lean_encoder.check_proof(def_id)
         } else {
