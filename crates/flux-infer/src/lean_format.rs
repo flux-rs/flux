@@ -6,17 +6,23 @@ use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
 use crate::fixpoint_encoding::fixpoint::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
-    Pred, Sort, SortCtor, SortDecl, Var,
+    KVarDecl, Pred, Sort, SortCtor, SortDecl, Var,
 };
 
 struct LeanSort<'a>(&'a Sort);
+struct LeanKVarDecl<'a>(&'a KVarDecl);
+pub struct LeanKConstraint<'a, 'genv, 'tcx>(
+    pub &'a [KVarDecl],
+    pub &'a Constraint,
+    pub GlobalEnv<'genv, 'tcx>,
+);
 pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortDecl<'a, 'genv, 'tcx>(pub &'a SortDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanConstDecl<'a, 'genv, 'tcx>(pub &'a ConstDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortVar<'a>(pub &'a DataSort);
 struct LeanDataField<'a>(&'a DataField);
-pub struct LeanConstraint<'a, 'genv, 'tcx>(pub &'a Constraint, pub GlobalEnv<'genv, 'tcx>);
+struct LeanConstraint<'a, 'genv, 'tcx>(&'a Constraint, GlobalEnv<'genv, 'tcx>);
 struct LeanPred<'a, 'genv, 'tcx>(&'a Pred, GlobalEnv<'genv, 'tcx>);
 struct LeanExpr<'a, 'genv, 'tcx>(&'a Expr, GlobalEnv<'genv, 'tcx>);
 pub struct LeanVar<'a, 'genv, 'tcx>(pub &'a Var, pub GlobalEnv<'genv, 'tcx>);
@@ -29,7 +35,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanSortDecl<'a, 'genv, 'tcx> {
             "{} {} : Type",
             LeanSortVar(&self.0.name),
             (0..(self.0.vars))
-                .map(|i| format!("(t{i} : Type)"))
+                .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                 .format(" ")
         )
     }
@@ -64,13 +70,27 @@ impl<'a> fmt::Display for LeanSortVar<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.ctors.len() == 1 {
-            writeln!(f, "structure {} where", LeanSortVar(&self.0.name))?;
+            writeln!(
+                f,
+                "structure {} {} where",
+                LeanSortVar(&self.0.name),
+                (0..self.0.vars)
+                    .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
+                    .format(" ")
+            )?;
             writeln!(f, "  {}::", self.0.ctors[0].name.display().to_string().replace("$", "_"),)?;
             for field in &self.0.ctors[0].fields {
                 writeln!(f, "  {}", LeanDataField(field))?;
             }
         } else {
-            writeln!(f, "inductive {} where", LeanSortVar(&self.0.name))?;
+            writeln!(
+                f,
+                "inductive {} {} where",
+                LeanSortVar(&self.0.name),
+                (0..self.0.vars)
+                    .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
+                    .format(" ")
+            )?;
             for data_ctor in &self.0.ctors {
                 writeln!(
                     f,
@@ -108,14 +128,19 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
             ThyFunc::BvSlt => write!(f, "BitVec.slt"),
             ThyFunc::BvUle => write!(f, "BitVec.ule"),
             ThyFunc::BvUlt => write!(f, "BitVec.ult"),
-            ThyFunc::BvAshr => write!(f, "BitVec.sshiftRight"),
-            ThyFunc::BvLshr => write!(f, "BitVec.ushiftRight"),
-            ThyFunc::BvShl => write!(f, "BitVec.shiftLeft"),
+            ThyFunc::BvAshr => write!(f, "BitVec_sshiftRight"),
+            ThyFunc::BvLshr => write!(f, "BitVec_ushiftRight"),
+            ThyFunc::BvShl => write!(f, "BitVec_shiftLeft"),
             ThyFunc::BvSignExtend(size) => write!(f, "BitVec.signExtend {}", size),
             ThyFunc::BvZeroExtend(size) => write!(f, "BitVec.zeroExtend {}", size),
-            ThyFunc::BvUrem | ThyFunc::BvSge | ThyFunc::BvSgt | ThyFunc::BvUge | ThyFunc::BvUgt => {
-                todo!("No builtin {}, define a local function {} and call it here", self.0, self.0)
-            }
+            ThyFunc::BvUrem => write!(f, "BitVec.umod"),
+            ThyFunc::BvSge => write!(f, "BitVec_sge"),
+            ThyFunc::BvSgt => write!(f, "BitVec_sgt"),
+            ThyFunc::BvUge => write!(f, "BitVec_uge"),
+            ThyFunc::BvUgt => write!(f, "BitVec_ugt"),
+            ThyFunc::MapDefault => write!(f, "SmtMap_default"),
+            ThyFunc::MapSelect => write!(f, "SmtMap_select"),
+            ThyFunc::MapStore => write!(f, "SmtMap_store"),
             func => panic!("Unsupported theory function {}", func),
         }
     }
@@ -176,6 +201,9 @@ impl<'a> fmt::Display for LeanSort<'a> {
                             )
                         }
                     }
+                    SortCtor::Map => {
+                        write!(f, "(SmtMap {} {})", LeanSort(&args[0]), LeanSort(&args[1]))
+                    }
                     _ => todo!(),
                 }
             }
@@ -186,7 +214,7 @@ impl<'a> fmt::Display for LeanSort<'a> {
                 }
             }
             Sort::Abs(v, sort) => {
-                write!(f, "{{t{v} : Type}} -> {}", LeanSort(sort.as_ref()))
+                write!(f, "{{t{v} : Type}} -> [Inhabited t{v}] -> {}", LeanSort(sort.as_ref()))
             }
             Sort::Var(v) => write!(f, "t{v}"),
             s => todo!("{:?}", s),
@@ -351,7 +379,45 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                         .format(" ∧ ")
                 )
             }
-            Pred::KVar(_, _) => panic!("kvars should not appear when encoding in lean"),
+            Pred::KVar(kvid, args) => {
+                write!(
+                    f,
+                    "({} {})",
+                    kvid.display().to_string().replace("$", "_"),
+                    args.iter().map(|var| LeanVar(var, self.1)).format(" ")
+                )
+            }
+        }
+    }
+}
+
+impl<'a> fmt::Display for LeanKVarDecl<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let sorts = self
+            .0
+            .sorts
+            .iter()
+            .enumerate()
+            .map(|(i, sort)| format!("(a{i} : {})", LeanSort(sort)))
+            .format(" -> ");
+        write!(f, "∃ {} : {} -> Prop", self.0.kvid.display().to_string().replace("$", "_"), sorts)
+    }
+}
+
+impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            write!(f, "{}", LeanConstraint(&self.1, self.2))
+        } else {
+            write!(
+                f,
+                "{}, {}",
+                self.0
+                    .iter()
+                    .map(|kvar_decl| LeanKVarDecl(&kvar_decl))
+                    .format(", "),
+                LeanConstraint(&self.1, self.2)
+            )
         }
     }
 }

@@ -624,14 +624,11 @@ where
     }
 
     pub fn generate_and_check_lean_lemmas(
-        self,
+        mut self,
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
-            if !self.kcx.is_empty() {
-                tracked_span_bug!("cannot generate lean lemmas for constraints with kvars");
-            }
-
+            let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
             let lean_encoder = LeanEncoder::new(
@@ -641,7 +638,7 @@ where
                 "Defs".to_string(),
             );
             lean_encoder
-                .encode_constraint(def_id, &constraint)
+                .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
             lean_encoder.check_proof(def_id)
         } else {
@@ -880,10 +877,6 @@ struct KVarEncodingCtxt {
 }
 
 impl KVarEncodingCtxt {
-    fn is_empty(&self) -> bool {
-        self.ranges.is_empty()
-    }
-
     /// Declares that a kvar has to be encoded into fixpoint and assigns a range of
     /// [`fixpoint::KVid`]'s to it.
     fn declare(&mut self, kvid: rty::KVid, decl: &KVarDecl) -> Range<fixpoint::KVid> {
