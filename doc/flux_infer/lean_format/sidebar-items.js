@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["LeanConstDecl","LeanConstraint","LeanDataDecl","LeanDataField","LeanExpr","LeanFunDef","LeanPred","LeanSort","LeanSortDecl","LeanSortVar","LeanThyFunc","LeanVar"]};
+window.SIDEBAR_ITEMS = {"struct":["LeanConstDecl","LeanConstraint","LeanDataDecl","LeanDataField","LeanExpr","LeanFunDef","LeanKConstraint","LeanKVarDecl","LeanPred","LeanSort","LeanSortDecl","LeanSortVar","LeanThyFunc","LeanVar"]};
