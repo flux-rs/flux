@@ -1417,7 +1417,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_binary_op(infcx, env, stmt_span, *bin_op, op1, op2)
                     .with_span(stmt_span)
             }
-            Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
+
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                 self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
@@ -1546,16 +1546,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
-        }
-    }
-
-    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &ty::Ty) -> Ty {
-        match null_op {
-            mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
-                // We could try to get the layout of type to index this with the actual value, but
-                // this enough for now. Revisit if we ever need the precision.
-                Ty::uint(UintTy::Usize)
-            }
         }
     }
 
