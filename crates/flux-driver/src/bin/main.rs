@@ -49,6 +49,8 @@ fn main() -> io::Result<()> {
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    let _ = metrics::print_summary(start.elapsed());
+    if config::timings() {
+        metrics::print_summary(start.elapsed())?
+    };
     exit(exit_code)
 }
