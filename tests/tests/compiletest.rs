@@ -59,6 +59,9 @@ fn test_runner(_: &[&()]) {
     // other artifacts for tests using `@aux-build`.
     flags.extend(["--emit=metadata".to_string(), "-Ffull-compilation=on".to_string()]);
 
+    // Pass `-Fsummary=off` to disable printing the summary at the end of each test
+    flags.extend(["-Fsummary=off".to_string()]);
+
     config.target_rustcflags = Some(flags.join(" "));
 
     config.clean_rmeta();

@@ -49,7 +49,7 @@ fn main() -> io::Result<()> {
     let exit_code = catch_with_exit_code(move || {
         run_compiler(&args, &mut FluxCallbacks);
     });
-    if config::timings() {
+    if config::summary() {
         metrics::print_summary(start.elapsed())?
     };
     exit(exit_code)

@@ -22,9 +22,11 @@ pub struct Flags {
     pub cache: Option<PathBuf>,
     /// Compute statistics about number and size of annotations. Dumps file to [`Self::log_dir`]
     pub annots: bool,
-    /// Print statistics about time taked to analyze each fuction. Also dumps a file with the raw
+    /// Print statistics about time taken to analyze each fuction. Also dumps a file with the raw
     /// times for each function.
     pub timings: bool,
+    /// Print statistics about number of functions checked, trusted, etc.
+    pub summary: bool,
     /// Default solver. Either `z3` or `cvc5`.
     pub solver: SmtSolver,
     /// Enables qualifier scrapping in fixpoint
@@ -81,6 +83,7 @@ impl Default for Flags {
             smt_define_fun: false,
             annots: false,
             timings: false,
+            summary: true,
             verify: false,
             full_compilation: false,
             trusted_default: false,
@@ -111,6 +114,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "smt-define-fun" => parse_bool(&mut flags.smt_define_fun, value),
             "annots" => parse_bool(&mut flags.annots, value),
             "timings" => parse_bool(&mut flags.timings, value),
+            "summary" => parse_bool(&mut flags.summary, value),
             "cache" => parse_opt_path_buf(&mut flags.cache, value),
             "include" => parse_opt_include(&mut includes, value),
             "verify" => parse_bool(&mut flags.verify, value),
