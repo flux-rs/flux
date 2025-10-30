@@ -209,7 +209,6 @@ pub enum Rvalue {
     RawPtr(RawPtrKind, Place),
     Cast(CastKind, Operand, Ty),
     BinaryOp(BinOp, Operand, Operand),
-    NullaryOp(NullOp, Ty),
     UnaryOp(UnOp, Operand),
     Discriminant(Place),
     Aggregate(AggregateKind, Vec<Operand>),
@@ -262,12 +261,6 @@ pub enum BinOp {
     BitXor,
     Shl,
     Shr,
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum NullOp {
-    SizeOf,
-    AlignOf,
 }
 
 pub enum Operand {
@@ -681,7 +674,6 @@ impl fmt::Debug for Rvalue {
             Rvalue::RawPtr(mutbl, place) => write!(f, "&raw {} {place:?}", mutbl.ptr_str()),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
-            Rvalue::NullaryOp(null_op, ty) => write!(f, "{null_op:?}({ty:?})"),
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {
