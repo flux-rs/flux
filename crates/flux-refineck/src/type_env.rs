@@ -566,7 +566,7 @@ impl BasicBlockEnvShape {
         for path in &paths {
             let ty1 = self.bindings.get(path);
             let ty2 = other.bindings.get(path);
-            let ty = self.join_ty(&ty1, &ty2);
+            let ty = if ty1 == ty2 { ty1.clone() } else { self.join_ty(&ty1, &ty2) };
             modified |= ty1 != ty;
             self.update(path, ty, span);
         }

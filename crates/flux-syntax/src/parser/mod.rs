@@ -50,6 +50,8 @@ enum SyntaxAttr {
     /// the infrastructure necesary to keep a list of attributes inside the flux item like we do
     /// for rust items.
     Hide,
+    /// a `#[opaque]` attribute
+    Opaque,
 }
 
 #[derive(Default)]
@@ -69,6 +71,12 @@ impl ParsedAttrs {
         self.syntax
             .iter()
             .any(|attr| matches!(attr, SyntaxAttr::Hide))
+    }
+
+    fn is_opaque(&self) -> bool {
+        self.syntax
+            .iter()
+            .any(|attr| matches!(attr, SyntaxAttr::Opaque))
     }
 
     fn refined_by(&mut self) -> Option<RefineParams> {
@@ -233,16 +241,23 @@ fn parse_detached_struct(cx: &mut ParseCtxt, mut attrs: ParsedAttrs) -> ParseRes
     let path = parse_expr_path(cx)?;
     let generics = Some(parse_opt_generics(cx)?);
     let refined_by = attrs.refined_by();
+    let opaque = attrs.is_opaque();
     let invariants = attrs.invariant().into_iter().collect();
     let fields = if cx.peek(token::OpenBrace) {
         braces(cx, Comma, parse_detached_field)?
             .into_iter()
             .map(|(_, ty)| Some(ty))
             .collect()
+    } else if cx.peek(token::OpenParen) {
+        parens(cx, Comma, parse_type)?
+            .into_iter()
+            .map(Some)
+            .collect()
     } else {
+        cx.expect(token::Semi)?;
         vec![]
     };
-    let struct_def = StructDef { generics, opaque: false, refined_by, invariants, fields };
+    let struct_def = StructDef { generics, opaque, refined_by, invariants, fields };
     Ok(DetachedItem {
         attrs: attrs.normal,
         path,
@@ -380,6 +395,8 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut ParsedAttrs) -> ParseResult {
         attrs.normal.push(Attr::Trusted(Trusted::Yes));
     } else if lookahead.advance_if(sym::hide) {
         attrs.syntax.push(SyntaxAttr::Hide);
+    } else if lookahead.advance_if(kw::Opaque) {
+        attrs.syntax.push(SyntaxAttr::Opaque);
     } else if lookahead.advance_if(kw::Reft) {
         attrs.syntax.push(SyntaxAttr::Reft);
     } else if lookahead.advance_if(kw::RefinedBy) {
