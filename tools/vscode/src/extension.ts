@@ -315,6 +315,7 @@ async function runCargoFlux(workspacePath: string, file: string, trace: boolean,
   statusBarItem.show();
 
   let fluxFlags = `-Finclude=${includeValue}`;
+  fluxFlags += ` -Fsummary=off`;
   if (trace) {
     fluxFlags += ` -Fdump-checker-trace=info`;
   } else {
