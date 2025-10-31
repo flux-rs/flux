@@ -5,6 +5,7 @@ use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_index::IndexVec;
 use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
@@ -51,7 +52,7 @@ pub struct MirLoweringCtxt<'a, 'sess, 'tcx> {
     param_env: ParamEnv<'tcx>,
     selcx: SelectionContext<'a, 'tcx>,
     sess: &'sess FluxSession,
-    rustc_mir: &'a rustc_mir::Body<'tcx>,
+    // rustc_mir: &'a rustc_mir::Body<'tcx>,
 }
 
 #[derive(Debug, Clone)]
@@ -148,28 +149,47 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             .infer_ctxt()
             .with_next_trait_solver(true)
             .build(TypingMode::analysis_in_body(tcx, def_id));
-        let param_env = tcx.param_env(body_with_facts.body.source.def_id());
-        let selcx = SelectionContext::new(&infcx);
-        let mut lower =
-            MirLoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: &body_with_facts.body };
 
-        let basic_blocks = lower
-            .rustc_mir
+        let rustc_body = body_with_facts.body;
+
+        let param_env = tcx.param_env(rustc_body.source.def_id());
+        let selcx = SelectionContext::new(&infcx);
+        let mut lower = MirLoweringCtxt { tcx, selcx, param_env, sess }; //, rustc_mir: &rustc_body };
+
+        let body = lower.lower_rustc_body(rustc_body)?;
+        let mut promoted = IndexVec::new();
+        for rustc_promoted in body_with_facts.promoted.into_iter() {
+            let lowered_promoted = lower.lower_rustc_body(rustc_promoted)?;
+            promoted.push(lowered_promoted);
+        }
+
+        let body_root = BodyRoot::new(
+            body_with_facts.borrow_set,
+            body_with_facts.region_inference_context,
+            infcx,
+            body,
+            promoted,
+        );
+        Ok(body_root)
+    }
+
+    fn lower_rustc_body(
+        &mut self,
+        body: rustc_mir::Body<'tcx>,
+    ) -> Result<Body<'tcx>, ErrorGuaranteed> {
+        let basic_blocks = body
             .basic_blocks
             .iter()
-            .map(|bb_data| lower.lower_basic_block_data(bb_data))
+            .map(|bb_data| self.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        let local_decls = lower
-            .rustc_mir
+        let local_decls = body
             .local_decls
             .iter()
-            .map(|local_decl| lower.lower_local_decl(local_decl))
+            .map(|local_decl| self.lower_local_decl(local_decl))
             .try_collect()?;
 
-        let body = Body::new(basic_blocks, local_decls, &body_with_facts);
-        let body_root = BodyRoot::new(body_with_facts, infcx, body);
-        Ok(body_root)
+        Ok(Body::new(basic_blocks, local_decls, body))
     }
 
     fn lower_basic_block_data(

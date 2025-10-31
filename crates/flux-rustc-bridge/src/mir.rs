@@ -6,7 +6,9 @@ use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
-use rustc_borrowck::consumers::{BodyWithBorrowckFacts, BorrowData, BorrowIndex};
+use rustc_borrowck::consumers::{
+    BodyWithBorrowckFacts, BorrowData, BorrowIndex, BorrowSet, RegionInferenceContext,
+};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
@@ -36,6 +38,7 @@ use crate::{
 
 pub struct BodyRoot<'tcx> {
     pub body: Body<'tcx>,
+    pub promoted: IndexVec<Promoted, Body<'tcx>>,
     /// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
     /// different position in a type. For example, given a function
     ///
@@ -68,7 +71,6 @@ pub struct BodyRoot<'tcx> {
     /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
     pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
-    pub promoted: IndexVec<Promoted, Body<'tcx>>,
     /// The set of borrows occurring in `body` with data about them.
     pub borrow_set: rustc_borrowck::consumers::BorrowSet<'tcx>,
     /// Context generated during borrowck, intended to be passed to
@@ -80,31 +82,32 @@ impl<'tcx> BodyRoot<'tcx> {
     pub fn body(&self) -> &Body<'tcx> {
         &self.body
     }
+
     pub fn span(&self) -> Span {
-        self.body_with_facts.body.span
+        self.rustc_body().span
     }
 
-    pub fn inner(&self) -> &mir::Body<'tcx> {
-        &self.body_with_facts.body
-    }
+    // pub fn inner(&self) -> &mir::Body<'tcx> {
+    //     &self.body_with_facts.body
+    // }
 
     pub fn def_id(&self) -> DefId {
-        self.inner().source.def_id()
+        self.rustc_body().source.def_id()
     }
 
     #[inline]
     pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
+        (1..self.rustc_body().arg_count + 1).map(Local::new)
     }
 
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.body_with_facts.body.arg_count + 1..self.body.local_decls.len()).map(Local::new)
+        (self.rustc_body().arg_count + 1..self.body.local_decls.len()).map(Local::new)
     }
 
     #[inline]
     pub fn is_join_point(&self, bb: BasicBlock) -> bool {
-        let total_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len();
+        let total_preds = self.rustc_body().basic_blocks.predecessors()[bb].len();
         let real_preds = total_preds - self.body.fake_predecessors[bb];
         // The entry block is a joint point if it has at least one predecessor because there's
         // an implicit goto from the environment at the beginning of the function.
@@ -113,22 +116,21 @@ impl<'tcx> BodyRoot<'tcx> {
 
     #[inline]
     pub fn dominators(&self) -> &Dominators<BasicBlock> {
-        self.body_with_facts.body.basic_blocks.dominators()
+        self.rustc_body().basic_blocks.dominators()
     }
 
     pub fn calculate_borrows_out_of_scope_at_location(
         &self,
     ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
         rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
-            &self.body_with_facts.body,
-            &self.body_with_facts.region_inference_context,
-            &self.body_with_facts.borrow_set,
+            &self.rustc_body(),
+            &self.region_inference_context,
+            &self.borrow_set,
         )
     }
 
     pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-        self.body_with_facts
-            .borrow_set
+        self.borrow_set
             .location_map()
             .get_index(idx.as_usize())
             .unwrap()
@@ -136,11 +138,11 @@ impl<'tcx> BodyRoot<'tcx> {
     }
 
     pub fn rustc_body(&self) -> &mir::Body<'tcx> {
-        &self.body_with_facts.body
+        &self.body.rustc_body
     }
 
     pub fn local_kind(&self, local: Local) -> LocalKind {
-        self.body_with_facts.body.local_kind(local)
+        self.rustc_body().local_kind(local)
     }
 }
 
@@ -452,11 +454,13 @@ impl Statement {
 
 impl<'tcx> BodyRoot<'tcx> {
     pub fn new(
-        body_with_facts: BodyWithBorrowckFacts<'tcx>,
+        borrow_set: BorrowSet<'tcx>,
+        region_inference_context: RegionInferenceContext<'tcx>,
         infcx: rustc_infer::infer::InferCtxt<'tcx>,
         body: Body<'tcx>,
+        promoted: IndexVec<Promoted, Body<'tcx>>,
     ) -> Self {
-        Self { infcx, body_with_facts, body }
+        Self { body, promoted, infcx, borrow_set, region_inference_context }
     }
 }
 
@@ -464,20 +468,19 @@ impl<'tcx> Body<'tcx> {
     pub fn new(
         basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
         local_decls: IndexVec<Local, LocalDecl>,
-        body_with_facts: &BodyWithBorrowckFacts<'tcx>,
+        rustc_body: rustc_middle::mir::Body<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
 
         // The dominator rank of each node is just its index in a reverse-postorder traversal.
-        let graph = &body_with_facts.body.basic_blocks;
+        let graph = &rustc_body.basic_blocks;
         let mut dominator_order_rank = IndexVec::from_elem_n(0, graph.num_nodes());
         let reverse_post_order = graph::iterate::reverse_post_order(graph, graph.start_node());
         assert_eq!(reverse_post_order.len(), graph.num_nodes());
         for (rank, bb) in (0u32..).zip(reverse_post_order) {
             dominator_order_rank[bb] = rank;
         }
-        let local_names = body_with_facts
-            .body
+        let local_names = rustc_body
             .var_debug_info
             .iter()
             .flat_map(|var_debug_info| {
@@ -489,22 +492,14 @@ impl<'tcx> Body<'tcx> {
                 }
             })
             .collect();
-        Self { basic_blocks, local_decls, fake_predecessors, dominator_order_rank, local_names }
-    }
-
-    pub fn promoted_body(&self, promoted: Promoted) -> Option<BodyWithBorrowckFacts<'tcx>> {
-        todo!()
-        // let promoted_body = self.body_with_facts.promoted.get(promoted).cloned()?;
-        // // let borrow_set = self.body_with_facts.borrow_set.clone();
-        // Some(BodyWithBorrowckFacts {
-        //     body: promoted_body,
-        //     promoted: IndexVec::new(),
-        //     borrow_set: self.body_with_facts.borrow_set,
-        //     region_inference_context: self.body_with_facts.region_inference_context,
-        //     location_table: None,
-        //     input_facts: None,
-        //     output_facts: None,
-        // })
+        Self {
+            basic_blocks,
+            local_decls,
+            fake_predecessors,
+            dominator_order_rank,
+            local_names,
+            rustc_body,
+        }
     }
 
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
