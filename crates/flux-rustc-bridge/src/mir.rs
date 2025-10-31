@@ -68,14 +68,12 @@ pub struct BodyRoot<'tcx> {
     /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
     pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
-    // body_with_facts: BodyWithBorrowckFacts<'tcx>,
     pub promoted: IndexVec<Promoted, Body<'tcx>>,
-  /// The set of borrows occurring in `body` with data about them.
+    /// The set of borrows occurring in `body` with data about them.
     pub borrow_set: rustc_borrowck::consumers::BorrowSet<'tcx>,
     /// Context generated during borrowck, intended to be passed to
     /// [`calculate_borrows_out_of_scope_at_location`].
     pub region_inference_context: rustc_borrowck::consumers::RegionInferenceContext<'tcx>,
-
 }
 
 impl<'tcx> BodyRoot<'tcx> {
@@ -153,12 +151,8 @@ pub struct Body<'tcx> {
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
     pub local_names: UnordMap<Local, Symbol>,
-
     /// A mir body that contains region identifiers.
     pub rustc_body: rustc_middle::mir::Body<'tcx>,
-    /// The mir bodies of promoteds.
-    // pub promoted: IndexVec<Promoted, Body<'tcx>>,
-    // /// The set of borrows occurring in `body` with data about them.
 }
 
 #[derive(Debug)]
