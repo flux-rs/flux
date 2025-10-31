@@ -17,6 +17,8 @@ flux-syntax.workspace = true
 
 liquid-fixpoint.workspace = true
 
+anstream.workspace = true
+anstyle.workspace = true
 bumpalo.workspace = true
 dashmap.workspace = true
 ena.workspace = true

@@ -27,6 +27,7 @@ liquid-fixpoint = { path = "./lib/liquid-fixpoint", version = "0.1.0", features 
     "nightly",
 ] }
 
+anstream = "0.6.21"
 anstyle = "1.0.13"
 anyhow = "1.0.97"
 bumpalo = "3.17.0"

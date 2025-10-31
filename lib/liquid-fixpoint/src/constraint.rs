@@ -35,12 +35,22 @@ impl<T: Types> Constraint<T> {
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.
     /// If `!c.is_concrete` then `c` is trivially satisfiable and we can avoid calling fixpoint.
-    pub fn is_concrete(&self) -> bool {
-        match self {
-            Constraint::Conj(cs) => cs.iter().any(Constraint::is_concrete),
-            Constraint::ForAll(_, c) => c.is_concrete(),
-            Constraint::Pred(p, _) => p.is_concrete() && !p.is_trivially_true(),
+    /// Returns the number of concrete, non-trivial head predicates in the constraint.
+    pub fn concrete_head_count(&self) -> usize {
+        fn go<T: Types>(c: &Constraint<T>, count: &mut usize) {
+            match c {
+                Constraint::Conj(cs) => cs.iter().for_each(|c| go(c, count)),
+                Constraint::ForAll(_, c) => go(c, count),
+                Constraint::Pred(p, _) => {
+                    if p.is_concrete() && !p.is_trivially_true() {
+                        *count += 1;
+                    }
+                }
+            }
         }
+        let mut count = 0;
+        go(self, &mut count);
+        count
     }
 }
 
