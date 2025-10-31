@@ -29,8 +29,8 @@ use flux_middle::{
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
-        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
+        Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
         StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
@@ -482,16 +482,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         } else {
             None
         };
+        let bb_len = body.body.basic_blocks.len();
         let mut ck = Checker {
             def_id,
             genv,
             inherited,
-            body: &body,
+            body: &body.body,
             resume_ty,
-            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(bb_len),
             output: fn_sig.output().clone(),
-            markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
+            markers: IndexVec::from_fn_n(|_| None, bb_len),
+            queue: WorkQueue::empty(bb_len, &body.body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
         };
         ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;

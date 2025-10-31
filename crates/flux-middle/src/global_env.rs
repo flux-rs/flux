@@ -186,8 +186,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx().variances_of(did)
     }
 
-    pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<mir::Body<'tcx>>> {
-        self.inner.queries.mir(self, def_id)
+    pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<mir::BodyRoot<'tcx>>> {
+        // TODO
+        // self.inner.queries.mir(self, def_id)
+        todo!()
     }
 
     pub fn lower_generics_of(self, def_id: impl IntoQueryParam<DefId>) -> ty::Generics<'tcx> {

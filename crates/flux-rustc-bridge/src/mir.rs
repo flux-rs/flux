@@ -16,7 +16,7 @@ use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::{
-    mir::{self, VarDebugInfoContents},
+    mir::{self, Promoted, VarDebugInfoContents},
     ty::{FloatTy, IntTy, ParamConst, UintTy},
 };
 pub use rustc_middle::{
@@ -34,9 +34,8 @@ use crate::{
     ty::{Binder, FnSig, region_to_string},
 };
 
-pub struct Body<'tcx> {
-    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
-    pub local_decls: IndexVec<Local, LocalDecl>,
+pub struct BodyRoot<'tcx> {
+    pub body: Body<'tcx>,
     /// During borrow checking, `rustc` generates fresh [region variable ids] for each structurally
     /// different position in a type. For example, given a function
     ///
@@ -69,11 +68,97 @@ pub struct Body<'tcx> {
     /// [region variable ids]: super::ty::RegionVid
     /// [`InferCtxt`]: rustc_infer::infer::InferCtxt
     pub infcx: rustc_infer::infer::InferCtxt<'tcx>,
+    // body_with_facts: BodyWithBorrowckFacts<'tcx>,
+    pub promoted: IndexVec<Promoted, Body<'tcx>>,
+  /// The set of borrows occurring in `body` with data about them.
+    pub borrow_set: rustc_borrowck::consumers::BorrowSet<'tcx>,
+    /// Context generated during borrowck, intended to be passed to
+    /// [`calculate_borrows_out_of_scope_at_location`].
+    pub region_inference_context: rustc_borrowck::consumers::RegionInferenceContext<'tcx>,
+
+}
+
+impl<'tcx> BodyRoot<'tcx> {
+    pub fn body(&self) -> &Body<'tcx> {
+        &self.body
+    }
+    pub fn span(&self) -> Span {
+        self.body_with_facts.body.span
+    }
+
+    pub fn inner(&self) -> &mir::Body<'tcx> {
+        &self.body_with_facts.body
+    }
+
+    pub fn def_id(&self) -> DefId {
+        self.inner().source.def_id()
+    }
+
+    #[inline]
+    pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
+        (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
+    }
+
+    #[inline]
+    pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
+        (self.body_with_facts.body.arg_count + 1..self.body.local_decls.len()).map(Local::new)
+    }
+
+    #[inline]
+    pub fn is_join_point(&self, bb: BasicBlock) -> bool {
+        let total_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len();
+        let real_preds = total_preds - self.body.fake_predecessors[bb];
+        // The entry block is a joint point if it has at least one predecessor because there's
+        // an implicit goto from the environment at the beginning of the function.
+        real_preds > usize::from(bb != START_BLOCK)
+    }
+
+    #[inline]
+    pub fn dominators(&self) -> &Dominators<BasicBlock> {
+        self.body_with_facts.body.basic_blocks.dominators()
+    }
+
+    pub fn calculate_borrows_out_of_scope_at_location(
+        &self,
+    ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
+        rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
+            &self.body_with_facts.body,
+            &self.body_with_facts.region_inference_context,
+            &self.body_with_facts.borrow_set,
+        )
+    }
+
+    pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
+        self.body_with_facts
+            .borrow_set
+            .location_map()
+            .get_index(idx.as_usize())
+            .unwrap()
+            .1
+    }
+
+    pub fn rustc_body(&self) -> &mir::Body<'tcx> {
+        &self.body_with_facts.body
+    }
+
+    pub fn local_kind(&self, local: Local) -> LocalKind {
+        self.body_with_facts.body.local_kind(local)
+    }
+}
+
+pub struct Body<'tcx> {
+    pub basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
+    pub local_decls: IndexVec<Local, LocalDecl>,
     pub dominator_order_rank: IndexVec<BasicBlock, u32>,
     /// See [`mk_fake_predecessors`]
     fake_predecessors: IndexVec<BasicBlock, usize>,
-    body_with_facts: BodyWithBorrowckFacts<'tcx>,
     pub local_names: UnordMap<Local, Symbol>,
+
+    /// A mir body that contains region identifiers.
+    pub rustc_body: rustc_middle::mir::Body<'tcx>,
+    /// The mir bodies of promoteds.
+    // pub promoted: IndexVec<Promoted, Body<'tcx>>,
+    // /// The set of borrows occurring in `body` with data about them.
 }
 
 #[derive(Debug)]
@@ -371,12 +456,21 @@ impl Statement {
     }
 }
 
+impl<'tcx> BodyRoot<'tcx> {
+    pub fn new(
+        body_with_facts: BodyWithBorrowckFacts<'tcx>,
+        infcx: rustc_infer::infer::InferCtxt<'tcx>,
+        body: Body<'tcx>,
+    ) -> Self {
+        Self { infcx, body_with_facts, body }
+    }
+}
+
 impl<'tcx> Body<'tcx> {
     pub fn new(
         basic_blocks: IndexVec<BasicBlock, BasicBlockData<'tcx>>,
         local_decls: IndexVec<Local, LocalDecl>,
-        body_with_facts: BodyWithBorrowckFacts<'tcx>,
-        infcx: rustc_infer::infer::InferCtxt<'tcx>,
+        body_with_facts: &BodyWithBorrowckFacts<'tcx>,
     ) -> Self {
         let fake_predecessors = mk_fake_predecessors(&basic_blocks);
 
@@ -401,82 +495,26 @@ impl<'tcx> Body<'tcx> {
                 }
             })
             .collect();
-        Self {
-            basic_blocks,
-            local_decls,
-            infcx,
-            fake_predecessors,
-            body_with_facts,
-            dominator_order_rank,
-            local_names,
-        }
+        Self { basic_blocks, local_decls, fake_predecessors, dominator_order_rank, local_names }
     }
 
-    pub fn def_id(&self) -> DefId {
-        self.inner().source.def_id()
-    }
-
-    pub fn span(&self) -> Span {
-        self.body_with_facts.body.span
-    }
-
-    pub fn inner(&self) -> &mir::Body<'tcx> {
-        &self.body_with_facts.body
-    }
-
-    #[inline]
-    pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.body_with_facts.body.arg_count + 1).map(Local::new)
-    }
-
-    #[inline]
-    pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.body_with_facts.body.arg_count + 1..self.local_decls.len()).map(Local::new)
-    }
-
-    #[inline]
-    pub fn is_join_point(&self, bb: BasicBlock) -> bool {
-        let total_preds = self.body_with_facts.body.basic_blocks.predecessors()[bb].len();
-        let real_preds = total_preds - self.fake_predecessors[bb];
-        // The entry block is a joint point if it has at least one predecessor because there's
-        // an implicit goto from the environment at the beginning of the function.
-        real_preds > usize::from(bb != START_BLOCK)
-    }
-
-    #[inline]
-    pub fn dominators(&self) -> &Dominators<BasicBlock> {
-        self.body_with_facts.body.basic_blocks.dominators()
+    pub fn promoted_body(&self, promoted: Promoted) -> Option<BodyWithBorrowckFacts<'tcx>> {
+        todo!()
+        // let promoted_body = self.body_with_facts.promoted.get(promoted).cloned()?;
+        // // let borrow_set = self.body_with_facts.borrow_set.clone();
+        // Some(BodyWithBorrowckFacts {
+        //     body: promoted_body,
+        //     promoted: IndexVec::new(),
+        //     borrow_set: self.body_with_facts.borrow_set,
+        //     region_inference_context: self.body_with_facts.region_inference_context,
+        //     location_table: None,
+        //     input_facts: None,
+        //     output_facts: None,
+        // })
     }
 
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
         Location { block: bb, statement_index: self.basic_blocks[bb].statements.len() }
-    }
-
-    pub fn calculate_borrows_out_of_scope_at_location(
-        &self,
-    ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
-        rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
-            &self.body_with_facts.body,
-            &self.body_with_facts.region_inference_context,
-            &self.body_with_facts.borrow_set,
-        )
-    }
-
-    pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-        self.body_with_facts
-            .borrow_set
-            .location_map()
-            .get_index(idx.as_usize())
-            .unwrap()
-            .1
-    }
-
-    pub fn rustc_body(&self) -> &mir::Body<'tcx> {
-        &self.body_with_facts.body
-    }
-
-    pub fn local_kind(&self, local: Local) -> LocalKind {
-        self.body_with_facts.body.local_kind(local)
     }
 }
 

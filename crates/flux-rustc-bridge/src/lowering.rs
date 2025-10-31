@@ -33,7 +33,7 @@ use super::{
 };
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    mir::CallKind,
+    mir::{BodyRoot, CallKind},
     ty::{
         AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
         RegionOutlivesPredicate,
@@ -143,7 +143,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         sess: &'sess FluxSession,
         def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
-    ) -> Result<Body<'tcx>, ErrorGuaranteed> {
+    ) -> Result<BodyRoot<'tcx>, ErrorGuaranteed> {
         let infcx = tcx
             .infer_ctxt()
             .with_next_trait_solver(true)
@@ -167,8 +167,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        let body = Body::new(basic_blocks, local_decls, body_with_facts, infcx);
-        Ok(body)
+        let body = Body::new(basic_blocks, local_decls, &body_with_facts);
+        let body_root = BodyRoot::new(body_with_facts, infcx, body);
+        Ok(body_root)
     }
 
     fn lower_basic_block_data(
@@ -632,6 +633,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         let tcx = self.tcx;
         let const_ = constant.const_;
         let ty = constant.ty();
+        println!("TRACE: Lowering constant: {:?} of type {:?}", const_, ty);
         match (constant.const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
