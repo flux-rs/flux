@@ -495,8 +495,7 @@ where
         solver: SmtSolver,
     ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
-        let mut count = 0;
-        constraint.concrete_head_count(&mut count);
+        let count = constraint.concrete_head_count();
         metrics::incr_metric(Metric::CsTotal, count as u32);
         if count == 0 {
             metrics::incr_metric(Metric::FnTrivial, 1);
