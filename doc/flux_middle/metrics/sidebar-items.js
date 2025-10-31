@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BOLD","GREY"],"enum":["Metric","TimingKind"],"fn":["dump_timings","fmt_duration","incr_metric","incr_metric_if","print_and_dump_timings","print_report","print_summary","snd","stats","time_it"],"static":["METRICS","TIMINGS"],"struct":["Entry","FuncTiming","Metrics","QueryTiming","TimingStats","TimingsDump","ms"]};

@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["TimingKind"],"fn":["dump_timings","enter","fmt_duration","print_and_dump_report","print_report","snd","stats","time_it"],"static":["TIMINGS"],"struct":["Entry","FuncTiming","QueryTiming","Stats","TimingsDump","ms"]};
