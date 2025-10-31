@@ -20,11 +20,15 @@ pub fn print_summary(total_time: Duration) -> io::Result<()> {
     let mut stderr = anstream::Stderr::always(std::io::stderr());
     writeln!(
         &mut stderr,
-        "{BOLD}summary.{BOLD:#} {} functions processed: {} checked; {} trusted; {} ignored; finished in {}{GREY:#}",
+        "{BOLD}summary.{BOLD:#} {} functions processed: {} checked; {} trusted; {} ignored; {} cached; {} trivial. {} constraints generated: {} errors. Finished in {}{GREY:#}",
         METRICS.get(Metric::FnTotal),
         METRICS.get(Metric::FnChecked),
         METRICS.get(Metric::FnTrusted),
         METRICS.get(Metric::FnIgnored),
+        METRICS.get(Metric::FnCached),
+        METRICS.get(Metric::FnTrivial),
+        METRICS.get(Metric::CsTotal),
+        METRICS.get(Metric::CsError),
         fmt_duration(total_time),
     )
 }
@@ -41,21 +45,38 @@ pub enum Metric {
     FnIgnored,
     /// number of functions that were actually checked
     FnChecked,
+    /// number of cached queries
+    FnCached,
+    /// number of trivial queries
+    FnTrivial,
+    /// number of concrete constraints
+    CsTotal,
+    /// number of unsat constraints
+    CsError,
 }
 
 struct Metrics {
-    counts: [AtomicU32; 4],
+    counts: [AtomicU32; 8],
 }
 
 impl Metrics {
     const fn new() -> Self {
         Self {
-            counts: [AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)],
+            counts: [
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+            ],
         }
     }
 
-    fn incr(&self, metric: Metric) {
-        self.counts[metric as usize].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    fn incr(&self, metric: Metric, val: u32) {
+        self.counts[metric as usize].fetch_add(val, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn get(&self, metric: Metric) -> u32 {
@@ -63,13 +84,13 @@ impl Metrics {
     }
 }
 
-pub fn incr_metric(metric: Metric) {
-    METRICS.incr(metric);
+pub fn incr_metric(metric: Metric, val: u32) {
+    METRICS.incr(metric, val);
 }
 
 pub fn incr_metric_if(cond: bool, metric: Metric) {
     if cond {
-        incr_metric(metric);
+        incr_metric(metric, 1);
     }
 }
 
