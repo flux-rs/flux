@@ -106,6 +106,10 @@ pub fn verify() -> bool {
     FLAGS.verify
 }
 
+pub fn summary() -> bool {
+    FLAGS.summary
+}
+
 pub fn full_compilation() -> bool {
     FLAGS.full_compilation
 }

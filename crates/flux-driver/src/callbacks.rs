@@ -13,8 +13,8 @@ use flux_middle::{
     def_id::MaybeExternId,
     fhir::{self, FluxItem},
     global_env::GlobalEnv,
+    metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    timings,
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -74,11 +74,12 @@ impl FluxCallbacks {
         let cstore = CStore::load(tcx, &sess);
         let arena = fhir::Arena::new();
         GlobalEnv::enter(tcx, &sess, Box::new(cstore), &arena, providers, |genv| {
-            let result = timings::enter(tcx, || check_crate(genv));
+            let result = metrics::time_it(TimingKind::Total, || check_crate(genv));
             if result.is_ok() {
                 encode_and_save_metadata(genv);
             }
         });
+        let _ = metrics::print_and_dump_timings(tcx);
         sess.finish_diagnostics();
     }
 }
@@ -277,14 +278,24 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn check_def(&mut self, def_id: LocalDefId) -> Result<(), ErrorGuaranteed> {
         let def_id = self.genv.maybe_extern_id(def_id);
 
-        if self.genv.ignored(def_id.local_id()) || self.genv.is_dummy(def_id.local_id()) {
-            return Ok(());
-        }
-        if !self.is_included(def_id) {
+        // Dummy items generated for extern specs are excluded from metrics
+        if self.genv.is_dummy(def_id.local_id()) {
             return Ok(());
         }
 
-        match self.genv.def_kind(def_id) {
+        let kind = self.genv.def_kind(def_id);
+        metrics::incr_metric_if(kind.is_fn_like(), Metric::FnTotal);
+
+        if self.genv.ignored(def_id.local_id()) {
+            metrics::incr_metric_if(kind.is_fn_like(), Metric::FnIgnored);
+            return Ok(());
+        }
+        if !self.is_included(def_id) {
+            metrics::incr_metric_if(kind.is_fn_like(), Metric::FnTrusted);
+            return Ok(());
+        }
+
+        match kind {
             DefKind::Fn | DefKind::AssocFn => {
                 // Make sure we run conversion and report errors even if we skip the function
                 force_conv(self.genv, def_id.resolved_id()).emit(&self.genv)?;

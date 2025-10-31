@@ -18,13 +18,13 @@ use flux_middle::{
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     global_env::GlobalEnv,
+    metrics::{self, Metric, TimingKind},
     queries::QueryResult,
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
         VariantIdx, fold::TypeFoldable as _,
     },
-    timings::{self, TimingKind},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
@@ -495,7 +495,10 @@ where
         solver: SmtSolver,
     ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
-        if !constraint.is_concrete() {
+        let count = constraint.concrete_head_count();
+        metrics::incr_metric(Metric::CsTotal, count as u32);
+        if count == 0 {
+            metrics::incr_metric(Metric::FnTrivial, 1);
             self.ecx.errors.to_result()?;
             return Ok(Answer::trivial());
         }
@@ -562,6 +565,7 @@ where
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
+                metrics::incr_metric(Metric::CsError, errors.len() as u32);
                 errors
                     .into_iter()
                     .map(|err| self.tags[err.tag])
@@ -660,9 +664,10 @@ where
         if config::is_cache_enabled()
             && let Some(result) = cache.lookup(&key, hash)
         {
+            metrics::incr_metric(Metric::FnCached, 1);
             return result.clone();
         }
-        let result = timings::time_it(TimingKind::FixpointQuery(def_id, kind), || {
+        let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {
             task.run()
                 .unwrap_or_else(|err| tracked_span_bug!("failed to run fixpoint: {err}"))
         });

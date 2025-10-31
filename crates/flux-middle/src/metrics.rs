@@ -1,6 +1,7 @@
 use std::{
-    fs, io,
-    sync::Mutex,
+    fs,
+    io::{self, Write as _},
+    sync::{Mutex, atomic::AtomicU32},
     time::{Duration, Instant},
 };
 
@@ -12,24 +13,96 @@ use serde::Serialize;
 
 use crate::FixpointQueryKind;
 
+const BOLD: anstyle::Style = anstyle::Style::new().bold();
+const GREY: anstyle::Style = anstyle::AnsiColor::BrightBlack.on_default();
+
+pub fn print_summary(total_time: Duration) -> io::Result<()> {
+    let mut stderr = anstream::Stderr::always(std::io::stderr());
+    writeln!(
+        &mut stderr,
+        "{BOLD}summary.{BOLD:#} {} functions processed: {} checked; {} trusted; {} ignored; {} cached; {} trivial. {} constraints generated: {} errors. Finished in {}{GREY:#}",
+        METRICS.get(Metric::FnTotal),
+        METRICS.get(Metric::FnChecked),
+        METRICS.get(Metric::FnTrusted),
+        METRICS.get(Metric::FnIgnored),
+        METRICS.get(Metric::FnCached),
+        METRICS.get(Metric::FnTrivial),
+        METRICS.get(Metric::CsTotal),
+        METRICS.get(Metric::CsError),
+        fmt_duration(total_time),
+    )
+}
+
+static METRICS: Metrics = Metrics::new();
+
+#[repr(u8)]
+pub enum Metric {
+    /// number of functions (i.e., `DefId`s) processed
+    FnTotal,
+    /// number of "trusted" functions
+    FnTrusted,
+    /// number of "ignored" functions
+    FnIgnored,
+    /// number of functions that were actually checked
+    FnChecked,
+    /// number of cached queries
+    FnCached,
+    /// number of trivial queries
+    FnTrivial,
+    /// number of concrete constraints
+    CsTotal,
+    /// number of unsat constraints
+    CsError,
+}
+
+struct Metrics {
+    counts: [AtomicU32; 8],
+}
+
+impl Metrics {
+    const fn new() -> Self {
+        Self {
+            counts: [
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+                AtomicU32::new(0),
+            ],
+        }
+    }
+
+    fn incr(&self, metric: Metric, val: u32) {
+        self.counts[metric as usize].fetch_add(val, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn get(&self, metric: Metric) -> u32 {
+        self.counts[metric as usize].load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+pub fn incr_metric(metric: Metric, val: u32) {
+    METRICS.incr(metric, val);
+}
+
+pub fn incr_metric_if(cond: bool, metric: Metric) {
+    if cond {
+        incr_metric(metric, 1);
+    }
+}
+
 static TIMINGS: Mutex<Vec<Entry>> = Mutex::new(Vec::new());
 
 pub enum TimingKind {
+    /// Total time taken to run the complete Flux analysis on the crate
+    Total,
     /// Time taken to check the body of a function
     CheckFn(LocalDefId),
     /// Time taken to run a single fixpoint query
     FixpointQuery(DefId, FixpointQueryKind),
-}
-
-pub fn enter<R>(tcx: TyCtxt, f: impl FnOnce() -> R) -> R {
-    if !config::timings() {
-        return f();
-    }
-    let start = Instant::now();
-    let r = f();
-    print_and_dump_report(tcx, start.elapsed(), std::mem::take(&mut *TIMINGS.lock().unwrap()))
-        .unwrap();
-    r
 }
 
 #[derive(Serialize)]
@@ -58,9 +131,15 @@ fn snd<A, B: Copy>(&(_, b): &(A, B)) -> B {
     b
 }
 
-fn print_and_dump_report(tcx: TyCtxt, total: Duration, timings: Vec<Entry>) -> io::Result<()> {
+pub fn print_and_dump_timings(tcx: TyCtxt) -> io::Result<()> {
+    if !config::timings() {
+        return Ok(());
+    }
+
+    let timings = std::mem::take(&mut *TIMINGS.lock().unwrap());
     let mut functions = vec![];
     let mut queries = vec![];
+    let mut total = Duration::from_secs(0);
     for timing in timings {
         match timing.kind {
             TimingKind::CheckFn(local_def_id) => {
@@ -70,6 +149,10 @@ fn print_and_dump_report(tcx: TyCtxt, total: Duration, timings: Vec<Entry>) -> i
             TimingKind::FixpointQuery(def_id, kind) => {
                 let key = kind.task_key(tcx, def_id);
                 queries.push((key, timing.duration));
+            }
+            TimingKind::Total => {
+                // This should only appear once
+                total = timing.duration;
             }
         }
     }
@@ -154,10 +237,10 @@ pub fn time_it<R>(kind: TimingKind, f: impl FnOnce() -> R) -> R {
     r
 }
 
-fn stats(durations: &[Duration]) -> Stats {
+fn stats(durations: &[Duration]) -> TimingStats {
     let count = durations.len() as u32;
     if count == 0 {
-        return Stats::default();
+        return TimingStats::default();
     }
     let sum: Duration = durations.iter().sum();
     let mean = sum / count;
@@ -174,11 +257,11 @@ fn stats(durations: &[Duration]) -> Stats {
     }
     let standard_deviation = Duration::from_millis((sum_of_squares / count as f64).sqrt() as u64);
 
-    Stats { count, max, min, mean, standard_deviation }
+    TimingStats { count, max, min, mean, standard_deviation }
 }
 
 #[derive(Default)]
-struct Stats {
+struct TimingStats {
     count: u32,
     max: Duration,
     min: Duration,
