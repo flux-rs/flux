@@ -914,8 +914,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let assoc_segment =
                     fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
-                let alias_ty =
-                    self.conv_type_relative_type_path(&mut env, ident.span, res, &assoc_segment)?;
+                let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
                 return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
@@ -1444,7 +1443,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let qself_res =
                     if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
                 let alias_ty = self
-                    .conv_type_relative_type_path(env, qself.span, qself_res, segment)?
+                    .conv_type_relative_type_path(env, qself_res, segment)?
                     .shift_in_escaping(1);
                 let bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
                 let sort = bty.sort();
@@ -1464,7 +1463,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_type_relative_path<Tag: AssocItemTag>(
         &mut self,
         tag: Tag,
-        qself_span: Span,
         qself_res: fhir::Res,
         assoc_ident: Ident,
     ) -> QueryResult<(Tag::AssocItem<'tcx>, rty::TraitRef)> {
@@ -1472,10 +1470,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let bound = match qself_res {
             fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
-                let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
-                    // A cycle error occurred most likely (comment copied from rustc)
-                    span_bug!(qself_span, "expected cycle error");
-                };
+                let trait_ref = tcx.impl_trait_ref(impl_def_id);
 
                 self.probe_single_bound_for_assoc_item(
                     || {
@@ -1535,16 +1530,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_type_relative_type_path(
         &mut self,
         env: &mut Env,
-        qself_span: Span,
         qself_res: fhir::Res,
         assoc_segment: &fhir::PathSegment,
     ) -> QueryResult<rty::AliasTy> {
-        let (assoc_item, trait_ref) = self.conv_type_relative_path(
-            AssocTag::Type,
-            qself_span,
-            qself_res,
-            assoc_segment.ident,
-        )?;
+        let (assoc_item, trait_ref) =
+            self.conv_type_relative_path(AssocTag::Type, qself_res, assoc_segment.ident)?;
 
         let assoc_id = assoc_item.def_id;
         let mut args = trait_ref.args.to_vec();
@@ -2469,7 +2459,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let qself_res =
                     if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
                 let (assoc_reft, trait_ref) =
-                    self.conv_type_relative_path(AssocReftTag, qself.span, qself_res, *name)?;
+                    self.conv_type_relative_path(AssocReftTag, qself_res, *name)?;
                 rty::AliasReft { assoc_id: assoc_reft.def_id, args: trait_ref.args }
             }
         };
