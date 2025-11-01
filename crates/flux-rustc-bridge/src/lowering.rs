@@ -658,7 +658,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         let tcx = self.tcx;
         let const_ = constant.const_;
         let ty = constant.ty();
-        println!("TRACE: Lowering constant: {:?} of type {:?}", const_, ty);
         match (constant.const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
@@ -696,7 +695,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 if let Const::Unevaluated(uneval, _) = const_ {
                     let args = uneval.args.lower(tcx)?;
                     if args.is_empty() {
-                        println!("TRACE: lowering unevaluated constant: {uneval:?} ==> {ty:?}");
                         let ty = ty.lower(tcx)?;
                         let uneval =
                             UnevaluatedConst { def: uneval.def, args, promoted: uneval.promoted };

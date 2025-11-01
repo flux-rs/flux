@@ -1678,6 +1678,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             Constant::Opaque(ty) => self.refine_default(ty),
             Constant::Unevaluated(ty, uneval) => {
+                // println!("TRACE: check_constant: unevaluated constant: {ty:?}, {uneval:?}");
                 let ty = self.refine_default(ty)?;
                 let info = self.genv.constant_info(uneval.def)?;
                 if let Some(bty) = ty.as_bty_skipping_existentials()
