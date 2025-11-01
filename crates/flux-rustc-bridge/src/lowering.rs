@@ -658,7 +658,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         let tcx = self.tcx;
         let const_ = constant.const_;
         let ty = constant.ty();
-        println!("TRACE: Lowering constant: {:?} of type {:?}", const_, ty);
+        // println!("TRACE: Lowering constant: {:?} of type {:?}", const_, ty);
         match (constant.const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
