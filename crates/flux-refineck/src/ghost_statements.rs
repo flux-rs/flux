@@ -9,7 +9,7 @@ use flux_common::bug;
 use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
 use flux_rustc_bridge::{
     lowering,
-    mir::{BasicBlock, Body, Place},
+    mir::{BasicBlock, Body, BodyRoot, Place},
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -77,14 +77,14 @@ impl GhostStatements {
 
             fold_unfold::add_ghost_statements(&mut stmts, genv, &body.body, fn_sig.as_ref())?;
             points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
-            stmts.add_unblocks(genv.tcx(), &body.body);
+            stmts.add_unblocks(genv.tcx(), &body);
             stmts.dump_ghost_mir(genv.tcx(), &body.body);
 
             Ok(stmts)
         })
     }
 
-    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
+    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &BodyRoot<'tcx>) {
         for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body.borrow_data(bidx);
