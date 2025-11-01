@@ -549,6 +549,13 @@ impl<T: Types> Expr<T> {
             }
         }
     }
+
+    pub fn disjunctions(&self) -> Vec<Expr<T>> {
+        match self {
+            Expr::Or(disjuncts) => disjuncts.clone(),
+            _ => vec![self.clone()]
+        }
+    }
 }
 
 #[derive_where(Hash, Clone, Debug)]

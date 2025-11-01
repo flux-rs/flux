@@ -785,7 +785,7 @@ pub fn qe_and_simplify<T: Types>(
         vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
     });
     consts.iter().for_each(|const_decl| {
-        println!("(declare-const {} {})", const_decl.name.display(), const_decl.sort);
+        // println!("(declare-const {} {})", const_decl.name.display(), const_decl.sort);
         vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
     });
     let free_vars: HashSet<_> = vars.bindings.keys().cloned().collect();
@@ -794,20 +794,19 @@ pub fn qe_and_simplify<T: Types>(
         // TODO: eliminate binders that are unused.
         vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
     }
+    solver.push();
     let lhs = z3::ast::Bool::and(&cstr.assumptions.iter().filter_map(|pred| {
         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
         // Assumptions that only pertain to non-quantified variables will
         // just be asserted.
         if pred.free_vars().is_subset(&free_vars) {
-            println!("assumption\n  {}", pred);
-            solver.assert(&pred_ast);
+            // println!("assumption\n  {}", pred);
             goal.assert(&pred_ast);
             None
         } else {
             Some(pred_ast)
         }
     }).collect_vec());
-    solver.push();
     let rhs = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
     let mut body = z3::ast::Bool::implies(&lhs, &rhs);
     for (var, _sort) in &cstr.binders {
@@ -826,27 +825,43 @@ pub fn qe_and_simplify<T: Types>(
             panic!("function in forall");
         }
     }
-    println!("constraint:\n{}", &body);
+    // println!("constraint:\n{}", &body);
     goal.assert(&body);
-    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify"));
+    let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify")).and_then(&Tactic::new("nnf"));
     match qe_and_simplify.apply(&goal, None) {
         Ok(apply_result) => {
-            println!("got result:");
+            // println!("got result:");
             if let Some(new_goal) = apply_result.list_subgoals().last() {
-                for formula in new_goal.iter_formulas::<ast::Dynamic>() {
-                    println!("formula: {:?}", formula);
-                }
+                // for formula in new_goal.iter_formulas::<ast::Dynamic>() {
+                //     println!("formula: {:?}", formula);
+                // }
                 if let Some(new_cstr) = new_goal.iter_formulas::<ast::Dynamic>().last() {
                     solver.pop(1);
-                    solver.assert(&new_cstr.as_bool().unwrap());
+                    // solver.assert(&new_cstr.as_bool().unwrap());
                     for pred in &cstr.assumptions {
                         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
                         solver.assert(&pred_ast);
                     }
-                    return match solver.check() {
-                        SatResult::Unsat => Err(Z3DecodeError::TriviallyFalse),
-                        _ => z3_to_expr(&vars, &new_cstr)
-                    }
+                    let fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
+                    let mut disjuncts = fixpoint_expr.disjunctions();
+                    disjuncts.retain(|disjunct| {
+                        solver.push();
+                        let e = pred_to_z3(&Pred::Expr(disjunct.clone()), &mut vars, AllowKVars::NoKVars);
+                        solver.assert(e);
+                        let res = match solver.check() {
+                            SatResult::Unsat => false,
+                            _ => true,
+                        };
+                        solver.pop(1);
+                        res
+                    });
+                    return if disjuncts.len() == 1 {
+                        Ok(disjuncts.pop().unwrap())
+                    } else if disjuncts.len() == 0 {
+                        Ok(Expr::Constant(Constant::Boolean(false)))
+                    } else {
+                        Ok(Expr::Or(disjuncts))
+                    };
                 }
             }
             Err(Z3DecodeError::NoResults)

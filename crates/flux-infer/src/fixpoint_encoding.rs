@@ -733,9 +733,14 @@ where
                                                     }
                                                 }
                                                 Err(err) => println!("failed to decode fixpoint expr because of {:?}", err),
-                                            }
+                                           }
                                         }
-                                        Err(err) => println!("failed to decode z3 expr because of {:?}", err),
+                                        Err(err) => {
+                                            println!("failed to decode z3 expr because of {:?}", err);
+                                            possible_solutions.entry(wkvar.wkvid)
+                                                .or_default()
+                                                .push(blame_ctx.expr.clone());
+                                        }
                                     }
                                 }
                             }
