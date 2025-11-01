@@ -29,8 +29,8 @@ use flux_middle::{
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
-        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
+        Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
         StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
@@ -45,7 +45,7 @@ use rustc_hir::{
 use rustc_index::bit_set::DenseBitSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
-    mir::SwitchTargets,
+    mir::{Promoted, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{Span, sym};
@@ -455,6 +455,17 @@ fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Infe
     env.fold_local_ptrs(&mut at)
 }
 
+fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
+    let safety = rustc_hir::Safety::Safe;
+    let abi = rustc_abi::ExternAbi::Rust;
+    let requires = rty::List::empty();
+    let inputs = rty::List::empty();
+    let output =
+        Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output);
+    PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
+}
+
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn check_body(
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
@@ -514,19 +525,33 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
+    fn promoted_tys(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        body_root: &BodyRoot<'tcx>,
+    ) -> Result<IndexVec<Promoted, Ty>> {
+        todo!()
+    }
+
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
-        inherited: Inherited<'ck, M>,
+        mut inherited: Inherited<'ck, M>,
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
         // 1. Generate templates for promoteds
+        let promoted_tys = Self::promoted_tys(&mut infcx, def_id, &body_root)?;
         // 2. Call check_body on promoted-bodies using the templates
+        for (body, ty) in body_root.promoted.iter().zip(promoted_tys.iter()) {
+            // let inherited = inherited.reborrow();
+            let poly_sig = promoted_fn_sig(ty);
+            Self::check_body(&mut infcx, def_id, inherited.reborrow(), &body, poly_sig)?;
+        }
         // 3. Finally, call check_body on the main body, using the promoted templates
-        Self::check_body(&mut infcx, def_id, inherited, &body_root.body, poly_sig)
+        Self::check_body(&mut infcx, def_id, inherited.reborrow(), &body_root.body, poly_sig)
     }
 
     fn check_basic_block(
