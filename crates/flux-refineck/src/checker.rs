@@ -65,6 +65,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     /// [`LocalDefId`] of the function-like item being checked.
     def_id: LocalDefId,
+    // inherited: &'ck mut Inherited<'ck, M>,
     inherited: Inherited<'ck, M>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
@@ -467,11 +468,11 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
-    fn check_body(
+    fn check_body<'inh>(
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
-        inherited: Inherited<'ck, M>,
-        body: &Body<'tcx>,
+        inherited: &'inh mut Inherited<'ck, M>,
+        body: &'inh Body<'tcx>,
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
@@ -496,7 +497,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let mut ck = Checker {
             def_id,
             genv,
-            inherited,
+            inherited: inherited.reborrow(),
             body,
             resume_ty,
             visited: DenseBitSet::new_empty(bb_len),
@@ -545,13 +546,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // 1. Generate templates for promoteds
         let promoted_tys = Self::promoted_tys(&mut infcx, def_id, &body_root)?;
         // 2. Call check_body on promoted-bodies using the templates
-        for (body, ty) in body_root.promoted.iter().zip(promoted_tys.iter()) {
+        for (promoted, ty) in promoted_tys.iter_enumerated() {
             // let inherited = inherited.reborrow();
+            let body = &body_root.promoted[promoted];
             let poly_sig = promoted_fn_sig(ty);
-            Self::check_body(&mut infcx, def_id, inherited.reborrow(), &body, poly_sig)?;
+            Self::check_body(&mut infcx, def_id, &mut inherited, &body, poly_sig)?;
         }
+        Ok(())
         // 3. Finally, call check_body on the main body, using the promoted templates
-        Self::check_body(&mut infcx, def_id, inherited.reborrow(), &body_root.body, poly_sig)
+        // Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
     }
 
     fn check_basic_block(
