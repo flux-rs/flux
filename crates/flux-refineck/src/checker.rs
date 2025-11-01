@@ -456,46 +456,45 @@ fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Infe
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
-    fn run(
-        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
+    fn check_body(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
         inherited: Inherited<'ck, M>,
+        body: &Body<'tcx>,
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
-
-        let body = genv.mir(def_id).with_span(span)?;
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
-        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
+        let mut env = TypeEnv::new(infcx, body, &fn_sig);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx().is_coroutine(def_id.to_def_id()) {
+        let resume_ty = if infcx.genv.tcx().is_coroutine(def_id.to_def_id()) {
             Some(fn_sig.inputs()[1].clone())
         } else {
             None
         };
-        let bb_len = body.body.basic_blocks.len();
+        let bb_len = body.basic_blocks.len();
         let mut ck = Checker {
             def_id,
             genv,
             inherited,
-            body: &body.body,
+            body,
             resume_ty,
             visited: DenseBitSet::new_empty(bb_len),
             output: fn_sig.output().clone(),
             markers: IndexVec::from_fn_n(|_| None, bb_len),
-            queue: WorkQueue::empty(bb_len, &body.body.dominator_order_rank),
+            queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
         };
-        ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
+        ck.check_ghost_statements_at(infcx, &mut env, Point::FunEntry, body.span())?;
 
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
 
@@ -512,8 +511,19 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;
         }
-
         Ok(())
+    }
+
+    fn run(
+        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        inherited: Inherited<'ck, M>,
+        poly_sig: PolyFnSig,
+    ) -> Result {
+        let genv = infcx.genv;
+        let span = genv.tcx().def_span(def_id);
+        let body_root = genv.mir(def_id).with_span(span)?;
+        Self::check_body(&mut infcx, def_id, inherited, &body_root.body, poly_sig)
     }
 
     fn check_basic_block(

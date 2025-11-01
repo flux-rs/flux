@@ -81,12 +81,8 @@ impl<'tcx> BodyRoot<'tcx> {
         &self.body
     }
 
-    pub fn span(&self) -> Span {
-        self.rustc_body().span
-    }
-
-    // pub fn inner(&self) -> &mir::Body<'tcx> {
-    //     &self.body_with_facts.body
+    // pub fn span(&self) -> Span {
+    //     self.rustc_body().span
     // }
 
     pub fn def_id(&self) -> DefId {
@@ -502,6 +498,10 @@ impl<'tcx> Body<'tcx> {
     #[inline]
     pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
         (self.rustc_body.arg_count + 1..self.local_decls.len()).map(Local::new)
+    }
+
+    pub fn span(&self) -> Span {
+        self.rustc_body.span
     }
 }
 

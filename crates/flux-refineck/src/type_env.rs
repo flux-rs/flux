@@ -29,7 +29,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self,
-    mir::{BasicBlock, BodyRoot, Local, LocalDecl, LocalDecls, Place, PlaceElem},
+    mir::{BasicBlock, Body, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
 use itertools::{Itertools, izip};
@@ -66,21 +66,20 @@ struct BasicBlockEnvData {
 }
 
 impl<'a> TypeEnv<'a> {
-    pub fn new(infcx: &mut InferCtxt, body_root: &'a BodyRoot, fn_sig: &FnSig) -> TypeEnv<'a> {
-        let mut env =
-            TypeEnv { bindings: PlacesTree::default(), local_decls: &body_root.body.local_decls };
+    pub fn new(infcx: &mut InferCtxt, body: &'a Body, fn_sig: &FnSig) -> TypeEnv<'a> {
+        let mut env = TypeEnv { bindings: PlacesTree::default(), local_decls: &body.local_decls };
 
         for requires in fn_sig.requires() {
             infcx.assume_pred(requires);
         }
 
-        for (local, ty) in body_root.body.args_iter().zip(fn_sig.inputs()) {
+        for (local, ty) in body.args_iter().zip(fn_sig.inputs()) {
             let ty = infcx.unpack(ty);
             infcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
         }
 
-        for local in body_root.body.vars_and_temps_iter() {
+        for local in body.vars_and_temps_iter() {
             env.alloc(local);
         }
 

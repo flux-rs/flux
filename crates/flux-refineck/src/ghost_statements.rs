@@ -61,7 +61,7 @@ impl GhostStatements {
     fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
 
-        bug::track_span(body.span(), || {
+        bug::track_span(body.body.span(), || {
             let mut stmts = Self {
                 at_start: Default::default(),
                 at_location: LocationMap::default(),
