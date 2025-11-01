@@ -523,6 +523,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
+        // 1. Generate templates for promoteds
+        // 2. Call check_body on promoted-bodies using the templates
+        // 3. Finally, call check_body on the main body, using the promoted templates
         Self::check_body(&mut infcx, def_id, inherited, &body_root.body, poly_sig)
     }
 
@@ -1674,9 +1677,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
             Constant::Opaque(ty) => self.refine_default(ty),
-            Constant::Unevaluated(ty, def_id) => {
+            Constant::Unevaluated(ty, uneval) => {
                 let ty = self.refine_default(ty)?;
-                let info = self.genv.constant_info(def_id)?;
+                let info = self.genv.constant_info(uneval.def)?;
                 if let Some(bty) = ty.as_bty_skipping_existentials()
                     && let rty::ConstantInfo::Interpreted(idx, _) = info
                 {

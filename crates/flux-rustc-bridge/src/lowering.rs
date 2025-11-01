@@ -658,7 +658,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         let tcx = self.tcx;
         let const_ = constant.const_;
         let ty = constant.ty();
-        // println!("TRACE: Lowering constant: {:?} of type {:?}", const_, ty);
+        println!("TRACE: Lowering constant: {:?} of type {:?}", const_, ty);
         match (constant.const_, ty.kind()) {
             (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
                 self.scalar_int_to_constant(scalar, ty)
@@ -694,8 +694,13 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
 
             (_, _) => {
                 if let Const::Unevaluated(uneval, _) = const_ {
-                    if uneval.args.is_empty() {
-                        return Ok(Constant::Unevaluated(ty.lower(tcx)?, uneval.def));
+                    let args = uneval.args.lower(tcx)?;
+                    if args.is_empty() {
+                        println!("TRACE: lowering unevaluated constant: {uneval:?} ==> {ty:?}");
+                        let ty = ty.lower(tcx)?;
+                        let uneval =
+                            UnevaluatedConst { def: uneval.def, args, promoted: uneval.promoted };
+                        return Ok(Constant::Unevaluated(ty, uneval));
                     }
                     // HACK(RJ) see tests/tests/pos/surface/const09.rs
                     // The const has `args` which makes it unevaluated...
@@ -847,7 +852,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
                 let args = c.args.lower(tcx)?;
-                ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
+                ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args, promoted: None })
             }
             _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
         };

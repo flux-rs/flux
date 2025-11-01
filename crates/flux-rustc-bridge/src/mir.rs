@@ -31,7 +31,7 @@ use rustc_span::{Span, Symbol};
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
     def_id_to_string,
-    ty::{Binder, FnSig, region_to_string},
+    ty::{Binder, FnSig, UnevaluatedConst, region_to_string},
 };
 
 pub struct BodyRoot<'tcx> {
@@ -406,8 +406,7 @@ pub enum Constant {
     Param(ParamConst, Ty),
     /// General catch-all for constants of a given Ty
     Opaque(Ty),
-    /// Better than opaque -- we track `DefId` so we can get the actual refinement index
-    Unevaluated(Ty, DefId),
+    Unevaluated(Ty, UnevaluatedConst),
 }
 
 impl Terminator<'_> {
@@ -799,7 +798,7 @@ impl fmt::Debug for Constant {
             Constant::Char(c) => write!(f, "\'{c}\'"),
             Constant::Opaque(ty) => write!(f, "<opaque {ty:?}>"),
             Constant::Param(p, _) => write!(f, "{p:?}"),
-            Constant::Unevaluated(ty, def_id) => write!(f, "<uneval {ty:?} from {def_id:?}>"),
+            Constant::Unevaluated(ty, uneval) => write!(f, "<Unevaluated({ty:?}, {uneval:?})>"),
         }
     }
 }
