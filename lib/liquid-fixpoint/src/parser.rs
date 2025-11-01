@@ -174,6 +174,7 @@ where
                         "<=>" => self.parse_iff(sexp),
                         "=>" => self.parse_imp(sexp),
                         "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
+                        "if" => self.parse_ite(&items[1], &items[2], &items[3]),
                         _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
                         _ if s.starts_with("wk$") => self.parse_wkvar(s, &items[1..]),
                         _ => self.parse_app(sexp),
@@ -399,6 +400,13 @@ where
             }
             _ => Err(ParseError::err("Expected list for let")),
         }
+    }
+
+    fn parse_ite(&mut self, cond_e: &Sexp, then_e: &Sexp, else_e: &Sexp) -> Result<Expr<T>, ParseError> {
+        let c = self.parse_expr(cond_e)?;
+        let t = self.parse_expr(then_e)?;
+        let e = self.parse_expr(else_e)?;
+        Ok(Expr::IfThenElse(Box::new([c, t, e])))
     }
 
     fn parse_list_sort(&self, sexp: &Sexp) -> Result<Sort<T>, ParseError> {
