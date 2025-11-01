@@ -6,9 +6,7 @@ use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
-use rustc_borrowck::consumers::{
-    BodyWithBorrowckFacts, BorrowData, BorrowIndex, BorrowSet, RegionInferenceContext,
-};
+use rustc_borrowck::consumers::{BorrowData, BorrowIndex, BorrowSet, RegionInferenceContext};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
@@ -93,30 +91,6 @@ impl<'tcx> BodyRoot<'tcx> {
 
     pub fn def_id(&self) -> DefId {
         self.rustc_body().source.def_id()
-    }
-
-    #[inline]
-    pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (1..self.rustc_body().arg_count + 1).map(Local::new)
-    }
-
-    #[inline]
-    pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
-        (self.rustc_body().arg_count + 1..self.body.local_decls.len()).map(Local::new)
-    }
-
-    #[inline]
-    pub fn is_join_point(&self, bb: BasicBlock) -> bool {
-        let total_preds = self.rustc_body().basic_blocks.predecessors()[bb].len();
-        let real_preds = total_preds - self.body.fake_predecessors[bb];
-        // The entry block is a joint point if it has at least one predecessor because there's
-        // an implicit goto from the environment at the beginning of the function.
-        real_preds > usize::from(bb != START_BLOCK)
-    }
-
-    #[inline]
-    pub fn dominators(&self) -> &Dominators<BasicBlock> {
-        self.rustc_body().basic_blocks.dominators()
     }
 
     pub fn calculate_borrows_out_of_scope_at_location(
@@ -504,6 +478,30 @@ impl<'tcx> Body<'tcx> {
 
     pub fn terminator_loc(&self, bb: BasicBlock) -> Location {
         Location { block: bb, statement_index: self.basic_blocks[bb].statements.len() }
+    }
+
+    #[inline]
+    pub fn is_join_point(&self, bb: BasicBlock) -> bool {
+        let total_preds = self.rustc_body.basic_blocks.predecessors()[bb].len();
+        let real_preds = total_preds - self.fake_predecessors[bb];
+        // The entry block is a joint point if it has at least one predecessor because there's
+        // an implicit goto from the environment at the beginning of the function.
+        real_preds > usize::from(bb != START_BLOCK)
+    }
+
+    #[inline]
+    pub fn dominators(&self) -> &Dominators<BasicBlock> {
+        self.rustc_body.basic_blocks.dominators()
+    }
+
+    #[inline]
+    pub fn args_iter(&self) -> impl ExactSizeIterator<Item = Local> {
+        (1..self.rustc_body.arg_count + 1).map(Local::new)
+    }
+
+    #[inline]
+    pub fn vars_and_temps_iter(&self) -> impl ExactSizeIterator<Item = Local> {
+        (self.rustc_body.arg_count + 1..self.local_decls.len()).map(Local::new)
     }
 }
 

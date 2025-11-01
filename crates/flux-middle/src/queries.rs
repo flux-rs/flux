@@ -9,11 +9,10 @@ use flux_errors::{E0999, ErrorGuaranteed};
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
-    mir::{self, Body},
+    mir::{self},
     ty,
 };
 use itertools::Itertools;
-use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
@@ -22,7 +21,6 @@ use rustc_hir::{
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
-use rustc_middle::mir::Promoted;
 use rustc_span::{Span, Symbol};
 
 use crate::{
@@ -239,7 +237,6 @@ impl Default for Providers {
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
     mir: Cache<LocalDefId, QueryResult<Rc<mir::BodyRoot<'tcx>>>>,
-    promoted_mir: Cache<(LocalDefId, Promoted), QueryResult<Rc<mir::Body<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
@@ -279,7 +276,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         Self {
             providers,
             mir: Default::default(),
-            promoted_mir: Default::default(),
             collect_specs: Default::default(),
             resolve_crate: Default::default(),
             desugar: Default::default(),
@@ -325,40 +321,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 lowering::MirLoweringCtxt::lower_mir_body(genv.tcx(), genv.sess(), def_id, mir)?;
             Ok(Rc::new(mir))
         })
-    }
-
-    pub(crate) fn promoted_mir(
-        &self,
-        genv: GlobalEnv<'genv, 'tcx>,
-        def_id: LocalDefId,
-        promoted: Promoted,
-    ) -> QueryResult<Rc<mir::Body<'tcx>>> {
-        // let body = self.mir(genv, def_id)?;
-        // let promoted_body = body.promoted_body(promoted).ok_or_else(|| {
-        //     QueryErr::bug(
-        //         Some(def_id.to_def_id()),
-        //         format!("no promoted body {promoted:?} in {def_id:?}"),
-        //     )
-        // })?;
-        // let body_with_facts = BodyWithBorrowckFacts {
-        //     body: promoted_body,
-        //     borrow_set: Default::default(),
-        //     region_infcx: Default::default(),
-        //     polonius_location_table: Default::default(),
-        //     polonius_input: Default::default(),
-        // };
-        todo!("promoted_mir")
-        // run_with_cache(&self.promoted_mir, (def_id, promoted), || {
-        //     let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
-        //     let mir = lowering::MirLoweringCtxt::lower_promoted_mir_body(
-        //         genv.tcx(),
-        //         genv.sess(),
-        //         def_id,
-        //         promoted,
-        //         &mir,
-        //     )?;
-        //     Ok(Rc::new(mir))
-        // })
     }
 
     pub(crate) fn collect_specs(&'genv self, genv: GlobalEnv<'genv, 'tcx>) -> &'genv crate::Specs {

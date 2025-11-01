@@ -29,8 +29,8 @@ use flux_middle::{
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
-        self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
-        Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
+        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
         StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},

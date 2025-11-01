@@ -29,7 +29,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self,
-    mir::{BasicBlock, Body, BodyRoot, Local, LocalDecl, LocalDecls, Place, PlaceElem},
+    mir::{BasicBlock, BodyRoot, Local, LocalDecl, LocalDecls, Place, PlaceElem},
     ty,
 };
 use itertools::{Itertools, izip};
@@ -74,13 +74,13 @@ impl<'a> TypeEnv<'a> {
             infcx.assume_pred(requires);
         }
 
-        for (local, ty) in body_root.args_iter().zip(fn_sig.inputs()) {
+        for (local, ty) in body_root.body.args_iter().zip(fn_sig.inputs()) {
             let ty = infcx.unpack(ty);
             infcx.assume_invariants(&ty);
             env.alloc_with_ty(local, ty);
         }
 
-        for local in body_root.vars_and_temps_iter() {
+        for local in body_root.body.vars_and_temps_iter() {
             env.alloc(local);
         }
 
