@@ -225,11 +225,6 @@ pub enum SortCtor<T: Types> {
 pub enum Pred<T: Types> {
     And(Vec<Self>),
     KVar(T::KVar, Vec<T::Var>),
-    /// NOTE: WKVars are for internal use and we will serialize them as TRUE.
-    ///
-    /// In an ideal world we would serialize them too and fixpoint would ignore
-    /// them.
-    WKVar(T::WKVar),
     Expr(Expr<T>),
 }
 
@@ -250,7 +245,6 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::Expr(Expr::Constant(Constant::Boolean(true))) => true,
             // FIXME: We do substitue true for wkvars, but is this correct?
-            Pred::WKVar(_) => true,
             Pred::And(ps) => ps.is_empty(),
             _ => false,
         }
@@ -260,7 +254,6 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::And(ps) => ps.iter().any(Pred::is_concrete),
             Pred::KVar(_, _) => false,
-            Pred::WKVar(_) => false,
             Pred::Expr(_) => true,
         }
     }
@@ -291,7 +284,7 @@ impl<T: Types> Pred<T> {
 
     pub fn free_vars(&self) -> HashSet<T::Var> {
         match self {
-            Pred::KVar(..) | Pred::WKVar(..) => HashSet::new(),
+            Pred::KVar(..) => HashSet::new(),
             Pred::And(preds) => {
                 preds.iter().flat_map(|pred| pred.free_vars()).collect()
             }
@@ -306,6 +299,16 @@ impl<T: Types> Pred<T> {
             Pred::KVar(..) => true,
             Pred::And(preds) => preds.iter().any(|pred| pred.has_kvar()),
             _ => false,
+        }
+    }
+
+    // Give all the weak kvars that appear as part of a top-level conjunction.
+    // This is a syntactic analysis.
+    pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
+        match self {
+            Pred::And(preds) => preds.iter().flat_map(|pred| pred.wkvars_in_conj()).collect(),
+            Pred::Expr(e) => e.wkvars_in_conj(),
+            Pred::KVar(..) => vec![],
         }
     }
 }
@@ -336,6 +339,12 @@ impl BoundVar {
     }
 }
 
+#[derive_where(Hash, Debug, Clone)]
+pub struct WKVar<T: Types> {
+    pub wkvid: T::Var,
+    pub args: Vec<Expr<T>>,
+}
+
 #[derive_where(Hash, Clone, Debug)]
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
@@ -358,6 +367,12 @@ pub enum Expr<T: Types> {
     ThyFunc(ThyFunc),
     IsCtor(T::Var, Box<Self>),
     Exists(Vec<Sort<T>>, Box<Self>),
+    /// NOTE: WKVars are for internal use and we serialize them as UIFs using
+    /// the var argument. We also don't emit WKVars that are in head position
+    /// when translating to fixpoint.
+    ///
+    /// In an ideal world fixpoint would deal with weak kvars itself.
+    WKVar(WKVar<T>),
 }
 
 impl<T: Types> From<Constant<T>> for Expr<T> {
@@ -440,6 +455,11 @@ impl<T: Types> Expr<T> {
             Expr::Exists(_sorts, expr) => {
                 // NOTE: (ck) No variable names here so it seems this is nameless.
                 vars.extend(expr.free_vars().into_iter());
+            }
+            Expr::WKVar(WKVar { wkvid: _, args }) => {
+                for e in args {
+                    vars.extend(e.free_vars());
+                }
             }
         };
         vars
@@ -547,6 +567,15 @@ impl<T: Types> Expr<T> {
                     Box::new(expr.substitute_bvar(subst_layer, current_level + 1)),
                 )
             }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                Expr::WKVar(WKVar {
+                    wkvid: wkvid.clone(),
+                    args: args
+                        .iter()
+                        .map(|e| e.substitute_bvar(subst_layer, current_level))
+                        .collect_vec(),
+                })
+            }
         }
     }
 
@@ -554,6 +583,133 @@ impl<T: Types> Expr<T> {
         match self {
             Expr::Or(disjuncts) => disjuncts.clone(),
             _ => vec![self.clone()]
+        }
+    }
+
+    // Give all the weak kvars that appear as part of a top-level conjunction.
+    // This is a syntactic analysis.
+    pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
+        match self {
+            Expr::WKVar(wkvar) => vec![wkvar.clone()],
+            Expr::And(conj) => {
+                conj.iter().flat_map(|e| {
+                    e.wkvars_in_conj()
+                }).collect()
+            }
+            _ => vec![]
+        }
+    }
+
+    pub fn uncurry(&self) -> Self {
+        match self {
+            Expr::App(head, args) => {
+                        let uncurried_head = head.uncurry();
+                        let uncurried_args = args.iter().map(|arg| arg.uncurry()).collect_vec();
+                        match uncurried_head {
+                            Expr::App(head_head, mut head_args) => {
+                                head_args.extend(uncurried_args);
+                                Expr::App(head_head, head_args)
+                            }
+                            Expr::WKVar(WKVar {wkvid, args: mut wkvar_args}) => {
+                                wkvar_args.extend(uncurried_args);
+                                Expr::WKVar(WKVar {wkvid, args: wkvar_args})
+                            }
+                            _ => {
+                                Expr::App(Box::new(uncurried_head), uncurried_args)
+                            }
+                        }
+                    }
+            Expr::Constant(_) | Expr::Var(_) | Expr::BoundVar(_)
+                | Expr::ThyFunc(_) => self.clone(),
+            Expr::Neg(expr) => {
+                Expr::Neg(Box::new(expr.uncurry()))
+            }
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(
+                    *bin_op,
+                    Box::new([
+                        args[0].uncurry(),
+                        args[1].uncurry(),
+                    ]),
+                )
+            }
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([
+                    args[0].uncurry(),
+                    args[1].uncurry(),
+                    args[2].uncurry(),
+                ]))
+            }
+            Expr::And(exprs) => {
+                Expr::And(
+                    exprs
+                        .iter()
+                        .map(|e| e.uncurry())
+                        .collect_vec(),
+                )
+            }
+            Expr::Or(exprs) => {
+                Expr::Or(
+                    exprs
+                        .iter()
+                        .map(|e| e.uncurry())
+                        .collect_vec(),
+                )
+            }
+            Expr::Not(expr) => {
+                Expr::Not(Box::new(expr.uncurry()))
+            }
+            Expr::Imp(args) => {
+                Expr::Imp(Box::new([
+                    args[0].uncurry(),
+                    args[1].uncurry(),
+                ]))
+            }
+            Expr::Iff(args) => {
+                Expr::Iff(Box::new([
+                    args[0].uncurry(),
+                    args[1].uncurry(),
+                ]))
+            }
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(
+                    *bin_rel,
+                    Box::new([
+                        args[0].uncurry(),
+                        args[1].uncurry(),
+                    ]),
+                )
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(
+                    var.clone(),
+                    Box::new([
+                        args[0].uncurry(),
+                        args[1].uncurry(),
+                    ]),
+                )
+            }
+            Expr::IsCtor(var, expr) => {
+                Expr::IsCtor(
+                    var.clone(),
+                    Box::new(expr.uncurry()),
+                )
+            }
+            Expr::Exists(sorts, expr) => {
+                Expr::Exists(
+                    sorts.clone(),
+                    Box::new(expr.uncurry()),
+                )
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                Expr::WKVar(WKVar {
+                    wkvid: wkvid.clone(),
+                    args: args
+                        .iter()
+                        .map(|e| e.uncurry())
+                        .collect_vec(),
+                })
+            }
         }
     }
 }

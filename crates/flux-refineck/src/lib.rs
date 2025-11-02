@@ -281,23 +281,15 @@ fn report_errors(
         // // Find predicates which imply the failing constraint
         // let solution_candidates = _find_solution_candidates(&err.blame_ctx);
 
-        let wkvar_solutions = err
-            .blame_ctx
-            .blame_analysis
-            .wkvars
+        let wkvar_solutions =
+            err
+            .possible_solutions
             .iter()
-            .flat_map(|wkvar| {
-                // Try to instantiate each wkvar to each possible solution for it
-                err.possible_solutions
-                   .get(&wkvar.wkvid)
-                   .map(|v| v.iter())
-                   .unwrap_or_default()
-                   .flat_map(|expr| {
-                        WKVarInstantiator::try_instantiate_wkvar(wkvar, expr)
-                            .map(|instantiated_expr| (wkvar.wkvid, instantiated_expr))
-                   })
-            })
-            .collect_vec();
+            .flat_map(|(wkvid, solutions)|
+                 solutions
+                      .iter()
+                      .map(move |solution| (wkvid, solution))
+        );
 
         if config::debug_binder_output() {
             // FIXME: We don't render the wk kvar suggestions in the debug output.
@@ -346,7 +338,7 @@ fn report_errors(
                 constraint: format!("{:?}", pretty::with_cx!(&pred_pretty_cx, &err.blame_ctx.expr)),
             });
             for (wkvid, solution) in wkvar_solutions {
-                add_fn_fix_diagnostic(genv, &mut err_diag, wkvid, solution);
+                add_fn_fix_diagnostic(genv, &mut err_diag, *wkvid, solution);
             }
             // for blamed_binder in blamed_binders {
             //     add_blame_var_diagnostic(genv, &mut err_diag, blamed_binder);
@@ -495,7 +487,7 @@ fn add_fn_fix_diagnostic<'a>(
     genv: GlobalEnv<'a, '_>,
     diag: &mut Diag<'a>,
     wkvid: rty::WKVid,
-    solution: rty::Binder<rty::Expr>,
+    solution: &rty::Binder<rty::Expr>,
 ) {
     let fn_name = genv.tcx().def_path_str(wkvid.0);
     let fn_span = genv

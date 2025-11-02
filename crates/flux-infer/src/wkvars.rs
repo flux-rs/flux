@@ -97,18 +97,18 @@ impl WKVarInstantiator<'_> {
     /// FIXME: This does not properly deal with expressions that have bound variables:
     /// if the expression has a bound variable, we might fail the instantiation
     /// when it should succeed.
-    pub fn try_instantiate_wkvar(
-        wkvar: &rty::WKVar,
+    pub fn try_instantiate_wkvar_args(
+        wkvar_args: &[rty::Expr],
         expr: &rty::Expr,
     ) -> Option<rty::Binder<rty::Expr>> {
         let expr_without_metadata = expr.erase_metadata();
         let expr_eta_expanded_rel = expr_without_metadata.expand_bin_rels();
         let mut args_to_param = HashMap::new();
         std::iter::zip(
-            wkvar.args.iter().map(|arg| arg.erase_metadata()),
+            wkvar_args.iter().map(|arg| arg.erase_metadata()),
             // We'll make an instantiator that is generic because this instatiation
             // may (and probably will) be used in multiple places
-            (0..wkvar.params.len()).into_iter().map(|var_num| {
+            (0..wkvar_args.len()).into_iter().map(|var_num| {
                 rty::Expr::bvar(INNERMOST, var_num.into(), rty::BoundReftKind::Anon)
             }),
         )
@@ -128,7 +128,7 @@ impl WKVarInstantiator<'_> {
             .map(|instantiated_e| {
                 rty::Binder::bind_with_sorts(
                     instantiated_e,
-                    &std::iter::repeat_n(rty::Sort::Err, wkvar.params.len()).collect_vec(),
+                    &std::iter::repeat_n(rty::Sort::Err, wkvar_args.len()).collect_vec(),
                 )
             })
     }
@@ -706,48 +706,44 @@ pub fn iterative_solve(
                     // TODO: sort by depth in binder
                     .clone();
                 'outer: for wkvar in &wkvars {
-                    for solution_candidate in error.possible_solutions.get(&wkvar.wkvid).map(|v| v.iter()).unwrap_or_default() {
+                    for instantiation in error.possible_solutions.get(&wkvar.wkvid).map(|v| v.iter()).unwrap_or_default() {
                         // Take the first wkvar solution we can find
-                        if let Some(instantiation) =
-                            WKVarInstantiator::try_instantiate_wkvar(wkvar, solution_candidate)
+                        let ground_truth_solutions = {
+                            if let Some(solutions_map) = genv.weak_kvars_for(wkvar.wkvid.0) {
+                                solutions_map
+                                    .get(&wkvar.wkvid.1.as_u32())
+                                    .cloned()
+                                    .unwrap_or(vec![])
+                            } else {
+                                vec![]
+                            }
+                        };
+                        // println!("Adding an instantiation for wkvar {:?}:", wkvar);
+                        // println!("  {:?}", instantiation);
+                        let solution = solutions
+                            .solutions
+                            .entry(wkvar.wkvid)
+                            .or_insert_with(|| WKVarSolution::empty(genv, wkvar.wkvid));
+                        // HACK: so that we don't waste time running around in circles, we
+                        // will not attempt to add a wkvar instantiation if:
+                        //   1. All of the ground truth solutions are
+                        //      present in the solution.
+                        //   2. There is at least 1 ground truth solution OR
+                        //      we have removed at least 1 spurious
+                        //      solution.  The latter case is to prevent us
+                        //      adding and then removing different spurious
+                        //      solutions over and over again.
+                        if ground_truth_solutions
+                            .iter()
+                            .all(|sol| solution.has_solved_expr(sol.skip_binder_ref()))
+                            && (ground_truth_solutions.len() > 0
+                                || solution.removed_solved_exprs.len() > 0)
                         {
-                            let ground_truth_solutions = {
-                                if let Some(solutions_map) = genv.weak_kvars_for(wkvar.wkvid.0) {
-                                    solutions_map
-                                        .get(&wkvar.wkvid.1.as_u32())
-                                        .cloned()
-                                        .unwrap_or(vec![])
-                                } else {
-                                    vec![]
-                                }
-                            };
-                            // println!("Adding an instantiation for wkvar {:?}:", wkvar);
-                            // println!("  {:?}", instantiation);
-                            let solution = solutions
-                                .solutions
-                                .entry(wkvar.wkvid)
-                                .or_insert_with(|| WKVarSolution::empty(genv, wkvar.wkvid));
-                            // HACK: so that we don't waste time running around in circles, we
-                            // will not attempt to add a wkvar instantiation if:
-                            //   1. All of the ground truth solutions are
-                            //      present in the solution.
-                            //   2. There is at least 1 ground truth solution OR
-                            //      we have removed at least 1 spurious
-                            //      solution.  The latter case is to prevent us
-                            //      adding and then removing different spurious
-                            //      solutions over and over again.
-                            if ground_truth_solutions
-                                .iter()
-                                .all(|sol| solution.has_solved_expr(sol.skip_binder_ref()))
-                                && (ground_truth_solutions.len() > 0
-                                    || solution.removed_solved_exprs.len() > 0)
-                            {
-                                continue;
-                            }
-                            any_wkvar_change = solution.add_solved_expr(&instantiation);
-                            if any_wkvar_change {
-                                break 'outer;
-                            }
+                            continue;
+                        }
+                        any_wkvar_change = solution.add_solved_expr(&instantiation);
+                        if any_wkvar_change {
+                            break 'outer;
                         }
                     }
                 }

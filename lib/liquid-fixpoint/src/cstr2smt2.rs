@@ -540,7 +540,8 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
                     fun_decl.apply(&arg_refs)
                 }
                 Expr::ThyFunc(func) => thy_func_application_to_z3(*func, args, env),
-                _ => panic!("encountered function application but no function"),
+                Expr::WKVar(_) => ast::Bool::from_bool(true).into(),
+                _ => panic!("encountered function application but no function: {:?}", expr),
             }
         }
         Expr::IsCtor(..) => todo!("testers not yet implemented"),
@@ -576,6 +577,11 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
         Expr::BoundVar(bvar) => {
             env.lookup_bvar(*bvar).cloned().expect(&format!("bound var {:?} not present", bvar))
         }
+        // UIFs are hard to deal with in QE and we don't need weak kvars in it
+        // anyway, so we'll just elide them here.
+        Expr::WKVar(_wkvar) => {
+           ast::Bool::from_bool(true).into()
+        }
     }
 }
 
@@ -596,8 +602,6 @@ fn pred_to_z3<T: Types>(pred: &Pred<T>, env: &mut Env<T>, allow_kvars: AllowKVar
             let bool_refs = bools.iter().collect_vec();
             ast::Bool::and(&bool_refs)
         }
-        // NOTE: we treat weak kvars as if they were true
-        Pred::WKVar(_) => ast::Bool::from_bool(true),
         Pred::KVar(_kvar, _vars) => {
             match allow_kvars {
                 AllowKVars::NoKVars => panic!("Kvars not supported yet"),

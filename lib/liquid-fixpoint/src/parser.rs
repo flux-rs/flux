@@ -5,7 +5,7 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
-    constraint::BoundVar,
+    constraint::{BoundVar, WKVar},
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -151,6 +151,12 @@ where
         Ok(Expr::IsCtor(ctor, Box::new(arg)))
     }
 
+    fn parse_wkvar(&mut self, wkvar_name: &str, args: &[Sexp]) -> Result<Expr<T>, ParseError> {
+        let wkvid = self.parser.var(wkvar_name)?;
+        let args = args.into_iter().map(|arg| self.parse_expr(arg)).try_collect()?;
+        Ok(Expr::WKVar(WKVar{wkvid, args}))
+    }
+
     pub fn parse_expr(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
@@ -169,6 +175,7 @@ where
                         "=>" => self.parse_imp(sexp),
                         "cast_as_int" => self.parse_expr(&items[1]), // some odd thing that fixpoint-hs seems to add for sets...
                         _ if s.starts_with("is$") => self.parse_is_ctor(&s[3..], &items[1]),
+                        _ if s.starts_with("wk$") => self.parse_wkvar(s, &items[1..]),
                         _ => self.parse_app(sexp),
                     }
                 } else {
@@ -496,7 +503,7 @@ where
                 .try_collect()?;
             self.push_scope(&kvar_args);
 
-            let expr = self.parse_expr(body)?;
+            let expr = self.parse_expr(body)?.uncurry();
             Ok((sorts, expr))
         } else {
             Err(ParseError::err("expected (lambda (params) body)"))
@@ -658,7 +665,6 @@ impl Types for StringTypes {
     type Var = String;
     type Tag = String;
     type String = String;
-    type WKVar = String;
 }
 
 impl FromSexp<StringTypes> for StringTypes {
