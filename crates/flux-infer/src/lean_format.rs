@@ -314,6 +314,9 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
             Expr::BoundVar(_) => {
                 unreachable!("bound vars should only be present in fixpoint output")
             }
+            Expr::WKVar(_) => {
+                todo!("not yet implemented")
+            }
         }
     }
 }
@@ -353,7 +356,6 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                 )
             }
             Pred::KVar(_, _) => panic!("kvars should not appear when encoding in lean"),
-            Pred::WKVar(_) => panic!("wkvars should not appear when encoding in lean"),
         }
     }
 }

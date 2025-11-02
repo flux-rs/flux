@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     Assignments, BinRel, Types,
-    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier},
+    constraint::{Bind, Constant, Constraint, Expr, Pred, Qualifier, WKVar},
     constraint_fragments::ConstraintFragments,
     graph::topological_sort_sccs,
 };
@@ -106,7 +106,7 @@ impl<T: Types> Constraint<T> {
     pub fn fragment_kvar_head(&self) -> Option<T::KVar> {
         match self {
             Constraint::ForAll(_bind, inner) => inner.fragment_kvar_head(),
-            Constraint::Pred(Pred::Expr(_) | Pred::WKVar(_), _tag) => None,
+            Constraint::Pred(Pred::Expr(_), _tag) => None,
             Constraint::Pred(Pred::KVar(name, _args), _tag) => Some(name.clone()),
             _ => panic!("Conjunctions should not occur in fragments"),
         }
@@ -326,14 +326,14 @@ impl<T: Types> Pred<T> {
         match self {
             Pred::And(ps) => ps.iter().any(Pred::contains_kvars),
             Pred::KVar(_, _) => true,
-            Pred::Expr(_) | Pred::WKVar(_) => false,
+            Pred::Expr(_) => false,
         }
     }
 
     fn kvars(&self) -> Vec<T::KVar> {
         match self {
             Pred::KVar(kvid, _args) => vec![kvid.clone()],
-            Pred::Expr(_) | Pred::WKVar(_) => vec![],
+            Pred::Expr(_) => vec![],
             Pred::And(conjuncts) => conjuncts.iter().flat_map(Pred::kvars).unique().collect(),
         }
     }
@@ -363,7 +363,7 @@ impl<T: Types> Pred<T> {
                         .collect(),
                 )
             }
-            Pred::Expr(_) | Pred::WKVar(_) => self.clone(),
+            Pred::Expr(_) => self.clone(),
             Pred::And(conjuncts) => {
                 Pred::And(
                     conjuncts
@@ -378,7 +378,7 @@ impl<T: Types> Pred<T> {
 
     pub(crate) fn sub_head(&self, assignment: &(&Qualifier<T>, Vec<usize>)) -> Self {
         match self {
-            Pred::Expr(_) | Pred::WKVar(_) => self.clone(),
+            Pred::Expr(_) => self.clone(),
             Pred::KVar(_kvid, args) => {
                 Pred::Expr(
                     assignment
@@ -468,6 +468,10 @@ impl<T: Types> Expr<T> {
             Expr::Constant(_) | Expr::ThyFunc(_) | Expr::BoundVar(_) => {}
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
+            }
+            Expr::WKVar(WKVar{wkvid, args}) => {
+                args.iter_mut()
+                    .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
         }
     }

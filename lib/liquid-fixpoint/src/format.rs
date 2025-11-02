@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use itertools::Itertools;
 
+use crate::constraint::WKVar;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
@@ -156,11 +157,6 @@ impl ConstraintFormatter {
                     }
                 }
             }
-            Pred::WKVar(_) => {
-                // Pretend as if the wkvar was TRUE when sending the constraint
-                // to fixpoint to check.
-                self.fmt_pred_in_head_position(&Pred::Expr(Expr::Constant(Constant::Boolean::<T>(true))), tag, f)
-            }
             Pred::Expr(_) | Pred::KVar(..) => {
                 if let Some(tag) = tag {
                     write!(f, "(tag {pred} \"{tag}\")")
@@ -281,10 +277,6 @@ impl<T: Types> fmt::Display for Pred<T> {
                     vars.iter().map(Identifier::display).format(" ")
                 )
             }
-            Pred::WKVar(_) => {
-                // Pretend as if this was just TRUE
-                Pred::Expr(Expr::Constant(Constant::Boolean::<T>(true))).fmt(f)
-            }
             Pred::Expr(expr) => write!(f, "({expr})"),
         }
     }
@@ -345,6 +337,9 @@ impl<T: Types> fmt::Display for Expr<T> {
             }
             Expr::BoundVar(BoundVar { level, idx }) => {
                 write!(f, "bv{level}_{idx}")
+            }
+            Expr::WKVar(WKVar { wkvid, args }) => {
+                write!(f, "({} {})", wkvid.display(), args.iter().format(" "))
             }
         }
     }

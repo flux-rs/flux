@@ -39,7 +39,7 @@ use std::{
 
 pub use constraint::{
     BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField,
-    Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl
+    Expr, FlatConstraint, Pred, Qualifier, Sort, SortCtor, SortDecl, WKVar,
 };
 use constraint_with_env::{topo_sort_data_declarations, ConstraintWithEnv};
 use cstr2smt2::Z3DecodeError;
@@ -57,7 +57,6 @@ use crate::constraint_with_env::ConstraintWithEnv;
 pub trait Types {
     type Sort: Identifier + Hash + Clone + Debug + Eq;
     type KVar: Identifier + Hash + Clone + Debug + Eq;
-    type WKVar: Hash + Clone + Debug;
     type Var: Identifier + Hash + Clone + Debug + Eq;
     type String: FixpointFmt + Hash + Clone + Debug;
     type Tag: fmt::Display + FromStr + Hash + Clone + Debug;
@@ -115,7 +114,6 @@ impl FixpointFmt for String {
 macro_rules! declare_types {
     (   type Sort = $sort:ty;
         type KVar = $kvar:ty;
-        type WKVar = $wkvar:ty;
         type Var = $var:ty;
         type String = $str:ty;
         type Tag = $tag:ty;
@@ -139,13 +137,12 @@ macro_rules! declare_types {
             pub type DataField = $crate::DataField<FixpointTypes>;
             pub type Bind = $crate::Bind<FixpointTypes>;
             pub type Constant = $crate::Constant<FixpointTypes>;
-            pub use $crate::{BinOp, BinRel, BoundVar, ThyFunc};
+            pub use $crate::{BinOp, BinRel, BoundVar, ThyFunc, WKVar};
         }
 
         impl $crate::Types for fixpoint_generated::FixpointTypes {
             type Sort = $sort;
             type KVar = $kvar;
-            type WKVar = $wkvar;
             type Var = $var;
             type String = $str;
             type Tag = $tag;
