@@ -1843,12 +1843,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 // Returns true if the type is a reference to an array or slice, whose bodies seem to have
 // things that make the checker crash. (e.g. see tests/tests/pos/surface/promotion02.rs)
 fn is_tricky_promoted_ty(rustc_ty: &ty::Ty) -> bool {
-    if let ty::TyKind::Ref(_, inner_ty, _) = rustc_ty.kind()
-        && matches!(inner_ty.kind(), ty::TyKind::Array(..) | ty::TyKind::Slice(..))
-    {
-        return true;
-    }
-    return false;
+    true
+    // if let ty::TyKind::Ref(_, inner_ty, _) = rustc_ty.kind()
+    //     && matches!(inner_ty.kind(), ty::TyKind::Array(..) | ty::TyKind::Slice(..))
+    // {
+    //     return true;
+    // }
+    // return false;
 }
 
 fn instantiate_args_for_fun_call(
