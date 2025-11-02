@@ -66,7 +66,6 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
     /// [`LocalDefId`] of the function-like item being checked.
     def_id: LocalDefId,
-    // inherited: &'ck mut Inherited<'ck, M>,
     inherited: Inherited<'ck, M>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
@@ -91,6 +90,9 @@ struct Inherited<'ck, M> {
     /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
     /// we need to be careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
+
+    /// The templates for the promoted bodies of the current function (None when we are checking a promoted body itself)
+    promoted: Option<IndexVec<Promoted, Ty>>,
 }
 
 #[derive(Debug)]
@@ -108,11 +110,16 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, closures })
+        Ok(Self { ghost_stmts, mode, closures, promoted: None })
     }
 
     fn reborrow(&mut self) -> Inherited<'_, M> {
-        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, closures: self.closures }
+        Inherited {
+            ghost_stmts: self.ghost_stmts,
+            mode: &mut *self.mode,
+            closures: self.closures,
+            promoted: self.promoted.clone(),
+        }
     }
 }
 
@@ -570,6 +577,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let poly_sig = promoted_fn_sig(ty);
             Self::check_body(&mut infcx, def_id, &mut inherited, &body, poly_sig)?;
         }
+        inherited.promoted = Some(promoted_tys);
         // 3. Finally, call check_body on the main body, using the promoted templates
         Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
     }
@@ -1723,16 +1731,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
             Constant::Opaque(ty) => self.refine_default(ty),
             Constant::Unevaluated(ty, uneval) => {
-                // println!("TRACE: check_constant: unevaluated constant: {ty:?}, {uneval:?}");
+                // Use template for promoted constants, if applicable
+                if let Some(promoted) = uneval.promoted
+                    && let Some(promoted_tys) = &self.inherited.promoted
+                    && let Some(ty) = promoted_tys.get(promoted)
+                {
+                    return Ok(ty.clone());
+                }
                 let ty = self.refine_default(ty)?;
                 let info = self.genv.constant_info(uneval.def)?;
+                // else, use constant index if applicable
                 if let Some(bty) = ty.as_bty_skipping_existentials()
                     && let rty::ConstantInfo::Interpreted(idx, _) = info
                 {
-                    Ok(Ty::indexed(bty.clone(), idx))
-                } else {
-                    Ok(ty)
+                    return Ok(Ty::indexed(bty.clone(), idx));
                 }
+                // else use default unrefined type
+                Ok(ty)
             }
         }
     }
