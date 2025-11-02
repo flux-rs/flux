@@ -28,6 +28,7 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self, ToRustc,
+    lowering::Lower,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
         Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
@@ -531,7 +532,24 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         def_id: LocalDefId,
         body_root: &BodyRoot<'tcx>,
     ) -> Result<IndexVec<Promoted, Ty>> {
-        todo!()
+        let span = body_root.body.span();
+        let Ok(refiner) = Refiner::with_holes(infcx.genv, def_id.into()) else {
+            span_bug!(span, "could not create refiner for promoted bodies")
+        };
+        body_root
+            .promoted
+            .iter()
+            .map(|body| {
+                let Ok(rustc_ty) = body.rustc_body.return_ty().lower(infcx.genv.tcx()) else {
+                    span_bug!(span, "promoted body has non-ty return type")
+                };
+                let ty = rustc_ty
+                    .refine(&refiner)
+                    .with_span(span)?
+                    .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+                Ok(ty)
+            })
+            .collect()
     }
 
     fn run(
@@ -552,9 +570,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             let poly_sig = promoted_fn_sig(ty);
             Self::check_body(&mut infcx, def_id, &mut inherited, &body, poly_sig)?;
         }
-        Ok(())
         // 3. Finally, call check_body on the main body, using the promoted templates
-        // Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
+        Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
     }
 
     fn check_basic_block(
