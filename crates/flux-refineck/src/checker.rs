@@ -600,7 +600,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             if *check {
                 let body = &body_root.promoted[promoted];
                 let poly_sig = promoted_fn_sig(ty);
+                println!("TRACE: Checking promoted (0) {def_id:?} {:?} with ty {:?}", promoted, ty);
                 Self::check_body(infcx, def_id, inherited, &body, poly_sig)?;
+                println!("TRACE: Checking promoted (1) {def_id:?} {:?} with ty {:?}", promoted, ty);
             }
         }
         // 3. Stash the promoted templates in inherited for use in the main body
@@ -1843,13 +1845,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 // Returns true if the type is a reference to an array or slice, whose bodies seem to have
 // things that make the checker crash. (e.g. see tests/tests/pos/surface/promotion02.rs)
 fn is_tricky_promoted_ty(rustc_ty: &ty::Ty) -> bool {
-    true
-    // if let ty::TyKind::Ref(_, inner_ty, _) = rustc_ty.kind()
-    //     && matches!(inner_ty.kind(), ty::TyKind::Array(..) | ty::TyKind::Slice(..))
-    // {
-    //     return true;
-    // }
-    // return false;
+    if let ty::TyKind::Ref(_, inner_ty, _) = rustc_ty.kind()
+        && matches!(inner_ty.kind(), ty::TyKind::Array(..) | ty::TyKind::Slice(..))
+    {
+        true
+    } else {
+        false
+    }
 }
 
 fn instantiate_args_for_fun_call(
