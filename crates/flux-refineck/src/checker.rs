@@ -568,18 +568,28 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
+        Self::check_promoted(&mut infcx, def_id, &mut inherited, &body_root)?;
+        // 4. Finally, call check_body on the main body, using the promoted templates
+        Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
+    }
+
+    fn check_promoted<'inh>(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        inherited: &'inh mut Inherited<'ck, M>,
+        body_root: &BodyRoot<'tcx>,
+    ) -> Result {
         // 1. Generate templates for promoteds
-        let promoted_tys = Self::promoted_tys(&mut infcx, def_id, &body_root)?;
+        let promoted_tys = Self::promoted_tys(infcx, def_id, &body_root)?;
         // 2. Call check_body on promoted-bodies using the templates
         for (promoted, ty) in promoted_tys.iter_enumerated() {
-            // let inherited = inherited.reborrow();
             let body = &body_root.promoted[promoted];
             let poly_sig = promoted_fn_sig(ty);
-            Self::check_body(&mut infcx, def_id, &mut inherited, &body, poly_sig)?;
+            Self::check_body(infcx, def_id, inherited, &body, poly_sig)?;
         }
+        // 3. Stash the promoted templates in inherited for use in the main body
         inherited.promoted = Some(promoted_tys);
-        // 3. Finally, call check_body on the main body, using the promoted templates
-        Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
+        Ok(())
     }
 
     fn check_basic_block(
