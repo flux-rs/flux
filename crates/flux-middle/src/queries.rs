@@ -9,7 +9,8 @@ use flux_errors::{E0999, ErrorGuaranteed};
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
-    mir, ty,
+    mir::{self},
+    ty,
 };
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
@@ -235,7 +236,7 @@ impl Default for Providers {
 
 pub struct Queries<'genv, 'tcx> {
     pub(crate) providers: Providers,
-    mir: Cache<LocalDefId, QueryResult<Rc<mir::Body<'tcx>>>>,
+    mir: Cache<LocalDefId, QueryResult<Rc<mir::BodyRoot<'tcx>>>>,
     collect_specs: OnceCell<crate::Specs>,
     resolve_crate: OnceCell<crate::ResolverOutput>,
     desugar: Cache<LocalDefId, QueryResult<fhir::Node<'genv>>>,
@@ -313,7 +314,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         &self,
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: LocalDefId,
-    ) -> QueryResult<Rc<mir::Body<'tcx>>> {
+    ) -> QueryResult<Rc<mir::BodyRoot<'tcx>>> {
         run_with_cache(&self.mir, def_id, || {
             let mir = unsafe { flux_common::mir_storage::retrieve_mir_body(genv.tcx(), def_id) };
             let mir =

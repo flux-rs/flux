@@ -9,7 +9,7 @@ use flux_common::bug;
 use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
 use flux_rustc_bridge::{
     lowering,
-    mir::{BasicBlock, Body, Place},
+    mir::{BasicBlock, Body, BodyRoot, Place},
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -61,7 +61,7 @@ impl GhostStatements {
     fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
         let body = genv.mir(def_id)?;
 
-        bug::track_span(body.span(), || {
+        bug::track_span(body.body.span(), || {
             let mut stmts = Self {
                 at_start: Default::default(),
                 at_location: LocationMap::default(),
@@ -75,17 +75,16 @@ impl GhostStatements {
                 Some(genv.fn_sig(def_id)?)
             };
 
-            fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
+            fold_unfold::add_ghost_statements(&mut stmts, genv, &body.body, fn_sig.as_ref())?;
             points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
             stmts.add_unblocks(genv.tcx(), &body);
-
-            stmts.dump_ghost_mir(genv.tcx(), &body);
+            stmts.dump_ghost_mir(genv.tcx(), &body.body);
 
             Ok(stmts)
         })
     }
 
-    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
+    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &BodyRoot<'tcx>) {
         for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body.borrow_data(bidx);
@@ -141,7 +140,7 @@ impl GhostStatements {
 
     pub(crate) fn dump_ghost_mir<'tcx>(&self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
         use rustc_middle::mir::{PassWhere, pretty::MirDumper};
-        if let Some(dumper) = MirDumper::new(tcx, "ghost", body.inner()) {
+        if let Some(dumper) = MirDumper::new(tcx, "ghost", &body.rustc_body) {
             dumper
                 .set_extra_data(&|pass, w| {
                     match pass {
@@ -172,7 +171,7 @@ impl GhostStatements {
                     }
                     Ok(())
                 })
-                .dump_mir(body.inner());
+                .dump_mir(&body.rustc_body);
         }
     }
 }

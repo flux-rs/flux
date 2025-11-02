@@ -5,7 +5,10 @@ use itertools::Itertools;
 use rustc_borrowck::consumers::BodyWithBorrowckFacts;
 use rustc_errors::ErrorGuaranteed;
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_infer::{infer::TyCtxtInferExt, traits::Obligation};
+use rustc_infer::{
+    infer::{InferCtxt, TyCtxtInferExt},
+    traits::Obligation,
+};
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
     mir::{self as rustc_mir, ConstValue},
@@ -33,7 +36,7 @@ use super::{
 };
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    mir::CallKind,
+    mir::{BodyRoot, CallKind},
     ty::{
         AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
         RegionOutlivesPredicate,
@@ -143,32 +146,55 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         sess: &'sess FluxSession,
         def_id: LocalDefId,
         body_with_facts: BodyWithBorrowckFacts<'tcx>,
-    ) -> Result<Body<'tcx>, ErrorGuaranteed> {
+    ) -> Result<BodyRoot<'tcx>, ErrorGuaranteed> {
         let infcx = tcx
             .infer_ctxt()
             .with_next_trait_solver(true)
             .build(TypingMode::analysis_in_body(tcx, def_id));
-        let param_env = tcx.param_env(body_with_facts.body.source.def_id());
-        let selcx = SelectionContext::new(&infcx);
-        let mut lower =
-            MirLoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: &body_with_facts.body };
+        let rustc_body = body_with_facts.body;
+        let def_id = rustc_body.source.def_id();
 
-        let basic_blocks = lower
-            .rustc_mir
+        let body = Self::lower_rustc_body(tcx, &infcx, sess, def_id, rustc_body)?;
+        let promoted = body_with_facts
+            .promoted
+            .into_iter()
+            .map(|rustc_promoted| Self::lower_rustc_body(tcx, &infcx, sess, def_id, rustc_promoted))
+            .try_collect()?;
+
+        let body_root = BodyRoot::new(
+            body_with_facts.borrow_set,
+            body_with_facts.region_inference_context,
+            infcx,
+            body,
+            promoted,
+        );
+        Ok(body_root)
+    }
+
+    fn lower_rustc_body(
+        tcx: TyCtxt<'tcx>,
+        infcx: &InferCtxt<'tcx>,
+        sess: &'sess FluxSession,
+        def_id: DefId,
+        body: rustc_mir::Body<'tcx>,
+    ) -> Result<Body<'tcx>, ErrorGuaranteed> {
+        let selcx = SelectionContext::new(infcx);
+        let param_env = tcx.param_env(def_id);
+        let mut lower = MirLoweringCtxt { tcx, selcx, param_env, sess, rustc_mir: &body };
+
+        let basic_blocks = body
             .basic_blocks
             .iter()
             .map(|bb_data| lower.lower_basic_block_data(bb_data))
             .try_collect()?;
 
-        let local_decls = lower
-            .rustc_mir
+        let local_decls = body
             .local_decls
             .iter()
             .map(|local_decl| lower.lower_local_decl(local_decl))
             .try_collect()?;
 
-        let body = Body::new(basic_blocks, local_decls, body_with_facts, infcx);
-        Ok(body)
+        Ok(Body::new(basic_blocks, local_decls, body))
     }
 
     fn lower_basic_block_data(
@@ -667,8 +693,12 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
 
             (_, _) => {
                 if let Const::Unevaluated(uneval, _) = const_ {
-                    if uneval.args.is_empty() {
-                        return Ok(Constant::Unevaluated(ty.lower(tcx)?, uneval.def));
+                    let args = uneval.args.lower(tcx)?;
+                    if args.is_empty() {
+                        let ty = ty.lower(tcx)?;
+                        let uneval =
+                            UnevaluatedConst { def: uneval.def, args, promoted: uneval.promoted };
+                        return Ok(Constant::Unevaluated(ty, uneval));
                     }
                     // HACK(RJ) see tests/tests/pos/surface/const09.rs
                     // The const has `args` which makes it unevaluated...
@@ -820,7 +850,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
                 let args = c.args.lower(tcx)?;
-                ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args })
+                ConstKind::Unevaluated(UnevaluatedConst { def: c.def, args, promoted: None })
             }
             _ => return Err(UnsupportedReason::new(format!("unsupported const {self:?}"))),
         };

@@ -13,13 +13,16 @@ pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
 use rustc_hir::{Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec};
 use rustc_macros::{TyDecodable, TyEncodable, extension};
-use rustc_middle::ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{
         BoundRegionKind, BoundVar, ConstVid, DebruijnIndex, EarlyParamRegion, FloatTy, IntTy,
         LateParamRegion, LateParamRegionKind, ParamTy, RegionVid, ScalarInt, UintTy,
     },
+};
+use rustc_middle::{
+    mir::Promoted,
+    ty::{self as rustc_ty, AdtFlags, ParamConst, TyCtxt},
 };
 use rustc_span::Symbol;
 pub use rustc_type_ir::InferConst;
@@ -343,6 +346,7 @@ impl<'tcx> ToRustc<'tcx> for Const {
 pub struct UnevaluatedConst {
     pub def: DefId,
     pub args: GenericArgs,
+    pub promoted: Option<Promoted>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

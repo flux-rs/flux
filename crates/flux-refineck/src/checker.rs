@@ -28,9 +28,10 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self, ToRustc,
+    lowering::Lower,
     mir::{
-        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
+        Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
         StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
@@ -45,7 +46,7 @@ use rustc_hir::{
 use rustc_index::bit_set::DenseBitSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
-    mir::SwitchTargets,
+    mir::{Promoted, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{Span, sym};
@@ -89,6 +90,9 @@ struct Inherited<'ck, M> {
     /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
     /// we need to be careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
+
+    /// The templates for the promoted bodies of the current function (None when we are checking a promoted body itself)
+    promoted: Option<IndexVec<Promoted, Ty>>,
 }
 
 #[derive(Debug)]
@@ -106,11 +110,16 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, closures })
+        Ok(Self { ghost_stmts, mode, closures, promoted: None })
     }
 
     fn reborrow(&mut self) -> Inherited<'_, M> {
-        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, closures: self.closures }
+        Inherited {
+            ghost_stmts: self.ghost_stmts,
+            mode: &mut *self.mode,
+            closures: self.closures,
+            promoted: self.promoted.clone(),
+        }
     }
 }
 
@@ -455,46 +464,57 @@ fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Infe
     env.fold_local_ptrs(&mut at)
 }
 
+fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
+    let safety = rustc_hir::Safety::Safe;
+    let abi = rustc_abi::ExternAbi::Rust;
+    let requires = rty::List::empty();
+    let inputs = rty::List::empty();
+    let output =
+        Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output);
+    PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
+}
+
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
-    fn run(
-        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
+    fn check_body<'inh>(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
-        inherited: Inherited<'ck, M>,
+        inherited: &'inh mut Inherited<'ck, M>,
+        body: &'inh Body<'tcx>,
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
-
-        let body = genv.mir(def_id).with_span(span)?;
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
-        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
+        let mut env = TypeEnv::new(infcx, body, &fn_sig);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx().is_coroutine(def_id.to_def_id()) {
+        let resume_ty = if infcx.genv.tcx().is_coroutine(def_id.to_def_id()) {
             Some(fn_sig.inputs()[1].clone())
         } else {
             None
         };
+        let bb_len = body.basic_blocks.len();
         let mut ck = Checker {
             def_id,
             genv,
-            inherited,
-            body: &body,
+            inherited: inherited.reborrow(),
+            body,
             resume_ty,
-            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
+            visited: DenseBitSet::new_empty(bb_len),
             output: fn_sig.output().clone(),
-            markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
+            markers: IndexVec::from_fn_n(|_| None, bb_len),
+            queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
         };
-        ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
+        ck.check_ghost_statements_at(infcx, &mut env, Point::FunEntry, body.span())?;
 
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
 
@@ -511,7 +531,64 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;
         }
+        Ok(())
+    }
 
+    fn promoted_tys(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        body_root: &BodyRoot<'tcx>,
+    ) -> Result<IndexVec<Promoted, Ty>> {
+        let span = body_root.body.span();
+        let Ok(refiner) = Refiner::with_holes(infcx.genv, def_id.into()) else {
+            span_bug!(span, "could not create refiner for promoted bodies")
+        };
+        body_root
+            .promoted
+            .iter()
+            .map(|body| {
+                let Ok(rustc_ty) = body.rustc_body.return_ty().lower(infcx.genv.tcx()) else {
+                    span_bug!(span, "promoted body has non-ty return type")
+                };
+                let ty = rustc_ty
+                    .refine(&refiner)
+                    .with_span(span)?
+                    .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+                Ok(ty)
+            })
+            .collect()
+    }
+
+    fn run(
+        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        mut inherited: Inherited<'ck, M>,
+        poly_sig: PolyFnSig,
+    ) -> Result {
+        let genv = infcx.genv;
+        let span = genv.tcx().def_span(def_id);
+        let body_root = genv.mir(def_id).with_span(span)?;
+        Self::check_promoted(&mut infcx, def_id, &mut inherited, &body_root)?;
+        // 4. Finally, call check_body on the main body, using the promoted templates
+        Self::check_body(&mut infcx, def_id, &mut inherited, &body_root.body, poly_sig)
+    }
+
+    fn check_promoted<'inh>(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        inherited: &'inh mut Inherited<'ck, M>,
+        body_root: &BodyRoot<'tcx>,
+    ) -> Result {
+        // 1. Generate templates for promoteds
+        let promoted_tys = Self::promoted_tys(infcx, def_id, &body_root)?;
+        // 2. Call check_body on promoted-bodies using the templates
+        for (promoted, ty) in promoted_tys.iter_enumerated() {
+            let body = &body_root.promoted[promoted];
+            let poly_sig = promoted_fn_sig(ty);
+            Self::check_body(infcx, def_id, inherited, &body, poly_sig)?;
+        }
+        // 3. Stash the promoted templates in inherited for use in the main body
+        inherited.promoted = Some(promoted_tys);
         Ok(())
     }
 
@@ -1663,16 +1740,24 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
             Constant::Opaque(ty) => self.refine_default(ty),
-            Constant::Unevaluated(ty, def_id) => {
+            Constant::Unevaluated(ty, uneval) => {
+                // Use template for promoted constants, if applicable
+                if let Some(promoted) = uneval.promoted
+                    && let Some(promoted_tys) = &self.inherited.promoted
+                    && let Some(ty) = promoted_tys.get(promoted)
+                {
+                    return Ok(ty.clone());
+                }
                 let ty = self.refine_default(ty)?;
-                let info = self.genv.constant_info(def_id)?;
+                let info = self.genv.constant_info(uneval.def)?;
+                // else, use constant index if applicable
                 if let Some(bty) = ty.as_bty_skipping_existentials()
                     && let rty::ConstantInfo::Interpreted(idx, _) = info
                 {
-                    Ok(Ty::indexed(bty.clone(), idx))
-                } else {
-                    Ok(ty)
+                    return Ok(Ty::indexed(bty.clone(), idx));
                 }
+                // else use default unrefined type
+                Ok(ty)
             }
         }
     }
