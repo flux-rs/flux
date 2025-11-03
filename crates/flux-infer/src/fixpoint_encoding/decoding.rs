@@ -4,7 +4,10 @@ use flux_middle::{
 };
 use flux_rustc_bridge::lowering::Lower;
 use itertools::Itertools;
-use rustc_hir::def_id::DefId;
+use rustc_hir::{
+    def::DefKind,
+    def_id::DefId,
+};
 use rustc_type_ir::BoundVar;
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
@@ -183,6 +186,25 @@ where
                             Ok(rty::Expr::tuple(eargs))
                         } else {
                             Err(FixpointParseError::TupleCtorArityMismatch(*arity, fargs.len()))
+                        }
+                    }
+                    fixpoint::Expr::Var(fixpoint::Var::DataCtor(adt_id, field)) => {
+                        let eargs = fargs
+                            .iter()
+                            .map(|farg| self.fixpoint_to_expr(farg))
+                            .try_collect()?;
+                        let def_id = self.scx.adt_sorts[adt_id.as_usize()];
+                        match self.genv.tcx().def_kind(def_id) {
+                            DefKind::Struct => {
+                                Ok(rty::Expr::ctor_struct(def_id, eargs))
+                            }
+                            DefKind::Enum => {
+                                let ctor = rty::Ctor::Enum(def_id, *field);
+                                Ok(rty::Expr::ctor(ctor, eargs))
+                            }
+                            _ => {
+                                Err(FixpointParseError::InvalidDefKindForCtor)
+                            }
                         }
                     }
                     fixpoint::Expr::Var(fixpoint::Var::UIFRel(fbinrel)) => {
@@ -439,4 +461,5 @@ pub enum FixpointParseError {
     /// Expecting fixpoint::Var::DataCtor
     WrongVarInIsCtor(fixpoint::Var),
     UnknownAdt(DefId),
+    InvalidDefKindForCtor,
 }
