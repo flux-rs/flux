@@ -833,7 +833,12 @@ where
                                                                 .or_default()
                                                                 .push(binder_e);
                                                         } else {
-                                                            println!("got nontrivial solution but couldn't unify it: {:?}", e);
+                                                            println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
+                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
+                                                                possible_solutions.entry(*wkvid)
+                                                                    .or_default()
+                                                                    .push(binder_e);
+                                                            }
                                                         }
                                                     } else {
                                                         println!("skipped trivial solution");

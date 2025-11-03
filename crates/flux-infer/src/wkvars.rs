@@ -7,17 +7,13 @@ use std::{
 
 use flux_common::cache::QueryCache;
 use flux_middle::{
-    FixpointQueryKind,
-    def_id::MaybeExternId,
-    global_env::GlobalEnv,
-    queries::QueryResult,
-    rty::{
+    FixpointQueryKind, def_id::MaybeExternId, global_env::GlobalEnv, pretty, queries::QueryResult, rty::{
         self,
         fold::{
             FallibleTypeFolder, TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable,
             TypeVisitor,
         },
-    },
+    }
 };
 use itertools::Itertools;
 use liquid_fixpoint::SmtSolver;
@@ -101,6 +97,7 @@ impl WKVarInstantiator<'_> {
         wkvar_args: &[rty::Expr],
         expr: &rty::Expr,
     ) -> Option<rty::Binder<rty::Expr>> {
+        println!("trying to instantiate {:?} using args {:?}", expr, wkvar_args);
         let expr_without_metadata = expr.erase_metadata();
         let expr_eta_expanded_rel = expr_without_metadata.expand_bin_rels();
         let mut args_to_param = HashMap::new();
@@ -534,6 +531,7 @@ impl WKVarSolutions {
             num_actual_exprs: usize,
         }
         let mut stats_by_fn: HashMap<String, WKVarSolutionStats> = HashMap::default();
+        let mut solutions_by_fn: HashMap<_, HashMap<rty::WKVid, rty::Binder<rty::Expr>>> = HashMap::default();
         let mut num_nontrivial_real_wkvars = 0;
         let mut num_nontrivial_internal_wkvars = 0;
         self.solutions.iter().for_each(|(wkvid, solution)| {
@@ -545,6 +543,12 @@ impl WKVarSolutions {
                 }
             }
             let wkvar_fn_name = genv.tcx().def_path_str(wkvid.0);
+            if let Some(solved_exprs) = &solution.solved_exprs {
+                let sol = solved_exprs.map_ref(|exprs| rty::Expr::and_from_iter(exprs.iter().cloned()));
+                solutions_by_fn.entry(wkvid.0)
+                               .or_default()
+                               .insert(*wkvid, sol);
+            }
             stats_by_fn
                 .entry(wkvar_fn_name)
                 .and_modify(|stats| {
@@ -552,6 +556,17 @@ impl WKVarSolutions {
                 })
                 .or_insert_with(|| solution.to_summary(genv).to_stats());
         });
+
+        for (def_id, wkvar_instantiations) in solutions_by_fn {
+            let wkvar_fn_name = genv.tcx().def_path_str(def_id);
+            let fn_sig = genv.fn_sig(def_id).unwrap();
+            let mut wkvar_subst = WKVarSubst { wkvar_instantiations };
+            let solved_fn_sig = rty::EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
+            let fixed_fn_sig_snippet =
+                format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
+            println!("Solution: fn {}", wkvar_fn_name);
+            println!("  {}", fixed_fn_sig_snippet);
+        }
 
         let mut writer = csv::Writer::from_path(path.as_path())?;
         let mut total = WKVarSolutionStats::default();
@@ -699,31 +714,25 @@ pub fn iterative_solve(
             for error in &fixpoint_answer.errors {
                 // println!("failing constraint {:?}", &error.blame_ctx.expr);
                 // let solution_candidates = _find_solution_candidates(&error.blame_ctx);
-                let wkvars = error
-                    .blame_ctx
-                    .blame_analysis
-                    .wkvars
-                    // TODO: sort by depth in binder
-                    .clone();
-                'outer: for wkvar in &wkvars {
-                    for instantiation in error.possible_solutions.get(&wkvar.wkvid).map(|v| v.iter()).unwrap_or_default() {
-                        // Take the first wkvar solution we can find
+                for (wkvid, instantiations) in error.possible_solutions.iter() {
+                    for instantiation in instantiations {
+                        // Accept all solutions given
                         let ground_truth_solutions = {
-                            if let Some(solutions_map) = genv.weak_kvars_for(wkvar.wkvid.0) {
+                            if let Some(solutions_map) = genv.weak_kvars_for(wkvid.0) {
                                 solutions_map
-                                    .get(&wkvar.wkvid.1.as_u32())
+                                    .get(&wkvid.1.as_u32())
                                     .cloned()
                                     .unwrap_or(vec![])
                             } else {
                                 vec![]
                             }
                         };
-                        // println!("Adding an instantiation for wkvar {:?}:", wkvar);
-                        // println!("  {:?}", instantiation);
+                        println!("Adding an instantiation for wkvar {:?}:", wkvid);
+                        println!("  {:?}", instantiation);
                         let solution = solutions
                             .solutions
-                            .entry(wkvar.wkvid)
-                            .or_insert_with(|| WKVarSolution::empty(genv, wkvar.wkvid));
+                            .entry(*wkvid)
+                            .or_insert_with(|| WKVarSolution::empty(genv, *wkvid));
                         // HACK: so that we don't waste time running around in circles, we
                         // will not attempt to add a wkvar instantiation if:
                         //   1. All of the ground truth solutions are
@@ -739,12 +748,10 @@ pub fn iterative_solve(
                             && (ground_truth_solutions.len() > 0
                                 || solution.removed_solved_exprs.len() > 0)
                         {
+                            println!("skipping adding an expr because of reasons");
                             continue;
                         }
-                        any_wkvar_change = solution.add_solved_expr(&instantiation);
-                        if any_wkvar_change {
-                            break 'outer;
-                        }
+                        any_wkvar_change = solution.add_solved_expr(instantiation) || any_wkvar_change;
                     }
                 }
             }
@@ -767,6 +774,8 @@ pub fn iterative_solve(
         // If our analysis cannot solve a wkvar because there are no more
         // errors, this won't change anything (because the errors list will be
         // empty).
+        i += 1;
+        continue;
         if !any_wkvar_change {
             println!("No changes: trying to add a wkvar solution");
             'outer: for (local_id, errs) in &all_errors {
