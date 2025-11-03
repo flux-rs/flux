@@ -604,9 +604,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let body = &body_root.promoted[promoted];
                 let poly_sig = promoted_fn_sig(ty);
                 let checker_id = CheckerId::Promoted(def_id, promoted);
-                // println!("TRACE: Checking promoted (0) {checker_id:?} with {ty:?}");
                 Self::check_body(infcx, checker_id, inherited, &body, poly_sig)?;
-                // println!("TRACE: Checking promoted (1) {checker_id:?} with {ty:?}");
             }
         }
         // 3. Stash the promoted templates in inherited for use in the main body
