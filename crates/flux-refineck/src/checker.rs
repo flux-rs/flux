@@ -546,10 +546,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
         body_root: &BodyRoot<'tcx>,
-    ) -> Result<IndexVec<Promoted, (bool, Ty)>> {
+    ) -> Result<IndexVec<Promoted, Ty>> {
         let span = body_root.body.span();
         let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into()).with_span(span)?;
-        let triv_refiner = Refiner::default_for_item(infcx.genv, def_id.into()).with_span(span)?;
 
         body_root
             .promoted
@@ -558,18 +557,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let Ok(rustc_ty) = body.rustc_body.return_ty().lower(infcx.genv.tcx()) else {
                     span_bug!(span, "promoted body has non-ty return type")
                 };
-                if false && is_tricky_promoted_ty(&rustc_ty) {
-                    let ty = rustc_ty.refine(&triv_refiner).with_span(span)?;
-                    Ok((false, ty))
-                } else {
-                    let ty = rustc_ty
-                        .refine(&hole_refiner)
-                        .with_span(span)?
-                        .replace_holes(|binders, kind| {
-                            infcx.fresh_infer_var_for_hole(binders, kind)
-                        });
-                    Ok((true, ty))
-                }
+                let ty = rustc_ty
+                    .refine(&hole_refiner)
+                    .with_span(span)?
+                    .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
+                Ok(ty)
             })
             .collect()
     }
@@ -599,16 +591,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // 1. Generate templates for promoteds
         let promoted_tys = Self::promoted_tys(infcx, def_id, body_root)?;
         // 2. Call check_body on promoted-bodies using the templates, if needed
-        for (promoted, (check, ty)) in promoted_tys.iter_enumerated() {
-            if *check {
-                let body = &body_root.promoted[promoted];
-                let poly_sig = promoted_fn_sig(ty);
-                let checker_id = CheckerId::Promoted(def_id, promoted);
-                Self::check_body(infcx, checker_id, inherited, body, poly_sig)?;
-            }
+        for (promoted, ty) in promoted_tys.iter_enumerated() {
+            let body = &body_root.promoted[promoted];
+            let poly_sig = promoted_fn_sig(ty);
+            let checker_id = CheckerId::Promoted(def_id, promoted);
+            Self::check_body(infcx, checker_id, inherited, body, poly_sig)?;
         }
         // 3. Stash the promoted templates in inherited for use in the main body
-        inherited.promoted = Some(promoted_tys.into_iter().map(|(_, ty)| ty).collect());
+        inherited.promoted = Some(promoted_tys);
         Ok(())
     }
 
@@ -1845,18 +1835,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
         ty.refine(&Refiner::with_holes(self.genv, self.checker_id.def_id().to_def_id())?)
-    }
-}
-
-// Returns true if the type is a reference to an array or slice, whose bodies seem to have
-// things that make the checker crash. (e.g. see tests/tests/pos/surface/promotion02.rs)
-fn is_tricky_promoted_ty(rustc_ty: &ty::Ty) -> bool {
-    if let ty::TyKind::Ref(_, inner_ty, _) = rustc_ty.kind()
-        && matches!(inner_ty.kind(), ty::TyKind::Array(..) | ty::TyKind::Slice(..))
-    {
-        true
-    } else {
-        false
     }
 }
 
