@@ -81,31 +81,28 @@ impl<'tcx> BodyRoot<'tcx> {
         &self.body
     }
 
-    // pub fn span(&self) -> Span {
-    //     self.rustc_body().span
-    // }
-
     pub fn def_id(&self) -> DefId {
         self.rustc_body().source.def_id()
     }
 
     pub fn calculate_borrows_out_of_scope_at_location(
         &self,
+        body: &mir::Body<'tcx>,
     ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
         rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
-            &self.rustc_body(),
+            body,
             &self.region_inference_context,
             &self.borrow_set,
         )
     }
 
-    pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-        self.borrow_set
-            .location_map()
-            .get_index(idx.as_usize())
-            .unwrap()
-            .1
-    }
+    // pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
+    //     self.borrow_set
+    //         .location_map()
+    //         .get_index(idx.as_usize())
+    //         .unwrap()
+    //         .1
+    // }
 
     pub fn rustc_body(&self) -> &mir::Body<'tcx> {
         &self.body.rustc_body

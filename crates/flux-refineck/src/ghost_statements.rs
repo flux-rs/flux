@@ -59,9 +59,9 @@ pub(crate) struct GhostStatements {
 
 impl GhostStatements {
     fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
-        let body = genv.mir(def_id)?;
+        let body_root = genv.mir(def_id)?;
 
-        bug::track_span(body.body.span(), || {
+        bug::track_span(body_root.body.span(), || {
             let mut stmts = Self {
                 at_start: Default::default(),
                 at_location: LocationMap::default(),
@@ -75,19 +75,29 @@ impl GhostStatements {
                 Some(genv.fn_sig(def_id)?)
             };
 
-            fold_unfold::add_ghost_statements(&mut stmts, genv, &body.body, fn_sig.as_ref())?;
-            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
-            stmts.add_unblocks(genv.tcx(), &body);
-            stmts.dump_ghost_mir(genv.tcx(), &body.body);
+            fold_unfold::add_ghost_statements(&mut stmts, genv, &body_root.body, fn_sig.as_ref())?;
+            points_to::add_ghost_statements(
+                &mut stmts,
+                genv,
+                body_root.rustc_body(),
+                fn_sig.as_ref(),
+            )?;
+            stmts.add_unblocks(genv.tcx(), &body_root);
+            stmts.dump_ghost_mir(genv.tcx(), &body_root.body);
 
             Ok(stmts)
         })
     }
 
-    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &BodyRoot<'tcx>) {
-        for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
+    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body_root: &BodyRoot<'tcx>) {
+        for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
-                let borrow = body.borrow_data(bidx);
+                let borrow = body_root
+                    .borrow_set
+                    .location_map()
+                    .get_index(bidx.as_usize())
+                    .unwrap()
+                    .1;
                 let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
                 GhostStatement::Unblock(place)
             });
