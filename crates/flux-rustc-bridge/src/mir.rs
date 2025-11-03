@@ -6,7 +6,7 @@ use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
-use rustc_borrowck::consumers::{BorrowIndex, BorrowSet, RegionInferenceContext};
+use rustc_borrowck::consumers::{BorrowData, BorrowIndex, BorrowSet, RegionInferenceContext};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
@@ -96,13 +96,13 @@ impl<'tcx> BodyRoot<'tcx> {
         )
     }
 
-    // pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
-    //     self.borrow_set
-    //         .location_map()
-    //         .get_index(idx.as_usize())
-    //         .unwrap()
-    //         .1
-    // }
+    pub fn borrow_data(&self, idx: BorrowIndex) -> &BorrowData<'tcx> {
+        self.borrow_set
+            .location_map()
+            .get_index(idx.as_usize())
+            .unwrap()
+            .1
+    }
 
     pub fn rustc_body(&self) -> &mir::Body<'tcx> {
         &self.body.rustc_body

@@ -109,8 +109,9 @@ impl GhostStatements {
 
             fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
             points_to::add_ghost_statements(&mut stmts, genv, &body.rustc_body, fn_sig.as_ref())?;
+            // HACK: `add_unblocks` as is triggers mysterious borrowck/dataflow crash;
+            // see tests/tests/pos/surface/promotion02.rs
             if !checker_id.is_promoted() {
-                // triggers mysterious borrowck/dataflow crash; see tests/tests/pos/surface/promotion02.rs
                 stmts.add_unblocks(genv.tcx(), &body_root, &body.rustc_body);
             }
             stmts.dump_ghost_mir(genv.tcx(), body);
@@ -127,12 +128,7 @@ impl GhostStatements {
     ) {
         for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location(body) {
             let stmts = borrows.into_iter().map(|bidx| {
-                let borrow = body_root
-                    .borrow_set
-                    .location_map()
-                    .get_index(bidx.as_usize())
-                    .unwrap()
-                    .1;
+                let borrow = body_root.borrow_data(bidx);
                 let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
                 GhostStatement::Unblock(place)
             });
