@@ -558,7 +558,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 let Ok(rustc_ty) = body.rustc_body.return_ty().lower(infcx.genv.tcx()) else {
                     span_bug!(span, "promoted body has non-ty return type")
                 };
-                if is_tricky_promoted_ty(&rustc_ty) {
+                if false && is_tricky_promoted_ty(&rustc_ty) {
                     let ty = rustc_ty.refine(&triv_refiner).with_span(span)?;
                     Ok((false, ty))
                 } else {
