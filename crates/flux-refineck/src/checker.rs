@@ -597,14 +597,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         body_root: &BodyRoot<'tcx>,
     ) -> Result {
         // 1. Generate templates for promoteds
-        let promoted_tys = Self::promoted_tys(infcx, def_id, &body_root)?;
+        let promoted_tys = Self::promoted_tys(infcx, def_id, body_root)?;
         // 2. Call check_body on promoted-bodies using the templates, if needed
         for (promoted, (check, ty)) in promoted_tys.iter_enumerated() {
             if *check {
                 let body = &body_root.promoted[promoted];
                 let poly_sig = promoted_fn_sig(ty);
                 let checker_id = CheckerId::Promoted(def_id, promoted);
-                Self::check_body(infcx, checker_id, inherited, &body, poly_sig)?;
+                Self::check_body(infcx, checker_id, inherited, body, poly_sig)?;
             }
         }
         // 3. Stash the promoted templates in inherited for use in the main body
