@@ -23,16 +23,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
         TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
-    },
-    symbols::{kw, sym},
-    token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
-};
-use crate::{
-    ParseCtxt, ParseError, ParseResult,
-    parser::lookahead::{AnyOf, Expected, PeekExpected},
-    surface::{
-        self, Async, Attr::{self}, BaseSort, BaseTy, BaseTyKind, BinOp, BindKind, ConstArg, ConstArgKind, ConstructorArg, DetachedInherentImpl, DetachedItem, DetachedItemKind, DetachedSpecs, DetachedTrait, DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr, FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds, GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability, ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QuantKind, RefineArg, RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef, TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet, WeakKvar, WhereBoundPredicate
+        WeakKvar, WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},

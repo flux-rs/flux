@@ -49,7 +49,7 @@ use flux_middle::{
     pretty,
     rty::{
         self, ESpan, EarlyBinder, Name,
-        fold::{TypeFolder, TypeVisitable},
+        fold::{TypeFoldable, TypeFolder, TypeVisitable},
     },
 };
 use itertools::Itertools;
@@ -496,7 +496,7 @@ fn add_fn_fix_diagnostic<'a>(
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
     let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(wkvid, solution.clone())].into() };
-    let solved_fn_sig = EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
+    let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
         format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
     match genv.resolve_id(wkvid.0) {

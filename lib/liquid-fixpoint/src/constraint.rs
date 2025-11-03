@@ -602,20 +602,29 @@ impl<T: Types> Expr<T> {
 
     pub fn uncurry(&self) -> Self {
         match self {
-            Expr::App(head, args) => {
+            Expr::App(head, sort_args, args) => {
                         let uncurried_head = head.uncurry();
                         let uncurried_args = args.iter().map(|arg| arg.uncurry()).collect_vec();
                         match uncurried_head {
-                            Expr::App(head_head, mut head_args) => {
+                            Expr::App(head_head, head_sort_args, mut head_args) => {
                                 head_args.extend(uncurried_args);
-                                Expr::App(head_head, head_args)
+                                let new_sort_args = match (head_sort_args, sort_args) {
+                                    (Some(mut head_sort_args), Some(sort_args)) => {
+                                        head_sort_args.extend(sort_args.clone());
+                                        Some(head_sort_args)
+                                    }
+                                    _ => {
+                                        None
+                                    }
+                                };
+                                Expr::App(head_head, new_sort_args, head_args)
                             }
                             Expr::WKVar(WKVar {wkvid, args: mut wkvar_args}) => {
                                 wkvar_args.extend(uncurried_args);
                                 Expr::WKVar(WKVar {wkvid, args: wkvar_args})
                             }
                             _ => {
-                                Expr::App(Box::new(uncurried_head), uncurried_args)
+                                Expr::App(Box::new(uncurried_head), sort_args.clone(), uncurried_args)
                             }
                         }
                     }

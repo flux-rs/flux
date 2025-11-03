@@ -1,7 +1,7 @@
 
 
 use std::{
-    collections::{ TypeFoldable, HashMap, hash_map::Entry, },
+    collections::{ HashMap, hash_map::Entry, },
     ops::ControlFlow,
 };
 

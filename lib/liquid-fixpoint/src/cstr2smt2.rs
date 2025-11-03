@@ -1075,10 +1075,12 @@ fn z3_app_to_expr<T: Types>(env: &Env<T>, head: FuncDecl, args: &Vec<ast::Dynami
         }
     } else if let Ok(thyfunc) = head_name.parse::<ThyFunc>() {
         let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
-        Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), expr_args))
+        // TODO: parse sorts
+        Ok(Expr::App(Box::new(Expr::ThyFunc(thyfunc)), None, expr_args))
     } else if let Some(var) = env.rev_lookup(&head_name) {
         let expr_args = args.iter().map(|arg| z3_to_expr::<T>(env, arg)).collect::<Result<Vec<_>,_>>()?;
-        Ok(Expr::App(Box::new(Expr::Var(var.clone())), expr_args))
+        // TODO: parse sorts
+        Ok(Expr::App(Box::new(Expr::Var(var.clone())), None, expr_args))
     } else {
         Err(Z3DecodeError::UnexpectedAppHead(head))
     }

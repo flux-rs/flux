@@ -405,7 +405,6 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                     args.iter().map(|var| LeanVar(var, self.1)).format(" ")
                 )
             }
-            Pred::WKVar(_) => panic!("wkvars should not appear when encoding in lean"),
         }
     }
 }
