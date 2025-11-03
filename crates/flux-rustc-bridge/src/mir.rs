@@ -6,7 +6,7 @@ use flux_arc_interner::List;
 use flux_common::index::{Idx, IndexVec};
 use itertools::Itertools;
 pub use rustc_abi::{FIRST_VARIANT, FieldIdx, VariantIdx};
-use rustc_borrowck::consumers::{BorrowData, BorrowIndex, BorrowSet, RegionInferenceContext};
+use rustc_borrowck::consumers::{BorrowIndex, BorrowSet, RegionInferenceContext};
 use rustc_data_structures::{
     fx::FxIndexMap,
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
