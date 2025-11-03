@@ -34,7 +34,8 @@ use liquid_fixpoint::{
     FixpointResult, FixpointStatus, SmtSolver,
     parser::{FromSexp, ParseError},
     sexp::Parser,
-    qe_and_simplify
+    check_validity,
+    qe_and_simplify,
 };
 use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
@@ -624,6 +625,13 @@ where
         // FIXME: this should be a better source of fresh names, but 100000
         // should be safe.
         let mut fresh_rty_name: usize = 100_000;
+        let mut fresh_var = || {
+            let local_var = self.ecx.local_var_env.fresh_name();
+            let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
+            self.ecx.local_var_env.reverse_map.insert(local_var, rty_var);
+            fresh_rty_name += 1;
+            fixpoint::Var::Local(local_var)
+        };
         for constraint in flat_constraint_map.values_mut() {
             constraint.assumptions = constraint.assumptions.iter().flat_map(|pred| {
                 // Remove all trivially true assumptions
@@ -635,43 +643,13 @@ where
                         assert!(sorts.len() == args.len());
                         let arg_exprs = args.into_iter().map(|arg| fixpoint::Expr::Var(*arg)).collect_vec();
                         let subst_solution = solution.substitute_bvar(&arg_exprs, 0);
-                        match subst_solution {
-                            // We'll hoist the binders from this existential to
-                            // the top level binders in the flat constraint, but
-                            // because they're locally nameless we'll need to
-                            // first name them.
-                            fixpoint::Expr::Exists(sorts, inner_e) => {
-                                // Create names for the binders.
-                                let mut named_vars = vec![];
-                                for sort in sorts {
-                                    let local_var = self.ecx.local_var_env.fresh_name();
-                                    let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
-                                    // println!("creating fresh var {:?} with fake rty var {:?}", local_var, rty_var);
-                                    self.ecx.local_var_env.reverse_map.insert(local_var, rty_var);
-                                    fresh_rty_name += 1;
-                                    let fresh_var = fixpoint::Var::Local(local_var);
-                                    // Add the binders to the flat constraint.
-                                    constraint.binders.push((fresh_var, sort));
-                                    named_vars.push(fixpoint::Expr::Var(fresh_var));
-                                }
-                                // Substitute the bvars with their names.
-                                let subst_inner = inner_e.substitute_bvar(&named_vars, 0);
-                                match subst_inner {
-                                    fixpoint::Expr::Exists(..) => panic!("why are there two nested exists :("),
-                                    fixpoint::Expr::And(solutions) => {
-                                        solutions
-                                    }
-                                    solution => {
-                                        vec![solution]
-                                    }
-                                }
-                            }
+                        let (new_binders, hoisted_solution) = subst_solution.hoist_exists(&mut fresh_var);
+                        constraint.binders.extend(new_binders);
+                        match hoisted_solution {
                             fixpoint::Expr::And(solutions) => {
                                 solutions
                             }
-                            solution => {
-                                vec![solution]
-                            }
+                            _ => vec![hoisted_solution],
                         }
                     } else {
                         println!("Missing kvar solution for kvid {:?}", kvid);
@@ -687,10 +665,13 @@ where
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
             FixpointStatus::Unsafe(_, errors) => {
-                errors
-                    .into_iter()
-                    .map(|err| (err.tag, self.tags[err.tag]))
-                    .unique()
+                let tags =
+                    errors
+                        .into_iter()
+                        .map(|err| (err.tag, self.tags[err.tag]))
+                        .unique()
+                        .collect_vec();
+                tags.into_iter()
                     .map(|(tag_idx, tag)| {
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
                         let mut possible_solutions: HashMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = HashMap::new();
@@ -699,7 +680,53 @@ where
                                 "Looking for weak kvars that might solve {}",
                                 flat_constraint.head,
                             );
-                            for assumption in &flat_constraint.assumptions {
+                            for i in 0..flat_constraint.assumptions.len() {
+                                let assumption = &flat_constraint.assumptions[i];
+                                let flat_constraint = match assumption {
+                                    fixpoint::Pred::Expr(e) => {
+                                        match e {
+                                            fixpoint::Expr::Or(disjuncts) => {
+                                                let mut fresh_var = || {
+                                                    let local_var = self.ecx.local_var_env.fresh_name();
+                                                    let rty_var = rty::Expr::fvar(rty::Name::from_usize(fresh_rty_name));
+                                                    self.ecx.local_var_env.reverse_map.insert(local_var, rty_var);
+                                                    fresh_rty_name += 1;
+                                                    fixpoint::Var::Local(local_var)
+                                                };
+                                                let mut flat_constraint_without_current_assumption = flat_constraint.clone();
+                                                flat_constraint_without_current_assumption.assumptions.remove(i);
+                                                let mut new_constraints = disjuncts.iter().filter_map(|disjunct| {
+                                                    let mut new_constraint = flat_constraint_without_current_assumption.clone();
+                                                    let (new_vars, hoisted_disjunct) = disjunct.hoist_exists(&mut fresh_var);
+                                                    new_constraint.binders.extend(new_vars);
+                                                    new_constraint.assumptions.extend(hoisted_disjunct.as_conjunction().into_iter().map(|e| fixpoint::Pred::Expr(e)));
+                                                    let mut consts = new_constraint.binders.iter().map(|(var, sort)| {
+                                                        fixpoint::ConstDecl {
+                                                            name: *var,
+                                                            sort: sort.clone(),
+                                                            comment: None,
+                                                        }
+                                                    }).collect_vec();
+                                                    consts.extend(constants_without_inequalities.iter().cloned());
+                                                    if !check_validity(&new_constraint, &consts, data_decls.clone()) {
+                                                        Some(new_constraint)
+                                                    } else {
+                                                        None
+                                                    }
+                                                }).collect_vec();
+                                                if new_constraints.len() == 1 {
+                                                    new_constraints.pop().unwrap()
+                                                } else {
+                                                    println!("!!! We have two separate disjuncts; not running a split analysis on them");
+                                                    // FIXME: We shouldn't have to clone here
+                                                    flat_constraint.clone()
+                                                }
+                                            }
+                                            _ => flat_constraint.clone()
+                                        }
+                                    }
+                                    _ => unreachable!("assumptions must be exprs"),
+                                };
                                 for wkvar in assumption.wkvars_in_conj() {
                                     let ConstKey::WKVar(wkvid) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
                                     else {
