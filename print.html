@@ -6100,6 +6100,11 @@ or lemmas. See <code>tests/tests/pos/surface/primops00.rs</code> for an example.
 <pre><code class="language-rust noplayground">use flux_rs::{assert, attrs::*, defs};
 
 defs! {
+
+    fn is_char(n: int) -&gt; bool {
+        0 &lt;= n &amp;&amp; n &lt;= 0x10FFFF
+    }
+
     property ShiftByTwo[&lt;&lt;](x, y) {
         [&lt;&lt;](x, 2) == 4*x
     }
@@ -6114,6 +6119,10 @@ defs! {
 
     property XorSelfInverse[^](x, y) {
         x == y =&gt; [^](x, y) == 0
+    }
+
+    property OrBy1[|](x, y) {
+        is_char(x) =&gt; is_char([|](x, 1))
     }
 }
 
@@ -6154,6 +6163,13 @@ pub fn test4(n: usize) -&gt; i32 {
 #[spec(fn(x: usize) -&gt; usize[0])]
 pub fn test5(x: usize) -&gt; usize {
     x ^ x
+}
+
+pub fn test6(c: char) {
+    let c = c as u32;
+    flux_rs::assert(c &lt;= 0x10FFFF); // (0)
+    let c = c | 1;
+    flux_rs::assert(c &lt;= 0x10FFFF); // (1)
 }</code></pre>
 <h2 id="casting-sorts"><a class="header" href="#casting-sorts">Casting Sorts</a></h2>
 <p>You can convert refinements of different sorts -- e.g. <code>int</code> to <code>char</code> or <code>int</code> to <code>bool</code> --
