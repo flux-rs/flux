@@ -712,11 +712,12 @@ where
                 let tags =
                     errors
                         .into_iter()
-                        .map(|err| (err.tag, self.tags[err.tag]))
+                        .map(|err| err.tag)
                         .unique()
                         .collect_vec();
                 tags.into_iter()
-                    .map(|(tag_idx, tag)| {
+                    .map(|tag_idx| {
+                        let tag = self.tags[tag_idx];
                         let blame_ctx = self.blame_ctx_map[&tag_idx].clone();
                         let mut possible_solutions: HashMap<rty::WKVid, Vec<rty::Binder<rty::Expr>>> = HashMap::new();
                         if let Some(flat_constraint) = flat_constraint_map.get(&tag_idx) {
@@ -802,25 +803,15 @@ where
                                     new_flat_constraint.binders.retain(|(var, _)| {
                                         !matches!(var, fixpoint::Var::Underscore)
                                     });
-                                    new_flat_constraint.assumptions = new_flat_constraint.assumptions.into_iter().filter_map(|pred| {
-                                        // Remove all trivially true assumptions
-                                        if pred.is_trivially_true() {
-                                            None
-                                        // Substitute the kvar solutions in
-                                        } else if let fixpoint::Pred::KVar(kvid, args) = pred {
-                                            if let Some((sorts, solution)) = &fixpoint_solution.get(&kvid) {
-                                                assert!(sorts.len() == args.len());
-                                                let arg_exprs = args.into_iter().map(|arg| fixpoint::Expr::Var(arg)).collect_vec();
-                                                Some(fixpoint::Pred::Expr(solution.substitute_bvar(&arg_exprs, 0)))
-                                            } else {
-                                                println!("Missing kvar solution for kvid {:?}", kvid);
-                                                None
-                                            }
-                                        } else {
-                                            Some(pred)
-                                        }
-                                    }).collect();
+                                    // Remove any wkvars and drop assumptions that are just wkvars or true
+                                    new_flat_constraint.assumptions.retain_mut(|assumption| {
+                                        *assumption = assumption.strip_wkvars();
+                                        !assumption.is_trivially_true()
+                                    });
                                     consts.extend(constants_without_inequalities.iter().cloned());
+                                    if check_validity(&new_flat_constraint, &consts, data_decls.clone()) {
+                                        panic!("a constraint is valid when it shouldn't be");
+                                    }
                                     match qe_and_simplify(&new_flat_constraint, &consts, data_decls.clone()) {
                                         Ok(fe) => {
                                             match self.fixpoint_to_expr(&fe) {
@@ -904,6 +895,7 @@ where
         &self,
         b: &liquid_fixpoint::KVarBind,
     ) -> QueryResult<(fixpoint::KVid, (Vec<fixpoint::Sort>, fixpoint::Expr))> {
+        // println!("converting {}", b.dump());
         let kvid = parse_kvid(&b.kvar);
         let sol = self.convert_solution(&b.val)?;
         Ok((kvid, sol))
@@ -990,11 +982,11 @@ where
     where
         Tag: std::fmt::Debug,
     {
-        *self.tags_inv.entry(tag).or_insert_with(|| {
+        // *self.tags_inv.entry(tag).or_insert_with(|| {
             let idx = self.tags.push(tag);
             self.comments.push(format!("Tag {idx}: {tag:?}"));
             idx
-        })
+        // })
     }
 
     pub(crate) fn with_name_map<R>(

@@ -311,6 +311,15 @@ impl<T: Types> Pred<T> {
             Pred::KVar(..) => vec![],
         }
     }
+
+    /// Remove all wkvars, replacing them with true.
+    pub fn strip_wkvars(&self) -> Self {
+        match self {
+            Pred::And(preds) => Pred::And(preds.iter().map(|pred| pred.strip_wkvars()).collect()),
+            Pred::Expr(e) => Pred::Expr(e.strip_wkvars()),
+            Pred::KVar(..) => self.clone(),
+        }
+    }
 }
 
 #[derive(Hash, Debug, Copy, Clone, PartialEq, Eq)]
@@ -446,15 +455,6 @@ impl<T: Types> Expr<T> {
             Expr::Exists(_sorts, expr) => {
                 // NOTE: (ck) No variable names here so it seems this is nameless.
                 vars.extend(expr.free_vars());
-            }
-            Expr::IsCtor(_v, expr) => {
-                // NOTE: (ck) I'm pretty sure this isn't a binder so I'm not going to
-                // bother with `v`.
-                vars.extend(expr.free_vars().into_iter());
-            }
-            Expr::Exists(_sorts, expr) => {
-                // NOTE: (ck) No variable names here so it seems this is nameless.
-                vars.extend(expr.free_vars().into_iter());
             }
             Expr::WKVar(WKVar { wkvid: _, args }) => {
                 for e in args {
@@ -773,10 +773,10 @@ impl<T: Types> Expr<T> {
                     vars.push((var, sort.clone()));
                     subst_exprs.push(fresh_expr);
                 }
-                let (new_vars, hoisted_inner) = inner_e.hoist_exists(fresh_var);
+                let subst_inner = inner_e.substitute_bvar(&subst_exprs, 0);
+                let (new_vars, hoisted_inner) = subst_inner.hoist_exists(fresh_var);
                 vars.extend(new_vars);
-                let subst_e = hoisted_inner.substitute_bvar(&subst_exprs, 0);
-                (vars, subst_e)
+                (vars, hoisted_inner)
             }
             Expr::And(exprs) => {
                 let mut vars = vec![];
@@ -801,6 +801,99 @@ impl<T: Types> Expr<T> {
         match self {
             Expr::And(exprs) => exprs,
             _ => vec![self]
+        }
+    }
+
+    pub fn strip_wkvars(&self) -> Self {
+        match self {
+            Expr::Constant(_) | Expr::Var(_) | Expr::BoundVar(_)
+                | Expr::ThyFunc(_) => self.clone(),
+            Expr::WKVar(..) => {
+                Expr::Constant(Constant::Boolean(true))
+            }
+            Expr::App(head, args) => {
+                Expr::App(Box::new(head.strip_wkvars()), args.iter().map(|arg| arg.strip_wkvars()).collect())
+            }
+            Expr::Neg(expr) => {
+                Expr::Neg(Box::new(expr.strip_wkvars()))
+            }
+            Expr::BinaryOp(bin_op, args) => {
+                Expr::BinaryOp(
+                    *bin_op,
+                    Box::new([
+                        args[0].strip_wkvars(),
+                        args[1].strip_wkvars(),
+                    ]),
+                )
+            }
+            Expr::IfThenElse(args) => {
+                Expr::IfThenElse(Box::new([
+                    args[0].strip_wkvars(),
+                    args[1].strip_wkvars(),
+                    args[2].strip_wkvars(),
+                ]))
+            }
+            Expr::And(exprs) => {
+                Expr::And(
+                    exprs
+                        .iter()
+                        .map(|e| e.strip_wkvars())
+                        .collect_vec(),
+                )
+            }
+            Expr::Or(exprs) => {
+                Expr::Or(
+                    exprs
+                        .iter()
+                        .map(|e| e.strip_wkvars())
+                        .collect_vec(),
+                )
+            }
+            Expr::Not(expr) => {
+                Expr::Not(Box::new(expr.strip_wkvars()))
+            }
+            Expr::Imp(args) => {
+                Expr::Imp(Box::new([
+                    args[0].strip_wkvars(),
+                    args[1].strip_wkvars(),
+                ]))
+            }
+            Expr::Iff(args) => {
+                Expr::Iff(Box::new([
+                    args[0].strip_wkvars(),
+                    args[1].strip_wkvars(),
+                ]))
+            }
+            Expr::Atom(bin_rel, args) => {
+                Expr::Atom(
+                    *bin_rel,
+                    Box::new([
+                        args[0].strip_wkvars(),
+                        args[1].strip_wkvars(),
+                    ]),
+                )
+            }
+            Expr::Let(var, args) => {
+                Expr::Let(
+                    var.clone(),
+                    Box::new([
+                        args[0].strip_wkvars(),
+                        args[1].strip_wkvars(),
+                    ]),
+                )
+            }
+            Expr::IsCtor(var, expr) => {
+                Expr::IsCtor(
+                    var.clone(),
+                    Box::new(expr.strip_wkvars()),
+                )
+            }
+            Expr::Exists(sorts, expr) => {
+                Expr::Exists(
+                    sorts.clone(),
+                    Box::new(expr.strip_wkvars()),
+                )
+            }
         }
     }
 }
