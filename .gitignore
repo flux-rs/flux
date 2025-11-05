@@ -1,8 +1,8 @@
-.vscode/
-target/
-*.liquid
+.vscode
+target
+.liquid
 *.dot
-*.log
+log
 sysroot/
 
 .DS_Store
