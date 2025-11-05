@@ -543,6 +543,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
+    /// Whether the function is marked with `#[flux::no_panic]`
+    pub fn no_panic(self, def_id: LocalDefId) -> bool {
+        self.fhir_attr_map(def_id).no_panic()
+    }
+
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,
