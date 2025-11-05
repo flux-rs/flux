@@ -2015,7 +2015,15 @@ fn uint_char_cast(idx: &Expr) -> Ty {
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
     let idx = Expr::cast(rty::Sort::Char, rty::Sort::Int, idx.clone());
-    Ty::indexed(BaseTy::Uint(uint_ty), idx)
+    if let Some(w) = uint_ty.bit_width()
+        && w >= 32
+    {
+        // non-lossy cast: uint[cast(idx)]
+        Ty::indexed(BaseTy::Uint(uint_ty), idx)
+    } else {
+        // lossy-cast: uint{v: cast(idx) <= max_value => v == cast(idx) }
+        guarded_uint_ty(&idx, uint_ty)
+    }
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
