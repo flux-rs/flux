@@ -2015,7 +2015,9 @@ fn uint_char_cast(idx: &Expr) -> Ty {
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
     let idx = Expr::cast(rty::Sort::Char, rty::Sort::Int, idx.clone());
-    Ty::indexed(BaseTy::Uint(uint_ty), idx)
+    let char_max_int = Expr::constant((char::MAX as usize).into());
+    let bound = Expr::le(idx.clone(), char_max_int);
+    Ty::constr(bound, Ty::indexed(BaseTy::Uint(uint_ty), idx))
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {
