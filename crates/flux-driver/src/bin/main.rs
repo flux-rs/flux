@@ -50,7 +50,7 @@ fn main() -> io::Result<()> {
         run_compiler(&args, &mut FluxCallbacks);
     });
     if config::summary() {
-        metrics::print_summary(start.elapsed())?
+        metrics::print_summary(start.elapsed())?;
     };
     exit(exit_code)
 }

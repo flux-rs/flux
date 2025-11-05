@@ -407,16 +407,13 @@ impl<'a> fmt::Display for LeanKVarDecl<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.is_empty() {
-            write!(f, "{}", LeanConstraint(&self.1, self.2))
+            write!(f, "{}", LeanConstraint(self.1, self.2))
         } else {
             write!(
                 f,
                 "{}, {}",
-                self.0
-                    .iter()
-                    .map(|kvar_decl| LeanKVarDecl(&kvar_decl))
-                    .format(", "),
-                LeanConstraint(&self.1, self.2)
+                self.0.iter().map(LeanKVarDecl).format(", "),
+                LeanConstraint(self.1, self.2)
             )
         }
     }
