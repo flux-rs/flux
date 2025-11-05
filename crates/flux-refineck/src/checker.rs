@@ -7,14 +7,14 @@ use flux_common::{
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferErr, InferResult, SubtypeReason
     },
     projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::{QueryResult, try_query},
+    queries::{QueryErr, QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
@@ -76,6 +76,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
+    errors: Vec<CheckerError>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -789,8 +790,24 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        if genv.no_panic(self.def_id) {
-            eprintln!("Hey!!! This function is marked no_panic: {:?}", callee_def_id);
+        let no_panic = genv.no_panic(self.def_id);
+        if no_panic {
+            if let Some(callee_def_id) = callee_def_id {
+                let callee_no_panic = if let Some(local_callee) = callee_def_id.as_local() {
+                    genv.no_panic(local_callee)
+                } else {
+                    false
+                };
+
+                if !callee_no_panic {
+                    // This needs to be a different shape, I imagine.
+                    return Err(CheckerError {
+                        kind: QueryErr::Ignored { def_id: self.def_id.to_def_id() }.into(),
+                        span,
+                    })
+                }
+
+            }
         }
 
         let actuals =
