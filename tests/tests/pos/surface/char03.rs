@@ -15,7 +15,7 @@ pub fn cast_to_u8(x: char) -> u8 {
     x
 }
 
-#[spec(fn (x:char) -> char[x])]
+#[spec(fn (x:char{ cast(x) < 256 }) -> char[x])]
 pub fn cast_to_u8_and_back(x: char) -> char {
     let x = x as u8;
     let x = x as char;
