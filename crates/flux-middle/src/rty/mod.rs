@@ -2748,16 +2748,24 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
 }
 
 fn char_invariants() -> &'static [Invariant] {
-    static INVARIANTS: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
-        [Invariant {
-            pred: Binder::bind_with_sort(
-                Expr::le(
-                    Expr::cast(Sort::Char, Sort::Int, Expr::nu()),
-                    Expr::constant((char::MAX as usize).into()),
+    static INVARIANTS: LazyLock<[Invariant; 2]> = LazyLock::new(|| {
+        [
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(
+                        Expr::cast(Sort::Char, Sort::Int, Expr::nu()),
+                        Expr::constant((char::MAX as usize).into()),
+                    ),
+                    Sort::Int,
                 ),
-                Sort::Int,
-            ),
-        }]
+            },
+            Invariant {
+                pred: Binder::bind_with_sort(
+                    Expr::le(Expr::zero(), Expr::cast(Sort::Char, Sort::Int, Expr::nu())),
+                    Sort::Int,
+                ),
+            },
+        ]
     });
     &*INVARIANTS
 }
