@@ -185,10 +185,6 @@ impl Expr {
         Expr::constant(Constant::uint_max(bit_width.try_into().unwrap()))
     }
 
-    pub fn char_max_int() -> Expr {
-        Expr::constant((char::MAX as usize).into())
-    }
-
     pub fn nu() -> Expr {
         Expr::bvar(INNERMOST, BoundVar::ZERO, BoundReftKind::Anon)
     }
