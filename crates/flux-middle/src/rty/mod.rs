@@ -2754,7 +2754,7 @@ fn char_invariants() -> &'static [Invariant] {
                 pred: Binder::bind_with_sort(
                     Expr::le(
                         Expr::cast(Sort::Char, Sort::Int, Expr::nu()),
-                        Expr::constant((char::MAX as usize).into()),
+                        Expr::constant((char::MAX as u32).into()),
                     ),
                     Sort::Int,
                 ),
