@@ -10,6 +10,11 @@ pub fn test_char_to_int(x: char) -> u32 {
     x as u32
 }
 
+#[spec(fn (x:char) -> u32{v: v <= 0x10FFFF})]
+pub fn test_char_to_int_max(x: char) -> u32 {
+    x as u32
+}
+
 #[spec(fn (x:bool) -> u32[cast(x)])]
 pub fn test_bool_to_int(x: bool) -> u32 {
     x as u32

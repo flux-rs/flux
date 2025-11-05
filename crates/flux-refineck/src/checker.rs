@@ -2019,6 +2019,8 @@ fn bool_int_cast(b: &Expr, int_ty: IntTy) -> Ty {
     Ty::indexed(BaseTy::Int(int_ty), idx)
 }
 
+/// Unlike [`char_uint_cast`] rust only allows `u8` to `char` casts, which are
+/// non-lossy, so we can use indexed type directly.
 fn uint_char_cast(idx: &Expr) -> Ty {
     let idx = Expr::cast(rty::Sort::Int, rty::Sort::Char, idx.clone());
     Ty::indexed(BaseTy::Char, idx)
@@ -2026,7 +2028,13 @@ fn uint_char_cast(idx: &Expr) -> Ty {
 
 fn char_uint_cast(idx: &Expr, uint_ty: UintTy) -> Ty {
     let idx = Expr::cast(rty::Sort::Char, rty::Sort::Int, idx.clone());
-    Ty::indexed(BaseTy::Uint(uint_ty), idx)
+    if uint_bit_width(uint_ty) >= 32 {
+        // non-lossy cast: uint[cast(idx)]
+        Ty::indexed(BaseTy::Uint(uint_ty), idx)
+    } else {
+        // lossy-cast: uint{v: cast(idx) <= max_value => v == cast(idx) }
+        guarded_uint_ty(&idx, uint_ty)
+    }
 }
 
 fn bool_uint_cast(b: &Expr, uint_ty: UintTy) -> Ty {

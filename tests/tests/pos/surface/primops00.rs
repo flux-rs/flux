@@ -1,6 +1,11 @@
 use flux_rs::{assert, attrs::*, defs};
 
 defs! {
+
+    fn is_char(n: int) -> bool {
+        0 <= n && n <= 0x10FFFF
+    }
+
     property ShiftByTwo[<<](x, y) {
         [<<](x, 2) == 4*x
     }
@@ -15,6 +20,10 @@ defs! {
 
     property XorSelfInverse[^](x, y) {
         x == y => [^](x, y) == 0
+    }
+
+    property OrBy1[|](x, y) {
+        is_char(x) => is_char([|](x, 1))
     }
 }
 
@@ -55,4 +64,11 @@ pub fn test4(n: usize) -> i32 {
 #[spec(fn(x: usize) -> usize[0])]
 pub fn test5(x: usize) -> usize {
     x ^ x
+}
+
+pub fn test6(c: char) {
+    let c = c as u32;
+    flux_rs::assert(c <= 0x10FFFF); // (0)
+    let c = c | 1;
+    flux_rs::assert(c <= 0x10FFFF); // (1)
 }
