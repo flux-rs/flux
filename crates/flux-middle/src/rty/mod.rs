@@ -1844,6 +1844,7 @@ impl BaseTy {
             BaseTy::Adt(adt_def, args) => (adt_def.invariants().skip_binder(), &args[..]),
             BaseTy::Uint(uint_ty) => (uint_invariants(*uint_ty, overflow_mode), &[][..]),
             BaseTy::Int(int_ty) => (int_invariants(*int_ty, overflow_mode), &[][..]),
+            BaseTy::Char => (char_invariants(), &[][..]),
             BaseTy::Slice(_) => (slice_invariants(overflow_mode), &[][..]),
             _ => (&[][..], &[][..]),
         };
@@ -2744,6 +2745,21 @@ fn uint_invariants(uint_ty: UintTy, overflow_mode: OverflowMode) -> &'static [In
     } else {
         &*DEFAULT
     }
+}
+
+fn char_invariants() -> &'static [Invariant] {
+    static INVARIANTS: LazyLock<[Invariant; 1]> = LazyLock::new(|| {
+        [Invariant {
+            pred: Binder::bind_with_sort(
+                Expr::le(
+                    Expr::cast(Sort::Char, Sort::Int, Expr::nu()),
+                    Expr::constant((char::MAX as usize).into()),
+                ),
+                Sort::Int,
+            ),
+        }]
+    });
+    &*INVARIANTS
 }
 
 fn int_invariants(int_ty: IntTy, overflow_mode: OverflowMode) -> &'static [Invariant] {

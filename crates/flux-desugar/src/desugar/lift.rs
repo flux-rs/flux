@@ -586,7 +586,7 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
     }
 
     /// Fixes a [`DefId`] that may correspond to a dummy local item for an extern spec to be the
-    /// "resolved id". This is to upholad the invariant that a [`DefId`] always corresponds to
+    /// "resolved id". This is to uphold the invariant that a [`DefId`] always corresponds to
     /// the resolved item.
     #[allow(
         clippy::disallowed_methods,
