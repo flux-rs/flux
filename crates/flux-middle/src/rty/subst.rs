@@ -61,7 +61,7 @@ where
     where
         T: TypeFoldable,
     {
-        println!("TRACE: fold_binder! current_index = {:?} ==> {t:?}", self.current_index);
+        println!("TRACE: fold_binder! current_index = {:?}", self.current_index);
         self.current_index.shift_in(1);
         let r = t.super_fold_with(self);
         self.current_index.shift_out(1);

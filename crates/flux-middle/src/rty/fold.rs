@@ -17,7 +17,6 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
-    pretty::Pretty,
     rty::{BoundReft, BoundRegion, Var, VariantSig, expr::HoleKind},
 };
 
@@ -683,10 +682,9 @@ where
     T: TypeFoldable,
 {
     fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Binder::bind_with_vars(
-            self.skip_binder_ref().try_fold_with(folder)?,
-            self.vars().try_fold_with(folder)?,
-        ))
+        let value = self.skip_binder_ref().try_fold_with(folder)?;
+        let vars = self.vars().try_fold_with(folder)?;
+        Ok(Binder::bind_with_vars(value, vars))
     }
 }
 
