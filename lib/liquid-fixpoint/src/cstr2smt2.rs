@@ -882,24 +882,29 @@ pub fn qe_and_simplify<T: Types>(
                     }
                     let fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
                     let mut disjuncts = fixpoint_expr.disjunctions();
-                    disjuncts.retain(|disjunct| {
-                        solver.push();
-                        let e = pred_to_z3(&Pred::Expr(disjunct.clone()), &mut vars, AllowKVars::NoKVars);
-                        solver.assert(e);
-                        let res = match solver.check() {
-                            SatResult::Unsat => false,
-                            _ => true,
-                        };
-                        solver.pop(1);
-                        res
+                    disjuncts
+                        .retain_mut(|disjunct| {
+                            solver.push();
+                            println!("checking disjunct: {}", disjunct);
+                            for conjunct in disjunct.conjunctions() {
+                                let e = pred_to_z3(&Pred::Expr(conjunct), &mut vars, AllowKVars::NoKVars);
+                                solver.assert(e);
+                            }
+                            match solver.check() {
+                                SatResult::Unsat => {
+                                    println!("Dropping vacuous disjunct: {}", disjunct);
+                                    false
+                                }
+                                _ => true,
+                            }
                     });
-                    return if disjuncts.len() == 1 {
-                        Ok(disjuncts.pop().unwrap())
-                    } else if disjuncts.len() == 0 {
+                    return if disjuncts.len() == 0 {
                         Ok(Expr::Constant(Constant::Boolean(false)))
+                    } else if disjuncts.len() == 1 {
+                        Ok(disjuncts.pop().unwrap())
                     } else {
                         Ok(Expr::Or(disjuncts))
-                    };
+                    }
                 }
             }
             Err(Z3DecodeError::NoResults)

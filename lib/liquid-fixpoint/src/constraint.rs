@@ -586,6 +586,13 @@ impl<T: Types> Expr<T> {
         }
     }
 
+    pub fn conjunctions(&self) -> Vec<Expr<T>> {
+        match self {
+            Expr::And(conjuncts) => conjuncts.clone(),
+            _ => vec![self.clone()]
+        }
+    }
+
     // Give all the weak kvars that appear as part of a top-level conjunction.
     // This is a syntactic analysis.
     pub fn wkvars_in_conj(&self) -> Vec<WKVar<T>> {
