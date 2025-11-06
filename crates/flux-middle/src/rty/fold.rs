@@ -493,14 +493,21 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
-            where
-                T: TypeFoldable,
-            {
-                self.current_index.shift_in(1);
-                let r = t.super_fold_with(self);
-                self.current_index.shift_out(1);
-                r
+            // fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
+            // where
+            //     T: TypeFoldable,
+            // {
+            //     self.current_index.shift_in(1);
+            //     let r = t.super_fold_with(self);
+            //     self.current_index.shift_out(1);
+            //     r
+            // }
+
+            fn shift_in(&mut self, amount: u32) {
+                self.current_index.shift_in(amount);
+            }
+            fn shift_out(&mut self, amount: u32) {
+                self.current_index.shift_out(amount);
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
