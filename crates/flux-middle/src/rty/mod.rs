@@ -1858,7 +1858,10 @@ impl BaseTy {
         if sort.is_unit() {
             Ty::indexed(self.clone(), Expr::unit())
         } else {
-            Ty::exists(Binder::bind_with_sort(Ty::indexed(self.clone(), Expr::nu()), sort))
+            Ty::exists(Binder::bind_with_sort(
+                Ty::indexed(self.shift_in_escaping(1), Expr::nu()),
+                sort,
+            ))
         }
     }
 
