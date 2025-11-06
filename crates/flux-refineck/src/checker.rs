@@ -76,7 +76,6 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
-    errors: Vec<CheckerError>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -800,11 +799,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 };
 
                 if !callee_no_panic {
-                    // This needs to be a different shape, I imagine.
-                    return Err(CheckerError {
-                        kind: QueryErr::Ignored { def_id: self.def_id.to_def_id() }.into(),
-                        span,
-                    })
+                    let caller = tcx.def_path_str(self.def_id.to_def_id());
+                    let callee = tcx.def_path_str(callee_def_id);
+                    genv.sess().emit_err(errors::PanicError { span, caller, callee });
                 }
 
             }
@@ -2121,12 +2118,22 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
+    use flux_macros::Diagnostic;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_panic_error, code = E0999)]
+    pub(super) struct PanicError {
+        #[primary_span]
+        pub(super) span: Span,
+        pub caller: String,
+        pub callee: String,
+    }
 
     #[derive(Debug)]
     pub struct CheckerError {

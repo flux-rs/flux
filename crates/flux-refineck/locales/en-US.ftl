@@ -15,6 +15,9 @@ refineck_refine_error =
     refinement type error
     .label = a {$cond} cannot be proved
 
+refineck_panic_error =
+    {$caller} is marked `no_panic` but might call `{$callee}` which can panic
+
 refineck_div_error =
     possible division by zero
 
