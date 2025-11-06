@@ -1282,7 +1282,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     rty::Expr::unit(),
                 ))
             }
-            fhir::TyKind::OpaqueDef(opaque_ty) => self.conv_opaque_def(env, opaque_ty, ty.span),
+            fhir::TyKind::OpaqueDef(opaque_ty) => {
+                let res = self.conv_opaque_def(env, opaque_ty, ty.span);
+                println!("Converted opaque type: {opaque_ty:?} => {res:?}");
+                res
+            }
             fhir::TyKind::TraitObject(trait_bounds, lft, syn) => {
                 if matches!(syn, rustc_ast::TraitObjectSyntax::Dyn) {
                     self.conv_trait_object(env, trait_bounds, *lft, ty.span)

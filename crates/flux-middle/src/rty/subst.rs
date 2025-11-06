@@ -61,6 +61,7 @@ where
     where
         T: TypeFoldable,
     {
+        println!("TRACE: fold_binder! current_index = {:?} ==> {t:?}", self.current_index);
         self.current_index.shift_in(1);
         let r = t.super_fold_with(self);
         self.current_index.shift_out(1);
@@ -85,7 +86,8 @@ where
 
     fn fold_region(&mut self, re: &Region) -> Region {
         if let ReBound(debruijn, br) = *re {
-            match debruijn.cmp(&self.current_index) {
+            let cmp = debruijn.cmp(&self.current_index);
+            match cmp {
                 Ordering::Less => *re,
                 Ordering::Equal => {
                     let region = self.delegate.replace_region(br);

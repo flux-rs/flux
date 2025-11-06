@@ -17,6 +17,7 @@ use super::{
 };
 use crate::{
     global_env::GlobalEnv,
+    pretty::Pretty,
     rty::{BoundReft, BoundRegion, Var, VariantSig, expr::HoleKind},
 };
 

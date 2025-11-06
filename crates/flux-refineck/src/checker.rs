@@ -466,12 +466,12 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = genv.tcx().def_span(def_id);
 
         let body = genv.mir(def_id).with_span(span)?;
-
+        println!("TRACE: checker::run (0) for {def_id:?} => {poly_sig:?}");
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
-
+        println!("TRACE: checker::run (1) for {def_id:?} => {fn_sig:?}");
         let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
 
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
@@ -761,6 +761,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .at(span)
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
+                println!("TRACE: check_ret output = {:?}", self.output);
                 let output = self
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
