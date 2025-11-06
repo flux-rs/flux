@@ -23,9 +23,9 @@ use crate::{
 pub trait TypeVisitor: Sized {
     type BreakTy = !;
 
-    fn visit_binder<T: TypeVisitable>(&mut self, t: &Binder<T>) -> ControlFlow<Self::BreakTy> {
-        t.super_visit_with(self)
-    }
+    fn enter_binder(&mut self, _vars: &BoundVariableKinds) {}
+
+    fn exit_binder(&mut self) {}
 
     fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<Self::BreakTy> {
         expr.super_visit_with(self)
@@ -47,12 +47,9 @@ pub trait TypeVisitor: Sized {
 pub trait FallibleTypeFolder: Sized {
     type Error;
 
-    fn try_fold_binder<T: TypeFoldable>(
-        &mut self,
-        t: &Binder<T>,
-    ) -> Result<Binder<T>, Self::Error> {
-        t.try_super_fold_with(self)
-    }
+    fn try_enter_binder(&mut self, _vars: &BoundVariableKinds) {}
+
+    fn try_exit_binder(&mut self) {}
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         sort.try_super_fold_with(self)
@@ -84,9 +81,9 @@ pub trait FallibleTypeFolder: Sized {
 }
 
 pub trait TypeFolder: FallibleTypeFolder<Error = !> {
-    fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-        t.super_fold_with(self)
-    }
+    fn enter_binder(&mut self, _vars: &BoundVariableKinds) {}
+
+    fn exit_binder(&mut self) {}
 
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
         sort.super_fold_with(self)
@@ -123,11 +120,12 @@ where
 {
     type Error = !;
 
-    fn try_fold_binder<T: TypeFoldable>(
-        &mut self,
-        t: &Binder<T>,
-    ) -> Result<Binder<T>, Self::Error> {
-        Ok(self.fold_binder(t))
+    fn try_enter_binder(&mut self, vars: &BoundVariableKinds) {
+        self.enter_binder(vars);
+    }
+
+    fn try_exit_binder(&mut self) {
+        self.exit_binder();
     }
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
@@ -179,11 +177,12 @@ pub trait TypeVisitable: Sized {
         impl TypeVisitor for HasEscapingVars {
             type BreakTy = ();
 
-            fn visit_binder<T: TypeVisitable>(&mut self, t: &Binder<T>) -> ControlFlow<()> {
+            fn enter_binder(&mut self, _: &BoundVariableKinds) {
                 self.outer_index.shift_in(1);
-                t.super_visit_with(self)?;
+            }
+
+            fn exit_binder(&mut self) {
                 self.outer_index.shift_out(1);
-                ControlFlow::Continue(())
             }
 
             // TODO(nilehmann) keep track of the outermost binder to optimize this, i.e.,
@@ -312,14 +311,12 @@ pub trait TypeVisitable: Sized {
                 ty.super_visit_with(self)
             }
 
-            fn visit_binder<T: TypeVisitable>(
-                &mut self,
-                t: &Binder<T>,
-            ) -> ControlFlow<Self::BreakTy> {
+            fn enter_binder(&mut self, _: &BoundVariableKinds) {
                 self.current_index.shift_in(1);
-                t.super_visit_with(self)?;
+            }
+
+            fn exit_binder(&mut self) {
                 self.current_index.shift_out(1);
-                ControlFlow::Continue(())
             }
         }
 
@@ -368,11 +365,12 @@ pub trait TypeFoldable: TypeVisitable {
         where
             F: FnMut(&[BoundVariableKinds], HoleKind) -> Expr,
         {
-            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-                self.1.push(t.vars().clone());
-                let t = t.super_fold_with(self);
+            fn enter_binder(&mut self, vars: &BoundVariableKinds) {
+                self.1.push(vars.clone());
+            }
+
+            fn exit_binder(&mut self) {
                 self.1.pop();
-                t
             }
 
             fn fold_expr(&mut self, e: &Expr) -> Expr {
@@ -438,11 +436,12 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+            fn enter_binder(&mut self, _: &BoundVariableKinds) {
                 self.current_index.shift_in(1);
-                let t = t.super_fold_with(self);
+            }
+
+            fn exit_binder(&mut self) {
                 self.current_index.shift_out(1);
-                t
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
@@ -475,14 +474,12 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
-            where
-                T: TypeFoldable,
-            {
+            fn enter_binder(&mut self, _: &BoundVariableKinds) {
                 self.current_index.shift_in(1);
-                let r = t.super_fold_with(self);
+            }
+
+            fn exit_binder(&mut self) {
                 self.current_index.shift_out(1);
-                r
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
@@ -515,11 +512,12 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
+            fn enter_binder(&mut self, _: &BoundVariableKinds) {
                 self.current_index.shift_in(1);
-                let t = t.super_fold_with(self);
+            }
+
+            fn exit_binder(&mut self) {
                 self.current_index.shift_out(1);
-                t
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
@@ -655,7 +653,11 @@ where
     T: TypeVisitable,
 {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
-        visitor.visit_binder(self)
+        self.vars().visit_with(visitor)?;
+        visitor.enter_binder(&self.vars());
+        self.skip_binder_ref().visit_with(visitor)?;
+        visitor.exit_binder();
+        ControlFlow::Continue(())
     }
 }
 
@@ -673,19 +675,11 @@ where
     T: TypeFoldable,
 {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        folder.try_fold_binder(self)
-    }
-}
-
-impl<T> TypeSuperFoldable for Binder<T>
-where
-    T: TypeFoldable,
-{
-    fn try_super_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
-        Ok(Binder::bind_with_vars(
-            self.skip_binder_ref().try_fold_with(folder)?,
-            self.vars().try_fold_with(folder)?,
-        ))
+        let vars = self.vars().try_fold_with(folder)?;
+        folder.try_enter_binder(&vars);
+        let r = self.skip_binder_ref().try_fold_with(folder)?;
+        folder.try_exit_binder();
+        Ok(Binder::bind_with_vars(r, vars))
     }
 }
 

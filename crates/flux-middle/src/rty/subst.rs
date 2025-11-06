@@ -57,14 +57,12 @@ impl<D> TypeFolder for BoundVarReplacer<D>
 where
     D: BoundVarReplacerDelegate,
 {
-    fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
-    where
-        T: TypeFoldable,
-    {
+    fn enter_binder(&mut self, _: &BoundVariableKinds) {
         self.current_index.shift_in(1);
-        let r = t.super_fold_with(self);
+    }
+
+    fn exit_binder(&mut self) {
         self.current_index.shift_out(1);
-        r
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {
@@ -251,11 +249,12 @@ impl<'a, D> GenericsSubstFolder<'a, D> {
 impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D> {
     type Error = D::Error;
 
-    fn try_fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Result<Binder<T>, D::Error> {
+    fn try_enter_binder(&mut self, _: &BoundVariableKinds) {
         self.current_index.shift_in(1);
-        let r = t.try_super_fold_with(self)?;
+    }
+
+    fn try_exit_binder(&mut self) {
         self.current_index.shift_out(1);
-        Ok(r)
     }
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, D::Error> {
