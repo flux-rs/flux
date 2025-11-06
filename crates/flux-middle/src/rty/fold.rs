@@ -85,8 +85,18 @@ pub trait FallibleTypeFolder: Sized {
 
 pub trait TypeFolder: FallibleTypeFolder<Error = !> {
     fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-        t.super_fold_with(self)
+        // ORIG: t.super_fold_with(self)
+
+        let vars = t.vars().fold_with(self);
+        self.shift_in(1);
+        let r = t.skip_binder_ref().fold_with(self);
+        self.shift_out(1);
+        Binder::bind_with_vars(r, vars)
     }
+
+    fn shift_in(&mut self, _amount: u32) {}
+
+    fn shift_out(&mut self, _amount: u32) {}
 
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
         sort.super_fold_with(self)

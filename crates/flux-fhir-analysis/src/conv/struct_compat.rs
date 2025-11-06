@@ -536,14 +536,22 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         }
 
         impl TypeFolder for Adjuster<'_, '_, '_> {
-            fn fold_binder<T>(&mut self, t: &rty::Binder<T>) -> rty::Binder<T>
-            where
-                T: TypeFoldable,
-            {
+            // fn fold_binder<T>(&mut self, t: &rty::Binder<T>) -> rty::Binder<T>
+            // where
+            //     T: TypeFoldable,
+            // {
+            //     self.current_index.shift_in(1);
+            //     let r = t.super_fold_with(self);
+            //     self.current_index.shift_out(1);
+            //     r
+            // }
+
+            fn shift_in(&mut self, _amount: u32) {
                 self.current_index.shift_in(1);
-                let r = t.super_fold_with(self);
+            }
+
+            fn shift_out(&mut self, _amount: u32) {
                 self.current_index.shift_out(1);
-                r
             }
 
             fn fold_region(&mut self, re: &rty::Region) -> rty::Region {
