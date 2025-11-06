@@ -1,7 +1,7 @@
 //! This module implements a points-to analysis for mutable references.
 //!
 //! We use the result of the analysis to insert ghost statements at the points where pointers (`ptr(l)`)
-//! have to be converted to borrows (`&mut T`). For example, given the function
+//! have to be converted to borrows (`&mut T`). For example, consider the function
 //! ```ignore
 //! fn foo(mut x: i32, mut y: i32, b: bool) {
 //!     let r;
@@ -12,11 +12,11 @@
 //!     }
 //! }
 //! ```
-//! In the then branch (resp. else) we know `r` must point to `x` (resp. `y`). During refinement checking,
-//! we will give `r` types `ptr(x)` and `ptr(y)` in each branch respectively. However, at the join point
-//! `r` could pointn to either `x` or `y`. Thus, we use the result of the analysis to insert a ghost
-//! statement at the end of each branch to convert the pointers to a borrow `&mut T` for a type `T` that
-//! needs to be inferred.
+//! In the then branch (resp. else) we know `r` must point to `x` (resp. `y`). Thus, during refinement
+//! type checking, we give `r` types `ptr(x)` and `ptr(y)` in each branch respectively. However, at the
+//! join point, `r` could point to either `x` or `y` so we must find a type that joins the two pointers.
+//! We use the result of the analysis to insert a ghost statement at the end of each branch to convert
+//! the pointer to a borrow `&mut i32{v: ...}` and use it as the join.
 use std::{collections::VecDeque, fmt, iter, ops::Range};
 
 use flux_common::tracked_span_bug;
@@ -51,11 +51,9 @@ pub(crate) fn add_ghost_statements<'tcx>(
 ) -> QueryResult {
     let map = Map::new(body);
     let points_to = PointsToAnalysis::new(&map, fn_sig);
-    let fixpoint = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
-    let mut analysis = fixpoint.analysis;
-    let results = fixpoint.results;
-    let mut visitor = CollectPointerToBorrows::new(&map, stmts, &results);
-    visit_reachable_results(body, &mut analysis, &results, &mut visitor);
+    let results = points_to.iterate_to_fixpoint(genv.tcx(), body, None);
+    let mut visitor = CollectPointerToBorrows::new(&map, stmts, &results.entry_states);
+    visit_reachable_results(body, &results, &mut visitor);
 
     Ok(())
 }
@@ -213,7 +211,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     }
 
     fn apply_primary_statement_effect(
-        &mut self,
+        &self,
         state: &mut Self::Domain,
         statement: &mir::Statement<'tcx>,
         _location: mir::Location,
@@ -222,7 +220,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     }
 
     fn apply_primary_terminator_effect<'mir>(
-        &mut self,
+        &self,
         state: &mut Self::Domain,
         terminator: &'mir mir::Terminator<'tcx>,
         _location: mir::Location,
@@ -231,7 +229,7 @@ impl<'tcx> rustc_mir_dataflow::Analysis<'tcx> for PointsToAnalysis<'_> {
     }
 
     fn apply_call_return_effect(
-        &mut self,
+        &self,
         state: &mut Self::Domain,
         _block: BasicBlock,
         return_places: mir::CallReturnPlaces<'_, 'tcx>,
@@ -278,7 +276,7 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
 
     fn visit_after_primary_statement_effect(
         &mut self,
-        _analysis: &mut PointsToAnalysis<'a>,
+        _analysis: &PointsToAnalysis<'a>,
         state: &State,
         _statement: &mir::Statement<'tcx>,
         location: mir::Location,
@@ -300,7 +298,7 @@ impl<'a, 'tcx> ResultsVisitor<'tcx, PointsToAnalysis<'a>> for CollectPointerToBo
 
     fn visit_after_primary_terminator_effect(
         &mut self,
-        _analysis: &mut PointsToAnalysis<'a>,
+        _analysis: &PointsToAnalysis<'a>,
         _state: &State,
         terminator: &mir::Terminator<'tcx>,
         location: mir::Location,
