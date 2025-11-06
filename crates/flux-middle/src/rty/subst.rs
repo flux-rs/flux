@@ -57,29 +57,12 @@ impl<D> TypeFolder for BoundVarReplacer<D>
 where
     D: BoundVarReplacerDelegate,
 {
-    // fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
-    // where
-    //     T: TypeFoldable,
-    // {
-    //     // println!("TRACE: fold_binder! current_index = {:?}", self.current_index);
-    //     // self.current_index.shift_in(1);
-    //     // let r = t.super_fold_with(self);
-    //     // self.current_index.shift_out(1);
-    //     // r
-
-    //     let vars = t.vars().fold_with(self);
-    //     self.current_index.shift_in(1);
-    //     let r = t.skip_binder_ref().fold_with(self);
-    //     self.current_index.shift_out(1);
-    //     Binder::bind_with_vars(r, vars)
-    // }
-
-    fn shift_in(&mut self, amount: u32) {
-        self.current_index.shift_in(amount);
+    fn push(&mut self, _vars: &BoundVariableKinds) {
+        self.current_index.shift_in(1);
     }
 
-    fn shift_out(&mut self, amount: u32) {
-        self.current_index.shift_out(amount);
+    fn pop(&mut self) {
+        self.current_index.shift_out(1);
     }
 
     fn fold_expr(&mut self, e: &Expr) -> Expr {

@@ -84,19 +84,18 @@ pub trait FallibleTypeFolder: Sized {
 }
 
 pub trait TypeFolder: FallibleTypeFolder<Error = !> {
+    // impl SHOULD NOT (ideally) override this method
     fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-        // ORIG: t.super_fold_with(self)
-
         let vars = t.vars().fold_with(self);
-        self.shift_in(1);
+        self.push(&vars);
         let r = t.skip_binder_ref().fold_with(self);
-        self.shift_out(1);
+        self.pop();
         Binder::bind_with_vars(r, vars)
     }
 
-    fn shift_in(&mut self, _amount: u32) {}
-
-    fn shift_out(&mut self, _amount: u32) {}
+    // Clients SHOULD override these methods as needed, to enter/exit binders scope.
+    fn push(&mut self, _vars: &BoundVariableKinds) {}
+    fn pop(&mut self) {}
 
     fn fold_sort(&mut self, sort: &Sort) -> Sort {
         sort.super_fold_with(self)
@@ -378,11 +377,12 @@ pub trait TypeFoldable: TypeVisitable {
         where
             F: FnMut(&[BoundVariableKinds], HoleKind) -> Expr,
         {
-            fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-                self.1.push(t.vars().clone());
-                let t = t.super_fold_with(self);
+            fn push(&mut self, vars: &BoundVariableKinds) {
+                self.1.push(vars.clone());
+            }
+
+            fn pop(&mut self) {
                 self.1.pop();
-                t
             }
 
             fn fold_expr(&mut self, e: &Expr) -> Expr {
@@ -448,19 +448,12 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            // fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-            //     self.current_index.shift_in(1);
-            //     let t = t.super_fold_with(self);
-            //     self.current_index.shift_out(1);
-            //     t
-            // }
-
-            fn shift_in(&mut self, amount: u32) {
-                self.current_index.shift_in(amount);
+            fn push(&mut self, _vars: &BoundVariableKinds) {
+                self.current_index.shift_in(1);
             }
 
-            fn shift_out(&mut self, amount: u32) {
-                self.current_index.shift_out(amount);
+            fn pop(&mut self) {
+                self.current_index.shift_out(1);
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
@@ -493,21 +486,11 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            // fn fold_binder<T>(&mut self, t: &Binder<T>) -> Binder<T>
-            // where
-            //     T: TypeFoldable,
-            // {
-            //     self.current_index.shift_in(1);
-            //     let r = t.super_fold_with(self);
-            //     self.current_index.shift_out(1);
-            //     r
-            // }
-
-            fn shift_in(&mut self, amount: u32) {
-                self.current_index.shift_in(amount);
+            fn push(&mut self, _vars: &BoundVariableKinds) {
+                self.current_index.shift_in(1);
             }
-            fn shift_out(&mut self, amount: u32) {
-                self.current_index.shift_out(amount);
+            fn pop(&mut self) {
+                self.current_index.shift_out(1);
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
@@ -540,19 +523,12 @@ pub trait TypeFoldable: TypeVisitable {
         }
 
         impl TypeFolder for Shifter {
-            // fn fold_binder<T: TypeFoldable>(&mut self, t: &Binder<T>) -> Binder<T> {
-            //     self.current_index.shift_in(1);
-            //     let t = t.super_fold_with(self);
-            //     self.current_index.shift_out(1);
-            //     t
-            // }
-
-            fn shift_in(&mut self, amount: u32) {
-                self.current_index.shift_in(amount);
+            fn push(&mut self, _vars: &BoundVariableKinds) {
+                self.current_index.shift_in(1);
             }
 
-            fn shift_out(&mut self, amount: u32) {
-                self.current_index.shift_out(amount);
+            fn pop(&mut self) {
+                self.current_index.shift_out(1);
             }
 
             fn fold_region(&mut self, re: &Region) -> Region {
