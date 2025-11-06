@@ -249,11 +249,11 @@ impl<'a, D> GenericsSubstFolder<'a, D> {
 impl<D: GenericsSubstDelegate> FallibleTypeFolder for GenericsSubstFolder<'_, D> {
     type Error = D::Error;
 
-    fn enter_binder(&mut self, _: &BoundVariableKinds) {
+    fn try_enter_binder(&mut self, _: &BoundVariableKinds) {
         self.current_index.shift_in(1);
     }
 
-    fn exit_binder(&mut self) {
+    fn try_exit_binder(&mut self) {
         self.current_index.shift_out(1);
     }
 

@@ -25,7 +25,7 @@ pub trait TypeVisitor: Sized {
 
     fn enter_binder(&mut self, _vars: &BoundVariableKinds) {}
 
-    fn exist_binder(&mut self) {}
+    fn exit_binder(&mut self) {}
 
     fn visit_expr(&mut self, expr: &Expr) -> ControlFlow<Self::BreakTy> {
         expr.super_visit_with(self)
@@ -47,9 +47,9 @@ pub trait TypeVisitor: Sized {
 pub trait FallibleTypeFolder: Sized {
     type Error;
 
-    fn enter_binder(&mut self, _vars: &BoundVariableKinds) {}
+    fn try_enter_binder(&mut self, _vars: &BoundVariableKinds) {}
 
-    fn exit_binder(&mut self) {}
+    fn try_exit_binder(&mut self) {}
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
         sort.try_super_fold_with(self)
@@ -120,12 +120,12 @@ where
 {
     type Error = !;
 
-    fn enter_binder(&mut self, vars: &BoundVariableKinds) {
-        <F as TypeFolder>::enter_binder(self, vars);
+    fn try_enter_binder(&mut self, vars: &BoundVariableKinds) {
+        self.enter_binder(vars);
     }
 
-    fn exit_binder(&mut self) {
-        <F as TypeFolder>::exit_binder(self);
+    fn try_exit_binder(&mut self) {
+        self.exit_binder();
     }
 
     fn try_fold_sort(&mut self, sort: &Sort) -> Result<Sort, Self::Error> {
@@ -181,7 +181,7 @@ pub trait TypeVisitable: Sized {
                 self.outer_index.shift_in(1);
             }
 
-            fn exist_binder(&mut self) {
+            fn exit_binder(&mut self) {
                 self.outer_index.shift_out(1);
             }
 
@@ -315,7 +315,7 @@ pub trait TypeVisitable: Sized {
                 self.current_index.shift_in(1);
             }
 
-            fn exist_binder(&mut self) {
+            fn exit_binder(&mut self) {
                 self.current_index.shift_out(1);
             }
         }
@@ -656,7 +656,7 @@ where
         self.vars().visit_with(visitor)?;
         visitor.enter_binder(&self.vars());
         self.skip_binder_ref().visit_with(visitor)?;
-        visitor.exist_binder();
+        visitor.exit_binder();
         ControlFlow::Continue(())
     }
 }
@@ -676,9 +676,9 @@ where
 {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let vars = self.vars().try_fold_with(folder)?;
-        folder.enter_binder(&vars);
+        folder.try_enter_binder(&vars);
         let r = self.skip_binder_ref().try_fold_with(folder)?;
-        folder.exit_binder();
+        folder.try_exit_binder();
         Ok(Binder::bind_with_vars(r, vars))
     }
 }
