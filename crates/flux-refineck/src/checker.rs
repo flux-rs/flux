@@ -2127,7 +2127,7 @@ pub(crate) mod errors {
     use crate::fluent_generated as fluent;
 
     #[derive(Diagnostic)]
-    #[diag(refineck_panic_error, code = E0999)]
+    #[diag(refineck_panic_error)]
     pub(super) struct PanicError {
         #[primary_span]
         pub(super) span: Span,
