@@ -8,7 +8,7 @@ use z3::{
 };
 
 use crate::{
-    BoundVar, ConstDecl, DataDecl, Error, FixpointFmt, FixpointResult, FixpointStatus, FlatConstraint, Identifier, SortCtor, Stats, ThyFunc, Types, constraint::{BinOp, BinRel, Constant, Constraint, Expr, Pred, Sort} };
+    BoundVar, ConstDecl, DataDecl, Error, FixpointFmt, FixpointResult, FixpointStatus, FlatConstraint, Identifier, SortCtor, Stats, ThyFunc, Types, constraint::{BinOp, BinRel, Constant, Constraint, DNF, Expr, Pred, Sort} };
 
 #[derive(Debug)]
 pub(crate) enum Binding {
@@ -875,41 +875,126 @@ pub fn qe_and_simplify<T: Types>(
                 // }
                 if let Some(new_cstr) = new_goal.iter_formulas::<ast::Dynamic>().last() {
                     solver.pop(1);
+                    // let new_goal = Goal::new(true, true, false);
                     // solver.assert(&new_cstr.as_bool().unwrap());
                     for pred in &cstr.assumptions {
                         let pred_ast = pred_to_z3(&pred, &mut vars, AllowKVars::NoKVars);
                         solver.assert(&pred_ast);
+                        // new_goal.assert(&pred_ast);
                     }
-                    let fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
-                    let mut disjuncts = fixpoint_expr.disjunctions();
-                    disjuncts
-                        .retain_mut(|disjunct| {
-                            solver.push();
-                            println!("checking disjunct: {}", disjunct);
-                            for conjunct in disjunct.conjunctions() {
-                                let e = pred_to_z3(&Pred::Expr(conjunct), &mut vars, AllowKVars::NoKVars);
-                                solver.assert(e);
-                            }
-                            match solver.check() {
-                                SatResult::Unsat => {
-                                    println!("Dropping vacuous disjunct: {}", disjunct);
-                                    false
-                                }
-                                _ => true,
-                            }
-                    });
-                    return if disjuncts.len() == 0 {
-                        Ok(Expr::Constant(Constant::Boolean(false)))
-                    } else if disjuncts.len() == 1 {
-                        Ok(disjuncts.pop().unwrap())
+                    // new_goal.assert(&new_cstr);
+                    // let simplify = Tactic::new("ctx-simplify");
+                    // let simplified_cstr = simplify.apply(&new_goal, None)
+                    //         .unwrap()
+                    //         .list_subgoals()
+                    //         .last()
+                    //         .unwrap()
+                    //         .iter_formulas()
+                    //         .last()
+                    //         .unwrap();
+                    // return z3_to_expr(&vars, &simplified_cstr);
+                    let mut fixpoint_expr = z3_to_expr(&vars, &new_cstr)?;
+                    // return Ok(prune_vacuous(fixpoint_expr, &mut vars, &solver));
+                    return if prune_vacuous(&mut fixpoint_expr, &mut vars, &solver) {
+                        Ok(Expr::FALSE)
                     } else {
-                        Ok(Expr::Or(disjuncts))
-                    }
+                        Ok(fixpoint_expr)
+                    };
                 }
             }
             Err(Z3DecodeError::NoResults)
         }
         Err(_) => panic!("Failed to qe + simplify"),
+    }
+}
+
+fn prune_vacuous_dnf<T: Types>(mut dnf: DNF<T>, env: &mut Env<T>, solver: &Solver) -> Expr<T> {
+    dnf.disjuncts.retain(|conjunct| {
+        solver.push();
+        let z3_e = expr_to_z3(&Expr::And(conjunct.clone()), env);
+        solver.assert(z3_e.as_bool().unwrap());
+        let res = match solver.check() {
+            SatResult::Unsat => true,
+            _ => false,
+        };
+        solver.pop(1);
+        res
+    });
+    if dnf.disjuncts.is_empty() {
+        Expr::FALSE
+    } else if dnf.disjuncts.len() == 1 {
+        Expr::And(dnf.disjuncts.pop().unwrap())
+    } else {
+        Expr::Or(dnf.disjuncts.into_iter().map(|conjunct| Expr::And(conjunct)).collect())
+    }
+}
+
+/// Prunes any parts of the expression that falsify the current assertions
+/// in solver.
+///
+/// Returns whether the current expression is vacuous.
+fn prune_vacuous<T: Types>(e: &mut Expr<T>, env: &mut Env<T>, solver: &Solver) -> bool {
+    match e {
+        // Prune individual conjuncts with the added constraint that if _any_
+        // are vacuous, we need to remove the whole expr.
+        //
+        // This is just an optimization to avoid checking for unsat all the
+        // time.
+        Expr::And(conjuncts) => {
+            let conjuncts_copy = conjuncts.clone();
+            for (i, conjunct) in conjuncts.iter_mut().enumerate() {
+                solver.push();
+                for (j, other_conjunct) in conjuncts_copy.iter().enumerate() {
+                    // We could do better here by only creating
+                    // backtracking points for asserts of j > i,
+                    // but whatever.
+                    if i != j {
+                        let z3_conjunct = expr_to_z3(other_conjunct, env);
+                        solver.assert(z3_conjunct.as_bool().unwrap());
+                    }
+                }
+                // If anything in this conjunct is to be pruned, then we need to
+                // throw out the whole conjunct:
+                //
+                // The rationale is that we can reach a contradiction with one
+                // element in our conjunction: therefore the whole conjunction
+                // leads to a contradiction.
+                if prune_vacuous(conjunct, env, solver) {
+                    *e = Expr::FALSE;
+                    solver.pop(1);
+                    return true;
+                } else {
+                    solver.pop(1);
+                }
+            }
+            false
+        }
+        Expr::Or(disjuncts) => {
+            // Drop vacuous parts of this disjunction
+            disjuncts.retain_mut(|disjunct| {
+                !prune_vacuous(disjunct, env, solver)
+            });
+            if disjuncts.is_empty() {
+                *e = Expr::FALSE;
+                true
+            } else if disjuncts.len() == 1 {
+                *e = disjuncts.pop().unwrap();
+                false
+            } else {
+                false
+            }
+        }
+        _ => {
+            solver.push();
+            let z3_e = expr_to_z3(e, env);
+            solver.assert(z3_e.as_bool().unwrap());
+            let res = match solver.check() {
+                SatResult::Unsat => true,
+                _ => false,
+            };
+            solver.pop(1);
+            res
+        }
     }
 }
 

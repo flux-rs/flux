@@ -391,6 +391,9 @@ impl<T: Types> From<Constant<T>> for Expr<T> {
 }
 
 impl<T: Types> Expr<T> {
+    pub const FALSE: Self = Expr::Constant(Constant::Boolean(false));
+    pub const TRUE: Self = Expr::Constant(Constant::Boolean(true));
+
     pub const fn int(val: u128) -> Expr<T> {
         Expr::Constant(Constant::Numeral(val))
     }
@@ -903,6 +906,51 @@ impl<T: Types> Expr<T> {
             }
         }
     }
+
+    /// Assumes that the formula is in negation normal form already (i.e.
+    /// negations are pushed through all logical connectives).
+    ///
+    /// Also assumes that we only have And/Or as connectives.
+    ///
+    /// Both assumptions aren't impossible to fix, but if we're already getting
+    /// formulas that satisfy these it's easier to do less.
+    ///
+    /// This is a naive encoding that creates a combinatorial explosion with
+    /// the hope/assumption that we can significantly prune the result.
+    pub fn to_dnf(&self) -> DNF<T> {
+        match self {
+            Expr::Or(disjuncts) => {
+                let dnf_disjuncts = disjuncts.iter().flat_map(|disjunct| disjunct.to_dnf().disjuncts).collect_vec();
+                DNF {
+                    disjuncts: dnf_disjuncts,
+                }
+            }
+            // Combinatorial explosion time
+            Expr::And(conjuncts) => {
+                let dnf_disjuncts = conjuncts
+                    .iter()
+                    .map(|conjunct| conjunct.to_dnf().disjuncts)
+                    .multi_cartesian_product()
+                    .map(|vec_of_conjuncts| {
+                        vec_of_conjuncts.into_iter().flatten().collect_vec()
+                    })
+                    .collect_vec();
+                DNF {
+                    disjuncts: dnf_disjuncts,
+                }
+            }
+            _ => {
+                DNF {
+                    disjuncts: vec![vec![self.clone()]],
+                }
+            }
+        }
+    }
+}
+
+pub struct DNF<T: Types> {
+    /// Each disjunct contains a conjunction ([`Vec<Expr<T>>`]).
+    pub disjuncts: Vec<Vec<Expr<T>>>,
 }
 
 #[derive_where(Hash, Clone, Debug)]

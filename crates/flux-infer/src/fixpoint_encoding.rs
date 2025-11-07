@@ -741,6 +741,7 @@ where
                                                 let mut flat_constraint_without_current_assumption = flat_constraint.clone();
                                                 flat_constraint_without_current_assumption.assumptions.remove(i);
                                                 let mut new_constraints = disjuncts.iter().filter_map(|disjunct| {
+                                                    // println!("trying disjunct: {}", disjunct);
                                                     let mut new_constraint = flat_constraint_without_current_assumption.clone();
                                                     let (new_vars, hoisted_disjunct) = disjunct.hoist_exists(&mut fresh_var);
                                                     new_constraint.binders.extend(new_vars);
@@ -754,8 +755,10 @@ where
                                                     }).collect_vec();
                                                     consts.extend(constants_without_inequalities.iter().cloned());
                                                     if !check_validity(&new_constraint, &consts, data_decls.clone()) {
-                                                        Some(new_constraint)
+                                                        // println!("It is nontrivial");
+                                                        Some((wkvars, new_constraint))
                                                     } else {
+                                                        // println!("We can filter it out");
                                                         None
                                                     }
                                                 }).collect_vec();
@@ -820,9 +823,21 @@ where
                                                         && !e.is_trivially_true() {
                                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &e) {
                                                             println!("recording solution: {:?}", e);
-                                                            possible_solutions.entry(*wkvid)
-                                                                .or_default()
-                                                                .push(binder_e);
+                                                            match fe {
+                                                                fixpoint::Expr::Or(disjuncts) if disjuncts.len() > 1 => {
+                                                                    println!("skipping answer with too many disjuncts");
+                                                                    if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
+                                                                        possible_solutions.entry(*wkvid)
+                                                                            .or_default()
+                                                                            .push(binder_e);
+                                                                    }
+                                                                }
+                                                                _ => {
+                                                                    possible_solutions.entry(*wkvid)
+                                                                        .or_default()
+                                                                        .push(binder_e);
+                                                                }
+                                                            }
                                                         } else {
                                                             println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
                                                             if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
