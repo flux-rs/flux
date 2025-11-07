@@ -792,18 +792,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let no_panic = genv.no_panic(self.def_id);
         if no_panic {
             if let Some(callee_def_id) = callee_def_id {
-                let callee_no_panic = if let Some(local_callee) = callee_def_id.as_local() {
-                    genv.no_panic(local_callee)
-                } else {
-                    false
-                };
+                let callee_no_panic = callee_def_id
+                    .as_local()
+                    .map_or(false, |local| genv.no_panic(local));
 
-                if !callee_no_panic {
-                    let caller = tcx.def_path_str(self.def_id.to_def_id());
-                    let callee = tcx.def_path_str(callee_def_id);
-                    genv.sess().emit_err(errors::PanicError { span, caller, callee });
+                // Check that M::NAME is "refine" to avoid emitting duplicate errors
+                if "refine" == M::NAME && !callee_no_panic {
+                    if !callee_no_panic {
+                        genv.sess().emit_err(errors::PanicError { span });
+                    }
                 }
-
             }
         }
 
@@ -2127,12 +2125,10 @@ pub(crate) mod errors {
     use crate::fluent_generated as fluent;
 
     #[derive(Diagnostic)]
-    #[diag(refineck_panic_error)]
+    #[diag(refineck_panic_error, code = E0999)]
     pub(super) struct PanicError {
         #[primary_span]
         pub(super) span: Span,
-        pub caller: String,
-        pub callee: String,
     }
 
     #[derive(Debug)]
