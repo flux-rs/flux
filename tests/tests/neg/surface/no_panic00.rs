@@ -1,6 +1,6 @@
 #[flux::no_panic]
 fn calls_unsafe() {
-    wildcard(); //~ ERROR 3:5: 3:15: call to function that may panic
+    wildcard(); //~ ERROR call to function that may panic
 
 }
 
