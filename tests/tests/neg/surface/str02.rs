@@ -13,4 +13,3 @@ pub fn test_eq() {
     require_eq("a", "a");
     require_eq("a", "b"); //~ ERROR refinement type
 }
-
