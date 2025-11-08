@@ -392,6 +392,10 @@ impl<'de, Tag: FromStr> Deserialize<'de> for Error<Tag> {
 pub enum ThyFunc {
     // STRINGS
     StrLen,
+    StrConcat,
+    StrPrefixOf,
+    StrSuffixOf,
+    StrContains,
 
     // BIT VECTORS
     BvZeroExtend(u8),
@@ -452,8 +456,12 @@ pub enum ThyFunc {
 }
 
 impl ThyFunc {
-    pub const ALL: [ThyFunc; 40] = [
+    pub const ALL: [ThyFunc; 44] = [
         ThyFunc::StrLen,
+        ThyFunc::StrConcat,
+        ThyFunc::StrPrefixOf,
+        ThyFunc::StrSuffixOf,
+        ThyFunc::StrContains,
         ThyFunc::IntToBv8,
         ThyFunc::Bv8ToInt,
         ThyFunc::IntToBv32,
@@ -500,6 +508,10 @@ impl fmt::Display for ThyFunc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ThyFunc::StrLen => write!(f, "strLen"),
+            ThyFunc::StrConcat => write!(f, "strConcat"),
+            ThyFunc::StrPrefixOf => write!(f, "strPrefixOf"),
+            ThyFunc::StrSuffixOf => write!(f, "strSuffixOf"),
+            ThyFunc::StrContains => write!(f, "strContains"),
             ThyFunc::BvZeroExtend(size) => {
                 // `app` is a hack in liquid-fixpoint used to implement indexed identifiers
                 write!(f, "app (_ zero_extend {size})")
