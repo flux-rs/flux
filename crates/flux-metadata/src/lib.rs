@@ -176,6 +176,7 @@ pub struct Tables<K: Eq + Hash> {
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
+    is_no_panic: UnordMap<K, QueryResult<bool>>,
 }
 
 impl CStore {
@@ -250,6 +251,10 @@ impl CrateStore for CStore {
 
     fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef> {
         get!(self, adt_sort_def, def_id)
+    }
+
+    fn is_no_panic(&self, def_id: DefId) -> OptResult<bool> {
+        get!(self, is_no_panic, def_id)
     }
 
     fn variants_of(
