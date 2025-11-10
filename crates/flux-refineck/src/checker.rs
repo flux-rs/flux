@@ -7,14 +7,14 @@ use flux_common::{
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferErr, InferResult, SubtypeReason
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult, try_query},
+    queries::{QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
@@ -790,18 +790,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
 
         let no_panic = genv.no_panic(self.def_id);
-        if no_panic {
-            if let Some(callee_def_id) = callee_def_id {
-                let callee_no_panic = callee_def_id
-                    .as_local()
-                    .map_or(false, |local| genv.no_panic(local));
+        if no_panic && let Some(callee_def_id) = callee_def_id {
+            let callee_no_panic = callee_def_id
+                .as_local()
+                .is_some_and(|local| genv.no_panic(local));
 
-                // Check that M::NAME is "refine" to avoid emitting duplicate errors
-                if "refine" == M::NAME && !callee_no_panic {
-                    if !callee_no_panic {
-                        genv.sess().emit_err(errors::PanicError { span });
-                    }
-                }
+            // Check that M::NAME is "refine" to avoid emitting duplicate errors
+            if "refine" == M::NAME && !callee_no_panic {
+                genv.sess().emit_err(errors::PanicError { span });
             }
         }
 
