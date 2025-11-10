@@ -81,10 +81,6 @@ impl<'tcx> BodyRoot<'tcx> {
         &self.body
     }
 
-    pub fn def_id(&self) -> DefId {
-        self.rustc_body().source.def_id()
-    }
-
     pub fn calculate_borrows_out_of_scope_at_location(
         &self,
         body: &mir::Body<'tcx>,
@@ -102,14 +98,6 @@ impl<'tcx> BodyRoot<'tcx> {
             .get_index(idx.as_usize())
             .unwrap()
             .1
-    }
-
-    pub fn rustc_body(&self) -> &mir::Body<'tcx> {
-        &self.body.rustc_body
-    }
-
-    pub fn local_kind(&self, local: Local) -> LocalKind {
-        self.rustc_body().local_kind(local)
     }
 }
 
