@@ -192,7 +192,7 @@ pub struct Providers {
     pub item_bounds:
         fn(GlobalEnv, MaybeExternId) -> QueryResult<rty::EarlyBinder<List<rty::Clause>>>,
     pub sort_decl_param_count: fn(GlobalEnv, FluxId<MaybeExternId>) -> usize,
-    pub is_no_panic: fn(GlobalEnv, MaybeExternId) -> QueryResult<bool>,
+    pub no_panic: fn(GlobalEnv, MaybeExternId) -> QueryResult<bool>,
 }
 
 macro_rules! empty_query {
@@ -230,7 +230,7 @@ impl Default for Providers {
             item_bounds: |_, _| empty_query!(),
             constant_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
-            is_no_panic: |_, _| empty_query!(),
+            no_panic: |_, _| empty_query!(),
         }
     }
 }
@@ -270,7 +270,7 @@ pub struct Queries<'genv, 'tcx> {
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
-    is_no_panic: Cache<DefId, QueryResult<bool>>,
+    no_panic: Cache<DefId, QueryResult<bool>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -309,7 +309,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             fn_sig: Default::default(),
             lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
-            is_no_panic: Default::default(),
+            no_panic: Default::default(),
         }
     }
 
@@ -586,15 +586,21 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn is_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<bool> {
-        run_with_cache(&self.is_no_panic, def_id, || {
+    pub(crate) fn no_panic(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<bool> {
+        run_with_cache(&self.no_panic, def_id, || {
             def_id.dispatch_query(
                 genv,
-                |def_id| (self.providers.is_no_panic)(genv, def_id),
-                |def_id| genv.cstore().is_no_panic(def_id),
                 |def_id| {
-                    let mut attrs = genv.tcx().get_attrs(def_id, Symbol::intern("no_panic"));
-                    Ok(!attrs.next().is_none())
+                    let def_id = match def_id {
+                        MaybeExternId::Local(def_id) => def_id,
+                        MaybeExternId::Extern(def_id, _) => def_id,
+                    };
+                    Ok(genv.fhir_attr_map(def_id).no_panic())
+                },
+                |def_id| genv.cstore().no_panic(def_id),
+                |_| {
+                    // assume every function may panic by default
+                    Ok(false)
                 },
             )
         })

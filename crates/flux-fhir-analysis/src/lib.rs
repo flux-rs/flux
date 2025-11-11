@@ -72,6 +72,11 @@ pub fn provide(providers: &mut Providers) {
     providers.default_assoc_refinement_body = default_assoc_refinement_body;
     providers.item_bounds = item_bounds;
     providers.sort_decl_param_count = sort_decl_param_count;
+    providers.no_panic = no_panic;
+}
+
+fn no_panic(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<bool> {
+    genv.no_panic(def_id.local_id())
 }
 
 fn sort_decl_param_count(genv: GlobalEnv, def_id: FluxId<MaybeExternId>) -> usize {

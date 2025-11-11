@@ -789,15 +789,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let no_panic = genv.no_panic(self.def_id);
-        if no_panic && let Some(callee_def_id) = callee_def_id {
-            let callee_no_panic = callee_def_id
-                .as_local()
-                .is_some_and(|local| genv.no_panic(local));
+        let no_panic = genv.no_panic(self.def_id.to_def_id());
 
-            // Check that M::NAME is "refine" to avoid emitting duplicate errors
-            if "refine" == M::NAME && !callee_no_panic {
-                genv.sess().emit_err(errors::PanicError { span });
+
+        if no_panic.unwrap_or(false) && let Some(callee_def_id) = callee_def_id {
+            if genv.def_kind(callee_def_id).is_fn_like() {
+                let callee_no_panic = genv.no_panic(callee_def_id).unwrap_or(false);
+                if "refine" == M::NAME && !callee_no_panic {
+                    genv.sess().emit_err(errors::PanicError { span });
+                }
+
             }
         }
 
