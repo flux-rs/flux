@@ -214,6 +214,26 @@ fn thy_func_application_to_z3<T: Types>(
                 .length()
                 .into()
         }
+        ThyFunc::StrConcat => {
+            let arg1 = expr_to_z3(&args[0], env).as_string().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_string().unwrap();
+            ast::String::concat(&[arg1, arg2]).into()
+        }
+        ThyFunc::StrPrefixOf => {
+            let arg1 = expr_to_z3(&args[0], env).as_string().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_string().unwrap();
+            arg1.prefix(arg2).into()
+        }
+        ThyFunc::StrSuffixOf => {
+            let arg1 = expr_to_z3(&args[0], env).as_string().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_string().unwrap();
+            arg1.suffix(arg2).into()
+        }
+        ThyFunc::StrContains => {
+            let arg1 = expr_to_z3(&args[0], env).as_string().unwrap();
+            let arg2 = expr_to_z3(&args[1], env).as_string().unwrap();
+            arg1.contains(arg2).into()
+        }
         ThyFunc::SetMem => {
             let elem = expr_to_z3(&args[0], env);
             let set = expr_to_z3(&args[1], env).as_set().unwrap();

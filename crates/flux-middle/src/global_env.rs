@@ -186,7 +186,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.tcx().variances_of(did)
     }
 
-    pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<mir::Body<'tcx>>> {
+    pub fn mir(self, def_id: LocalDefId) -> QueryResult<Rc<mir::BodyRoot<'tcx>>> {
         self.inner.queries.mir(self, def_id)
     }
 

@@ -9,26 +9,53 @@ use flux_common::bug;
 use flux_middle::{global_env::GlobalEnv, queries::QueryResult};
 use flux_rustc_bridge::{
     lowering,
-    mir::{BasicBlock, Body, Place},
+    mir::{BasicBlock, Body, BodyRoot, Place},
 };
 use rustc_data_structures::unord::UnordMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::{def::DefKind, def_id::LocalDefId};
 use rustc_middle::{
-    mir::{Location, START_BLOCK},
+    mir::{Location, Promoted, START_BLOCK},
     ty::TyCtxt,
 };
 
 type LocationMap = FxHashMap<Location, Vec<GhostStatement>>;
 type EdgeMap = FxHashMap<BasicBlock, FxHashMap<BasicBlock, Vec<GhostStatement>>>;
 
+/// A type to indicate _who_ the ghost statements are for: either a regular `DefId` (including closures)  a promoted body.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum CheckerId {
+    /// A regular function or closure
+    DefId(LocalDefId),
+    /// A promoted body (within a function or closure)
+    Promoted(LocalDefId, Promoted),
+}
+
+impl CheckerId {
+    pub fn root_id(&self) -> LocalDefId {
+        match self {
+            CheckerId::DefId(def_id) => *def_id,
+            CheckerId::Promoted(def_id, _) => *def_id,
+        }
+    }
+
+    pub fn is_promoted(&self) -> bool {
+        matches!(self, CheckerId::Promoted(_, _))
+    }
+}
+
 pub(crate) fn compute_ghost_statements(
     genv: GlobalEnv,
     def_id: LocalDefId,
-) -> QueryResult<UnordMap<LocalDefId, GhostStatements>> {
+) -> QueryResult<UnordMap<CheckerId, GhostStatements>> {
     let mut data = UnordMap::default();
     for def_id in all_nested_bodies(genv.tcx(), def_id) {
-        data.insert(def_id, GhostStatements::new(genv, def_id)?);
+        let key = CheckerId::DefId(def_id);
+        data.insert(key, GhostStatements::new(genv, key)?);
+        for promoted in genv.mir(def_id)?.promoted.indices() {
+            let key = CheckerId::Promoted(def_id, promoted);
+            data.insert(key, GhostStatements::new(genv, key)?);
+        }
     }
     Ok(data)
 }
@@ -58,8 +85,13 @@ pub(crate) struct GhostStatements {
 }
 
 impl GhostStatements {
-    fn new(genv: GlobalEnv, def_id: LocalDefId) -> QueryResult<Self> {
-        let body = genv.mir(def_id)?;
+    fn new(genv: GlobalEnv, checker_id: CheckerId) -> QueryResult<Self> {
+        let def_id = checker_id.root_id();
+        let body_root = genv.mir(def_id)?;
+        let body = match checker_id {
+            CheckerId::DefId(_) => &body_root.body,
+            CheckerId::Promoted(_, promoted) => &body_root.promoted[promoted],
+        };
 
         bug::track_span(body.span(), || {
             let mut stmts = Self {
@@ -68,27 +100,30 @@ impl GhostStatements {
                 at_edge: EdgeMap::default(),
             };
 
-            // We have fn_sig for function items, but not for closures or generators.
-            let fn_sig = if genv.def_kind(def_id) == DefKind::Closure {
+            // We have fn_sig for function items, but not for closures or generators or promoteds.
+            let fn_sig = if genv.def_kind(def_id) == DefKind::Closure || checker_id.is_promoted() {
                 None
             } else {
                 Some(genv.fn_sig(def_id)?)
             };
 
-            fold_unfold::add_ghost_statements(&mut stmts, genv, &body, fn_sig.as_ref())?;
-            points_to::add_ghost_statements(&mut stmts, genv, body.rustc_body(), fn_sig.as_ref())?;
-            stmts.add_unblocks(genv.tcx(), &body);
-
-            stmts.dump_ghost_mir(genv.tcx(), &body);
+            fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
+            points_to::add_ghost_statements(&mut stmts, genv, &body.rustc_body, fn_sig.as_ref())?;
+            // We only add unblock statements for the main body because borrows in promoted constants
+            // have to be live in the main body so they never go out of scope in the promoted body.
+            if !checker_id.is_promoted() {
+                stmts.add_unblocks(genv.tcx(), &body_root);
+            }
+            stmts.dump_ghost_mir(genv.tcx(), body);
 
             Ok(stmts)
         })
     }
 
-    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
-        for (location, borrows) in body.calculate_borrows_out_of_scope_at_location() {
+    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body_root: &BodyRoot<'tcx>) {
+        for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
-                let borrow = body.borrow_data(bidx);
+                let borrow = body_root.borrow_data(bidx);
                 let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
                 GhostStatement::Unblock(place)
             });
@@ -141,7 +176,7 @@ impl GhostStatements {
 
     pub(crate) fn dump_ghost_mir<'tcx>(&self, tcx: TyCtxt<'tcx>, body: &Body<'tcx>) {
         use rustc_middle::mir::{PassWhere, pretty::MirDumper};
-        if let Some(dumper) = MirDumper::new(tcx, "ghost", body.inner()) {
+        if let Some(dumper) = MirDumper::new(tcx, "ghost", &body.rustc_body) {
             dumper
                 .set_extra_data(&|pass, w| {
                     match pass {
@@ -172,7 +207,7 @@ impl GhostStatements {
                     }
                     Ok(())
                 })
-                .dump_mir(body.inner());
+                .dump_mir(&body.rustc_body);
         }
     }
 }
