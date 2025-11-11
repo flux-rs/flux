@@ -548,7 +548,6 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
-
     /// Traverse the parent chain of `def_id` until the first node for which `f` returns [`Some`].
     fn traverse_parents<T>(
         self,
