@@ -43,7 +43,7 @@ use rustc_hir::{
     LangItem,
     def_id::{DefId, LocalDefId},
 };
-use rustc_index::bit_set::DenseBitSet;
+use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{Promoted, SwitchTargets},
@@ -80,6 +80,8 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
+    /// The templates for the promoted bodies of the current function (None when we are checking a promoted body itself)
+    promoted: &'ck IndexSlice<Promoted, Ty>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -93,9 +95,6 @@ struct Inherited<'ck, M> {
     /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
     /// we need to be careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
-
-    /// The templates for the promoted bodies of the current function (None when we are checking a promoted body itself)
-    promoted: Option<IndexVec<Promoted, Ty>>,
 }
 
 #[derive(Debug)]
@@ -113,16 +112,11 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
     ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, closures, promoted: None })
+        Ok(Self { ghost_stmts, mode, closures })
     }
 
     fn reborrow(&mut self) -> Inherited<'_, M> {
-        Inherited {
-            ghost_stmts: self.ghost_stmts,
-            mode: &mut *self.mode,
-            closures: self.closures,
-            promoted: self.promoted.clone(),
-        }
+        Inherited { ghost_stmts: self.ghost_stmts, mode: self.mode, closures: self.closures }
     }
 }
 
@@ -479,12 +473,13 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
-    fn check_body<'inh>(
+    fn check_body<'a>(
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         checker_id: CheckerId,
-        inherited: &'inh mut Inherited<'ck, M>,
-        body: &'inh Body<'tcx>,
+        inherited: Inherited<'a, M>,
+        body: &'a Body<'tcx>,
         poly_sig: PolyFnSig,
+        promoted: &'a IndexSlice<Promoted, Ty>,
     ) -> Result {
         let genv = infcx.genv;
         let def_id = checker_id.def_id();
@@ -500,17 +495,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
         //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
         //    to the `resume_arg` place..."
-        let resume_ty =
-            if !checker_id.is_promoted() && infcx.genv.tcx().is_coroutine(def_id.to_def_id()) {
-                Some(fn_sig.inputs()[1].clone())
-            } else {
-                None
-            };
+        let resume_ty = if !checker_id.is_promoted() && genv.tcx().is_coroutine(def_id.to_def_id())
+        {
+            Some(fn_sig.inputs()[1].clone())
+        } else {
+            None
+        };
         let bb_len = body.basic_blocks.len();
         let mut ck = Checker {
             checker_id,
             genv,
-            inherited: inherited.reborrow(),
+            inherited,
             body,
             resume_ty,
             visited: DenseBitSet::new_empty(bb_len),
@@ -518,6 +513,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             markers: IndexVec::from_fn_n(|_| None, bb_len),
             queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
+            promoted,
         };
         ck.check_ghost_statements_at(infcx, &mut env, Point::FunEntry, body.span())?;
 
@@ -546,9 +542,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
         body_root: &BodyRoot<'tcx>,
-    ) -> Result<IndexVec<Promoted, Ty>> {
+    ) -> QueryResult<IndexVec<Promoted, Ty>> {
         let span = body_root.body.span();
-        let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into()).with_span(span)?;
+        let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into())?;
 
         body_root
             .promoted
@@ -558,8 +554,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     span_bug!(span, "promoted body has non-ty return type")
                 };
                 let ty = rustc_ty
-                    .refine(&hole_refiner)
-                    .with_span(span)?
+                    .refine(&hole_refiner)?
                     .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
                 Ok(ty)
             })
@@ -575,30 +570,36 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
+        let promoted = Self::promoted_tys(&mut infcx, def_id, &body_root).with_span(span)?;
         // 1. Generate templates for promoted consts and check them against their bodies
-        Self::check_promoted(&mut infcx, def_id, &mut inherited, &body_root)?;
+        Self::check_promoted(&mut infcx, def_id, inherited.reborrow(), &body_root, &promoted)?;
         // 2. Check the main body
         let checker_id = CheckerId::DefId(def_id);
-        Self::check_body(&mut infcx, checker_id, &mut inherited, &body_root.body, poly_sig)
+        Self::check_body(&mut infcx, checker_id, inherited, &body_root.body, poly_sig, &promoted)
     }
 
-    fn check_promoted<'inh>(
+    fn check_promoted<'a>(
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
-        inherited: &'inh mut Inherited<'ck, M>,
-        body_root: &BodyRoot<'tcx>,
+        mut inherited: Inherited<'a, M>,
+        body_root: &'a BodyRoot<'tcx>,
+        promoted_tys: &'a IndexSlice<Promoted, Ty>,
     ) -> Result {
         // 1. Generate templates for promoteds
-        let promoted_tys = Self::promoted_tys(infcx, def_id, body_root)?;
         // 2. Call check_body on promoted-bodies using the templates, if needed
         for (promoted, ty) in promoted_tys.iter_enumerated() {
             let body = &body_root.promoted[promoted];
             let poly_sig = promoted_fn_sig(ty);
             let checker_id = CheckerId::Promoted(def_id, promoted);
-            Self::check_body(infcx, checker_id, inherited, body, poly_sig)?;
+            Self::check_body(
+                infcx,
+                checker_id,
+                inherited.reborrow(),
+                body,
+                poly_sig,
+                promoted_tys,
+            )?;
         }
-        // 3. Stash the promoted templates in inherited for use in the main body
-        inherited.promoted = Some(promoted_tys);
         Ok(())
     }
 
@@ -1757,8 +1758,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             Constant::Unevaluated(ty, uneval) => {
                 // Use template for promoted constants, if applicable
                 if let Some(promoted) = uneval.promoted
-                    && let Some(promoted_tys) = &self.inherited.promoted
-                    && let Some(ty) = promoted_tys.get(promoted)
+                    && let Some(ty) = self.promoted.get(promoted)
                 {
                     return Ok(ty.clone());
                 }
