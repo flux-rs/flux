@@ -186,7 +186,7 @@
 <a href=#186 id=186 data-nosnippet>186</a>        <span class="self">self</span>.tcx().variances_of(did)
 <a href=#187 id=187 data-nosnippet>187</a>    }
 <a href=#188 id=188 data-nosnippet>188</a>
-<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;mir::Body&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">pub fn </span>mir(<span class="self">self</span>, def_id: LocalDefId) -&gt; QueryResult&lt;Rc&lt;mir::BodyRoot&lt;<span class="lifetime">'tcx</span>&gt;&gt;&gt; {
 <a href=#190 id=190 data-nosnippet>190</a>        <span class="self">self</span>.inner.queries.mir(<span class="self">self</span>, def_id)
 <a href=#191 id=191 data-nosnippet>191</a>    }
 <a href=#192 id=192 data-nosnippet>192</a>
