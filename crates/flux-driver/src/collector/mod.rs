@@ -139,7 +139,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
             ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
             ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
-            ItemKind::Const(.., body_id) => {
+            ItemKind::Const(.., rhs) => {
                 // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
                 // consider these defs to be defined in the parent of the const.
                 self.specs
@@ -148,7 +148,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     .or_default()
                     .extend(attrs.items());
 
-                if attrs.extern_spec() {
+                if attrs.extern_spec()
+                    && let hir::ConstItemRhs::Body(body_id) = rhs
+                {
                     return ExternSpecCollector::collect(self, *body_id);
                 }
 
