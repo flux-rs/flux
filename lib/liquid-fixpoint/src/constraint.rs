@@ -946,6 +946,26 @@ impl<T: Types> Expr<T> {
             }
         }
     }
+
+    /// Counts the number of connectives (AND and OR) assuming the formula is in
+    /// negation normal form (negation pushed all the way in) + only expressed
+    /// in terms of AND and OR.
+    pub fn num_connectives(&self) -> usize {
+        match self {
+            Expr::Or(disjuncts) => disjuncts.len() + disjuncts.iter().map(|disjunct| disjunct.num_connectives()).sum::<usize>(),
+            Expr::And(conjuncts) => conjuncts.len() + conjuncts.iter().map(|conjunct| conjunct.num_connectives()).sum::<usize>(),
+            _ => 0,
+        }
+    }
+
+    pub fn max_num_disjuncts(&self) -> usize {
+        match self {
+            // Can pick 0 for the default value since there will always be at least one disjunct.
+            Expr::Or(disjuncts) => std::cmp::max(disjuncts.iter().map(|disjunct| disjunct.max_num_disjuncts()).max().unwrap_or(0), disjuncts.len()),
+            Expr::And(conjuncts) => conjuncts.iter().map(|conjunct| conjunct.max_num_disjuncts()).sum::<usize>(),
+            _ => 1,
+        }
+    }
 }
 
 pub struct DNF<T: Types> {

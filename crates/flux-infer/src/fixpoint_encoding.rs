@@ -823,20 +823,18 @@ where
                                                         && !e.is_trivially_true() {
                                                         if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &e) {
                                                             println!("recording solution: {:?}", e);
-                                                            match fe {
-                                                                fixpoint::Expr::Or(disjuncts) if disjuncts.len() > 1 => {
-                                                                    println!("skipping answer with too many disjuncts");
-                                                                    if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
-                                                                        possible_solutions.entry(*wkvid)
-                                                                            .or_default()
-                                                                            .push(binder_e);
-                                                                    }
-                                                                }
-                                                                _ => {
+                                                            if fe.max_num_disjuncts() > 2 {
+                                                                println!("WARN: skipping answer with too many disjuncts");
+                                                                // Try the regular expression
+                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
                                                                     possible_solutions.entry(*wkvid)
                                                                         .or_default()
                                                                         .push(binder_e);
                                                                 }
+                                                            } else {
+                                                                possible_solutions.entry(*wkvid)
+                                                                    .or_default()
+                                                                    .push(binder_e);
                                                             }
                                                         } else {
                                                             println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
