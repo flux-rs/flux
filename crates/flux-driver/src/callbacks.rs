@@ -176,6 +176,9 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
                     opaque_fun_defs
                         .push(ecx.fun_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx));
                 }
+                FluxItem::SortDecl(sort_decl) => {
+                    scx.declare_opaque_sort(sort_decl.def_id.to_def_id());
+                }
                 _ => {}
             }
         }
