@@ -15,16 +15,16 @@ use rustc_data_structures::{
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
-use rustc_middle::{
-    mir::{self, Promoted, VarDebugInfoContents},
-    ty::{FloatTy, IntTy, ParamConst, UintTy},
-};
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
         RETURN_PLACE, RawPtrKind, START_BLOCK, SourceInfo, SwitchTargets, UnOp, UnwindAction,
     },
     ty::{UserTypeAnnotationIndex, Variance},
+};
+use rustc_middle::{
+    mir::{Promoted, VarDebugInfoContents},
+    ty::{FloatTy, IntTy, ParamConst, UintTy},
 };
 use rustc_span::{Span, Symbol};
 
@@ -83,10 +83,9 @@ impl<'tcx> BodyRoot<'tcx> {
 
     pub fn calculate_borrows_out_of_scope_at_location(
         &self,
-        body: &mir::Body<'tcx>,
     ) -> FxIndexMap<Location, Vec<BorrowIndex>> {
         rustc_borrowck::consumers::calculate_borrows_out_of_scope_at_location(
-            body,
+            &self.body.rustc_body,
             &self.region_inference_context,
             &self.borrow_set,
         )

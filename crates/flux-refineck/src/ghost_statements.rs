@@ -109,10 +109,10 @@ impl GhostStatements {
 
             fold_unfold::add_ghost_statements(&mut stmts, genv, body, fn_sig.as_ref())?;
             points_to::add_ghost_statements(&mut stmts, genv, &body.rustc_body, fn_sig.as_ref())?;
-            // HACK: `add_unblocks` as is triggers mysterious borrowck/dataflow crash;
-            // see tests/tests/pos/surface/promotion02.rs
+            // We only add unblock statements for the main body because borrows in promoted constants
+            // have to be live in the main body so they never go out of scope in the promoted body.
             if !checker_id.is_promoted() {
-                stmts.add_unblocks(genv.tcx(), &body_root, &body.rustc_body);
+                stmts.add_unblocks(genv.tcx(), &body_root);
             }
             stmts.dump_ghost_mir(genv.tcx(), body);
 
@@ -120,13 +120,8 @@ impl GhostStatements {
         })
     }
 
-    fn add_unblocks<'tcx>(
-        &mut self,
-        tcx: TyCtxt<'tcx>,
-        body_root: &BodyRoot<'tcx>,
-        body: &rustc_middle::mir::Body<'tcx>,
-    ) {
-        for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location(body) {
+    fn add_unblocks<'tcx>(&mut self, tcx: TyCtxt<'tcx>, body_root: &BodyRoot<'tcx>) {
+        for (location, borrows) in body_root.calculate_borrows_out_of_scope_at_location() {
             let stmts = borrows.into_iter().map(|bidx| {
                 let borrow = body_root.borrow_data(bidx);
                 let place = lowering::lower_place(tcx, &borrow.borrowed_place()).unwrap();
