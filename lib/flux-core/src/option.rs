@@ -17,6 +17,7 @@ impl<T> Option<T> {
     #[sig(fn(&Self[@b]) -> bool[!b])]
     const fn is_none(&self) -> bool;
 
+    #[no_panic]
     #[sig(fn(Option<T>[true]) -> T)]
     const fn unwrap(self) -> T;
 
