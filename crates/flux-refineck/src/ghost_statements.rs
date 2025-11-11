@@ -32,7 +32,7 @@ pub enum CheckerId {
 }
 
 impl CheckerId {
-    pub fn def_id(&self) -> LocalDefId {
+    pub fn root_id(&self) -> LocalDefId {
         match self {
             CheckerId::DefId(def_id) => *def_id,
             CheckerId::Promoted(def_id, _) => *def_id,
@@ -86,7 +86,7 @@ pub(crate) struct GhostStatements {
 
 impl GhostStatements {
     fn new(genv: GlobalEnv, checker_id: CheckerId) -> QueryResult<Self> {
-        let def_id = checker_id.def_id();
+        let def_id = checker_id.root_id();
         let body_root = genv.mir(def_id)?;
         let body = match checker_id {
             CheckerId::DefId(_) => &body_root.body,

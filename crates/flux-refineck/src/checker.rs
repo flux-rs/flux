@@ -18,8 +18,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability,
+        Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -28,7 +28,6 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{
     self, ToRustc,
-    lowering::Lower,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
         Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
@@ -80,7 +79,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
-    /// The templates for the promoted bodies of the current function (None when we are checking a promoted body itself)
+    /// The templates for the promoted bodies of the current function
     promoted: &'ck IndexSlice<Promoted, Ty>,
 }
 
@@ -92,8 +91,8 @@ struct Inherited<'ck, M> {
     mode: &'ck mut M,
 
     /// This map has the "templates" generated for the closures constructed (in [`Checker::check_rvalue_closure`]).
-    /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
-    /// we need to be careful and only use it in the correct scope.
+    /// The [`PolyFnSig`] can have free variables (inside the scope of kvars), so we we need to be
+    /// careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
 }
 
@@ -111,8 +110,8 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
         mode: &'ck mut M,
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
-    ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, closures })
+    ) -> Self {
+        Self { ghost_stmts, mode, closures }
     }
 
     fn reborrow(&mut self) -> Inherited<'_, M> {
@@ -163,8 +162,8 @@ enum Guard {
     Match(Place, VariantIdx),
 }
 
-impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
-    pub(crate) fn run_in_shape_mode(
+impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
+    pub(crate) fn run_in_shape_mode<'ck>(
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
@@ -187,7 +186,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             })
             .with_span(span)?;
 
-            let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
@@ -201,8 +200,8 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     }
 }
 
-impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
-    pub(crate) fn run_in_refine_mode(
+impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
+    pub(crate) fn run_in_refine_mode<'ck>(
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
@@ -225,7 +224,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
-            let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv.fn_sig(def_id).with_span(span)?;
             let poly_sig = poly_sig.instantiate_identity();
@@ -473,36 +472,26 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
 }
 
 impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
-    fn check_body<'a>(
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
         checker_id: CheckerId,
-        inherited: Inherited<'a, M>,
-        body: &'a Body<'tcx>,
-        poly_sig: PolyFnSig,
-        promoted: &'a IndexSlice<Promoted, Ty>,
-    ) -> Result {
-        let genv = infcx.genv;
-        let def_id = checker_id.def_id();
-        let span = genv.tcx().def_span(def_id);
+        inherited: Inherited<'ck, M>,
+        body: &'ck Body<'tcx>,
+        fn_sig: FnSig,
+        promoted: &'ck IndexSlice<Promoted, Ty>,
+    ) -> QueryResult<Self> {
+        let root_id = checker_id.root_id();
 
-        let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
-            .deeply_normalize(&mut infcx.at(span))
-            .with_span(span)?;
-
-        let mut env = TypeEnv::new(infcx, body, &fn_sig);
-
-        // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
-        //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
-        //    to the `resume_arg` place..."
-        let resume_ty = if !checker_id.is_promoted() && genv.tcx().is_coroutine(def_id.to_def_id())
+        let resume_ty = if let CheckerId::DefId(def_id) = checker_id
+            && genv.tcx().is_coroutine(def_id.to_def_id())
         {
             Some(fn_sig.inputs()[1].clone())
         } else {
             None
         };
+
         let bb_len = body.basic_blocks.len();
-        let mut ck = Checker {
+        Ok(Self {
             checker_id,
             genv,
             inherited,
@@ -512,10 +501,31 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             output: fn_sig.output().clone(),
             markers: IndexVec::from_fn_n(|_| None, bb_len),
             queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
-            default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
+            default_refiner: Refiner::default_for_item(genv, root_id.to_def_id())?,
             promoted,
-        };
-        ck.check_ghost_statements_at(infcx, &mut env, Point::FunEntry, body.span())?;
+        })
+    }
+
+    fn check_body(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        checker_id: CheckerId,
+        inherited: Inherited<'ck, M>,
+        body: &'ck Body<'tcx>,
+        poly_sig: PolyFnSig,
+        promoted: &'ck IndexSlice<Promoted, Ty>,
+    ) -> Result {
+        let span = body.span();
+
+        let fn_sig = poly_sig
+            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+            .deeply_normalize(&mut infcx.at(span))
+            .with_span(span)?;
+
+        let mut env = TypeEnv::new(infcx, body, &fn_sig);
+
+        let mut ck = Checker::new(infcx.genv, checker_id, inherited, body, fn_sig, promoted)
+            .with_span(span)?;
+        ck.check_ghost_statements_at(infcx, &mut env, Point::FunEntry, span)?;
 
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
 
@@ -535,28 +545,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(())
     }
 
-    /// We return a vector of (bool, promoted-Ty) where the `bool` indicates whether
-    /// the  promoted type is actually refined, in which case, the corresponding body
-    /// must be checked.
+    /// Assign a template with fresh kvars to each promoted constant in `body_root`.
     fn promoted_tys(
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
         body_root: &BodyRoot<'tcx>,
     ) -> QueryResult<IndexVec<Promoted, Ty>> {
-        let span = body_root.body.span();
         let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into())?;
 
         body_root
             .promoted
             .iter()
             .map(|body| {
-                let Ok(rustc_ty) = body.rustc_body.return_ty().lower(infcx.genv.tcx()) else {
-                    span_bug!(span, "promoted body has non-ty return type")
-                };
-                let ty = rustc_ty
+                Ok(body
+                    .return_ty()
                     .refine(&hole_refiner)?
-                    .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind));
-                Ok(ty)
+                    .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind)))
             })
             .collect()
     }
@@ -564,43 +568,39 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     fn run(
         mut infcx: InferCtxt<'_, 'genv, 'tcx>,
         def_id: LocalDefId,
-        mut inherited: Inherited<'ck, M>,
+        mut inherited: Inherited<'_, M>,
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
-        let promoted = Self::promoted_tys(&mut infcx, def_id, &body_root).with_span(span)?;
-        // 1. Generate templates for promoted consts and check them against their bodies
-        Self::check_promoted(&mut infcx, def_id, inherited.reborrow(), &body_root, &promoted)?;
-        // 2. Check the main body
-        let checker_id = CheckerId::DefId(def_id);
-        Self::check_body(&mut infcx, checker_id, inherited, &body_root.body, poly_sig, &promoted)
-    }
 
-    fn check_promoted<'a>(
-        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
-        def_id: LocalDefId,
-        mut inherited: Inherited<'a, M>,
-        body_root: &'a BodyRoot<'tcx>,
-        promoted_tys: &'a IndexSlice<Promoted, Ty>,
-    ) -> Result {
-        // 1. Generate templates for promoteds
-        // 2. Call check_body on promoted-bodies using the templates, if needed
+        // 1. Generate templates for promoted consts
+        let promoted_tys = Self::promoted_tys(&mut infcx, def_id, &body_root).with_span(span)?;
+
+        // 2. Check the body of all promoted
         for (promoted, ty) in promoted_tys.iter_enumerated() {
             let body = &body_root.promoted[promoted];
             let poly_sig = promoted_fn_sig(ty);
-            let checker_id = CheckerId::Promoted(def_id, promoted);
-            Self::check_body(
-                infcx,
-                checker_id,
+            Checker::check_body(
+                &mut infcx,
+                CheckerId::Promoted(def_id, promoted),
                 inherited.reborrow(),
                 body,
                 poly_sig,
-                promoted_tys,
+                &promoted_tys,
             )?;
         }
-        Ok(())
+
+        // 3. Check the main body
+        Checker::check_body(
+            &mut infcx,
+            CheckerId::DefId(def_id),
+            inherited,
+            &body_root.body,
+            poly_sig,
+            &promoted_tys,
+        )
     }
 
     fn check_basic_block(
@@ -770,7 +770,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
-                            self.checker_id.def_id().to_def_id(),
+                            self.checker_id.root_id().to_def_id(),
                             *resolved_id,
                             &resolved_args.lowered,
                         )
@@ -990,7 +990,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Result<PolyFnSig> {
         let tcx = self.genv.tcx();
-        let mut def_id = Some(self.checker_id.def_id().to_def_id());
+        let mut def_id = Some(self.checker_id.root_id().to_def_id());
         while let Some(did) = def_id {
             let generic_predicates = self
                 .genv
@@ -1413,7 +1413,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
                 let args = instantiate_args_for_constructor(
                     genv,
-                    self.checker_id.def_id().to_def_id(),
+                    self.checker_id.root_id().to_def_id(),
                     *def_id,
                     args,
                 )
@@ -1834,7 +1834,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
-        ty.refine(&Refiner::with_holes(self.genv, self.checker_id.def_id().to_def_id())?)
+        ty.refine(&Refiner::with_holes(self.genv, self.checker_id.root_id().to_def_id())?)
     }
 }
 

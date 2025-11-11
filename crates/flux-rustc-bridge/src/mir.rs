@@ -487,6 +487,11 @@ impl<'tcx> Body<'tcx> {
     pub fn span(&self) -> Span {
         self.rustc_body.span
     }
+
+    #[inline]
+    pub fn return_ty(&self) -> Ty {
+        self.local_decls[RETURN_PLACE].ty.clone()
+    }
 }
 
 /// The `FalseEdge/imaginary_target` edges mess up the `is_join_point` computation which creates spurious
