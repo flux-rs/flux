@@ -91,7 +91,7 @@ struct Inherited<'ck, M> {
     mode: &'ck mut M,
 
     /// This map has the "templates" generated for the closures constructed (in [`Checker::check_rvalue_closure`]).
-    /// The [`PolyFnSig`] can have free variables (inside the scope of kvars), so we we need to be
+    /// The [`PolyFnSig`] can have free variables (inside the scope of kvars), so we need to be
     /// careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
 }
