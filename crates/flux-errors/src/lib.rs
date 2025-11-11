@@ -11,9 +11,9 @@ use flux_common::result::{ErrorCollector, ErrorEmitter};
 use rustc_data_structures::sync;
 pub use rustc_errors::ErrorGuaranteed;
 use rustc_errors::{
-    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle,
+    Diagnostic, ErrCode, FatalAbort, FatalError, LazyFallbackBundle, TerminalUrl,
     annotate_snippet_emitter_writer::AnnotateSnippetEmitter,
-    emitter::{Emitter, HumanEmitter, HumanReadableErrorType, stderr_destination},
+    emitter::{Emitter, HumanEmitter, HumanReadableErrorType, OutputTheme, stderr_destination},
     json::JsonEmitter,
     translation::Translator,
 };
@@ -78,18 +78,18 @@ fn emitter(
 ) -> Box<dyn Emitter + sync::DynSend> {
     let translator = Translator { fluent_bundle: None, fallback_fluent_bundle };
 
-    // All the code below is copied from rustc
+    // All the code below is copied from rustc_session::session::default_emitter
     let macro_backtrace = sopts.unstable_opts.macro_backtrace;
     let track_diagnostics = sopts.unstable_opts.track_diagnostics;
     let terminal_url = match sopts.unstable_opts.terminal_urls {
-        rustc_errors::TerminalUrl::Auto => {
+        TerminalUrl::Auto => {
             match (std::env::var("COLORTERM").as_deref(), std::env::var("TERM").as_deref()) {
                 (Ok("truecolor"), Ok("xterm-256color"))
                     if sopts.unstable_features.is_nightly_build() =>
                 {
-                    rustc_errors::TerminalUrl::Yes
+                    TerminalUrl::Yes
                 }
-                _ => rustc_errors::TerminalUrl::No,
+                _ => TerminalUrl::No,
             }
         }
         t => t,
@@ -99,49 +99,42 @@ fn emitter(
 
     match sopts.error_format {
         config::ErrorOutputType::HumanReadable { kind, color_config } => {
-            let short = kind.short();
-
-            if let HumanReadableErrorType::AnnotateSnippet = kind {
-                let emitter =
-                    AnnotateSnippetEmitter::new(stderr_destination(color_config), translator)
+            match kind {
+                HumanReadableErrorType::AnnotateSnippet { short, unicode } => {
+                    let emitter =
+                        AnnotateSnippetEmitter::new(stderr_destination(color_config), translator)
+                            .sm(source_map)
+                            .short_message(short)
+                            .diagnostic_width(sopts.diagnostic_width)
+                            .macro_backtrace(macro_backtrace)
+                            .track_diagnostics(track_diagnostics)
+                            .terminal_url(terminal_url)
+                            .theme(if unicode { OutputTheme::Unicode } else { OutputTheme::Ascii })
+                            .ignored_directories_in_source_blocks(
+                                sopts
+                                    .unstable_opts
+                                    .ignore_directory_in_diagnostics_source_blocks
+                                    .clone(),
+                            );
+                    Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
+                }
+                HumanReadableErrorType::Default { short } => {
+                    let emitter = HumanEmitter::new(stderr_destination(color_config), translator)
                         .sm(source_map)
                         .short_message(short)
                         .diagnostic_width(sopts.diagnostic_width)
                         .macro_backtrace(macro_backtrace)
                         .track_diagnostics(track_diagnostics)
                         .terminal_url(terminal_url)
-                        .theme(if let HumanReadableErrorType::Unicode = kind {
-                            rustc_errors::emitter::OutputTheme::Unicode
-                        } else {
-                            rustc_errors::emitter::OutputTheme::Ascii
-                        })
+                        .theme(OutputTheme::Ascii)
                         .ignored_directories_in_source_blocks(
                             sopts
                                 .unstable_opts
                                 .ignore_directory_in_diagnostics_source_blocks
                                 .clone(),
                         );
-                Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
-            } else {
-                let emitter = HumanEmitter::new(stderr_destination(color_config), translator)
-                    .sm(source_map)
-                    .short_message(short)
-                    .diagnostic_width(sopts.diagnostic_width)
-                    .macro_backtrace(macro_backtrace)
-                    .track_diagnostics(track_diagnostics)
-                    .terminal_url(terminal_url)
-                    .theme(if let HumanReadableErrorType::Unicode = kind {
-                        rustc_errors::emitter::OutputTheme::Unicode
-                    } else {
-                        rustc_errors::emitter::OutputTheme::Ascii
-                    })
-                    .ignored_directories_in_source_blocks(
-                        sopts
-                            .unstable_opts
-                            .ignore_directory_in_diagnostics_source_blocks
-                            .clone(),
-                    );
-                Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
+                    Box::new(emitter.ui_testing(sopts.unstable_opts.ui_testing))
+                }
             }
         }
         config::ErrorOutputType::Json { pretty, json_rendered, color_config } => {
