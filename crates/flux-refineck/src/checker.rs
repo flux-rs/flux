@@ -18,8 +18,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability, Path,
-        PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability,
+        Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReStatic,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -29,8 +29,8 @@ use flux_middle::{
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
-        self, AggregateKind, AssertKind, BasicBlock, Body, BorrowKind, CastKind, Constant,
-        Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
+        self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
+        Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
         StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
@@ -42,17 +42,20 @@ use rustc_hir::{
     LangItem,
     def_id::{DefId, LocalDefId},
 };
-use rustc_index::bit_set::DenseBitSet;
+use rustc_index::{IndexSlice, bit_set::DenseBitSet};
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
-    mir::SwitchTargets,
+    mir::{Promoted, SwitchTargets},
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
-use rustc_span::{Span, sym};
+use rustc_span::{
+    Span,
+    sym::{self},
+};
 
 use self::errors::{CheckerError, ResultExt};
 use crate::{
-    ghost_statements::{GhostStatement, GhostStatements, Point},
+    ghost_statements::{CheckerId, GhostStatement, GhostStatements, Point},
     primops,
     queue::WorkQueue,
     rty::Char,
@@ -63,8 +66,8 @@ type Result<T = ()> = std::result::Result<T, CheckerError>;
 
 pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     genv: GlobalEnv<'genv, 'tcx>,
-    /// [`LocalDefId`] of the function-like item being checked.
-    def_id: LocalDefId,
+    /// [`CheckerId`] of the function-like item being checked.
+    checker_id: CheckerId,
     inherited: Inherited<'ck, M>,
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
@@ -76,18 +79,20 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
+    /// The templates for the promoted bodies of the current function
+    promoted: &'ck IndexSlice<Promoted, Ty>,
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
 struct Inherited<'ck, M> {
     /// [`Expr`]s used to instantiate the early bound refinement parameters of the top-level function
     /// signature
-    ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+    ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
     mode: &'ck mut M,
 
     /// This map has the "templates" generated for the closures constructed (in [`Checker::check_rvalue_closure`]).
-    /// The `PolyFnSig`` can have free variables (inside the scope of kvars) in the template, so we
-    /// we need to be careful and only use it in the correct scope.
+    /// The [`PolyFnSig`] can have free variables (inside the scope of kvars), so we need to be
+    /// careful and only use it in the correct scope.
     closures: &'ck mut UnordMap<DefId, PolyFnSig>,
 }
 
@@ -103,14 +108,14 @@ struct ResolvedCall {
 impl<'ck, M: Mode> Inherited<'ck, M> {
     fn new(
         mode: &'ck mut M,
-        ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+        ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
-    ) -> Result<Self> {
-        Ok(Self { ghost_stmts, mode, closures })
+    ) -> Self {
+        Self { ghost_stmts, mode, closures }
     }
 
     fn reborrow(&mut self) -> Inherited<'_, M> {
-        Inherited { ghost_stmts: self.ghost_stmts, mode: &mut *self.mode, closures: self.closures }
+        Inherited { ghost_stmts: self.ghost_stmts, mode: self.mode, closures: self.closures }
     }
 }
 
@@ -135,15 +140,15 @@ pub(crate) trait Mode: Sized {
 }
 
 pub(crate) struct ShapeMode {
-    bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>,
+    bb_envs: FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnvShape>>,
 }
 
 pub(crate) struct RefineMode {
-    bb_envs: FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>>,
+    bb_envs: FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnv>>,
 }
 
 /// The result of running the shape phase.
-pub(crate) struct ShapeResult(FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnvShape>>);
+pub(crate) struct ShapeResult(FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnvShape>>);
 
 /// A `Guard` describes extra "control" information that holds at the start of a successor basic block
 #[derive(Debug)]
@@ -156,11 +161,11 @@ enum Guard {
     Match(Place, VariantIdx),
 }
 
-impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
-    pub(crate) fn run_in_shape_mode(
+impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
+    pub(crate) fn run_in_shape_mode<'ck>(
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
-        ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+        ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         opts: InferOpts,
     ) -> Result<ShapeResult> {
@@ -180,7 +185,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
             })
             .with_span(span)?;
 
-            let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv
@@ -194,11 +199,11 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, ShapeMode> {
     }
 }
 
-impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
-    pub(crate) fn run_in_refine_mode(
+impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
+    pub(crate) fn run_in_refine_mode<'ck>(
         genv: GlobalEnv<'genv, 'tcx>,
         local_id: LocalDefId,
-        ghost_stmts: &'ck UnordMap<LocalDefId, GhostStatements>,
+        ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
@@ -218,7 +223,7 @@ impl<'ck, 'genv, 'tcx> Checker<'ck, 'genv, 'tcx, RefineMode> {
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
-            let inherited = Inherited::new(&mut mode, ghost_stmts, closures)?;
+            let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv.fn_sig(def_id).with_span(span)?;
             let poly_sig = poly_sig.instantiate_identity();
@@ -454,46 +459,72 @@ fn fold_local_ptrs(infcx: &mut InferCtxt, env: &mut TypeEnv, span: Span) -> Infe
     env.fold_local_ptrs(&mut at)
 }
 
-impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
-    fn run(
-        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
-        def_id: LocalDefId,
-        inherited: Inherited<'ck, M>,
-        poly_sig: PolyFnSig,
-    ) -> Result {
-        let genv = infcx.genv;
-        let span = genv.tcx().def_span(def_id);
+fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
+    let safety = rustc_hir::Safety::Safe;
+    let abi = rustc_abi::ExternAbi::Rust;
+    let requires = rty::List::empty();
+    let inputs = rty::List::empty();
+    let output =
+        Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output);
+    PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
+}
 
-        let body = genv.mir(def_id).with_span(span)?;
+impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
+    fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        checker_id: CheckerId,
+        inherited: Inherited<'ck, M>,
+        body: &'ck Body<'tcx>,
+        fn_sig: FnSig,
+        promoted: &'ck IndexSlice<Promoted, Ty>,
+    ) -> QueryResult<Self> {
+        let root_id = checker_id.root_id();
+
+        let resume_ty = if let CheckerId::DefId(def_id) = checker_id
+            && genv.tcx().is_coroutine(def_id.to_def_id())
+        {
+            Some(fn_sig.inputs()[1].clone())
+        } else {
+            None
+        };
+
+        let bb_len = body.basic_blocks.len();
+        Ok(Self {
+            checker_id,
+            genv,
+            inherited,
+            body,
+            resume_ty,
+            visited: DenseBitSet::new_empty(bb_len),
+            output: fn_sig.output().clone(),
+            markers: IndexVec::from_fn_n(|_| None, bb_len),
+            queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
+            default_refiner: Refiner::default_for_item(genv, root_id.to_def_id())?,
+            promoted,
+        })
+    }
+
+    fn check_body(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        checker_id: CheckerId,
+        inherited: Inherited<'ck, M>,
+        body: &'ck Body<'tcx>,
+        poly_sig: PolyFnSig,
+        promoted: &'ck IndexSlice<Promoted, Ty>,
+    ) -> Result {
+        let span = body.span();
 
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
-        let mut env = TypeEnv::new(&mut infcx, &body, &fn_sig);
+        let mut env = TypeEnv::new(infcx, body, &fn_sig);
 
-        // (NOTE:YIELD) per https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.TerminatorKind.html#variant.Yield
-        //   "execution of THIS function continues at the `resume` basic block, with THE SECOND ARGUMENT WRITTEN
-        //    to the `resume_arg` place..."
-        let resume_ty = if genv.tcx().is_coroutine(def_id.to_def_id()) {
-            Some(fn_sig.inputs()[1].clone())
-        } else {
-            None
-        };
-        let mut ck = Checker {
-            def_id,
-            genv,
-            inherited,
-            body: &body,
-            resume_ty,
-            visited: DenseBitSet::new_empty(body.basic_blocks.len()),
-            output: fn_sig.output().clone(),
-            markers: IndexVec::from_fn_n(|_| None, body.basic_blocks.len()),
-            queue: WorkQueue::empty(body.basic_blocks.len(), &body.dominator_order_rank),
-            default_refiner: Refiner::default_for_item(genv, def_id.to_def_id()).with_span(span)?,
-        };
-        ck.check_ghost_statements_at(&mut infcx, &mut env, Point::FunEntry, body.span())?;
+        let mut ck = Checker::new(infcx.genv, checker_id, inherited, body, fn_sig, promoted)
+            .with_span(span)?;
+        ck.check_ghost_statements_at(infcx, &mut env, Point::FunEntry, span)?;
 
         ck.check_goto(infcx.branch(), env, body.span(), START_BLOCK)?;
 
@@ -510,8 +541,65 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             env.unpack(&mut infcx);
             ck.check_basic_block(infcx, env, bb)?;
         }
-
         Ok(())
+    }
+
+    /// Assign a template with fresh kvars to each promoted constant in `body_root`.
+    fn promoted_tys(
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        body_root: &BodyRoot<'tcx>,
+    ) -> QueryResult<IndexVec<Promoted, Ty>> {
+        let hole_refiner = Refiner::with_holes(infcx.genv, def_id.into())?;
+
+        body_root
+            .promoted
+            .iter()
+            .map(|body| {
+                Ok(body
+                    .return_ty()
+                    .refine(&hole_refiner)?
+                    .replace_holes(|binders, kind| infcx.fresh_infer_var_for_hole(binders, kind)))
+            })
+            .collect()
+    }
+
+    fn run(
+        mut infcx: InferCtxt<'_, 'genv, 'tcx>,
+        def_id: LocalDefId,
+        mut inherited: Inherited<'_, M>,
+        poly_sig: PolyFnSig,
+    ) -> Result {
+        let genv = infcx.genv;
+        let span = genv.tcx().def_span(def_id);
+        let body_root = genv.mir(def_id).with_span(span)?;
+
+        // 1. Generate templates for promoted consts
+        let promoted_tys = Self::promoted_tys(&mut infcx, def_id, &body_root).with_span(span)?;
+
+        // 2. Check the body of all promoted
+        for (promoted, ty) in promoted_tys.iter_enumerated() {
+            let body = &body_root.promoted[promoted];
+            let poly_sig = promoted_fn_sig(ty);
+            Checker::check_body(
+                &mut infcx,
+                CheckerId::Promoted(def_id, promoted),
+                inherited.reborrow(),
+                body,
+                poly_sig,
+                &promoted_tys,
+            )?;
+        }
+
+        // 3. Check the main body
+        Checker::check_body(
+            &mut infcx,
+            CheckerId::DefId(def_id),
+            inherited,
+            &body_root.body,
+            poly_sig,
+            &promoted_tys,
+        )
     }
 
     fn check_basic_block(
@@ -681,7 +769,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                         let fn_sig = self.genv.fn_sig(*resolved_id).with_span(terminator_span)?;
                         let generic_args = instantiate_args_for_fun_call(
                             self.genv,
-                            self.def_id.to_def_id(),
+                            self.checker_id.root_id().to_def_id(),
                             *resolved_id,
                             &resolved_args.lowered,
                         )
@@ -913,7 +1001,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span: Span,
     ) -> Result<PolyFnSig> {
         let tcx = self.genv.tcx();
-        let mut def_id = Some(self.def_id.to_def_id());
+        let mut def_id = Some(self.checker_id.root_id().to_def_id());
         while let Some(did) = def_id {
             let generic_predicates = self
                 .genv
@@ -934,7 +1022,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         span_bug!(
             span,
             "cannot find self_ty_fn_sig for {:?} with self_ty = {self_ty:?}",
-            self.def_id
+            self.checker_id
         );
     }
 
@@ -1334,9 +1422,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .with_span(stmt_span)?
                     .to_poly_fn_sig(*field_idx);
 
-                let args =
-                    instantiate_args_for_constructor(genv, self.def_id.to_def_id(), *def_id, args)
-                        .with_span(stmt_span)?;
+                let args = instantiate_args_for_constructor(
+                    genv,
+                    self.checker_id.root_id().to_def_id(),
+                    *def_id,
+                    args,
+                )
+                .with_span(stmt_span)?;
                 self.check_call(infcx, env, stmt_span, Some(*def_id), sig, &args, &actuals)
                     .map(|resolved_call| resolved_call.output)
             }
@@ -1674,16 +1766,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(ctor.replace_bound_reft(&idx).to_ty())
             }
             Constant::Opaque(ty) => self.refine_default(ty),
-            Constant::Unevaluated(ty, def_id) => {
+            Constant::Unevaluated(ty, uneval) => {
+                // Use template for promoted constants, if applicable
+                if let Some(promoted) = uneval.promoted
+                    && let Some(ty) = self.promoted.get(promoted)
+                {
+                    return Ok(ty.clone());
+                }
                 let ty = self.refine_default(ty)?;
-                let info = self.genv.constant_info(def_id)?;
+                let info = self.genv.constant_info(uneval.def)?;
+                // else, use constant index if applicable
                 if let Some(bty) = ty.as_bty_skipping_existentials()
                     && let rty::ConstantInfo::Interpreted(idx, _) = info
                 {
-                    Ok(Ty::indexed(bty.clone(), idx))
-                } else {
-                    Ok(ty)
+                    return Ok(Ty::indexed(bty.clone(), idx));
                 }
+                // else use default unrefined type
+                Ok(ty)
             }
         }
     }
@@ -1738,7 +1837,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn ghost_stmts(&self) -> &'ck GhostStatements {
-        &self.inherited.ghost_stmts[&self.def_id]
+        &self.inherited.ghost_stmts[&self.checker_id]
     }
 
     fn refine_default<T: Refine>(&self, ty: &T) -> QueryResult<T::Output> {
@@ -1746,7 +1845,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     }
 
     fn refine_with_holes<T: Refine>(&self, ty: &T) -> QueryResult<<T as Refine>::Output> {
-        ty.refine(&Refiner::with_holes(self.genv, self.def_id.to_def_id())?)
+        ty.refine(&Refiner::with_holes(self.genv, self.checker_id.root_id().to_def_id())?)
     }
 }
 
@@ -1930,7 +2029,7 @@ impl Mode for ShapeMode {
         _infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         bb: BasicBlock,
     ) -> TypeEnv<'ck> {
-        ck.inherited.mode.bb_envs[&ck.def_id][&bb].enter(&ck.body.local_decls)
+        ck.inherited.mode.bb_envs[&ck.checker_id][&bb].enter(&ck.body.local_decls)
     }
 
     fn check_goto_join_point<'genv, 'tcx>(
@@ -1941,10 +2040,10 @@ impl Mode for ShapeMode {
         target: BasicBlock,
     ) -> Result<bool> {
         let bb_envs = &mut ck.inherited.mode.bb_envs;
-        let target_bb_env = bb_envs.entry(ck.def_id).or_default().get(&target);
+        let target_bb_env = bb_envs.entry(ck.checker_id).or_default().get(&target);
         dbg::shape_goto_enter!(target, env, target_bb_env);
 
-        let modified = match bb_envs.entry(ck.def_id).or_default().entry(target) {
+        let modified = match bb_envs.entry(ck.checker_id).or_default().entry(target) {
             Entry::Occupied(mut entry) => entry.get_mut().join(env, span),
             Entry::Vacant(entry) => {
                 let scope = marker_at_dominator(ck.body, &ck.markers, target)
@@ -1955,7 +2054,7 @@ impl Mode for ShapeMode {
             }
         };
 
-        dbg::shape_goto_exit!(target, bb_envs[&ck.def_id].get(&target));
+        dbg::shape_goto_exit!(target, bb_envs[&ck.checker_id].get(&target));
         Ok(modified)
     }
 
@@ -1966,7 +2065,7 @@ impl Mode for ShapeMode {
                 ck.inherited
                     .mode
                     .bb_envs
-                    .entry(ck.def_id)
+                    .entry(ck.checker_id)
                     .or_default()
                     .remove(&bb);
                 ck.visited.remove(bb);
@@ -1983,7 +2082,7 @@ impl Mode for RefineMode {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         bb: BasicBlock,
     ) -> TypeEnv<'ck> {
-        ck.inherited.mode.bb_envs[&ck.def_id][&bb].enter(infcx, &ck.body.local_decls)
+        ck.inherited.mode.bb_envs[&ck.checker_id][&bb].enter(infcx, &ck.body.local_decls)
     }
 
     fn check_goto_join_point(
@@ -1993,7 +2092,7 @@ impl Mode for RefineMode {
         terminator_span: Span,
         target: BasicBlock,
     ) -> Result<bool> {
-        let bb_env = &ck.inherited.mode.bb_envs[&ck.def_id][&target];
+        let bb_env = &ck.inherited.mode.bb_envs[&ck.checker_id][&target];
         tracked_span_dbg_assert_eq!(
             &ck.marker_at_dominator(target)
                 .scope()
@@ -2088,15 +2187,15 @@ impl ShapeResult {
     fn into_bb_envs(
         self,
         infcx: &mut InferCtxtRoot,
-    ) -> FxHashMap<LocalDefId, FxHashMap<BasicBlock, BasicBlockEnv>> {
+    ) -> FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
-            .map(|(def_id, shapes)| {
+            .map(|(checker_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
                     .map(|(bb, shape)| (bb, shape.into_bb_env(infcx)))
                     .collect();
-                (def_id, bb_envs)
+                (checker_id, bb_envs)
             })
             .collect()
     }
