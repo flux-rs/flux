@@ -32,7 +32,6 @@ pub(super) struct InferCtxt<'genv, 'tcx> {
     pub owner: FluxOwnerId,
     pub wfckresults: WfckResults,
     sort_unification_table: InPlaceUnificationTable<rty::SortVid>,
-    num_unification_table: InPlaceUnificationTable<rty::NumVid>,
     bv_size_unification_table: InPlaceUnificationTable<rty::BvSizeVid>,
     params: FxHashMap<fhir::ParamId, (fhir::RefineParam<'genv>, rty::Sort)>,
     node_sort: FxHashMap<FhirId, rty::Sort>,
@@ -58,13 +57,12 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
     pub(super) fn new(genv: GlobalEnv<'genv, 'tcx>, owner: FluxOwnerId) -> Self {
         // We skip 0 because that's used for sort dummy self types during conv.
         let mut sort_unification_table = InPlaceUnificationTable::new();
-        sort_unification_table.new_key(None);
+        sort_unification_table.new_key(Default::default());
         Self {
             genv,
             owner,
             wfckresults: WfckResults::new(owner),
             sort_unification_table,
-            num_unification_table: InPlaceUnificationTable::new(),
             bv_size_unification_table: InPlaceUnificationTable::new(),
             params: Default::default(),
             node_sort: Default::default(),
@@ -251,7 +249,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::Lit::Int(_, Some(fhir::NumLitKind::Int)) => rty::Sort::Int,
             fhir::Lit::Int(_, Some(fhir::NumLitKind::Real)) => rty::Sort::Real,
             fhir::Lit::Int(_, None) => {
-                let sort = self.next_num_var();
+                let sort = self.next_sort_var_with_cstr(rty::UnifyCstr::NUMERIC);
                 self.sort_of_literal.insert(*expr, sort.clone());
                 sort
             }
@@ -435,7 +433,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::BinOp::Mul
             | fhir::BinOp::Div
             | fhir::BinOp::Mod => {
-                let sort = self.next_num_var();
+                let sort = self.next_sort_var_with_cstr(rty::UnifyCstr::from_bin_op(op));
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
                 self.sort_of_bin_op.insert(*expr, sort.clone());
@@ -648,41 +646,16 @@ impl<'genv> InferCtxt<'genv, '_> {
 
     fn try_equate_inner(&mut self, sort1: &rty::Sort, sort2: &rty::Sort) -> Option<rty::Sort> {
         match (sort1, sort2) {
-            (rty::Sort::Infer(rty::SortVar(vid1)), rty::Sort::Infer(rty::SortVar(vid2))) => {
+            (rty::Sort::Infer(vid1), rty::Sort::Infer(vid2)) => {
                 self.sort_unification_table
                     .unify_var_var(*vid1, *vid2)
                     .ok()?;
             }
-            (rty::Sort::Infer(rty::SortVar(vid)), sort)
-            | (sort, rty::Sort::Infer(rty::SortVar(vid))) => {
+            (rty::Sort::Infer(vid), sort) | (sort, rty::Sort::Infer(vid)) => {
                 self.sort_unification_table
-                    .unify_var_value(*vid, Some(sort.clone()))
+                    .unify_var_value(*vid, rty::SortVarVal::Solved(sort.clone()))
                     .ok()?;
             }
-            (rty::Sort::Infer(rty::NumVar(vid1)), rty::Sort::Infer(rty::NumVar(vid2))) => {
-                self.num_unification_table
-                    .unify_var_var(*vid1, *vid2)
-                    .ok()?;
-            }
-            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::Int)
-            | (rty::Sort::Int, rty::Sort::Infer(rty::NumVar(vid))) => {
-                self.num_unification_table
-                    .unify_var_value(*vid, Some(rty::NumVarValue::Int))
-                    .ok()?;
-            }
-            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::Real)
-            | (rty::Sort::Real, rty::Sort::Infer(rty::NumVar(vid))) => {
-                self.num_unification_table
-                    .unify_var_value(*vid, Some(rty::NumVarValue::Real))
-                    .ok()?;
-            }
-            (rty::Sort::Infer(rty::NumVar(vid)), rty::Sort::BitVec(sz))
-            | (rty::Sort::BitVec(sz), rty::Sort::Infer(rty::NumVar(vid))) => {
-                self.num_unification_table
-                    .unify_var_value(*vid, Some(rty::NumVarValue::BitVec(*sz)))
-                    .ok()?;
-            }
-
             (rty::Sort::App(ctor1, args1), rty::Sort::App(ctor2, args2)) => {
                 if ctor1 != ctor2 || args1.len() != args2.len() {
                     return None;
@@ -723,25 +696,16 @@ impl<'genv> InferCtxt<'genv, '_> {
         Some(size1)
     }
 
-    fn equate(&mut self, sort1: &rty::Sort, sort2: &rty::Sort) -> rty::Sort {
-        self.try_equate(sort1, sort2)
-            .unwrap_or_else(|| bug!("failed to equate sorts: `{sort1:?}` `{sort2:?}`"))
+    fn next_sort_var(&mut self) -> rty::Sort {
+        rty::Sort::Infer(self.next_sort_vid(Default::default()))
     }
 
-    pub(crate) fn next_sort_var(&mut self) -> rty::Sort {
-        rty::Sort::Infer(rty::SortVar(self.next_sort_vid()))
+    fn next_sort_var_with_cstr(&mut self, cstr: rty::UnifyCstr) -> rty::Sort {
+        rty::Sort::Infer(self.next_sort_vid(rty::SortVarVal::Constrained(cstr)))
     }
 
-    fn next_num_var(&mut self) -> rty::Sort {
-        rty::Sort::Infer(rty::NumVar(self.next_num_vid()))
-    }
-
-    pub(crate) fn next_sort_vid(&mut self) -> rty::SortVid {
-        self.sort_unification_table.new_key(None)
-    }
-
-    fn next_num_vid(&mut self) -> rty::NumVid {
-        self.num_unification_table.new_key(None)
+    pub(crate) fn next_sort_vid(&mut self, val: rty::SortVarVal) -> rty::SortVid {
+        self.sort_unification_table.new_key(val)
     }
 
     fn next_bv_size_var(&mut self) -> rty::BvSize {
@@ -778,10 +742,10 @@ impl<'genv> InferCtxt<'genv, '_> {
             // the operation will fail and this won't have any effect. Also note that unifying a
             // variable could solve variables that appear later in this for loop. This is also fine
             // because the order doesn't matter as we are unifying everything to `int`.
-            if let rty::Sort::Infer(rty::SortInfer::NumVar(vid)) = &sort {
+            if let rty::Sort::Infer(vid) = &sort {
                 let _ = self
-                    .num_unification_table
-                    .unify_var_value(*vid, Some(rty::NumVarValue::Int));
+                    .sort_unification_table
+                    .unify_var_value(*vid, rty::SortVarVal::Solved(rty::Sort::Int));
             }
 
             let sort = self
@@ -916,7 +880,9 @@ impl<'a, 'genv, 'tcx> ImplicitParamInferer<'a, 'genv, 'tcx> {
             fhir::ExprKind::Var(QPathExpr::Resolved(var, Some(_))) => {
                 let (_, id) = var.res.expect_param();
                 let found = self.infcx.param_sort(id);
-                self.infcx.equate(&found, expected);
+                self.infcx.try_equate(&found, expected).unwrap_or_else(|| {
+                    span_bug!(idx.span, "failed to equate sorts: `{found:?}` `{expected:?}`")
+                });
             }
             fhir::ExprKind::Record(flds) => {
                 if let rty::Sort::App(rty::SortCtor::Adt(sort_def), sort_args) = expected {
@@ -987,8 +953,8 @@ struct ShallowResolver<'a, 'genv, 'tcx> {
 impl TypeFolder for ShallowResolver<'_, '_, '_> {
     fn fold_sort(&mut self, sort: &rty::Sort) -> rty::Sort {
         match sort {
-            rty::Sort::Infer(rty::SortVar(vid)) => {
-                // if `sort` is a sort variable, it can be resolved to an num/bit-vec variable,
+            rty::Sort::Infer(vid) => {
+                // if `sort` is a sort variable, it can be resolved to a bit-vec variable,
                 // which can then be recursively resolved, hence the recursion. Note though that
                 // we prevent sort variables from unifying to other sort variables directly (though
                 // they may be embedded structurally), so this recursion should always be of very
@@ -997,15 +963,7 @@ impl TypeFolder for ShallowResolver<'_, '_, '_> {
                     .sort_unification_table
                     .probe_value(*vid)
                     .map(|sort| sort.fold_with(self))
-                    .unwrap_or(sort.clone())
-            }
-            rty::Sort::Infer(rty::NumVar(vid)) => {
-                // same here, a num var could had been unified with a bitvector
-                self.infcx
-                    .num_unification_table
-                    .probe_value(*vid)
-                    .map(|val| val.to_sort().fold_with(self))
-                    .unwrap_or(sort.clone())
+                    .unwrap_or(sort)
             }
             rty::Sort::BitVec(rty::BvSize::Infer(vid)) => {
                 self.infcx

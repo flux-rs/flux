@@ -833,7 +833,7 @@ newtype_index! {
 }
 
 impl ena::unify::UnifyKey for SortVid {
-    type Value = Option<Sort>;
+    type Value = SortVarVal;
 
     #[inline]
     fn index(&self) -> u32 {
@@ -896,7 +896,7 @@ impl ena::unify::UnifyKey for NumVid {
 
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    struct UnifyCstr: u16 {
+    pub struct UnifyCstr: u16 {
         const BOT    = 0b00000000000;
         const AND    = 0b00000000001;
         const OR     = 0b00000000010;
@@ -909,49 +909,64 @@ bitflags! {
         const BITAND = 0b00100000000;
         const BITSHL = 0b01000000000;
         const BITSHR = 0b10000000000;
+
+        const NUMERIC = Self::ADD.bits() | Self::SUB.bits() | Self::MUL.bits() | Self::DIV.bits();
+        const INT = Self::DIV.bits() | Self::MUL.bits() | Self::MOD.bits() | Self::ADD.bits() | Self::SUB.bits();
+        const REAL = Self::DIV.bits() | Self::MUL.bits() | Self::ADD.bits() | Self::SUB.bits();
+        const BITVEC =  Self::DIV.bits() | Self::MUL.bits() | Self::MOD.bits() | Self::ADD.bits() | Self::SUB.bits() | Self::BITOR.bits() | Self::BITAND.bits() | Self::BITSHL.bits() | Self::BITSHR.bits();
+        const SET = Self::SUB.bits() | Self::BITOR.bits() | Self::BITAND.bits();
     }
 }
 
 impl UnifyCstr {
+    pub fn from_bin_op(op: fhir::BinOp) -> Self {
+        match op {
+            fhir::BinOp::Add => Self::ADD,
+            fhir::BinOp::Sub => Self::SUB,
+            fhir::BinOp::Mul => Self::MUL,
+            fhir::BinOp::Div => Self::DIV,
+            fhir::BinOp::Mod => Self::MOD,
+            _ => bug!("{op:?} not supported as a constraint"),
+        }
+    }
+
     fn satisfy(self, sort: &Sort) -> bool {
         match sort {
-            Sort::Int => {
-                self.contains(
-                    UnifyCstr::DIV
-                        | UnifyCstr::MUL
-                        | UnifyCstr::MOD
-                        | UnifyCstr::ADD
-                        | UnifyCstr::SUB,
-                )
-            }
-            Sort::Real => {
-                self.contains(UnifyCstr::DIV | UnifyCstr::MUL | UnifyCstr::ADD | UnifyCstr::SUB)
-            }
-            Sort::BitVec(_) => {
-                self.contains(
-                    UnifyCstr::DIV
-                        | UnifyCstr::MUL
-                        | UnifyCstr::MOD
-                        | UnifyCstr::ADD
-                        | UnifyCstr::SUB
-                        | UnifyCstr::BITOR
-                        | UnifyCstr::BITAND
-                        | UnifyCstr::BITSHL
-                        | UnifyCstr::BITSHR,
-                )
-            }
-            Sort::App(SortCtor::Set, _) => {
-                self.contains(UnifyCstr::SUB | UnifyCstr::BITOR | UnifyCstr::BITAND)
-            }
-            _ => false,
+            Sort::Int => UnifyCstr::INT.contains(self),
+            Sort::Real => UnifyCstr::REAL.contains(self),
+            Sort::BitVec(_) => UnifyCstr::BITVEC.contains(self),
+            Sort::App(SortCtor::Set, _) => UnifyCstr::SET.contains(self),
+            _ => self == UnifyCstr::BOT,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum SortVarVal {
+pub enum SortVarVal {
     Constrained(UnifyCstr),
     Solved(Sort),
+}
+
+impl Default for SortVarVal {
+    fn default() -> Self {
+        SortVarVal::Constrained(UnifyCstr::BOT)
+    }
+}
+
+impl SortVarVal {
+    pub fn unwrap_or(&self, sort: &Sort) -> Sort {
+        match self {
+            SortVarVal::Constrained(_) => sort.clone(),
+            SortVarVal::Solved(sort) => sort.clone(),
+        }
+    }
+
+    pub fn map(&self, f: impl FnOnce(&Sort) -> Sort) -> SortVarVal {
+        match self {
+            SortVarVal::Constrained(cstr) => SortVarVal::Constrained(*cstr),
+            SortVarVal::Solved(sort) => SortVarVal::Solved(f(sort)),
+        }
+    }
 }
 
 impl ena::unify::UnifyValue for SortVarVal {
@@ -1029,7 +1044,7 @@ pub enum Sort {
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
-    Infer(SortInfer),
+    Infer(SortVid),
     Err,
 }
 

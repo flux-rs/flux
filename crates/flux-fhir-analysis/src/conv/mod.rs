@@ -833,7 +833,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
                 ty_ctor.sort()
             }
-            fhir::Sort::Infer => rty::Sort::Infer(rty::SortVar(self.next_sort_vid())),
+            fhir::Sort::Infer => rty::Sort::Infer(self.next_sort_vid()),
             fhir::Sort::Err(_) => rty::Sort::Err,
         };
         Ok(sort)
@@ -1986,7 +1986,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if vid.as_u32() == 0 { rty::SortVid::from_u32(0) } else { self.next_sort_vid() };
             rty::SubsetTyCtor::bind_with_sort(
                 rty::SubsetTy::trivial(rty::BaseTy::Infer(*vid), rty::Expr::nu()),
-                rty::Sort::Infer(rty::SortInfer::SortVar(sort_vid)),
+                rty::Sort::Infer(sort_vid),
             )
         } else {
             ty.shallow_canonicalize()
