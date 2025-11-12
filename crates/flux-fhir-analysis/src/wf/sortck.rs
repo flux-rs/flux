@@ -390,18 +390,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             .clone()
     }
 
-    fn check_integral(&mut self, op: fhir::BinOp, sort: &rty::Sort, span: Span) -> Result {
-        if matches!(op, fhir::BinOp::Mod) {
-            let sort = self
-                .fully_resolve(sort)
-                .map_err(|_| self.emit_err(errors::CannotInferSort::new(span)))?;
-            if !matches!(sort, rty::Sort::Int | rty::Sort::BitVec(_)) {
-                span_bug!(span, "unexpected sort {sort:?} for operator {op:?}");
-            }
-        }
-        Ok(())
-    }
-
     fn synth_binary_op(
         &mut self,
         expr: &fhir::Expr<'genv>,
@@ -437,9 +425,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
                 self.sort_of_bin_op.insert(*expr, sort.clone());
-                // check that the sort is integral for mod
-                self.check_integral(op, &sort, expr.span)?;
-
                 Ok(sort)
             }
             fhir::BinOp::BitAnd
