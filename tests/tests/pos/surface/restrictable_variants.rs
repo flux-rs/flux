@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use flux_rs::attrs::*;
+use flux_rs::{attrs::*, detached_spec};
 
 #[reflect]
 enum ExprLbl {
@@ -14,11 +14,8 @@ enum ExprLbl {
     Xor,
 }
 
-#[refined_by(s: Set<ExprLbl>)]
 enum Expr {
-    #[variant((i32) -> Expr[set_singleton(ExprLbl::Var)])]
     Var(i32),
-    #[variant((bool) -> Expr[set_singleton(ExprLbl::Cst)])]
     Cst(bool),
     #[variant((Box<Expr[@s]>) -> Expr[s | set_singleton(ExprLbl::Not)])]
     Not(Box<Expr>),
@@ -28,6 +25,18 @@ enum Expr {
     And(Box<Expr>, Box<Expr>),
     #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | set_singleton(ExprLbl::Xor)])]
     Xor(Box<Expr>, Box<Expr>),
+}
+
+detached_spec! {
+    #[refined_by(s: Set<ExprLbl>)]
+    enum Expr {
+        Var(i32) -> Expr[#{ExprLbl::Var}],
+        Cst(bool) -> Expr[#{ExprLbl::Cst}],
+        Not(Box<Expr[@s]>) -> Expr[s + #{ExprLbl::Not}],
+        Or(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ExprLbl::Or}],
+        And(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ExprLbl::And}],
+        Xor(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ExprLbl::Xor}],
+    }
 }
 
 impl Expr {
