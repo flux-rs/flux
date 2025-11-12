@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use flux_rs::attrs::*;
+use flux_rs::{attrs::*, detached_spec};
 
 #[reflect]
 enum ExprLbl {
@@ -14,20 +14,25 @@ enum ExprLbl {
     Xor,
 }
 
-#[refined_by(s: Set<ExprLbl>)]
 enum Expr {
-    #[variant((i32) -> Expr[set_singleton(ExprLbl::Var)])]
     Var(i32),
-    #[variant((bool) -> Expr[set_singleton(ExprLbl::Cst)])]
     Cst(bool),
-    #[variant((Box<Expr[@s]>) -> Expr[set_union(s, set_singleton(ExprLbl::Not))])]
     Not(Box<Expr>),
-    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[set_union(set_union(s1, s2), set_singleton(ExprLbl::Or))])]
     Or(Box<Expr>, Box<Expr>),
-    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[set_union(set_union(s1, s2), set_singleton(ExprLbl::And))])]
     And(Box<Expr>, Box<Expr>),
-    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[set_union(set_union(s1, s2), set_singleton(ExprLbl::Xor))])]
     Xor(Box<Expr>, Box<Expr>),
+}
+
+detached_spec! {
+    #[refined_by(s: Set<ExprLbl>)]
+    enum Expr {
+        Var(i32) -> Expr[#{ExprLbl::Var}],
+        Cst(bool) -> Expr[#{ExprLbl::Cst}],
+        Not(Box<Expr[@s]>) -> Expr[s + #{ExprLbl::Not}],
+        Or(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ExprLbl::Or}],
+        And(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ExprLbl::And}],
+        Xor(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ExprLbl::Xor}],
+    }
 }
 
 impl Expr {
@@ -58,15 +63,7 @@ impl Expr {
 
     #[spec(
         fn(&Expr[@s])
-        -> Expr { v:
-                set_subset(
-                    v,
-                    set_union(set_union(set_union(
-                        set_difference(s, set_singleton(ExprLbl::Xor)),
-                        set_singleton(ExprLbl::And)),
-                        set_singleton(ExprLbl::Or)),
-                        set_singleton(ExprLbl::Not)))
-           }
+        -> Expr {v: set_subset(v, (s - #{ExprLbl::Xor}) + #{ExprLbl::And, ExprLbl::Or, ExprLbl::Not})}
     )]
     fn simplify(&self) -> Expr {
         match self {
@@ -88,13 +85,7 @@ impl Expr {
 
     #[spec(
         fn(&Expr[@s], _)
-        -> Box<Expr{v:
-                set_subset(
-                    v,
-                    set_union(
-                        set_difference(s, set_singleton(ExprLbl::Var)),
-                        set_singleton(ExprLbl::Cst)))
-               }>
+        -> Box<Expr{v: set_subset(v, (s - #{ExprLbl::Var}) + #{ExprLbl::Cst})}>
     )]
     fn subst(&self, m: &HashMap<i32, bool>) -> Box<Expr> {
         let e = match self {
@@ -113,18 +104,7 @@ impl Expr {
     }
 
     #[spec(
-        fn(
-            &Expr{s:
-                set_subset(
-                    s,
-                    set_union(set_union(set_union(
-                        set_singleton(ExprLbl::Cst),
-                        set_singleton(ExprLbl::Not)),
-                        set_singleton(ExprLbl::And)),
-                        set_singleton(ExprLbl::Or))
-                )
-            }
-        ) -> bool
+        fn(&Expr{s: set_subset(s, #{ExprLbl::Cst, ExprLbl::Not, ExprLbl::And, ExprLbl::Or})}) -> bool
     )]
     fn fasteval(&self) -> bool {
         match self {
