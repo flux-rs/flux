@@ -9,6 +9,7 @@ use flux_rustc_bridge::{
     ty::{Const, ConstKind, ValTree, VariantIdx},
 };
 use itertools::Itertools;
+use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hir::def_id::DefId;
@@ -278,6 +279,29 @@ impl Expr {
 
     pub fn ite(p: impl Into<Expr>, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
+    }
+
+    fn empty() -> Expr {
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetSng));
+        Expr::app(func, List::empty(), List::empty())
+    }
+
+    fn singleton(elem: Expr) -> Expr {
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetSng));
+        Expr::app(func, List::empty(), List::from_arr([elem]))
+    }
+
+    fn union(expr1: Expr, expr2: Expr) -> Expr {
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetCup));
+        Expr::app(func, List::empty(), List::from_arr([expr1, expr2]))
+    }
+
+    pub fn set(elems: List<Expr>) -> Expr {
+        let mut expr = Expr::empty();
+        for elem in &elems {
+            expr = Self::union(expr, Self::singleton(elem.clone()));
+        }
+        expr
     }
 
     pub fn abs(lam: Lambda) -> Expr {

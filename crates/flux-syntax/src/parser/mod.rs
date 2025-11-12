@@ -1152,8 +1152,9 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let bind = parse_ident(cx)?;
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::At, cx.mk_span(lo, hi), cx.next_node_id())
-    } else if cx.advance_if(token::Pound) {
+    } else if cx.peek2(token::Pound, NonReserved) {
         // # ⟨ident⟩
+        cx.expect(token::Pound)?;
         let bind = parse_ident(cx)?;
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
@@ -1327,9 +1328,9 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         parse_lit(cx)
     } else if lookahead.peek(token::OpenParen) {
         delimited(cx, Parenthesis, |cx| parse_expr(cx, true))
-    } else if lookahead.peek(sym::Hash) {
+    } else if lookahead.peek(token::Pound) {
         // #{ e1, e2, ..., en }
-        cx.expect(sym::Hash)?;
+        cx.expect(token::Pound)?;
         let lo = cx.lo();
         let exprs = braces(cx, Comma, |cx| parse_expr(cx, true))?;
         let hi = cx.hi();
@@ -1375,6 +1376,15 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     } else {
         Err(lookahead.into_error())
     }
+}
+
+fn parse_prim_uif(cx: &mut ParseCtxt) -> ParseResult<Expr> {
+    let lo = cx.lo();
+    cx.expect(token::OpenBracket)?;
+    let op = parse_binop(cx)?;
+    cx.expect(token::CloseBracket)?;
+    let hi = cx.hi();
+    Ok(Expr { kind: ExprKind::PrimUIF(op), node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
 /// ```text

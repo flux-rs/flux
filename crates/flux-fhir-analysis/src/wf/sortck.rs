@@ -165,6 +165,31 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
+    fn check_set(
+        &mut self,
+        elems: &[fhir::Expr<'genv>],
+        expected: &rty::Sort,
+        span: Span,
+    ) -> Result {
+        let elem_sort = if let rty::Sort::App(rty::SortCtor::Set, sorts) = expected
+            && sorts.len() == 1
+        {
+            sorts[0].clone()
+        } else if let Some((_, sort)) = self.is_single_field_struct(expected)
+            && let rty::Sort::App(rty::SortCtor::Set, sorts) = &sort
+            && sorts.len() == 1
+        {
+            sorts[0].clone()
+        } else {
+            return Err(self.emit_err(errors::ExpectedSet::new(span, expected)));
+        };
+
+        for elem in elems {
+            self.check_expr(elem, &elem_sort)?;
+        }
+        Ok(())
+    }
+
     fn check_record(
         &mut self,
         arg: &fhir::Expr<'genv>,
@@ -209,6 +234,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_abs(expr, params, body, expected)?;
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
+            fhir::ExprKind::Set(elems) => self.check_set(elems, expected, expr.span)?,
             fhir::ExprKind::Constructor(None, exprs, spread) => {
                 self.check_constructor(expr, exprs, spread, expected)?;
             }

@@ -1030,6 +1030,7 @@ pub enum ExprKind<'fhir> {
     Abs(&'fhir [RefineParam<'fhir>], &'fhir Expr<'fhir>),
     BoundedQuant(QuantKind, RefineParam<'fhir>, Range, &'fhir Expr<'fhir>),
     Record(&'fhir [Expr<'fhir>]),
+    Set(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
     Err(ErrorGuaranteed),
@@ -1564,6 +1565,9 @@ impl fmt::Debug for Expr<'_> {
             }
             ExprKind::Record(flds) => {
                 write!(f, "{{ {:?} }}", flds.iter().format(", "))
+            }
+            ExprKind::Set(elems) => {
+                write!(f, "#{{ {:?} }}", elems.iter().format(", "))
             }
             ExprKind::Constructor(path, exprs, spread) => {
                 if let Some(path) = path
