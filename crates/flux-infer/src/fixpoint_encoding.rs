@@ -1507,6 +1507,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         fixpoint::Expr::ThyFunc(itf)
     }
 
+    fn set_op_to_fixpoint(&self, op: &rty::BinOp) -> fixpoint::Expr {
+        let itf = match op {
+            rty::BinOp::Sub(_) => fixpoint::ThyFunc::SetDif,
+            rty::BinOp::BitAnd(_) => fixpoint::ThyFunc::SetCap,
+            rty::BinOp::BitOr(_) => fixpoint::ThyFunc::SetCup,
+            _ => span_bug!(self.def_span(), "not a set operation!"),
+        };
+        fixpoint::Expr::ThyFunc(itf)
+    }
+
     fn bv_op_to_fixpoint(&self, op: &rty::BinOp) -> fixpoint::Expr {
         let itf = match op {
             rty::BinOp::Add(_) => fixpoint::ThyFunc::BvAdd,
@@ -1514,11 +1524,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::BinOp::Mul(_) => fixpoint::ThyFunc::BvMul,
             rty::BinOp::Div(_) => fixpoint::ThyFunc::BvUdiv,
             rty::BinOp::Mod(_) => fixpoint::ThyFunc::BvUrem,
-            rty::BinOp::BitAnd => fixpoint::ThyFunc::BvAnd,
-            rty::BinOp::BitOr => fixpoint::ThyFunc::BvOr,
-            rty::BinOp::BitXor => fixpoint::ThyFunc::BvXor,
-            rty::BinOp::BitShl => fixpoint::ThyFunc::BvShl,
-            rty::BinOp::BitShr => fixpoint::ThyFunc::BvLshr,
+            rty::BinOp::BitAnd(_) => fixpoint::ThyFunc::BvAnd,
+            rty::BinOp::BitOr(_) => fixpoint::ThyFunc::BvOr,
+            rty::BinOp::BitXor(_) => fixpoint::ThyFunc::BvXor,
+            rty::BinOp::BitShl(_) => fixpoint::ThyFunc::BvShl,
+            rty::BinOp::BitShr(_) => fixpoint::ThyFunc::BvLshr,
             _ => span_bug!(self.def_span(), "not a bitvector operation!"),
         };
         fixpoint::Expr::ThyFunc(itf)
@@ -1585,22 +1595,40 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             | rty::BinOp::Mul(rty::Sort::BitVec(_))
             | rty::BinOp::Div(rty::Sort::BitVec(_))
             | rty::BinOp::Mod(rty::Sort::BitVec(_))
-            | rty::BinOp::BitAnd
-            | rty::BinOp::BitOr
-            | rty::BinOp::BitXor
-            | rty::BinOp::BitShl
-            | rty::BinOp::BitShr => {
+            | rty::BinOp::BitAnd(rty::Sort::BitVec(_))
+            | rty::BinOp::BitOr(rty::Sort::BitVec(_))
+            | rty::BinOp::BitXor(rty::Sort::BitVec(_))
+            | rty::BinOp::BitShl(rty::Sort::BitVec(_))
+            | rty::BinOp::BitShr(rty::Sort::BitVec(_)) => {
                 let bv_func = self.bv_op_to_fixpoint(op);
                 return Ok(fixpoint::Expr::App(
                     Box::new(bv_func),
                     vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
                 ));
             }
+            rty::BinOp::Sub(rty::Sort::App(rty::SortCtor::Set, _))
+            | rty::BinOp::BitAnd(rty::Sort::App(rty::SortCtor::Set, _))
+            | rty::BinOp::BitOr(rty::Sort::App(rty::SortCtor::Set, _)) => {
+                let set_func = self.set_op_to_fixpoint(op);
+                return Ok(fixpoint::Expr::App(
+                    Box::new(set_func),
+                    vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
+                ));
+            }
+
             rty::BinOp::Add(_) => fixpoint::BinOp::Add,
             rty::BinOp::Sub(_) => fixpoint::BinOp::Sub,
             rty::BinOp::Mul(_) => fixpoint::BinOp::Mul,
             rty::BinOp::Div(_) => fixpoint::BinOp::Div,
             rty::BinOp::Mod(_) => fixpoint::BinOp::Mod,
+
+            rty::BinOp::BitAnd(_)
+            | rty::BinOp::BitOr(_)
+            | rty::BinOp::BitXor(_)
+            | rty::BinOp::BitShl(_)
+            | rty::BinOp::BitShr(_) => {
+                bug!();
+            }
         };
         Ok(fixpoint::Expr::BinaryOp(
             op,
@@ -1740,11 +1768,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     /// (b) inside ExprKind::InternalFunc it means int.
     fn prim_op_sort(op: &rty::BinOp, span: Span) -> rty::PolyFuncSort {
         match op {
-            rty::BinOp::BitAnd
-            | rty::BinOp::BitOr
-            | rty::BinOp::BitXor
-            | rty::BinOp::BitShl
-            | rty::BinOp::BitShr => {
+            rty::BinOp::BitAnd(rty::Sort::Int)
+            | rty::BinOp::BitOr(rty::Sort::Int)
+            | rty::BinOp::BitXor(rty::Sort::Int)
+            | rty::BinOp::BitShl(rty::Sort::Int)
+            | rty::BinOp::BitShr(rty::Sort::Int) => {
                 let fsort =
                     rty::FuncSort::new(vec![rty::Sort::Int, rty::Sort::Int], rty::Sort::Int);
                 rty::PolyFuncSort::new(List::empty(), fsort)
@@ -1787,7 +1815,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
-                    comment: Some(format!("prim op uif: {op:?}")),
+                    comment: Some(format!("prim op uif:jprim {op:?}")),
                 }
             })
             .name

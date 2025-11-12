@@ -420,21 +420,16 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::BinOp::Sub
             | fhir::BinOp::Mul
             | fhir::BinOp::Div
-            | fhir::BinOp::Mod => {
-                let sort = self.next_sort_var_with_cstr(rty::UnifyCstr::from_bin_op(op));
-                self.check_expr(e1, &sort)?;
-                self.check_expr(e2, &sort)?;
-                self.sort_of_bin_op.insert(*expr, sort.clone());
-                Ok(sort)
-            }
-            fhir::BinOp::BitAnd
+            | fhir::BinOp::Mod
+            | fhir::BinOp::BitAnd
             | fhir::BinOp::BitOr
             | fhir::BinOp::BitXor
             | fhir::BinOp::BitShl
             | fhir::BinOp::BitShr => {
-                let sort = rty::Sort::BitVec(self.next_bv_size_var());
+                let sort = self.next_sort_var_with_cstr(rty::UnifyCstr::from_bin_op(op));
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
+                self.sort_of_bin_op.insert(*expr, sort.clone());
                 Ok(sort)
             }
         }

@@ -524,11 +524,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let body = self.conv_expr(&mut env, &primop_prop.body)?;
         let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?);
         let op = match primop_prop.op {
-            fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
-            fhir::BinOp::BitOr => rty::BinOp::BitOr,
-            fhir::BinOp::BitXor => rty::BinOp::BitXor,
-            fhir::BinOp::BitShl => rty::BinOp::BitShl,
-            fhir::BinOp::BitShr => rty::BinOp::BitShr,
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
+            fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
+            fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
+            fhir::BinOp::BitShl => rty::BinOp::BitShl(rty::Sort::Int),
+            fhir::BinOp::BitShr => rty::BinOp::BitShr(rty::Sort::Int),
             _ => {
                 span_bug!(
                     primop_prop.span,
@@ -2357,11 +2357,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BinOp::Mul => rty::BinOp::Mul(self.results().bin_op_sort(fhir_id)),
             fhir::BinOp::Mod => rty::BinOp::Mod(self.results().bin_op_sort(fhir_id)),
             fhir::BinOp::Div => rty::BinOp::Div(self.results().bin_op_sort(fhir_id)),
-            fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
-            fhir::BinOp::BitOr => rty::BinOp::BitOr,
-            fhir::BinOp::BitXor => rty::BinOp::BitXor,
-            fhir::BinOp::BitShl => rty::BinOp::BitShl,
-            fhir::BinOp::BitShr => rty::BinOp::BitShr,
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitOr => rty::BinOp::BitOr(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitXor => rty::BinOp::BitXor(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitShl => rty::BinOp::BitShl(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitShr => rty::BinOp::BitShr(self.results().bin_op_sort(fhir_id)),
         }
     }
 

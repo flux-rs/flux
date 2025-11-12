@@ -852,18 +852,19 @@ impl ena::unify::UnifyKey for SortVid {
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct UnifyCstr: u16 {
-        const BOT    = 0b00000000000;
-        const AND    = 0b00000000001;
-        const OR     = 0b00000000010;
-        const MUL    = 0b00000000100;
-        const DIV    = 0b00000001000;
-        const MOD    = 0b00000010000;
-        const ADD    = 0b00000100000;
-        const SUB    = 0b00001000000;
-        const BITOR  = 0b00010000000;
-        const BITAND = 0b00100000000;
-        const BITSHL = 0b01000000000;
-        const BITSHR = 0b10000000000;
+        const BOT    = 0b000000000000;
+        const AND    = 0b000000000001;
+        const OR     = 0b000000000010;
+        const MUL    = 0b000000000100;
+        const DIV    = 0b000000001000;
+        const MOD    = 0b000000010000;
+        const ADD    = 0b000000100000;
+        const SUB    = 0b000001000000;
+        const BITOR  = 0b000010000000;
+        const BITAND = 0b000100000000;
+        const BITSHL = 0b001000000000;
+        const BITSHR = 0b010000000000;
+        const BITXOR = 0b100000000000;
 
         const NUMERIC = Self::ADD.bits() | Self::SUB.bits() | Self::MUL.bits() | Self::DIV.bits();
         const INT = Self::DIV.bits() | Self::MUL.bits() | Self::MOD.bits() | Self::ADD.bits() | Self::SUB.bits();
@@ -881,6 +882,11 @@ impl UnifyCstr {
             fhir::BinOp::Mul => Self::MUL,
             fhir::BinOp::Div => Self::DIV,
             fhir::BinOp::Mod => Self::MOD,
+            fhir::BinOp::BitAnd => Self::BITAND,
+            fhir::BinOp::BitOr => Self::BITOR,
+            fhir::BinOp::BitXor => Self::BITXOR,
+            fhir::BinOp::BitShl => Self::BITSHL,
+            fhir::BinOp::BitShr => Self::BITSHR,
             _ => bug!("{op:?} not supported as a constraint"),
         }
     }
