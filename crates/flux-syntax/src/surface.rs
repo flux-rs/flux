@@ -705,6 +705,8 @@ pub enum ExprKind {
     Constructor(Option<ExprPath>, Vec<ConstructorArg>),
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
     Block(Vec<LetDecl>, Box<Expr>),
+    /// Set expression `#{ e1, e2, ..., en }`
+    Set(Vec<Expr>),
 }
 
 #[derive(Debug)]
