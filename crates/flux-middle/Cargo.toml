@@ -20,6 +20,7 @@ liquid-fixpoint.workspace = true
 anstream.workspace = true
 anstyle.workspace = true
 bumpalo.workspace = true
+bitflags.workspace = true
 dashmap.workspace = true
 ena.workspace = true
 hashbrown.workspace = true

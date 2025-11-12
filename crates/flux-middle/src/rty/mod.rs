@@ -17,6 +17,7 @@ use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
 pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
+use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
@@ -890,6 +891,88 @@ impl ena::unify::UnifyKey for NumVid {
 
     fn tag() -> &'static str {
         "NumVid"
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    struct UnifyCstr: u16 {
+        const BOT    = 0b00000000000;
+        const AND    = 0b00000000001;
+        const OR     = 0b00000000010;
+        const MUL    = 0b00000000100;
+        const DIV    = 0b00000001000;
+        const MOD    = 0b00000010000;
+        const ADD    = 0b00000100000;
+        const SUB    = 0b00001000000;
+        const BITOR  = 0b00010000000;
+        const BITAND = 0b00100000000;
+        const BITSHL = 0b01000000000;
+        const BITSHR = 0b10000000000;
+    }
+}
+
+impl UnifyCstr {
+    fn satisfy(self, sort: &Sort) -> bool {
+        match sort {
+            Sort::Int => {
+                self.contains(
+                    UnifyCstr::DIV
+                        | UnifyCstr::MUL
+                        | UnifyCstr::MOD
+                        | UnifyCstr::ADD
+                        | UnifyCstr::SUB,
+                )
+            }
+            Sort::Real => {
+                self.contains(UnifyCstr::DIV | UnifyCstr::MUL | UnifyCstr::ADD | UnifyCstr::SUB)
+            }
+            Sort::BitVec(_) => {
+                self.contains(
+                    UnifyCstr::DIV
+                        | UnifyCstr::MUL
+                        | UnifyCstr::MOD
+                        | UnifyCstr::ADD
+                        | UnifyCstr::SUB
+                        | UnifyCstr::BITOR
+                        | UnifyCstr::BITAND
+                        | UnifyCstr::BITSHL
+                        | UnifyCstr::BITSHR,
+                )
+            }
+            Sort::App(SortCtor::Set, _) => {
+                self.contains(UnifyCstr::SUB | UnifyCstr::BITOR | UnifyCstr::BITAND)
+            }
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SortVarVal {
+    Constrained(UnifyCstr),
+    Solved(Sort),
+}
+
+impl ena::unify::UnifyValue for SortVarVal {
+    type Error = ();
+
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, Self::Error> {
+        match (value1, value2) {
+            (SortVarVal::Solved(s1), SortVarVal::Solved(s2)) if s1 == s2 => {
+                Ok(SortVarVal::Solved(s1.clone()))
+            }
+            (SortVarVal::Constrained(a), SortVarVal::Constrained(b)) => {
+                Ok(SortVarVal::Constrained(*a | *b))
+            }
+            (SortVarVal::Constrained(a), SortVarVal::Solved(sort))
+            | (SortVarVal::Solved(sort), SortVarVal::Constrained(a))
+                if a.satisfy(sort) =>
+            {
+                Ok(SortVarVal::Solved(sort.clone()))
+            }
+            _ => Err(()),
+        }
     }
 }
 
