@@ -20,13 +20,13 @@ enum Expr {
     Var(i32),
     #[variant((bool) -> Expr[set_singleton(ExprLbl::Cst)])]
     Cst(bool),
-    #[variant((Box<Expr[@s]>) -> Expr[set_union(s, set_singleton(ExprLbl::Not))])]
+    #[variant((Box<Expr[@s]>) -> Expr[s | set_singleton(ExprLbl::Not)])]
     Not(Box<Expr>),
-    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[set_union(set_union(s1, s2), set_singleton(ExprLbl::Or))])]
+    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | set_singleton(ExprLbl::Or)])]
     Or(Box<Expr>, Box<Expr>),
-    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[set_union(set_union(s1, s2), set_singleton(ExprLbl::And))])]
+    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | set_singleton(ExprLbl::And)])]
     And(Box<Expr>, Box<Expr>),
-    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[set_union(set_union(s1, s2), set_singleton(ExprLbl::Xor))])]
+    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | set_singleton(ExprLbl::Xor)])]
     Xor(Box<Expr>, Box<Expr>),
 }
 
@@ -61,11 +61,10 @@ impl Expr {
         -> Expr { v:
                 set_subset(
                     v,
-                    set_union(set_union(set_union(
-                        set_difference(s, set_singleton(ExprLbl::Xor)),
-                        set_singleton(ExprLbl::And)),
-                        set_singleton(ExprLbl::Or)),
-                        set_singleton(ExprLbl::Not)))
+                    (s - set_singleton(ExprLbl::Xor))
+                    | set_singleton(ExprLbl::And)
+                    | set_singleton(ExprLbl::Or)
+                    | set_singleton(ExprLbl::Not))
            }
     )]
     fn simplify(&self) -> Expr {
@@ -91,9 +90,7 @@ impl Expr {
         -> Box<Expr{v:
                 set_subset(
                     v,
-                    set_union(
-                        set_difference(s, set_singleton(ExprLbl::Var)),
-                        set_singleton(ExprLbl::Cst)))
+                    (s - set_singleton(ExprLbl::Var)) | set_singleton(ExprLbl::Cst))
                }>
     )]
     fn subst(&self, m: &HashMap<i32, bool>) -> Box<Expr> {
@@ -117,12 +114,10 @@ impl Expr {
             &Expr{s:
                 set_subset(
                     s,
-                    set_union(set_union(set_union(
-                        set_singleton(ExprLbl::Cst),
-                        set_singleton(ExprLbl::Not)),
-                        set_singleton(ExprLbl::And)),
-                        set_singleton(ExprLbl::Or))
-                )
+                    set_singleton(ExprLbl::Cst)
+                    | set_singleton(ExprLbl::Not)
+                    | set_singleton(ExprLbl::And)
+                    | set_singleton(ExprLbl::Or))
             }
         ) -> bool
     )]
