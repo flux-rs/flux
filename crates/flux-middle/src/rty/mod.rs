@@ -15,7 +15,6 @@ pub mod region_matching;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
-pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
 use bitflags::bitflags;
 pub use expr::{
@@ -850,50 +849,6 @@ impl ena::unify::UnifyKey for SortVid {
     }
 }
 
-impl ena::unify::EqUnifyValue for Sort {}
-
-newtype_index! {
-    /// A *num*eric *v*variable *id*
-    #[debug_format = "?{}n"]
-    #[encodable]
-    pub struct NumVid {}
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NumVarValue {
-    Real,
-    Int,
-    BitVec(BvSize),
-}
-
-impl NumVarValue {
-    pub fn to_sort(self) -> Sort {
-        match self {
-            NumVarValue::Real => Sort::Real,
-            NumVarValue::Int => Sort::Int,
-            NumVarValue::BitVec(size) => Sort::BitVec(size),
-        }
-    }
-}
-
-impl ena::unify::UnifyKey for NumVid {
-    type Value = Option<NumVarValue>;
-
-    #[inline]
-    fn index(&self) -> u32 {
-        self.as_u32()
-    }
-
-    #[inline]
-    fn from_index(u: u32) -> Self {
-        NumVid::from_u32(u)
-    }
-
-    fn tag() -> &'static str {
-        "NumVid"
-    }
-}
-
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct UnifyCstr: u16 {
@@ -989,17 +944,6 @@ impl ena::unify::UnifyValue for SortVarVal {
             _ => Err(()),
         }
     }
-}
-
-impl ena::unify::EqUnifyValue for NumVarValue {}
-
-/// A placeholder for a sort that needs to be inferred
-#[derive(PartialEq, Eq, Clone, Copy, Hash, Encodable, Decodable)]
-pub enum SortInfer {
-    /// A sort variable.
-    SortVar(SortVid),
-    /// A numeric sort variable.
-    NumVar(NumVid),
 }
 
 newtype_index! {

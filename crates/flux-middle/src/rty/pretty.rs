@@ -134,15 +134,6 @@ impl Pretty for SortCtor {
     }
 }
 
-impl Pretty for SortInfer {
-    fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SortInfer::SortVar(svid) => w!(cx, f, "{:?}", ^svid),
-            SortInfer::NumVar(nvid) => w!(cx, f, "{:?}", ^nvid),
-        }
-    }
-}
-
 impl Pretty for Sort {
     fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
