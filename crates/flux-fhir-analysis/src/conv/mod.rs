@@ -2228,6 +2228,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .try_collect()?;
                 rty::Expr::ctor_struct(def_id, flds)
             }
+            fhir::ExprKind::Set(elems) => {
+                let elems = elems
+                    .iter()
+                    .map(|expr| self.conv_expr(env, expr))
+                    .try_collect()?;
+                rty::Expr::set(elems)
+            }
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let def_id = if let Some(path) = path {
                     match path.res {

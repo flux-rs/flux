@@ -92,6 +92,20 @@ impl<'a> ExpectedFun<'a> {
 }
 
 #[derive(Diagnostic)]
+#[diag(fhir_analysis_expected_set, code = E0999)]
+pub(super) struct ExpectedSet<'a> {
+    #[primary_span]
+    span: Span,
+    found: &'a rty::Sort,
+}
+
+impl<'a> ExpectedSet<'a> {
+    pub(super) fn new(span: Span, found: &'a rty::Sort) -> Self {
+        Self { span, found }
+    }
+}
+
+#[derive(Diagnostic)]
 #[diag(fhir_analysis_invalid_param_in_func_pos, code = E0999)]
 pub(super) struct InvalidParamPos<'a> {
     #[primary_span]

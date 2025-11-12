@@ -1,4 +1,3 @@
-// A port from https://drops.dagstuhl.de/storage/00lipics/lipics-vol263-ecoop2023/LIPIcs.ECOOP.2023.17/LIPIcs.ECOOP.2023.17.pdf
 
 use std::collections::HashMap;
 
