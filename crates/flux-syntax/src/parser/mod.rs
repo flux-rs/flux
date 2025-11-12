@@ -1314,6 +1314,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | [binop]
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
+///         | #{ e1, e2, ..., en }
 /// ```
 fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
@@ -1326,6 +1327,14 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         parse_lit(cx)
     } else if lookahead.peek(token::OpenParen) {
         delimited(cx, Parenthesis, |cx| parse_expr(cx, true))
+    } else if lookahead.peek(sym::Hash) {
+        // #{ e1, e2, ..., en }
+        cx.expect(sym::Hash)?;
+        let lo = cx.lo();
+        let exprs = braces(cx, Comma, |cx| parse_expr(cx, true))?;
+        let hi = cx.hi();
+        let kind = ExprKind::Set(exprs);
+        Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
     } else if lookahead.peek(NonReserved) {
         let path = parse_expr_path(cx)?;
         let kind = if allow_struct && cx.peek(token::OpenBrace) {
@@ -1366,15 +1375,6 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     } else {
         Err(lookahead.into_error())
     }
-}
-
-fn parse_prim_uif(cx: &mut ParseCtxt) -> ParseResult<Expr> {
-    let lo = cx.lo();
-    cx.expect(token::OpenBracket)?;
-    let op = parse_binop(cx)?;
-    cx.expect(token::CloseBracket)?;
-    let hi = cx.hi();
-    Ok(Expr { kind: ExprKind::PrimUIF(op), node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
 }
 
 /// ```text
