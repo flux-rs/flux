@@ -288,9 +288,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
 
         let kind = self.genv.def_kind(def_id);
 
-        // For the purpose of metrics, we consider a function to be a local item (no extern spec),
-        // that is a free function (`DefKind::Fn`) or associated item (`DefKind::AssocFn`), that
-        // also has a corresponding mir.
+        // For the purpose of metrics, we consider to be a *function* an item that
+        // 1. It's local, i.e., it's not an extern spec.
+        // 2. It's a free function (`DefKind::Fn`) or associated item (`DefKind::AssocFn`), and
+        // 3. It has a mir body
+        // In particular, this excludes closures (because they dont have the right `DefKind`) and
+        // trait methods without a default body.
         let is_fn_with_body = def_id
             .as_local()
             .map(|local_id| {
