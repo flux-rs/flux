@@ -81,11 +81,6 @@ pub fn check_fn(
         return Ok(());
     }
 
-    // Skip trait methods without body
-    if genv.tcx().hir_node_by_def_id(def_id).body_id().is_none() {
-        return Ok(());
-    }
-
     let opts = genv.infer_opts(def_id);
 
     // FIXME(nilehmann) we should move this check to `compare_impl_item`
