@@ -876,17 +876,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let no_panic = genv.no_panic(self.checker_id.root_id());
+        if M::NAME == "refine" {
+            let no_panic = genv.no_panic(self.checker_id.root_id());
 
-        if no_panic.unwrap_or(false)
-            && let Some(callee_def_id) = callee_def_id
-            && genv.def_kind(callee_def_id).is_fn_like()
-        {
-            let callee_no_panic = genv.no_panic(callee_def_id).unwrap_or(false);
-            if "refine" == M::NAME && !callee_no_panic {
-                genv.sess().emit_err(errors::PanicError { span });
+            if no_panic.unwrap_or(false)
+                && let Some(callee_def_id) = callee_def_id
+                && genv.def_kind(callee_def_id).is_fn_like()
+            {
+                let callee_no_panic = genv.no_panic(callee_def_id).unwrap_or(false);
+                if !callee_no_panic {
+                    genv.sess().emit_err(errors::PanicError { span });
+                }
             }
         }
+
 
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
