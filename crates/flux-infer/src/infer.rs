@@ -557,7 +557,6 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         reason: ConstrReason,
     ) -> InferResult {
         let mut sub = Sub::new(env, reason, self.span);
-        println!("TRACE: subtyping_with_env: {a:?} <: {b:?}");
         sub.tys(self.infcx, a, b)
     }
 
@@ -927,11 +926,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
-                println!("TRACE: Sub::btys: handling opaque type (0) RHS: {a:?} <: {alias_ty_b:?}");
                 // if let BaseTy::Alias(AliasKind::Opaque, alias_ty_a) = a {
-                //     println!(
-                //         "TRACE: Sub::btys: handling opaque type (1) RHS: {alias_ty_a:?} <: {alias_ty_b:?}"
-                //     );
                 //     debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
                 //     iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
                 //         .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
@@ -1123,15 +1118,8 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
                     let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty);
-                    println!("TRACE: handle_opaque_type : projecting (0) {ty1:?}");
                     let ty1 = ty1.to_ty().deeply_normalize(&mut infcx.at(self.span))?;
-                    println!("TRACE: handle_opaque_type : projecting (1) {ty1:?}");
                     let ty2 = pred.term.to_ty();
-                    println!("TRACE: handle_opaque_type : projecting (2) {pred:?} --> {ty2:?}");
-                    println!(
-                        "TRACE: handle_opaque_type projection: {ty1:?} <: {ty2:?} [{:?}]",
-                        ty1 == ty2
-                    );
                     self.tys(infcx, &ty1, &ty2)?;
                 }
             }

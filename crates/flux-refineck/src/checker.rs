@@ -275,11 +275,9 @@ fn check_fn_subtyping(
     let mut infcx = infcx.at(span);
     let tcx = infcx.genv.tcx();
 
-    println!("TRACE: check_fn_subtyping (0): {sub_sig:?} <: {super_sig:?}");
     let super_sig = super_sig
         .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
         .deeply_normalize(&mut infcx)?;
-    println!("TRACE: check_fn_subtyping (1): {sub_sig:?} <: {super_sig:?}");
 
     // 1. Unpack `T_g` input types
     let actuals = super_sig
@@ -307,15 +305,12 @@ fn check_fn_subtyping(
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
             .deeply_normalize(infcx)?;
 
-        println!("TRACE: check_fn_subtyping (2): {sub_sig:?} <: {super_sig:?}");
-
         // 3. INPUT subtyping (g-input <: f-input)
         for requires in super_sig.requires() {
             infcx.assume_pred(requires);
         }
         for (actual, formal) in iter::zip(actuals, sub_sig.inputs()) {
             let reason = ConstrReason::Subtype(SubtypeReason::Input);
-            println!("TRACE: check_fn_subtyping (3): actual={actual:?}, formal={formal:?}");
             infcx.subtyping_with_env(&mut env, &actual, formal, reason)?;
         }
         // we check the requires AFTER the actual-formal subtyping as the above may unfold stuff in
@@ -885,7 +880,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
         let actuals = infer_under_mut_ref_hack(infcx, &actuals, fn_sig.skip_binder_ref());
-        println!("TRACE: check_call {callee_def_id:?} at {span:?} : actuals = {actuals:?}");
 
         infcx.push_evar_scope();
 
@@ -928,11 +922,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .instantiate(tcx, &generic_args, &early_refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
-        println!("TRACE: check_call (A) {callee_def_id:?} ==> fn_sig = {fn_sig:?}");
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
-        println!("TRACE: check_call (B) {callee_def_id:?} ==> fn_sig = {fn_sig:?}");
 
         let mut at = infcx.at(span);
 
@@ -957,7 +949,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
 
-        println!("TRACE: check_call {callee_def_id:?} ==> output = {output:?}");
         Ok(ResolvedCall {
             output: output.ret,
             _early_args: early_refine_args
