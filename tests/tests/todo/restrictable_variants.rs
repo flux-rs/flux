@@ -34,26 +34,26 @@ fn bar() -> Bar {
     Bar
 }
 
-// enum Expr {
-//     Var(i32),
-//     Cst(bool),
-//     Not(Box<Expr>),
-//     Or(Box<Expr>, Box<Expr>),
-//     And(Box<Expr>, Box<Expr>),
-//     Xor(Box<Expr>, Box<Expr>),
-// }
+enum Expr {
+    Var(i32),
+    Cst(bool),
+    Not(Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Xor(Box<Expr>, Box<Expr>),
+}
 
-// detached_spec! {
-//     #[refined_by(s: Set<ExprLbl>)]
-//     enum Expr {
-//         Var(i32) -> Expr[#{ ExprLbl::Var }],
-//         Cst(bool) -> Expr[#{ ExprLbl::Cst }],
-//         Not(Box<Expr[@s]>) -> Expr[s + #{ ExprLbl::Not }],
-//         Or(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ ExprLbl::Or }],
-//         And(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ ExprLbl::And }],
-//         Xor(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ ExprLbl::Xor }],
-//     }
-// }
+detached_spec! {
+    #[refined_by(s: Set<ExprLbl>)]
+    enum Expr {
+        Var(i32) -> Expr[#{ ExprLbl::Var }],
+        Cst(bool) -> Expr[#{ ExprLbl::Cst }],
+        Not(Box<Expr[@s]>) -> Expr[s + #{ ExprLbl::Not }],
+        Or(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ ExprLbl::Or }],
+        And(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ ExprLbl::And }],
+        Xor(Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 + s2 + #{ ExprLbl::Xor }],
+    }
+}
 
 // impl Expr {
 //     #[spec(fn(&Expr[@s]) -> Box<Expr[s]>)]

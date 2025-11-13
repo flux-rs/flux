@@ -1,8 +1,6 @@
-// A port from https://drops.dagstuhl.de/storage/00lipics/lipics-vol263-ecoop2023/LIPIcs.ECOOP.2023.17/LIPIcs.ECOOP.2023.17.pdf
+// tests set literals #{ e1, e2, ..., en }
 
-use std::collections::HashMap;
-
-use flux_rs::{attrs::*, detached_spec};
+use flux_rs::attrs::*;
 
 #[reflect]
 enum ExprLbl {
@@ -33,4 +31,3 @@ struct Bar;
 fn bar() -> Bar {
     Bar
 }
-
