@@ -5240,6 +5240,7 @@ impl&lt;T&gt; Option&lt;T&gt; {
     #[sig(fn(&amp;Self[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
 
+    #[no_panic]
     #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
     const fn unwrap(self) -&gt; T;
 
