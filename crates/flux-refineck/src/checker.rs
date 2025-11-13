@@ -7,14 +7,14 @@ use flux_common::{
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferErr, InferResult, SubtypeReason
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason
     },
     projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},
 };
 use flux_middle::{
     global_env::GlobalEnv,
-    queries::{QueryErr, QueryResult, try_query},
+    queries::{QueryResult, try_query},
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
