@@ -33,9 +33,6 @@ fhir_analysis_invalid_constant =
 fhir_analysis_expected_fun =
     expected function, found `{$found}`
 
-fhir_analysis_expected_set =
-    expected `Set<..>`, found `{$found}`
-
 fhir_analysis_unsupported_primop =
     properties for `{$op}` are not yet supported
 

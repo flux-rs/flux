@@ -163,36 +163,6 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
         }
     }
 
-    fn is_set(&mut self, sort: &rty::Sort) -> Option<rty::Sort> {
-        if let rty::Sort::App(rty::SortCtor::Set, sorts) = sort
-            && sorts.len() == 1
-        {
-            Some(sorts[0].clone())
-        } else if let Some((_, sort)) = self.is_single_field_struct(sort)
-            && let rty::Sort::App(rty::SortCtor::Set, sorts) = &sort
-            && sorts.len() == 1
-        {
-            Some(sorts[0].clone())
-        } else {
-            None
-        }
-    }
-
-    fn check_set(
-        &mut self,
-        elems: &[fhir::Expr<'genv>],
-        expected: &rty::Sort,
-        span: Span,
-    ) -> Result {
-        let Some(elem_sort) = self.is_set(expected) else {
-            return Err(self.emit_err(errors::ExpectedSet::new(span, expected)));
-        };
-        for elem in elems {
-            self.check_expr(elem, &elem_sort)?;
-        }
-        Ok(())
-    }
-
     fn check_record(
         &mut self,
         arg: &fhir::Expr<'genv>,
@@ -237,19 +207,11 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_abs(expr, params, body, expected)?;
             }
             fhir::ExprKind::Record(fields) => self.check_record(expr, fields, expected)?,
-            fhir::ExprKind::Set(elems) => self.check_set(elems, expected, expr.span)?,
             fhir::ExprKind::Constructor(None, exprs, spread) => {
                 self.check_constructor(expr, exprs, spread, expected)?;
             }
-            fhir::ExprKind::BinaryOp(fhir::BinOp::Add, e1, e2)
-            | fhir::ExprKind::BinaryOp(fhir::BinOp::Sub, e1, e2)
-                if let Some(_) = self.is_set(expected) =>
-            {
-                self.check_expr(e1, expected)?;
-                self.check_expr(e2, expected)?;
-                self.sort_of_bin_op.insert(*expr, expected.clone());
-            }
             fhir::ExprKind::UnaryOp(..)
+            | fhir::ExprKind::Set(..)
             | fhir::ExprKind::BinaryOp(..)
             | fhir::ExprKind::Dot(..)
             | fhir::ExprKind::App(..)
@@ -410,6 +372,13 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                     self.check_expr(&decl.init, &self.param_sort(decl.param.id))?;
                 }
                 self.synth_expr(body)
+            }
+            fhir::ExprKind::Set(elems) => {
+                let elem_sort = self.next_sort_var();
+                for elem in elems {
+                    self.check_expr(elem, &elem_sort)?;
+                }
+                Ok(rty::Sort::App(rty::SortCtor::Set, List::singleton(elem_sort)))
             }
             _ => Err(self.emit_err(errors::CannotInferSort::new(expr.span))),
         }

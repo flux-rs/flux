@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use flux_rs::attrs::*;
 
 #[reflect]
 enum ExprLbl {
@@ -13,12 +14,19 @@ enum ExprLbl {
     Xor,
 }
 
+#[refined_by(s: Set<ExprLbl>)]
 enum Expr {
+    #[variant((i32) -> Expr[#{ExprLbl::Var}])]
     Var(i32),
+    #[variant((bool) -> Expr[#{ExprLbl::Cst}])]
     Cst(bool),
+    #[variant((Box<Expr[@s]>) -> Expr[s | #{ExprLbl::Not}])]
     Not(Box<Expr>),
+    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | #{ExprLbl::Or}])]
     Or(Box<Expr>, Box<Expr>),
+    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | #{ExprLbl::And}])]
     And(Box<Expr>, Box<Expr>),
+    #[variant((Box<Expr[@s1]>, Box<Expr[@s2]>) -> Expr[s1 | s2 | #{ExprLbl::Xor}])]
     Xor(Box<Expr>, Box<Expr>),
 }
 
@@ -50,6 +58,7 @@ impl Expr {
 
     #[spec(
         fn(&Expr[@s])
+        -> Expr { v: set_subset(v, (s - #{ExprLbl::Xor}) | #{ExprLbl::And, ExprLbl::Or, ExprLbl::Not}) }
     )]
     fn simplify(&self) -> Expr {
         match self {
@@ -69,9 +78,7 @@ impl Expr {
         }
     }
 
-    #[spec(
-        fn(&Expr[@s], _)
-    )]
+    #[spec( fn(&Expr[@s], _) -> Box<Expr{v: set_subset(v, (s - #{ExprLbl::Var}) | #{ExprLbl::Cst}) }> )]
     fn subst(&self, m: &HashMap<i32, bool>) -> Box<Expr> {
         let e = match self {
             Expr::Var(x) => Expr::Cst(m[x]),
@@ -88,18 +95,7 @@ impl Expr {
         self.simplify().subst(m).fasteval()
     }
 
-    #[spec(
-        fn(
-            &Expr{s:
-                set_subset(
-                    s,
-                    set_singleton(ExprLbl::Cst)
-                    | set_singleton(ExprLbl::Not)
-                    | set_singleton(ExprLbl::And)
-                    | set_singleton(ExprLbl::Or))
-            }
-        ) -> bool
-    )]
+    #[spec(fn(&Expr{ s: set_subset(s, #{ExprLbl::Cst, ExprLbl::Not, ExprLbl::And, ExprLbl::Or}) }) -> bool)]
     fn fasteval(&self) -> bool {
         match self {
             Expr::Cst(x) => *x,
