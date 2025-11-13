@@ -190,7 +190,7 @@ impl WfckResultsProvider for WfckResults {
         self.bin_op_sorts()
             .get(fhir_id)
             .cloned()
-            .unwrap_or_else(|| bug!("binary relation without elaborated sort `{fhir_id:?}`"))
+            .unwrap_or_else(|| bug!("binary operation without elaborated sort `{fhir_id:?}`"))
     }
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
