@@ -1117,8 +1117,9 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 if let rty::ClauseKind::Projection(pred) = clause.kind_skipping_binder() {
                     let alias_ty = pred.projection_ty.with_self_ty(bty.to_subset_ty_ctor());
-                    let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty);
-                    let ty1 = ty1.to_ty().deeply_normalize(&mut infcx.at(self.span))?;
+                    let ty1 = BaseTy::Alias(AliasKind::Projection, alias_ty)
+                        .to_ty()
+                        .deeply_normalize(&mut infcx.at(self.span))?;
                     let ty2 = pred.term.to_ty();
                     self.tys(infcx, &ty1, &ty2)?;
                 }

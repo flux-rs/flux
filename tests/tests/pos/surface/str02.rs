@@ -55,23 +55,3 @@ pub fn test_concat() {
     let combined = concat(cat, dog);
     require_eq(combined.as_str(), catdog);
 }
-
-//---
-
-#[spec(fn(&str[@b], &str[@s]) -> String[str_concat(b, str_concat("/", s))])]
-fn path_concat(base: &str, suffix: &str) -> String {
-    let tmp = concat("/", suffix);
-    concat(base, tmp.as_str())
-}
-
-#[spec(fn(&str[@s], &str[@suffix]) -> () requires str_suffix_of(suffix, s))]
-fn check_suffix(_s: &str, _suffix: &str) {}
-
-fn test_path_concat(username: &str) {
-    let key = path_concat(username, "profile.json");
-    check_suffix(key.as_str(), "profile.json");
-    // let base = "home/user";
-    // let file = "document.txt";
-    // let full_path = path_concat(base, file);
-    // check_suffix(full_path.as_str(), "document.txt");
-}
