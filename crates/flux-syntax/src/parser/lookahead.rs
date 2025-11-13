@@ -171,7 +171,7 @@ impl<'a, 'cx> Lookahead1<'a, 'cx> {
         Lookahead1 { expected: Vec::new(), cx }
     }
 
-    /// Like [`ParseCtxt::lookahead1`] but it records the expected token to construct an error in
+    /// Like [`ParseCtxt::peek`] but it records the expected token to construct an error in
     /// case parsing can't proceed. If this method returns true, this [`Lookahead1`] object should be
     /// discarded.
     pub(crate) fn peek<T: PeekExpected>(&mut self, t: T) -> bool {
