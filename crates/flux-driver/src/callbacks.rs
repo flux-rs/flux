@@ -167,10 +167,12 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             ecx.declare_fun(def_id.to_def_id());
             match flux_item {
                 FluxItem::Func(spec_func) if spec_func.body.is_some() => {
-                    fun_defs.push(
-                        ecx.fun_def_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx)
-                            .unwrap(),
-                    );
+                    if spec_func.params == 0 {
+                        fun_defs.push(
+                            ecx.fun_def_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx)
+                                .unwrap(),
+                        );
+                    }
                 }
                 FluxItem::Func(spec_func) => {
                     opaque_fun_defs
