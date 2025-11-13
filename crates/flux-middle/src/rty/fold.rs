@@ -654,7 +654,7 @@ where
 {
     fn visit_with<V: TypeVisitor>(&self, visitor: &mut V) -> ControlFlow<V::BreakTy> {
         self.vars().visit_with(visitor)?;
-        visitor.enter_binder(&self.vars());
+        visitor.enter_binder(self.vars());
         self.skip_binder_ref().visit_with(visitor)?;
         visitor.exit_binder();
         ControlFlow::Continue(())
