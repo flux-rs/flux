@@ -31,6 +31,7 @@ anstream = "0.6.21"
 anstyle = "1.0.13"
 anyhow = "1.0.97"
 bumpalo = "3.17.0"
+bitflags = "2.9.4"
 cargo_metadata = "0.23.0"
 clap = { version = "4.5", features = ["derive"] }
 config = { version = "0.15.11", features = ["toml"], default-features = false }

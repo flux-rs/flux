@@ -620,6 +620,7 @@ version = "0.1.0"
 dependencies = [
  "anstream",
  "anstyle",
+ "bitflags",
  "bumpalo",
  "dashmap",
  "ena",

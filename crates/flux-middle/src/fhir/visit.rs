@@ -584,8 +584,8 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             walk_list!(vis, visit_refine_param, refine_params);
             vis.visit_expr(body);
         }
-        ExprKind::Record(fields) => {
-            walk_list!(vis, visit_expr, fields);
+        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) => {
+            walk_list!(vis, visit_expr, exprs);
         }
         ExprKind::Constructor(path, exprs, spread) => {
             if let Some(path) = path {
