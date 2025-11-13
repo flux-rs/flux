@@ -4,3 +4,5 @@ target
 *.dot
 log
 sysroot/
+
+.DS_Store
