@@ -269,7 +269,7 @@ pub struct Queries<'genv, 'tcx> {
     fn_sig: Cache<DefId, QueryResult<rty::EarlyBinder<rty::PolyFnSig>>>,
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
-    no_panic: Cache<DefId, bool>
+    no_panic: Cache<DefId, bool>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
