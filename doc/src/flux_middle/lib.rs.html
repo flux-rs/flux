@@ -572,7 +572,7 @@
 <a href=#572 id=572 data-nosnippet>572</a><span class="doccomment">/// The different reasons we issue fixpoint queries. This is used to dissambiguate queries that
 <a href=#573 id=573 data-nosnippet>573</a>/// are issued for the same item.
 <a href=#574 id=574 data-nosnippet>574</a>///
-<a href=#575 id=575 data-nosnippet>575</a>/// NOTE: This is defined here because it's also used in [`timings`]
+<a href=#575 id=575 data-nosnippet>575</a>/// NOTE: This is defined here because it's also used in [`metrics`]
 <a href=#576 id=576 data-nosnippet>576</a></span><span class="attr">#[derive(Debug, Hash, Clone, Copy)]
 <a href=#577 id=577 data-nosnippet>577</a></span><span class="kw">pub enum </span>FixpointQueryKind {
 <a href=#578 id=578 data-nosnippet>578</a>    <span class="doccomment">/// Query issued when checking an impl method is a subtype of the trait
@@ -596,4 +596,12 @@
 <a href=#596 id=596 data-nosnippet>596</a>    </span><span class="kw">pub fn </span>task_key(<span class="self">self</span>, tcx: TyCtxt, def_id: DefId) -&gt; String {
 <a href=#597 id=597 data-nosnippet>597</a>        <span class="macro">format!</span>(<span class="string">"{}###{:?}"</span>, tcx.def_path_str(def_id), <span class="self">self</span>)
 <a href=#598 id=598 data-nosnippet>598</a>    }
-<a href=#599 id=599 data-nosnippet>599</a>}</code></pre></div></section></main></body></html>
+<a href=#599 id=599 data-nosnippet>599</a>
+<a href=#600 id=600 data-nosnippet>600</a>    <span class="doccomment">/// Returns `true` if the fixpoint query kind is [`Body`].
+<a href=#601 id=601 data-nosnippet>601</a>    ///
+<a href=#602 id=602 data-nosnippet>602</a>    /// [`Body`]: FixpointQueryKind::Body
+<a href=#603 id=603 data-nosnippet>603</a>    </span><span class="attr">#[must_use]
+<a href=#604 id=604 data-nosnippet>604</a>    </span><span class="kw">pub fn </span>is_body(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#605 id=605 data-nosnippet>605</a>        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Body)
+<a href=#606 id=606 data-nosnippet>606</a>    }
+<a href=#607 id=607 data-nosnippet>607</a>}</code></pre></div></section></main></body></html>
