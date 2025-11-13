@@ -598,7 +598,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     }
                 },
                 |def_id| genv.cstore().no_panic(def_id),
-                |def_id| genv.cstore().no_panic(def_id).unwrap_or(Ok(false)),
+                |def_id| false,
             )
         })
     }
