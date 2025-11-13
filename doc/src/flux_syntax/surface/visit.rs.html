@@ -616,13 +616,16 @@
 <a href=#616 id=616 data-nosnippet>616</a>            }
 <a href=#617 id=617 data-nosnippet>617</a>            vis.visit_expr(body);
 <a href=#618 id=618 data-nosnippet>618</a>        }
-<a href=#619 id=619 data-nosnippet>619</a>    }
-<a href=#620 id=620 data-nosnippet>620</a>}
-<a href=#621 id=621 data-nosnippet>621</a>
-<a href=#622 id=622 data-nosnippet>622</a><span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>ExprPath) {
-<a href=#623 id=623 data-nosnippet>623</a>    <span class="macro">walk_list!</span>(vis, visit_path_expr_segment, <span class="kw-2">&amp;</span>qpath.segments);
-<a href=#624 id=624 data-nosnippet>624</a>}
-<a href=#625 id=625 data-nosnippet>625</a>
-<a href=#626 id=626 data-nosnippet>626</a><span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>ExprPathSegment) {
-<a href=#627 id=627 data-nosnippet>627</a>    vis.visit_ident(segment.ident);
-<a href=#628 id=628 data-nosnippet>628</a>}</code></pre></div></section></main></body></html>
+<a href=#619 id=619 data-nosnippet>619</a>        ExprKind::SetLiteral(exprs) =&gt; {
+<a href=#620 id=620 data-nosnippet>620</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
+<a href=#621 id=621 data-nosnippet>621</a>        }
+<a href=#622 id=622 data-nosnippet>622</a>    }
+<a href=#623 id=623 data-nosnippet>623</a>}
+<a href=#624 id=624 data-nosnippet>624</a>
+<a href=#625 id=625 data-nosnippet>625</a><span class="kw">pub fn </span>walk_path_expr&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, qpath: <span class="kw-2">&amp;</span>ExprPath) {
+<a href=#626 id=626 data-nosnippet>626</a>    <span class="macro">walk_list!</span>(vis, visit_path_expr_segment, <span class="kw-2">&amp;</span>qpath.segments);
+<a href=#627 id=627 data-nosnippet>627</a>}
+<a href=#628 id=628 data-nosnippet>628</a>
+<a href=#629 id=629 data-nosnippet>629</a><span class="kw">pub fn </span>walk_path_expr_segment&lt;V: Visitor&gt;(vis: <span class="kw-2">&amp;mut </span>V, segment: <span class="kw-2">&amp;</span>ExprPathSegment) {
+<a href=#630 id=630 data-nosnippet>630</a>    vis.visit_ident(segment.ident);
+<a href=#631 id=631 data-nosnippet>631</a>}</code></pre></div></section></main></body></html>

@@ -114,7 +114,7 @@
 <a href=#114 id=114 data-nosnippet>114</a>
 <a href=#115 id=115 data-nosnippet>115</a><span class="kw">impl </span>TypeFolder <span class="kw">for </span><span class="kw-2">&amp;</span>Holes {
 <a href=#116 id=116 data-nosnippet>116</a>    <span class="kw">fn </span>fold_sort(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sort: <span class="kw-2">&amp;</span>rty::Sort) -&gt; rty::Sort {
-<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = sort {
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">if let </span>rty::Sort::Infer(vid) = sort {
 <a href=#118 id=118 data-nosnippet>118</a>            <span class="self">self</span>.sorts
 <a href=#119 id=119 data-nosnippet>119</a>                .get(vid)
 <a href=#120 id=120 data-nosnippet>120</a>                .cloned()
@@ -393,7 +393,7 @@
 <a href=#393 id=393 data-nosnippet>393</a>    }
 <a href=#394 id=394 data-nosnippet>394</a>
 <a href=#395 id=395 data-nosnippet>395</a>    <span class="kw">fn </span>zip_sorts(<span class="kw-2">&amp;mut </span><span class="self">self</span>, a: <span class="kw-2">&amp;</span>rty::Sort, b: <span class="kw-2">&amp;</span>rty::Sort) {
-<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">if let </span>rty::Sort::Infer(rty::SortInfer::SortVar(vid)) = a {
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">if let </span>rty::Sort::Infer(vid) = a {
 <a href=#397 id=397 data-nosnippet>397</a>            <span class="macro">assert_ne!</span>(vid.as_u32(), <span class="number">0</span>);
 <a href=#398 id=398 data-nosnippet>398</a>            <span class="self">self</span>.holes.sorts.insert(<span class="kw-2">*</span>vid, b.clone());
 <a href=#399 id=399 data-nosnippet>399</a>        }

@@ -127,9 +127,9 @@
 <a href=#127 id=127 data-nosnippet>127</a>            fhir::ExprKind::BoundedQuant(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>, body) =&gt; {
 <a href=#128 id=128 data-nosnippet>128</a>                <span class="self">self</span>.check_func_params_uses(body, <span class="bool-val">false</span>);
 <a href=#129 id=129 data-nosnippet>129</a>            }
-<a href=#130 id=130 data-nosnippet>130</a>            fhir::ExprKind::Record(fields) =&gt; {
-<a href=#131 id=131 data-nosnippet>131</a>                <span class="kw">for </span>field <span class="kw">in </span>fields {
-<a href=#132 id=132 data-nosnippet>132</a>                    <span class="self">self</span>.check_func_params_uses(field, is_top_level_conj);
+<a href=#130 id=130 data-nosnippet>130</a>            fhir::ExprKind::Record(exprs) | fhir::ExprKind::SetLiteral(exprs) =&gt; {
+<a href=#131 id=131 data-nosnippet>131</a>                <span class="kw">for </span>field <span class="kw">in </span>exprs {
+<a href=#132 id=132 data-nosnippet>132</a>                    <span class="self">self</span>.check_func_params_uses(field, <span class="bool-val">false</span>);
 <a href=#133 id=133 data-nosnippet>133</a>                }
 <a href=#134 id=134 data-nosnippet>134</a>            }
 <a href=#135 id=135 data-nosnippet>135</a>            fhir::ExprKind::Constructor(<span class="kw">_</span>, fields, spread) =&gt; {

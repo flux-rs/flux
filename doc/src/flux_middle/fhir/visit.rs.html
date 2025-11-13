@@ -584,8 +584,8 @@
 <a href=#584 id=584 data-nosnippet>584</a>            <span class="macro">walk_list!</span>(vis, visit_refine_param, refine_params);
 <a href=#585 id=585 data-nosnippet>585</a>            vis.visit_expr(body);
 <a href=#586 id=586 data-nosnippet>586</a>        }
-<a href=#587 id=587 data-nosnippet>587</a>        ExprKind::Record(fields) =&gt; {
-<a href=#588 id=588 data-nosnippet>588</a>            <span class="macro">walk_list!</span>(vis, visit_expr, fields);
+<a href=#587 id=587 data-nosnippet>587</a>        ExprKind::Record(exprs) | ExprKind::SetLiteral(exprs) =&gt; {
+<a href=#588 id=588 data-nosnippet>588</a>            <span class="macro">walk_list!</span>(vis, visit_expr, exprs);
 <a href=#589 id=589 data-nosnippet>589</a>        }
 <a href=#590 id=590 data-nosnippet>590</a>        ExprKind::Constructor(path, exprs, spread) =&gt; {
 <a href=#591 id=591 data-nosnippet>591</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path {
