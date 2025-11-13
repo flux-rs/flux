@@ -79,11 +79,8 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
-<<<<<<< HEAD
     /// The templates for the promoted bodies of the current function
     promoted: &'ck IndexSlice<Promoted, Ty>,
-=======
->>>>>>> 1c21b87035 (Add panic errors)
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
@@ -879,7 +876,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        let no_panic = genv.no_panic(self.def_id.to_def_id());
+        let no_panic = genv.no_panic(self.checker_id.root_id());
 
         if no_panic.unwrap_or(false)
             && let Some(callee_def_id) = callee_def_id
