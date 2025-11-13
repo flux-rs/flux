@@ -2162,7 +2162,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             fhir::ExprKind::PrimApp(op, e1, e2) => {
                 rty::Expr::prim_val(
-                    self.conv_bin_op(op, expr.fhir_id),
+                    self.conv_primop_val(op),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
                 )
@@ -2338,6 +2338,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
     fn conv_exprs(&mut self, env: &mut Env, exprs: &[fhir::Expr]) -> QueryResult<List<rty::Expr>> {
         exprs.iter().map(|e| self.conv_expr(env, e)).collect()
+    }
+
+    fn conv_primop_val(&self, op: fhir::BinOp) -> rty::BinOp {
+        match op {
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
+            fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
+            fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
+            fhir::BinOp::BitShl => rty::BinOp::BitShl(rty::Sort::Int),
+            fhir::BinOp::BitShr => rty::BinOp::BitShr(rty::Sort::Int),
+            _ => bug!("unsupported primop {op:?}"),
+        }
     }
 
     fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {

@@ -1758,11 +1758,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         })
     }
 
-    /// The logic below is a bit "duplicated" with the `[`prim_op_sort`] in sortck.rs;
+    /// The logic below is a bit "duplicated" with the `prim_op_sort` in `sortck.rs`;
     /// They are not exactly the same because this is on rty and the other one on fhir.
     /// We should make sure these two remain in sync.
     ///
-    /// (NOTE:PrimOpSort) We are somewhat "overloading" the BinOps: as we are using them
+    /// (NOTE:PrimOpSort) We are somewhat "overloading" the `BinOps`: as we are using them
     /// for (a) interpreted operations on bit vectors AND (b) uninterpreted functions on integers.
     /// So when Binop::BitShr (a) appears in a ExprKind::BinOp, it means bit vectors, but
     /// (b) inside ExprKind::InternalFunc it means int.

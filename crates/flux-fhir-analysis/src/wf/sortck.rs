@@ -249,7 +249,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             fhir::Lit::Int(_, Some(fhir::NumLitKind::Int)) => rty::Sort::Int,
             fhir::Lit::Int(_, Some(fhir::NumLitKind::Real)) => rty::Sort::Real,
             fhir::Lit::Int(_, None) => {
-                let sort = self.next_sort_var_with_cstr(rty::UnifyCstr::NUMERIC);
+                let sort = self.next_sort_var_with_cstr(rty::SortCstr::NUMERIC);
                 self.sort_of_literal.insert(*expr, sort.clone());
                 sort
             }
@@ -426,7 +426,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
             | fhir::BinOp::BitXor
             | fhir::BinOp::BitShl
             | fhir::BinOp::BitShr => {
-                let sort = self.next_sort_var_with_cstr(rty::UnifyCstr::from_bin_op(op));
+                let sort = self.next_sort_var_with_cstr(rty::SortCstr::from_bin_op(op));
                 self.check_expr(e1, &sort)?;
                 self.check_expr(e2, &sort)?;
                 self.sort_of_bin_op.insert(*expr, sort.clone());
@@ -680,8 +680,8 @@ impl<'genv> InferCtxt<'genv, '_> {
         rty::Sort::Infer(self.next_sort_vid(Default::default()))
     }
 
-    fn next_sort_var_with_cstr(&mut self, cstr: rty::UnifyCstr) -> rty::Sort {
-        rty::Sort::Infer(self.next_sort_vid(rty::SortVarVal::Constrained(cstr)))
+    fn next_sort_var_with_cstr(&mut self, cstr: rty::SortCstr) -> rty::Sort {
+        rty::Sort::Infer(self.next_sort_vid(rty::SortVarVal::Unsolved(cstr)))
     }
 
     pub(crate) fn next_sort_vid(&mut self, val: rty::SortVarVal) -> rty::SortVid {
@@ -942,8 +942,8 @@ impl TypeFolder for ShallowResolver<'_, '_, '_> {
                 self.infcx
                     .sort_unification_table
                     .probe_value(*vid)
-                    .map(|sort| sort.fold_with(self))
-                    .unwrap_or(sort)
+                    .map_solved(|sort| sort.fold_with(self))
+                    .solved_or(sort)
             }
             rty::Sort::BitVec(rty::BvSize::Infer(vid)) => {
                 self.infcx
