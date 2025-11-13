@@ -498,7 +498,7 @@ where
         let count = constraint.concrete_head_count();
         metrics::incr_metric(Metric::CsTotal, count as u32);
         if count == 0 {
-            metrics::incr_metric(Metric::FnTrivial, 1);
+            metrics::incr_metric_if(kind.is_body(), Metric::FnTrivial);
             self.ecx.errors.to_result()?;
             return Ok(Answer::trivial());
         }
@@ -664,7 +664,7 @@ where
         if config::is_cache_enabled()
             && let Some(result) = cache.lookup(&key, hash)
         {
-            metrics::incr_metric(Metric::FnCached, 1);
+            metrics::incr_metric_if(kind.is_body(), Metric::FnCached);
             return result.clone();
         }
         let result = metrics::time_it(TimingKind::FixpointQuery(def_id, kind), || {

@@ -572,7 +572,7 @@ impl PlaceTy {
 /// The different reasons we issue fixpoint queries. This is used to dissambiguate queries that
 /// are issued for the same item.
 ///
-/// NOTE: This is defined here because it's also used in [`timings`]
+/// NOTE: This is defined here because it's also used in [`metrics`]
 #[derive(Debug, Hash, Clone, Copy)]
 pub enum FixpointQueryKind {
     /// Query issued when checking an impl method is a subtype of the trait
@@ -595,5 +595,13 @@ impl FixpointQueryKind {
     /// A string that uniquely identifies a query given an item `DefId`
     pub fn task_key(self, tcx: TyCtxt, def_id: DefId) -> String {
         format!("{}###{:?}", tcx.def_path_str(def_id), self)
+    }
+
+    /// Returns `true` if the fixpoint query kind is [`Body`].
+    ///
+    /// [`Body`]: FixpointQueryKind::Body
+    #[must_use]
+    pub fn is_body(&self) -> bool {
+        matches!(self, Self::Body)
     }
 }
