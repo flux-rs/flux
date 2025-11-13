@@ -79,8 +79,11 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     visited: DenseBitSet<BasicBlock>,
     queue: WorkQueue<'ck>,
     default_refiner: Refiner<'genv, 'tcx>,
+<<<<<<< HEAD
     /// The templates for the promoted bodies of the current function
     promoted: &'ck IndexSlice<Promoted, Ty>,
+=======
+>>>>>>> 1c21b87035 (Add panic errors)
 }
 
 /// Fields shared by the top-level function and its nested closure/generators
