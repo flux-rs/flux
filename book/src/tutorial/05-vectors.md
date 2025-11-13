@@ -308,7 +308,7 @@ fn sum_vec(vec: &RVec<i32>) -> i32 {
         res += vec.get(i);
         i += 1;
     }
-    sum
+    res
 }
 ```
 
@@ -350,10 +350,10 @@ fn sum_vec_fixed(vec: &RVec<i32>) -> i32 {
     let mut res = 0;
     let mut i = 0;
     while i < vec.len() {
-        res += vec[i]
+        res += vec[i];
         i += 1;
     }
-    sum
+    res
 }
 ```
 

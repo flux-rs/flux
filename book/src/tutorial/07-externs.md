@@ -199,13 +199,13 @@ we did for slices, [back here](#getting-the-length-of-a-slice).
 ```rust,editable
 #[extern_spec]
 impl<T> Option<T> {
-    #[sig(fn(&Option<T>[@b]) -> bool[b])]
+    #[spec(fn(&Option<T>[@b]) -> bool[b])]
     const fn is_some(&self) -> bool;
 
-    #[sig(fn(&Option<T>[@b]) -> bool[!b])]
+    #[spec(fn(&Option<T>[@b]) -> bool[!b])]
     const fn is_none(&self) -> bool;
 
-    #[sig(fn(Option<T>[true]) -> T)]
+    #[spec(fn(Option<T>[true]) -> T)]
     const fn unwrap(self) -> T;
 }
 ```
@@ -213,7 +213,7 @@ impl<T> Option<T> {
 The definition looks rather like the actual one,
 except that it wears the `#[extern_spec]` attribute
 on top, and the methods have no definitions, as we
-want to use those from the extern crate, in this case,
+want to use those from the `extern` crate, in this case,
 the standard library.
 
 Notice that the spec for
