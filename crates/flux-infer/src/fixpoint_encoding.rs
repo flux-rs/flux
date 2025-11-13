@@ -1590,6 +1590,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.expr_to_fixpoint(e2, scx)?,
                 ])));
             }
+
+            // Bit vector operations
             rty::BinOp::Add(rty::Sort::BitVec(_))
             | rty::BinOp::Sub(rty::Sort::BitVec(_))
             | rty::BinOp::Mul(rty::Sort::BitVec(_))
@@ -1606,6 +1608,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
                 ));
             }
+
+            // Set operations
             rty::BinOp::Sub(rty::Sort::App(rty::SortCtor::Set, _))
             | rty::BinOp::BitAnd(rty::Sort::App(rty::SortCtor::Set, _))
             | rty::BinOp::BitOr(rty::Sort::App(rty::SortCtor::Set, _)) => {
@@ -1616,18 +1620,19 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 ));
             }
 
+            // Interpreted arithmetic operations
             rty::BinOp::Add(_) => fixpoint::BinOp::Add,
             rty::BinOp::Sub(_) => fixpoint::BinOp::Sub,
             rty::BinOp::Mul(_) => fixpoint::BinOp::Mul,
             rty::BinOp::Div(_) => fixpoint::BinOp::Div,
             rty::BinOp::Mod(_) => fixpoint::BinOp::Mod,
 
-            rty::BinOp::BitAnd(_)
-            | rty::BinOp::BitOr(_)
-            | rty::BinOp::BitXor(_)
-            | rty::BinOp::BitShl(_)
-            | rty::BinOp::BitShr(_) => {
-                bug!();
+            rty::BinOp::BitAnd(sort)
+            | rty::BinOp::BitOr(sort)
+            | rty::BinOp::BitXor(sort)
+            | rty::BinOp::BitShl(sort)
+            | rty::BinOp::BitShr(sort) => {
+                bug!("unsupported operation `{op:?}` for sort `{sort:?}`");
             }
         };
         Ok(fixpoint::Expr::BinaryOp(
@@ -1815,7 +1820,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 fixpoint::ConstDecl {
                     name: fixpoint::Var::Global(global_name, None),
                     sort,
-                    comment: Some(format!("prim op uif:jprim {op:?}")),
+                    comment: Some(format!("prim op uif: {op:?}")),
                 }
             })
             .name

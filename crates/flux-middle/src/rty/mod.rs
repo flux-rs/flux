@@ -939,7 +939,7 @@ impl SortCstr {
 /// Unification value for sort variables used during sort checking.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SortVarVal {
-    /// The variable is not yet solved but we know it must satisfy some constraint.
+    /// The variable is not yet solved but the solution must satisfy some constraint.
     Unsolved(SortCstr),
     /// The variable has been solved to a sort.
     Solved(Sort),
