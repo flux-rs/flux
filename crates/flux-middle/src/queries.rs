@@ -585,7 +585,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
-    pub(crate) fn no_panic(&self, genv: GlobalEnv, def_id: DefId) -> QueryResult<bool> {
+    pub(crate) fn no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {
         run_with_cache(&self.no_panic, def_id, || {
             def_id.dispatch_query(
                 genv,
