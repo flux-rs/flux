@@ -7,7 +7,7 @@ use flux_common::{
 use flux_config::{self as config, InferOpts};
 use flux_infer::{
     infer::{
-        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason
+        ConstrReason, GlobalEnvExt as _, InferCtxt, InferCtxtRoot, InferResult, SubtypeReason,
     },
     projections::NormalizeExt as _,
     refine_tree::{Marker, RefineCtxtTrace},

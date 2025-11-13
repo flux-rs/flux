@@ -596,13 +596,11 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         MaybeExternId::Local(def_id) => Ok(genv.fhir_attr_map(def_id).no_panic()),
                         MaybeExternId::Extern(def_id, _) => {
                             Ok(genv.fhir_attr_map(def_id).no_panic())
-                        },
+                        }
                     }
                 },
                 |def_id| genv.cstore().no_panic(def_id),
-                |def_id| {
-                    genv.cstore().no_panic(def_id).unwrap_or(Ok(false))
-                },
+                |def_id| genv.cstore().no_panic(def_id).unwrap_or(Ok(false)),
             )
         })
     }
