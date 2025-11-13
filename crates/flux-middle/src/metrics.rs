@@ -20,15 +20,12 @@ pub fn print_summary(total_time: Duration) -> io::Result<()> {
     let mut stderr = anstream::Stderr::always(std::io::stderr());
     writeln!(
         &mut stderr,
-        "{BOLD}summary.{BOLD:#} {} functions processed: {} checked; {} trusted; {} ignored; {} cached; {} trivial. {} constraints generated: {} errors. Finished in {}{GREY:#}",
+        "{BOLD}summary.{BOLD:#} {} functions processed: {} checked; {} trusted; {} ignored. {} constraints solved. Finished in {}{GREY:#}",
         METRICS.get(Metric::FnTotal),
         METRICS.get(Metric::FnChecked),
         METRICS.get(Metric::FnTrusted),
         METRICS.get(Metric::FnIgnored),
-        METRICS.get(Metric::FnCached),
-        METRICS.get(Metric::FnTrivial),
         METRICS.get(Metric::CsTotal),
-        METRICS.get(Metric::CsError),
         fmt_duration(total_time),
     )
 }
