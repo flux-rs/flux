@@ -230,7 +230,6 @@ impl Default for Providers {
             item_bounds: |_, _| empty_query!(),
             constant_info: |_, _| empty_query!(),
             sort_decl_param_count: |_, _| empty_query!(),
-            no_panic: |_, _| empty_query!(),
         }
     }
 }
