@@ -407,7 +407,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`
-    pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<bool> {
+    pub fn no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
         self.inner.queries.no_panic(self, def_id.into_query_param())
     }
 

@@ -35,7 +35,7 @@ pub trait CrateStore {
     fn func_sort(&self, def_id: FluxDefId) -> Option<rty::PolyFuncSort>;
     fn func_span(&self, def_id: FluxDefId) -> Option<rustc_span::Span>;
     fn sort_decl_param_count(&self, def_id: FluxDefId) -> Option<usize>;
-    fn no_panic(&self, def_id: DefId) -> OptResult<bool>;
+    fn no_panic(&self, def_id: DefId) -> Option<bool>;
 }
 
 pub type CrateStoreDyn = dyn CrateStore;
