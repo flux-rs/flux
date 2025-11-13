@@ -906,7 +906,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 Ok(())
             }
-
             (
                 BaseTy::Alias(AliasKind::Opaque, alias_ty_a),
                 BaseTy::Alias(AliasKind::Opaque, alias_ty_b),
@@ -926,11 +925,6 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
-                // if let BaseTy::Alias(AliasKind::Opaque, alias_ty_a) = a {
-                //     debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                //     iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
-                //         .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
-                // }
                 // only for when concrete type on LHS and impl-with-bounds on RHS
                 self.handle_opaque_type(infcx, a, alias_ty_b)
             }
