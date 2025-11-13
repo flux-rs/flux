@@ -190,7 +190,7 @@ impl WfckResultsProvider for WfckResults {
         self.bin_op_sorts()
             .get(fhir_id)
             .cloned()
-            .unwrap_or_else(|| bug!("binary relation without elaborated sort `{fhir_id:?}`"))
+            .unwrap_or_else(|| bug!("binary operation without elaborated sort `{fhir_id:?}`"))
     }
 
     fn coercions_for(&self, fhir_id: FhirId) -> &[rty::Coercion] {
@@ -524,11 +524,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let body = self.conv_expr(&mut env, &primop_prop.body)?;
         let body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(self.genv())?);
         let op = match primop_prop.op {
-            fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
-            fhir::BinOp::BitOr => rty::BinOp::BitOr,
-            fhir::BinOp::BitXor => rty::BinOp::BitXor,
-            fhir::BinOp::BitShl => rty::BinOp::BitShl,
-            fhir::BinOp::BitShr => rty::BinOp::BitShr,
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
+            fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
+            fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
+            fhir::BinOp::BitShl => rty::BinOp::BitShl(rty::Sort::Int),
+            fhir::BinOp::BitShr => rty::BinOp::BitShr(rty::Sort::Int),
             _ => {
                 span_bug!(
                     primop_prop.span,
@@ -833,7 +833,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
                 ty_ctor.sort()
             }
-            fhir::Sort::Infer => rty::Sort::Infer(rty::SortVar(self.next_sort_vid())),
+            fhir::Sort::Infer => rty::Sort::Infer(self.next_sort_vid()),
             fhir::Sort::Err(_) => rty::Sort::Err,
         };
         Ok(sort)
@@ -1986,7 +1986,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 if vid.as_u32() == 0 { rty::SortVid::from_u32(0) } else { self.next_sort_vid() };
             rty::SubsetTyCtor::bind_with_sort(
                 rty::SubsetTy::trivial(rty::BaseTy::Infer(*vid), rty::Expr::nu()),
-                rty::Sort::Infer(rty::SortInfer::SortVar(sort_vid)),
+                rty::Sort::Infer(sort_vid),
             )
         } else {
             ty.shallow_canonicalize()
@@ -2162,7 +2162,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             fhir::ExprKind::PrimApp(op, e1, e2) => {
                 rty::Expr::prim_val(
-                    self.conv_bin_op(op, expr.fhir_id),
+                    self.conv_primop_val(op),
                     self.conv_expr(env, e1)?,
                     self.conv_expr(env, e2)?,
                 )
@@ -2227,6 +2227,13 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .map(|expr| self.conv_expr(env, expr))
                     .try_collect()?;
                 rty::Expr::ctor_struct(def_id, flds)
+            }
+            fhir::ExprKind::SetLiteral(elems) => {
+                let elems = elems
+                    .iter()
+                    .map(|expr| self.conv_expr(env, expr))
+                    .try_collect()?;
+                rty::Expr::set(elems)
             }
             fhir::ExprKind::Constructor(path, exprs, spread) => {
                 let def_id = if let Some(path) = path {
@@ -2340,6 +2347,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         exprs.iter().map(|e| self.conv_expr(env, e)).collect()
     }
 
+    fn conv_primop_val(&self, op: fhir::BinOp) -> rty::BinOp {
+        match op {
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd(rty::Sort::Int),
+            fhir::BinOp::BitOr => rty::BinOp::BitOr(rty::Sort::Int),
+            fhir::BinOp::BitXor => rty::BinOp::BitXor(rty::Sort::Int),
+            fhir::BinOp::BitShl => rty::BinOp::BitShl(rty::Sort::Int),
+            fhir::BinOp::BitShr => rty::BinOp::BitShr(rty::Sort::Int),
+            _ => bug!("unsupported primop {op:?}"),
+        }
+    }
+
     fn conv_bin_op(&self, op: fhir::BinOp, fhir_id: FhirId) -> rty::BinOp {
         match op {
             fhir::BinOp::Iff => rty::BinOp::Iff,
@@ -2357,11 +2375,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::BinOp::Mul => rty::BinOp::Mul(self.results().bin_op_sort(fhir_id)),
             fhir::BinOp::Mod => rty::BinOp::Mod(self.results().bin_op_sort(fhir_id)),
             fhir::BinOp::Div => rty::BinOp::Div(self.results().bin_op_sort(fhir_id)),
-            fhir::BinOp::BitAnd => rty::BinOp::BitAnd,
-            fhir::BinOp::BitOr => rty::BinOp::BitOr,
-            fhir::BinOp::BitXor => rty::BinOp::BitXor,
-            fhir::BinOp::BitShl => rty::BinOp::BitShl,
-            fhir::BinOp::BitShr => rty::BinOp::BitShr,
+            fhir::BinOp::BitAnd => rty::BinOp::BitAnd(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitOr => rty::BinOp::BitOr(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitXor => rty::BinOp::BitXor(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitShl => rty::BinOp::BitShl(self.results().bin_op_sort(fhir_id)),
+            fhir::BinOp::BitShr => rty::BinOp::BitShr(self.results().bin_op_sort(fhir_id)),
         }
     }
 

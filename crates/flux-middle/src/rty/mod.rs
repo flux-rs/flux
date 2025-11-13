@@ -15,8 +15,8 @@ pub mod region_matching;
 pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
-pub use SortInfer::*;
 pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder};
+use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
     ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
@@ -832,7 +832,7 @@ newtype_index! {
 }
 
 impl ena::unify::UnifyKey for SortVid {
-    type Value = Option<Sort>;
+    type Value = SortVarVal;
 
     #[inline]
     fn index(&self) -> u32 {
@@ -849,59 +849,142 @@ impl ena::unify::UnifyKey for SortVid {
     }
 }
 
-impl ena::unify::EqUnifyValue for Sort {}
+bitflags! {
+    /// A *sort constraint* is a set of operations a sort must support.
+    ///
+    /// During sort checking, we accumulate the operations required for each sort variable. As
+    /// unification progresses, these constraints become more specific, i.e, a sort must support
+    /// more operations to satisfy them.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct SortCstr: u16 {
+        /// An empty constraint (any sort satisfies it)
+        const BOT     = 0b0000000000;
+        /// `*`
+        const MUL     = 0b0000000001;
+        /// `/`
+        const DIV     = 0b0000000010;
+        /// `%`
+        const MOD     = 0b0000000100;
+        /// `+`
+        const ADD     = 0b0000001000;
+        /// `-`
+        const SUB     = 0b0000010000;
+        /// `|`
+        const BIT_OR  = 0b0000100000;
+        /// `&`
+        const BIT_AND = 0b0001000000;
+        /// `>>`
+        const BIT_SHL = 0b0010000000;
+        /// `<<`
+        const BIT_SHR = 0b0100000000;
+        /// `^`
+        const BIT_XOR = 0b1000000000;
 
-newtype_index! {
-    /// A *num*eric *v*variable *id*
-    #[debug_format = "?{}n"]
-    #[encodable]
-    pub struct NumVid {}
+        /// The set of operations supported by all _numeric_ sorts.
+        const NUMERIC = Self::ADD.bits() | Self::SUB.bits() | Self::MUL.bits() | Self::DIV.bits();
+        /// The set of operations supported by integers.
+        const INT = Self::DIV.bits()
+            | Self::MUL.bits()
+            | Self::MOD.bits()
+            | Self::ADD.bits()
+            | Self::SUB.bits();
+        /// The set of operations supported by reals.
+        const REAL = Self::ADD.bits() | Self::SUB.bits() | Self::MUL.bits() | Self::DIV.bits();
+        /// The set of operations supported by bit vectors.
+        const BITVEC =  Self::DIV.bits()
+            | Self::MUL.bits()
+            | Self::MOD.bits()
+            | Self::ADD.bits()
+            | Self::SUB.bits()
+            | Self::BIT_OR.bits()
+            | Self::BIT_AND.bits()
+            | Self::BIT_SHL.bits()
+            | Self::BIT_SHR.bits()
+            | Self::BIT_XOR.bits();
+        /// The set of operations supported by sets.
+        const SET = Self::SUB.bits() | Self::BIT_OR.bits() | Self::BIT_AND.bits();
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NumVarValue {
-    Real,
-    Int,
-    BitVec(BvSize),
-}
+impl SortCstr {
+    /// Returns a constraint that only requires the specified binary operation.
+    pub fn from_bin_op(op: fhir::BinOp) -> Self {
+        match op {
+            fhir::BinOp::Add => Self::ADD,
+            fhir::BinOp::Sub => Self::SUB,
+            fhir::BinOp::Mul => Self::MUL,
+            fhir::BinOp::Div => Self::DIV,
+            fhir::BinOp::Mod => Self::MOD,
+            fhir::BinOp::BitAnd => Self::BIT_AND,
+            fhir::BinOp::BitOr => Self::BIT_OR,
+            fhir::BinOp::BitXor => Self::BIT_XOR,
+            fhir::BinOp::BitShl => Self::BIT_SHL,
+            fhir::BinOp::BitShr => Self::BIT_SHR,
+            _ => bug!("{op:?} not supported as a constraint"),
+        }
+    }
 
-impl NumVarValue {
-    pub fn to_sort(self) -> Sort {
-        match self {
-            NumVarValue::Real => Sort::Real,
-            NumVarValue::Int => Sort::Int,
-            NumVarValue::BitVec(size) => Sort::BitVec(size),
+    /// Returns whether a sort satisfies this constraint
+    fn satisfy(self, sort: &Sort) -> bool {
+        match sort {
+            Sort::Int => SortCstr::INT.contains(self),
+            Sort::Real => SortCstr::REAL.contains(self),
+            Sort::BitVec(_) => SortCstr::BITVEC.contains(self),
+            Sort::App(SortCtor::Set, _) => SortCstr::SET.contains(self),
+            _ => self == SortCstr::BOT,
         }
     }
 }
 
-impl ena::unify::UnifyKey for NumVid {
-    type Value = Option<NumVarValue>;
+/// Unification value for sort variables used during sort checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SortVarVal {
+    /// The variable is not yet solved but the solution must satisfy some constraint.
+    Unsolved(SortCstr),
+    /// The variable has been solved to a sort.
+    Solved(Sort),
+}
 
-    #[inline]
-    fn index(&self) -> u32 {
-        self.as_u32()
-    }
-
-    #[inline]
-    fn from_index(u: u32) -> Self {
-        NumVid::from_u32(u)
-    }
-
-    fn tag() -> &'static str {
-        "NumVid"
+impl Default for SortVarVal {
+    fn default() -> Self {
+        SortVarVal::Unsolved(SortCstr::BOT)
     }
 }
 
-impl ena::unify::EqUnifyValue for NumVarValue {}
+impl SortVarVal {
+    pub fn solved_or(&self, sort: &Sort) -> Sort {
+        match self {
+            SortVarVal::Unsolved(_) => sort.clone(),
+            SortVarVal::Solved(sort) => sort.clone(),
+        }
+    }
 
-/// A placeholder for a sort that needs to be inferred
-#[derive(PartialEq, Eq, Clone, Copy, Hash, Encodable, Decodable)]
-pub enum SortInfer {
-    /// A sort variable.
-    SortVar(SortVid),
-    /// A numeric sort variable.
-    NumVar(NumVid),
+    pub fn map_solved(&self, f: impl FnOnce(&Sort) -> Sort) -> SortVarVal {
+        match self {
+            SortVarVal::Unsolved(cstr) => SortVarVal::Unsolved(*cstr),
+            SortVarVal::Solved(sort) => SortVarVal::Solved(f(sort)),
+        }
+    }
+}
+
+impl ena::unify::UnifyValue for SortVarVal {
+    type Error = ();
+
+    fn unify_values(value1: &Self, value2: &Self) -> Result<Self, Self::Error> {
+        match (value1, value2) {
+            (SortVarVal::Solved(s1), SortVarVal::Solved(s2)) if s1 == s2 => {
+                Ok(SortVarVal::Solved(s1.clone()))
+            }
+            (SortVarVal::Unsolved(a), SortVarVal::Unsolved(b)) => Ok(SortVarVal::Unsolved(*a | *b)),
+            (SortVarVal::Unsolved(v), SortVarVal::Solved(sort))
+            | (SortVarVal::Solved(sort), SortVarVal::Unsolved(v))
+                if v.satisfy(sort) =>
+            {
+                Ok(SortVarVal::Solved(sort.clone()))
+            }
+            _ => Err(()),
+        }
+    }
 }
 
 newtype_index! {
@@ -946,7 +1029,7 @@ pub enum Sort {
     Func(PolyFuncSort),
     App(SortCtor, List<Sort>),
     Var(ParamSort),
-    Infer(SortInfer),
+    Infer(SortVid),
     Err,
 }
 

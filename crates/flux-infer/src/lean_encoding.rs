@@ -196,7 +196,6 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             writeln!(structs_file, "{}", lean_format::LeanDataDecl(data_decl, self.genv))?;
         }
         writeln!(structs_file, "end")?;
-        if !data_decls.is_empty() {}
         Ok(())
     }
 
@@ -217,7 +216,7 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             writeln!(opaque_funcs_file, "import {}.OpaqueSorts", pascal_project_name.as_str())?;
         }
         if has_data_decls {
-            writeln!(opaque_funcs_file, "import {}.Structs", pascal_project_name.as_str())?
+            writeln!(opaque_funcs_file, "import {}.Structs", pascal_project_name.as_str())?;
         }
         writeln!(opaque_funcs_file, "-- OPAQUE DEFS --")?;
         writeln!(opaque_funcs_file, "class FluxOpaqueFuncs where")?;
@@ -334,17 +333,17 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         let has_opaque_funcs = !opaque_funs.is_empty();
 
         if has_opaque_sorts {
-            self.generate_sort_typeclass_files(&opaque_sorts)?;
+            self.generate_sort_typeclass_files(opaque_sorts)?;
         }
         if has_data_decls {
-            self.generate_struct_defs_file(&data_decls, has_opaque_sorts)?;
+            self.generate_struct_defs_file(data_decls, has_opaque_sorts)?;
         }
         if has_opaque_funcs {
-            self.generate_func_typeclass_files(&opaque_funs, has_opaque_sorts, has_data_decls)?;
+            self.generate_func_typeclass_files(opaque_funs, has_opaque_sorts, has_data_decls)?;
         }
         if !func_defs.is_empty() {
             self.generate_func_defs_file(
-                &func_defs,
+                func_defs,
                 has_opaque_sorts,
                 has_data_decls,
                 has_opaque_funcs,
