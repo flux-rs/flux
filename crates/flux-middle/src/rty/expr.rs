@@ -282,8 +282,8 @@ impl Expr {
     }
 
     fn empty() -> Expr {
-        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetSng));
-        Expr::app(func, List::empty(), List::empty())
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetEmpty));
+        Expr::app(func, List::empty(), List::from_arr([Expr::zero()]))
     }
 
     fn singleton(elem: Expr) -> Expr {
