@@ -9,6 +9,7 @@ use flux_rustc_bridge::{
     ty::{Const, ConstKind, ValTree, VariantIdx},
 };
 use itertools::Itertools;
+use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
 use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hir::def_id::DefId;
@@ -278,6 +279,29 @@ impl Expr {
 
     pub fn ite(p: impl Into<Expr>, e1: impl Into<Expr>, e2: impl Into<Expr>) -> Expr {
         ExprKind::IfThenElse(p.into(), e1.into(), e2.into()).intern()
+    }
+
+    fn empty() -> Expr {
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetEmpty));
+        Expr::app(func, List::empty(), List::from_arr([Expr::zero()]))
+    }
+
+    fn singleton(elem: Expr) -> Expr {
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetSng));
+        Expr::app(func, List::empty(), List::from_arr([elem]))
+    }
+
+    fn union(expr1: Expr, expr2: Expr) -> Expr {
+        let func = Self::global_func(SpecFuncKind::Thy(ThyFunc::SetCup));
+        Expr::app(func, List::empty(), List::from_arr([expr1, expr2]))
+    }
+
+    pub fn set(elems: List<Expr>) -> Expr {
+        let mut expr = Expr::empty();
+        for elem in &elems {
+            expr = Self::union(expr, Self::singleton(elem.clone()));
+        }
+        expr
     }
 
     pub fn abs(lam: Lambda) -> Expr {
@@ -659,11 +683,11 @@ pub enum BinOp {
     Mul(Sort),
     Div(Sort),
     Mod(Sort),
-    BitAnd,
-    BitOr,
-    BitXor,
-    BitShl,
-    BitShr,
+    BitAnd(Sort),
+    BitOr(Sort),
+    BitXor(Sort),
+    BitShl(Sort),
+    BitShr(Sort),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Encodable, Debug, Decodable)]
@@ -1265,9 +1289,11 @@ pub(crate) mod pretty {
                 | BinOp::Le(_) => Precedence::Cmp,
                 BinOp::Add(_) | BinOp::Sub(_) => Precedence::AddSub,
                 BinOp::Mul(_) | BinOp::Div(_) | BinOp::Mod(_) => Precedence::MulDiv,
-                BinOp::BitAnd | BinOp::BitOr | BinOp::BitShl | BinOp::BitShr | BinOp::BitXor => {
-                    Precedence::Bitvec
-                }
+                BinOp::BitAnd(_)
+                | BinOp::BitOr(_)
+                | BinOp::BitShl(_)
+                | BinOp::BitShr(_)
+                | BinOp::BitXor(_) => Precedence::Bitvec,
             }
         }
     }
@@ -1610,11 +1636,11 @@ pub(crate) mod pretty {
                 BinOp::Mul(_) => w!(cx, f, "*"),
                 BinOp::Div(_) => w!(cx, f, "/"),
                 BinOp::Mod(_) => w!(cx, f, "mod"),
-                BinOp::BitAnd => w!(cx, f, "&"),
-                BinOp::BitOr => w!(cx, f, "|"),
-                BinOp::BitXor => w!(cx, f, "^"),
-                BinOp::BitShl => w!(cx, f, "<<"),
-                BinOp::BitShr => w!(cx, f, ">>"),
+                BinOp::BitAnd(_) => w!(cx, f, "&"),
+                BinOp::BitOr(_) => w!(cx, f, "|"),
+                BinOp::BitXor(_) => w!(cx, f, "^"),
+                BinOp::BitShl(_) => w!(cx, f, "<<"),
+                BinOp::BitShr(_) => w!(cx, f, ">>"),
             }
         }
     }

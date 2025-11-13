@@ -1152,8 +1152,9 @@ fn parse_refine_arg(cx: &mut ParseCtxt) -> ParseResult<RefineArg> {
         let bind = parse_ident(cx)?;
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::At, cx.mk_span(lo, hi), cx.next_node_id())
-    } else if cx.advance_if(token::Pound) {
+    } else if cx.peek2(token::Pound, NonReserved) {
         // # ⟨ident⟩
+        cx.expect(token::Pound)?;
         let bind = parse_ident(cx)?;
         let hi = cx.hi();
         RefineArg::Bind(bind, BindKind::Pound, cx.mk_span(lo, hi), cx.next_node_id())
@@ -1314,6 +1315,7 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
 ///         | [binop]
 ///         | ⟨epath⟩ { ⟨constructor_arg⟩,* }    if allow_struct
 ///         | { ⟨constructor_arg⟩,* }            if allow_struct
+///         | #{ ⟨expr⟩,* }
 /// ```
 fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
@@ -1326,6 +1328,13 @@ fn parse_atom(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
         parse_lit(cx)
     } else if lookahead.peek(token::OpenParen) {
         delimited(cx, Parenthesis, |cx| parse_expr(cx, true))
+    } else if lookahead.advance_if(token::Pound) {
+        // #{ ⟨expr⟩,* }
+        let lo = cx.lo();
+        let exprs = braces(cx, Comma, |cx| parse_expr(cx, true))?;
+        let hi = cx.hi();
+        let kind = ExprKind::SetLiteral(exprs);
+        Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) })
     } else if lookahead.peek(NonReserved) {
         let path = parse_expr_path(cx)?;
         let kind = if allow_struct && cx.peek(token::OpenBrace) {

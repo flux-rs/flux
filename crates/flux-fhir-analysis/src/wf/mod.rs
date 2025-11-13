@@ -521,7 +521,7 @@ impl<'genv, 'tcx> ConvPhase<'genv, 'tcx> for Wf<'_, 'genv, 'tcx> {
     }
 
     fn next_sort_vid(&mut self) -> rty::SortVid {
-        self.infcx.next_sort_vid()
+        self.infcx.next_sort_vid(Default::default())
     }
 
     fn next_type_vid(&mut self) -> rty::TyVid {
