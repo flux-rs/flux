@@ -1506,11 +1506,11 @@ trait DesugarCtxt<'genv, 'tcx: 'genv>: ErrorEmitter + ErrorCollector<ErrorGuaran
                 let body = self.genv().alloc(self.desugar_expr(body));
                 fhir::ExprKind::Block(decls, body)
             }
-            surface::ExprKind::Set(exprs) => {
+            surface::ExprKind::SetLiteral(exprs) => {
                 let exprs = self
                     .genv()
                     .alloc_slice_fill_iter(exprs.iter().map(|expr| self.desugar_expr(expr)));
-                fhir::ExprKind::Set(exprs)
+                fhir::ExprKind::SetLiteral(exprs)
             }
         };
 

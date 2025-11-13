@@ -706,7 +706,7 @@ pub enum ExprKind {
     BoundedQuant(QuantKind, RefineParam, Range<usize>, Box<Expr>),
     Block(Vec<LetDecl>, Box<Expr>),
     /// Set expression `#{ e1, e2, ..., en }`
-    Set(Vec<Expr>),
+    SetLiteral(Vec<Expr>),
 }
 
 #[derive(Debug)]

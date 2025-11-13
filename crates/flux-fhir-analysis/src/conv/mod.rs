@@ -2228,7 +2228,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     .try_collect()?;
                 rty::Expr::ctor_struct(def_id, flds)
             }
-            fhir::ExprKind::Set(elems) => {
+            fhir::ExprKind::SetLiteral(elems) => {
                 let elems = elems
                     .iter()
                     .map(|expr| self.conv_expr(env, expr))

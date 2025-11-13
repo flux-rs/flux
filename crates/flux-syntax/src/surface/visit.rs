@@ -616,7 +616,7 @@ pub fn walk_expr<V: Visitor>(vis: &mut V, expr: &Expr) {
             }
             vis.visit_expr(body);
         }
-        ExprKind::Set(exprs) => {
+        ExprKind::SetLiteral(exprs) => {
             walk_list!(vis, visit_expr, exprs);
         }
     }

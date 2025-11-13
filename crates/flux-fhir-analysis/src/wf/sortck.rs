@@ -211,7 +211,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 self.check_constructor(expr, exprs, spread, expected)?;
             }
             fhir::ExprKind::UnaryOp(..)
-            | fhir::ExprKind::Set(..)
+            | fhir::ExprKind::SetLiteral(..)
             | fhir::ExprKind::BinaryOp(..)
             | fhir::ExprKind::Dot(..)
             | fhir::ExprKind::App(..)
@@ -373,7 +373,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 }
                 self.synth_expr(body)
             }
-            fhir::ExprKind::Set(elems) => {
+            fhir::ExprKind::SetLiteral(elems) => {
                 let elem_sort = self.next_sort_var();
                 for elem in elems {
                     self.check_expr(elem, &elem_sort)?;
