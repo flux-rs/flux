@@ -594,9 +594,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         MaybeExternId::Local(def_id) => def_id,
                         MaybeExternId::Extern(def_id, _) => def_id,
                     };
-                    genv.fhir_attr_map(local_id).no_panic()
+
+                    // 1. First, check to see if this item has the `no_panic` attribute
+                    if genv.fhir_attr_map(local_id).no_panic() {
+                        return true;
+                    }
+
+                    // 2. If not, walk up the parent chain to see if any parent has the attribute
+                    if let Some(parent) = genv.tcx().opt_local_parent(local_id) {
+                        println!("going up to parent {parent:?} from {def_id:?}");
+                        return genv.no_panic(parent);
+                    } else {
+                        println!("no parent for {def_id:?}");
+                    }
+
+                    false
+
                 },
-                |def_id| genv.cstore().no_panic(def_id),
+                |def_id|  {
+                    println!("hello from cstore");
+                    genv.cstore().no_panic(def_id)
+                },
                 |_| false,
             )
         })
