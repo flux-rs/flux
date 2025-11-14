@@ -1,0 +1,659 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Case Study: Neural Networks - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="neural-networks"><a class="header" href="#neural-networks">Neural Networks</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">use crate::rvec::{self, AsRVec as _, RVec, rvec};
+use flux_rs::assert;
+use flux_rs::attrs::*;
+use rand::{Rng, rngs::ThreadRng};</code></pre></pre>
+<p>Next, lets look at a case study that ties together many of the different
+features of Flux that we have seen in the previous chapters: lets build
+a small neural network library. This chapter is heavily inspired by this
+blog post <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> and Michael Nielsen’s book on neural networks <sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup>.</p>
+<div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
+<tr><td></td><td></td></tr>
+<tr><td><img src="../img/neural-layer-1.png" style="width:85.0%" /></td><td><img src="../img/neural-layer-2.png" style="width:55.0%" /></td></tr>
+</tbody></table>
+</div>
+<p>A Neural Network Layer with 3 inputs and 4 outputs.</p>
+<p><span id="fig:neural-layer"></span></p>
+<h2 id="layers"><a class="header" href="#layers">Layers</a></h2>
+<p>Per wikipedia, a neural network <sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup> “consists of connected units or
+nodes called artificial <strong>neurons</strong> … Each artificial neuron receives
+<strong>signals</strong> from connected neurons, then processes them and sends a
+signal to other connected neurons… The <strong>output</strong> of each neuron is
+computed by some non-linear <strong>(activation) function</strong> of the totality of
+its <strong>inputs</strong>… The strength of the signal at each connection is
+determined by a <strong>weight</strong>… Typically neurons are aggregated into
+<strong>layers</strong>…”</p>
+<p>Figure [fig]:neural-layer illustrates, on the left, a single neural
+network layer with 3 <em>inputs</em> and 4 <em>outputs</em>. Each output neuron
+receives a <em>signal</em> from each of the 3 input neurons, as shown by the
+edges from the inputs to the outputs. Furthermore, as shown on the
+right, each edge has a <em>weight</em>. For example, the <code>i</code><sup>th</sup>
+output neuron has distinct weights <code>weight[i][0]</code> and <code>weight[i][1]</code> and
+<code>weight[i][2]</code> for each of its input neurons.</p>
+<p><strong>Representing Layers</strong> We can represent a layer as a <code>struct</code> with
+fields for the number of inputs, outputs, weights, and biases.</p>
+<pre><pre class="playground"><code class="language-rust  editable">struct Layer {
+    num_inputs: usize,
+    num_outputs: usize,
+    weight: RVec&lt;RVec&lt;f64&gt;&gt;,
+    bias: RVec&lt;f64&gt;,
+    outputs: RVec&lt;f64&gt;,
+}</code></pre></pre>
+<p>Of course, the plain Rust definition says little about the <code>Layer</code>‘s
+<em>dimensions</em>. That is it does not tell us that <code>weight</code> is a 2D vector
+that stores for each of the <code>num_outputs</code>, a vector of size
+<code>num_inputs</code>, and that <code>bias</code> and <code>outputs</code> are vectors of length
+<code>num_outputs</code>. No matter! We <em>refine</em> the <code>Layer</code> struct with a detached
+<sup class="footnote-reference" id="fr-4-1"><a href="#footnote-4">4</a></sup> specification that makes these relationships explicit.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[specs {
+    #[refined_by(i: int, o: int)]
+    struct Layer {
+        num_inputs: usize[i],
+        num_outputs: usize[o],
+        weight: RVec&lt;RVec&lt;f64&gt;[i]&gt;[o],
+        bias: RVec&lt;f64&gt;[o],
+        outputs: RVec&lt;f64&gt;[o],
+    }
+}]
+const _: () = ();</code></pre></pre>
+<p>Lets step through the detached specification.</p>
+<ul>
+<li>
+<p>First, we declare that the <code>Layer</code> struct is <em>refined by</em> two <code>int</code>
+indexes <code>i</code> and <code>o</code>, which will represent the input and output
+dimension of the <code>Layer</code>;</p>
+</li>
+<li>
+<p>Next, we refine the <code>num_inputs</code> field as <code>usize[i]</code> and <code>num_outputs</code>
+field to be of type <code>usize[o]</code>, meaning that its value is equal to the
+index <code>i</code> and <code>o</code> respectively, and hence, that those fields represent
+the run-time values of their respective dimensions.</p>
+</li>
+<li>
+<p>Next, we refine the <code>weight</code> field to be a refined vector <sup class="footnote-reference" id="fr-5-1"><a href="#footnote-5">5</a></sup> of
+vectors <code>RVec&lt;RVec&lt;f64&gt;[i]&gt;[o]</code> indicating that for each of the <code>o</code>
+outputs, we have a vector of <code>i</code> weights, one for each input;</p>
+</li>
+<li>
+<p>Finally, we refine the <code>bias</code> and <code>outputs</code> fields to be vectors of
+length <code>o</code>, indicating a single bias and output value for each output
+neuron.</p>
+</li>
+</ul>
+<p><strong>Why Detach?</strong> We could just as easily have written the above as a
+regular attached specification, using attributes on the fields of the
+<code>Layer</code> struct. We chose to use the detached style here purely for
+illustration, and because I personally think its somewhat easier on the
+eye.</p>
+<h2 id="creating-layers"><a class="header" href="#creating-layers">Creating Layers</a></h2>
+<p>Next, lets write a constructor for <code>Layer</code>s.</p>
+<p><strong>Initializing a Vector</strong> Since we have to build nested vectors, it will
+be convenient to write a helper function that uses a closure to build a
+vector of some given size.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(n: usize, f:F) -&gt; RVec&lt;A&gt;[n]
+       where F: FnMut(usize) -&gt; A)]
+fn init&lt;F, A&gt;(n: usize, mut f: F) -&gt; RVec&lt;A&gt;
+where
+    F: FnMut(usize) -&gt; A,
+{
+    let mut res = RVec::new();
+    for i in 0..n {
+        res.push(f(i));
+    }
+    res
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> The function below takes as input a reference to a <code>RVec</code>
+and uses <code>init</code> to compute the <code>mirror</code> image of the input, <em>i.e.</em>, an
+<code>RVec</code> where the elements are reversed. Can you fix the specification of
+<code>init</code> so it is accepted?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(vec: &amp;RVec&lt;T&gt;[@n]) -&gt; RVec&lt;T&gt;[n])]
+fn mirror&lt;T: Clone&gt;(vec: &amp;RVec&lt;T&gt;) -&gt; RVec&lt;T&gt; {
+    let n = vec.len();
+    init(n, |i| vec[n-i-1].clone())
+}</code></pre></pre>
+<p><strong>Layer Constructor</strong> Our <code>Layer</code> constructor will use <code>init</code> to create
+a randomly generated starting matrix of weights and biases that will
+then get adjusted during training. Hooray for closures: we can call
+<code>init</code> with an outer closure that creates each <em>output row</em> of the
+weight matrix, and an inner closure that creates the <em>input</em> weights for
+that row.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Layer {
+  #[spec(fn(i: usize, o: usize) -&gt; Layer[i, o])]
+  fn new(i: usize, o: usize) -&gt; Layer {
+    let mut rng = rand::thread_rng();
+    Layer {
+      num_inputs: i,
+      num_outputs: o,
+      weight: init(i, |_| init(o, |_| rng.gen_range(-1.0..1.0))),
+      bias: init(o, |_| rng.gen_range(-1.0..1.0)),
+      outputs: init(o, |_| 0.0),
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Looks like the auto-complete snuck in a bug in definition
+of <code>new</code> above, which, thankfully, Flux has flagged! Can you spot and
+fix the problem?</p>
+<h2 id="layer-propagation"><a class="header" href="#layer-propagation">Layer Propagation</a></h2>
+<p>A neural layer (and ultimately, network) is, of course, ultimately a
+representation of a <em>function</em> that maps inputs to outputs, for example,
+to map inputs corresponding to the pixels of an image to outputs
+corresponding to the labels of objects in the image. Thus, each neural
+layer must implement two key functions:</p>
+<ul>
+<li>
+<p><code>forward</code> which <em>evaluates</em> the function by computing the values of
+the outputs given the current values of the inputs, weights, and
+biases; and</p>
+</li>
+<li>
+<p><code>backward</code> which <em>propagates</em> the error (or loss) between the
+evaluated output backwards by computing the gradients of the weights
+and biases with respect to the loss, and then “trains” the network by
+adjusting the weights and biases to minimize the loss.</p>
+</li>
+</ul>
+<p>Next, let’s look at how we might <em>implement</em> these function using our
+<code>Layer</code> datatype. We will not look at the mathematics of these functions
+in any detail, to learn more, I heartily recommend chapters 2 and 3 of
+Nielsen’s book <sup class="footnote-reference" id="fr-6-1"><a href="#footnote-6">6</a></sup>.</p>
+<h3 id="forward-evaluation"><a class="header" href="#forward-evaluation">Forward Evaluation</a></h3>
+<p>In brief, the goal of the <code>forward</code> function is to compute the value of
+each output neuron <code>outputs[i]</code> as the <em>weighted sum</em> of its input
+neurons <code>inputs[i]</code>, and return <code>1</code> if that sum plus its <code>bias[i]</code> — a
+threshold — is above zero, and <code>0</code> otherwise.</p>
+<pre><code class="language-math">\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \begin{cases}
+1\text{ if  }\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack &gt; 0 \\
+0\text{ otherwise }
+\end{cases}
+</code></pre>
+<p>The discrete “step” function above discontinuously leaps from <code>0</code> to <code>1</code>
+at the threshold, which gets in the way of computing gradients during
+backpropagation. So instead we <em>smooth</em> it out using a <em>sigmoid</em>
+(logistic) function</p>
+<pre><code class="language-math">\sigma(x) ≔ \frac{1}{1 + \exp( - x)}
+</code></pre>
+<p>which transitions gradually from <code>0</code> to <code>1</code> as shown below:</p>
+<figure>
+<p><img src="../img/sigmoid.png" style="width:61.0%" /></p>
+<figcaption><p>Sigmoid vs. Step Function</p></figcaption>
+</figure>
+<p><span id="fig:sigmoid-step"></span></p>
+<p>Thus, when we put the weighted-sum and sigmoid together, we get the
+following formula for computing the i<sup>th</sup> output neuron:</p>
+<pre><code class="language-math">\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \sigma(\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack)
+</code></pre>
+<p><span id="eq:neural-output"></span></p>
+<p><strong>EXERCISE:</strong> Below is the implementation of a function that computes
+the <code>dot_product</code> of two vectors. Can you figure out why Flux is
+complaining and fix the code so it verifies?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn dot_product2(a: &amp;RVec&lt;f64&gt;, b: &amp;RVec&lt;f64&gt;) -&gt; f64 {
+    (0..a.len()).map(|i| (a[i] * b[i])).sum()
+}</code></pre></pre>
+<p>We can now use the implementation of <code>dot_product</code> to transcribe the
+equation above math into our Rust implementation of <code>forward</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Layer {
+  #[spec(fn(&amp;mut Layer[@l], &amp;RVec&lt;f64&gt;) )]
+  fn forward(&amp;mut self, input: &amp;RVec&lt;f64&gt;) {
+    (0..self.num_outputs).for_each(|i| {
+      let weighted_input = dot_product(&amp;self.weight[i], input);
+      self.outputs[i] = sigmoid(weighted_input + self.bias[i])
+    })
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Flux is unhappy about the implementation of <code>forward</code>. Can
+you figure out why and add the type specification that lets Flux verify
+the code?</p>
+<h3 id="backward-propagation"><a class="header" href="#backward-propagation">Backward Propagation</a></h3>
+<p>Next, lets implement the <code>backward</code> propagation function that takes as
+input the inputs given to the <code>Layer</code> and the <em>error</em> produced by a
+given Layer (roughly, the difference between the expected output and the
+actual output of that layer), and learning <code>rate</code> <em>hyper-parameter</em> that
+controls the step size for gradient descent, to</p>
+<ol>
+<li>
+<p><em>Update</em> the weights and biases of the layer to reduce the error,
+and</p>
+</li>
+<li>
+<p><em>Propagate</em> the appropriate amount of error to the previous layer.</p>
+</li>
+</ol>
+<pre><pre class="playground"><code class="language-rust  editable">impl Layer {
+  fn backward(&amp;mut self, inputs: &amp;RVec&lt;f64&gt;, err: &amp;RVec&lt;f64&gt;, rate:f64)
+     -&gt; RVec&lt;f64&gt; {
+    let mut input_err = rvec![0.0; inputs.len()];
+    for i in 0..self.num_outputs {
+        for j in 0..self.num_inputs {
+            input_err[j] += self.weight[i][j] * err[i];
+            self.weight[i][j] -= rate * err[i] * inputs[j];
+        }
+        self.bias[i] -= rate * err[i];
+    }
+    input_err
+  }
+}</code></pre></pre>
+<p>The code works as follows.</p>
+<ol>
+<li>
+<p>First, we initialize the <code>input_err</code> vector that corresponds to the
+<code>err</code> propagated backwards (to the previous layer);</p>
+</li>
+<li>
+<p>Next, we loop over each output neuron <code>i</code>, and iterate over each of
+its inputs <code>j</code> to <em>accumulate</em> that input’s weighted contribution to
+the <code>err</code>, and <em>update</em> <code>weight[i][j]</code> (and similarly, <code>bias[i]</code>)
+with the gradient <code>err[i] * inputs[j]</code> multiplied by the <code>rate</code>
+which ensures we subsequently reduce the error;</p>
+</li>
+</ol>
+<p><strong>EXERCISE:</strong> Looks like we forgot to write down the appropriate
+dimensions for the input <code>Layer</code> and the various input and output
+vectors, which makes Flux report errors all over the place. Can you fill
+them in so the code verifies?</p>
+<h2 id="composing-layers-into-networks"><a class="header" href="#composing-layers-into-networks">Composing Layers into Networks</a></h2>
+<p>A neural <em>network</em> is the composition of multiple <em>layers</em>.
+[fig]:neural-network shows a network that maps 3-inputs to 4-outputs,
+with three <em>hidden</em> levels in between which respectively 4, 2, and 3
+neurons. Put another way, we might say that the network in the figure
+composes <em>four</em> <code>Layer</code>s shown in blue, green, yellow and orange
+respectively. In this case, the <code>Layer</code>s match up nicely, with the
+outputs of each precisely matching the inputs of the next layer. Next,
+lets see how Flux can help ensure that we only ever construct networks
+where the layers snap together perfectly.</p>
+<figure>
+<p><img src="../img/neural-network.png" style="width:100.0%" /></p>
+<figcaption><p>A 3-input, 4-output neural network with three hidden
+levels.</p></figcaption>
+</figure>
+<p><span id="fig:neural-network"></span></p>
+<p>The key idea is to think of <em>building up</em> the network from the right to
+the left, starting with the final output layer, and working our way
+backwards.</p>
+<ul>
+<li>
+<p>The <em>last</em> orange <code>Layer[3, 4]</code> corresponds to a <code>Network</code> that maps 3
+inputs to 4 outputs (lets call that a <code>Network[3, 4]</code>);</p>
+</li>
+<li>
+<p>Next, we add the yellow <code>Layer[2, 3]</code> that composes with the
+<code>Network[3, 4]</code> to give us a <code>Network[2, 4]</code>;</p>
+</li>
+<li>
+<p>Next, we slap on the green <code>Layer[4, 2]</code> which connects with the
+<code>Network[2, 3]</code> to give a <code>Network[4, 4]</code>;</p>
+</li>
+<li>
+<p>Finally, we top it off with the blue <code>Layer[3, 4]</code> that connects with
+the <code>Network[4, 4]</code> to give us the final <code>Network[3, 4]</code>.</p>
+</li>
+</ul>
+<p><strong>Refined <code>Network</code>s</strong> Lets codify the above intuition by defining a
+recursive <code>Network</code> that is <em>refined by</em> the number of input and output
+neurons.</p>
+<pre><pre class="playground"><code class="language-rust  editable">enum Network {
+   #[variant((Layer[@i, @o]) -&gt; Network[i, o])]
+   Last(Layer),
+
+   #[variant((Layer[@i, @h], Box&lt;Network[h, @o]&gt;) -&gt; Network[i, o])]
+   Next(Layer, Box&lt;Network&gt;),
+}</code></pre></pre>
+<p>Lets consider the two variants of the <code>Network</code> enum.</p>
+<ul>
+<li>
+<p>The <code>Last</code> variant takes as input a <code>Layer[i, o]</code> to construct a
+<code>Network[i, o]</code>, just like the orange <code>Layer[3, 4]</code> yields a
+<code>Network[3, 4]</code>;</p>
+</li>
+<li>
+<p>The <code>Next</code> variant takes as input a <code>Layer[i, h]</code> which maps <code>i</code>
+<em>inputs</em> to <code>h</code> <em>hidden</em> neurons, and a <code>Network[h, o]</code> which maps
+those <code>h</code> hidden neurons to <code>o</code> <em>outputs</em>, to construct a
+<code>Network[i, o]</code> that maps <code>i</code> inputs to <code>o</code> outputs!</p>
+</li>
+</ul>
+<p>The network in [fig]:neural-network can thus be represented as</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Network[3, 4])]
+fn example_network() -&gt; Network {
+  let blue = Layer::new(3, 4);
+  let green = Layer::new(4, 2);
+  let yellow = Layer::new(2, 3);
+  let orange = Layer::new(3, 4);
+  network![blue, green, yellow, orange]
+}</code></pre></pre>
+<p>where the <code>network!</code> macro recursively applies <code>Next</code> and <code>Last</code> to
+build the <code>Network</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[macro_export]
+macro_rules! network {
+    ($last:expr) =&gt; {
+        Network::Last($last)
+    };
+    ($first:expr, $($rest:expr),+) =&gt; {
+        Network::Next($first, Box::new(network!($($rest),+)))
+    };
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the specification and implementation of a
+function <code>Network::new</code> that takes as input the number of <code>inputs</code>, a
+slice of <code>hiddens</code>, and the number of <code>outputs</code> and returns a <code>Network</code>
+that maps the <code>inputs</code> to <code>outputs</code> after passing through the specified
+hidden layers.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Network {
+  fn new(inputs: usize, hiddens: &amp;[usize], outputs: usize) -&gt; Network {
+    if hidden_sizes.is_empty() {
+      Network::Last(Layer::new(input_size, output_size))
+    } else {
+      todo!()
+    }
+  }
+}</code></pre></pre>
+<p>When done, the following should create a <code>Network</code> like that in
+[fig]:neural-network.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Network[3, 4])]
+fn test_network() -&gt; Network { Network::new(3, &amp;[4, 2, 3], 4) }</code></pre></pre>
+<h2 id="network-propagation"><a class="header" href="#network-propagation">Network Propagation</a></h2>
+<p>Finally, lets implement the <code>forward</code> and <code>backward</code> functions so that
+they work over the entire <code>Network</code>, thereby allowing us to do both
+training and inference.</p>
+<h3 id="forward-evaluation-1"><a class="header" href="#forward-evaluation-1">Forward Evaluation</a></h3>
+<p><strong>EXERCISE:</strong> The <code>forward</code> evaluation recurses on the <code>Network</code>,
+calling <code>forward</code> on each <code>Layer</code> and passing the outputs to the <code>next</code>
+part of the <code>Network</code>, returning the output of the <code>Last</code> layer. Fill in
+the specification for <code>forward</code> so it verifies.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn forward(&amp;mut self, input: &amp;RVec&lt;f64&gt;) -&gt; RVec&lt;f64&gt; {
+  match self {
+    Network::Next(layer, next) =&gt; {
+      layer.forward(input); next.forward(&amp;layer.outputs)
+    }
+    Network::Last(layer) =&gt; {
+      layer.forward(input); layer.outputs.clone()
+    }
+  }
+}</code></pre></pre>
+<h3 id="back-propagation"><a class="header" href="#back-propagation">Back Propagation</a></h3>
+<p>The <em>back-propagation</em> function assumes we have already done a <code>forward</code>
+pass, and have the outputs stored in each <code>Layer</code>‘s <code>outputs</code> field. It
+then takes as input the <code>target</code> or expected output, computes the
+<code>err</code>or at the last layer, and then propagates that error backwards
+through the network, updating the weights and biases as it goes using
+the gradients computed at each layer via its <code>backward</code> function.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn backward(&amp;mut self, inputs:&amp;RVec&lt;f64&gt;, target:&amp;RVec&lt;f64&gt;, rate:f64)
+   -&gt; RVec&lt;f64&gt; {
+  match self {
+    Network::Last(layer) =&gt; {
+      let err = (0..layer.num_outputs)
+                  .map(|i| layer.outputs[i] - target[i])
+                  .collect();
+      layer.backward(inputs, &amp;err, rate)
+    }
+    Network::Next(layer, next) =&gt; {
+      todo!("exercise: fill this in")
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the specification and implementation of
+<code>backward</code> above so that it recursively propagates the error all the way
+to the first layer, by calling <code>backward</code> on each of the intermediate
+layers.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>To recap, in this chapter, we saw how to build a small neural network
+library from scratch in Rust, using Flux’s refinement types to track the
+dimensions of each network <code>Layer</code> and to ensure that they are composed
+correctly into a <code>Network</code>. Note that doing so requires checking a
+“linking” property: that the outputs of one layer match the inputs of
+the next layer, and that this happens for an unbounded number of layers.
+Its rather convenient that one can neatly tuck this invariant inside the
+<code>enum</code> definition of <code>Network</code>, in a way that the type checker can then
+verify automatically at compile time!</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p><a href="https://byteblog.medium.com/building-a-simple-neural-network-from-scratch-in-rust-3a7b12ed30a9">https://byteblog.medium.com/building-a-simple-neural-network-from-scratch-in-rust-3a7b12ed30a9</a> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p><a href="http://neuralnetworksanddeeplearning.com/chap1.html">http://neuralnetworksanddeeplearning.com/chap1.html</a> <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p><a href="https://en.wikipedia.org/wiki/Neural_network_(machine_learning)">https://en.wikipedia.org/wiki/Neural_network_(machine_learning)</a> <a href="#fr-3-1">↩</a></p>
+</li>
+<li id="footnote-4">
+<p>As described in <a href="ch11_equality.html#detached">this chapter</a> <a href="#fr-4-1">↩</a></p>
+</li>
+<li id="footnote-5">
+<p>As described in <a href="ch06_vectors.html">this chapter</a> <a href="#fr-5-1">↩</a></p>
+</li>
+<li id="footnote-6">
+<p><a href="http://neuralnetworksanddeeplearning.com/">http://neuralnetworksanddeeplearning.com/</a> <a href="#fr-6-1">↩</a></p>
+</li>
+</ol>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/13-bitvectors.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../guide/specifications.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/13-bitvectors.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../guide/specifications.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

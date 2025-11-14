@@ -1,0 +1,525 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Case Study: Simple Access Control - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="simple-access-control"><a class="header" href="#simple-access-control">Simple Access Control</a></h1>
+<p>Hopefully, by this point, you have a reasonable idea of the main tools
+that Flux provides for refining types to capture correctness
+requirements. In this, our first case study, lets see how to use those
+tools to implement a very simple <em>role-based access control</em> (RBAC)
+system, where Flux will check that only users with appropriate
+permissions are allowed to access different resources. In doing so,
+we’ll get some more practice with the tools we have already seen, and
+learn about various other aspects of Flux, including how to</p>
+<ol>
+<li>
+<p>Lift enum <em>variants</em> up into refinements,</p>
+</li>
+<li>
+<p>Specifying <em>equality</em> using associated refinements,</p>
+</li>
+<li>
+<p>Write <em>detached</em> specifications,</p>
+</li>
+<li>
+<p>Define and use <em>refinement-level functions</em>.</p>
+</li>
+</ol>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">extern crate flux_core;
+use flux_rs::{assert, attrs::*};</code></pre></pre>
+<h2 id="reflection"><a class="header" href="#reflection">Reflection</a></h2>
+<p>A bird flying high above our access-control system, or more plausibly,
+an LLM attempting to summarize its code, would observe that it consists
+of three main entities: <em>users</em> who want to access resources, <em>roles</em>
+that are assigned to each user, and the <em>permissions</em> that may be
+granted to each role.</p>
+<p><strong>Roles</strong> Lets suppose that we want to track three kinds of users:
+administrators, members and guests. We might represent these three roles
+using a Rust <code>enum</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Debug, Clone)]
+pub enum Roles {
+    Admin,
+    Member,
+    Guest,
+}</code></pre></pre>
+<p><strong>Reflection</strong> The key new bit in the definition of <code>Role</code> is the
+<code>#[reflect]</code> attribute, which tells Flux that we intend to use variants
+of this <code>enum</code> inside refinements. Why not just automatically <code>reflect</code>
+all <code>enum</code>s? Currently, only a very restricted subset of <code>enum</code>s are
+reflected: those whose variants take <em>no</em> parameters. Hence, Flux
+requires us to explicitly mark such <code>enum</code>s with the <code>#[reflect]</code>
+attribute. For example, we can now write a function that checks if a
+given role is an <code>Admin</code> and returns <code>true</code> if so, and <code>false</code>
+otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn (&amp;Role[@r]) -&gt; bool[r == Role::Admin])]
+pub fn is_admin(r: &amp;Role) -&gt; bool {
+    match r {
+        Role::Admin =&gt; true,
+        _ =&gt; false,
+    }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the specification and implementation of
+<code>is_guest</code> below. You cannot use <code>==</code> (yet) because, well, just try to
+use it and see what happens!</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn is_guest(r: &amp;Role) -&gt; bool {
+    true
+}</code></pre></pre>
+<p>When you are done, all the <code>assert</code> statements in the <code>test_role</code>
+function should be verified by Flux.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_role() {
+  let admin = Role::Admin;
+  let member = Role::Member;
+  let guest = Role::Guest;
+  assert(is_admin(&amp;admin) &amp;&amp; !is_admin(&amp;member) &amp;&amp; !is_admin(&amp;guest));
+  assert(!is_guest(&amp;admin) &amp;&amp; !is_guest(&amp;member) &amp;&amp; is_guest(&amp;guest));
+}</code></pre></pre>
+<h2 id="defining-equality"><a class="header" href="#defining-equality">Defining Equality</a></h2>
+<p>My love and appreciation of pattern-matching should not be questioned.
+However, sometimes we just want an old-fashioned equality test, for
+instance, to make <code>is_admin</code> and <code>is_guest</code> trivial one-liners instead
+of all the ceremony of a function-call wrapped inside a <code>match</code>
+statement. Despite my telling you not to use <code>==</code> above, I’m pretty
+certain that you tried it anyway. Or perhaps you anticipated that you
+<em>could not</em> use it because we have not yet implemented the <code>PartialEq</code>
+trait for <code>Role</code> which is what Rust uses to implement <code>==</code> and <code>!=</code>
+comparisons.</p>
+<p><strong>A Refined PartialEq Trait</strong> The Flux standard library refines <code>std</code>‘s
+<code>PartialEq</code> trait with two <em>associated refinements</em> (see
+<a href="ch09_traits">this chapter</a>.md) <code>is_eq</code> and <code>is_ne</code> that respectively specify when two
+values of the type implementing <code>PartialEq</code> are equal or not. The
+<em>methods</em> <code>eq</code> and <code>ne</code> return boolean values <code>v</code> such that the
+predicate <code>is_eq(r1, r2, v)</code> and <code>is_ne(r1, r2, v)</code> hold. By default,
+the two associated refinements are just <code>true</code>, meaning that the <code>bool</code>
+result <code>v</code> is unconstrained: it can be either <code>true</code> or <code>false</code>
+regardless of the inputs.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[assoc(
+    fn is_eq(x: Self, y: Rhs, v: bool) -&gt; bool { true }
+    fn is_ne(x: Self, y: Rhs, v: bool) -&gt; bool { true }
+)]
+trait PartialEq&lt;Rhs: PointeeSized = Self&gt;: PointeeSized {
+    #[spec(fn(&amp;Self[@s], &amp;Rhs[@t]) -&gt; bool{v: Self::is_eq(s, t, v)})]
+    fn eq(&amp;self, other: &amp;Rhs) -&gt; bool;
+
+    #[spec(fn(&amp;Self[@s], &amp;Rhs[@t]) -&gt; bool{v: Self::is_ne(s, t, v)})]
+    fn ne(&amp;self, other: &amp;Rhs) -&gt; bool;
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>A Refined PartialEq Implementation</strong> However, for particular
+implementations of <code>PartialEq</code>, <em>e.g.</em> for <code>Role</code>, we can define the
+associated refinements to capture exactly when two values are equal or
+not.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(
+    fn is_eq(x: Self, y: Rhs, res: bool) -&gt; bool { res &lt;=&gt; (r1 == r2) }
+    fn is_ne(x: Self, y: Rhs, res: bool) -&gt; bool { true }
+)]
+impl PartialEq for Role {
+    #[spec(fn(&amp;Self[@r1], &amp;Self[@r2]) -&gt; bool[r1 == r2]))]
+    fn eq(&amp;self, other: &amp;Self) -&gt; bool {
+        match (self, other) {
+            (Role::Admin, Role::Admin) =&gt; true,
+            (Role::User, Role::User) =&gt; true,
+            (Role::Guest, Role::Guest) =&gt; true,
+            _ =&gt; false,
+        }
+    }
+}</code></pre></pre>
+<p>Now that we’ve <em>implemented</em> <code>PartialEq</code>, we can now write a simple
+tests to check to see if Flux can understand when two <code>Role</code>s are equal
+or not.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_role_eq() {
+  let admin = Role::Admin;
+  let member = Role::Member;
+  assert(admin == admin);
+  assert(admin != member);
+  assert(member == member);
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Oh no! Why does Flux fail to verify that <code>admin != member</code>
+in <code>test_role_eq</code>? Can you go back and figure out what bit of the above
+to edit and fix, so that all the <code>assert</code> calls in <code>test_role_eq</code> are
+verified by Flux.</p>
+<p><strong>Permissions</strong> Next, lets define the different kinds of permissions
+that users may have to access resources. Again, we can use an <code>enum</code>
+with a <code>#[reflect]</code> attribute.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Permissions { Read, Write, Comment, Delete, Configure }</code></pre></pre>
+<p>Its rather tiresome to have to write out the full <code>PartialEq</code>
+implementation, especially since we can automatically <em>derive</em> it using
+Rust’s <code>#[derive(PartialEq)]</code>. However, now we are in a bit of a pickle.
+When we explicitly wrote out the <code>eq</code> and <code>ne</code> methods above, we could
+write an output type <code>bool[r1 == r2]</code> or <code>bool[r1 != r2]</code> respectively.
+But now, we need a way to <em>retroactively</em> give Flux a specification for
+the <code>eq</code> and <code>ne</code> methods. <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
+<h2 id="detached-specifications"><a class="header" href="#detached-specifications">Detached Specifications</a></h2>
+<p>Normally, Flux specifications are <em>attached</em> to the function or type or
+trait using a Rust attribute like <code>#[spec(...)]</code> or <code>#[reflect]</code>.
+However, for situations like this, where you <em>cannot</em> modify the
+original source because <em>e.g.</em> it is generated by a <code>derive</code> macro, or
+perhaps because you’d rather just put the specifications elsewhere for
+stylistic reasons, Flux also lets you write specifications that are
+<em>detached</em> from their home in the source code. <sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[specs {
+  impl std::cmp::PartialEq for Permissions {
+    #[reft]
+    fn is_eq(p1: Permissions, p2: Permissions, v:bool) -&gt; bool {
+       v &lt;=&gt; (p1 == p2)
+    }
+    #[reft]
+    fn is_ne(p1: Permissions, p2: Permissions, v:bool) -&gt; bool {
+       v &lt;=&gt; (p1 != p2)
+    }
+    fn eq(&amp;Self[@r1], &amp;Self[@r2]) -&gt; bool[r1 == r2];
+  }
+}]
+const _: () = (); // just need something to attach the attribute to</code></pre></pre>
+<p>The above “detached specification” says that we are providing
+specifications for the <code>PartialEq</code> implementation for <code>Permissions</code>.
+Flux will check these specifications against the (in this case, derived)
+code, and will then let you use <code>==</code> and <code>!=</code> on <code>Permissions</code> values.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_eq_perms() {
+    let read = Permissions::Read;
+    let write = Permissions::Write;
+    assert(read == read);
+    assert(read != write);
+}</code></pre></pre>
+<h2 id="refinement-level-functions"><a class="header" href="#refinement-level-functions">Refinement Level Functions</a></h2>
+<p>Now, that we’ve defined <code>Role</code>s and <code>Permission</code>s, we can define a
+<code>User</code> struct that has their <code>id</code> and <code>role</code>, where we use a Flux index
+to track the <code>role</code> of each <code>User</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(role: Role)]
+pub struct User {
+    pub name: String,
+    #[field(Role[role])]
+    pub role: Role,
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the <em>specification</em> and <em>implementation</em> of the
+<code>new</code> method so that the code in <code>test_user</code> verifies.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+    // fill in the spec
+    pub fn new(name: String, role: Role) -&gt; Self {
+        User { name, role  }
+    }
+}
+
+fn test_user() {
+    let alice = User::new("Alice".to_string(), Role::Admin);
+    let bob = User::new("Bob".to_string(), Role::Guest);
+    assert(alice.is_admin());
+    assert(bob.is_guest());
+}</code></pre></pre>
+<p><strong>Policies</strong> Lets <em>restrict</em> the set of <code>Permission</code>s that a <code>User</code> can
+have based on their <code>Role</code>. For instance, suppose we want a policy where</p>
+<ul>
+<li>
+<p><code>Admin</code>s can do everything (i.e., have all <code>Permission</code>s),</p>
+</li>
+<li>
+<p><code>Member</code>s can <code>Read</code>, <code>Write</code> and <code>Comment</code>, but not <code>Delete</code> or
+<code>Configure</code>,</p>
+</li>
+<li>
+<p><code>Guest</code>s can only <code>Read</code>.</p>
+</li>
+</ul>
+<p>We can stipulate this policy in a <em>refinement-level function</em>
+<code>permitted</code> that returns <code>true</code> exactly when a given <code>Role</code> is allowed
+to have a given <code>Permission</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn permitted(r: Role, p: Permissions) -&gt; bool {
+        if r == Role::Admin {
+            true
+        } else if r == Role::Member {
+            p != Permissions::Delete &amp;&amp; p != Permissions::Configure
+        } else { // Guest
+            p == Permissions::Read
+        }
+    }
+}</code></pre></pre>
+<p><strong>Enforcement</strong> And now, we can use <code>permitted</code> to specify that only
+users with the appropriate <code>Role</code> are allowed to perform certain
+actions.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Read))]
+  fn read(&amp;self) { /* ... */ }
+  #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Write))]
+  fn write(&amp;self) { /* ... */ }
+}</code></pre></pre>
+<p>Flux will allow valid accesses,</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_access_ok() {
+    let alice = User::new("Alice".to_string(), Role::Admin);
+    alice.configure();
+    alice.delete();
+}</code></pre></pre>
+<p>but will swiftly reject, at compile-time, accesses that violate the
+policy:</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_access_bad() {
+    let bob = User::new("Bob".to_string(), Role::Guest);
+    bob.write();         // error!
+    bob.delete();        // error!
+    bob.configure();     // error!
+}</code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>To recap, in this chapter we saw how to use</p>
+<ul>
+<li>
+<p><em>Reflect</em> <code>enum</code>s, <em>e.g.</em> to refer to variants like <code>Role::User</code> in
+refinements,</p>
+</li>
+<li>
+<p><em>Detached</em> specifications for (derived) code <em>e.g.</em> <code>PartialEq</code>
+implementations,</p>
+</li>
+<li>
+<p><em>Refinement-level functions</em> to specify contracts, <em>e.g.</em> policies on
+Roles,</p>
+</li>
+</ul>
+<p>which together, let us implement a simple role-based access control
+system where Flux verifies that <code>User</code>s only access resources compatible
+with their <code>Role</code>. Next, in <a href="ch12_sets,.html">this chapter</a> we will see how to extend
+our system with <em>set-valued</em> refinements that will allow for more
+expressive access control.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>From <a href="ch08_externs.html">this chapter</a> you may recall the notion of <em>extern
+specifications</em>; sadly we cannot quite use those because they are
+for things defined outside the current crate. <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Yes indeed, the code below is a <em>lot</em> of boilerplate, that is best
+generated by a macro, as we will see shortly, in <a href="ch12_sets.html">this chapter</a>. <a href="#fr-2-1">↩</a></p>
+</li>
+</ol>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/08-traits.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorial/12-sets.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/08-traits.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorial/12-sets.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

@@ -400,7 +400,7 @@ of an <code>RVec</code> and sums them up? <sup class="footnote-reference" id="fr
         res += vec.get(i);
         i += 1;
     }
-    sum
+    res
 }</code></pre></pre>
 <!-- SLIDE -->
 <h3 id="using-the-index-trait"><a class="header" href="#using-the-index-trait">Using the <code>Index</code> trait</a></h3>
@@ -429,10 +429,10 @@ impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
     let mut res = 0;
     let mut i = 0;
     while i &lt; vec.len() {
-        res += vec[i]
+        res += vec[i];
         i += 1;
     }
-    sum
+    res
 }</code></pre></pre>
 <!-- SLIDE -->
 <h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>

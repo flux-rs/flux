@@ -1,0 +1,702 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Case Study: Dynamic Access Control - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="dynamic-access-control"><a class="header" href="#dynamic-access-control">Dynamic Access Control</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">extern crate flux_core;
+use flux_rs::{assert, attrs::*};
+use std::hash::Hash;
+
+defs!{
+    fn set_emp&lt;T&gt;() -&gt; Set&lt;T&gt; {
+        set_empty(0)
+    }
+
+    fn set_add&lt;T&gt;(x: T, s: Set&lt;T&gt;) -&gt; Set&lt;T&gt; {
+        set_union(set_singleton(x), s)
+    }
+
+    fn set_del&lt;T&gt;(x:T, s: Set&lt;T&gt;) -&gt; Set&lt;T&gt; {
+        set_difference(s, set_singleton(x))
+    }
+
+    fn set_is_disjoint&lt;T&gt;(s1: Set&lt;T&gt;, s2: Set&lt;T&gt;) -&gt; bool {
+        set_intersection(s1, s2) == set_emp()
+    }
+}</code></pre></pre>
+<p>Previously, in <a href="ch11_equality,.html">this chapter</a> we saw how to write a simple
+role-based access control system, where each <code>Role</code> has a <em>fixed</em> set of
+<code>Permissions</code> associated with it, and each <code>User</code> can only access the
+resources that their <code>Role</code> allows. Next, lets see how to generalize
+that to build a <em>dynamic</em> access control mechanism, where permissions
+can be <em>added</em> or <em>removed</em> from users at runtime, while still ensuring
+that they can only access resources allowed by their <code>Role</code>. To do so we
+will use <em>set-valued</em> refinements to track the set of permissions that
+each user currently has.</p>
+<h2 id="roles--permissions"><a class="header" href="#roles--permissions">Roles &amp; Permissions</a></h2>
+<p>Lets begin by recalling the whole business of roles and permissions.</p>
+<p><strong>Roles</strong> As before, we have three kinds of users: admins, members and
+guests. This time, we will <em>derive</em> <code>PartialEq</code> and then use the
+<code>flux_core::eq!</code> macro to generate the boilerplate detached
+specifications needed to compare two <code>Role</code>s (described in
+<a href="ch11_equality.html#detached">this chapter</a>).</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Role {
+    Admin,
+    Member,
+    Guest,
+}
+flux_core::eq!(Role);
+use Role::*;</code></pre></pre>
+<p><strong>Permissions</strong> Next, lets define the different kinds of permissions
+that users may have to access resources, using <code>#[reflect]</code> to let us
+talk about <code>Permissions</code> in refinements, and the <code>eq!</code> macro to let us
+compare them.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Permissions {
+    Read,
+    Write,
+    Comment,
+    Delete,
+    Configure,
+}
+flux_core::eq!(Permissions);
+use Permissions::*;</code></pre></pre>
+<h2 id="set-valued-refinements"><a class="header" href="#set-valued-refinements">Set-Valued Refinements</a></h2>
+<p>Instead of statically hardwiring a <code>User</code>‘s permissions to their <code>Role</code>,
+our dynamic access control system will let us <em>add</em> or <em>remove</em>
+permissions from a user at runtime. However, we will want to still
+enforce important correctness requirements at compile time, and hence,
+require a way to track the <em>set of permissions</em> a user has at any given
+point.</p>
+<p><strong>Refined Sets</strong> To do so, we can use a <em>refined Set</em> library provided
+by the <code>flux-rs</code> crate, which like the refined-vectors (described in
+<a href="ch06_vectors">this chapter</a>.md) are just a wrapper around Rust’s standard <code>HashSet</code>
+but where we track the actual <em>elements</em> in the set via a <em>set-valued</em>
+refinement index <code>elems</code> whose sort is <code>Set&lt;T&gt;</code>, where <code>T</code> is the type
+of elements in the set. That is, just like we were tracking the
+<code>int</code>-valued vector <em>size</em> in <a href="ch06_vectors,.html">this chapter</a> here we’re tracking the
+<code>Set&lt;T&gt;</code>-valued <em>elems</em>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[opaque]
+#[refined_by(elems: Set&lt;T&gt;)]
+#[derive(Debug)]
+pub struct RSet&lt;T&gt; {
+    pub inner: std::collections::HashSet&lt;T&gt;,
+}</code></pre></pre>
+<p><strong>Creating Sets</strong> The <code>RSet</code> API has a method to create an <code>new</code> set
+(which is empty), and a method to add an element to a set, which
+<em>updates</em> the set refinement to include the new <code>elem</code> element, using
+the refinement level <code>set_add</code> operation.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T&gt; RSet&lt;T&gt; {
+  #[spec(fn() -&gt; RSet&lt;T&gt;[set_emp()])]
+  pub fn new() -&gt; RSet&lt;T&gt; {
+    let inner = std::collections::HashSet::new();
+    RSet { inner }
+  }
+
+  #[spec(fn(self: &amp;mut RSet&lt;T&gt;[@s], elem: T)
+         ensures self: RSet&lt;T&gt;[set_add(elem, s)])]
+  pub fn insert(self: &amp;mut Self, elem: T)
+  where
+    T: Eq + Hash,
+  {
+    self.inner.insert(elem);
+  }
+}</code></pre></pre>
+<p><strong>Membership</strong> Next, lets write a <code>contains</code> method to test if an
+element is in an <code>RSet</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T&gt; RSet&lt;T&gt; {
+  #[spec(fn(set: &amp;RSet&lt;T&gt;[@s], &amp;T[@elem]) -&gt; bool[set_is_in(elem, s.elems)])]
+  pub fn contains(self: &amp;Self, elem: &amp;T) -&gt; bool
+  where
+    T: Eq + Hash,
+  {
+    self.inner.contains(elem)
+  }
+}</code></pre></pre>
+<p>We can now check that are refinement-leve tracking is working as
+expected:</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_set_add() {
+  let read = Permissions::Read;
+  let write = Permissions::Write;
+  let mut s = RSet::new();
+  s.insert(read);
+  assert(s.contains(&amp;read) &amp;&amp; !s.contains(&amp;write));
+  s.insert(write);
+  assert(s.contains(&amp;read) &amp;&amp; s.contains(&amp;write));
+}</code></pre></pre>
+<p><strong>An <code>rset!</code> Macro</strong> Our API has enough mojo to implement a simple
+<code>rset!</code> macro that will let us create <code>RSet</code>s with a more convenient
+syntax:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[macro_export]
+macro_rules! rset {
+    () =&gt; { RSet::new() };
+    ($($e:expr),+$(,)?) =&gt; {{
+        let mut res = RSet::new();
+        $( res.insert($e); )*
+        res
+    }};
+}</code></pre></pre>
+<p>We can kick the tires on the macro,</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_rset_macro() {
+  let read = Permissions::Read;
+  let write = Permissions::Write;
+  let s = rset![read, write];
+  assert(s.contains(&amp;read) &amp;&amp; s.contains(&amp;write));
+}</code></pre></pre>
+<p><strong>Union &amp; Intersection</strong> Next, it will be convenient to have operations
+that compute the <code>union</code> and <code>intersection</code>, of two sets. We can
+implement these using the corresponding operations on Rust’s <code>HashSet</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T : Eq + Hash + Clone&gt; RSet&lt;T&gt; {
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt;
+         RSet&lt;T&gt;[set_intersection(self, other)])]
+  pub fn intersection(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; RSet&lt;T&gt; {
+    let inner = self.inner.intersection(&amp;other.inner).cloned().collect();
+    RSet { inner }
+  }
+
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt;
+            RSet&lt;T&gt;[set_union(self, other)])]
+  pub fn union(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; RSet&lt;T&gt; {
+    let inner = self.inner.union(&amp;other.inner).cloned().collect();
+    RSet { inner }
+  }
+}</code></pre></pre>
+<p>Notice that for each method <code>union</code>, <code>intersection</code>, the output type is
+indexed by the corresponding refinement-level operation on the input
+sets. Lets test these out.</p>
+<p><strong>EXERCISE</strong>: Fix the conditions in the <code>assert</code>s below so they verify.
+You may want to split them into <em>multiple</em> asserts to determine which
+ones fail.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_union_intersection() {
+  let rd = Permissions::Read;
+  let wr = Permissions::Write;
+  let cm = Permissions::Comment;
+  // make two sets
+  let s1 = rset![rd, wr];
+  let s2 = rset![wr, cm];
+  // check union
+  let su = s1.union(&amp;s2);
+  assert(!su.contains(&amp;rd) &amp;&amp; !su.contains(&amp;wr) &amp;&amp; !su.contains(&amp;cm));
+  // check intersection
+  let si = s1.intersection(&amp;s2);
+  assert(!si.contains(&amp;rd) &amp;&amp; !si.contains(&amp;wr) &amp;&amp; !si.contains(&amp;cm));
+}</code></pre></pre>
+<p><strong>Subset</strong> Finally, it will be useful to check if one set is a <em>subset</em>
+of another, that is, that all the elements of one set are also present
+in the other.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T: Eq + Hash&gt; RSet&lt;T&gt; {
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt;
+         bool[set_subset(self, other)])]
+  pub fn subset(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; bool {
+    self.inner.is_subset(&amp;other.inner)
+  }
+}</code></pre></pre>
+<p>We can now test some properties of <code>union</code>, <code>intersection</code> and <code>subset</code>,
+for example, that the union of two sets <em>contains</em> both sets, and the
+intersection <em>is contained in</em> both sets.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_subset(s1: &amp;RSet&lt;Permissions&gt;, s2: &amp;RSet&lt;Permissions&gt;) {
+  let su = s1.union(&amp;s2);
+  assert(s1.subset(&amp;su) &amp;&amp; s2.subset(&amp;su));
+
+  let si = s1.intersection(&amp;s2);
+  assert(si.subset(&amp;s1) &amp;&amp; si.subset(&amp;s2));
+}</code></pre></pre>
+<p><strong>EXERCISE</strong>: Correct the implementation of the <code>equals</code> method so that
+it verifies. Note that the <code>==</code> operator is legal for the <code>Set&lt;T&gt;</code> sort
+<em>inside refinements</em> but it cannot be used in Rust <em>code</em> as we did not
+define <code>PartialEq</code> for <code>RSet&lt;T&gt;</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T: Eq + Hash&gt; RSet&lt;T&gt; {
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt; bool[self == other])]
+  pub fn equals(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; bool {
+    true // fix this
+  }
+}</code></pre></pre>
+<h2 id="the-set-of-permissions-of-each-role"><a class="header" href="#the-set-of-permissions-of-each-role">The Set of Permissions of Each Role</a></h2>
+<p>Lets use our refined <code>RSet</code> library to build a dynamic access control
+system. As before, each <code>Role</code> has a fixed set of <code>Permissions</code>
+associated with it. However, this time, we will specify these as a
+refinement-level function (see
+<a href="ch11_equality.html#refinement-level-functions">this chapter</a>) that maps each <code>Role</code> to
+the <em>maximal</em> set of <code>Permissions</code> for that role.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn perms(r:Role) -&gt; Set&lt;Permissions&gt; {
+        if r == Role::Admin {
+          set_add(Permissions::Read,
+          set_add(Permissions::Write,
+          set_add(Permissions::Delete,
+          set_add(Permissions::Configure, set_emp()))))
+        } else if r == Role::Member {
+          set_add(Permissions::Read,
+          set_add(Permissions::Write,
+          set_add(Permissions::Comment, set_emp())))
+        } else { // Role::Guest
+          set_add(Permissions::Read, set_emp())
+        }
+    }
+}</code></pre></pre>
+<p><strong>A Slow Implementation</strong> The above <code>permissions</code> is a
+<em>refinement-level</em> function that Flux refinements can use to <em>specify</em>
+access control requirements. Fill in the method below that <em>computes</em>
+the set of <code>permissions</code> valid for a <code>Role</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Role {
+  #[spec(fn(&amp;Self[@r]) -&gt; RSet&lt;Permissions&gt;[perms(r)])]
+  pub fn permissions(&amp;self) -&gt; RSet&lt;Permissions&gt; {
+    match self {
+      Admin =&gt; rset!{},     // fill these in!
+      Member =&gt; rset!{},    // fill these in!
+      Guest =&gt; rset!{},     // fill these in!
+    }
+  }
+}</code></pre></pre>
+<p>When you are done with the above, we can use it to implement a method
+that <em>checks</em> if a given <code>Permission</code> is allowed for a <code>Role</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(&amp;Self[@r], &amp;Permissions[@p]) -&gt; bool[set_is_in(p, perms(r))])]
+pub fn check_permission_slow(&amp;self, p: &amp;Permissions) -&gt; bool {
+    self.permissions().contains(p)
+}</code></pre></pre>
+<p><strong>A Fast Implementation</strong> The <code>check_permission_slow</code> method above is
+correct, in that Flux proves that it returns <code>true</code> exactly if the given
+permission is allowed for the role. However, it is inefficient since we
+spin up a bunch of sets and membership queries to do the check.</p>
+<p><strong>EXERCISE</strong>: Complete the below implementation of an efficient (<em>and</em>
+correct) check using pattern-matching and equality comparisons.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(&amp;Self[@r], &amp;Permissions[@p]) -&gt; bool[set_is_in(p, perms(r))])]
+pub fn check_permission(&amp;self, p: &amp;Permissions) -&gt; bool {
+  let admin = Role::Admin;                // use this
+  let guest = Role::Guest;                // use this
+  let user = Role::Member;                // use this
+  match p {
+    Permissions::Read =&gt; true,            // fix this
+    Permissions::Write =&gt; true,           // fix this
+    Permissions::Comment =&gt; true,         // fix this
+    Permissions::Delete =&gt; true,          // fix this
+    Permissions::Configure =&gt; true,       // fix this
+  }
+}</code></pre></pre>
+<h2 id="users-with-dynamic-permissions"><a class="header" href="#users-with-dynamic-permissions">Users with Dynamic Permissions</a></h2>
+<p>The “dynamic” part of this access control system is that we want the
+ability to <em>add</em> or <em>remove</em> permissions from a user at runtime, while
+still ensuring that they can only access resources allowed by their
+role. To do so, we will define a <code>User</code> struct that, in addition to a
+<code>role</code>, will have two fields <code>allowed</code> and <code>denied</code> that will track the
+set of permissions that have been <em>added</em> or <em>removed</em> from the user at
+runtime.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[derive(Debug)]
+struct User {
+  name: String,
+  role: Role,
+  allow: RSet&lt;Permissions&gt;,
+  deny: RSet&lt;Permissions&gt;,
+}</code></pre></pre>
+<p><strong>Allowed &amp; Denied Permissions</strong> The <code>allow</code> and <code>deny</code> fields
+respectively track the set of permissions that <em>have been</em> granted and
+<em>should never be</em> granted to the <code>User</code>. Of course, we want these fields
+to always satisfy some important invariants.</p>
+<ol>
+<li>
+<p>The <code>allow</code>ed permissions should always be a <em>subset</em> of the
+permissions associated with the user’s <code>role</code>. That is, we can only
+allow permissions that are valid for the user’s role;</p>
+</li>
+<li>
+<p>The <code>allow</code>ed permissions should never contain any permission that
+has already been <code>denied</code>; that is, the <code>allow</code>ed and <code>deny</code>ed sets
+should always be <em>disjoint</em>.</p>
+</li>
+</ol>
+<p><strong>Enforcing Invariants</strong></p>
+<p>Lets use the detached specification mechanism — described in
+<a href="ch11_equality.html#detached">this chapter</a> — to enforce these invariants by <em>refining</em>
+the struct to track the <code>role</code> and <code>allow</code> and <code>deny</code> sets as indices
+and then specifying the requirements above as <code>#[invariant]</code>s on the
+refined struct.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[specs {
+ #[refined_by(role:Role, allow:Set&lt;Permissions&gt;, deny:Set&lt;Permissions&gt;)]
+ #[invariant(set_subset(allow, perms(role)))]
+ #[invariant(set_intersection(allow, deny) == set_emp())]
+ struct User {
+    name: String,
+    role: Role[role],
+    allowed: RSet&lt;Permissions&gt;[allow],
+    denied: RSet&lt;Permissions&gt;[deny],
+ }
+}]
+const _: () = ();</code></pre></pre>
+<p>The two <code>#[invariant]</code>s correspond directly to our requirements. Lets
+check that Flux will only allow constructing legal <code>User</code>s that satisfy
+these invariants.</p>
+<p><strong>EXERCISE</strong>: Can you fix the errors that Flux finds in <code>alice</code> and
+<code>bob</code>?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_user() {
+    let alice = User {
+        name: "Alice".to_string(),
+        role: Guest,
+        allow: rset!{ Read, Write },
+        deny: rset!{ },
+    };
+    let bob = User {
+        name: "Bob".to_string(),
+        role: Admin,
+        allow: rset!{ Read, Write, Delete },
+        deny: rset!{ Write },
+    };
+}</code></pre></pre>
+<h2 id="dynamically-changing-permissions"><a class="header" href="#dynamically-changing-permissions">Dynamically Changing Permissions</a></h2>
+<p>Next, lets write methods to create new <code>User</code>s and check their
+permissions:</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(name: String, role: Role) -&gt;
+         Self[User{role:role, allow: set_emp(), deny: set_emp()}])]
+  fn new(name: String, role: Role) -&gt; Self {
+      Self {
+          name,
+          role,
+          allow: RSet::new(),
+          deny: RSet::new(),
+      }
+  }
+}</code></pre></pre>
+<p><strong>Allowing Permissions</strong> A newly created <code>User</code> only has a <code>role</code> but no
+<code>allow</code>ed or <code>deny</code>ed <code>Permissions</code>, which ensures the invariants hold.
+Lets write a method to <em>add</em> a <code>Permission</code> to the <code>allow</code>ed set of a
+<code>User</code>. Note that we must take care to ensure that the given
+<code>Permission</code> is valid for the user’s <code>role</code> (to satisfy the first
+invariant) and that it is not already in the <code>deny</code>ed set (to satisfy
+the second invariant). Thus, we make the method return <code>true</code> if the
+permission was successfully added, and <code>false</code> otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(me: &amp;mut Self[@u], &amp;Permissions[@p]) -&gt; bool[allowed(u, p)]
+            ensures me: Self[User{allow: add(u, p), ..u }])]
+  fn allow(&amp;mut self, p: &amp;Permissions) -&gt; bool {
+    if self.role.check_permission(&amp;p) &amp;&amp; !self.deny.contains(&amp;p) {
+      self.allow.insert(*p);
+      true
+    } else {
+      false
+    }
+  }
+}</code></pre></pre>
+<p>In the type above, the refinement-level function <code>allowed</code> checks if a
+permission <em>can be added</em> to the <code>allow</code>ed set, and the <code>add</code> function
+returns the extended permissions:</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+  fn allowed(u: User, p: Permissions) -&gt; bool {
+    set_is_in(p, perms(u.role)) &amp;&amp; !set_is_in(p, u.deny)
+  }
+  fn add(u: User, p: Permissions) -&gt; Set&lt;Permissions&gt; {
+    if allowed(u, p) {
+      set_add(p, u.allow)
+    } else {
+      u.allow
+    }
+  }
+}</code></pre></pre>
+<p>Notice that the type for the <code>allow</code> uses a <em>strong reference</em> described
+in <a href="ch03_ownership.html#strongly-mutable-references,">this chapter</a> to <em>conditionally
+change</em> the type of the <code>User</code> when we <em>add</em> permissions.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_allow() {
+  let read = Read;
+  let write = Write;
+  let mut guest = User::new("guest".to_string(), Role::Guest);
+  assert(guest.allow(&amp;read));           // can allow read
+  assert(guest.allow.contains(&amp;read));  // read is now allowed
+  assert(!guest.allow(&amp;write));         // cannot allow write
+  assert(!guest.allow.contains(&amp;read)); // write is not allowed
+}</code></pre></pre>
+<p><strong>Denying Permissions</strong> Next, lets write a similar method to <em>deny</em> a
+permission, by adding it to the <code>deny</code>ed set, (as long as it is not
+already in the <code>allow</code>ed set.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(me: &amp;mut Self[@u], &amp;Permissions[@p]) -&gt; bool[deny(u, p)]
+            ensures me: Self[User { deny: del(u, p), ..u }])]
+  fn deny(&amp;mut self, p: &amp;Permissions) -&gt; bool {
+    if !self.allow.contains(p) {
+      self.deny.insert(*p); true
+    } else {
+      false
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong>: Correct the definitions of the <code>deny</code> and <code>del</code>
+refinement-level functions so that the implementation of the <code>deny</code>
+method above verifies.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+  fn deny(u: User, p: Permissions) -&gt; bool {
+    true // fix this
+  }
+  fn del(u: User, p: Permissions) -&gt; Set&lt;Permissions&gt; {
+    set_emp() // fix this
+  }
+}</code></pre></pre>
+<h2 id="access-control"><a class="header" href="#access-control">Access Control</a></h2>
+<p>Finally, we can use the <code>allow</code> set to control which <code>User</code>s are allowed
+to perform certain actions. Unlike in our previous system
+([ch]:11_equality), that used the <code>User</code>‘s <em>fixed</em> <code>Role</code>, we can now
+use the <em>dynamic</em> <code>allow</code> set to make this determination.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Read, u.allow)))]
+  fn read(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Write, u.allow)))]
+  fn write(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Comment, u.allow)))]
+  fn comment(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Delete, u.allow)))]
+  fn delete(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Configure, u.allow)))]
+  fn configure(&amp;self) { /* ... */ }
+}</code></pre></pre>
+<p>Flux checks that <code>User</code>s have the appropriate permissions to call these
+methods.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_access_ok() {
+  let configure = Permissions::Configure;
+  let alice = User::new("Alice".to_string(), Role::Admin);
+  aliceconfigure();        // type error!
+  alice.allow(&amp;configure);  // add it to the allowed set
+  alice.configure();        // ok!
+}</code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>In this chapter, we saw how to build a dynamic access control system, by
+indexing types with <em>set-valued</em> refinements that track users”
+permissions, and strong references which <em>conditionally</em> change types
+when we mutate references.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/11-equality.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorial/13-bitvectors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/11-equality.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorial/13-bitvectors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

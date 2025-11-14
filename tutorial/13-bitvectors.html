@@ -1,0 +1,717 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Case Study: Dependent Typestates - The Flux Book</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="shortcut icon" href="../favicon.png">
+        <link rel="stylesheet" href="../css/variables.css">
+        <link rel="stylesheet" href="../css/general.css">
+        <link rel="stylesheet" href="../css/chrome.css">
+        <link rel="stylesheet" href="../css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="../fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="../highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="../tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="../ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../flux_theme/flux.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">The Flux Book</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="dependent-typestates"><a class="header" href="#dependent-typestates">Dependent Typestates</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">use std::{
+  mem::replace,
+  sync::atomic::{AtomicBool, Ordering}, vec,
+};
+
+use flux_rs::{
+    assert, alias, constant, defs, detached_spec, extern_spec, invariant, opaque, refined_by, reflect, spec, specs, trusted,
+    bitvec::BV32;
+};</code></pre></pre>
+<p>Our next case study shows how Flux’s refinements can be used to make the
+<em>typestate</em> even more expressive by connecting typestates with run-time
+values to avoiding the blowup that ensues from using (only) Rust’s types
+<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> while still providing compile-time correctness guarantees. Lets
+explore this idea by building a library to manipulate GPIO pins on
+embedded hardware where each <em>port</em> comprises multiple <em>pins</em> each of
+which can be set to be in <code>Input</code> or <code>Output</code> mode, and must be used
+according to its current mode.</p>
+<h2 id="bitvectors"><a class="header" href="#bitvectors">Bitvectors</a></h2>
+<p>The pins” modes will be configured and accessed via <em>bitwise</em> operations
+on dedicated hardware registers. Flux lets us precisely track the
+results of bitwise operations — just like we can track arithmetic
+operations ([ch]:02_refinements) or set operations ([ch]:12_sets) —
+with a special <code>flux_rs::bitvec::BV32</code> type that represents 32-bit
+bitvectors as an <em>opaque</em> (see <a href="ch06_vectors">this chapter</a>.md) newtype wrapper around
+<code>u32</code> indexed by a <code>bitvec&lt;32&gt;</code> that tracks the bits of the underlying
+<code>u32</code> <sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[refined_by(x: bitvec&lt;32&gt;)]        // bitvector-valued index
+pub struct BV32(u32);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="creating-and-operating-on-bitvectors"><a class="header" href="#creating-and-operating-on-bitvectors">Creating and Operating on Bitvectors</a></h3>
+<p>The API for <code>BV32</code> has methods to convert from and to <code>u32</code> whose refine
+contracts use the <em>logical functions</em> <code>bv_int_to_bv32</code> and
+<code>bv_bv32_to_int</code> to convert between the <code>int</code> index (of the <code>u32</code>) and
+its <code>bitvec&lt;32&gt;</code> representation (of the <code>BV32</code>).</p>
+<pre><code class="language-rs">impl BV32 {
+  #[spec(fn(value: u32) -&gt; BV32[bv_int_to_bv32(value)])]
+  pub fn new(value: u32) -&gt; BV32 { BV32(value) }
+}
+</code></pre>
+<pre><code class="language-rs">impl Into&lt;u32&gt; for BV32 {
+  #[spec(fn(self:BV32) -&gt; u32[bv_bv32_to_int(self)])]
+  pub fn into(self) -&gt; u32 { self.0 }
+}
+</code></pre>
+<p><strong>Bitvector Operations</strong> The <code>flux_rs::bitvec</code> library implements the
+various traits like <code>BitAnd</code>, <code>BitOr</code>, <code>Not</code>, <code>Shl</code>, <code>Shr</code>, <em>etc.</em> to
+enable bitwise operations on <code>BV32</code> values. For example, the
+<em>left-shift</em> (<code>&lt;&lt;</code>) operation is implemented as</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl Shl&lt;u32&gt; for BV32 {
+  #[spec(fn(self, rhs: u32) -&gt; BV32[self &lt;&lt; bv_int_to_bv32(rhs)])]
+  fn shl(self, rhs: u32) -&gt; BV32 { BV32(self.0 &lt;&lt; rhs) }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>and the bitwise or (<code>|</code>) operation is implemented as</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl BitOr for BV32 {
+  #[spec(fn(self, rhs: BV32) -&gt; BV32[self | rhs])]
+  fn bitor(self, rhs: BV32) -&gt; BV32 { BV32(self.0 | rhs.0) }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>EXERCISE:</strong> Lets test our operators out: can you fix the code below so
+the <code>assert</code> is verified by Flux?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn () -&gt; u32[10])]
+fn test_shl_or() {
+  let b1 = BV32::new(1);  // 0b0001
+  let b5 = BV32::new(5);  // 0b0101
+  let res = b5 &lt;&lt; b1;     // 0b1010
+  let res = res | b1;     // 0b1011
+  res.into()
+}</code></pre></pre>
+<h3 id="getting-and-setting-individual-bits"><a class="header" href="#getting-and-setting-individual-bits">Getting and Setting Individual Bits</a></h3>
+<p>Next, lets use the bitwise operations to write functions that <em>get</em> or
+<em>set</em> a bit at a particular position in a <code>BV32</code>.</p>
+<p><strong>Valid Bit Positions</strong> Lets first write an alias for valid bit
+positions (<code>0</code> to <code>31</code>)</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[alias(type Pin = u8{n: 0 &lt;= n &amp;&amp; n &lt; 32})]
+type Pin = u8;</code></pre></pre>
+<p>Note that while <code>rustc</code> will allow any <code>u8</code> value to be used as a <code>Pin</code>,
+Flux will complain if we try to use a value outside the valid range.</p>
+<p><strong>Getting the Value of a Pin</strong> We can now write a function that <em>gets</em>
+the value of a <code>BV32</code> at a given position by returning <code>true</code> if the bit
+is set to <code>1</code> and <code>false</code> otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn get_pin(bv: BV32, pin: Pin) -&gt; bool {
+    ((bv &gt;&gt; pin) &amp; 1) == b1
+}</code></pre></pre>
+<p><strong>Setting the Value of a Pin</strong> Similarly, we can write a function that
+takes as input a <code>bool</code> and <em>sets</em> the bit at the given position to <code>1</code>
+if the <code>bool</code> is <code>true</code> and to <code>0</code> otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn set_pin(bv:BV32, pin:Pin, b:bool) -&gt; BV32 {
+    if b {
+        bv | (BV32::new(1) &lt;&lt; pin)
+    } else {
+        bv &amp; !(BV32::new(1) &lt;&lt; pin)
+    }
+}</code></pre></pre>
+<p><strong>Refinement-Level Get/Set Functions</strong> To verify code that <em>uses</em>
+<code>get_pin</code> and <code>set_pin</code>, we need to specify their behavior using Flux
+contracts. The most direct way to do so is to write <em>refinement
+functions</em> (see <a href="ch04_structs.html#refinement-functions">this chapter</a>) like <code>get_pin</code>,
+defined below</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn get_pin(bv: bitvec&lt;32&gt;, pin: int) -&gt; bool{
+        let val = (bv &gt;&gt; bv_int_to_bv32(pin)) &amp; 1;
+        val == 1
+    }
+}</code></pre></pre>
+<p>and <code>set_pin</code> which is similarly defined as shown below</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn set_pin(bv: bitvec&lt;32&gt;, pin: int, val: bool) -&gt; bitvec&lt;32&gt; {
+        let index_bits = bv_int_to_bv32(pin);
+        if val {
+            bv | (1 &lt;&lt; index_bits)
+        } else {
+            bv &amp; bv_not(1 &lt;&lt; index_bits)
+        }
+    }
+}</code></pre></pre>
+<p><strong>Syntax:</strong> While we have tried to make the syntax of the <em>refinement
+function</em> <code>set_pin</code> shown above <em>look like</em> the implementation of the
+Rust method of the same name, they are not the same thing. Indeed,
+notice we wrote <code>bv_not</code> instead of <code>!</code> in the refinement function as
+<code>!</code> is reserved for boolean negation inside refinement expressions.</p>
+<p><strong>Connecting Rust Methods with Refinement Functions</strong> Once we have
+defined the refinement functions, we can use them to specify the output
+types of the corresponding Rust functions, using detached specifications
+(see <a href="ch11_equality.html#detached">this chapter</a>).</p>
+<pre><pre class="playground"><code class="language-rust  editable">detached_spec! {
+  fn get_pin(bv: BV32, pin: Pin) -&gt; bool[get_pin(bv, pin)];
+  fn set_pin(bv: BV32, pin: Pin, b: bool) -&gt; BV32[set_pin(bv, pin, b)];
+}</code></pre></pre>
+<p>We can confirm that the specifications for the above are correctly
+tracking the bits via the following test:</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_get_set_pin() {
+  let b5 = BV32::new(5);            // 0b0101
+  flux_rs::assert(get_pin(b5, 2));  // bit 2 is set
+  let b5 = set_pin(b5, 2, false);   // 0b0001
+  flux_rs::assert(!get_pin(b5, 2)); // bit 2 is cleared
+}</code></pre></pre>
+<h2 id="gpio-ports"><a class="header" href="#gpio-ports">GPIO Ports</a></h2>
+<p>Lets tuck the newly learned information about bitvectors into our
+pockets and now turn to the issue at hand: developing an API for
+interacting with <em>General Purpose Input/Output</em> (GPIO) <em>ports</em> in
+low-level embedded microcontrollers.</p>
+<p><strong>Ports and Pins</strong> GPIO ports are the conduit through which
+microcontrollers “talk” to the external world, <em>e.g.</em> to read sensors
+that determine key-presses or light up output LEDs. GPIO ports, are
+themselves collections of <em>pins</em> that can be configured individually as
+either <code>Input</code> or <code>Output</code>, and which can then be read from or written
+to accordingly. The developer must take care to use each pin according
+to how it’s mode was configured, as otherwise the hardware may produce
+invalid data or worse, may destroy the hardware by releasing its “magic
+smoke” <sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>!</p>
+<p><strong>Registers</strong> In common hardware platforms like the STM32, ports are
+controlled via dedicated <em>memory mapped port registers</em> which control
+the modes and input and output values of <em>all</em> the pins in that port,
+where the i<sup>th</sup> bit in the register corresponds to the
+i<sup>th</sup> pin of the port. We can model such registers in Rust as</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[repr(C)]
+struct Registers {
+  modes: BV32, // Bit 0 = pin 0 mode, bit 1 = pin 1 mode, etc.
+  output: u32, // Bit 0 = pin 0 output, bit 1 = pin 1 output, etc.
+  input: u32,  // Bit 0 = pin 0 input, bit 1 = pin 1 input, etc.
+}</code></pre></pre>
+<p>and then the GPIO port itself is a wrapper around a pointer to such
+registers</p>
+<pre><pre class="playground"><code class="language-rust  editable">struct Gpio(*mut Registers);</code></pre></pre>
+<h2 id="tracking-modes"><a class="header" href="#tracking-modes">Tracking Modes</a></h2>
+<p>If you are well-caffeinated, you may have noticed that we used the
+<code>BV32</code> type for the <code>modes</code> register in <code>Registers</code> struct above, as it
+will let us index the <code>struct Registers</code> with a <code>bitvec&lt;32&gt;</code> that tracks
+the modes of all 32 pins in the GPIO port.</p>
+<pre><pre class="playground"><code class="language-rust  editable">detached_spec! {
+  #[refined_by(modes: bitvec&lt;32&gt;)]
+  struct Registers {
+    modes: BV32[modes],
+    output: u32,
+    input: u32,
+  }
+}</code></pre></pre>
+<p>Similarly, lets refine <code>struct Gpio</code> to track the <code>modes</code> of the
+<code>Registers</code> that it <em>points to</em></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(modes: bitvec&lt;32&gt;)]
+  #[opaque] struct Gpio;
+}</code></pre></pre>
+<p><strong>Private Trusted API</strong> As the actual <code>Registers</code> must be accessed
+directly via <code>unsafe</code> pointer dereferences, we mark the <code>struct</code> as
+<code>opaque</code> (see <a href="ch06_vectors">this chapter</a>.md) and write a small suite of <em>private</em>
+<code>trusted</code> (<em>i.e.</em> unverified) methods for the <code>unsafe</code> dereferences,
+that we will then use to to build a verified <em>public</em> API for port
+access.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl Gpio {
+    #[spec(fn(&amp;Gpio[@modes]) -&gt; &amp;Registers[modes])]
+    fn get_registers(&amp;self) -&gt; &amp;Registers {
+        unsafe { &amp;*self.0 }
+    }
+
+    #[spec(fn(self: &amp;mut Gpio, m: BV32) ensures self: Gpio[m])]
+    fn set_modes(&amp;mut self, m: BV32) {
+        unsafe { (&amp;mut *self.0).modes = m}
+    }
+
+    #[spec(fn(self:&amp;mut Gpio[@m], output:u32) ensures self: Gpio[m])]
+    fn set_output(&amp;mut self, output: u32) {
+        unsafe { (&amp;mut *self.0).output = output }
+    }
+}</code></pre></pre>
+<p>The <code>get_registers</code> dereferences the pointer stashed inside the <code>Gpio</code>
+to return a <code>Registers</code> that has exactly the same <code>modes</code>. Dually, the
+<code>set_modes</code> updates the <code>modes</code> of the underlying <code>Registers</code> with the
+given value, updating the refinement of the <code>Gpio</code> accordingly. Finally,
+the <code>set_output</code> updates the <code>output</code> register pointed to by the <code>Gpio</code>
+but leaves the <code>modes</code> unchanged.</p>
+<p><strong>Peripherals</strong> Finally, we can bundle multiple GPIO ports into a
+<code>Peripherals</code> struct that represents all the hardware peripherals of a
+microcontroller.</p>
+<pre><pre class="playground"><code class="language-rust  editable">struct Peripherals { gpio_a: Gpio, gpio_b: Gpio, gpio_c: Gpio }</code></pre></pre>
+<p>We can then provide safe singleton access to the peripherals via a
+<code>take_peripherals</code> function that maps the actual addresses of the
+hardware registers to <code>Gpio</code> instances.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+fn take_peripherals() -&gt; Option&lt;Peripherals&gt; {
+  static TAKEN: AtomicBool = AtomicBool::new(false);
+  if TAKEN
+     .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+     .is_ok()
+  { Some(Peripherals {
+        gpio_a: Gpio(0x4800_0000 as *mut Registers),
+        gpio_b: Gpio(0x4800_0400 as *mut Registers),
+        gpio_c: Gpio(0x4800_0800 as *mut Registers),
+    })
+  } else { None }
+}</code></pre></pre>
+<h2 id="using-modes"><a class="header" href="#using-modes">Using Modes</a></h2>
+<p>Next, lets use the private methods to implement a public API for GPIO
+access that <em>gets</em> and <em>sets</em> a pin’s modes, and ensures it is used
+according to its mode. First, lets write an <code>enum</code> to represent the
+modes of a <code>Pin</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect] #[derive(PartialEq, Eq)]
+enum Mode { Input, Output }
+flux_core::eq!(Mode);</code></pre></pre>
+<p>We <em>could</em> have just used <code>bool</code> but sadly, I kept mixing up whether
+<code>true</code> meant <code>Input</code> or <code>Output</code>. An <code>enum</code> rather dispels the
+confusion! However it will be quite convenient to convert between <code>Mode</code>
+and <code>bool</code> with two helper functions</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl From&lt;bool&gt; for Mode {
+    #[spec(fn (b: bool) -&gt; Mode[bool_to_mode(b)])]
+    fn from(b: bool) -&gt; Self {
+        if b { Mode::Output } else { Mode::Input }
+    }
+}
+impl Into&lt;bool&gt; for Mode {
+    #[spec(fn (mode: Mode) -&gt; bool[mode_to_bool(mode)])]
+    fn into(self) -&gt; bool {
+        match self {
+            Mode::Output =&gt; true,
+            Mode::Input =&gt; false,
+        }
+    }
+}</code></pre></pre>
+<p>whose specifications use the refinement functions</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+  fn bool_to_mode(b:bool) -&gt; Mode {
+    if b {
+        Mode::Output
+    } else {
+        Mode::Input
+    }
+  }
+
+  fn mode_to_bool(mode: Mode) -&gt; bool {
+    mode == Mode::Output
+  }
+}</code></pre></pre>
+<p><strong>Getting the Mode</strong> Lets use the private API and the bitvector helpers
+to implement a public method to get a <code>Pin</code>‘s mode, using <code>get_pin</code>
+defined earlier plus the <code>Mode</code>-<code>bool</code> conversion.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Gpio {
+  #[spec(fn(&amp;Gpio[@modes], pin: Pin) -&gt; Mode[get_mode(modes, pin)])]
+  pub fn get_mode(&amp;self, pin: Pin) -&gt; Mode {
+    Mode::from(get_pin(self.get_registers().modes, pin))
+  }
+}</code></pre></pre>
+<p>where the specification function <code>get_mode</code> is just</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn get_mode(bv: bitvec&lt;32&gt;, index: int) -&gt; Mode {
+        bool_to_mode(get_pin(bv, index))
+    }
+}</code></pre></pre>
+<p><strong>Setting the Mode</strong> Similarly, we can implement a public method to set
+a <code>Pin</code>‘s mode using <code>set_pin</code> defined earlier plus the <code>Mode</code>-<code>bool</code>
+conversion.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Gpio {
+  // #[spec(EXERCISE)]
+  pub fn set_mode(&amp;mut self, pin: Pin, mode: Mode) {
+    let regs = self.get_registers();
+    self.set_modes(set_pin(regs.modes, pin, mode.into()))
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Write the specification for <code>set_mode</code> so Flux verifies
+<code>test_get_set</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(gpio: &amp;mut Gpio[@modes]) ensures gpio: Gpio[modes])]
+fn test_get_set(gpio: &amp;mut Gpio) {
+    let orig = gpio.get_mode(3);              // save original mode
+    gpio.set_mode(3, Mode::Output);           // set to output
+    assert(gpio.get_mode(3) == Mode::Output); // verify mode
+    gpio.set_mode(3, orig);                   // restore original mode
+}</code></pre></pre>
+<p><strong>Input and Output Pins</strong> We want the methods that read from and write
+to a <code>Pin</code> to only be invoked on pins that are configured to be in
+<code>Input</code> or <code>Output</code> mode respectively. First, lets write a type <em>alias</em>
+for such pins (as always, paired with a matching Rust-level alias that
+can be used in Rust signatures.)</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[alias(type In(m:bitvec&lt;32&gt;) = Pin{v:get_mode(m, v) == Mode::Input})]
+type In = Pin;
+
+#[alias(type Out(m:bitvec&lt;32&gt;) = Pin{v:get_mode(m, v) == Mode::Output})]
+type Out = Pin;</code></pre></pre>
+<p><strong>Dependent Aliases</strong>: Unlike the definition of <code>Pin</code> which is simply a
+<code>u8</code> between <code>0</code> and <code>32</code>, the definitions of the aliases <code>In</code> and <code>Out</code>
+<em>depend on</em> the <code>bitvec&lt;32&gt;</code> index <code>m</code>. This is essential as actual
+<em>mode</em> is stored in the <code>modes</code> register and not the <code>Pin</code> itself. Flux
+supports such <em>dependent aliases</em> with <em>alias parameters</em> like
+<code>m: bitvec&lt;32&gt;</code> that can be used in the alias body, and which must then
+be supplied wherever the aliases are used in Flux specifications.</p>
+<p><strong>Reading &amp; Writing Pins</strong> Finally, lets use the alias to write <code>read</code>
+and <code>write</code> methods that only accept <code>In</code> and <code>Out</code> pins, respectively</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Gpio {
+    #[spec(fn(&amp;Gpio[@modes], pin: In(modes)) -&gt; bool)]
+    pub fn read(&amp;self, pin: In) -&gt; bool {
+        let regs = self.get_registers();
+        get_pin(regs.input.into(), pin)
+    }
+
+    #[spec(fn(self: &amp;mut Gpio[@modes], pin: Out(modes), value: bool))]
+    pub fn write(&amp;mut self, pin: Out, value: bool) {
+        let output = self.get_registers().output.into();
+        let new_output = set_pin(output, pin, value).into();;
+        self.set_output(new_output);
+    }
+}</code></pre></pre>
+<p>Well then, we now have a complete API to determine and configure the
+modes of each pin, and read and write them according to their enabled
+modes, such that that Flux can statically ensure that the “magic smoke”
+stays inside!</p>
+<h2 id="clients"><a class="header" href="#clients">Clients</a></h2>
+<p>Lets test our API out with some example client code.</p>
+<p><strong>Reading and Writing Pins</strong> Here’s an example that illustrates how we
+can use our GPIO API to configure and access different pins on different
+ports. First, we get mutable access to the GPIO ports via the
+<code>take_peripherals</code> function. Next, we configure some pins as <code>Output</code>
+and others as <code>Input</code>. Flux will use the specification for <code>set_mode</code> to
+track each of the pins” modes separately (in the <code>modes</code> index for
+<code>gpio_a</code> and <code>gpio_b</code>). Consequently, Flux will allow us to <code>read</code> from
+the <code>Input</code> pins, and <code>write</code> to the <code>Input</code> pins. However, Flux will
+prevent you from trying to <code>read</code> from or <code>write</code> to an <code>Output</code> or
+<code>Input</code> pin, respectively, as you can see by uncommenting the lines at
+the bottom of the function.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_read_write() {
+    // Get mutable access to GPIOA
+    let mut peripherals = take_peripherals().expect("taken!");
+    let gpio_a = &amp;mut peripherals.gpio_a;
+    let gpio_b = &amp;mut peripherals.gpio_b;
+
+    // Different pins, different states
+    gpio_a.set_mode(0, Mode::Output); // PA0 : Out
+    gpio_a.set_mode(1, Mode::Output); // PA1 : Out
+    gpio_a.set_mode(5, Mode::Input);  // PA5 : In
+    gpio_b.set_mode(0, Mode::Input);  // PB3 = In
+
+    // Valid accesses
+    gpio_a.write(0, true);
+    gpio_a.write(1, true);
+    let button_state = gpio_a.read(5);
+    let timer_state = gpio_b.read(0);
+
+    // Invalid accesses caught at compile-time
+    // gpio_a.read(0);         // ERROR! Can't read from Out pin
+    // gpio_a.write(5, true);  // ERROR! Can't write to In pin
+}</code></pre></pre>
+<p><strong>Reading Multiple Pins</strong> Your turn! Consider the function below that
+takes as input <em>sequence</em> of Pins, and returns as output a vector of the
+<code>bool</code> obtained from reading the sequence of <code>Pins</code>.</p>
+<p><strong>EXERCISE:</strong> Write a <code>spec</code> that lets Flux verify <code>read_pins</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn read_pins(gpio: &amp;Gpio, pins: &amp;[Pin]) -&gt; Vec&lt;bool&gt; {
+    let mut res = vec![];
+    for pin in pins {
+        res.push(gpio.read(*pin));
+    }
+    res
+}</code></pre></pre>
+<p><strong>Writing Multiple Pins</strong> And here is a similar function that
+additionally takes as input a sequence of <code>bool</code> values to write to the
+corresponding sequence of <code>Pins</code>.</p>
+<p><strong>EXERCISE:</strong> Write a <code>spec</code> that lets Flux verify <code>write_pins</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn write_pins(gpio: &amp;mut Gpio, pins: &amp;[Pin], vals: &amp;[bool]) {
+    for i in 0..pins.len() {
+        gpio.write(pins[i], vals[i]);
+    }
+}</code></pre></pre>
+<p><strong>Dynamic Mode Configuration</strong> Lets look at an example where we might
+want to “force” a <code>Pin</code> to <code>Output</code> mode, optionally returning its value
+if it was (previously) in <code>Input</code> mode. Flux will not let us read from a
+pin until we have established that the current mode (obtained by
+<code>get_mode</code>) is, in fact, <code>Input</code>. At that point, we can read the pin,
+and then set it to <code>Output</code> mode.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(gpio: &amp;mut Gpio, pin:Pin) -&gt; Option&lt;bool&gt; ensures gpio: Gpio)]
+fn detect_and_set(gpio: &amp;mut Gpio, pin: Pin) -&gt; Option&lt;bool&gt; {
+    // gpio.read(pin); // ERROR can't read, don't know state!
+    if let Mode::Input = gpio.get_mode(pin) {
+        let val = gpio.read(pin);
+        gpio.set_mode(pin, Mode::Output);
+        return Some(val);
+    }
+    None
+}</code></pre></pre>
+<p><strong>Blinking a Status LED</strong> One often wants an embedded device to blink,
+<em>e.g.</em> to let us know its alive and kicking. The usual maneuver is to
+toggle a dedicated status LED pin inside the main loop of the
+application.</p>
+<p><strong>EXERCISE:</strong> Fix the spec so Flux verifies <code>blink_status_led</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(gpio: &amp;mut { Gpio[@modes] | true}))]
+fn blink_status_led(gpio: &amp;mut Gpio) {
+    static mut LED_STATE: bool = true;
+    let value = unsafe { LED_STATE = !LED_STATE; LED_STATE };
+    gpio.write(13, value); // HINT: When is this ok to call?
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Here’s the main “loop” of an embedded application that
+blinks the status LED to indicate the system is alive. Can you find out
+why Flux rejects the call to <code>blink_status_led</code>, and remedy mattes so
+that <code>app</code> is accepted?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn app() {
+    let mut peripherals = take_peripherals().expect("taken!");
+    let gpio_c = &amp;mut peripherals.gpio_c;
+    // blink_status_led(gpio_c); // ERROR! not yet Output
+    detect_and_set(gpio_c, 13); // ensure pin 13 is Output
+    loop {
+        // let result = process_data(read_sensors());
+        // update_outputs(result);
+        blink_status_led(gpio_c); // indicate system is alive
+    }
+}</code></pre></pre>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<p>In this chapter, we learned about Flux’s support for <em>bitvector</em> valued
+refinements via the <code>BV</code> type, and how to use bitvectors to track the
+modes of GPIO pins, to write a verified GPIO library that ensures pins
+are used per their configuration.</p>
+<p>Existing embedded Rust libraries track pin modes in Rust’s using
+<code>PhantomData</code> and the typestate pattern <sup class="footnote-reference" id="fr-4-1"><a href="#footnote-4">4</a></sup>. While this approach has
+the advantage of working out of the box with plain <code>rustc</code>, it has two
+drawbacks. First, we get a explosion in the number of types, and the
+attendant duplication of methods. Second, and perhaps more
+importantantly, we end up tracking the state of the <code>Pin</code> at the
+type-level, when we really want to track state of the <code>modes</code> register
+to avoid any shenanigans that might arise <em>concurrently</em> accessing
+different pins of the same port. (The classic typestate approach would
+end up having to create 2<sup>32</sup> different types to track all mode
+configurations of a single port!)</p>
+<p>In contrast, Flux’s refinements allow us to compactly track the entire
+vector of modes via logical refinements while still providing
+compile-time guarantees that each pin is used according to its
+configured mode.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>See <a href="https://www.ecorax.net/macro-bunker-1/">https://www.ecorax.net/macro-bunker-1/</a> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Flux also supports <code>BV8</code>, <code>BV16</code> and <code>BV64</code> types for 8-, 16- and
+64-bit bitvectors, but lets focus on <code>BV32</code> for simplicity <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p><a href="https://en.wikipedia.org/wiki/Magic_smoke">https://en.wikipedia.org/wiki/Magic_smoke</a> <a href="#fr-3-1">↩</a></p>
+</li>
+<li id="footnote-4">
+<p><a href="https://docs.rust-embedded.org/book/static-guarantees/state-machines.html">https://docs.rust-embedded.org/book/static-guarantees/state-machines.html</a> <a href="#fr-4-1">↩</a></p>
+</li>
+</ol>
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../tutorial/12-sets.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="../tutorial/14-neural.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../tutorial/12-sets.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="../tutorial/14-neural.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+        <script src="../ace.js"></script>
+        <script src="../mode-rust.js"></script>
+        <script src="../editor.js"></script>
+        <script src="../theme-dawn.js"></script>
+        <script src="../theme-tomorrow_night.js"></script>
+
+        <script src="../elasticlunr.min.js"></script>
+        <script src="../mark.min.js"></script>
+        <script src="../searcher.js"></script>
+
+        <script src="../clipboard.min.js"></script>
+        <script src="../highlight.js"></script>
+        <script src="../book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

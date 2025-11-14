@@ -1582,7 +1582,7 @@ of an <code>RVec</code> and sums them up? <sup class="footnote-reference" id="fr
         res += vec.get(i);
         i += 1;
     }
-    sum
+    res
 }</code></pre></pre>
 <!-- SLIDE -->
 <h3 id="using-the-index-trait"><a class="header" href="#using-the-index-trait">Using the <code>Index</code> trait</a></h3>
@@ -1611,10 +1611,10 @@ impl&lt;T&gt; std::ops::IndexMut&lt;usize&gt; for RVec&lt;T&gt; {
     let mut res = 0;
     let mut i = 0;
     while i &lt; vec.len() {
-        res += vec[i]
+        res += vec[i];
         i += 1;
     }
-    sum
+    res
 }</code></pre></pre>
 <!-- SLIDE -->
 <h2 id="memoization"><a class="header" href="#memoization">Memoization</a></h2>
@@ -1796,7 +1796,7 @@ For example, the following code</p>
 </ul>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[sig(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
+</span>#[spec(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
 <span class="boring">}</span></code></pre></pre>
 <img src="tutorial/../img/04-arrays-average-fix.gif" width="100%">
 <h2 id="const-generics-1"><a class="header" href="#const-generics-1">Const Generics</a></h2>
@@ -1866,7 +1866,7 @@ arrays of different sizes, for example we get a compile-time error</p>
 </ul>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32)]
+</span>#[spec(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32)]
 fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
     let mut sum = 0.0;
     for i in 0..k {
@@ -2030,19 +2030,19 @@ the methods that <code>impl</code>ement various key operations on <code>Option</
 we did for slices, <a href="tutorial/07-externs.html#getting-the-length-of-a-slice">back here</a>.</p>
 <pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
 impl&lt;T&gt; Option&lt;T&gt; {
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
+    #[spec(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
     const fn is_some(&amp;self) -&gt; bool;
 
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
+    #[spec(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
 
-    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    #[spec(fn(Option&lt;T&gt;[true]) -&gt; T)]
     const fn unwrap(self) -&gt; T;
 }</code></pre></pre>
 <p>The definition looks rather like the actual one,
 except that it wears the <code>#[extern_spec]</code> attribute
 on top, and the methods have no definitions, as we
-want to use those from the extern crate, in this case,
+want to use those from the <code>extern</code> crate, in this case,
 the standard library.</p>
 <p>Notice that the spec for</p>
 <ul>
@@ -2646,6 +2646,1669 @@ to the particular <code>Self</code> and <code>Idx</code> types of the implementa
 </li>
 <li id="footnote-5">
 <p>See this <a href="https://ranjitjhala.github.io/static/sosp25-ticktock.pdf">SOSP 2025 paper</a> for more details. <a href="#fr-5-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="simple-access-control"><a class="header" href="#simple-access-control">Simple Access Control</a></h1>
+<p>Hopefully, by this point, you have a reasonable idea of the main tools
+that Flux provides for refining types to capture correctness
+requirements. In this, our first case study, lets see how to use those
+tools to implement a very simple <em>role-based access control</em> (RBAC)
+system, where Flux will check that only users with appropriate
+permissions are allowed to access different resources. In doing so,
+we’ll get some more practice with the tools we have already seen, and
+learn about various other aspects of Flux, including how to</p>
+<ol>
+<li>
+<p>Lift enum <em>variants</em> up into refinements,</p>
+</li>
+<li>
+<p>Specifying <em>equality</em> using associated refinements,</p>
+</li>
+<li>
+<p>Write <em>detached</em> specifications,</p>
+</li>
+<li>
+<p>Define and use <em>refinement-level functions</em>.</p>
+</li>
+</ol>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">extern crate flux_core;
+use flux_rs::{assert, attrs::*};</code></pre></pre>
+<h2 id="reflection"><a class="header" href="#reflection">Reflection</a></h2>
+<p>A bird flying high above our access-control system, or more plausibly,
+an LLM attempting to summarize its code, would observe that it consists
+of three main entities: <em>users</em> who want to access resources, <em>roles</em>
+that are assigned to each user, and the <em>permissions</em> that may be
+granted to each role.</p>
+<p><strong>Roles</strong> Lets suppose that we want to track three kinds of users:
+administrators, members and guests. We might represent these three roles
+using a Rust <code>enum</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Debug, Clone)]
+pub enum Roles {
+    Admin,
+    Member,
+    Guest,
+}</code></pre></pre>
+<p><strong>Reflection</strong> The key new bit in the definition of <code>Role</code> is the
+<code>#[reflect]</code> attribute, which tells Flux that we intend to use variants
+of this <code>enum</code> inside refinements. Why not just automatically <code>reflect</code>
+all <code>enum</code>s? Currently, only a very restricted subset of <code>enum</code>s are
+reflected: those whose variants take <em>no</em> parameters. Hence, Flux
+requires us to explicitly mark such <code>enum</code>s with the <code>#[reflect]</code>
+attribute. For example, we can now write a function that checks if a
+given role is an <code>Admin</code> and returns <code>true</code> if so, and <code>false</code>
+otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn (&amp;Role[@r]) -&gt; bool[r == Role::Admin])]
+pub fn is_admin(r: &amp;Role) -&gt; bool {
+    match r {
+        Role::Admin =&gt; true,
+        _ =&gt; false,
+    }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the specification and implementation of
+<code>is_guest</code> below. You cannot use <code>==</code> (yet) because, well, just try to
+use it and see what happens!</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn is_guest(r: &amp;Role) -&gt; bool {
+    true
+}</code></pre></pre>
+<p>When you are done, all the <code>assert</code> statements in the <code>test_role</code>
+function should be verified by Flux.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_role() {
+  let admin = Role::Admin;
+  let member = Role::Member;
+  let guest = Role::Guest;
+  assert(is_admin(&amp;admin) &amp;&amp; !is_admin(&amp;member) &amp;&amp; !is_admin(&amp;guest));
+  assert(!is_guest(&amp;admin) &amp;&amp; !is_guest(&amp;member) &amp;&amp; is_guest(&amp;guest));
+}</code></pre></pre>
+<h2 id="defining-equality"><a class="header" href="#defining-equality">Defining Equality</a></h2>
+<p>My love and appreciation of pattern-matching should not be questioned.
+However, sometimes we just want an old-fashioned equality test, for
+instance, to make <code>is_admin</code> and <code>is_guest</code> trivial one-liners instead
+of all the ceremony of a function-call wrapped inside a <code>match</code>
+statement. Despite my telling you not to use <code>==</code> above, I’m pretty
+certain that you tried it anyway. Or perhaps you anticipated that you
+<em>could not</em> use it because we have not yet implemented the <code>PartialEq</code>
+trait for <code>Role</code> which is what Rust uses to implement <code>==</code> and <code>!=</code>
+comparisons.</p>
+<p><strong>A Refined PartialEq Trait</strong> The Flux standard library refines <code>std</code>‘s
+<code>PartialEq</code> trait with two <em>associated refinements</em> (see
+<a href="tutorial/ch09_traits">this chapter</a>.md) <code>is_eq</code> and <code>is_ne</code> that respectively specify when two
+values of the type implementing <code>PartialEq</code> are equal or not. The
+<em>methods</em> <code>eq</code> and <code>ne</code> return boolean values <code>v</code> such that the
+predicate <code>is_eq(r1, r2, v)</code> and <code>is_ne(r1, r2, v)</code> hold. By default,
+the two associated refinements are just <code>true</code>, meaning that the <code>bool</code>
+result <code>v</code> is unconstrained: it can be either <code>true</code> or <code>false</code>
+regardless of the inputs.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[assoc(
+    fn is_eq(x: Self, y: Rhs, v: bool) -&gt; bool { true }
+    fn is_ne(x: Self, y: Rhs, v: bool) -&gt; bool { true }
+)]
+trait PartialEq&lt;Rhs: PointeeSized = Self&gt;: PointeeSized {
+    #[spec(fn(&amp;Self[@s], &amp;Rhs[@t]) -&gt; bool{v: Self::is_eq(s, t, v)})]
+    fn eq(&amp;self, other: &amp;Rhs) -&gt; bool;
+
+    #[spec(fn(&amp;Self[@s], &amp;Rhs[@t]) -&gt; bool{v: Self::is_ne(s, t, v)})]
+    fn ne(&amp;self, other: &amp;Rhs) -&gt; bool;
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>A Refined PartialEq Implementation</strong> However, for particular
+implementations of <code>PartialEq</code>, <em>e.g.</em> for <code>Role</code>, we can define the
+associated refinements to capture exactly when two values are equal or
+not.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[assoc(
+    fn is_eq(x: Self, y: Rhs, res: bool) -&gt; bool { res &lt;=&gt; (r1 == r2) }
+    fn is_ne(x: Self, y: Rhs, res: bool) -&gt; bool { true }
+)]
+impl PartialEq for Role {
+    #[spec(fn(&amp;Self[@r1], &amp;Self[@r2]) -&gt; bool[r1 == r2]))]
+    fn eq(&amp;self, other: &amp;Self) -&gt; bool {
+        match (self, other) {
+            (Role::Admin, Role::Admin) =&gt; true,
+            (Role::User, Role::User) =&gt; true,
+            (Role::Guest, Role::Guest) =&gt; true,
+            _ =&gt; false,
+        }
+    }
+}</code></pre></pre>
+<p>Now that we’ve <em>implemented</em> <code>PartialEq</code>, we can now write a simple
+tests to check to see if Flux can understand when two <code>Role</code>s are equal
+or not.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_role_eq() {
+  let admin = Role::Admin;
+  let member = Role::Member;
+  assert(admin == admin);
+  assert(admin != member);
+  assert(member == member);
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Oh no! Why does Flux fail to verify that <code>admin != member</code>
+in <code>test_role_eq</code>? Can you go back and figure out what bit of the above
+to edit and fix, so that all the <code>assert</code> calls in <code>test_role_eq</code> are
+verified by Flux.</p>
+<p><strong>Permissions</strong> Next, lets define the different kinds of permissions
+that users may have to access resources. Again, we can use an <code>enum</code>
+with a <code>#[reflect]</code> attribute.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Permissions { Read, Write, Comment, Delete, Configure }</code></pre></pre>
+<p>Its rather tiresome to have to write out the full <code>PartialEq</code>
+implementation, especially since we can automatically <em>derive</em> it using
+Rust’s <code>#[derive(PartialEq)]</code>. However, now we are in a bit of a pickle.
+When we explicitly wrote out the <code>eq</code> and <code>ne</code> methods above, we could
+write an output type <code>bool[r1 == r2]</code> or <code>bool[r1 != r2]</code> respectively.
+But now, we need a way to <em>retroactively</em> give Flux a specification for
+the <code>eq</code> and <code>ne</code> methods. <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup></p>
+<h2 id="detached-specifications"><a class="header" href="#detached-specifications">Detached Specifications</a></h2>
+<p>Normally, Flux specifications are <em>attached</em> to the function or type or
+trait using a Rust attribute like <code>#[spec(...)]</code> or <code>#[reflect]</code>.
+However, for situations like this, where you <em>cannot</em> modify the
+original source because <em>e.g.</em> it is generated by a <code>derive</code> macro, or
+perhaps because you’d rather just put the specifications elsewhere for
+stylistic reasons, Flux also lets you write specifications that are
+<em>detached</em> from their home in the source code. <sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[specs {
+  impl std::cmp::PartialEq for Permissions {
+    #[reft]
+    fn is_eq(p1: Permissions, p2: Permissions, v:bool) -&gt; bool {
+       v &lt;=&gt; (p1 == p2)
+    }
+    #[reft]
+    fn is_ne(p1: Permissions, p2: Permissions, v:bool) -&gt; bool {
+       v &lt;=&gt; (p1 != p2)
+    }
+    fn eq(&amp;Self[@r1], &amp;Self[@r2]) -&gt; bool[r1 == r2];
+  }
+}]
+const _: () = (); // just need something to attach the attribute to</code></pre></pre>
+<p>The above “detached specification” says that we are providing
+specifications for the <code>PartialEq</code> implementation for <code>Permissions</code>.
+Flux will check these specifications against the (in this case, derived)
+code, and will then let you use <code>==</code> and <code>!=</code> on <code>Permissions</code> values.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_eq_perms() {
+    let read = Permissions::Read;
+    let write = Permissions::Write;
+    assert(read == read);
+    assert(read != write);
+}</code></pre></pre>
+<h2 id="refinement-level-functions"><a class="header" href="#refinement-level-functions">Refinement Level Functions</a></h2>
+<p>Now, that we’ve defined <code>Role</code>s and <code>Permission</code>s, we can define a
+<code>User</code> struct that has their <code>id</code> and <code>role</code>, where we use a Flux index
+to track the <code>role</code> of each <code>User</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(role: Role)]
+pub struct User {
+    pub name: String,
+    #[field(Role[role])]
+    pub role: Role,
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the <em>specification</em> and <em>implementation</em> of the
+<code>new</code> method so that the code in <code>test_user</code> verifies.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+    // fill in the spec
+    pub fn new(name: String, role: Role) -&gt; Self {
+        User { name, role  }
+    }
+}
+
+fn test_user() {
+    let alice = User::new("Alice".to_string(), Role::Admin);
+    let bob = User::new("Bob".to_string(), Role::Guest);
+    assert(alice.is_admin());
+    assert(bob.is_guest());
+}</code></pre></pre>
+<p><strong>Policies</strong> Lets <em>restrict</em> the set of <code>Permission</code>s that a <code>User</code> can
+have based on their <code>Role</code>. For instance, suppose we want a policy where</p>
+<ul>
+<li>
+<p><code>Admin</code>s can do everything (i.e., have all <code>Permission</code>s),</p>
+</li>
+<li>
+<p><code>Member</code>s can <code>Read</code>, <code>Write</code> and <code>Comment</code>, but not <code>Delete</code> or
+<code>Configure</code>,</p>
+</li>
+<li>
+<p><code>Guest</code>s can only <code>Read</code>.</p>
+</li>
+</ul>
+<p>We can stipulate this policy in a <em>refinement-level function</em>
+<code>permitted</code> that returns <code>true</code> exactly when a given <code>Role</code> is allowed
+to have a given <code>Permission</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn permitted(r: Role, p: Permissions) -&gt; bool {
+        if r == Role::Admin {
+            true
+        } else if r == Role::Member {
+            p != Permissions::Delete &amp;&amp; p != Permissions::Configure
+        } else { // Guest
+            p == Permissions::Read
+        }
+    }
+}</code></pre></pre>
+<p><strong>Enforcement</strong> And now, we can use <code>permitted</code> to specify that only
+users with the appropriate <code>Role</code> are allowed to perform certain
+actions.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Read))]
+  fn read(&amp;self) { /* ... */ }
+  #[spec(fn(&amp;Self[@u]) requires permitted(u.role, Permissions::Write))]
+  fn write(&amp;self) { /* ... */ }
+}</code></pre></pre>
+<p>Flux will allow valid accesses,</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_access_ok() {
+    let alice = User::new("Alice".to_string(), Role::Admin);
+    alice.configure();
+    alice.delete();
+}</code></pre></pre>
+<p>but will swiftly reject, at compile-time, accesses that violate the
+policy:</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_access_bad() {
+    let bob = User::new("Bob".to_string(), Role::Guest);
+    bob.write();         // error!
+    bob.delete();        // error!
+    bob.configure();     // error!
+}</code></pre></pre>
+<h2 id="summary-7"><a class="header" href="#summary-7">Summary</a></h2>
+<p>To recap, in this chapter we saw how to use</p>
+<ul>
+<li>
+<p><em>Reflect</em> <code>enum</code>s, <em>e.g.</em> to refer to variants like <code>Role::User</code> in
+refinements,</p>
+</li>
+<li>
+<p><em>Detached</em> specifications for (derived) code <em>e.g.</em> <code>PartialEq</code>
+implementations,</p>
+</li>
+<li>
+<p><em>Refinement-level functions</em> to specify contracts, <em>e.g.</em> policies on
+Roles,</p>
+</li>
+</ul>
+<p>which together, let us implement a simple role-based access control
+system where Flux verifies that <code>User</code>s only access resources compatible
+with their <code>Role</code>. Next, in <a href="tutorial/ch12_sets,.html">this chapter</a> we will see how to extend
+our system with <em>set-valued</em> refinements that will allow for more
+expressive access control.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>From <a href="tutorial/ch08_externs.html">this chapter</a> you may recall the notion of <em>extern
+specifications</em>; sadly we cannot quite use those because they are
+for things defined outside the current crate. <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Yes indeed, the code below is a <em>lot</em> of boilerplate, that is best
+generated by a macro, as we will see shortly, in <a href="tutorial/ch12_sets.html">this chapter</a>. <a href="#fr-2-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="dynamic-access-control"><a class="header" href="#dynamic-access-control">Dynamic Access Control</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">extern crate flux_core;
+use flux_rs::{assert, attrs::*};
+use std::hash::Hash;
+
+defs!{
+    fn set_emp&lt;T&gt;() -&gt; Set&lt;T&gt; {
+        set_empty(0)
+    }
+
+    fn set_add&lt;T&gt;(x: T, s: Set&lt;T&gt;) -&gt; Set&lt;T&gt; {
+        set_union(set_singleton(x), s)
+    }
+
+    fn set_del&lt;T&gt;(x:T, s: Set&lt;T&gt;) -&gt; Set&lt;T&gt; {
+        set_difference(s, set_singleton(x))
+    }
+
+    fn set_is_disjoint&lt;T&gt;(s1: Set&lt;T&gt;, s2: Set&lt;T&gt;) -&gt; bool {
+        set_intersection(s1, s2) == set_emp()
+    }
+}</code></pre></pre>
+<p>Previously, in <a href="tutorial/ch11_equality,.html">this chapter</a> we saw how to write a simple
+role-based access control system, where each <code>Role</code> has a <em>fixed</em> set of
+<code>Permissions</code> associated with it, and each <code>User</code> can only access the
+resources that their <code>Role</code> allows. Next, lets see how to generalize
+that to build a <em>dynamic</em> access control mechanism, where permissions
+can be <em>added</em> or <em>removed</em> from users at runtime, while still ensuring
+that they can only access resources allowed by their <code>Role</code>. To do so we
+will use <em>set-valued</em> refinements to track the set of permissions that
+each user currently has.</p>
+<h2 id="roles--permissions"><a class="header" href="#roles--permissions">Roles &amp; Permissions</a></h2>
+<p>Lets begin by recalling the whole business of roles and permissions.</p>
+<p><strong>Roles</strong> As before, we have three kinds of users: admins, members and
+guests. This time, we will <em>derive</em> <code>PartialEq</code> and then use the
+<code>flux_core::eq!</code> macro to generate the boilerplate detached
+specifications needed to compare two <code>Role</code>s (described in
+<a href="tutorial/ch11_equality.html#detached">this chapter</a>).</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Role {
+    Admin,
+    Member,
+    Guest,
+}
+flux_core::eq!(Role);
+use Role::*;</code></pre></pre>
+<p><strong>Permissions</strong> Next, lets define the different kinds of permissions
+that users may have to access resources, using <code>#[reflect]</code> to let us
+talk about <code>Permissions</code> in refinements, and the <code>eq!</code> macro to let us
+compare them.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Permissions {
+    Read,
+    Write,
+    Comment,
+    Delete,
+    Configure,
+}
+flux_core::eq!(Permissions);
+use Permissions::*;</code></pre></pre>
+<h2 id="set-valued-refinements"><a class="header" href="#set-valued-refinements">Set-Valued Refinements</a></h2>
+<p>Instead of statically hardwiring a <code>User</code>‘s permissions to their <code>Role</code>,
+our dynamic access control system will let us <em>add</em> or <em>remove</em>
+permissions from a user at runtime. However, we will want to still
+enforce important correctness requirements at compile time, and hence,
+require a way to track the <em>set of permissions</em> a user has at any given
+point.</p>
+<p><strong>Refined Sets</strong> To do so, we can use a <em>refined Set</em> library provided
+by the <code>flux-rs</code> crate, which like the refined-vectors (described in
+<a href="tutorial/ch06_vectors">this chapter</a>.md) are just a wrapper around Rust’s standard <code>HashSet</code>
+but where we track the actual <em>elements</em> in the set via a <em>set-valued</em>
+refinement index <code>elems</code> whose sort is <code>Set&lt;T&gt;</code>, where <code>T</code> is the type
+of elements in the set. That is, just like we were tracking the
+<code>int</code>-valued vector <em>size</em> in <a href="tutorial/ch06_vectors,.html">this chapter</a> here we’re tracking the
+<code>Set&lt;T&gt;</code>-valued <em>elems</em>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[opaque]
+#[refined_by(elems: Set&lt;T&gt;)]
+#[derive(Debug)]
+pub struct RSet&lt;T&gt; {
+    pub inner: std::collections::HashSet&lt;T&gt;,
+}</code></pre></pre>
+<p><strong>Creating Sets</strong> The <code>RSet</code> API has a method to create an <code>new</code> set
+(which is empty), and a method to add an element to a set, which
+<em>updates</em> the set refinement to include the new <code>elem</code> element, using
+the refinement level <code>set_add</code> operation.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T&gt; RSet&lt;T&gt; {
+  #[spec(fn() -&gt; RSet&lt;T&gt;[set_emp()])]
+  pub fn new() -&gt; RSet&lt;T&gt; {
+    let inner = std::collections::HashSet::new();
+    RSet { inner }
+  }
+
+  #[spec(fn(self: &amp;mut RSet&lt;T&gt;[@s], elem: T)
+         ensures self: RSet&lt;T&gt;[set_add(elem, s)])]
+  pub fn insert(self: &amp;mut Self, elem: T)
+  where
+    T: Eq + Hash,
+  {
+    self.inner.insert(elem);
+  }
+}</code></pre></pre>
+<p><strong>Membership</strong> Next, lets write a <code>contains</code> method to test if an
+element is in an <code>RSet</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T&gt; RSet&lt;T&gt; {
+  #[spec(fn(set: &amp;RSet&lt;T&gt;[@s], &amp;T[@elem]) -&gt; bool[set_is_in(elem, s.elems)])]
+  pub fn contains(self: &amp;Self, elem: &amp;T) -&gt; bool
+  where
+    T: Eq + Hash,
+  {
+    self.inner.contains(elem)
+  }
+}</code></pre></pre>
+<p>We can now check that are refinement-leve tracking is working as
+expected:</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_set_add() {
+  let read = Permissions::Read;
+  let write = Permissions::Write;
+  let mut s = RSet::new();
+  s.insert(read);
+  assert(s.contains(&amp;read) &amp;&amp; !s.contains(&amp;write));
+  s.insert(write);
+  assert(s.contains(&amp;read) &amp;&amp; s.contains(&amp;write));
+}</code></pre></pre>
+<p><strong>An <code>rset!</code> Macro</strong> Our API has enough mojo to implement a simple
+<code>rset!</code> macro that will let us create <code>RSet</code>s with a more convenient
+syntax:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[macro_export]
+macro_rules! rset {
+    () =&gt; { RSet::new() };
+    ($($e:expr),+$(,)?) =&gt; {{
+        let mut res = RSet::new();
+        $( res.insert($e); )*
+        res
+    }};
+}</code></pre></pre>
+<p>We can kick the tires on the macro,</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_rset_macro() {
+  let read = Permissions::Read;
+  let write = Permissions::Write;
+  let s = rset![read, write];
+  assert(s.contains(&amp;read) &amp;&amp; s.contains(&amp;write));
+}</code></pre></pre>
+<p><strong>Union &amp; Intersection</strong> Next, it will be convenient to have operations
+that compute the <code>union</code> and <code>intersection</code>, of two sets. We can
+implement these using the corresponding operations on Rust’s <code>HashSet</code>:</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T : Eq + Hash + Clone&gt; RSet&lt;T&gt; {
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt;
+         RSet&lt;T&gt;[set_intersection(self, other)])]
+  pub fn intersection(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; RSet&lt;T&gt; {
+    let inner = self.inner.intersection(&amp;other.inner).cloned().collect();
+    RSet { inner }
+  }
+
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt;
+            RSet&lt;T&gt;[set_union(self, other)])]
+  pub fn union(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; RSet&lt;T&gt; {
+    let inner = self.inner.union(&amp;other.inner).cloned().collect();
+    RSet { inner }
+  }
+}</code></pre></pre>
+<p>Notice that for each method <code>union</code>, <code>intersection</code>, the output type is
+indexed by the corresponding refinement-level operation on the input
+sets. Lets test these out.</p>
+<p><strong>EXERCISE</strong>: Fix the conditions in the <code>assert</code>s below so they verify.
+You may want to split them into <em>multiple</em> asserts to determine which
+ones fail.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_union_intersection() {
+  let rd = Permissions::Read;
+  let wr = Permissions::Write;
+  let cm = Permissions::Comment;
+  // make two sets
+  let s1 = rset![rd, wr];
+  let s2 = rset![wr, cm];
+  // check union
+  let su = s1.union(&amp;s2);
+  assert(!su.contains(&amp;rd) &amp;&amp; !su.contains(&amp;wr) &amp;&amp; !su.contains(&amp;cm));
+  // check intersection
+  let si = s1.intersection(&amp;s2);
+  assert(!si.contains(&amp;rd) &amp;&amp; !si.contains(&amp;wr) &amp;&amp; !si.contains(&amp;cm));
+}</code></pre></pre>
+<p><strong>Subset</strong> Finally, it will be useful to check if one set is a <em>subset</em>
+of another, that is, that all the elements of one set are also present
+in the other.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl&lt;T: Eq + Hash&gt; RSet&lt;T&gt; {
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt;
+         bool[set_subset(self, other)])]
+  pub fn subset(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; bool {
+    self.inner.is_subset(&amp;other.inner)
+  }
+}</code></pre></pre>
+<p>We can now test some properties of <code>union</code>, <code>intersection</code> and <code>subset</code>,
+for example, that the union of two sets <em>contains</em> both sets, and the
+intersection <em>is contained in</em> both sets.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_subset(s1: &amp;RSet&lt;Permissions&gt;, s2: &amp;RSet&lt;Permissions&gt;) {
+  let su = s1.union(&amp;s2);
+  assert(s1.subset(&amp;su) &amp;&amp; s2.subset(&amp;su));
+
+  let si = s1.intersection(&amp;s2);
+  assert(si.subset(&amp;s1) &amp;&amp; si.subset(&amp;s2));
+}</code></pre></pre>
+<p><strong>EXERCISE</strong>: Correct the implementation of the <code>equals</code> method so that
+it verifies. Note that the <code>==</code> operator is legal for the <code>Set&lt;T&gt;</code> sort
+<em>inside refinements</em> but it cannot be used in Rust <em>code</em> as we did not
+define <code>PartialEq</code> for <code>RSet&lt;T&gt;</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl&lt;T: Eq + Hash&gt; RSet&lt;T&gt; {
+  #[spec(fn(&amp;RSet&lt;T&gt;[@self], &amp;RSet&lt;T&gt;[@other]) -&gt; bool[self == other])]
+  pub fn equals(&amp;self, other: &amp;RSet&lt;T&gt;) -&gt; bool {
+    true // fix this
+  }
+}</code></pre></pre>
+<h2 id="the-set-of-permissions-of-each-role"><a class="header" href="#the-set-of-permissions-of-each-role">The Set of Permissions of Each Role</a></h2>
+<p>Lets use our refined <code>RSet</code> library to build a dynamic access control
+system. As before, each <code>Role</code> has a fixed set of <code>Permissions</code>
+associated with it. However, this time, we will specify these as a
+refinement-level function (see
+<a href="tutorial/ch11_equality.html#refinement-level-functions">this chapter</a>) that maps each <code>Role</code> to
+the <em>maximal</em> set of <code>Permissions</code> for that role.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn perms(r:Role) -&gt; Set&lt;Permissions&gt; {
+        if r == Role::Admin {
+          set_add(Permissions::Read,
+          set_add(Permissions::Write,
+          set_add(Permissions::Delete,
+          set_add(Permissions::Configure, set_emp()))))
+        } else if r == Role::Member {
+          set_add(Permissions::Read,
+          set_add(Permissions::Write,
+          set_add(Permissions::Comment, set_emp())))
+        } else { // Role::Guest
+          set_add(Permissions::Read, set_emp())
+        }
+    }
+}</code></pre></pre>
+<p><strong>A Slow Implementation</strong> The above <code>permissions</code> is a
+<em>refinement-level</em> function that Flux refinements can use to <em>specify</em>
+access control requirements. Fill in the method below that <em>computes</em>
+the set of <code>permissions</code> valid for a <code>Role</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Role {
+  #[spec(fn(&amp;Self[@r]) -&gt; RSet&lt;Permissions&gt;[perms(r)])]
+  pub fn permissions(&amp;self) -&gt; RSet&lt;Permissions&gt; {
+    match self {
+      Admin =&gt; rset!{},     // fill these in!
+      Member =&gt; rset!{},    // fill these in!
+      Guest =&gt; rset!{},     // fill these in!
+    }
+  }
+}</code></pre></pre>
+<p>When you are done with the above, we can use it to implement a method
+that <em>checks</em> if a given <code>Permission</code> is allowed for a <code>Role</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(&amp;Self[@r], &amp;Permissions[@p]) -&gt; bool[set_is_in(p, perms(r))])]
+pub fn check_permission_slow(&amp;self, p: &amp;Permissions) -&gt; bool {
+    self.permissions().contains(p)
+}</code></pre></pre>
+<p><strong>A Fast Implementation</strong> The <code>check_permission_slow</code> method above is
+correct, in that Flux proves that it returns <code>true</code> exactly if the given
+permission is allowed for the role. However, it is inefficient since we
+spin up a bunch of sets and membership queries to do the check.</p>
+<p><strong>EXERCISE</strong>: Complete the below implementation of an efficient (<em>and</em>
+correct) check using pattern-matching and equality comparisons.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(&amp;Self[@r], &amp;Permissions[@p]) -&gt; bool[set_is_in(p, perms(r))])]
+pub fn check_permission(&amp;self, p: &amp;Permissions) -&gt; bool {
+  let admin = Role::Admin;                // use this
+  let guest = Role::Guest;                // use this
+  let user = Role::Member;                // use this
+  match p {
+    Permissions::Read =&gt; true,            // fix this
+    Permissions::Write =&gt; true,           // fix this
+    Permissions::Comment =&gt; true,         // fix this
+    Permissions::Delete =&gt; true,          // fix this
+    Permissions::Configure =&gt; true,       // fix this
+  }
+}</code></pre></pre>
+<h2 id="users-with-dynamic-permissions"><a class="header" href="#users-with-dynamic-permissions">Users with Dynamic Permissions</a></h2>
+<p>The “dynamic” part of this access control system is that we want the
+ability to <em>add</em> or <em>remove</em> permissions from a user at runtime, while
+still ensuring that they can only access resources allowed by their
+role. To do so, we will define a <code>User</code> struct that, in addition to a
+<code>role</code>, will have two fields <code>allowed</code> and <code>denied</code> that will track the
+set of permissions that have been <em>added</em> or <em>removed</em> from the user at
+runtime.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[derive(Debug)]
+struct User {
+  name: String,
+  role: Role,
+  allow: RSet&lt;Permissions&gt;,
+  deny: RSet&lt;Permissions&gt;,
+}</code></pre></pre>
+<p><strong>Allowed &amp; Denied Permissions</strong> The <code>allow</code> and <code>deny</code> fields
+respectively track the set of permissions that <em>have been</em> granted and
+<em>should never be</em> granted to the <code>User</code>. Of course, we want these fields
+to always satisfy some important invariants.</p>
+<ol>
+<li>
+<p>The <code>allow</code>ed permissions should always be a <em>subset</em> of the
+permissions associated with the user’s <code>role</code>. That is, we can only
+allow permissions that are valid for the user’s role;</p>
+</li>
+<li>
+<p>The <code>allow</code>ed permissions should never contain any permission that
+has already been <code>denied</code>; that is, the <code>allow</code>ed and <code>deny</code>ed sets
+should always be <em>disjoint</em>.</p>
+</li>
+</ol>
+<p><strong>Enforcing Invariants</strong></p>
+<p>Lets use the detached specification mechanism — described in
+<a href="tutorial/ch11_equality.html#detached">this chapter</a> — to enforce these invariants by <em>refining</em>
+the struct to track the <code>role</code> and <code>allow</code> and <code>deny</code> sets as indices
+and then specifying the requirements above as <code>#[invariant]</code>s on the
+refined struct.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[specs {
+ #[refined_by(role:Role, allow:Set&lt;Permissions&gt;, deny:Set&lt;Permissions&gt;)]
+ #[invariant(set_subset(allow, perms(role)))]
+ #[invariant(set_intersection(allow, deny) == set_emp())]
+ struct User {
+    name: String,
+    role: Role[role],
+    allowed: RSet&lt;Permissions&gt;[allow],
+    denied: RSet&lt;Permissions&gt;[deny],
+ }
+}]
+const _: () = ();</code></pre></pre>
+<p>The two <code>#[invariant]</code>s correspond directly to our requirements. Lets
+check that Flux will only allow constructing legal <code>User</code>s that satisfy
+these invariants.</p>
+<p><strong>EXERCISE</strong>: Can you fix the errors that Flux finds in <code>alice</code> and
+<code>bob</code>?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_user() {
+    let alice = User {
+        name: "Alice".to_string(),
+        role: Guest,
+        allow: rset!{ Read, Write },
+        deny: rset!{ },
+    };
+    let bob = User {
+        name: "Bob".to_string(),
+        role: Admin,
+        allow: rset!{ Read, Write, Delete },
+        deny: rset!{ Write },
+    };
+}</code></pre></pre>
+<h2 id="dynamically-changing-permissions"><a class="header" href="#dynamically-changing-permissions">Dynamically Changing Permissions</a></h2>
+<p>Next, lets write methods to create new <code>User</code>s and check their
+permissions:</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(name: String, role: Role) -&gt;
+         Self[User{role:role, allow: set_emp(), deny: set_emp()}])]
+  fn new(name: String, role: Role) -&gt; Self {
+      Self {
+          name,
+          role,
+          allow: RSet::new(),
+          deny: RSet::new(),
+      }
+  }
+}</code></pre></pre>
+<p><strong>Allowing Permissions</strong> A newly created <code>User</code> only has a <code>role</code> but no
+<code>allow</code>ed or <code>deny</code>ed <code>Permissions</code>, which ensures the invariants hold.
+Lets write a method to <em>add</em> a <code>Permission</code> to the <code>allow</code>ed set of a
+<code>User</code>. Note that we must take care to ensure that the given
+<code>Permission</code> is valid for the user’s <code>role</code> (to satisfy the first
+invariant) and that it is not already in the <code>deny</code>ed set (to satisfy
+the second invariant). Thus, we make the method return <code>true</code> if the
+permission was successfully added, and <code>false</code> otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(me: &amp;mut Self[@u], &amp;Permissions[@p]) -&gt; bool[allowed(u, p)]
+            ensures me: Self[User{allow: add(u, p), ..u }])]
+  fn allow(&amp;mut self, p: &amp;Permissions) -&gt; bool {
+    if self.role.check_permission(&amp;p) &amp;&amp; !self.deny.contains(&amp;p) {
+      self.allow.insert(*p);
+      true
+    } else {
+      false
+    }
+  }
+}</code></pre></pre>
+<p>In the type above, the refinement-level function <code>allowed</code> checks if a
+permission <em>can be added</em> to the <code>allow</code>ed set, and the <code>add</code> function
+returns the extended permissions:</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+  fn allowed(u: User, p: Permissions) -&gt; bool {
+    set_is_in(p, perms(u.role)) &amp;&amp; !set_is_in(p, u.deny)
+  }
+  fn add(u: User, p: Permissions) -&gt; Set&lt;Permissions&gt; {
+    if allowed(u, p) {
+      set_add(p, u.allow)
+    } else {
+      u.allow
+    }
+  }
+}</code></pre></pre>
+<p>Notice that the type for the <code>allow</code> uses a <em>strong reference</em> described
+in <a href="tutorial/ch03_ownership.html#strongly-mutable-references,">this chapter</a> to <em>conditionally
+change</em> the type of the <code>User</code> when we <em>add</em> permissions.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_allow() {
+  let read = Read;
+  let write = Write;
+  let mut guest = User::new("guest".to_string(), Role::Guest);
+  assert(guest.allow(&amp;read));           // can allow read
+  assert(guest.allow.contains(&amp;read));  // read is now allowed
+  assert(!guest.allow(&amp;write));         // cannot allow write
+  assert(!guest.allow.contains(&amp;read)); // write is not allowed
+}</code></pre></pre>
+<p><strong>Denying Permissions</strong> Next, lets write a similar method to <em>deny</em> a
+permission, by adding it to the <code>deny</code>ed set, (as long as it is not
+already in the <code>allow</code>ed set.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(me: &amp;mut Self[@u], &amp;Permissions[@p]) -&gt; bool[deny(u, p)]
+            ensures me: Self[User { deny: del(u, p), ..u }])]
+  fn deny(&amp;mut self, p: &amp;Permissions) -&gt; bool {
+    if !self.allow.contains(p) {
+      self.deny.insert(*p); true
+    } else {
+      false
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE</strong>: Correct the definitions of the <code>deny</code> and <code>del</code>
+refinement-level functions so that the implementation of the <code>deny</code>
+method above verifies.</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+  fn deny(u: User, p: Permissions) -&gt; bool {
+    true // fix this
+  }
+  fn del(u: User, p: Permissions) -&gt; Set&lt;Permissions&gt; {
+    set_emp() // fix this
+  }
+}</code></pre></pre>
+<h2 id="access-control"><a class="header" href="#access-control">Access Control</a></h2>
+<p>Finally, we can use the <code>allow</code> set to control which <code>User</code>s are allowed
+to perform certain actions. Unlike in our previous system
+([ch]:11_equality), that used the <code>User</code>‘s <em>fixed</em> <code>Role</code>, we can now
+use the <em>dynamic</em> <code>allow</code> set to make this determination.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl User {
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Read, u.allow)))]
+  fn read(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Write, u.allow)))]
+  fn write(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Comment, u.allow)))]
+  fn comment(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Delete, u.allow)))]
+  fn delete(&amp;self) { /* ... */ }
+
+  #[spec(fn(&amp;Self[@u]) requires set_is_in(Configure, u.allow)))]
+  fn configure(&amp;self) { /* ... */ }
+}</code></pre></pre>
+<p>Flux checks that <code>User</code>s have the appropriate permissions to call these
+methods.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_access_ok() {
+  let configure = Permissions::Configure;
+  let alice = User::new("Alice".to_string(), Role::Admin);
+  aliceconfigure();        // type error!
+  alice.allow(&amp;configure);  // add it to the allowed set
+  alice.configure();        // ok!
+}</code></pre></pre>
+<h2 id="summary-8"><a class="header" href="#summary-8">Summary</a></h2>
+<p>In this chapter, we saw how to build a dynamic access control system, by
+indexing types with <em>set-valued</em> refinements that track users”
+permissions, and strong references which <em>conditionally</em> change types
+when we mutate references.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="dependent-typestates"><a class="header" href="#dependent-typestates">Dependent Typestates</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">use std::{
+  mem::replace,
+  sync::atomic::{AtomicBool, Ordering}, vec,
+};
+
+use flux_rs::{
+    assert, alias, constant, defs, detached_spec, extern_spec, invariant, opaque, refined_by, reflect, spec, specs, trusted,
+    bitvec::BV32;
+};</code></pre></pre>
+<p>Our next case study shows how Flux’s refinements can be used to make the
+<em>typestate</em> even more expressive by connecting typestates with run-time
+values to avoiding the blowup that ensues from using (only) Rust’s types
+<sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> while still providing compile-time correctness guarantees. Lets
+explore this idea by building a library to manipulate GPIO pins on
+embedded hardware where each <em>port</em> comprises multiple <em>pins</em> each of
+which can be set to be in <code>Input</code> or <code>Output</code> mode, and must be used
+according to its current mode.</p>
+<h2 id="bitvectors"><a class="header" href="#bitvectors">Bitvectors</a></h2>
+<p>The pins” modes will be configured and accessed via <em>bitwise</em> operations
+on dedicated hardware registers. Flux lets us precisely track the
+results of bitwise operations — just like we can track arithmetic
+operations ([ch]:02_refinements) or set operations ([ch]:12_sets) —
+with a special <code>flux_rs::bitvec::BV32</code> type that represents 32-bit
+bitvectors as an <em>opaque</em> (see <a href="tutorial/ch06_vectors">this chapter</a>.md) newtype wrapper around
+<code>u32</code> indexed by a <code>bitvec&lt;32&gt;</code> that tracks the bits of the underlying
+<code>u32</code> <sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup>.</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[refined_by(x: bitvec&lt;32&gt;)]        // bitvector-valued index
+pub struct BV32(u32);
+<span class="boring">}</span></code></pre></pre>
+<h3 id="creating-and-operating-on-bitvectors"><a class="header" href="#creating-and-operating-on-bitvectors">Creating and Operating on Bitvectors</a></h3>
+<p>The API for <code>BV32</code> has methods to convert from and to <code>u32</code> whose refine
+contracts use the <em>logical functions</em> <code>bv_int_to_bv32</code> and
+<code>bv_bv32_to_int</code> to convert between the <code>int</code> index (of the <code>u32</code>) and
+its <code>bitvec&lt;32&gt;</code> representation (of the <code>BV32</code>).</p>
+<pre><code class="language-rs">impl BV32 {
+  #[spec(fn(value: u32) -&gt; BV32[bv_int_to_bv32(value)])]
+  pub fn new(value: u32) -&gt; BV32 { BV32(value) }
+}
+</code></pre>
+<pre><code class="language-rs">impl Into&lt;u32&gt; for BV32 {
+  #[spec(fn(self:BV32) -&gt; u32[bv_bv32_to_int(self)])]
+  pub fn into(self) -&gt; u32 { self.0 }
+}
+</code></pre>
+<p><strong>Bitvector Operations</strong> The <code>flux_rs::bitvec</code> library implements the
+various traits like <code>BitAnd</code>, <code>BitOr</code>, <code>Not</code>, <code>Shl</code>, <code>Shr</code>, <em>etc.</em> to
+enable bitwise operations on <code>BV32</code> values. For example, the
+<em>left-shift</em> (<code>&lt;&lt;</code>) operation is implemented as</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl Shl&lt;u32&gt; for BV32 {
+  #[spec(fn(self, rhs: u32) -&gt; BV32[self &lt;&lt; bv_int_to_bv32(rhs)])]
+  fn shl(self, rhs: u32) -&gt; BV32 { BV32(self.0 &lt;&lt; rhs) }
+}
+<span class="boring">}</span></code></pre></pre>
+<p>and the bitwise or (<code>|</code>) operation is implemented as</p>
+<pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>impl BitOr for BV32 {
+  #[spec(fn(self, rhs: BV32) -&gt; BV32[self | rhs])]
+  fn bitor(self, rhs: BV32) -&gt; BV32 { BV32(self.0 | rhs.0) }
+}
+<span class="boring">}</span></code></pre></pre>
+<p><strong>EXERCISE:</strong> Lets test our operators out: can you fix the code below so
+the <code>assert</code> is verified by Flux?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn () -&gt; u32[10])]
+fn test_shl_or() {
+  let b1 = BV32::new(1);  // 0b0001
+  let b5 = BV32::new(5);  // 0b0101
+  let res = b5 &lt;&lt; b1;     // 0b1010
+  let res = res | b1;     // 0b1011
+  res.into()
+}</code></pre></pre>
+<h3 id="getting-and-setting-individual-bits"><a class="header" href="#getting-and-setting-individual-bits">Getting and Setting Individual Bits</a></h3>
+<p>Next, lets use the bitwise operations to write functions that <em>get</em> or
+<em>set</em> a bit at a particular position in a <code>BV32</code>.</p>
+<p><strong>Valid Bit Positions</strong> Lets first write an alias for valid bit
+positions (<code>0</code> to <code>31</code>)</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[alias(type Pin = u8{n: 0 &lt;= n &amp;&amp; n &lt; 32})]
+type Pin = u8;</code></pre></pre>
+<p>Note that while <code>rustc</code> will allow any <code>u8</code> value to be used as a <code>Pin</code>,
+Flux will complain if we try to use a value outside the valid range.</p>
+<p><strong>Getting the Value of a Pin</strong> We can now write a function that <em>gets</em>
+the value of a <code>BV32</code> at a given position by returning <code>true</code> if the bit
+is set to <code>1</code> and <code>false</code> otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn get_pin(bv: BV32, pin: Pin) -&gt; bool {
+    ((bv &gt;&gt; pin) &amp; 1) == b1
+}</code></pre></pre>
+<p><strong>Setting the Value of a Pin</strong> Similarly, we can write a function that
+takes as input a <code>bool</code> and <em>sets</em> the bit at the given position to <code>1</code>
+if the <code>bool</code> is <code>true</code> and to <code>0</code> otherwise.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn set_pin(bv:BV32, pin:Pin, b:bool) -&gt; BV32 {
+    if b {
+        bv | (BV32::new(1) &lt;&lt; pin)
+    } else {
+        bv &amp; !(BV32::new(1) &lt;&lt; pin)
+    }
+}</code></pre></pre>
+<p><strong>Refinement-Level Get/Set Functions</strong> To verify code that <em>uses</em>
+<code>get_pin</code> and <code>set_pin</code>, we need to specify their behavior using Flux
+contracts. The most direct way to do so is to write <em>refinement
+functions</em> (see <a href="tutorial/ch04_structs.html#refinement-functions">this chapter</a>) like <code>get_pin</code>,
+defined below</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn get_pin(bv: bitvec&lt;32&gt;, pin: int) -&gt; bool{
+        let val = (bv &gt;&gt; bv_int_to_bv32(pin)) &amp; 1;
+        val == 1
+    }
+}</code></pre></pre>
+<p>and <code>set_pin</code> which is similarly defined as shown below</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn set_pin(bv: bitvec&lt;32&gt;, pin: int, val: bool) -&gt; bitvec&lt;32&gt; {
+        let index_bits = bv_int_to_bv32(pin);
+        if val {
+            bv | (1 &lt;&lt; index_bits)
+        } else {
+            bv &amp; bv_not(1 &lt;&lt; index_bits)
+        }
+    }
+}</code></pre></pre>
+<p><strong>Syntax:</strong> While we have tried to make the syntax of the <em>refinement
+function</em> <code>set_pin</code> shown above <em>look like</em> the implementation of the
+Rust method of the same name, they are not the same thing. Indeed,
+notice we wrote <code>bv_not</code> instead of <code>!</code> in the refinement function as
+<code>!</code> is reserved for boolean negation inside refinement expressions.</p>
+<p><strong>Connecting Rust Methods with Refinement Functions</strong> Once we have
+defined the refinement functions, we can use them to specify the output
+types of the corresponding Rust functions, using detached specifications
+(see <a href="tutorial/ch11_equality.html#detached">this chapter</a>).</p>
+<pre><pre class="playground"><code class="language-rust  editable">detached_spec! {
+  fn get_pin(bv: BV32, pin: Pin) -&gt; bool[get_pin(bv, pin)];
+  fn set_pin(bv: BV32, pin: Pin, b: bool) -&gt; BV32[set_pin(bv, pin, b)];
+}</code></pre></pre>
+<p>We can confirm that the specifications for the above are correctly
+tracking the bits via the following test:</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_get_set_pin() {
+  let b5 = BV32::new(5);            // 0b0101
+  flux_rs::assert(get_pin(b5, 2));  // bit 2 is set
+  let b5 = set_pin(b5, 2, false);   // 0b0001
+  flux_rs::assert(!get_pin(b5, 2)); // bit 2 is cleared
+}</code></pre></pre>
+<h2 id="gpio-ports"><a class="header" href="#gpio-ports">GPIO Ports</a></h2>
+<p>Lets tuck the newly learned information about bitvectors into our
+pockets and now turn to the issue at hand: developing an API for
+interacting with <em>General Purpose Input/Output</em> (GPIO) <em>ports</em> in
+low-level embedded microcontrollers.</p>
+<p><strong>Ports and Pins</strong> GPIO ports are the conduit through which
+microcontrollers “talk” to the external world, <em>e.g.</em> to read sensors
+that determine key-presses or light up output LEDs. GPIO ports, are
+themselves collections of <em>pins</em> that can be configured individually as
+either <code>Input</code> or <code>Output</code>, and which can then be read from or written
+to accordingly. The developer must take care to use each pin according
+to how it’s mode was configured, as otherwise the hardware may produce
+invalid data or worse, may destroy the hardware by releasing its “magic
+smoke” <sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup>!</p>
+<p><strong>Registers</strong> In common hardware platforms like the STM32, ports are
+controlled via dedicated <em>memory mapped port registers</em> which control
+the modes and input and output values of <em>all</em> the pins in that port,
+where the i<sup>th</sup> bit in the register corresponds to the
+i<sup>th</sup> pin of the port. We can model such registers in Rust as</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[repr(C)]
+struct Registers {
+  modes: BV32, // Bit 0 = pin 0 mode, bit 1 = pin 1 mode, etc.
+  output: u32, // Bit 0 = pin 0 output, bit 1 = pin 1 output, etc.
+  input: u32,  // Bit 0 = pin 0 input, bit 1 = pin 1 input, etc.
+}</code></pre></pre>
+<p>and then the GPIO port itself is a wrapper around a pointer to such
+registers</p>
+<pre><pre class="playground"><code class="language-rust  editable">struct Gpio(*mut Registers);</code></pre></pre>
+<h2 id="tracking-modes"><a class="header" href="#tracking-modes">Tracking Modes</a></h2>
+<p>If you are well-caffeinated, you may have noticed that we used the
+<code>BV32</code> type for the <code>modes</code> register in <code>Registers</code> struct above, as it
+will let us index the <code>struct Registers</code> with a <code>bitvec&lt;32&gt;</code> that tracks
+the modes of all 32 pins in the GPIO port.</p>
+<pre><pre class="playground"><code class="language-rust  editable">detached_spec! {
+  #[refined_by(modes: bitvec&lt;32&gt;)]
+  struct Registers {
+    modes: BV32[modes],
+    output: u32,
+    input: u32,
+  }
+}</code></pre></pre>
+<p>Similarly, lets refine <code>struct Gpio</code> to track the <code>modes</code> of the
+<code>Registers</code> that it <em>points to</em></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[refined_by(modes: bitvec&lt;32&gt;)]
+  #[opaque] struct Gpio;
+}</code></pre></pre>
+<p><strong>Private Trusted API</strong> As the actual <code>Registers</code> must be accessed
+directly via <code>unsafe</code> pointer dereferences, we mark the <code>struct</code> as
+<code>opaque</code> (see <a href="tutorial/ch06_vectors">this chapter</a>.md) and write a small suite of <em>private</em>
+<code>trusted</code> (<em>i.e.</em> unverified) methods for the <code>unsafe</code> dereferences,
+that we will then use to to build a verified <em>public</em> API for port
+access.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+impl Gpio {
+    #[spec(fn(&amp;Gpio[@modes]) -&gt; &amp;Registers[modes])]
+    fn get_registers(&amp;self) -&gt; &amp;Registers {
+        unsafe { &amp;*self.0 }
+    }
+
+    #[spec(fn(self: &amp;mut Gpio, m: BV32) ensures self: Gpio[m])]
+    fn set_modes(&amp;mut self, m: BV32) {
+        unsafe { (&amp;mut *self.0).modes = m}
+    }
+
+    #[spec(fn(self:&amp;mut Gpio[@m], output:u32) ensures self: Gpio[m])]
+    fn set_output(&amp;mut self, output: u32) {
+        unsafe { (&amp;mut *self.0).output = output }
+    }
+}</code></pre></pre>
+<p>The <code>get_registers</code> dereferences the pointer stashed inside the <code>Gpio</code>
+to return a <code>Registers</code> that has exactly the same <code>modes</code>. Dually, the
+<code>set_modes</code> updates the <code>modes</code> of the underlying <code>Registers</code> with the
+given value, updating the refinement of the <code>Gpio</code> accordingly. Finally,
+the <code>set_output</code> updates the <code>output</code> register pointed to by the <code>Gpio</code>
+but leaves the <code>modes</code> unchanged.</p>
+<p><strong>Peripherals</strong> Finally, we can bundle multiple GPIO ports into a
+<code>Peripherals</code> struct that represents all the hardware peripherals of a
+microcontroller.</p>
+<pre><pre class="playground"><code class="language-rust  editable">struct Peripherals { gpio_a: Gpio, gpio_b: Gpio, gpio_c: Gpio }</code></pre></pre>
+<p>We can then provide safe singleton access to the peripherals via a
+<code>take_peripherals</code> function that maps the actual addresses of the
+hardware registers to <code>Gpio</code> instances.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[trusted]
+fn take_peripherals() -&gt; Option&lt;Peripherals&gt; {
+  static TAKEN: AtomicBool = AtomicBool::new(false);
+  if TAKEN
+     .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+     .is_ok()
+  { Some(Peripherals {
+        gpio_a: Gpio(0x4800_0000 as *mut Registers),
+        gpio_b: Gpio(0x4800_0400 as *mut Registers),
+        gpio_c: Gpio(0x4800_0800 as *mut Registers),
+    })
+  } else { None }
+}</code></pre></pre>
+<h2 id="using-modes"><a class="header" href="#using-modes">Using Modes</a></h2>
+<p>Next, lets use the private methods to implement a public API for GPIO
+access that <em>gets</em> and <em>sets</em> a pin’s modes, and ensures it is used
+according to its mode. First, lets write an <code>enum</code> to represent the
+modes of a <code>Pin</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">#[reflect] #[derive(PartialEq, Eq)]
+enum Mode { Input, Output }
+flux_core::eq!(Mode);</code></pre></pre>
+<p>We <em>could</em> have just used <code>bool</code> but sadly, I kept mixing up whether
+<code>true</code> meant <code>Input</code> or <code>Output</code>. An <code>enum</code> rather dispels the
+confusion! However it will be quite convenient to convert between <code>Mode</code>
+and <code>bool</code> with two helper functions</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl From&lt;bool&gt; for Mode {
+    #[spec(fn (b: bool) -&gt; Mode[bool_to_mode(b)])]
+    fn from(b: bool) -&gt; Self {
+        if b { Mode::Output } else { Mode::Input }
+    }
+}
+impl Into&lt;bool&gt; for Mode {
+    #[spec(fn (mode: Mode) -&gt; bool[mode_to_bool(mode)])]
+    fn into(self) -&gt; bool {
+        match self {
+            Mode::Output =&gt; true,
+            Mode::Input =&gt; false,
+        }
+    }
+}</code></pre></pre>
+<p>whose specifications use the refinement functions</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+  fn bool_to_mode(b:bool) -&gt; Mode {
+    if b {
+        Mode::Output
+    } else {
+        Mode::Input
+    }
+  }
+
+  fn mode_to_bool(mode: Mode) -&gt; bool {
+    mode == Mode::Output
+  }
+}</code></pre></pre>
+<p><strong>Getting the Mode</strong> Lets use the private API and the bitvector helpers
+to implement a public method to get a <code>Pin</code>‘s mode, using <code>get_pin</code>
+defined earlier plus the <code>Mode</code>-<code>bool</code> conversion.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Gpio {
+  #[spec(fn(&amp;Gpio[@modes], pin: Pin) -&gt; Mode[get_mode(modes, pin)])]
+  pub fn get_mode(&amp;self, pin: Pin) -&gt; Mode {
+    Mode::from(get_pin(self.get_registers().modes, pin))
+  }
+}</code></pre></pre>
+<p>where the specification function <code>get_mode</code> is just</p>
+<pre><pre class="playground"><code class="language-rust  editable">defs! {
+    fn get_mode(bv: bitvec&lt;32&gt;, index: int) -&gt; Mode {
+        bool_to_mode(get_pin(bv, index))
+    }
+}</code></pre></pre>
+<p><strong>Setting the Mode</strong> Similarly, we can implement a public method to set
+a <code>Pin</code>‘s mode using <code>set_pin</code> defined earlier plus the <code>Mode</code>-<code>bool</code>
+conversion.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Gpio {
+  // #[spec(EXERCISE)]
+  pub fn set_mode(&amp;mut self, pin: Pin, mode: Mode) {
+    let regs = self.get_registers();
+    self.set_modes(set_pin(regs.modes, pin, mode.into()))
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Write the specification for <code>set_mode</code> so Flux verifies
+<code>test_get_set</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(gpio: &amp;mut Gpio[@modes]) ensures gpio: Gpio[modes])]
+fn test_get_set(gpio: &amp;mut Gpio) {
+    let orig = gpio.get_mode(3);              // save original mode
+    gpio.set_mode(3, Mode::Output);           // set to output
+    assert(gpio.get_mode(3) == Mode::Output); // verify mode
+    gpio.set_mode(3, orig);                   // restore original mode
+}</code></pre></pre>
+<p><strong>Input and Output Pins</strong> We want the methods that read from and write
+to a <code>Pin</code> to only be invoked on pins that are configured to be in
+<code>Input</code> or <code>Output</code> mode respectively. First, lets write a type <em>alias</em>
+for such pins (as always, paired with a matching Rust-level alias that
+can be used in Rust signatures.)</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[alias(type In(m:bitvec&lt;32&gt;) = Pin{v:get_mode(m, v) == Mode::Input})]
+type In = Pin;
+
+#[alias(type Out(m:bitvec&lt;32&gt;) = Pin{v:get_mode(m, v) == Mode::Output})]
+type Out = Pin;</code></pre></pre>
+<p><strong>Dependent Aliases</strong>: Unlike the definition of <code>Pin</code> which is simply a
+<code>u8</code> between <code>0</code> and <code>32</code>, the definitions of the aliases <code>In</code> and <code>Out</code>
+<em>depend on</em> the <code>bitvec&lt;32&gt;</code> index <code>m</code>. This is essential as actual
+<em>mode</em> is stored in the <code>modes</code> register and not the <code>Pin</code> itself. Flux
+supports such <em>dependent aliases</em> with <em>alias parameters</em> like
+<code>m: bitvec&lt;32&gt;</code> that can be used in the alias body, and which must then
+be supplied wherever the aliases are used in Flux specifications.</p>
+<p><strong>Reading &amp; Writing Pins</strong> Finally, lets use the alias to write <code>read</code>
+and <code>write</code> methods that only accept <code>In</code> and <code>Out</code> pins, respectively</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Gpio {
+    #[spec(fn(&amp;Gpio[@modes], pin: In(modes)) -&gt; bool)]
+    pub fn read(&amp;self, pin: In) -&gt; bool {
+        let regs = self.get_registers();
+        get_pin(regs.input.into(), pin)
+    }
+
+    #[spec(fn(self: &amp;mut Gpio[@modes], pin: Out(modes), value: bool))]
+    pub fn write(&amp;mut self, pin: Out, value: bool) {
+        let output = self.get_registers().output.into();
+        let new_output = set_pin(output, pin, value).into();;
+        self.set_output(new_output);
+    }
+}</code></pre></pre>
+<p>Well then, we now have a complete API to determine and configure the
+modes of each pin, and read and write them according to their enabled
+modes, such that that Flux can statically ensure that the “magic smoke”
+stays inside!</p>
+<h2 id="clients"><a class="header" href="#clients">Clients</a></h2>
+<p>Lets test our API out with some example client code.</p>
+<p><strong>Reading and Writing Pins</strong> Here’s an example that illustrates how we
+can use our GPIO API to configure and access different pins on different
+ports. First, we get mutable access to the GPIO ports via the
+<code>take_peripherals</code> function. Next, we configure some pins as <code>Output</code>
+and others as <code>Input</code>. Flux will use the specification for <code>set_mode</code> to
+track each of the pins” modes separately (in the <code>modes</code> index for
+<code>gpio_a</code> and <code>gpio_b</code>). Consequently, Flux will allow us to <code>read</code> from
+the <code>Input</code> pins, and <code>write</code> to the <code>Input</code> pins. However, Flux will
+prevent you from trying to <code>read</code> from or <code>write</code> to an <code>Output</code> or
+<code>Input</code> pin, respectively, as you can see by uncommenting the lines at
+the bottom of the function.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn test_read_write() {
+    // Get mutable access to GPIOA
+    let mut peripherals = take_peripherals().expect("taken!");
+    let gpio_a = &amp;mut peripherals.gpio_a;
+    let gpio_b = &amp;mut peripherals.gpio_b;
+
+    // Different pins, different states
+    gpio_a.set_mode(0, Mode::Output); // PA0 : Out
+    gpio_a.set_mode(1, Mode::Output); // PA1 : Out
+    gpio_a.set_mode(5, Mode::Input);  // PA5 : In
+    gpio_b.set_mode(0, Mode::Input);  // PB3 = In
+
+    // Valid accesses
+    gpio_a.write(0, true);
+    gpio_a.write(1, true);
+    let button_state = gpio_a.read(5);
+    let timer_state = gpio_b.read(0);
+
+    // Invalid accesses caught at compile-time
+    // gpio_a.read(0);         // ERROR! Can't read from Out pin
+    // gpio_a.write(5, true);  // ERROR! Can't write to In pin
+}</code></pre></pre>
+<p><strong>Reading Multiple Pins</strong> Your turn! Consider the function below that
+takes as input <em>sequence</em> of Pins, and returns as output a vector of the
+<code>bool</code> obtained from reading the sequence of <code>Pins</code>.</p>
+<p><strong>EXERCISE:</strong> Write a <code>spec</code> that lets Flux verify <code>read_pins</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn read_pins(gpio: &amp;Gpio, pins: &amp;[Pin]) -&gt; Vec&lt;bool&gt; {
+    let mut res = vec![];
+    for pin in pins {
+        res.push(gpio.read(*pin));
+    }
+    res
+}</code></pre></pre>
+<p><strong>Writing Multiple Pins</strong> And here is a similar function that
+additionally takes as input a sequence of <code>bool</code> values to write to the
+corresponding sequence of <code>Pins</code>.</p>
+<p><strong>EXERCISE:</strong> Write a <code>spec</code> that lets Flux verify <code>write_pins</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn write_pins(gpio: &amp;mut Gpio, pins: &amp;[Pin], vals: &amp;[bool]) {
+    for i in 0..pins.len() {
+        gpio.write(pins[i], vals[i]);
+    }
+}</code></pre></pre>
+<p><strong>Dynamic Mode Configuration</strong> Lets look at an example where we might
+want to “force” a <code>Pin</code> to <code>Output</code> mode, optionally returning its value
+if it was (previously) in <code>Input</code> mode. Flux will not let us read from a
+pin until we have established that the current mode (obtained by
+<code>get_mode</code>) is, in fact, <code>Input</code>. At that point, we can read the pin,
+and then set it to <code>Output</code> mode.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(gpio: &amp;mut Gpio, pin:Pin) -&gt; Option&lt;bool&gt; ensures gpio: Gpio)]
+fn detect_and_set(gpio: &amp;mut Gpio, pin: Pin) -&gt; Option&lt;bool&gt; {
+    // gpio.read(pin); // ERROR can't read, don't know state!
+    if let Mode::Input = gpio.get_mode(pin) {
+        let val = gpio.read(pin);
+        gpio.set_mode(pin, Mode::Output);
+        return Some(val);
+    }
+    None
+}</code></pre></pre>
+<p><strong>Blinking a Status LED</strong> One often wants an embedded device to blink,
+<em>e.g.</em> to let us know its alive and kicking. The usual maneuver is to
+toggle a dedicated status LED pin inside the main loop of the
+application.</p>
+<p><strong>EXERCISE:</strong> Fix the spec so Flux verifies <code>blink_status_led</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(gpio: &amp;mut { Gpio[@modes] | true}))]
+fn blink_status_led(gpio: &amp;mut Gpio) {
+    static mut LED_STATE: bool = true;
+    let value = unsafe { LED_STATE = !LED_STATE; LED_STATE };
+    gpio.write(13, value); // HINT: When is this ok to call?
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Here’s the main “loop” of an embedded application that
+blinks the status LED to indicate the system is alive. Can you find out
+why Flux rejects the call to <code>blink_status_led</code>, and remedy mattes so
+that <code>app</code> is accepted?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn app() {
+    let mut peripherals = take_peripherals().expect("taken!");
+    let gpio_c = &amp;mut peripherals.gpio_c;
+    // blink_status_led(gpio_c); // ERROR! not yet Output
+    detect_and_set(gpio_c, 13); // ensure pin 13 is Output
+    loop {
+        // let result = process_data(read_sensors());
+        // update_outputs(result);
+        blink_status_led(gpio_c); // indicate system is alive
+    }
+}</code></pre></pre>
+<h2 id="summary-9"><a class="header" href="#summary-9">Summary</a></h2>
+<p>In this chapter, we learned about Flux’s support for <em>bitvector</em> valued
+refinements via the <code>BV</code> type, and how to use bitvectors to track the
+modes of GPIO pins, to write a verified GPIO library that ensures pins
+are used per their configuration.</p>
+<p>Existing embedded Rust libraries track pin modes in Rust’s using
+<code>PhantomData</code> and the typestate pattern <sup class="footnote-reference" id="fr-4-1"><a href="#footnote-4">4</a></sup>. While this approach has
+the advantage of working out of the box with plain <code>rustc</code>, it has two
+drawbacks. First, we get a explosion in the number of types, and the
+attendant duplication of methods. Second, and perhaps more
+importantantly, we end up tracking the state of the <code>Pin</code> at the
+type-level, when we really want to track state of the <code>modes</code> register
+to avoid any shenanigans that might arise <em>concurrently</em> accessing
+different pins of the same port. (The classic typestate approach would
+end up having to create 2<sup>32</sup> different types to track all mode
+configurations of a single port!)</p>
+<p>In contrast, Flux’s refinements allow us to compactly track the entire
+vector of modes via logical refinements while still providing
+compile-time guarantees that each pin is used according to its
+configured mode.</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p>See <a href="https://www.ecorax.net/macro-bunker-1/">https://www.ecorax.net/macro-bunker-1/</a> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p>Flux also supports <code>BV8</code>, <code>BV16</code> and <code>BV64</code> types for 8-, 16- and
+64-bit bitvectors, but lets focus on <code>BV32</code> for simplicity <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p><a href="https://en.wikipedia.org/wiki/Magic_smoke">https://en.wikipedia.org/wiki/Magic_smoke</a> <a href="#fr-3-1">↩</a></p>
+</li>
+<li id="footnote-4">
+<p><a href="https://docs.rust-embedded.org/book/static-guarantees/state-machines.html">https://docs.rust-embedded.org/book/static-guarantees/state-machines.html</a> <a href="#fr-4-1">↩</a></p>
+</li>
+</ol><div style="break-before: page; page-break-before: always;"></div><h1 id="neural-networks"><a class="header" href="#neural-networks">Neural Networks</a></h1>
+<pre><pre class="playground"><code class="language-rust  editable  hidden">use crate::rvec::{self, AsRVec as _, RVec, rvec};
+use flux_rs::assert;
+use flux_rs::attrs::*;
+use rand::{Rng, rngs::ThreadRng};</code></pre></pre>
+<p>Next, lets look at a case study that ties together many of the different
+features of Flux that we have seen in the previous chapters: lets build
+a small neural network library. This chapter is heavily inspired by this
+blog post <sup class="footnote-reference" id="fr-1-1"><a href="#footnote-1">1</a></sup> and Michael Nielsen’s book on neural networks <sup class="footnote-reference" id="fr-2-1"><a href="#footnote-2">2</a></sup>.</p>
+<div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
+<tr><td></td><td></td></tr>
+<tr><td><img src="tutorial/../img/neural-layer-1.png" style="width:85.0%" /></td><td><img src="tutorial/../img/neural-layer-2.png" style="width:55.0%" /></td></tr>
+</tbody></table>
+</div>
+<p>A Neural Network Layer with 3 inputs and 4 outputs.</p>
+<p><span id="fig:neural-layer"></span></p>
+<h2 id="layers"><a class="header" href="#layers">Layers</a></h2>
+<p>Per wikipedia, a neural network <sup class="footnote-reference" id="fr-3-1"><a href="#footnote-3">3</a></sup> “consists of connected units or
+nodes called artificial <strong>neurons</strong> … Each artificial neuron receives
+<strong>signals</strong> from connected neurons, then processes them and sends a
+signal to other connected neurons… The <strong>output</strong> of each neuron is
+computed by some non-linear <strong>(activation) function</strong> of the totality of
+its <strong>inputs</strong>… The strength of the signal at each connection is
+determined by a <strong>weight</strong>… Typically neurons are aggregated into
+<strong>layers</strong>…”</p>
+<p>Figure [fig]:neural-layer illustrates, on the left, a single neural
+network layer with 3 <em>inputs</em> and 4 <em>outputs</em>. Each output neuron
+receives a <em>signal</em> from each of the 3 input neurons, as shown by the
+edges from the inputs to the outputs. Furthermore, as shown on the
+right, each edge has a <em>weight</em>. For example, the <code>i</code><sup>th</sup>
+output neuron has distinct weights <code>weight[i][0]</code> and <code>weight[i][1]</code> and
+<code>weight[i][2]</code> for each of its input neurons.</p>
+<p><strong>Representing Layers</strong> We can represent a layer as a <code>struct</code> with
+fields for the number of inputs, outputs, weights, and biases.</p>
+<pre><pre class="playground"><code class="language-rust  editable">struct Layer {
+    num_inputs: usize,
+    num_outputs: usize,
+    weight: RVec&lt;RVec&lt;f64&gt;&gt;,
+    bias: RVec&lt;f64&gt;,
+    outputs: RVec&lt;f64&gt;,
+}</code></pre></pre>
+<p>Of course, the plain Rust definition says little about the <code>Layer</code>‘s
+<em>dimensions</em>. That is it does not tell us that <code>weight</code> is a 2D vector
+that stores for each of the <code>num_outputs</code>, a vector of size
+<code>num_inputs</code>, and that <code>bias</code> and <code>outputs</code> are vectors of length
+<code>num_outputs</code>. No matter! We <em>refine</em> the <code>Layer</code> struct with a detached
+<sup class="footnote-reference" id="fr-4-1"><a href="#footnote-4">4</a></sup> specification that makes these relationships explicit.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[specs {
+    #[refined_by(i: int, o: int)]
+    struct Layer {
+        num_inputs: usize[i],
+        num_outputs: usize[o],
+        weight: RVec&lt;RVec&lt;f64&gt;[i]&gt;[o],
+        bias: RVec&lt;f64&gt;[o],
+        outputs: RVec&lt;f64&gt;[o],
+    }
+}]
+const _: () = ();</code></pre></pre>
+<p>Lets step through the detached specification.</p>
+<ul>
+<li>
+<p>First, we declare that the <code>Layer</code> struct is <em>refined by</em> two <code>int</code>
+indexes <code>i</code> and <code>o</code>, which will represent the input and output
+dimension of the <code>Layer</code>;</p>
+</li>
+<li>
+<p>Next, we refine the <code>num_inputs</code> field as <code>usize[i]</code> and <code>num_outputs</code>
+field to be of type <code>usize[o]</code>, meaning that its value is equal to the
+index <code>i</code> and <code>o</code> respectively, and hence, that those fields represent
+the run-time values of their respective dimensions.</p>
+</li>
+<li>
+<p>Next, we refine the <code>weight</code> field to be a refined vector <sup class="footnote-reference" id="fr-5-1"><a href="#footnote-5">5</a></sup> of
+vectors <code>RVec&lt;RVec&lt;f64&gt;[i]&gt;[o]</code> indicating that for each of the <code>o</code>
+outputs, we have a vector of <code>i</code> weights, one for each input;</p>
+</li>
+<li>
+<p>Finally, we refine the <code>bias</code> and <code>outputs</code> fields to be vectors of
+length <code>o</code>, indicating a single bias and output value for each output
+neuron.</p>
+</li>
+</ul>
+<p><strong>Why Detach?</strong> We could just as easily have written the above as a
+regular attached specification, using attributes on the fields of the
+<code>Layer</code> struct. We chose to use the detached style here purely for
+illustration, and because I personally think its somewhat easier on the
+eye.</p>
+<h2 id="creating-layers"><a class="header" href="#creating-layers">Creating Layers</a></h2>
+<p>Next, lets write a constructor for <code>Layer</code>s.</p>
+<p><strong>Initializing a Vector</strong> Since we have to build nested vectors, it will
+be convenient to write a helper function that uses a closure to build a
+vector of some given size.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(n: usize, f:F) -&gt; RVec&lt;A&gt;[n]
+       where F: FnMut(usize) -&gt; A)]
+fn init&lt;F, A&gt;(n: usize, mut f: F) -&gt; RVec&lt;A&gt;
+where
+    F: FnMut(usize) -&gt; A,
+{
+    let mut res = RVec::new();
+    for i in 0..n {
+        res.push(f(i));
+    }
+    res
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> The function below takes as input a reference to a <code>RVec</code>
+and uses <code>init</code> to compute the <code>mirror</code> image of the input, <em>i.e.</em>, an
+<code>RVec</code> where the elements are reversed. Can you fix the specification of
+<code>init</code> so it is accepted?</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn(vec: &amp;RVec&lt;T&gt;[@n]) -&gt; RVec&lt;T&gt;[n])]
+fn mirror&lt;T: Clone&gt;(vec: &amp;RVec&lt;T&gt;) -&gt; RVec&lt;T&gt; {
+    let n = vec.len();
+    init(n, |i| vec[n-i-1].clone())
+}</code></pre></pre>
+<p><strong>Layer Constructor</strong> Our <code>Layer</code> constructor will use <code>init</code> to create
+a randomly generated starting matrix of weights and biases that will
+then get adjusted during training. Hooray for closures: we can call
+<code>init</code> with an outer closure that creates each <em>output row</em> of the
+weight matrix, and an inner closure that creates the <em>input</em> weights for
+that row.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Layer {
+  #[spec(fn(i: usize, o: usize) -&gt; Layer[i, o])]
+  fn new(i: usize, o: usize) -&gt; Layer {
+    let mut rng = rand::thread_rng();
+    Layer {
+      num_inputs: i,
+      num_outputs: o,
+      weight: init(i, |_| init(o, |_| rng.gen_range(-1.0..1.0))),
+      bias: init(o, |_| rng.gen_range(-1.0..1.0)),
+      outputs: init(o, |_| 0.0),
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Looks like the auto-complete snuck in a bug in definition
+of <code>new</code> above, which, thankfully, Flux has flagged! Can you spot and
+fix the problem?</p>
+<h2 id="layer-propagation"><a class="header" href="#layer-propagation">Layer Propagation</a></h2>
+<p>A neural layer (and ultimately, network) is, of course, ultimately a
+representation of a <em>function</em> that maps inputs to outputs, for example,
+to map inputs corresponding to the pixels of an image to outputs
+corresponding to the labels of objects in the image. Thus, each neural
+layer must implement two key functions:</p>
+<ul>
+<li>
+<p><code>forward</code> which <em>evaluates</em> the function by computing the values of
+the outputs given the current values of the inputs, weights, and
+biases; and</p>
+</li>
+<li>
+<p><code>backward</code> which <em>propagates</em> the error (or loss) between the
+evaluated output backwards by computing the gradients of the weights
+and biases with respect to the loss, and then “trains” the network by
+adjusting the weights and biases to minimize the loss.</p>
+</li>
+</ul>
+<p>Next, let’s look at how we might <em>implement</em> these function using our
+<code>Layer</code> datatype. We will not look at the mathematics of these functions
+in any detail, to learn more, I heartily recommend chapters 2 and 3 of
+Nielsen’s book <sup class="footnote-reference" id="fr-6-1"><a href="#footnote-6">6</a></sup>.</p>
+<h3 id="forward-evaluation"><a class="header" href="#forward-evaluation">Forward Evaluation</a></h3>
+<p>In brief, the goal of the <code>forward</code> function is to compute the value of
+each output neuron <code>outputs[i]</code> as the <em>weighted sum</em> of its input
+neurons <code>inputs[i]</code>, and return <code>1</code> if that sum plus its <code>bias[i]</code> — a
+threshold — is above zero, and <code>0</code> otherwise.</p>
+<pre><code class="language-math">\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \begin{cases}
+1\text{ if  }\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack &gt; 0 \\
+0\text{ otherwise }
+\end{cases}
+</code></pre>
+<p>The discrete “step” function above discontinuously leaps from <code>0</code> to <code>1</code>
+at the threshold, which gets in the way of computing gradients during
+backpropagation. So instead we <em>smooth</em> it out using a <em>sigmoid</em>
+(logistic) function</p>
+<pre><code class="language-math">\sigma(x) ≔ \frac{1}{1 + \exp( - x)}
+</code></pre>
+<p>which transitions gradually from <code>0</code> to <code>1</code> as shown below:</p>
+<figure>
+<p><img src="tutorial/../img/sigmoid.png" style="width:61.0%" /></p>
+<figcaption><p>Sigmoid vs. Step Function</p></figcaption>
+</figure>
+<p><span id="fig:sigmoid-step"></span></p>
+<p>Thus, when we put the weighted-sum and sigmoid together, we get the
+following formula for computing the i<sup>th</sup> output neuron:</p>
+<pre><code class="language-math">\mathbf{\text{outputs}}\lbrack i\rbrack ≔ \sigma(\mathbf{\text{weights}}\lbrack i\rbrack \cdot \mathbf{\text{inputs}} + \mathbf{\text{bias}}\lbrack i\rbrack)
+</code></pre>
+<p><span id="eq:neural-output"></span></p>
+<p><strong>EXERCISE:</strong> Below is the implementation of a function that computes
+the <code>dot_product</code> of two vectors. Can you figure out why Flux is
+complaining and fix the code so it verifies?</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn dot_product2(a: &amp;RVec&lt;f64&gt;, b: &amp;RVec&lt;f64&gt;) -&gt; f64 {
+    (0..a.len()).map(|i| (a[i] * b[i])).sum()
+}</code></pre></pre>
+<p>We can now use the implementation of <code>dot_product</code> to transcribe the
+equation above math into our Rust implementation of <code>forward</code></p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Layer {
+  #[spec(fn(&amp;mut Layer[@l], &amp;RVec&lt;f64&gt;) )]
+  fn forward(&amp;mut self, input: &amp;RVec&lt;f64&gt;) {
+    (0..self.num_outputs).for_each(|i| {
+      let weighted_input = dot_product(&amp;self.weight[i], input);
+      self.outputs[i] = sigmoid(weighted_input + self.bias[i])
+    })
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Flux is unhappy about the implementation of <code>forward</code>. Can
+you figure out why and add the type specification that lets Flux verify
+the code?</p>
+<h3 id="backward-propagation"><a class="header" href="#backward-propagation">Backward Propagation</a></h3>
+<p>Next, lets implement the <code>backward</code> propagation function that takes as
+input the inputs given to the <code>Layer</code> and the <em>error</em> produced by a
+given Layer (roughly, the difference between the expected output and the
+actual output of that layer), and learning <code>rate</code> <em>hyper-parameter</em> that
+controls the step size for gradient descent, to</p>
+<ol>
+<li>
+<p><em>Update</em> the weights and biases of the layer to reduce the error,
+and</p>
+</li>
+<li>
+<p><em>Propagate</em> the appropriate amount of error to the previous layer.</p>
+</li>
+</ol>
+<pre><pre class="playground"><code class="language-rust  editable">impl Layer {
+  fn backward(&amp;mut self, inputs: &amp;RVec&lt;f64&gt;, err: &amp;RVec&lt;f64&gt;, rate:f64)
+     -&gt; RVec&lt;f64&gt; {
+    let mut input_err = rvec![0.0; inputs.len()];
+    for i in 0..self.num_outputs {
+        for j in 0..self.num_inputs {
+            input_err[j] += self.weight[i][j] * err[i];
+            self.weight[i][j] -= rate * err[i] * inputs[j];
+        }
+        self.bias[i] -= rate * err[i];
+    }
+    input_err
+  }
+}</code></pre></pre>
+<p>The code works as follows.</p>
+<ol>
+<li>
+<p>First, we initialize the <code>input_err</code> vector that corresponds to the
+<code>err</code> propagated backwards (to the previous layer);</p>
+</li>
+<li>
+<p>Next, we loop over each output neuron <code>i</code>, and iterate over each of
+its inputs <code>j</code> to <em>accumulate</em> that input’s weighted contribution to
+the <code>err</code>, and <em>update</em> <code>weight[i][j]</code> (and similarly, <code>bias[i]</code>)
+with the gradient <code>err[i] * inputs[j]</code> multiplied by the <code>rate</code>
+which ensures we subsequently reduce the error;</p>
+</li>
+</ol>
+<p><strong>EXERCISE:</strong> Looks like we forgot to write down the appropriate
+dimensions for the input <code>Layer</code> and the various input and output
+vectors, which makes Flux report errors all over the place. Can you fill
+them in so the code verifies?</p>
+<h2 id="composing-layers-into-networks"><a class="header" href="#composing-layers-into-networks">Composing Layers into Networks</a></h2>
+<p>A neural <em>network</em> is the composition of multiple <em>layers</em>.
+[fig]:neural-network shows a network that maps 3-inputs to 4-outputs,
+with three <em>hidden</em> levels in between which respectively 4, 2, and 3
+neurons. Put another way, we might say that the network in the figure
+composes <em>four</em> <code>Layer</code>s shown in blue, green, yellow and orange
+respectively. In this case, the <code>Layer</code>s match up nicely, with the
+outputs of each precisely matching the inputs of the next layer. Next,
+lets see how Flux can help ensure that we only ever construct networks
+where the layers snap together perfectly.</p>
+<figure>
+<p><img src="tutorial/../img/neural-network.png" style="width:100.0%" /></p>
+<figcaption><p>A 3-input, 4-output neural network with three hidden
+levels.</p></figcaption>
+</figure>
+<p><span id="fig:neural-network"></span></p>
+<p>The key idea is to think of <em>building up</em> the network from the right to
+the left, starting with the final output layer, and working our way
+backwards.</p>
+<ul>
+<li>
+<p>The <em>last</em> orange <code>Layer[3, 4]</code> corresponds to a <code>Network</code> that maps 3
+inputs to 4 outputs (lets call that a <code>Network[3, 4]</code>);</p>
+</li>
+<li>
+<p>Next, we add the yellow <code>Layer[2, 3]</code> that composes with the
+<code>Network[3, 4]</code> to give us a <code>Network[2, 4]</code>;</p>
+</li>
+<li>
+<p>Next, we slap on the green <code>Layer[4, 2]</code> which connects with the
+<code>Network[2, 3]</code> to give a <code>Network[4, 4]</code>;</p>
+</li>
+<li>
+<p>Finally, we top it off with the blue <code>Layer[3, 4]</code> that connects with
+the <code>Network[4, 4]</code> to give us the final <code>Network[3, 4]</code>.</p>
+</li>
+</ul>
+<p><strong>Refined <code>Network</code>s</strong> Lets codify the above intuition by defining a
+recursive <code>Network</code> that is <em>refined by</em> the number of input and output
+neurons.</p>
+<pre><pre class="playground"><code class="language-rust  editable">enum Network {
+   #[variant((Layer[@i, @o]) -&gt; Network[i, o])]
+   Last(Layer),
+
+   #[variant((Layer[@i, @h], Box&lt;Network[h, @o]&gt;) -&gt; Network[i, o])]
+   Next(Layer, Box&lt;Network&gt;),
+}</code></pre></pre>
+<p>Lets consider the two variants of the <code>Network</code> enum.</p>
+<ul>
+<li>
+<p>The <code>Last</code> variant takes as input a <code>Layer[i, o]</code> to construct a
+<code>Network[i, o]</code>, just like the orange <code>Layer[3, 4]</code> yields a
+<code>Network[3, 4]</code>;</p>
+</li>
+<li>
+<p>The <code>Next</code> variant takes as input a <code>Layer[i, h]</code> which maps <code>i</code>
+<em>inputs</em> to <code>h</code> <em>hidden</em> neurons, and a <code>Network[h, o]</code> which maps
+those <code>h</code> hidden neurons to <code>o</code> <em>outputs</em>, to construct a
+<code>Network[i, o]</code> that maps <code>i</code> inputs to <code>o</code> outputs!</p>
+</li>
+</ul>
+<p>The network in [fig]:neural-network can thus be represented as</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Network[3, 4])]
+fn example_network() -&gt; Network {
+  let blue = Layer::new(3, 4);
+  let green = Layer::new(4, 2);
+  let yellow = Layer::new(2, 3);
+  let orange = Layer::new(3, 4);
+  network![blue, green, yellow, orange]
+}</code></pre></pre>
+<p>where the <code>network!</code> macro recursively applies <code>Next</code> and <code>Last</code> to
+build the <code>Network</code>.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[macro_export]
+macro_rules! network {
+    ($last:expr) =&gt; {
+        Network::Last($last)
+    };
+    ($first:expr, $($rest:expr),+) =&gt; {
+        Network::Next($first, Box::new(network!($($rest),+)))
+    };
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the specification and implementation of a
+function <code>Network::new</code> that takes as input the number of <code>inputs</code>, a
+slice of <code>hiddens</code>, and the number of <code>outputs</code> and returns a <code>Network</code>
+that maps the <code>inputs</code> to <code>outputs</code> after passing through the specified
+hidden layers.</p>
+<pre><pre class="playground"><code class="language-rust  editable">impl Network {
+  fn new(inputs: usize, hiddens: &amp;[usize], outputs: usize) -&gt; Network {
+    if hidden_sizes.is_empty() {
+      Network::Last(Layer::new(input_size, output_size))
+    } else {
+      todo!()
+    }
+  }
+}</code></pre></pre>
+<p>When done, the following should create a <code>Network</code> like that in
+[fig]:neural-network.</p>
+<pre><pre class="playground"><code class="language-rust  editable">#[spec(fn() -&gt; Network[3, 4])]
+fn test_network() -&gt; Network { Network::new(3, &amp;[4, 2, 3], 4) }</code></pre></pre>
+<h2 id="network-propagation"><a class="header" href="#network-propagation">Network Propagation</a></h2>
+<p>Finally, lets implement the <code>forward</code> and <code>backward</code> functions so that
+they work over the entire <code>Network</code>, thereby allowing us to do both
+training and inference.</p>
+<h3 id="forward-evaluation-1"><a class="header" href="#forward-evaluation-1">Forward Evaluation</a></h3>
+<p><strong>EXERCISE:</strong> The <code>forward</code> evaluation recurses on the <code>Network</code>,
+calling <code>forward</code> on each <code>Layer</code> and passing the outputs to the <code>next</code>
+part of the <code>Network</code>, returning the output of the <code>Last</code> layer. Fill in
+the specification for <code>forward</code> so it verifies.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn forward(&amp;mut self, input: &amp;RVec&lt;f64&gt;) -&gt; RVec&lt;f64&gt; {
+  match self {
+    Network::Next(layer, next) =&gt; {
+      layer.forward(input); next.forward(&amp;layer.outputs)
+    }
+    Network::Last(layer) =&gt; {
+      layer.forward(input); layer.outputs.clone()
+    }
+  }
+}</code></pre></pre>
+<h3 id="back-propagation"><a class="header" href="#back-propagation">Back Propagation</a></h3>
+<p>The <em>back-propagation</em> function assumes we have already done a <code>forward</code>
+pass, and have the outputs stored in each <code>Layer</code>‘s <code>outputs</code> field. It
+then takes as input the <code>target</code> or expected output, computes the
+<code>err</code>or at the last layer, and then propagates that error backwards
+through the network, updating the weights and biases as it goes using
+the gradients computed at each layer via its <code>backward</code> function.</p>
+<pre><pre class="playground"><code class="language-rust  editable">fn backward(&amp;mut self, inputs:&amp;RVec&lt;f64&gt;, target:&amp;RVec&lt;f64&gt;, rate:f64)
+   -&gt; RVec&lt;f64&gt; {
+  match self {
+    Network::Last(layer) =&gt; {
+      let err = (0..layer.num_outputs)
+                  .map(|i| layer.outputs[i] - target[i])
+                  .collect();
+      layer.backward(inputs, &amp;err, rate)
+    }
+    Network::Next(layer, next) =&gt; {
+      todo!("exercise: fill this in")
+    }
+  }
+}</code></pre></pre>
+<p><strong>EXERCISE:</strong> Complete the specification and implementation of
+<code>backward</code> above so that it recursively propagates the error all the way
+to the first layer, by calling <code>backward</code> on each of the intermediate
+layers.</p>
+<h2 id="summary-10"><a class="header" href="#summary-10">Summary</a></h2>
+<p>To recap, in this chapter, we saw how to build a small neural network
+library from scratch in Rust, using Flux’s refinement types to track the
+dimensions of each network <code>Layer</code> and to ensure that they are composed
+correctly into a <code>Network</code>. Note that doing so requires checking a
+“linking” property: that the outputs of one layer match the inputs of
+the next layer, and that this happens for an unbounded number of layers.
+Its rather convenient that one can neatly tuck this invariant inside the
+<code>enum</code> definition of <code>Network</code>, in a way that the type checker can then
+verify automatically at compile time!</p>
+<hr>
+<ol class="footnote-definition"><li id="footnote-1">
+<p><a href="https://byteblog.medium.com/building-a-simple-neural-network-from-scratch-in-rust-3a7b12ed30a9">https://byteblog.medium.com/building-a-simple-neural-network-from-scratch-in-rust-3a7b12ed30a9</a> <a href="#fr-1-1">↩</a></p>
+</li>
+<li id="footnote-2">
+<p><a href="http://neuralnetworksanddeeplearning.com/chap1.html">http://neuralnetworksanddeeplearning.com/chap1.html</a> <a href="#fr-2-1">↩</a></p>
+</li>
+<li id="footnote-3">
+<p><a href="https://en.wikipedia.org/wiki/Neural_network_(machine_learning)">https://en.wikipedia.org/wiki/Neural_network_(machine_learning)</a> <a href="#fr-3-1">↩</a></p>
+</li>
+<li id="footnote-4">
+<p>As described in <a href="tutorial/ch11_equality.html#detached">this chapter</a> <a href="#fr-4-1">↩</a></p>
+</li>
+<li id="footnote-5">
+<p>As described in <a href="tutorial/ch06_vectors.html">this chapter</a> <a href="#fr-5-1">↩</a></p>
+</li>
+<li id="footnote-6">
+<p><a href="http://neuralnetworksanddeeplearning.com/">http://neuralnetworksanddeeplearning.com/</a> <a href="#fr-6-1">↩</a></p>
 </li>
 </ol><div style="break-before: page; page-break-before: always;"></div><h1 id="flux-specifications-1"><a class="header" href="#flux-specifications-1">Flux Specifications</a></h1>
 <p>One day, this will be an actual user's guide, but for now,
@@ -6209,7 +7872,7 @@ pub fn test_ok(x: char) {
 pub fn test_digit(x: char) {
     assert(x.is_ascii_digit())
 }</code></pre>
-<h2 id="detached-specifications"><a class="header" href="#detached-specifications">Detached Specifications</a></h2>
+<h2 id="detached-specifications-1"><a class="header" href="#detached-specifications-1">Detached Specifications</a></h2>
 <p>Sometimes you may want to write specs for functions, structs, enums
 etc. but not <em>directly</em> attached to the function i.e. as an attribute
 of the definition, perhaps because you don't want to modify the original

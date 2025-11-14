@@ -250,7 +250,7 @@ For example, the following code</p>
 </ul>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[sig(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
+</span>#[spec(fn(pixels: &amp;[Pixel][@n], i:usize{i &lt; 3}) -&gt; u64 requires n &gt; 0)]
 <span class="boring">}</span></code></pre></pre>
 <img src="../img/04-arrays-average-fix.gif" width="100%">
 <h2 id="const-generics-1"><a class="header" href="#const-generics-1">Const Generics</a></h2>
@@ -320,7 +320,7 @@ arrays of different sizes, for example we get a compile-time error</p>
 </ul>
 <pre><pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32)]
+</span>#[spec(fn(x: [f32;N], y: [f32;N], k:usize{k &lt;= N}) -&gt; f32)]
 fn dot_k&lt;const N:usize&gt;(x: [f32;N], y: [f32;N], k: usize) -&gt; f32 {
     let mut sum = 0.0;
     for i in 0..k {

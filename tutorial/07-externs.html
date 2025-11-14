@@ -321,19 +321,19 @@ the methods that <code>impl</code>ement various key operations on <code>Option</
 we did for slices, <a href="#getting-the-length-of-a-slice">back here</a>.</p>
 <pre><pre class="playground"><code class="language-rust editable">#[extern_spec]
 impl&lt;T&gt; Option&lt;T&gt; {
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
+    #[spec(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[b])]
     const fn is_some(&amp;self) -&gt; bool;
 
-    #[sig(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
+    #[spec(fn(&amp;Option&lt;T&gt;[@b]) -&gt; bool[!b])]
     const fn is_none(&amp;self) -&gt; bool;
 
-    #[sig(fn(Option&lt;T&gt;[true]) -&gt; T)]
+    #[spec(fn(Option&lt;T&gt;[true]) -&gt; T)]
     const fn unwrap(self) -&gt; T;
 }</code></pre></pre>
 <p>The definition looks rather like the actual one,
 except that it wears the <code>#[extern_spec]</code> attribute
 on top, and the methods have no definitions, as we
-want to use those from the extern crate, in this case,
+want to use those from the <code>extern</code> crate, in this case,
 the standard library.</p>
 <p>Notice that the spec for</p>
 <ul>
