@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>/// a `#[refined_by(...)]` is part of the syntax of an adt: we could think of a different syntax
 <a href=#36 id=36 data-nosnippet>36</a>/// that doesn't use an attribute. The existence of a syntax attribute in the token stream can be
 <a href=#37 id=37 data-nosnippet>37</a>/// used to decide how to keep parsing, for example, if we see a `#[reft]` we know that the next
-<a href=#38 id=38 data-nosnippet>38</a>/// item bust be an associated refinement and not a method inside an impl or trait.
+<a href=#38 id=38 data-nosnippet>38</a>/// item must be an associated refinement and not a method inside an impl or trait.
 <a href=#39 id=39 data-nosnippet>39</a></span><span class="kw">enum </span>SyntaxAttr {
 <a href=#40 id=40 data-nosnippet>40</a>    <span class="doccomment">/// A `#[reft]` attribute
 <a href=#41 id=41 data-nosnippet>41</a>    </span>Reft,
@@ -1280,8 +1280,8 @@
 <a href=#1280 id=1280 data-nosnippet>1280</a>}
 <a href=#1281 id=1281 data-nosnippet>1281</a>
 <a href=#1282 id=1282 data-nosnippet>1282</a><span class="doccomment">/// ```text
-<a href=#1283 id=1283 data-nosnippet>1283</a>/// ⟨trailer_expr⟩ :=  ⟨trailer⟩ . ⟨ident⟩
-<a href=#1284 id=1284 data-nosnippet>1284</a>///                 |  ⟨trailer⟩ ( ⟨expr⟩,* )
+<a href=#1283 id=1283 data-nosnippet>1283</a>/// ⟨trailer_expr⟩ :=  ⟨trailer_expr⟩ . ⟨ident⟩
+<a href=#1284 id=1284 data-nosnippet>1284</a>///                 |  ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 <a href=#1285 id=1285 data-nosnippet>1285</a>///                 |  ⟨atom⟩
 <a href=#1286 id=1286 data-nosnippet>1286</a>/// ```
 <a href=#1287 id=1287 data-nosnippet>1287</a></span><span class="kw">fn </span>parse_trailer_expr(cx: <span class="kw-2">&amp;mut </span>ParseCtxt, allow_struct: bool) -&gt; ParseResult&lt;Expr&gt; {
@@ -1289,11 +1289,11 @@
 <a href=#1289 id=1289 data-nosnippet>1289</a>    <span class="kw">let </span><span class="kw-2">mut </span>e = parse_atom(cx, allow_struct)<span class="question-mark">?</span>;
 <a href=#1290 id=1290 data-nosnippet>1290</a>    <span class="kw">loop </span>{
 <a href=#1291 id=1291 data-nosnippet>1291</a>        <span class="kw">let </span>kind = <span class="kw">if </span>cx.advance_if(token::Dot) {
-<a href=#1292 id=1292 data-nosnippet>1292</a>            <span class="comment">// ⟨trailer⟩ . ⟨ident⟩
+<a href=#1292 id=1292 data-nosnippet>1292</a>            <span class="comment">// ⟨trailer_expr⟩ . ⟨ident⟩
 <a href=#1293 id=1293 data-nosnippet>1293</a>            </span><span class="kw">let </span>field = parse_ident(cx)<span class="question-mark">?</span>;
 <a href=#1294 id=1294 data-nosnippet>1294</a>            ExprKind::Dot(Box::new(e), field)
 <a href=#1295 id=1295 data-nosnippet>1295</a>        } <span class="kw">else if </span>cx.peek(token::OpenParen) {
-<a href=#1296 id=1296 data-nosnippet>1296</a>            <span class="comment">// ⟨trailer⟩ ( ⟨expr⟩,* )
+<a href=#1296 id=1296 data-nosnippet>1296</a>            <span class="comment">// ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 <a href=#1297 id=1297 data-nosnippet>1297</a>            </span><span class="kw">let </span>args = parens(cx, Comma, |cx| parse_expr(cx, <span class="bool-val">true</span>))<span class="question-mark">?</span>;
 <a href=#1298 id=1298 data-nosnippet>1298</a>            ExprKind::Call(Box::new(e), args)
 <a href=#1299 id=1299 data-nosnippet>1299</a>        } <span class="kw">else </span>{
