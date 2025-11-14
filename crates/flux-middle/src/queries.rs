@@ -602,17 +602,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
                     // 2. If not, walk up the parent chain to see if any parent has the attribute
                     if let Some(parent) = genv.tcx().opt_local_parent(local_id) {
-                        println!("going up to parent {parent:?} from {def_id:?}");
                         return genv.no_panic(parent);
-                    } else {
-                        println!("no parent for {def_id:?}");
                     }
 
                     false
 
                 },
                 |def_id|  {
-                    println!("hello from cstore");
                     genv.cstore().no_panic(def_id)
                 },
                 |_| false,
