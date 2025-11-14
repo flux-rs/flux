@@ -120,7 +120,6 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
-    #[expect(dead_code)]
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -876,6 +875,20 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
+
+        if M::NAME == "refine" {
+            let no_panic = genv.no_panic(self.checker_id.root_id());
+
+            if no_panic
+                && let Some(callee_def_id) = callee_def_id
+                && genv.def_kind(callee_def_id).is_fn_like()
+            {
+                let callee_no_panic = genv.no_panic(callee_def_id);
+                if !callee_no_panic {
+                    genv.sess().emit_err(errors::PanicError { span });
+                }
+            }
+        }
 
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
@@ -2207,12 +2220,20 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
+    use flux_macros::Diagnostic;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_panic_error, code = E0999)]
+    pub(super) struct PanicError {
+        #[primary_span]
+        pub(super) span: Span,
+    }
 
     #[derive(Debug)]
     pub struct CheckerError {

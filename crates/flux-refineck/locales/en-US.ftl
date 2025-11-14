@@ -15,6 +15,9 @@ refineck_refine_error =
     refinement type error
     .label = a {$cond} cannot be proved
 
+refineck_panic_error =
+    call to function that may panic
+
 refineck_div_error =
     possible division by zero
 

@@ -176,6 +176,7 @@ pub struct Tables<K: Eq + Hash> {
     func_sort: UnordMap<FluxId<K>, rty::PolyFuncSort>,
     func_span: UnordMap<FluxId<K>, Span>,
     sort_decl_param_count: UnordMap<FluxId<K>, usize>,
+    no_panic: UnordMap<K, bool>,
 }
 
 impl CStore {
@@ -224,6 +225,7 @@ impl CStore {
         merge_extern_table!(self, tcx, adt_sort_def, extern_tables);
         merge_extern_table!(self, tcx, variants_of, extern_tables);
         merge_extern_table!(self, tcx, type_of, extern_tables);
+        merge_extern_table!(self, tcx, no_panic, extern_tables);
     }
 }
 
@@ -250,6 +252,10 @@ impl CrateStore for CStore {
 
     fn adt_sort_def(&self, def_id: DefId) -> OptResult<rty::AdtSortDef> {
         get!(self, adt_sort_def, def_id)
+    }
+
+    fn no_panic(&self, def_id: DefId) -> Option<bool> {
+        get!(self, no_panic, def_id)
     }
 
     fn variants_of(
@@ -434,6 +440,7 @@ fn encode_def_ids<K: Eq + Hash + Copy>(
                     .refinement_generics_of
                     .insert(key, genv.refinement_generics_of(def_id));
                 tables.fn_sig.insert(key, genv.fn_sig(def_id));
+                tables.no_panic.insert(key, genv.no_panic(def_id));
             }
             DefKind::Enum | DefKind::Struct => {
                 tables.generics_of.insert(key, genv.generics_of(def_id));

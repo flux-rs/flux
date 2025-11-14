@@ -618,6 +618,8 @@ pub enum Attr {
     Reveal(Vec<Ident>),
     /// A `#[opts(...)]` attribute
     InferOpts(PartialInferOpts),
+    /// A `#[no_panic]` attribute
+    NoPanic,
 }
 
 #[derive(Debug)]
