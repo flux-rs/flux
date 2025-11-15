@@ -26,6 +26,7 @@ use rustc_middle::{
     ty::{TyCtxt, Variance},
 };
 use rustc_span::Span;
+use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
@@ -905,12 +906,26 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 }
                 Ok(())
             }
-            (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
-                if let BaseTy::Alias(AliasKind::Opaque, alias_ty_a) = a {
-                    debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
-                    iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
-                        .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
+            (
+                BaseTy::Alias(AliasKind::Opaque, alias_ty_a),
+                BaseTy::Alias(AliasKind::Opaque, alias_ty_b),
+            ) => {
+                debug_assert_eq!(alias_ty_a.def_id, alias_ty_b.def_id);
+
+                // handle type-args
+                for (ty_a, ty_b) in izip!(alias_ty_a.args.iter(), alias_ty_b.args.iter()) {
+                    self.generic_args(infcx, Invariant, ty_a, ty_b)?;
                 }
+
+                // handle refine-args
+                debug_assert_eq!(alias_ty_a.refine_args.len(), alias_ty_b.refine_args.len());
+                iter::zip(alias_ty_a.refine_args.iter(), alias_ty_b.refine_args.iter())
+                    .for_each(|(expr_a, expr_b)| infcx.unify_exprs(expr_a, expr_b));
+
+                Ok(())
+            }
+            (_, BaseTy::Alias(AliasKind::Opaque, alias_ty_b)) => {
+                // only for when concrete type on LHS and impl-with-bounds on RHS
                 self.handle_opaque_type(infcx, a, alias_ty_b)
             }
             (
