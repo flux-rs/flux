@@ -590,11 +590,37 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             def_id.dispatch_query(
                 genv,
                 |def_id| {
-                    let local_id = match def_id {
+                    let mut current_id = match def_id {
                         MaybeExternId::Local(def_id) => def_id,
                         MaybeExternId::Extern(def_id, _) => def_id,
                     };
-                    genv.fhir_attr_map(local_id).no_panic()
+
+                    // Walk up the entire parent chain within this closure
+                    loop {
+                        // Skip dummy items
+                        if genv.is_dummy(current_id) {
+                            if let Some(parent) = genv.tcx().opt_local_parent(current_id) {
+                                current_id = parent;
+                                continue;
+                            } else {
+                                return false; // Reached top without finding non-dummy
+                            }
+                        }
+
+                        // Check if current non-dummy item has the `no_panic` attribute
+                        if genv.fhir_attr_map(current_id).no_panic() {
+                            return true;
+                        }
+
+                        // Move to the next parent
+                        if let Some(parent) = genv.tcx().opt_local_parent(current_id) {
+                            current_id = parent;
+                        } else {
+                            break; // Reached the top
+                        }
+                    }
+
+                    false
                 },
                 |def_id| genv.cstore().no_panic(def_id),
                 |_| false,

@@ -29,6 +29,9 @@ pub struct FluxMetadata {
     /// If present, only check files that match any of the glob patterns. Patterns are checked
     /// relative to the location of the manifest file.
     pub include: Option<Vec<String>>,
+    /// If present, every function in the module is implicitly labeled with a `no_panic` by default.
+    /// This means that the only way a function can panic is (1) if it panics, or (2) it calls an external function without this attribute.
+    pub no_panic: Option<bool>,
 }
 
 impl FluxMetadata {
@@ -51,6 +54,9 @@ impl FluxMetadata {
         }
         if let Some(v) = self.default_trusted {
             flags.push(format!("-Ftrusted={v}"));
+        }
+        if let Some(v) = self.no_panic {
+            flags.push(format!("-Fno-panic={v}"));
         }
         if let Some(v) = self.default_ignore {
             flags.push(format!("-Fignore={v}"));

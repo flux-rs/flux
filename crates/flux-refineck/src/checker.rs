@@ -877,7 +877,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
 
         if M::NAME == "refine" {
-            let no_panic = genv.no_panic(self.checker_id.root_id());
+            let no_panic = genv.no_panic(self.checker_id.root_id()) || config::no_panic();
 
             if no_panic
                 && let Some(callee_def_id) = callee_def_id
@@ -885,7 +885,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             {
                 let callee_no_panic = genv.no_panic(callee_def_id);
                 if !callee_no_panic {
-                    genv.sess().emit_err(errors::PanicError { span });
+                    let callee_name = tcx.def_path_str(callee_def_id);
+                    genv.sess()
+                        .emit_err(errors::PanicError { span, callee: callee_name });
                 }
             }
         }
@@ -2233,6 +2235,7 @@ pub(crate) mod errors {
     pub(super) struct PanicError {
         #[primary_span]
         pub(super) span: Span,
+        pub(super) callee: String,
     }
 
     #[derive(Debug)]
