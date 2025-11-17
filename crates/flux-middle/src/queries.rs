@@ -5,8 +5,8 @@ use std::{
 
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
-use flux_errors::{E0999, ErrorGuaranteed};
 use flux_config as config;
+use flux_errors::{E0999, ErrorGuaranteed};
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
