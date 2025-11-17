@@ -17,6 +17,10 @@ impl<T> [T] {
 
     #[sig(fn(&Self[@n]) -> Iter<T>[0, n])]
     fn iter(&self) -> Iter<'_, T>;
+
+    #[no_panic]
+    #[sig(fn(&Self[@n], mid: usize{mid <= n}) -> (&[T][mid], &[T][n - mid]))]
+    fn split_at(&self, mid: usize) -> (&[T], &[T]);
 }
 
 #[cfg(flux_sysroot_test)]
