@@ -51,7 +51,7 @@ pub mod sym {
 
 pub fn is_reserved(sym: Symbol, edition: Edition) -> bool {
     // FIXME: We should treat these as reserved and adjust the parser to be consistent with Rust.
-    if sym == kw::SelfLower || sym == kw::SelfUpper || sym == kw::Crate {
+    if sym == kw::SelfLower || sym == kw::SelfUpper || sym == kw::Crate || sym == kw::Super {
         return false;
     }
     sym.is_reserved(|| edition) || is_flux_reserved(sym)
