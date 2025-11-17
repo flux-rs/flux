@@ -5,26 +5,26 @@
         infcx: &amp;mut <a class="struct" href="struct.InferCtxtAt.html" title="struct flux_infer::infer::InferCtxtAt">InferCtxtAt</a>&lt;'_, '_, '_, '_&gt;,
         reason: <a class="enum" href="enum.ConstrReason.html" title="enum flux_infer::infer::ConstrReason">ConstrReason</a>,
         re: <a class="enum" href="../../flux_rustc_bridge/ty/enum.Region.html" title="enum flux_rustc_bridge::ty::Region">Region</a>,
-        path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
-        bound: <a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
-    ) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>&gt;;
+        path: &amp;Path,
+        bound: Ty,
+    ) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;Ty&gt;;
 <span class="item-spacer"></span>    fn <a href="#tymethod.unfold_strg_ref" class="fn">unfold_strg_ref</a>(
         &amp;mut self,
         infcx: &amp;mut <a class="struct" href="struct.InferCtxt.html" title="struct flux_infer::infer::InferCtxt">InferCtxt</a>&lt;'_, '_, '_&gt;,
-        path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
-        ty: &amp;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
-    ) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;<a class="enum" href="../../flux_middle/rty/expr/enum.Loc.html" title="enum flux_middle::rty::expr::Loc">Loc</a>&gt;;
-<span class="item-spacer"></span>    fn <a href="#tymethod.get" class="fn">get</a>(&amp;self, path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>) -&gt; <a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>;
+        path: &amp;Path,
+        ty: &amp;Ty,
+    ) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;Loc&gt;;
+<span class="item-spacer"></span>    fn <a href="#tymethod.get" class="fn">get</a>(&amp;self, path: &amp;Path) -&gt; Ty;
 }</code></pre><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><section id="tymethod.ptr_to_ref" class="method"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#677-684">Source</a><h4 class="code-header">fn <a href="#tymethod.ptr_to_ref" class="fn">ptr_to_ref</a>(
     &amp;mut self,
     infcx: &amp;mut <a class="struct" href="struct.InferCtxtAt.html" title="struct flux_infer::infer::InferCtxtAt">InferCtxtAt</a>&lt;'_, '_, '_, '_&gt;,
     reason: <a class="enum" href="enum.ConstrReason.html" title="enum flux_infer::infer::ConstrReason">ConstrReason</a>,
     re: <a class="enum" href="../../flux_rustc_bridge/ty/enum.Region.html" title="enum flux_rustc_bridge::ty::Region">Region</a>,
-    path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
-    bound: <a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
-) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>&gt;</h4></section><section id="tymethod.unfold_strg_ref" class="method"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#686">Source</a><h4 class="code-header">fn <a href="#tymethod.unfold_strg_ref" class="fn">unfold_strg_ref</a>(
+    path: &amp;Path,
+    bound: Ty,
+) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;Ty&gt;</h4></section><section id="tymethod.unfold_strg_ref" class="method"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#686">Source</a><h4 class="code-header">fn <a href="#tymethod.unfold_strg_ref" class="fn">unfold_strg_ref</a>(
     &amp;mut self,
     infcx: &amp;mut <a class="struct" href="struct.InferCtxt.html" title="struct flux_infer::infer::InferCtxt">InferCtxt</a>&lt;'_, '_, '_&gt;,
-    path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>,
-    ty: &amp;<a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a>,
-) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;<a class="enum" href="../../flux_middle/rty/expr/enum.Loc.html" title="enum flux_middle::rty::expr::Loc">Loc</a>&gt;</h4></section><section id="tymethod.get" class="method"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#688">Source</a><h4 class="code-header">fn <a href="#tymethod.get" class="fn">get</a>(&amp;self, path: &amp;<a class="struct" href="../../flux_middle/rty/expr/struct.Path.html" title="struct flux_middle::rty::expr::Path">Path</a>) -&gt; <a class="struct" href="../../flux_middle/rty/struct.Ty.html" title="struct flux_middle::rty::Ty">Ty</a></h4></section></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-LocEnv-for-DummyEnv" class="impl"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#693-712">Source</a><a href="#impl-LocEnv-for-DummyEnv" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.LocEnv.html" title="trait flux_infer::infer::LocEnv">LocEnv</a> for <a class="struct" href="struct.DummyEnv.html" title="struct flux_infer::infer::DummyEnv">DummyEnv</a></h3></section></div><script src="../../trait.impl/flux_infer/infer/trait.LocEnv.js" async></script></section></div></main></body></html>
+    path: &amp;Path,
+    ty: &amp;Ty,
+) -&gt; <a class="type" href="type.InferResult.html" title="type flux_infer::infer::InferResult">InferResult</a>&lt;Loc&gt;</h4></section><section id="tymethod.get" class="method"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#688">Source</a><h4 class="code-header">fn <a href="#tymethod.get" class="fn">get</a>(&amp;self, path: &amp;Path) -&gt; Ty</h4></section></div><h2 id="implementors" class="section-header">Implementors<a href="#implementors" class="anchor">§</a></h2><div id="implementors-list"><section id="impl-LocEnv-for-DummyEnv" class="impl"><a class="src rightside" href="../../src/flux_infer/infer.rs.html#693-712">Source</a><a href="#impl-LocEnv-for-DummyEnv" class="anchor">§</a><h3 class="code-header">impl <a class="trait" href="trait.LocEnv.html" title="trait flux_infer::infer::LocEnv">LocEnv</a> for <a class="struct" href="struct.DummyEnv.html" title="struct flux_infer::infer::DummyEnv">DummyEnv</a></h3></section></div><script src="../../trait.impl/flux_infer/infer/trait.LocEnv.js" async></script></section></div></main></body></html>
