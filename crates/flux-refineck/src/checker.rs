@@ -877,7 +877,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let tcx = genv.tcx();
 
         if M::NAME == "refine" {
-            let no_panic = genv.no_panic(self.checker_id.root_id()) || config::no_panic();
+            let no_panic = genv.no_panic(self.checker_id.root_id());
 
             if no_panic
                 && let Some(callee_def_id) = callee_def_id
