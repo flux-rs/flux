@@ -16,7 +16,7 @@ refineck_refine_error =
     .label = a {$cond} cannot be proved
 
 refineck_panic_error =
-    call to function that may panic
+    call to {$callee} may panic
 
 refineck_div_error =
     possible division by zero

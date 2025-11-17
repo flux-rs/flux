@@ -125,7 +125,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
             "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
-            "no_panic" => parse_bool(&mut flags.no_panic, value),
+            "no-panic" => parse_bool(&mut flags.no_panic, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
                 process::exit(EXIT_FAILURE);
