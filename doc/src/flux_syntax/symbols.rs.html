@@ -51,7 +51,7 @@
 <a href=#51 id=51 data-nosnippet>51</a>
 <a href=#52 id=52 data-nosnippet>52</a><span class="kw">pub fn </span>is_reserved(sym: Symbol, edition: Edition) -&gt; bool {
 <a href=#53 id=53 data-nosnippet>53</a>    <span class="comment">// FIXME: We should treat these as reserved and adjust the parser to be consistent with Rust.
-<a href=#54 id=54 data-nosnippet>54</a>    </span><span class="kw">if </span>sym == kw::SelfLower || sym == kw::SelfUpper || sym == kw::Crate {
+<a href=#54 id=54 data-nosnippet>54</a>    </span><span class="kw">if </span>sym == kw::SelfLower || sym == kw::SelfUpper || sym == kw::Crate || sym == kw::Super {
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="kw">return </span><span class="bool-val">false</span>;
 <a href=#56 id=56 data-nosnippet>56</a>    }
 <a href=#57 id=57 data-nosnippet>57</a>    sym.is_reserved(|| edition) || is_flux_reserved(sym)
