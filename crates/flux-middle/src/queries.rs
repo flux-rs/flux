@@ -6,6 +6,7 @@ use std::{
 use flux_arc_interner::List;
 use flux_common::{bug, tracked_span_bug};
 use flux_errors::{E0999, ErrorGuaranteed};
+use flux_config as config;
 use flux_rustc_bridge::{
     self, def_id_to_string,
     lowering::{self, Lower, UnsupportedErr},
@@ -590,10 +591,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             def_id.dispatch_query(
                 genv,
                 |def_id| {
-                    let mut current_id = match def_id {
-                        MaybeExternId::Local(def_id) => def_id,
-                        MaybeExternId::Extern(def_id, _) => def_id,
-                    };
+                    let mut current_id = def_id.local_id();
 
                     // Walk up the entire parent chain within this closure
                     loop {
@@ -620,7 +618,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         }
                     }
 
-                    false
+                    config::no_panic()
                 },
                 |def_id| genv.cstore().no_panic(def_id),
                 |_| false,
