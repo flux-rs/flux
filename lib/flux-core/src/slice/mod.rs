@@ -5,6 +5,7 @@ use flux_attrs::*;
 
 #[extern_spec(core::slice)]
 impl<T> [T] {
+    #[no_panic]
     #[sig(fn(&Self[@n]) -> usize[n])]
     fn len(&self) -> usize;
 
