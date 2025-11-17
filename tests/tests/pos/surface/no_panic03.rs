@@ -1,11 +1,14 @@
-#[flux::no_panic]
-pub fn this_might_panic() -> i32 {
-    3
+#[cfg_attr(flux, flux::no_panic)]
+mod my_other_module {
+    pub fn this_wont_panic() -> i32 {
+        3
+    }
 }
+
 
 #[cfg_attr(flux, flux::no_panic)]
 mod my_module {
-    use super::this_might_panic;
+    use super::my_other_module;
     trait MyTrait {
         fn do_something(&self) -> i32;
     }
@@ -13,7 +16,7 @@ mod my_module {
     struct MyStruct;
     impl MyTrait for MyStruct {
         fn do_something(&self) -> i32 {
-            this_might_panic() //~ ERROR may panic
+            my_other_module::this_wont_panic()
         }
     }
 }
