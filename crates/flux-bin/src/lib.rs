@@ -30,7 +30,7 @@ pub struct FluxMetadata {
     /// relative to the location of the manifest file.
     pub include: Option<Vec<String>>,
     /// If present, every function in the module is implicitly labeled with a `no_panic` by default.
-    /// This means that the only way a function can panic is (1) if it panics, or (2) it calls an external function without this attribute.
+    /// This means that the only way a function can panic is if it calls an external function without this attribute.
     pub no_panic: Option<bool>,
 }
 
