@@ -11,14 +11,14 @@ use rustc_infer::{
 };
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::{
-    mir::{self as rustc_mir, ConstValue},
+    mir::{self as rustc_mir},
     traits::{ImplSource, ObligationCause},
     ty::{
         self as rustc_ty, GenericArgKind, ParamConst, ParamEnv, TyCtxt, TypingMode,
         adjustment as rustc_adjustment,
     },
 };
-use rustc_span::{Span, Symbol};
+use rustc_span::Span;
 use rustc_trait_selection::traits::SelectionContext;
 
 use super::{
@@ -36,7 +36,7 @@ use super::{
 };
 use crate::{
     const_eval::{scalar_to_bits, scalar_to_int, scalar_to_uint},
-    mir::{BodyRoot, CallKind},
+    mir::{BodyRoot, CallKind, ConstOperand},
     ty::{
         AliasTy, ExistentialTraitRef, GenericArgs, ProjectionPredicate, Region,
         RegionOutlivesPredicate,
@@ -234,7 +234,7 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
     fn lower_statement(
         &self,
         stmt: &rustc_mir::Statement<'tcx>,
-    ) -> Result<Statement, ErrorGuaranteed> {
+    ) -> Result<Statement<'tcx>, ErrorGuaranteed> {
         let span = stmt.source_info.span;
         let kind = match &stmt.kind {
             rustc_mir::StatementKind::Assign(box (place, rvalue)) => {
@@ -467,7 +467,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         Ok((resolved_id, call_args))
     }
 
-    fn lower_rvalue(&self, rvalue: &rustc_mir::Rvalue<'tcx>) -> Result<Rvalue, UnsupportedReason> {
+    fn lower_rvalue(
+        &self,
+        rvalue: &rustc_mir::Rvalue<'tcx>,
+    ) -> Result<Rvalue<'tcx>, UnsupportedReason> {
         match rvalue {
             rustc_mir::Rvalue::Use(op) => Ok(Rvalue::Use(self.lower_operand(op)?)),
             rustc_mir::Rvalue::Repeat(op, c) => {
@@ -641,7 +644,10 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         }
     }
 
-    fn lower_operand(&self, op: &rustc_mir::Operand<'tcx>) -> Result<Operand, UnsupportedReason> {
+    fn lower_operand(
+        &self,
+        op: &rustc_mir::Operand<'tcx>,
+    ) -> Result<Operand<'tcx>, UnsupportedReason> {
         match op {
             rustc_mir::Operand::Copy(place) => Ok(Operand::Copy(lower_place(self.tcx, place)?)),
             rustc_mir::Operand::Move(place) => Ok(Operand::Move(lower_place(self.tcx, place)?)),
@@ -652,72 +658,73 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
     fn lower_constant(
         &self,
         constant: &rustc_mir::ConstOperand<'tcx>,
-    ) -> Result<Constant, UnsupportedReason> {
-        use rustc_middle::ty::TyKind;
-        use rustc_mir::{Const, interpret::Scalar};
-        let tcx = self.tcx;
-        let const_ = constant.const_;
-        let ty = constant.ty();
-        match (constant.const_, ty.kind()) {
-            (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
-                self.scalar_int_to_constant(scalar, ty)
-            }
-            (Const::Val(ct @ ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
-                if ref_ty.is_str() =>
-            {
-                if let Some(data) = ct.try_get_slice_bytes_for_diagnostics(tcx) {
-                    let str = String::from_utf8_lossy(data);
-                    Some(Constant::Str(Symbol::intern(&str)))
-                } else {
-                    None
-                }
-            }
-            (Const::Ty(ty, c), _) => {
-                match c.kind() {
-                    rustc_ty::ConstKind::Value(value) => {
-                        match &*value.valtree {
-                            rustc_ty::ValTreeKind::Leaf(scalar_int) => {
-                                self.scalar_int_to_constant(*scalar_int, value.ty)
-                            }
-                            rustc_ty::ValTreeKind::Branch(_) => None,
-                        }
-                    }
-                    rustc_ty::ConstKind::Param(param_const) => {
-                        let ty = ty.lower(tcx)?;
-                        Some(Constant::Param(param_const, ty))
-                    }
-                    _ => None,
-                }
-            }
-            (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
+    ) -> Result<ConstOperand<'tcx>, UnsupportedReason> {
+        Ok(ConstOperand { ty: constant.const_.ty().lower(self.tcx)?, const_: constant.const_ })
+        // use rustc_middle::ty::TyKind;
+        // use rustc_mir::{Const, interpret::Scalar};
+        // let tcx = self.tcx;
+        // let const_ = constant.const_;
+        // let ty = constant.ty();
+        // match (constant.const_, ty.kind()) {
+        //     (Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty), _) => {
+        //         self.scalar_int_to_constant(scalar, ty)
+        //     }
+        //     (Const::Val(ct @ ConstValue::Slice { .. }, _), TyKind::Ref(_, ref_ty, _))
+        //         if ref_ty.is_str() =>
+        //     {
+        //         if let Some(data) = ct.try_get_slice_bytes_for_diagnostics(tcx) {
+        //             let str = String::from_utf8_lossy(data);
+        //             Some(Constant::Str(Symbol::intern(&str)))
+        //         } else {
+        //             None
+        //         }
+        //     }
+        //     (Const::Ty(ty, c), _) => {
+        //         match c.kind() {
+        //             rustc_ty::ConstKind::Value(value) => {
+        //                 match &*value.valtree {
+        //                     rustc_ty::ValTreeKind::Leaf(scalar_int) => {
+        //                         self.scalar_int_to_constant(*scalar_int, value.ty)
+        //                     }
+        //                     rustc_ty::ValTreeKind::Branch(_) => None,
+        //                 }
+        //             }
+        //             rustc_ty::ConstKind::Param(param_const) => {
+        //                 let ty = ty.lower(tcx)?;
+        //                 Some(Constant::Param(param_const, ty))
+        //             }
+        //             _ => None,
+        //         }
+        //     }
+        //     (_, TyKind::Tuple(tys)) if tys.is_empty() => return Ok(Constant::Unit),
 
-            (_, _) => {
-                if let Const::Unevaluated(uneval, _) = const_ {
-                    let args = uneval.args.lower(tcx)?;
-                    if args.is_empty() {
-                        let ty = ty.lower(tcx)?;
-                        let uneval =
-                            UnevaluatedConst { def: uneval.def, args, promoted: uneval.promoted };
-                        return Ok(Constant::Unevaluated(ty, uneval));
-                    }
-                    // HACK(RJ) see tests/tests/pos/surface/const09.rs
-                    // The const has `args` which makes it unevaluated...
-                    let typing_env = self.selcx.infcx.typing_env(self.param_env);
-                    let const_ = constant
-                        .const_
-                        .eval(tcx, typing_env, rustc_span::DUMMY_SP)
-                        .map(|val| Const::Val(val, constant.const_.ty()))
-                        .unwrap_or(constant.const_);
-                    if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_
-                        && let Some(constant) = self.scalar_int_to_constant(scalar, ty)
-                    {
-                        return Ok(constant);
-                    }
-                }
-                Some(Constant::Opaque(ty.lower(tcx)?))
-            }
-        }
-        .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
+        //     (_, _) => {
+        //         if let Const::Unevaluated(uneval, _) = const_ {
+        //             let args = uneval.args.lower(tcx)?;
+        //             if args.is_empty() {
+        //                 let ty = ty.lower(tcx)?;
+        //                 let uneval =
+        //                     UnevaluatedConst { def: uneval.def, args, promoted: uneval.promoted };
+        //                 return Ok(Constant::Unevaluated(ty, uneval));
+        //             }
+        //             // HACK(RJ) see tests/tests/pos/surface/const09.rs
+        //             // The const has `args` which makes it unevaluated...
+        //             let typing_env = self.selcx.infcx.typing_env(self.param_env);
+        //             let const_ = constant
+        //                 .const_
+        //                 .eval(tcx, typing_env, rustc_span::DUMMY_SP)
+        //                 .map(|val| Const::Val(val, constant.const_.ty()))
+        //                 .unwrap_or(constant.const_);
+        //             if let Const::Val(ConstValue::Scalar(Scalar::Int(scalar)), ty) = const_
+        //                 && let Some(constant) = self.scalar_int_to_constant(scalar, ty)
+        //             {
+        //                 return Ok(constant);
+        //             }
+        //         }
+        //         Some(Constant::Opaque(ty.lower(tcx)?))
+        //     }
+        // }
+        // .ok_or_else(|| UnsupportedReason::new(format!("unsupported constant `{constant:?}`")))
     }
 
     /// A `ScalarInt` is just a set of bits that can represent any scalar value.

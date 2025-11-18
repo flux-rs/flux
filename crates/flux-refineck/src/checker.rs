@@ -30,8 +30,8 @@ use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
-        Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK, Statement,
-        StatementKind, Terminator, TerminatorKind, UnOp,
+        ConstOperand, Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue,
+        START_BLOCK, Statement, StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
 };
@@ -1740,55 +1740,56 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(infcx.hoister(true).hoist(&ty))
     }
 
-    fn check_constant(&mut self, c: &Constant) -> QueryResult<Ty> {
-        match c {
-            Constant::Int(n, int_ty) => {
-                let idx = Expr::constant(rty::Constant::from(*n));
-                Ok(Ty::indexed(BaseTy::Int(*int_ty), idx))
-            }
-            Constant::Uint(n, uint_ty) => {
-                let idx = Expr::constant(rty::Constant::from(*n));
-                Ok(Ty::indexed(BaseTy::Uint(*uint_ty), idx))
-            }
-            Constant::Bool(b) => {
-                let idx = Expr::constant(rty::Constant::from(*b));
-                Ok(Ty::indexed(BaseTy::Bool, idx))
-            }
-            Constant::Float(_, float_ty) => Ok(Ty::float(*float_ty)),
-            Constant::Unit => Ok(Ty::unit()),
-            Constant::Str(s) => {
-                let idx = Expr::constant(rty::Constant::from(*s));
-                Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
-            }
-            Constant::Char(c) => {
-                let idx = Expr::constant(rty::Constant::from(*c));
-                Ok(Ty::indexed(BaseTy::Char, idx))
-            }
-            Constant::Param(param_const, ty) => {
-                let idx = Expr::const_generic(*param_const);
-                let ctor = self.default_refiner.refine_ty_or_base(ty)?.expect_base();
-                Ok(ctor.replace_bound_reft(&idx).to_ty())
-            }
-            Constant::Opaque(ty) => self.refine_default(ty),
-            Constant::Unevaluated(ty, uneval) => {
-                // Use template for promoted constants, if applicable
-                if let Some(promoted) = uneval.promoted
-                    && let Some(ty) = self.promoted.get(promoted)
-                {
-                    return Ok(ty.clone());
-                }
-                let ty = self.refine_default(ty)?;
-                let info = self.genv.constant_info(uneval.def)?;
-                // else, use constant index if applicable
-                if let Some(bty) = ty.as_bty_skipping_existentials()
-                    && let rty::ConstantInfo::Interpreted(idx, _) = info
-                {
-                    return Ok(Ty::indexed(bty.clone(), idx));
-                }
-                // else use default unrefined type
-                Ok(ty)
-            }
-        }
+    fn check_constant(&mut self, c: &ConstOperand) -> QueryResult<Ty> {
+        todo!()
+        // match c {
+        //     Constant::Int(n, int_ty) => {
+        //         let idx = Expr::constant(rty::Constant::from(*n));
+        //         Ok(Ty::indexed(BaseTy::Int(*int_ty), idx))
+        //     }
+        //     Constant::Uint(n, uint_ty) => {
+        //         let idx = Expr::constant(rty::Constant::from(*n));
+        //         Ok(Ty::indexed(BaseTy::Uint(*uint_ty), idx))
+        //     }
+        //     Constant::Bool(b) => {
+        //         let idx = Expr::constant(rty::Constant::from(*b));
+        //         Ok(Ty::indexed(BaseTy::Bool, idx))
+        //     }
+        //     Constant::Float(_, float_ty) => Ok(Ty::float(*float_ty)),
+        //     Constant::Unit => Ok(Ty::unit()),
+        //     Constant::Str(s) => {
+        //         let idx = Expr::constant(rty::Constant::from(*s));
+        //         Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
+        //     }
+        //     Constant::Char(c) => {
+        //         let idx = Expr::constant(rty::Constant::from(*c));
+        //         Ok(Ty::indexed(BaseTy::Char, idx))
+        //     }
+        //     Constant::Param(param_const, ty) => {
+        //         let idx = Expr::const_generic(*param_const);
+        //         let ctor = self.default_refiner.refine_ty_or_base(ty)?.expect_base();
+        //         Ok(ctor.replace_bound_reft(&idx).to_ty())
+        //     }
+        //     Constant::Opaque(ty) => self.refine_default(ty),
+        //     Constant::Unevaluated(ty, uneval) => {
+        //         // Use template for promoted constants, if applicable
+        //         if let Some(promoted) = uneval.promoted
+        //             && let Some(ty) = self.promoted.get(promoted)
+        //         {
+        //             return Ok(ty.clone());
+        //         }
+        //         let ty = self.refine_default(ty)?;
+        //         let info = self.genv.constant_info(uneval.def)?;
+        //         // else, use constant index if applicable
+        //         if let Some(bty) = ty.as_bty_skipping_existentials()
+        //             && let rty::ConstantInfo::Interpreted(idx, _) = info
+        //         {
+        //             return Ok(Ty::indexed(bty.clone(), idx));
+        //         }
+        //         // else use default unrefined type
+        //         Ok(ty)
+        //     }
+        // }
     }
 
     fn check_ghost_statements_at(

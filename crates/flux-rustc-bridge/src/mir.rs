@@ -113,7 +113,7 @@ pub struct Body<'tcx> {
 
 #[derive(Debug)]
 pub struct BasicBlockData<'tcx> {
-    pub statements: Vec<Statement>,
+    pub statements: Vec<Statement<'tcx>>,
     pub terminator: Option<Terminator<'tcx>>,
     pub is_cleanup: bool,
 }
@@ -153,7 +153,7 @@ pub enum CallKind<'tcx> {
     },
     FnPtr {
         fn_sig: Binder<FnSig>,
-        operand: Operand,
+        operand: Operand<'tcx>,
     },
 }
 
@@ -162,13 +162,13 @@ pub enum TerminatorKind<'tcx> {
     Return,
     Call {
         kind: CallKind<'tcx>,
-        args: Vec<Operand>,
+        args: Vec<Operand<'tcx>>,
         destination: Place,
         target: Option<BasicBlock>,
         unwind: UnwindAction,
     },
     SwitchInt {
-        discr: Operand,
+        discr: Operand<'tcx>,
         targets: SwitchTargets,
     },
     Goto {
@@ -180,7 +180,7 @@ pub enum TerminatorKind<'tcx> {
         unwind: UnwindAction,
     },
     Assert {
-        cond: Operand,
+        cond: Operand<'tcx>,
         expected: bool,
         target: BasicBlock,
         msg: AssertKind,
@@ -195,7 +195,7 @@ pub enum TerminatorKind<'tcx> {
         unwind: UnwindAction,
     },
     Yield {
-        value: Operand,
+        value: Operand<'tcx>,
         resume: BasicBlock,
         resume_arg: Place,
         drop: Option<BasicBlock>,
@@ -215,40 +215,40 @@ pub enum AssertKind {
     // ResumedAfterPanic(GeneratorKind),
 }
 
-pub struct Statement {
-    pub kind: StatementKind,
+pub struct Statement<'tcx> {
+    pub kind: StatementKind<'tcx>,
     pub source_info: SourceInfo,
 }
 
 #[derive(Debug)]
-pub enum NonDivergingIntrinsic {
-    Assume(Operand),
+pub enum NonDivergingIntrinsic<'tcx> {
+    Assume(Operand<'tcx>),
 }
 
 #[derive(Debug)]
-pub enum StatementKind {
-    Assign(Place, Rvalue),
+pub enum StatementKind<'tcx> {
+    Assign(Place, Rvalue<'tcx>),
     SetDiscriminant(Place, VariantIdx),
     FakeRead(Box<(FakeReadCause, Place)>),
     AscribeUserType(Place, Variance),
-    Intrinsic(NonDivergingIntrinsic),
+    Intrinsic(NonDivergingIntrinsic<'tcx>),
     PlaceMention(Place),
     Nop,
 }
 
 /// Corresponds to <https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.Rvalue.html>
-pub enum Rvalue {
-    Use(Operand),
-    Repeat(Operand, Const),
+pub enum Rvalue<'tcx> {
+    Use(Operand<'tcx>),
+    Repeat(Operand<'tcx>, Const),
     Ref(Region, BorrowKind, Place),
     RawPtr(RawPtrKind, Place),
-    Cast(CastKind, Operand, Ty),
-    BinaryOp(BinOp, Operand, Operand),
+    Cast(CastKind, Operand<'tcx>, Ty),
+    BinaryOp(BinOp, Operand<'tcx>, Operand<'tcx>),
     NullaryOp(NullOp, Ty),
-    UnaryOp(UnOp, Operand),
+    UnaryOp(UnOp, Operand<'tcx>),
     Discriminant(Place),
-    Aggregate(AggregateKind, Vec<Operand>),
-    ShallowInitBox(Operand, Ty),
+    Aggregate(AggregateKind, Vec<Operand<'tcx>>),
+    ShallowInitBox(Operand<'tcx>, Ty),
 }
 
 #[derive(Copy, Clone)]
@@ -305,10 +305,15 @@ pub enum NullOp {
     AlignOf,
 }
 
-pub enum Operand {
+pub enum Operand<'tcx> {
     Copy(Place),
     Move(Place),
-    Constant(Constant),
+    Constant(ConstOperand<'tcx>),
+}
+
+pub struct ConstOperand<'tcx> {
+    pub ty: Ty,
+    pub const_: rustc_middle::mir::Const<'tcx>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -399,7 +404,7 @@ impl Terminator<'_> {
     }
 }
 
-impl Statement {
+impl Statement<'_> {
     pub fn is_nop(&self) -> bool {
         matches!(self.kind, StatementKind::Nop)
     }
@@ -536,7 +541,7 @@ impl fmt::Debug for Body<'_> {
     }
 }
 
-impl fmt::Debug for Statement {
+impl fmt::Debug for Statement<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             StatementKind::Assign(place, rvalue) => write!(f, "{place:?} = {rvalue:?}"),
@@ -675,7 +680,7 @@ impl fmt::Debug for PlaceRef<'_> {
     }
 }
 
-impl fmt::Debug for Rvalue {
+impl fmt::Debug for Rvalue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
@@ -765,12 +770,12 @@ impl fmt::Debug for CastKind {
     }
 }
 
-impl fmt::Debug for Operand {
+impl fmt::Debug for Operand<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Copy(place) => write!(f, "copy {place:?}"),
             Self::Move(place) => write!(f, "move {place:?}"),
-            Self::Constant(c) => write!(f, "{c:?}"),
+            Self::Constant(c) => write!(f, "{:?}", c.const_),
         }
     }
 }
