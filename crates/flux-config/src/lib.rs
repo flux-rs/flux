@@ -82,6 +82,10 @@ fn scrape_quals() -> bool {
     FLAGS.scrape_quals
 }
 
+pub fn no_panic() -> bool {
+    FLAGS.no_panic
+}
+
 pub fn smt_define_fun() -> bool {
     FLAGS.smt_define_fun
 }

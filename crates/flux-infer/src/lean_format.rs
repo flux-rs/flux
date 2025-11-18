@@ -70,6 +70,7 @@ impl<'a> fmt::Display for LeanSortVar<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.ctors.len() == 1 {
+            writeln!(f, "@[ext]")?;
             writeln!(
                 f,
                 "structure {} {} where",
