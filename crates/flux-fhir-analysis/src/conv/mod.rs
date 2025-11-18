@@ -396,25 +396,6 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
     }
 }
 
-pub(crate) fn conv_constant(genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::ConstantInfo> {
-    let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-    if ty.is_integral() {
-        let val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
-            let val = val.try_to_scalar_int()?;
-            rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
-        });
-        if let Some(constant_) = val {
-            return Ok(rty::ConstantInfo::Interpreted(
-                rty::Expr::constant(constant_),
-                rty::Sort::Int,
-            ));
-        }
-        // FIXME(nilehmann) we should probably report an error in case const evaluation
-        // fails instead of silently ignore it.
-    }
-    Ok(rty::ConstantInfo::Uninterpreted)
-}
-
 pub(crate) fn conv_default_type_parameter(
     genv: GlobalEnv,
     def_id: MaybeExternId,
