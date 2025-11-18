@@ -658,7 +658,11 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
         &self,
         constant: &rustc_mir::ConstOperand<'tcx>,
     ) -> Result<ConstOperand<'tcx>, UnsupportedReason> {
-        Ok(ConstOperand { ty: constant.const_.ty().lower(self.tcx)?, const_: constant.const_ })
+        Ok(ConstOperand {
+            span: constant.span,
+            ty: constant.const_.ty().lower(self.tcx)?,
+            const_: constant.const_,
+        })
     }
 
     fn lower_assert_msg(&self, msg: &rustc_mir::AssertMessage) -> Option<AssertKind> {

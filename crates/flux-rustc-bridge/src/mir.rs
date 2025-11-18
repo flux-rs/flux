@@ -308,8 +308,17 @@ pub enum Operand<'tcx> {
     Constant(ConstOperand<'tcx>),
 }
 
+/// The representation of constants in the mir is complicated. This struct is a thin wrapper
+/// around that representation. We don't support all constants, but we ensure that at least
+/// the type of the constant is supported. Thus, we can always fallback to give a constant
+/// an unrefined type.
 pub struct ConstOperand<'tcx> {
+    /// This is the lowered type of the constant.
+    ///
+    /// NOTE: [`rustc_middle::mir::ConstOperand`] has a `user_ty` field. That type is
+    /// unrelated
     pub ty: Ty,
+    pub span: Span,
     pub const_: rustc_middle::mir::Const<'tcx>,
 }
 
