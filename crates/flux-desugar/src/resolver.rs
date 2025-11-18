@@ -52,8 +52,7 @@ pub(crate) struct CrateResolver<'genv, 'tcx> {
     specs: &'genv Specs,
     output: ResolverOutput,
     ribs: PerNS<Vec<Rib>>,
-    /// A mapping from the names of all imported crates plus the special `crate` keyword to their
-    /// [`DefId`]
+    /// A mapping from the names of all imported crates to their [`DefId`]
     crates: UnordMap<Symbol, DefId>,
     prelude: PerNS<Rib>,
     qualifiers: UnordMap<Symbol, FluxLocalDefId>,
@@ -350,10 +349,19 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                 break;
             }
         }
-        if ns == TypeNS
-            && let Some(crate_id) = self.crates.get(&ident.name)
-        {
-            return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
+        if ns == TypeNS {
+            if let Some(crate_id) = self.crates.get(&ident.name) {
+                return Some(fhir::Res::Def(DefKind::Mod, *crate_id));
+            }
+            // FIXME: `crate` and `super` should only be allowed as the first segment
+            if ident.name == kw::Crate {
+                return Some(fhir::Res::Def(DefKind::Mod, CRATE_DEF_ID.to_def_id()));
+            }
+            if ident.name == kw::Super
+                && let Some(parent) = self.genv.tcx().opt_local_parent(self.current_module.def_id)
+            {
+                return Some(fhir::Res::Def(DefKind::Mod, parent.to_def_id()));
+            }
         }
 
         if let Some(res) = self.prelude[ns].bindings.get(&ident.name) {
@@ -840,7 +848,6 @@ fn builtin_types_rib() -> Rib {
 
 fn mk_crate_mapping(tcx: TyCtxt) -> UnordMap<Symbol, DefId> {
     let mut map = UnordMap::default();
-    map.insert(kw::Crate, CRATE_DEF_ID.to_def_id());
     for cnum in tcx.crates(()) {
         let name = tcx.crate_name(*cnum);
         if let Some(extern_crate) = tcx.extern_crate(*cnum)

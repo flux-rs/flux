@@ -91,7 +91,7 @@ We can fix these errors by requiring that the input
 - `pixels` be non-empty, i.e. have size `n` where `n > 0`
 
 ```rust
-#[sig(fn(pixels: &[Pixel][@n], i:usize{i < 3}) -> u64 requires n > 0)]
+#[spec(fn(pixels: &[Pixel][@n], i:usize{i < 3}) -> u64 requires n > 0)]
 ```
 
 <img src="../img/04-arrays-average-fix.gif" width="100%">
@@ -172,7 +172,7 @@ fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
 - The **strict** approach is to require that `k` be less than or equal to `N`
 
 ```rust
-#[sig(fn(x: [f32;N], y: [f32;N], k:usize{k <= N}) -> f32)]
+#[spec(fn(x: [f32;N], y: [f32;N], k:usize{k <= N}) -> f32)]
 fn dot_k<const N:usize>(x: [f32;N], y: [f32;N], k: usize) -> f32 {
     let mut sum = 0.0;
     for i in 0..k {

@@ -35,7 +35,7 @@ use crate::{
 /// a `#[refined_by(...)]` is part of the syntax of an adt: we could think of a different syntax
 /// that doesn't use an attribute. The existence of a syntax attribute in the token stream can be
 /// used to decide how to keep parsing, for example, if we see a `#[reft]` we know that the next
-/// item bust be an associated refinement and not a method inside an impl or trait.
+/// item must be an associated refinement and not a method inside an impl or trait.
 enum SyntaxAttr {
     /// A `#[reft]` attribute
     Reft,
@@ -1280,8 +1280,8 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 }
 
 /// ```text
-/// ⟨trailer_expr⟩ :=  ⟨trailer⟩ . ⟨ident⟩
-///                 |  ⟨trailer⟩ ( ⟨expr⟩,* )
+/// ⟨trailer_expr⟩ :=  ⟨trailer_expr⟩ . ⟨ident⟩
+///                 |  ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
@@ -1289,11 +1289,11 @@ fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Exp
     let mut e = parse_atom(cx, allow_struct)?;
     loop {
         let kind = if cx.advance_if(token::Dot) {
-            // ⟨trailer⟩ . ⟨ident⟩
+            // ⟨trailer_expr⟩ . ⟨ident⟩
             let field = parse_ident(cx)?;
             ExprKind::Dot(Box::new(e), field)
         } else if cx.peek(token::OpenParen) {
-            // ⟨trailer⟩ ( ⟨expr⟩,* )
+            // ⟨trailer_expr⟩ ( ⟨expr⟩,* )
             let args = parens(cx, Comma, |cx| parse_expr(cx, true))?;
             ExprKind::Call(Box::new(e), args)
         } else {
