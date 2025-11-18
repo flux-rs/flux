@@ -15,6 +15,7 @@ use rustc_data_structures::{
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_middle::mir::{Promoted, VarDebugInfoContents};
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
@@ -22,16 +23,12 @@ pub use rustc_middle::{
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
-use rustc_middle::{
-    mir::{Promoted, VarDebugInfoContents},
-    ty::{FloatTy, IntTy, ParamConst, UintTy},
-};
 use rustc_span::{Span, Symbol};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
     def_id_to_string,
-    ty::{Binder, FnSig, UnevaluatedConst, region_to_string},
+    ty::{Binder, FnSig, region_to_string},
 };
 
 pub struct BodyRoot<'tcx> {
@@ -382,20 +379,6 @@ impl<'a> PlaceRef<'a> {
             None
         }
     }
-}
-
-pub enum Constant {
-    Int(i128, IntTy),
-    Uint(u128, UintTy),
-    Float(u128, FloatTy),
-    Bool(bool),
-    Str(Symbol),
-    Char(char),
-    Unit,
-    Param(ParamConst, Ty),
-    /// General catch-all for constants of a given Ty
-    Opaque(Ty),
-    Unevaluated(Ty, UnevaluatedConst),
 }
 
 impl Terminator<'_> {
@@ -776,23 +759,6 @@ impl fmt::Debug for Operand<'_> {
             Self::Copy(place) => write!(f, "copy {place:?}"),
             Self::Move(place) => write!(f, "move {place:?}"),
             Self::Constant(c) => write!(f, "{:?}", c.const_),
-        }
-    }
-}
-
-impl fmt::Debug for Constant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Constant::Int(n, int_ty) => write!(f, "{n}{}", int_ty.name_str()),
-            Constant::Uint(n, uint_ty) => write!(f, "{n}{}", uint_ty.name_str()),
-            Constant::Float(bits, float_ty) => write!(f, "{bits}{}", float_ty.name_str()),
-            Constant::Bool(b) => write!(f, "{b}"),
-            Constant::Unit => write!(f, "()"),
-            Constant::Str(s) => write!(f, "\"{s:?}\""),
-            Constant::Char(c) => write!(f, "\'{c}\'"),
-            Constant::Opaque(ty) => write!(f, "<opaque {ty:?}>"),
-            Constant::Param(p, _) => write!(f, "{p:?}"),
-            Constant::Unevaluated(ty, uneval) => write!(f, "<Unevaluated({ty:?}, {uneval:?})>"),
         }
     }
 }

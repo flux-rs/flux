@@ -17,10 +17,10 @@ use flux_middle::{
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
-        self, AdtDef, BaseTy, Binder, Bool, Clause, CoroutineObligPredicate, EarlyBinder, Expr,
-        FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy, Mutability,
-        Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
-        Region::ReStatic,
+        self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
+        Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
+        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        Region::ReErased,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
         refining::{Refine, Refiner},
@@ -30,8 +30,8 @@ use flux_rustc_bridge::{
     self, ToRustc,
     mir::{
         self, AggregateKind, AssertKind, BasicBlock, Body, BodyRoot, BorrowKind, CastKind,
-        ConstOperand, Constant, Location, NonDivergingIntrinsic, Operand, Place, Rvalue,
-        START_BLOCK, Statement, StatementKind, Terminator, TerminatorKind, UnOp,
+        ConstOperand, Location, NonDivergingIntrinsic, Operand, Place, Rvalue, START_BLOCK,
+        Statement, StatementKind, Terminator, TerminatorKind, UnOp,
     },
     ty::{self, GenericArgsExt as _},
 };
@@ -49,7 +49,7 @@ use rustc_middle::{
     ty::{TyCtxt, TypeSuperVisitable as _, TypeVisitable as _, TypingMode},
 };
 use rustc_span::{
-    Span,
+    Span, Symbol,
     sym::{self},
 };
 
@@ -674,7 +674,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         &mut self,
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
-        stmt: &Statement,
+        stmt: &Statement<'tcx>,
     ) -> Result {
         let stmt_span = stmt.source_info.span;
         match &stmt.kind {
@@ -1087,7 +1087,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt,
         env: &mut TypeEnv,
         terminator_span: Span,
-        cond: &Operand,
+        cond: &Operand<'tcx>,
         expected: bool,
         msg: &AssertKind,
     ) -> InferResult<Guard> {
@@ -1257,7 +1257,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         stmt_span: Span,
         args: &flux_rustc_bridge::ty::GenericArgs,
-        operands: &[Operand],
+        operands: &[Operand<'tcx>],
     ) -> InferResult<(Vec<Ty>, PolyFnSig)> {
         let upvar_tys = self
             .check_operands(infcx, env, stmt_span, operands)?
@@ -1323,7 +1323,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         stmt_span: Span,
         did: &DefId,
         args: &flux_rustc_bridge::ty::GenericArgs,
-        operands: &[Operand],
+        operands: &[Operand<'tcx>],
     ) -> Result<Ty> {
         // (1) Create the closure template
         let (upvar_tys, poly_sig) = self
@@ -1342,7 +1342,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         stmt_span: Span,
-        rvalue: &Rvalue,
+        rvalue: &Rvalue<'tcx>,
     ) -> Result<Ty> {
         let genv = self.genv;
         match rvalue {
@@ -1502,8 +1502,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         stmt_span: Span,
         bin_op: mir::BinOp,
-        op1: &Operand,
-        op2: &Operand,
+        op1: &Operand<'tcx>,
+        op2: &Operand<'tcx>,
     ) -> InferResult<Ty> {
         let ty1 = self.check_operand(infcx, env, stmt_span, op1)?;
         let ty2 = self.check_operand(infcx, env, stmt_span, op2)?;
@@ -1538,7 +1538,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         env: &mut TypeEnv,
         stmt_span: Span,
         un_op: mir::UnOp,
-        op: &Operand,
+        op: &Operand<'tcx>,
     ) -> InferResult<Ty> {
         let ty = self.check_operand(infcx, env, stmt_span, op)?;
         match ty.kind() {
@@ -1717,7 +1717,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         span: Span,
-        operands: &[Operand],
+        operands: &[Operand<'tcx>],
     ) -> InferResult<Vec<Ty>> {
         operands
             .iter()
@@ -1730,7 +1730,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         infcx: &mut InferCtxt,
         env: &mut TypeEnv,
         span: Span,
-        operand: &Operand,
+        operand: &Operand<'tcx>,
     ) -> InferResult<Ty> {
         let ty = match operand {
             Operand::Copy(p) => env.lookup_place(&mut infcx.at(span), p)?,
@@ -1740,56 +1740,118 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         Ok(infcx.hoister(true).hoist(&ty))
     }
 
-    fn check_constant(&mut self, c: &ConstOperand) -> QueryResult<Ty> {
-        todo!()
-        // match c {
-        //     Constant::Int(n, int_ty) => {
-        //         let idx = Expr::constant(rty::Constant::from(*n));
-        //         Ok(Ty::indexed(BaseTy::Int(*int_ty), idx))
-        //     }
-        //     Constant::Uint(n, uint_ty) => {
-        //         let idx = Expr::constant(rty::Constant::from(*n));
-        //         Ok(Ty::indexed(BaseTy::Uint(*uint_ty), idx))
-        //     }
-        //     Constant::Bool(b) => {
-        //         let idx = Expr::constant(rty::Constant::from(*b));
-        //         Ok(Ty::indexed(BaseTy::Bool, idx))
-        //     }
-        //     Constant::Float(_, float_ty) => Ok(Ty::float(*float_ty)),
-        //     Constant::Unit => Ok(Ty::unit()),
-        //     Constant::Str(s) => {
-        //         let idx = Expr::constant(rty::Constant::from(*s));
-        //         Ok(Ty::mk_ref(ReStatic, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
-        //     }
-        //     Constant::Char(c) => {
-        //         let idx = Expr::constant(rty::Constant::from(*c));
-        //         Ok(Ty::indexed(BaseTy::Char, idx))
-        //     }
-        //     Constant::Param(param_const, ty) => {
-        //         let idx = Expr::const_generic(*param_const);
-        //         let ctor = self.default_refiner.refine_ty_or_base(ty)?.expect_base();
-        //         Ok(ctor.replace_bound_reft(&idx).to_ty())
-        //     }
-        //     Constant::Opaque(ty) => self.refine_default(ty),
-        //     Constant::Unevaluated(ty, uneval) => {
-        //         // Use template for promoted constants, if applicable
-        //         if let Some(promoted) = uneval.promoted
-        //             && let Some(ty) = self.promoted.get(promoted)
-        //         {
-        //             return Ok(ty.clone());
-        //         }
-        //         let ty = self.refine_default(ty)?;
-        //         let info = self.genv.constant_info(uneval.def)?;
-        //         // else, use constant index if applicable
-        //         if let Some(bty) = ty.as_bty_skipping_existentials()
-        //             && let rty::ConstantInfo::Interpreted(idx, _) = info
-        //         {
-        //             return Ok(Ty::indexed(bty.clone(), idx));
-        //         }
-        //         // else use default unrefined type
-        //         Ok(ty)
-        //     }
-        // }
+    fn check_constant(&mut self, constant: &ConstOperand<'tcx>) -> QueryResult<Ty> {
+        use rustc_middle::mir::Const;
+        match constant.const_ {
+            Const::Ty(ty, cst) => self.check_ty_const(constant, cst, ty)?,
+            Const::Val(val, ty) => self.check_const_val(val, ty),
+            Const::Unevaluated(uneval, _) => self.check_uneval_const(&constant, uneval)?,
+        }
+        .map_or_else(|| self.refine_default(&constant.ty), Ok)
+    }
+
+    fn check_ty_const(
+        &mut self,
+        constant: &ConstOperand<'tcx>,
+        cst: rustc_middle::ty::Const<'tcx>,
+        ty: rustc_middle::ty::Ty<'tcx>,
+    ) -> QueryResult<Option<Ty>> {
+        use rustc_middle::ty::ConstKind;
+        match cst.kind() {
+            ConstKind::Param(param) => {
+                let idx = Expr::const_generic(param);
+                let ctor = self
+                    .default_refiner
+                    .refine_ty_or_base(&constant.ty)?
+                    .expect_base();
+                Ok(Some(ctor.replace_bound_reft(&idx).to_ty()))
+            }
+            ConstKind::Value(val_tree) => {
+                let val = self.genv.tcx().valtree_to_const_val(val_tree);
+                Ok(self.check_const_val(val, ty))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn check_const_val(
+        &mut self,
+        val: rustc_middle::mir::ConstValue,
+        ty: rustc_middle::ty::Ty<'tcx>,
+    ) -> Option<Ty> {
+        use rustc_middle::{
+            mir::{ConstValue, interpret::Scalar},
+            ty,
+        };
+        match val {
+            ConstValue::Scalar(Scalar::Int(scalar)) => self.check_scalar_int(scalar, ty),
+            ConstValue::ZeroSized if ty.is_unit() => Some(Ty::unit()),
+            ConstValue::Slice { .. } => {
+                if let ty::Ref(_, ref_ty, Mutability::Not) = ty.kind()
+                    && ref_ty.is_str()
+                    && let Some(data) = val.try_get_slice_bytes_for_diagnostics(self.genv.tcx())
+                {
+                    let str = String::from_utf8_lossy(data);
+                    let idx = Expr::constant(Constant::Str(Symbol::intern(&str)));
+                    Some(Ty::mk_ref(ReErased, Ty::indexed(BaseTy::Str, idx), Mutability::Not))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn check_uneval_const(
+        &mut self,
+        constant: &ConstOperand<'tcx>,
+        uneval: rustc_middle::mir::UnevaluatedConst<'tcx>,
+    ) -> QueryResult<Option<Ty>> {
+        // Use template for promoted constants, if applicable
+        if let Some(promoted) = uneval.promoted
+            && let Some(ty) = self.promoted.get(promoted)
+        {
+            return Ok(Some(ty.clone()));
+        }
+        if let rty::TyOrBase::Base(ctor) = self.default_refiner.refine_ty_or_base(&constant.ty)?
+            && let rty::ConstantInfo::Interpreted(idx, _) = self.genv.constant_info(uneval.def)?
+        {
+            return Ok(Some(ctor.replace_bound_reft(&idx).to_ty()));
+        }
+        Ok(None)
+    }
+
+    fn check_scalar_int(
+        &mut self,
+        scalar: rustc_middle::ty::ScalarInt,
+        ty: rustc_middle::ty::Ty<'tcx>,
+    ) -> Option<Ty> {
+        use flux_rustc_bridge::const_eval::{scalar_to_int, scalar_to_uint};
+        use rustc_middle::ty;
+
+        let tcx = self.genv.tcx();
+
+        match ty.kind() {
+            ty::Int(int_ty) => {
+                let idx = Expr::constant(Constant::from(scalar_to_int(tcx, scalar, *int_ty)));
+                Some(Ty::indexed(BaseTy::Int(*int_ty), idx))
+            }
+            ty::Uint(uint_ty) => {
+                let idx = Expr::constant(Constant::from(scalar_to_uint(tcx, scalar, *uint_ty)));
+                Some(Ty::indexed(BaseTy::Uint(*uint_ty), idx))
+            }
+            ty::Float(float_ty) => Some(Ty::float(*float_ty)),
+            ty::Char => {
+                let idx = Expr::constant(Constant::Char(scalar.try_into().unwrap()));
+                Some(Ty::indexed(BaseTy::Char, idx))
+            }
+            ty::Bool => {
+                let idx = Expr::constant(Constant::Bool(scalar.try_to_bool().unwrap()));
+                Some(Ty::indexed(BaseTy::Bool, idx))
+            }
+            // ty::Tuple(tys) if tys.is_empty() => Constant::Unit,
+            _ => None,
+        }
     }
 
     fn check_ghost_statements_at(
