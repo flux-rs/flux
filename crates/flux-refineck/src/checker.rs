@@ -1745,7 +1745,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         match constant.const_ {
             Const::Ty(ty, cst) => self.check_ty_const(constant, cst, ty)?,
             Const::Val(val, ty) => self.check_const_val(val, ty),
-            Const::Unevaluated(uneval, _) => self.check_uneval_const(&constant, uneval)?,
+            Const::Unevaluated(uneval, _) => self.check_uneval_const(constant, uneval)?,
         }
         .map_or_else(|| self.refine_default(&constant.ty), Ok)
     }
