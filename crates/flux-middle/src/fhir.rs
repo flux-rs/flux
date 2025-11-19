@@ -719,7 +719,7 @@ pub enum ConstArgKind {
 /// The resolution of a path
 ///
 /// The enum contains a subset of the variants in [`rustc_hir::def::Res`] plus some extra variants
-/// for extra resolutions found in refinements.
+/// for stuff refinements resolve to.
 #[derive(Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Res<Id = !> {
     /// See [`rustc_hir::def::Res::Def`]
@@ -737,7 +737,7 @@ pub enum Res<Id = !> {
     },
     /// A refinement parameter, e.g., declared with `@n` syntax
     Param(ParamKind, Id),
-    /// A refinement function defined with `defs!`
+    /// A refinement function defined with `flux::defs! { ... }`
     GlobalFunc(SpecFuncKind),
     Err,
 }
