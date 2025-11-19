@@ -2277,16 +2277,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 
     fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
-        let genv = self.genv();
-        let Some(sort) = genv.sort_of_def_id(def_id).emit(&genv)? else {
-            span_bug!(span, "unsupported const: `{def_id:?}`")
-        };
-        let info = genv.constant_info(def_id).emit(&genv)?;
-        // non-integral constant
-        if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
-            Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
+        match self.genv().constant_info(def_id)? {
+            rty::ConstantInfo::Uninterpreted => {
+                Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?
+            }
+            rty::ConstantInfo::Interpreted(_, sort) => {
+                Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
+            }
         }
-        Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
     }
 
     fn conv_constructor_exprs(
