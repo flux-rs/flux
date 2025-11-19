@@ -1812,13 +1812,16 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         uneval: rustc_middle::mir::UnevaluatedConst<'tcx>,
         ty: rustc_middle::ty::Ty<'tcx>,
     ) -> QueryResult<Option<Ty>> {
-        // Use template for promoted constants, if applicable
+        // 1. Use template for promoted constants, if applicable
         if let Some(promoted) = uneval.promoted
             && let Some(ty) = self.promoted.get(promoted)
         {
             return Ok(Some(ty.clone()));
         }
 
+        // 2. `Genv::constant_info` cannot handle constants with generics, so, we evaluate
+        //    them here. These mostly come from inline consts, e.g., `const { 1 + 1 }`, because
+        //    the generic_const_items feature is unstable.
         if !uneval.args.is_empty() {
             let tcx = self.genv.tcx();
             let param_env = tcx.param_env(self.checker_id.root_id());
@@ -1830,11 +1833,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             }
         }
 
+        // 3. Try to see if we have `consant_info` for it.
         if let rty::TyOrBase::Base(ctor) = self.default_refiner.refine_ty_or_base(&constant.ty)?
             && let rty::ConstantInfo::Interpreted(idx, _) = self.genv.constant_info(uneval.def)?
         {
             return Ok(Some(ctor.replace_bound_reft(&idx).to_ty()));
         }
+
         Ok(None)
     }
 
