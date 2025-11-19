@@ -1084,7 +1084,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_assert(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         terminator_span: Span,
         cond: &Operand<'tcx>,
@@ -1498,7 +1498,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_binary_op(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         stmt_span: Span,
         bin_op: mir::BinOp,
@@ -1727,7 +1727,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_operand(
         &mut self,
-        infcx: &mut InferCtxt,
+        infcx: &mut InferCtxt<'_, 'genv, 'tcx>,
         env: &mut TypeEnv,
         span: Span,
         operand: &Operand<'tcx>,
@@ -1735,17 +1735,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let ty = match operand {
             Operand::Copy(p) => env.lookup_place(&mut infcx.at(span), p)?,
             Operand::Move(p) => env.move_place(&mut infcx.at(span), p)?,
-            Operand::Constant(c) => self.check_constant(c)?,
+            Operand::Constant(c) => self.check_constant(infcx, c)?,
         };
         Ok(infcx.hoister(true).hoist(&ty))
     }
 
-    fn check_constant(&mut self, constant: &ConstOperand<'tcx>) -> QueryResult<Ty> {
+    fn check_constant(
+        &mut self,
+        infcx: &InferCtxt<'_, 'genv, 'tcx>,
+        constant: &ConstOperand<'tcx>,
+    ) -> QueryResult<Ty> {
         use rustc_middle::mir::Const;
         match constant.const_ {
             Const::Ty(ty, cst) => self.check_ty_const(constant, cst, ty)?,
             Const::Val(val, ty) => self.check_const_val(val, ty),
-            Const::Unevaluated(uneval, _) => self.check_uneval_const(constant, uneval)?,
+            Const::Unevaluated(uneval, ty) => {
+                self.check_uneval_const(infcx, constant, uneval, ty)?
+            }
         }
         .map_or_else(|| self.refine_default(&constant.ty), Ok)
     }
@@ -1779,12 +1785,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         val: rustc_middle::mir::ConstValue,
         ty: rustc_middle::ty::Ty<'tcx>,
     ) -> Option<Ty> {
-        use rustc_middle::{
-            mir::{ConstValue, interpret::Scalar},
-            ty,
-        };
+        use rustc_middle::{mir::ConstValue, ty};
         match val {
-            ConstValue::Scalar(Scalar::Int(scalar)) => self.check_scalar_int(scalar, ty),
+            ConstValue::Scalar(scalar) => self.check_scalar(scalar, ty),
             ConstValue::ZeroSized if ty.is_unit() => Some(Ty::unit()),
             ConstValue::Slice { .. } => {
                 if let ty::Ref(_, ref_ty, Mutability::Not) = ty.kind()
@@ -1804,8 +1807,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
     fn check_uneval_const(
         &mut self,
+        infcx: &InferCtxt<'_, 'genv, 'tcx>,
         constant: &ConstOperand<'tcx>,
         uneval: rustc_middle::mir::UnevaluatedConst<'tcx>,
+        ty: rustc_middle::ty::Ty<'tcx>,
     ) -> QueryResult<Option<Ty>> {
         // Use template for promoted constants, if applicable
         if let Some(promoted) = uneval.promoted
@@ -1813,12 +1818,36 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         {
             return Ok(Some(ty.clone()));
         }
+
+        if !uneval.args.is_empty() {
+            let tcx = self.genv.tcx();
+            let param_env = tcx.param_env(self.checker_id.root_id());
+            let typing_env = infcx.region_infcx.typing_env(param_env);
+            if let Ok(val) = tcx.const_eval_resolve(typing_env, uneval, constant.span) {
+                return Ok(self.check_const_val(val, ty));
+            } else {
+                return Ok(None);
+            }
+        }
+
         if let rty::TyOrBase::Base(ctor) = self.default_refiner.refine_ty_or_base(&constant.ty)?
             && let rty::ConstantInfo::Interpreted(idx, _) = self.genv.constant_info(uneval.def)?
         {
             return Ok(Some(ctor.replace_bound_reft(&idx).to_ty()));
         }
         Ok(None)
+    }
+
+    fn check_scalar(
+        &mut self,
+        scalar: rustc_middle::mir::interpret::Scalar,
+        ty: rustc_middle::ty::Ty<'tcx>,
+    ) -> Option<Ty> {
+        use rustc_middle::mir::interpret::Scalar;
+        match scalar {
+            Scalar::Int(scalar_int) => self.check_scalar_int(scalar_int, ty),
+            Scalar::Ptr(..) => None,
+        }
     }
 
     fn check_scalar_int(
