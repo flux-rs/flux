@@ -3,7 +3,7 @@
 /* global Mark, elasticlunr, path_to_root */
 
 window.search = window.search || {};
-(function search() {
+(function search(search) {
     // Search functionality
     //
     // You can use !hasFocus() to prevent keyhandling in your key
@@ -22,7 +22,6 @@ window.search = window.search || {};
     }
 
     const search_wrap = document.getElementById('search-wrapper'),
-        searchbar_outer = document.getElementById('searchbar-outer'),
         searchbar = document.getElementById('searchbar'),
         searchresults = document.getElementById('searchresults'),
         searchresults_outer = document.getElementById('searchresults-outer'),
@@ -30,11 +29,16 @@ window.search = window.search || {};
         searchicon = document.getElementById('search-toggle'),
         content = document.getElementById('content'),
 
-        // SVG text elements don't render if inside a <mark> tag.
-        mark_exclude = ['text'],
+        mark_exclude = [],
         marker = new Mark(content),
         URL_SEARCH_PARAM = 'search',
-        URL_MARK_PARAM = 'highlight';
+        URL_MARK_PARAM = 'highlight',
+
+        SEARCH_HOTKEY_KEYCODE = 83,
+        ESCAPE_KEYCODE = 27,
+        DOWN_KEYCODE = 40,
+        UP_KEYCODE = 38,
+        SELECT_KEYCODE = 13;
 
     let current_searchterm = '',
         doc_urls = [],
@@ -263,18 +267,6 @@ window.search = window.search || {};
         doc_urls = config.doc_urls;
         searchindex = elasticlunr.Index.load(config.index);
 
-        searchbar_outer.classList.remove('searching');
-
-        searchbar.focus();
-
-        const searchterm = searchbar.value.trim();
-        if (searchterm !== '') {
-            searchbar.classList.add('active');
-            doSearch(searchterm);
-        }
-    }
-
-    function initSearchInteractions(config) {
         // Set up events
         searchicon.addEventListener('click', () => {
             searchIconClickHandler();
@@ -296,12 +288,7 @@ window.search = window.search || {};
 
         // If reloaded, do the search or mark again, depending on the current url parameters
         doSearchOrMarkFromUrl();
-
-        // Exported functions
-        config.hasFocus = hasFocus;
     }
-
-    initSearchInteractions(window.search);
 
     function unfocusSearchbar() {
         // hacky, but just focusing a div only works once
@@ -361,7 +348,7 @@ window.search = window.search || {};
             return;
         }
 
-        if (e.key === 'Escape') {
+        if (e.keyCode === ESCAPE_KEYCODE) {
             e.preventDefault();
             searchbar.classList.remove('active');
             setSearchUrlParameters('',
@@ -371,38 +358,31 @@ window.search = window.search || {};
             }
             showSearch(false);
             marker.unmark();
-        } else if (!hasFocus() && (e.key === 's' || e.key === '/')) {
+        } else if (!hasFocus() && e.keyCode === SEARCH_HOTKEY_KEYCODE) {
             e.preventDefault();
             showSearch(true);
             window.scrollTo(0, 0);
             searchbar.select();
-        } else if (hasFocus() && (e.key === 'ArrowDown'
-                               || e.key === 'Enter')) {
+        } else if (hasFocus() && e.keyCode === DOWN_KEYCODE) {
             e.preventDefault();
-            const first = searchresults.firstElementChild;
-            if (first !== null) {
-                unfocusSearchbar();
-                first.classList.add('focus');
-                if (e.key === 'Enter') {
-                    window.location.assign(first.querySelector('a'));
-                }
-            }
-        } else if (!hasFocus() && (e.key === 'ArrowDown'
-                                || e.key === 'ArrowUp'
-                                || e.key === 'Enter')) {
+            unfocusSearchbar();
+            searchresults.firstElementChild.classList.add('focus');
+        } else if (!hasFocus() && (e.keyCode === DOWN_KEYCODE
+                                || e.keyCode === UP_KEYCODE
+                                || e.keyCode === SELECT_KEYCODE)) {
             // not `:focus` because browser does annoying scrolling
             const focused = searchresults.querySelector('li.focus');
             if (!focused) {
                 return;
             }
             e.preventDefault();
-            if (e.key === 'ArrowDown') {
+            if (e.keyCode === DOWN_KEYCODE) {
                 const next = focused.nextElementSibling;
                 if (next) {
                     focused.classList.remove('focus');
                     next.classList.add('focus');
                 }
-            } else if (e.key === 'ArrowUp') {
+            } else if (e.keyCode === UP_KEYCODE) {
                 focused.classList.remove('focus');
                 const prev = focused.previousElementSibling;
                 if (prev) {
@@ -410,34 +390,14 @@ window.search = window.search || {};
                 } else {
                     searchbar.select();
                 }
-            } else { // Enter
+            } else { // SELECT_KEYCODE
                 window.location.assign(focused.querySelector('a'));
             }
         }
     }
 
-    function loadSearchScript(url, id) {
-        if (document.getElementById(id)) {
-            return;
-        }
-        searchbar_outer.classList.add('searching');
-
-        const script = document.createElement('script');
-        script.src = url;
-        script.id = id;
-        script.onload = () => init(window.search);
-        script.onerror = error => {
-            console.error(`Failed to load \`${url}\`: ${error}`);
-        };
-        document.head.append(script);
-    }
-
     function showSearch(yes) {
         if (yes) {
-            loadSearchScript(
-                window.path_to_searchindex_js ||
-                path_to_root + 'searchindex.js',
-                'search-index');
             search_wrap.classList.remove('hidden');
             searchicon.setAttribute('aria-expanded', 'true');
         } else {
@@ -520,13 +480,13 @@ window.search = window.search || {};
         // Don't search the same twice
         if (current_searchterm === searchterm) {
             return;
+        } else {
+            current_searchterm = searchterm;
         }
-        searchbar_outer.classList.add('searching');
+
         if (searchindex === null) {
             return;
         }
-
-        current_searchterm = searchterm;
 
         // Do the actual search
         const results = searchindex.search(searchterm, search_options);
@@ -546,8 +506,20 @@ window.search = window.search || {};
 
         // Display results
         showResults(true);
-        searchbar_outer.classList.remove('searching');
     }
+
+    function loadScript(url, id) {
+        const script = document.createElement('script');
+        script.src = url;
+        script.id = id;
+        script.onload = () => init(window.search);
+        script.onerror = error => {
+            console.error(`Failed to load \`${url}\`: ${error}`);
+        };
+        document.head.append(script);
+    }
+
+    loadScript(path_to_root + 'searchindex.js', 'search-index');
 
     // Exported functions
     search.hasFocus = hasFocus;
