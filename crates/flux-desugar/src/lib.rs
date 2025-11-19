@@ -96,12 +96,13 @@ pub fn desugar<'genv>(
             fhir::Node::ForeignItem(genv.alloc(item))
         }
         rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
-        node => {
-            if let Some(ident) = node.ident() {
-                return Err(query_bug!(def_id, "unsupported item {ident:?}"));
-            } else {
-                return Err(query_bug!(def_id, "unsupported item"));
-            }
+
+        _ => {
+            return Err(query_bug!(
+                def_id,
+                "unexpected {} found in desugaring",
+                genv.tcx().def_descr(def_id.to_def_id())
+            ));
         }
     };
     nodes.insert(def_id, node);

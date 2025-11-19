@@ -149,10 +149,7 @@ impl<'fhir> Node<'fhir> {
             Node::TraitItem(trait_item) => Some(OwnerNode::TraitItem(trait_item)),
             Node::ImplItem(impl_item) => Some(OwnerNode::ImplItem(impl_item)),
             Node::ForeignItem(foreign_item) => Some(OwnerNode::ForeignItem(foreign_item)),
-            Node::OpaqueTy(_) => None,
-            Node::AnonConst => None,
-            Node::Expr => None,
-            Node::Ctor => None,
+            Node::OpaqueTy(_) | Node::AnonConst | Node::Expr | Node::Ctor => None,
         }
     }
 
