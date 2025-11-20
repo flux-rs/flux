@@ -212,7 +212,7 @@ pub enum Expr<T: Types> {
     // having bound variables for [`Expr::Exists`]. We reuse these as well
     // for kvar solutions, which is a bit of a hack.
     BoundVar(BoundVar),
-    App(Box<Self>, Vec<Self>),
+    App(Box<Self>, Vec<Sort<T>>, Vec<Self>),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
@@ -254,7 +254,7 @@ impl<T: Types> Expr<T> {
             Expr::Var(x) => {
                 vars.insert(x.clone());
             }
-            Expr::App(func, args) => {
+            Expr::App(func, _sort_args, args) => {
                 vars.extend(func.free_vars());
                 for arg in args {
                     vars.extend(arg.free_vars());
@@ -316,9 +316,10 @@ impl<T: Types> Expr<T> {
                     self.clone()
                 }
             }
-            Expr::App(expr, exprs) => {
+            Expr::App(expr, sort_args, exprs) => {
                 Expr::App(
                     Box::new(expr.substitute_bvar(subst_layer, current_level)),
+                    sort_args.clone(),
                     exprs
                         .iter()
                         .map(|e| e.substitute_bvar(subst_layer, current_level))

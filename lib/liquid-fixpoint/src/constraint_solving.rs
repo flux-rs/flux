@@ -451,7 +451,7 @@ impl<T: Types> Expr<T> {
                     .iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
             }
-            Expr::App(func, args) => {
+            Expr::App(func, _sort_args, args) => {
                 func.substitute_in_place(v_from, v_to);
                 args.iter_mut()
                     .for_each(|expr| expr.substitute_in_place(v_from, v_to));
