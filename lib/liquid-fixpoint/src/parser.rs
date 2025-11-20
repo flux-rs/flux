@@ -308,7 +308,7 @@ where
                     .iter()
                     .map(|sexp| self.parse_expr_possibly_nested(sexp))
                     .try_collect()?;
-                Ok(Expr::App(Box::new(exp1), vec![], args))
+                Ok(Expr::App(Box::new(exp1), None, args))
             }
             _ => Err(ParseError::err("Expected list for app")),
         }

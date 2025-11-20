@@ -270,14 +270,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                 )
             }
             Expr::App(function, sort_args, args) => {
-                if sort_args.is_empty() {
-                    write!(
-                        f,
-                        "({} {})",
-                        LeanExpr(function.as_ref(), self.1),
-                        args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
-                    )
-                } else {
+                if let Some(sort_args) = sort_args {
                     write!(
                         f,
                         "({} {} {})",
@@ -287,6 +280,13 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                             .enumerate()
                             .map(|(i, s_arg)| format!("(t{i} := {})", LeanSort(s_arg)))
                             .format(" "),
+                        args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
+                    )
+                } else {
+                    write!(
+                        f,
+                        "({} {})",
+                        LeanExpr(function.as_ref(), self.1),
                         args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
                     )
                 }

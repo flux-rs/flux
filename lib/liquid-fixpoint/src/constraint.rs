@@ -212,7 +212,7 @@ pub enum Expr<T: Types> {
     // having bound variables for [`Expr::Exists`]. We reuse these as well
     // for kvar solutions, which is a bit of a hack.
     BoundVar(BoundVar),
-    App(Box<Self>, Vec<Sort<T>>, Vec<Self>),
+    App(Box<Self>, Option<Vec<Sort<T>>>, Vec<Self>),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
