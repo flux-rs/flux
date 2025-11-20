@@ -22,7 +22,13 @@ runs:
 
         URL="https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${NAME}"
         echo "Downloading from $URL"
-        curl -fsSL --retry 3 -o "$NAME" "$URL"
+        if [ -n "$GITHUB_TOKEN" ]; then
+          echo "Using GITHUB_TOKEN for authenticated download."
+          curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" --retry 3 -o "$NAME" "$URL"
+        else
+          echo "No GITHUB_TOKEN provided; downloading anonymously."
+          curl -fsSL --retry 3 -o "$NAME" "$URL"
+        fi
 
         echo "Extracting archive"
         tar -xzf "$NAME"
@@ -42,7 +48,13 @@ runs:
         $name = "fixpoint-x86_64-pc-windows.zip"
         $url = "https://github.com/ucsd-progsys/liquid-fixpoint/releases/download/nightly/${name}"
         Write-Host "Downloading from $url"
-        Invoke-WebRequest -Uri $url -OutFile $name
+        if (![string]::IsNullOrEmpty($env:GITHUB_TOKEN)) {
+          Write-Host "Using GITHUB_TOKEN for authenticated download."
+          Invoke-WebRequest -Uri $url -OutFile $name -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+        } else {
+          Write-Host "No GITHUB_TOKEN provided; downloading anonymously."
+          Invoke-WebRequest -Uri $url -OutFile $name
+        }
 
         Write-Host "Extracting archive"
         Expand-Archive -Path $name -DestinationPath "$env:USERPROFILE\.fixpoint"

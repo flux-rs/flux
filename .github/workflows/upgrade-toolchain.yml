@@ -72,6 +72,8 @@ jobs:
 
       - name: Install Fixpoint
         uses: ./flux/.github/actions/install-fixpoint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run update loop
         id: update-loop
