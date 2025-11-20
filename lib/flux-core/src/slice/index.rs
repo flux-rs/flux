@@ -11,6 +11,7 @@ impl<T, I: SliceIndex<[T]>> ops::Index<I> for [T] {
         }
     )]
 
+    #[no_panic]
     #[sig(fn(&Self[@len], {I[@idx] | <Self as ops::Index<I>>::in_bounds(len, idx)}) -> &I::Output)]
     fn index(&self, index: I) -> &I::Output;
 }
