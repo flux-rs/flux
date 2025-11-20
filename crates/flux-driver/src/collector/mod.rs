@@ -522,6 +522,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("invariant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
+            ("qualifier_hint", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::QualifierHint)?
+            }
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
@@ -662,6 +665,7 @@ enum FluxAttrKind {
     Variant(surface::VariantDef),
     InferOpts(config::PartialInferOpts),
     Invariant(surface::Expr),
+    QualifierHint(surface::Expr),
     Ignore(surface::Ignored),
     ShouldFail,
     ExternSpec,
@@ -813,6 +817,7 @@ impl FluxAttrs {
                 | FluxAttrKind::TypeAlias(_)
                 | FluxAttrKind::Field(_)
                 | FluxAttrKind::Constant(_)
+                | FluxAttrKind::QualifierHint(_)
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
@@ -851,6 +856,7 @@ impl FluxAttrKind {
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
+            FluxAttrKind::QualifierHint(_) => attr_name!(QualifierHint),
         }
     }
 }

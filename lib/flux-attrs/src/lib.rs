@@ -45,6 +45,11 @@ pub fn invariant(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn qualifier_hint(attr: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::qualifier_hint(attr, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn constant(attr: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::constant(attr, tokens)
 }
@@ -158,6 +163,7 @@ mod attr_sysroot {
         qualifiers,
         reveal,
         constant,
+        qualifier_hint,
         invariant,
         opaque,
         reflect,
@@ -208,6 +214,7 @@ mod attr_dummy {
         qualifiers,
         reveal,
         invariant,
+        qualifier_hint,
         constant,
         opaque,
         reflect,
