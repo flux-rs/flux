@@ -11,29 +11,15 @@ impl GlobalEnv<'_, '_> {
         self.sort_of_rust_ty(alias_to, self_ty)
     }
 
-    pub fn sort_of_generic_param(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
-        let parent = self.tcx().parent(def_id);
-        let index = self.def_id_to_param_index(def_id);
-        let param = self.generics_of(parent)?.param_at(index as usize, self)?;
-        let sort = match &param.kind {
-            rty::GenericParamDefKind::Base { .. } => {
-                Some(rty::Sort::Param(rty::ParamTy { index, name: param.name }))
-            }
-            rty::GenericParamDefKind::Const { .. } => {
-                let ty = self.tcx().type_of(def_id).instantiate_identity();
-                self.sort_of_rust_ty(parent, ty)?
-            }
-            rty::GenericParamDefKind::Type { .. } | rty::GenericParamDefKind::Lifetime => None,
-        };
-        Ok(sort)
-    }
-
     pub fn sort_of_def_id(self, def_id: DefId) -> QueryResult<Option<rty::Sort>> {
-        let ty = self.tcx().type_of(def_id).no_bound_vars().unwrap();
-        if ty.is_integral() { Ok(Some(rty::Sort::Int)) } else { self.sort_of_rust_ty(def_id, ty) }
+        if let Some(ty) = self.tcx().type_of(def_id).no_bound_vars() {
+            self.sort_of_rust_ty(def_id, ty)
+        } else {
+            Ok(None)
+        }
     }
 
-    pub fn sort_of_rust_ty(
+    fn sort_of_rust_ty(
         self,
         def_id: DefId,
         ty: rustc_middle::ty::Ty,
@@ -57,11 +43,12 @@ impl GlobalEnv<'_, '_> {
                 Some(rty::Sort::App(ctor, List::from_vec(sort_args)))
             }
             ty::TyKind::Param(p) => {
-                let generic_param_def = self
-                    .tcx()
-                    .generics_of(def_id)
-                    .param_at(p.index as usize, self.tcx());
-                self.sort_of_generic_param(generic_param_def.def_id)?
+                let param_def = self.generics_of(def_id)?.param_at(p.index as usize, self)?;
+                if let rty::GenericParamDefKind::Base { .. } = param_def.kind {
+                    Some(rty::Sort::Param(*p))
+                } else {
+                    None
+                }
             }
             ty::TyKind::Float(_)
             | ty::TyKind::RawPtr(..)
