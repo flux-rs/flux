@@ -211,9 +211,10 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
     let Some(sort) = genv.sort_of_def_id(def_id.resolved_id()).emit(&genv)? else {
         return Ok(rty::ConstantInfo::Uninterpreted);
     };
+    let tcx = genv.tcx();
     match node {
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(Some(expr)), .. }) => {
-            // for these constants we must check and use the expression
+            // If the constant has a `#[consant(expr)]` annotation we use that
             let wfckresults = wf::check_constant_expr(genv, owner, expr, &sort)?;
             let expr = AfterSortck::new(genv, &wfckresults)
                 .into_conv_ctxt()
@@ -222,10 +223,23 @@ fn constant_info(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::Con
         }
         fhir::Node::Item(fhir::Item { kind: fhir::ItemKind::Const(None), .. })
         | fhir::Node::AnonConst
-        | fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. })
         | fhir::Node::ImplItem(fhir::ImplItem { kind: fhir::ImplItemKind::Const, .. }) => {
-            // for these constants we try to evaluate if they are integral and return uninterpreted if we fail
-            conv::conv_constant(genv, def_id.resolved_id())
+            // For other constants, we try to evaluate them if they are integral
+            if let Some(ty) = tcx.type_of(def_id).no_bound_vars()
+                && ty.is_integral()
+                && let Ok(val) = tcx.const_eval_poly(def_id.resolved_id())
+                && let Some(val) = val.try_to_scalar_int()
+                && let Some(constant_) = rty::Constant::from_scalar_int(tcx, val, &ty)
+            {
+                // FIXME(nilehmann) we should probably report an error in case const evaluation
+                // fails instead of silently ignore it.
+                Ok(rty::ConstantInfo::Interpreted(rty::Expr::constant(constant_), rty::Sort::Int))
+            } else {
+                Ok(rty::ConstantInfo::Uninterpreted)
+            }
+        }
+        fhir::Node::TraitItem(fhir::TraitItem { kind: fhir::TraitItemKind::Const, .. }) => {
+            Ok(rty::ConstantInfo::Uninterpreted)
         }
         _ => Err(query_bug!(def_id.local_id(), "expected const item"))?,
     }
