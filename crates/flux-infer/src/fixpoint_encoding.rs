@@ -1451,7 +1451,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn sort_args_to_fixpoint(
         &mut self,
         sort_args: &[rty::SortArg],
-        scx: &mut SortEncodingCtxt
+        scx: &mut SortEncodingCtxt,
     ) -> QueryResult<Vec<fixpoint::Sort>> {
         sort_args
             .iter()
@@ -1462,12 +1462,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn sort_arg_to_fixpoint(
         &mut self,
         sort_arg: &rty::SortArg,
-        scx: &mut SortEncodingCtxt
+        scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::Sort> {
         match sort_arg {
-            rty::SortArg::Sort(sort) => {
-                Ok(scx.sort_to_fixpoint(sort))
-            }
+            rty::SortArg::Sort(sort) => Ok(scx.sort_to_fixpoint(sort)),
             rty::SortArg::BvSize(sz) => {
                 span_bug!(self.def_span(), "unexpected sort arg: BvSize({sz:?})")
             }

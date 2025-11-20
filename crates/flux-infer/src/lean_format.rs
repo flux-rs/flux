@@ -282,7 +282,11 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                         f,
                         "({} {} {})",
                         LeanExpr(function.as_ref(), self.1),
-                        sort_args.iter().enumerate().map(|(i, s_arg)| format!("(t{i} := {})", LeanSort(s_arg))).format(" "),
+                        sort_args
+                            .iter()
+                            .enumerate()
+                            .map(|(i, s_arg)| format!("(t{i} := {})", LeanSort(s_arg)))
+                            .format(" "),
                         args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
                     )
                 }
