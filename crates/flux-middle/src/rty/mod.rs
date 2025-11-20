@@ -1398,8 +1398,16 @@ pub enum Ensures {
 pub struct Qualifier {
     pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
-    pub global: bool,
+    pub kind: QualifierKind,
 }
+
+#[derive(Debug, TypeFoldable, TypeVisitable)]
+pub enum QualifierKind { 
+    Global,
+    Local,
+    Hint,
+}
+
 
 /// A `PrimOpProp` is a single property for a primitive operation which
 /// can be conjoined to get the definition of the [`PrimRel`] for that

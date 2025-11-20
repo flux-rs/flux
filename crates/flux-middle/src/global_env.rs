@@ -24,8 +24,7 @@ use crate::{
     queries::{Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self,
-        refining::{Refine as _, Refiner},
+        self, QualifierKind, refining::{Refine as _, Refiner}
     },
 };
 
@@ -157,7 +156,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         Ok(self
             .qualifiers()?
             .iter()
-            .filter(move |qual| qual.global || names.contains(&qual.def_id)))
+            .filter(move |qual| 
+                match qual.kind {
+                    QualifierKind::Global => true,
+                    QualifierKind::Hint => qual.def_id.parent() == did,
+                    QualifierKind::Local => names.contains(&qual.def_id)
+                } )
+            )            
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
