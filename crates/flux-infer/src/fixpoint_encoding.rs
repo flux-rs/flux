@@ -1380,7 +1380,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     self.internal_func_to_fixpoint(func, sort_args, args, scx)?
                 } else {
                     let func = self.expr_to_fixpoint(func, scx)?;
-                    let sort_args = self.sort_args_to_fixpoint(sort_args, scx)?;
+                    let sort_args = self.sort_args_to_fixpoint(sort_args, scx);
                     let args = self.exprs_to_fixpoint(args, scx)?;
                     fixpoint::Expr::App(Box::new(func), sort_args, args)
                 }
@@ -1452,23 +1452,21 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         sort_args: &[rty::SortArg],
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<Vec<fixpoint::Sort>> {
+    ) -> Vec<fixpoint::Sort> {
         sort_args
             .iter()
             .map(|s_arg| self.sort_arg_to_fixpoint(s_arg, scx))
-            .try_collect()
+            .collect()
     }
 
     fn sort_arg_to_fixpoint(
         &mut self,
         sort_arg: &rty::SortArg,
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<fixpoint::Sort> {
+    ) -> fixpoint::Sort {
         match sort_arg {
-            rty::SortArg::Sort(sort) => Ok(scx.sort_to_fixpoint(sort)),
-            rty::SortArg::BvSize(sz) => {
-                span_bug!(self.def_span(), "unexpected sort arg: BvSize({sz:?})")
-            }
+            rty::SortArg::Sort(sort) => scx.sort_to_fixpoint(sort),
+            rty::SortArg::BvSize(sz) => bv_size_to_fixpoint(*sz),
         }
     }
 
