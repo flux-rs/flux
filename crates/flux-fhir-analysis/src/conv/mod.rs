@@ -396,25 +396,6 @@ fn conv_generic_param_kind(kind: &fhir::GenericParamKind) -> rty::GenericParamDe
     }
 }
 
-pub(crate) fn conv_constant(genv: GlobalEnv, def_id: DefId) -> QueryResult<rty::ConstantInfo> {
-    let ty = genv.tcx().type_of(def_id).no_bound_vars().unwrap();
-    if ty.is_integral() {
-        let val = genv.tcx().const_eval_poly(def_id).ok().and_then(|val| {
-            let val = val.try_to_scalar_int()?;
-            rty::Constant::from_scalar_int(genv.tcx(), val, &ty)
-        });
-        if let Some(constant_) = val {
-            return Ok(rty::ConstantInfo::Interpreted(
-                rty::Expr::constant(constant_),
-                rty::Sort::Int,
-            ));
-        }
-        // FIXME(nilehmann) we should probably report an error in case const evaluation
-        // fails instead of silently ignore it.
-    }
-    Ok(rty::ConstantInfo::Uninterpreted)
-}
-
 pub(crate) fn conv_default_type_parameter(
     genv: GlobalEnv,
     def_id: MaybeExternId,
@@ -2296,16 +2277,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     }
 
     fn conv_const(&self, span: Span, def_id: DefId) -> QueryResult<(rty::Expr, rty::Sort)> {
-        let genv = self.genv();
-        let Some(sort) = genv.sort_of_def_id(def_id).emit(&genv)? else {
-            span_bug!(span, "unsupported const: `{def_id:?}`")
-        };
-        let info = genv.constant_info(def_id).emit(&genv)?;
-        // non-integral constant
-        if sort != rty::Sort::Int && matches!(info, rty::ConstantInfo::Uninterpreted) {
-            Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?;
+        match self.genv().constant_info(def_id)? {
+            rty::ConstantInfo::Uninterpreted => {
+                Err(self.emit(errors::ConstantAnnotationNeeded::new(span)))?
+            }
+            rty::ConstantInfo::Interpreted(_, sort) => {
+                Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
+            }
         }
-        Ok((rty::Expr::const_def_id(def_id).at(ESpan::new(span)), sort))
     }
 
     fn conv_constructor_exprs(

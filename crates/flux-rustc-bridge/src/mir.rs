@@ -15,6 +15,7 @@ use rustc_data_structures::{
 use rustc_hir::def_id::DefId;
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
+use rustc_middle::mir::{Promoted, VarDebugInfoContents};
 pub use rustc_middle::{
     mir::{
         BasicBlock, BorrowKind, FakeBorrowKind, FakeReadCause, Local, LocalKind, Location,
@@ -22,16 +23,12 @@ pub use rustc_middle::{
     },
     ty::{UserTypeAnnotationIndex, Variance},
 };
-use rustc_middle::{
-    mir::{Promoted, VarDebugInfoContents},
-    ty::{FloatTy, IntTy, ParamConst, UintTy},
-};
 use rustc_span::{Span, Symbol};
 
 use super::ty::{Const, GenericArg, GenericArgs, Region, Ty};
 use crate::{
     def_id_to_string,
-    ty::{Binder, FnSig, UnevaluatedConst, region_to_string},
+    ty::{Binder, FnSig, region_to_string},
 };
 
 pub struct BodyRoot<'tcx> {
@@ -113,7 +110,7 @@ pub struct Body<'tcx> {
 
 #[derive(Debug)]
 pub struct BasicBlockData<'tcx> {
-    pub statements: Vec<Statement>,
+    pub statements: Vec<Statement<'tcx>>,
     pub terminator: Option<Terminator<'tcx>>,
     pub is_cleanup: bool,
 }
@@ -153,7 +150,7 @@ pub enum CallKind<'tcx> {
     },
     FnPtr {
         fn_sig: Binder<FnSig>,
-        operand: Operand,
+        operand: Operand<'tcx>,
     },
 }
 
@@ -162,13 +159,13 @@ pub enum TerminatorKind<'tcx> {
     Return,
     Call {
         kind: CallKind<'tcx>,
-        args: Vec<Operand>,
+        args: Vec<Operand<'tcx>>,
         destination: Place,
         target: Option<BasicBlock>,
         unwind: UnwindAction,
     },
     SwitchInt {
-        discr: Operand,
+        discr: Operand<'tcx>,
         targets: SwitchTargets,
     },
     Goto {
@@ -180,7 +177,7 @@ pub enum TerminatorKind<'tcx> {
         unwind: UnwindAction,
     },
     Assert {
-        cond: Operand,
+        cond: Operand<'tcx>,
         expected: bool,
         target: BasicBlock,
         msg: AssertKind,
@@ -195,7 +192,7 @@ pub enum TerminatorKind<'tcx> {
         unwind: UnwindAction,
     },
     Yield {
-        value: Operand,
+        value: Operand<'tcx>,
         resume: BasicBlock,
         resume_arg: Place,
         drop: Option<BasicBlock>,
@@ -215,40 +212,40 @@ pub enum AssertKind {
     // ResumedAfterPanic(GeneratorKind),
 }
 
-pub struct Statement {
-    pub kind: StatementKind,
+pub struct Statement<'tcx> {
+    pub kind: StatementKind<'tcx>,
     pub source_info: SourceInfo,
 }
 
 #[derive(Debug)]
-pub enum NonDivergingIntrinsic {
-    Assume(Operand),
+pub enum NonDivergingIntrinsic<'tcx> {
+    Assume(Operand<'tcx>),
 }
 
 #[derive(Debug)]
-pub enum StatementKind {
-    Assign(Place, Rvalue),
+pub enum StatementKind<'tcx> {
+    Assign(Place, Rvalue<'tcx>),
     SetDiscriminant(Place, VariantIdx),
     FakeRead(Box<(FakeReadCause, Place)>),
     AscribeUserType(Place, Variance),
-    Intrinsic(NonDivergingIntrinsic),
+    Intrinsic(NonDivergingIntrinsic<'tcx>),
     PlaceMention(Place),
     Nop,
 }
 
 /// Corresponds to <https://doc.rust-lang.org/beta/nightly-rustc/rustc_middle/mir/enum.Rvalue.html>
-pub enum Rvalue {
-    Use(Operand),
-    Repeat(Operand, Const),
+pub enum Rvalue<'tcx> {
+    Use(Operand<'tcx>),
+    Repeat(Operand<'tcx>, Const),
     Ref(Region, BorrowKind, Place),
     RawPtr(RawPtrKind, Place),
-    Cast(CastKind, Operand, Ty),
-    BinaryOp(BinOp, Operand, Operand),
+    Cast(CastKind, Operand<'tcx>, Ty),
+    BinaryOp(BinOp, Operand<'tcx>, Operand<'tcx>),
     NullaryOp(NullOp, Ty),
-    UnaryOp(UnOp, Operand),
+    UnaryOp(UnOp, Operand<'tcx>),
     Discriminant(Place),
-    Aggregate(AggregateKind, Vec<Operand>),
-    ShallowInitBox(Operand, Ty),
+    Aggregate(AggregateKind, Vec<Operand<'tcx>>),
+    ShallowInitBox(Operand<'tcx>, Ty),
 }
 
 #[derive(Copy, Clone)]
@@ -305,10 +302,24 @@ pub enum NullOp {
     AlignOf,
 }
 
-pub enum Operand {
+pub enum Operand<'tcx> {
     Copy(Place),
     Move(Place),
-    Constant(Constant),
+    Constant(ConstOperand<'tcx>),
+}
+
+/// The representation of constants in the mir is complicated. This struct is a thin wrapper
+/// around that representation. We don't support all constants, but we ensure that at least
+/// the type of the constant is supported. Thus, we can always fallback to give a constant
+/// an unrefined type.
+pub struct ConstOperand<'tcx> {
+    /// This is the lowered type of the constant.
+    ///
+    /// NOTE: [`rustc_middle::mir::ConstOperand`] has a `user_ty` field. That type is
+    /// unrelated
+    pub ty: Ty,
+    pub span: Span,
+    pub const_: rustc_middle::mir::Const<'tcx>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -379,27 +390,13 @@ impl<'a> PlaceRef<'a> {
     }
 }
 
-pub enum Constant {
-    Int(i128, IntTy),
-    Uint(u128, UintTy),
-    Float(u128, FloatTy),
-    Bool(bool),
-    Str(Symbol),
-    Char(char),
-    Unit,
-    Param(ParamConst, Ty),
-    /// General catch-all for constants of a given Ty
-    Opaque(Ty),
-    Unevaluated(Ty, UnevaluatedConst),
-}
-
 impl Terminator<'_> {
     pub fn is_return(&self) -> bool {
         matches!(self.kind, TerminatorKind::Return)
     }
 }
 
-impl Statement {
+impl Statement<'_> {
     pub fn is_nop(&self) -> bool {
         matches!(self.kind, StatementKind::Nop)
     }
@@ -536,7 +533,7 @@ impl fmt::Debug for Body<'_> {
     }
 }
 
-impl fmt::Debug for Statement {
+impl fmt::Debug for Statement<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.kind {
             StatementKind::Assign(place, rvalue) => write!(f, "{place:?} = {rvalue:?}"),
@@ -675,7 +672,7 @@ impl fmt::Debug for PlaceRef<'_> {
     }
 }
 
-impl fmt::Debug for Rvalue {
+impl fmt::Debug for Rvalue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Rvalue::Use(op) => write!(f, "{op:?}"),
@@ -765,29 +762,12 @@ impl fmt::Debug for CastKind {
     }
 }
 
-impl fmt::Debug for Operand {
+impl fmt::Debug for Operand<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Copy(place) => write!(f, "copy {place:?}"),
             Self::Move(place) => write!(f, "move {place:?}"),
-            Self::Constant(c) => write!(f, "{c:?}"),
-        }
-    }
-}
-
-impl fmt::Debug for Constant {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Constant::Int(n, int_ty) => write!(f, "{n}{}", int_ty.name_str()),
-            Constant::Uint(n, uint_ty) => write!(f, "{n}{}", uint_ty.name_str()),
-            Constant::Float(bits, float_ty) => write!(f, "{bits}{}", float_ty.name_str()),
-            Constant::Bool(b) => write!(f, "{b}"),
-            Constant::Unit => write!(f, "()"),
-            Constant::Str(s) => write!(f, "\"{s:?}\""),
-            Constant::Char(c) => write!(f, "\'{c}\'"),
-            Constant::Opaque(ty) => write!(f, "<opaque {ty:?}>"),
-            Constant::Param(p, _) => write!(f, "{p:?}"),
-            Constant::Unevaluated(ty, uneval) => write!(f, "<Unevaluated({ty:?}, {uneval:?})>"),
+            Self::Constant(c) => write!(f, "{:?}", c.const_),
         }
     }
 }
