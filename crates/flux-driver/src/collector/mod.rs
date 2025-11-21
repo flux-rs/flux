@@ -522,9 +522,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("invariant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
-            // ("qualifier_hint", hir::AttrArgs::Delimited(dargs)) => {
-            //     self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::QualifierHint)?
-            // }
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }

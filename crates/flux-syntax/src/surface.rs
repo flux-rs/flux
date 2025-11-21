@@ -64,26 +64,6 @@ pub enum QualifierKind {
     Hint,
 }
 
-// impl Qualifier {
-//     pub fn new(
-//         ident: Ident,
-//         params: RefineParams,
-//         expr: Expr,
-//         span: Span,
-//         kind: QualifierKind,
-//     ) -> Self {
-//         let (name, params) = if let QualifierKind::Hint = kind {
-//             let name = format!("{}_{}_{}", ident.name.to_ident_string(), span.lo().0, span.hi().0);
-//             let name = Symbol::intern(&name);
-//             let params = todo!();
-//             (Ident { name, ..ident }, params)
-//         } else {
-//             (ident, params)
-//         };
-//         Self { name, params, expr, span, kind }
-//     }
-// }
-
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
 /// i.e., a function with a body.
 #[derive(Debug)]
