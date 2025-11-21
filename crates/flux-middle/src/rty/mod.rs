@@ -1400,13 +1400,12 @@ pub struct Qualifier {
     pub kind: QualifierKind,
 }
 
-#[derive(Debug, TypeFoldable, TypeVisitable)]
-pub enum QualifierKind { 
+#[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
+pub enum QualifierKind {
     Global,
     Local,
     Hint,
 }
-
 
 /// A `PrimOpProp` is a single property for a primitive operation which
 /// can be conjoined to get the definition of the [`PrimRel`] for that

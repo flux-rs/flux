@@ -53,7 +53,14 @@ pub struct Qualifier {
     pub params: RefineParams,
     pub expr: Expr,
     pub span: Span,
-    pub global: bool,
+    pub kind: QualifierKind,
+}
+
+#[derive(Debug)]
+pub enum QualifierKind {
+    Global,
+    Local,
+    Hint,
 }
 
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,

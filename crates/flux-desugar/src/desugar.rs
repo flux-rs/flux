@@ -16,7 +16,9 @@ use flux_middle::{
     def_id::{FluxLocalDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, ParamId, QPathExpr, Res},
     global_env::GlobalEnv,
-    query_bug, try_alloc_slice,
+    query_bug,
+    rty::QualifierKind,
+    try_alloc_slice,
 };
 use flux_syntax::{
     surface::{self, ConstructorArg, NodeId, visit::Visitor as _},
@@ -851,11 +853,21 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         }
     }
 
+    fn desugar_qualifier_kind(kind: &surface::QualifierKind) -> QualifierKind {
+        match kind {
+            surface::QualifierKind::Global => QualifierKind::Global,
+            surface::QualifierKind::Local => QualifierKind::Local,
+            surface::QualifierKind::Hint => QualifierKind::Hint,
+        }
+    }
+
     fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> fhir::Qualifier<'genv> {
+        let kind = Self::desugar_qualifier_kind(&qualifier.kind);
+
         fhir::Qualifier {
             def_id: self.owner,
             args: self.desugar_refine_params(&qualifier.params),
-            global: qualifier.global,
+            kind,
             expr: self.desugar_expr(&qualifier.expr),
         }
     }

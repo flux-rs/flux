@@ -20,8 +20,8 @@ use crate::{
         DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr,
         FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
         GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
-        ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QuantKind, RefineArg, RefineParam,
-        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
+        ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
+        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
         TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
@@ -457,7 +457,8 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     let expr = parse_block(cx)?;
     let hi = cx.hi();
-    Ok(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
+    let kind = if local { QualifierKind::Local } else { QualifierKind::Global };
+    Ok(Qualifier { kind, name, params, expr, span: cx.mk_span(lo, hi) })
 }
 
 /// ```text
