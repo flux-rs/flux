@@ -182,7 +182,7 @@ impl<'a> fmt::Display for LeanSort<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             Sort::Int => write!(f, "Int"),
-            Sort::Bool => write!(f, "Bool"),
+            Sort::Bool => write!(f, "Prop"),
             Sort::Real => write!(f, "Real"),
             Sort::Str => write!(f, "String"),
             Sort::Func(f_sort) => {
@@ -230,7 +230,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
             Expr::Constant(c) => {
                 match c {
                     Constant::Numeral(n) => write!(f, "{n}",),
-                    Constant::Boolean(b) => write!(f, "{b}"),
+                    Constant::Boolean(b) => write!(f, "{}", if *b { "True" } else { "False" }),
                     Constant::String(s) => write!(f, "{}", s.display()),
                     Constant::Real(n) => write!(f, "{n}.0"),
                     Constant::BitVec(bv, size) => write!(f, "{}#{}", bv, size),
@@ -269,13 +269,27 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                     LeanExpr(&args[1], self.1)
                 )
             }
-            Expr::App(function, args) => {
-                write!(
-                    f,
-                    "({} {})",
-                    LeanExpr(function.as_ref(), self.1),
-                    args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
-                )
+            Expr::App(function, sort_args, args) => {
+                if let Some(sort_args) = sort_args {
+                    write!(
+                        f,
+                        "({} {} {})",
+                        LeanExpr(function.as_ref(), self.1),
+                        sort_args
+                            .iter()
+                            .enumerate()
+                            .map(|(i, s_arg)| format!("(t{i} := {})", LeanSort(s_arg)))
+                            .format(" "),
+                        args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
+                    )
+                } else {
+                    write!(
+                        f,
+                        "({} {})",
+                        LeanExpr(function.as_ref(), self.1),
+                        args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
+                    )
+                }
             }
             Expr::And(exprs) => {
                 write!(
