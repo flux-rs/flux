@@ -24,8 +24,8 @@ pub fn test_with_qualifier(n: usize) -> usize {
     let mut res = 0;
     while i > 0 {
         #[flux::defs{
-            invariant qualifier Auto(x:int, y:int, z: int) { x + y == z }
-            // invariant qualifier Auto() { x + y == z }
+            // invariant qualifier Auto(x:int, y:int, z: int) { x + y == z }
+            invariant qualifier Auto() { x + y == z }
         }]
         const _: () = ();
         i -= 1;
@@ -39,7 +39,7 @@ pub fn test_with_qualifier(n: usize) -> usize {
 //     let mut i = n;
 //     let mut res = 0;
 //     while i > 0 {
-//         invariant!(res + i == n);
+//         invariant!(res:int, i:int, n:int; res + i == n);
 //         i -= 1;
 //         res += 1;
 //     }

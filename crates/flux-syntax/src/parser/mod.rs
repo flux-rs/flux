@@ -23,7 +23,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
         TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate,
+        WhereBoundPredicate, free_vars,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -158,9 +158,10 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
         parse_reft_func(cx).map(FluxItem::FuncDef)
-    } else if lookahead.peek(kw::Invariant) {
-        parse_invariant_qualifier(cx).map(FluxItem::Qualifier)
-    } else if lookahead.peek(kw::Local) || lookahead.peek(kw::Qualifier) {
+    } else if lookahead.peek(kw::Local)
+        || lookahead.peek(kw::Invariant)
+        || lookahead.peek(kw::Qualifier)
+    {
         parse_qualifier(cx).map(FluxItem::Qualifier)
     } else if lookahead.peek(kw::Opaque) {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
@@ -446,47 +447,64 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     Ok(SpecFunc { name, sort_vars, params, output, body, hide })
 }
 
-fn rename_ident_with_span(ident: Ident) -> Ident {
-    let span = ident.span;
-    let name = format!("{}_{}_{}", ident.name.to_ident_string(), span.lo().0, span.hi().0);
-    let name = Symbol::intern(&name);
-    Ident { name, ..ident }
-}
-
 /// ```text
-/// ⟨hint⟩ := invariant qualifier ⟨ident⟩ ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ⟨qualifier_kind⟩ :=  local
+///                   |  invariant
 /// ```
-fn parse_invariant_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
-    let lo = cx.lo();
-    cx.expect(kw::Invariant)?;
-    cx.expect(kw::Qualifier)?;
-    let name = parse_ident(cx)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
-    let expr = parse_block(cx)?;
-    let hi = cx.hi();
-    let name = rename_ident_with_span(name);
+fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
+    let mut lookahead = cx.lookahead1();
+    if lookahead.advance_if(kw::Local) {
+        Ok(QualifierKind::Local)
+    } else if lookahead.advance_if(kw::Invariant) {
+        Ok(QualifierKind::Hint)
+    } else {
+        Ok(QualifierKind::Global)
+    }
+}
 
-    Ok(Qualifier { kind: QualifierKind::Hint, name, params, expr, span: cx.mk_span(lo, hi) })
+fn insert_param(
+    cx: &mut ParseCtxt,
+    params: &mut Vec<RefineParam>,
+    ident: Ident,
+) -> ParseResult<()> {
+    if params.iter().any(|p| p.ident.name == ident.name) {
+        return Ok(());
+    }
+    let param = RefineParam {
+        ident,
+        sort: Sort::Infer,
+        mode: None,
+        span: ident.span,
+        node_id: cx.next_node_id(),
+    };
+    params.push(param);
+    Ok(())
 }
 
 /// ```text
-/// ⟨qualifier⟩ :=  ⟨ local ⟩?
+/// ⟨qualifier⟩ :=  ⟨ qualifier_kind ⟩?
 ///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
 ///                 ⟨block⟩
 /// ```
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let lo = cx.lo();
-    let local = cx.advance_if(kw::Local);
+    let kind = parse_qualifier_kind(cx)?;
     cx.expect(kw::Qualifier)?;
-    let name = parse_ident(cx)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let mut name = parse_ident(cx)?;
+    let mut params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     let expr = parse_block(cx)?;
     let hi = cx.hi();
-    let kind = if local { QualifierKind::Local } else { QualifierKind::Global };
-    let name =
-        if matches!(kind, QualifierKind::Hint) { rename_ident_with_span(name) } else { name };
 
-    Ok(Qualifier { kind, name, params, expr, span: cx.mk_span(lo, hi) })
+    if let QualifierKind::Hint = kind {
+        for ident in free_vars(&expr) {
+            insert_param(cx, &mut params, ident)?;
+        }
+        let span = name.span;
+        let str = format!("{}_{}_{}", name.name.to_ident_string(), span.lo().0, span.hi().0);
+        name = Ident { name: Symbol::intern(&str), ..name };
+    }
+
+    Ok(Qualifier { name, params, expr, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text

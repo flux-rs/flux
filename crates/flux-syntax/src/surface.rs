@@ -6,6 +6,7 @@ pub use rustc_ast::{
     Mutability,
     token::{Lit, LitKind},
 };
+use rustc_hash::FxHashSet;
 pub use rustc_span::{Span, symbol::Ident};
 use rustc_span::{Symbol, symbol::sym};
 
@@ -62,6 +63,27 @@ pub enum QualifierKind {
     Local,
     Hint,
 }
+
+// impl Qualifier {
+//     pub fn new(
+//         ident: Ident,
+//         params: RefineParams,
+//         expr: Expr,
+//         span: Span,
+//         kind: QualifierKind,
+//     ) -> Self {
+//         let (name, params) = if let QualifierKind::Hint = kind {
+//             let name = format!("{}_{}_{}", ident.name.to_ident_string(), span.lo().0, span.hi().0);
+//             let name = Symbol::intern(&name);
+//             let params = todo!();
+//             (Ident { name, ..ident }, params)
+//         } else {
+//             (ident, params)
+//         };
+//         Self { name, params, expr, span, kind }
+//     }
+// }
+
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
 /// i.e., a function with a body.
 #[derive(Debug)]
@@ -877,4 +899,29 @@ impl<T, P> Punctuated<T, P> {
         }
         v
     }
+}
+
+/// Collects all free variables in an expression.
+/// A free variable is an `ExprKind::Path` with a single identifier segment.
+pub fn free_vars(expr: &Expr) -> FxHashSet<Ident> {
+    struct FreeVarsVisitor {
+        vars: FxHashSet<Ident>,
+    }
+
+    impl visit::Visitor for FreeVarsVisitor {
+        fn visit_expr(&mut self, expr: &Expr) {
+            if let ExprKind::Path(path) = &expr.kind {
+                // Only collect paths with a single segment
+                if let [segment] = path.segments.as_slice() {
+                    self.vars.insert(segment.ident);
+                }
+            }
+            // Continue visiting child expressions
+            visit::walk_expr(self, expr);
+        }
+    }
+
+    let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+    visitor.visit_expr(expr);
+    visitor.vars
 }
