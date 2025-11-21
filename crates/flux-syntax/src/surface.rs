@@ -62,7 +62,6 @@ pub enum QualifierKind {
     Local,
     Hint,
 }
-
 /// A global function definition. It can be either an uninterpreted function or a *syntactic abstraction*,
 /// i.e., a function with a body.
 #[derive(Debug)]

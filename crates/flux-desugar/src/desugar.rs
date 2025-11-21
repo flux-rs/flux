@@ -853,8 +853,8 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
         }
     }
 
-    fn desugar_qualifier_kind(kind: &surface::QualifierKind) -> QualifierKind {
-        match kind {
+    fn desugar_qualifier_kind(qualifier: &surface::Qualifier) -> QualifierKind {
+        match qualifier.kind {
             surface::QualifierKind::Global => QualifierKind::Global,
             surface::QualifierKind::Local => QualifierKind::Local,
             surface::QualifierKind::Hint => QualifierKind::Hint,
@@ -862,7 +862,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
     }
 
     fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> fhir::Qualifier<'genv> {
-        let kind = Self::desugar_qualifier_kind(&qualifier.kind);
+        let kind = Self::desugar_qualifier_kind(qualifier);
 
         fhir::Qualifier {
             def_id: self.owner,

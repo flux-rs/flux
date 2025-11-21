@@ -3,7 +3,7 @@ mod utils;
 use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
-use rustc_span::sym::Output;
+use rustc_span::{Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
     punctuated_with_trailing, repeat_while, sep1, until,
@@ -158,6 +158,8 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
         parse_reft_func(cx).map(FluxItem::FuncDef)
+    } else if lookahead.peek(kw::Invariant) {
+        parse_invariant_qualifier(cx).map(FluxItem::Qualifier)
     } else if lookahead.peek(kw::Local) || lookahead.peek(kw::Qualifier) {
         parse_qualifier(cx).map(FluxItem::Qualifier)
     } else if lookahead.peek(kw::Opaque) {
@@ -444,6 +446,29 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     Ok(SpecFunc { name, sort_vars, params, output, body, hide })
 }
 
+fn rename_ident_with_span(ident: Ident) -> Ident {
+    let span = ident.span;
+    let name = format!("{}_{}_{}", ident.name.to_ident_string(), span.lo().0, span.hi().0);
+    let name = Symbol::intern(&name);
+    Ident { name, ..ident }
+}
+
+/// ```text
+/// ⟨hint⟩ := invariant qualifier ⟨ident⟩ ( ⟨refine_param⟩,* ) ⟨block⟩
+/// ```
+fn parse_invariant_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
+    let lo = cx.lo();
+    cx.expect(kw::Invariant)?;
+    cx.expect(kw::Qualifier)?;
+    let name = parse_ident(cx)?;
+    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let expr = parse_block(cx)?;
+    let hi = cx.hi();
+    let name = rename_ident_with_span(name);
+
+    Ok(Qualifier { kind: QualifierKind::Hint, name, params, expr, span: cx.mk_span(lo, hi) })
+}
+
 /// ```text
 /// ⟨qualifier⟩ :=  ⟨ local ⟩?
 ///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
@@ -458,6 +483,9 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let expr = parse_block(cx)?;
     let hi = cx.hi();
     let kind = if local { QualifierKind::Local } else { QualifierKind::Global };
+    let name =
+        if matches!(kind, QualifierKind::Hint) { rename_ident_with_span(name) } else { name };
+
     Ok(Qualifier { kind, name, params, expr, span: cx.mk_span(lo, hi) })
 }
 
