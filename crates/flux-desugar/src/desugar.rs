@@ -862,7 +862,6 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
     }
 
     fn desugar_qualifier(&mut self, qualifier: &surface::Qualifier) -> fhir::Qualifier<'genv> {
-        println!("TRACE: desugar_qualifier: {:?}", qualifier.name);
         let kind = Self::desugar_qualifier_kind(qualifier);
         fhir::Qualifier {
             def_id: self.owner,

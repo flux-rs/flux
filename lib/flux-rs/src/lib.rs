@@ -30,3 +30,19 @@ macro_rules! detached_spec {
         const _: () = ();
     };
 }
+
+/// Macro for creating `invariant qualifier`s
+/// # Example
+/// ```
+/// invariant!(res: int, i: int, n: int ; res + i == n);
+/// ```
+#[macro_export]
+macro_rules! invariant{
+    ($($param:ident : $ty:ty),* ; $expr:expr) => {
+        #[flux::defs{
+            invariant qualifier Auto($($param: $ty),*) { $expr }
+        }]
+        const _: () = ();
+        flux_rs::assert($expr);
+    };
+}
