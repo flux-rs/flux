@@ -12,17 +12,19 @@ pub fn unreachable() -> ! {
     unreachable!("impossible case")
 }
 
-/// Macro for creating detached specifications.
-///
-/// # Example
-/// ```
-/// detached_spec! {
-///     fn inc(n:i32) -> i32[n+1];
-///     fn watermelon(n:usize) -> usize[n+2];
-/// }
-/// ```
-#[macro_export]
-macro_rules! detached_spec {
+mod macros {
+
+    /// Macro for creating detached specifications.
+    ///
+    /// # Example
+    /// ```
+    /// detached_spec! {
+    ///     fn inc(n:i32) -> i32[n+1];
+    ///     fn watermelon(n:usize) -> usize[n+2];
+    /// }
+    /// ```
+    #[macro_export]
+    macro_rules! detached_spec {
     ($($e:tt)*) => {
         #[flux_rs::specs {
             $($e)*
@@ -31,18 +33,19 @@ macro_rules! detached_spec {
     };
 }
 
-/// Macro for creating `invariant qualifier`s
-/// # Example
-/// ```
-/// invariant!(res: int, i: int, n: int ; res + i == n);
-/// ```
-#[macro_export]
-macro_rules! invariant{
+    /// Macro for creating `invariant qualifier`s
+    /// # Example
+    /// ```
+    /// invariant!(res: int, i: int, n: int ; res + i == n);
+    /// ```
+    #[macro_export]
+    macro_rules! invariant{
     ($($param:ident : $ty:ty),* ; $expr:expr) => {
         #[flux::defs{
             invariant qualifier Auto($($param: $ty),*) { $expr }
         }]
         const _: () = ();
         flux_rs::assert($expr);
-    };
+      };
+    }
 }

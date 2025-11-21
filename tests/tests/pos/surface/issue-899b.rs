@@ -19,7 +19,7 @@ impl<T> [T] {
 }
 
 #[refined_by(ring_len: int, hd: int, tl: int)]
-#[invariant(ring_len > 1)]
+#[flux::invariant(ring_len > 1)]
 pub struct RingBuffer<'a, T: 'a> {
     #[field({&mut [T][ring_len] | ring_len > 1})]
     ring: &'a mut [T],
