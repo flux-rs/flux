@@ -285,7 +285,7 @@
 <a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">match </span><span class="self">self </span>{
 <a href=#286 id=286 data-nosnippet>286</a>            Expr::Constant(c) =&gt; <span class="macro">write!</span>(f, <span class="string">"{c}"</span>),
 <a href=#287 id=287 data-nosnippet>287</a>            Expr::Var(x) =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, x.display()),
-<a href=#288 id=288 data-nosnippet>288</a>            Expr::App(func, args) =&gt; {
+<a href=#288 id=288 data-nosnippet>288</a>            Expr::App(func, _sort_args, args) =&gt; {
 <a href=#289 id=289 data-nosnippet>289</a>                <span class="macro">write!</span>(f, <span class="string">"({func} {})"</span>, args.iter().format(<span class="string">" "</span>))
 <a href=#290 id=290 data-nosnippet>290</a>            }
 <a href=#291 id=291 data-nosnippet>291</a>            Expr::Neg(e) =&gt; {

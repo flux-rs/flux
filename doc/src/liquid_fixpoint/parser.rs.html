@@ -308,7 +308,7 @@
 <a href=#308 id=308 data-nosnippet>308</a>                    .iter()
 <a href=#309 id=309 data-nosnippet>309</a>                    .map(|sexp| <span class="self">self</span>.parse_expr_possibly_nested(sexp))
 <a href=#310 id=310 data-nosnippet>310</a>                    .try_collect()<span class="question-mark">?</span>;
-<a href=#311 id=311 data-nosnippet>311</a>                <span class="prelude-val">Ok</span>(Expr::App(Box::new(exp1), args))
+<a href=#311 id=311 data-nosnippet>311</a>                <span class="prelude-val">Ok</span>(Expr::App(Box::new(exp1), <span class="prelude-val">None</span>, args))
 <a href=#312 id=312 data-nosnippet>312</a>            }
 <a href=#313 id=313 data-nosnippet>313</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ParseError::err(<span class="string">"Expected list for app"</span>)),
 <a href=#314 id=314 data-nosnippet>314</a>        }
