@@ -1,4 +1,4 @@
-use flux_rs::{assert, detached_spec};
+use flux_rs::{assert, macros::detached_spec};
 
 pub fn inc(n: i32) -> i32 {
     n + 1

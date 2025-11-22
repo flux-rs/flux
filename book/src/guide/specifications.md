@@ -1033,3 +1033,13 @@ solutions for constraints.
 ```rust,noplayground
 {{#include ../../../tests/tests/pos/surface/scrape01.rs}}
 ```
+
+## Invariant Macro
+
+The `invariant!` macro can be used to simulate a restricted form of loop invariant,
+by simultaneously specifying assertions and qualifiers that can be used to establish
+that assertion.
+
+```rust,noplayground
+{{#include ../../../tests/tests/pos/surface/invariant_macro00.rs}}
+```

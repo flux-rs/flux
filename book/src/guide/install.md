@@ -197,7 +197,7 @@ Add this to the workspace settings i.e. `.vscode/settings.json`
 The `flux` binary accepts configuration flags in the format `-Fname=value`. For boolean flags, the
 `value` can be one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, `false`. Alternatively, the `value`
 can be omitted which will default to `true`. For example, to set the solver to `cvc5` and enable
-qualifier scrapping:
+qualifier scraping:
 
 ```console
 flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
