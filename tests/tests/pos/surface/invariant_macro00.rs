@@ -1,4 +1,4 @@
-use flux_rs::{attrs::*, invariant};
+use flux_rs::{attrs::*, macros::invariant};
 
 #[spec(fn (n: usize) -> usize[n])]
 pub fn test_with_qualifier(n: usize) -> usize {
