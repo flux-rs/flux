@@ -18,7 +18,7 @@ use flux_middle::{
 use itertools::{Itertools, iproduct};
 use liquid_fixpoint::SmtSolver;
 use rustc_data_structures::{
-    fx::{FxIndexMap, FxIndexSet},
+    fx::{FxIndexMap, FxIndexSet, FxHashSet},
     snapshot_map::SnapshotMap,
 };
 use rustc_hir::def_id::{DefId, LocalDefId};
@@ -225,7 +225,7 @@ pub struct WKVarSolutions {
     /// All wkvars
     pub wkvars: FxIndexSet<rty::WKVid>,
     /// All wkvars that could be kvars
-    pub internal_wkvars: FxIndexSet<rty::WKVid>,
+    pub internal_wkvars: FxHashSet<rty::WKVid>,
 }
 
 /// NOTE: we expect that the binders for `solved_exprs` and `assumed_exprs` are
@@ -241,7 +241,7 @@ pub struct WKVarSolution {
     pub assumed_exprs: Option<rty::Binder<FxIndexSet<rty::Expr>>>,
     /// Expressions removed from the `solved_exprs`. Given without
     /// a binder because we assume them to be compatible.
-    pub removed_solved_exprs: FxIndexSet<rty::Expr>,
+    pub removed_solved_exprs: FxHashSet<rty::Expr>,
     pub actual_exprs: Vec<rty::Binder<rty::Expr>>,
 }
 
@@ -494,7 +494,7 @@ impl WKVarSolutions {
         genv: GlobalEnv,
         num_nontrivial_head_cstrs: usize,
         wkvars: FxIndexSet<rty::WKVid>,
-        internal_wkvars: FxIndexSet<rty::WKVid>,
+        internal_wkvars: FxHashSet<rty::WKVid>,
     ) -> Self {
         // Initialize the solutions with all of the wkvars.
         let solutions = wkvars
@@ -649,6 +649,14 @@ impl WKVarSolutions {
     }
 
     fn prompt_user(&mut self, genv: GlobalEnv) {
+        enum InteractionKind {
+            AddGroundTruth(rty::Binder<rty::Expr>),
+            RemoveSolution(rty::Expr),
+        };
+        struct UserInteraction {
+            wkvid: rty::WKVid,
+            kind: InteractionKind,
+        }
         // Step 1: Group wkvars into functions
         let mut wkvars_by_fn: FxIndexMap<DefId, Vec<rty::KVid>> = FxIndexMap::default();
         for wkvid in self.solutions.keys() {
@@ -664,6 +672,7 @@ impl WKVarSolutions {
         let single_alpha_ids = alphas.clone().map(|a| a.to_string());
         let double_alpha_ids = iproduct!(alphas.clone(), alphas).map(|(a1, a2)| format!("{}{}", a1, a2));
         let mut id_prefix = single_alpha_ids.chain(double_alpha_ids);
+        let mut interactions: FxIndexMap<String, UserInteraction> = FxIndexMap::default();
         for (fn_def_id, kvids) in wkvars_by_fn.iter() {
             let fn_name = genv.tcx().def_path_str(fn_def_id);
             println!("fn {}", fn_name);
@@ -672,7 +681,64 @@ impl WKVarSolutions {
             for kvid in kvids {
                 println!("  $wk{}", kvid.as_u32());
                 let solution = &self.solutions[&(*fn_def_id, *kvid)];
-                println!("    Add a ground truth solution?");
+                if !solution.actual_exprs.is_empty() {
+                    println!("    Add a ground truth solution?");
+                    for expr in solution.actual_exprs.iter() {
+                        let id = format!("g{}", id_prefix.next().unwrap());
+                        let interaction = UserInteraction {
+                            wkvid: (*fn_def_id, *kvid),
+                            kind: InteractionKind::AddGroundTruth(expr.clone()),
+                        };
+                        println!("    [{}] {:?}", id, expr);
+                        interactions.insert(id, interaction);
+                    }
+                }
+                if let Some(solved_exprs) = &solution.solved_exprs && !solved_exprs.skip_binder_ref().is_empty() {
+                    println!("    Remove an assumed solution?");
+                    for expr in solved_exprs.skip_binder_ref() {
+                        // Don't try to double remove
+                        if solution.removed_solved_exprs.contains(expr) {
+                            continue;
+                        }
+                        let id = format!("r{}", id_prefix.next().unwrap());
+                        let interaction = UserInteraction {
+                            wkvid: (*fn_def_id, *kvid),
+                            kind: InteractionKind::RemoveSolution(expr.clone()),
+                        };
+                        println!("    [{}] {:?}", id, expr);
+                        interactions.insert(id, interaction);
+                    }
+                }
+            }
+        }
+        let mut input_ok = false;
+        let mut input = String::new();
+        let mut user_inputs = vec![];
+        while !input_ok {
+            println!("Enter your choices separated by commas");
+            std::io::stdin().read_line(&mut input);
+            match input.split(",").map(|id| {
+                interactions.get(id).ok_or_else(|| format!("Invalid ID: {}", id))
+            }).try_collect() {
+                Ok(inputs) => {
+                    user_inputs = inputs;
+                    input_ok = true;
+                }
+                Err(err) => println!("{}", err),
+            }
+        }
+
+        for interaction in user_inputs {
+            let solution = &mut self.solutions[&interaction.wkvid];
+            match &interaction.kind {
+                InteractionKind::AddGroundTruth(expr) => {
+                    println!("Adding ground truth {:?} to {:?}", expr, interaction.wkvid);
+                    solution.add_assumed_expr(&expr);
+                }
+                InteractionKind::RemoveSolution(expr) => {
+                    println!("Removing {:?} from {:?}", expr, interaction.wkvid);
+                    solution.removed_solved_exprs.insert(expr.clone());
+                }
             }
         }
     }
@@ -708,9 +774,9 @@ pub fn iterative_solve(
         constraint_rhs_wkvars.insert(id, rhs_wkvars.into_iter().collect());
         constraint_lhs_wkvars.insert(id, lhs_wkvars.into_iter().collect());
     }
-    let lhs_wkvars: FxIndexSet<rty::WKVid> =
+    let lhs_wkvars: FxHashSet<rty::WKVid> =
         constraint_lhs_wkvars.values().flatten().cloned().collect();
-    let rhs_wkvars: FxIndexSet<rty::WKVid> =
+    let rhs_wkvars: FxHashSet<rty::WKVid> =
         constraint_rhs_wkvars.values().flatten().cloned().collect();
     let wkvars = lhs_wkvars.union(&rhs_wkvars).cloned().collect();
     // These are the solutions for the current pass.
@@ -823,7 +889,7 @@ pub fn iterative_solve(
         i += 1;
 
         if !any_wkvar_change {
-            let fn_name = genv.tcx().def_path_str(wkvid.0);
+            new_solutions.prompt_user(genv);
         }
 
         // Now put the new solutions into the current solutions,
