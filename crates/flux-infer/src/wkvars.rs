@@ -728,6 +728,10 @@ impl WKVarSolutions {
         while !input_ok {
             println!("Enter your choices separated by commas");
             std::io::stdin().read_line(&mut input).unwrap();
+            if input.is_empty() || input == "\n" {
+                user_inputs = vec![];
+                break;
+            }
             match input.split(",").map(|id| {
                 interactions.get(id).ok_or_else(|| format!("Invalid ID: {}", id))
             }).try_collect() {
