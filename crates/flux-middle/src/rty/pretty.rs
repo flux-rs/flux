@@ -424,7 +424,7 @@ impl Pretty for IdxFmt {
                 buf.write_str(&format_cx!(cx, "{:?}", e))?;
             }
         }
-        if !buf.is_empty() { write!(f, "[{}]", buf) } else { Ok(()) }
+        if !buf.is_empty() { write!(f, "{}", buf) } else { Ok(()) }
     }
 }
 

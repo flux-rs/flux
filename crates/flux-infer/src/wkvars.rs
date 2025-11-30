@@ -673,14 +673,25 @@ impl WKVarSolutions {
         let double_alpha_ids = iproduct!(alphas.clone(), alphas).map(|(a1, a2)| format!("{}{}", a1, a2));
         let mut id_prefix = single_alpha_ids.chain(double_alpha_ids);
         let mut interactions: FxIndexMap<String, UserInteraction> = FxIndexMap::default();
+        let mut wkvar_subst = WKVarSubst {
+            wkvar_instantiations:
+                    self
+                        .solutions
+                        .iter()
+                        .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
+                        .collect()
+        };
+        let fn_pretty_cx = pretty::PrettyCx::default(genv).hide_regions(true);
         for (fn_def_id, kvids) in wkvars_by_fn.iter() {
             let fn_name = genv.tcx().def_path_str(fn_def_id);
             println!("fn {}", fn_name);
             let fn_sig = genv.fn_sig(fn_def_id).unwrap();
-            println!("sig {:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &fn_sig));
+            let solved_fn_sig = rty::EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
+            println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
             for kvid in kvids {
+                let wkvid = (*fn_def_id, *kvid);
                 println!("  $wk{}", kvid.as_u32());
-                let solution = &self.solutions[&(*fn_def_id, *kvid)];
+                let solution = &self.solutions[&wkvid];
                 if !solution.actual_exprs.is_empty() {
                     println!("    Add a ground truth solution?");
                     for expr in solution.actual_exprs.iter() {
@@ -716,7 +727,7 @@ impl WKVarSolutions {
         let mut user_inputs = vec![];
         while !input_ok {
             println!("Enter your choices separated by commas");
-            std::io::stdin().read_line(&mut input);
+            std::io::stdin().read_line(&mut input).unwrap();
             match input.split(",").map(|id| {
                 interactions.get(id).ok_or_else(|| format!("Invalid ID: {}", id))
             }).try_collect() {
