@@ -1656,6 +1656,16 @@ pub(crate) mod pretty {
 
     impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
 
+    impl PrettyNested for Binder<Expr> {
+        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            nested_with_bound_vars(cx, "|", self.vars(), Some("|".to_string()), |prefix| {
+                let expr_d = self.skip_binder_ref().fmt_nested(cx)?;
+                let text = format!("{}{}", prefix, expr_d.text);
+                Ok(NestedString { text, children: expr_d.children, key: None })
+            })
+        }
+    }
+
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             // TODO: remove redundant vars; see Ty

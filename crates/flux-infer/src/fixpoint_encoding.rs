@@ -13,12 +13,14 @@ use flux_common::{
 };
 use flux_config::{self as config};
 use flux_errors::Errors;
+use flux_macros::DebugAsJson;
 use flux_middle::{
     FixpointQueryKind,
     def_id::{FluxDefId, MaybeExternId},
     def_id_to_string,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
+    pretty::{PrettyCx, PrettyNested as _},
     queries::QueryResult,
     query_bug,
     rty::{
@@ -197,6 +199,23 @@ pub mod fixpoint {
 
 /// A type to represent Solutions for KVars
 pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
+
+/// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
+#[derive(Serialize, DebugAsJson)]
+pub struct SolutionTrace(HashMap<String, String>);
+
+impl SolutionTrace {
+    pub fn new(genv: GlobalEnv, solution: &Solution) -> Self {
+        let mut map = HashMap::new();
+        let cx = &PrettyCx::default(genv);
+        for (kvid, bind_expr) in solution {
+            let kvar_name = format!("{kvid:?}");
+            let expr_str = bind_expr.nested_string(cx);
+            map.insert(kvar_name, expr_str);
+        }
+        SolutionTrace(map)
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
