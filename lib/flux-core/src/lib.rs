@@ -17,6 +17,9 @@ mod clone;
 #[cfg(flux)]
 mod slice;
 
+#[cfg(flux)]
+mod num;
+
 // -------------------------------------------------------------------
 
 #[macro_export]

@@ -252,12 +252,11 @@ impl Generics {
     }
 
     pub fn const_params(&self, genv: GlobalEnv) -> QueryResult<Vec<(ParamConst, Sort)>> {
-        // FIXME(nilehmann) this shouldn't use the methods in `flux_middle::sort_of` to get the sort
         let mut res = vec![];
         for i in 0..self.count() {
             let param = self.param_at(i, genv)?;
             if let GenericParamDefKind::Const { .. } = param.kind
-                && let Some(sort) = genv.sort_of_generic_param(param.def_id)?
+                && let Some(sort) = genv.sort_of_def_id(param.def_id)?
             {
                 let param_const = ParamConst { name: param.name, index: param.index };
                 res.push((param_const, sort));

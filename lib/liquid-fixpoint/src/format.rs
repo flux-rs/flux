@@ -285,7 +285,7 @@ impl<T: Types> fmt::Display for Expr<T> {
         match self {
             Expr::Constant(c) => write!(f, "{c}"),
             Expr::Var(x) => write!(f, "{}", x.display()),
-            Expr::App(func, args) => {
+            Expr::App(func, _sort_args, args) => {
                 write!(f, "({func} {})", args.iter().format(" "))
             }
             Expr::Neg(e) => {
