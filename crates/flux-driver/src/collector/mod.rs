@@ -813,7 +813,6 @@ impl FluxAttrs {
                 | FluxAttrKind::TypeAlias(_)
                 | FluxAttrKind::Field(_)
                 | FluxAttrKind::Constant(_)
-                // | FluxAttrKind::QualifierHint(_)
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
@@ -852,7 +851,6 @@ impl FluxAttrKind {
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
-            // FluxAttrKind::QualifierHint(_) => attr_name!(QualifierHint),
         }
     }
 }
