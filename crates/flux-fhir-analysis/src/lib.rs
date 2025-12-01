@@ -602,7 +602,11 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
             if fn_sig.vars().is_empty() {
                 fn_sig = fn_sig.hoist_input_binders();
                 if genv.weak_kvars_for(def_id.local_id().into()).is_none() {
-                    fn_sig = fn_sig.add_weak_kvars(def_id.local_id().into());
+                    let id = match def_id {
+                        MaybeExternId::Extern(_local_id, def_id) => def_id,
+                        MaybeExternId::Local(local_id) => local_id.into(),
+                    };
+                    fn_sig = fn_sig.add_weak_kvars(id);
                 }
             }
 
