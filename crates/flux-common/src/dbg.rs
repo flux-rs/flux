@@ -105,7 +105,7 @@ macro_rules! _solution {
           let genv = $genv;
           let sol_json = SolutionTrace::new(genv, $sol);
           let span_json = SpanTrace::new(genv.tcx(), $span);
-          tracing::info!(event = "solution", span = ?$span, solution = ?sol_json)
+          tracing::info!(event = "solution", span = ?span_json, solution = ?sol_json)
         }
     }};
 }

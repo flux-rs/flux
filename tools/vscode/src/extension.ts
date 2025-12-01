@@ -1680,22 +1680,6 @@ export function convertRustcDiagnostic(
         value: /* existingCode || */ "Click for full flux diagnostic",
         target: diagnosticUri
       };
-
-      // The stuff below gives a sneak preview of the message in the VSCode panel,
-      // but is ugly as it seems to pull in bits of the rust code not nicely formatted :-(
-      //
-      // if (message.rendered) {
-      //   const decolorized = anser.ansiToText(message.rendered);
-      //   const index = decolorized.match(/^(note|help):/m)?.index || decolorized.length;
-      //   const cleanMessage = decolorized
-      //     .substring(0, index)
-      //     .replace(/^ -->[^\n]+\n/m, "")
-      //     .trim();
-
-      //   if (cleanMessage && cleanMessage !== message.message) {
-      //     diag.message = cleanMessage;
-      //   }
-      // }
     }
 
     return { uri, diagnostic: diag };

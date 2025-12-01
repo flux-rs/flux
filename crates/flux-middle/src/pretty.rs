@@ -381,6 +381,10 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     pub fn hide_refinements(self, b: bool) -> Self {
         Self { hide_refinements: b, ..self }
     }
+
+    pub fn show_kvar_args(self) -> Self {
+        Self { kvar_args: KVarArgs::All, ..self }
+    }
 }
 
 newtype_index! {

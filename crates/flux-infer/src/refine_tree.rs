@@ -768,7 +768,7 @@ impl RefineCtxtTrace {
         let parents = ParentsIter::new(NodePtr::clone(&cursor.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
-        let cx = &PrettyCx::default(genv);
+        let cx = &PrettyCx::default(genv).show_kvar_args();
 
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();

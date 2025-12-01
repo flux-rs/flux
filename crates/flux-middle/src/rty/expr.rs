@@ -1656,16 +1656,6 @@ pub(crate) mod pretty {
 
     impl_debug_with_default_cx!(Expr, Loc, Path, Var, KVar, Lambda, AliasReft);
 
-    impl PrettyNested for Binder<Expr> {
-        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            nested_with_bound_vars(cx, "|", self.vars(), Some("|".to_string()), |prefix| {
-                let expr_d = self.skip_binder_ref().fmt_nested(cx)?;
-                let text = format!("{}{}", prefix, expr_d.text);
-                Ok(NestedString { text, children: expr_d.children, key: None })
-            })
-        }
-    }
-
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             // TODO: remove redundant vars; see Ty
@@ -1729,9 +1719,15 @@ pub(crate) mod pretty {
                 | ExprKind::ConstDefId(..)
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
-                | ExprKind::InternalFunc(..)
-                | ExprKind::KVar(..) => debug_nested(cx, &e),
-
+                | ExprKind::InternalFunc(..) => debug_nested(cx, &e),
+                ExprKind::KVar(kvar) => {
+                    let text = format!("{:?}", kvar.kvid);
+                    let mut children = vec![];
+                    for arg in &kvar.args {
+                        children.push(arg.fmt_nested(cx)?);
+                    }
+                    Ok(NestedString { text, children: Some(children), key: None })
+                }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     let p_d = p.fmt_nested(cx)?;
                     let e1_d = e1.fmt_nested(cx)?;
@@ -1829,6 +1825,7 @@ pub(crate) mod pretty {
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }
+
                 ExprKind::App(func, _, args) => {
                     let func_d = func.fmt_nested(cx)?;
                     let mut texts = vec![];

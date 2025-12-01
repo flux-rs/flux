@@ -20,7 +20,7 @@ use flux_middle::{
     def_id_to_string,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
-    pretty::{PrettyCx, PrettyNested as _},
+    pretty::{NestedString, PrettyCx, PrettyNested},
     queries::QueryResult,
     query_bug,
     rty::{
@@ -202,18 +202,44 @@ pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
 
 /// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
-pub struct SolutionTrace(HashMap<String, String>);
+pub struct SolutionTrace(Vec<KvarSolutionTrace>);
+
+#[derive(Serialize, DebugAsJson)]
+pub struct KvarSolutionTrace {
+    pub name: String,
+    pub args: Vec<String>,
+    pub body: NestedString,
+}
+
+impl KvarSolutionTrace {
+    pub fn new(cx: &PrettyCx, kvid: rty::KVid, bind_expr: &rty::Binder<rty::Expr>) -> Self {
+        let mut args = Vec::new();
+        let body = rty::pretty::nested_with_bound_vars(
+            cx,
+            "",
+            bind_expr.vars(),
+            Some("".to_string()),
+            |prefix| {
+                for arg in prefix.split(',').map(|s| s.trim().to_string()) {
+                    args.push(arg);
+                }
+                bind_expr.skip_binder_ref().fmt_nested(cx)
+            },
+        )
+        .unwrap();
+
+        KvarSolutionTrace { name: format!("{kvid:?}"), args, body }
+    }
+}
 
 impl SolutionTrace {
     pub fn new(genv: GlobalEnv, solution: &Solution) -> Self {
-        let mut map = HashMap::new();
         let cx = &PrettyCx::default(genv);
-        for (kvid, bind_expr) in solution {
-            let kvar_name = format!("{kvid:?}");
-            let expr_str = bind_expr.nested_string(cx);
-            map.insert(kvar_name, expr_str);
-        }
-        SolutionTrace(map)
+        let res = solution
+            .iter()
+            .map(|(kvid, bind_expr)| KvarSolutionTrace::new(cx, *kvid, bind_expr))
+            .collect();
+        SolutionTrace(res)
     }
 }
 
