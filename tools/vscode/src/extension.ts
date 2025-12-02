@@ -1,5 +1,3 @@
-import * as fs from "fs";
-import * as path from "path";
 import * as vscode from "vscode";
 import {
   registerKillProcessCommand,
@@ -11,6 +9,7 @@ import {
   FluxViewProvider,
   InfoProvider,
 } from "./providers";
+import { registerEventListeners, setupFileWatcher } from "./setup";
 import type { RustcDiagnostic } from "./types";
 
 const checkerPath = "log/checker";
@@ -51,37 +50,12 @@ export function activate(context: vscode.ExtensionContext) {
     registerShowDiagnosticCommand(diagnosticDetailsMap)
   );
 
-  /************************************************************/
-  // Register a custom webview panel
-
+  // Register webview provider
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("fluxView", fluxViewProvider),
+    vscode.window.registerWebviewViewProvider("fluxView", fluxViewProvider)
   );
 
-  // Listener to track cursor position
-  context.subscriptions.push(
-    vscode.window.onDidChangeTextEditorSelection((event) => {
-      if (event.textEditor) {
-        fluxViewProvider.setPosition(event.textEditor);
-      }
-      fluxViewProvider.updateView();
-    }),
-  );
-
-  // Track the set of saved (updated) source files
-  context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument((document) => {
-      fluxViewProvider.runFlux(document.fileName);
-    }),
-  );
-
-  // Track the set of opened files
-  context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument((document) => {
-      fluxViewProvider.runFlux(document.fileName);
-    }),
-  );
-
+  // Register definition provider
   const fluxDefinitionProvider = new FluxDefinitionProvider(infoProvider, context);
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(
@@ -90,35 +64,15 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  // Reload the flux trace information for changedFiles
-  const logFilePattern = new vscode.RelativePattern(workspacePath, checkerPath);
+  // Register event listeners for document and editor changes
+  registerEventListeners(context, fluxViewProvider);
 
-  // Delete the existing log file to avoid using stale data
-  const logFilePath = path.join(workspacePath, checkerPath);
-  try {
-    if (fs.existsSync(logFilePath)) {
-      fs.unlinkSync(logFilePath);
-      console.log(`Deleted existing log file: ${logFilePath}`);
-    }
-  } catch (error) {
-    console.warn(`Failed to delete log file ${logFilePath}:`, error);
-  }
-
-  const fileWatcher = vscode.workspace.createFileSystemWatcher(logFilePattern);
-  console.log(`fileWatcher at:`, logFilePattern);
-
-  fileWatcher.onDidChange((uri) => {
-    console.log(`checker trace changed: ${uri.fsPath}`);
+  // Setup file watcher for flux checker log
+  setupFileWatcher(workspacePath, checkerPath, () => {
     infoProvider.loadFluxInfo()
       .then(() => fluxViewProvider.updateView());
   });
 }
 
-// Note: FluxDiagnosticContentProvider removed - now using WebView panel directly via command
-
 // This method is called when your extension is deactivated
 export function deactivate() { }
-
-/**********************************************************************************************/
-// Using KVar Solutions to translate Exprs
-/**********************************************************************************************/
