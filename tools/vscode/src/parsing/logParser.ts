@@ -1,8 +1,11 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import type {
+    Assignment,
     FluxDef,
     FluxDefs,
+    KvarDefs,
+    KvarSol,
     LineInfo,
     LogInfo,
     StmtSpan
@@ -24,6 +27,17 @@ function updateFluxDefs(defs: Map<string, FluxDefs>, fluxDef: FluxDef) {
     }
     let lineDefs = fileDefs.get(fluxDef.line)!;
     lineDefs.push(fluxDef);
+}
+
+function updateKvarDefs(defs: Map<string, KvarDefs>, kvarSol: KvarSol) {
+    const fileName = kvarSol.span.file!;
+    if (!defs.has(fileName)) {
+        defs.set(fileName, new Map());
+    }
+    let fileKvarDefs = defs.get(fileName)!;
+    for (let line = kvarSol.span.start_line; line <= kvarSol.span.end_line; line++) {
+        fileKvarDefs.set(line, kvarSol);
+    }
 }
 
 /**
@@ -70,7 +84,7 @@ export async function parseLogInfo(): Promise<LogInfo> {
 
         events.forEach((event) => {
             // handle line-info events
-            const lineInfo = parseEvent(event);
+            const lineInfo = parseLineInfo(event);
             if (lineInfo) {
                 const [fileName, info] = lineInfo;
                 if (!def.lineInfos.has(fileName)) {
@@ -83,6 +97,12 @@ export async function parseLogInfo(): Promise<LogInfo> {
             const fluxDef = parseFluxDef(event);
             if (fluxDef) {
                 updateFluxDefs(def.definitions, fluxDef);
+            }
+
+            // handle kvar-solution events
+            const kvarSol = parseKvarSol(event);
+            if (kvarSol) {
+                updateKvarDefs(def.kvarDefs, kvarSol);
             }
         });
 
@@ -103,10 +123,13 @@ function parseStatementSpanJSON(span: string): StmtSpan | undefined {
     return undefined;
 }
 
+
+
+
 /**
  * Parse a line info event
  */
-function parseEvent(event: any): [string, LineInfo] | undefined {
+function parseLineInfo(event: any): [string, LineInfo] | undefined {
     try {
         // Import Position enum at runtime to avoid circular dependency
         const Position = require("../types").Position;
@@ -170,6 +193,27 @@ function parseFluxDef(event: any): FluxDef | undefined {
             console.log(`Failed to parse definition event: ${error}`);
             return undefined;
         }
+    }
+    return undefined;
+}
+
+/*
+{"timestamp":"2025-12-02T15:30:47.543583Z","level":"INFO","fields":{"event":"solution","span":"{\"file\":\"/Users/rjhala/research/flux-demo/src/basics.rs\",\"start_line\":125,\"start_col\":1,\"end_line\":128,\"end_col\":2}","solution":"[{\"name\":\"$k0\",\"args\":[\"b0\",\"b1\",\"b2\"],\"body\":{\"text\":\"∀b3. b0 = b3 ∧ b1 = a0 ∧ b2 = a1 ∧ b3 = (a1 ≥ a0) ∧ a1 ≥ 0 ∨ ∀b4. ¬(a1 ≥ 0) ∧ b0 = b4 ∧ b1 = a0 ∧ b2 = a1 ∧ b4 = false\",\"key\":null,\"children\":null}}]"},"target":"flux_refineck","span":{"name":"check_crate"},"spans":[{"name":"check_crate"}]}
+*/
+
+/**
+ * Parse a flux definition (hyperlink) event
+ */
+function parseKvarSol(event: any): KvarSol | undefined {
+    try {
+        if (event.fields.event === "solution") {
+            const stmt_span = parseStatementSpanJSON(event.fields.span);
+            const raw_asgn = JSON.parse(event.fields.solution);
+            let asgn: Assignment[] = raw_asgn.map((b: any) => ({ name: b.name, args: b.args, body: b.body.text }));
+            return { span: stmt_span!, asgn: asgn };
+        }
+    } catch (error) {
+        console.log(`Failed to parse event: ${error}`);
     }
     return undefined;
 }

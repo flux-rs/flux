@@ -43,18 +43,16 @@ export type KvarApp = {
 };
 
 // The `body` should be an escaped-string ...
-export type Assignment = { params: string[]; body: string };
+export type Assignment = { name: Kvar; args: string[]; body: string };
 
-export type KvarSol = Map<Kvar, Assignment>;
+export type KvarSol = {
+    span: StmtSpan;
+    asgn: Assignment[];
+};
 
 export type DefId = { file: string; index: number };
 
-export type KvarDefs = {
-    // mapping from line number to DefId at that line, if any
-    lineId: Map<number, DefId>;
-    // mapping from DefId to KvarSol
-    defIdSol: Map<DefId, KvarSol>;
-};
+export type KvarDefs = Map<number, KvarSol>;
 
 export type LogInfo = {
     lineInfos: Map<string, LineInfo[]>;
