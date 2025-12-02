@@ -9,7 +9,7 @@ import type {
     KvarDefs,
     LineInfo,
     LineMap,
-    Position,
+    Position
 } from "../types";
 import { getFileModificationTime, runCargoFlux, runTouch } from "../utils";
 
@@ -102,6 +102,14 @@ export class InfoProvider {
                 return "loading";
             }
         }
+    }
+
+    /**
+     * Helper function to render KvarApp
+     */
+    public renderKvarApp(app: { kvar: string; args: string[] }): string {
+        const raw = `${app.kvar}(|${app.args.join(", ")}|)`;
+        return `<span class="kvar-app" title="mickey-mouse"><b>${raw}</b></span>`;
     }
 
     public getLine(): number {

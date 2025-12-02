@@ -1,18 +1,22 @@
 import * as vscode from "vscode";
 import { parseEnv, parseRcx } from "../parsing";
 import type { CheckMode, DisplayState, NestedString, Rcx, TypeEnv } from "../types";
+import { escapeHtml } from "../utils";
 import { InfoProvider } from "./InfoProvider";
 
 /**
  * Helper function to render nested string as HTML
  */
-function nestedStringHtml(node: NestedString): string {
+function nestedStringHtml(infoProvider: InfoProvider, node: NestedString): string {
     const hasChildren = node.children && node.children.length > 0;
     const toggleable = hasChildren ? "toggleable" : "";
     const labelclass = hasChildren ? " has-children" : " primitive";
-    const labelText = renderText(node.text);
+    const keyText = node.key ? node.key + ": " : "";
+    // const labelText = escapeHtml(keyText + node.text);
+    const labelText = keyText + renderText(infoProvider, escapeHtml(node.text));
+
     const childrenHtml = hasChildren
-        ? `<div class="children">${node.children!.map((child) => nestedStringHtml(child)).join("")}</div>`
+        ? `<div class="children">${node.children!.map((child) => nestedStringHtml(infoProvider, child)).join("")}</div>`
         : "";
 
     const html = `
@@ -27,7 +31,7 @@ function nestedStringHtml(node: NestedString): string {
 /**
  * Helper function to render text with KvarApp transformations
  */
-function renderText(text: string): string {
+function renderText(infoProvider: InfoProvider, text: string): string {
     // Replace patterns like ##[<s_0>##<s_1>##...##<s_n>]## with <s_0>(<s_1>, ..., <s_n>)
     return text.replace(/##\[([^\]]+)\]##/g, (match, content) => {
         const parts = content.split("##");
@@ -35,17 +39,11 @@ function renderText(text: string): string {
             return match; // Return original if empty
         }
         const kvarApp = { kvar: parts[0], args: parts.slice(1) };
-        return renderKvarApp(kvarApp);
+        return infoProvider.renderKvarApp(kvarApp);
     });
 }
 
-/**
- * Helper function to render KvarApp
- */
-function renderKvarApp(app: { kvar: string; args: string[] }): string {
-    const raw = `${app.kvar}(|${app.args.join(", ")}|)`;
-    return `<span class="kvar-app" title="mickey-mouse"><b>${raw}</b></span>`;
-}
+
 
 /**
  * Provides webview functionality for displaying Flux type information
@@ -221,7 +219,7 @@ export class FluxViewProvider implements vscode.WebviewViewProvider {
                 .map(
                     (expr) => `
             <tr>
-                <td>${nestedStringHtml(expr)}</td>
+                <td>${nestedStringHtml(this._infoProvider, expr)}</td>
             </tr>
           `
                 )
@@ -237,7 +235,7 @@ export class FluxViewProvider implements vscode.WebviewViewProvider {
                     (bind) => `
             <tr>
                 <td style="vertical-align: top;"><b style="color: #F26123">${bind.name}</b></td>
-                <td>${nestedStringHtml(bind.ty)}</td>
+                <td>${nestedStringHtml(this._infoProvider, bind.ty)}</td>
             </tr>
           `
                 )
