@@ -113,7 +113,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("Starting solution loop.");
 
         let (solution, errors) =
-            match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100) {
+            match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
                 Ok((solution, errors)) => (solution, errors),
                 Err(e) => panic!("Encountered error {:?}", e),
             };

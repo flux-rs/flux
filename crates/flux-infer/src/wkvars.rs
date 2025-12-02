@@ -783,11 +783,14 @@ pub struct Constraint {
 
 pub type Constraints = Vec<Constraint>;
 
-pub fn iterative_solve(
+pub fn iterative_solve<F>(
     genv: GlobalEnv,
     cstrs: Constraints,
     max_iters: usize,
-) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>)> {
+    report_errors: F,
+) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>)>
+    where F: Fn(LocalDefId, Vec<FixpointCheckError<Tag>>)
+{
     let mut constraint_lhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
         FxIndexMap::default();
     let mut constraint_rhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
@@ -917,6 +920,9 @@ pub fn iterative_solve(
         i += 1;
 
         if !any_wkvar_change {
+            for (local_id, err) in &all_errors {
+                report_errors(*local_id, err.clone());
+            }
             any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv);
         }
 
