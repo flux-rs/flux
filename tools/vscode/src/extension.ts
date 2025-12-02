@@ -1454,7 +1454,8 @@ function escapeHtml(text: string): string {
 type KvarApp = { kvar: string, args: string[] };
 
 function renderKvarApp(app: KvarApp): string {
-  return `${app.kvar}(|${app.args.join(', ')}|)`;
+  const raw = `${app.kvar}(|${app.args.join(', ')}|)`;
+  return `<span class="kvar-app" title="${raw}"><b>${raw}</b></span>`;
 }
 
 function renderText(text: string): string {
