@@ -1455,7 +1455,7 @@ type KvarApp = { kvar: string, args: string[] };
 
 function renderKvarApp(app: KvarApp): string {
   const raw = `${app.kvar}(|${app.args.join(', ')}|)`;
-  return `<span class="kvar-app" title="${raw}"><b>${raw}</b></span>`;
+  return `<span class="kvar-app" title="mickey-mouse"><b>${raw}</b></span>`;
 }
 
 function renderText(text: string): string {
@@ -1894,3 +1894,18 @@ export function renderRustcDiagnostic(
 
   return output.trim();
 }
+
+/**********************************************************************************************/
+// Using KVar Solutions to translate Exprs
+/**********************************************************************************************/
+
+type Kvar = string;
+
+// The `body` should be an escaped-string ...
+type Assignment = { params: string[]; body: string };
+
+type KvarSol = Map<Kvar, Assignment>;
+
+type DefId = { file: string; index: number };
+
+type DefIdSol = Map<DefId, KvarSol>;
