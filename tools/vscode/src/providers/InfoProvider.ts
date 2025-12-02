@@ -6,6 +6,7 @@ import type {
     CheckMode,
     FluxDef,
     FluxDefs,
+    KvarDefs,
     LineInfo,
     LineMap,
     Position,
@@ -27,6 +28,7 @@ export class InfoProvider {
     private _EndMap: Map<string, LineMap> = new Map();
     private _ModifiedAt: Map<string, Date> = new Map();
     private _definitions: Map<string, FluxDefs> = new Map();
+    private _kvarDefs: Map<string, KvarDefs> = new Map();
 
     currentFile?: string;
     currentLine: number = 0;
@@ -182,6 +184,9 @@ export class InfoProvider {
             });
             logInfo.definitions.forEach((fluxDefs, fileName) => {
                 this._definitions.set(fileName, fluxDefs);
+            });
+            logInfo.kvarDefs.forEach((kvarDefs, fileName) => {
+                this._kvarDefs.set(fileName, kvarDefs);
             });
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to load line info: ${error}`);

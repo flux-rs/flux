@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { KvarDefs } from './kvar';
 
 export enum Position {
     Start,
@@ -37,6 +38,7 @@ export type FluxDefs = Map<number, FluxDef[]>;
 export type LogInfo = {
     lineInfos: Map<string, LineInfo[]>;
     definitions: Map<string, FluxDefs>;
+    kvarDefs: Map<string, KvarDefs>;
 };
 
 export type CheckMode = "All" | "Mod" | "Def" | "Off";

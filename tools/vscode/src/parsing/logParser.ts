@@ -56,7 +56,7 @@ export async function parseEventsWith<T>(
  * Parse the log file to extract line info and definitions
  */
 export async function parseLogInfo(): Promise<LogInfo> {
-    let def: LogInfo = { lineInfos: new Map(), definitions: new Map() };
+    let def: LogInfo = { lineInfos: new Map(), definitions: new Map(), kvarDefs: new Map() };
     try {
         // Get the workspace folder
         const workspaceFolders = vscode.workspace.workspaceFolders;
