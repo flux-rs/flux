@@ -1721,12 +1721,13 @@ pub(crate) mod pretty {
                 | ExprKind::GlobalFunc(..)
                 | ExprKind::InternalFunc(..) => debug_nested(cx, &e),
                 ExprKind::KVar(kvar) => {
-                    let text = format!("{:?}", kvar.kvid);
-                    let mut children = vec![];
+                    let kv = format!("{:?}", kvar.kvid);
+                    let mut strs = vec![kv];
                     for arg in &kvar.args {
-                        children.push(arg.fmt_nested(cx)?);
+                        strs.push(debug_nested(cx, arg)?.text);
                     }
-                    Ok(NestedString { text, children: Some(children), key: None })
+                    let text = format!("##[{}]##", strs.join("##"));
+                    Ok(NestedString { text, children: None, key: None })
                 }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     let p_d = p.fmt_nested(cx)?;

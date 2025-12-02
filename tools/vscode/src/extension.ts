@@ -1451,13 +1451,31 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#39;');
 }
 
+type KvarApp = { kvar: string, args: string[] };
+
+function renderKvarApp(app: KvarApp): string {
+  return `${app.kvar}(|${app.args.join(', ')}|)`;
+}
+
+function renderText(text: string): string {
+  // Replace patterns like ##[<s_0>##<s_1>##...##<s_n>]## with <s_0>(<s_1>, ..., <s_n>)
+  return text.replace(/##\[([^\]]+)\]##/g, (match, content) => {
+    const parts = content.split('##');
+    if (parts.length === 0) {
+      return match; // Return original if empty
+    }
+    const kvarApp: KvarApp = { kvar: parts[0], args: parts.slice(1) };
+    return renderKvarApp(kvarApp);
+  });
+}
 
 function nestedStringHtml(node: NestedString): string {
   const hasChildren = node.children && node.children.length > 0;
   const toggleable = hasChildren ? "toggleable" : "";
   const labelclass = hasChildren ? " has-children" : " primitive";
   const keyText = node.key ? node.key + ": " : "";
-  const labelText = escapeHtml(keyText + node.text);
+  // const labelText = escapeHtml(keyText + renderText(node.text));
+  const labelText = keyText + renderText(escapeHtml(node.text));
 
   let childrenHtml = "";
   if (node.children) {
