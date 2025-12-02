@@ -109,8 +109,9 @@ export class InfoProvider {
      */
     public renderKvarApp(app: { kvar: string; args: string[] }): string {
         const raw = `${app.kvar}(|${app.args.join(", ")}|)`;
-        return `<span class="kvar-app" title="mickey-mouse"><b>${raw}</b></span>`;
+        return `<span class="kvar-app" title="donald-mouse"><b>${raw}</b></span>`;
     }
+
 
     public getLine(): number {
         return this.currentLine;
