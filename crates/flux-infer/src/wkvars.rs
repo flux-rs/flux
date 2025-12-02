@@ -648,7 +648,7 @@ impl WKVarSolutions {
         Ok(())
     }
 
-    fn prompt_user(&mut self, genv: GlobalEnv) {
+    fn prompt_user(&mut self, genv: GlobalEnv) -> bool {
         enum InteractionKind {
             AddGroundTruth(rty::Binder<rty::Expr>),
             RemoveSolution(rty::Expr),
@@ -692,15 +692,25 @@ impl WKVarSolutions {
                 let wkvid = (*fn_def_id, *kvid);
                 println!("  $wk{}", kvid.as_u32());
                 let solution = &self.solutions[&wkvid];
-                if !solution.actual_exprs.is_empty() {
+                let ground_truth_exprs = solution.actual_exprs.iter()
+                                                        .filter(|expr| !expr.skip_binder_ref().is_trivially_true()
+                                                                && !solution.assumed_exprs
+                                                                            .as_ref()
+                                                                            .map(|assumed_exprs| assumed_exprs.skip_binder_ref()
+                                                                                 .contains(expr.skip_binder_ref()))
+                                                                            .unwrap_or(false)
+                                                        )
+                                                        .cloned()
+                                                        .collect_vec();
+                if !ground_truth_exprs.is_empty() {
                     println!("    Add a ground truth solution?");
-                    for expr in solution.actual_exprs.iter() {
+                    for expr in ground_truth_exprs {
                         let id = format!("g{}", id_prefix.next().unwrap());
+                        println!("    [{}] {:?}", id, &expr);
                         let interaction = UserInteraction {
                             wkvid: (*fn_def_id, *kvid),
-                            kind: InteractionKind::AddGroundTruth(expr.clone()),
+                            kind: InteractionKind::AddGroundTruth(expr),
                         };
-                        println!("    [{}] {:?}", id, expr);
                         interactions.insert(id, interaction);
                     }
                 }
@@ -712,11 +722,11 @@ impl WKVarSolutions {
                             continue;
                         }
                         let id = format!("r{}", id_prefix.next().unwrap());
+                        println!("    [{}] {:?}", id, expr);
                         let interaction = UserInteraction {
                             wkvid: (*fn_def_id, *kvid),
                             kind: InteractionKind::RemoveSolution(expr.clone()),
                         };
-                        println!("    [{}] {:?}", id, expr);
                         interactions.insert(id, interaction);
                     }
                 }
@@ -727,12 +737,13 @@ impl WKVarSolutions {
         let mut user_inputs = vec![];
         while !input_ok {
             println!("Enter your choices separated by commas");
+            input.clear();
             std::io::stdin().read_line(&mut input).unwrap();
             if input.is_empty() || input == "\n" {
                 user_inputs = vec![];
                 break;
             }
-            match input.split(",").map(|id| {
+            match input.strip_suffix("\n").unwrap().split(",").map(|id| {
                 interactions.get(id).ok_or_else(|| format!("Invalid ID: {}", id))
             }).try_collect() {
                 Ok(inputs) => {
@@ -743,19 +754,21 @@ impl WKVarSolutions {
             }
         }
 
+        let mut any_interaction = false;
         for interaction in user_inputs {
             let solution = &mut self.solutions[&interaction.wkvid];
             match &interaction.kind {
                 InteractionKind::AddGroundTruth(expr) => {
                     println!("Adding ground truth {:?} to {:?}", expr, interaction.wkvid);
-                    solution.add_assumed_expr(&expr);
+                    any_interaction = any_interaction || solution.add_assumed_expr(&expr);
                 }
                 InteractionKind::RemoveSolution(expr) => {
                     println!("Removing {:?} from {:?}", expr, interaction.wkvid);
-                    solution.removed_solved_exprs.insert(expr.clone());
+                    any_interaction = any_interaction || solution.removed_solved_exprs.insert(expr.clone());
                 }
             }
         }
+        any_interaction
     }
 }
 
@@ -904,7 +917,7 @@ pub fn iterative_solve(
         i += 1;
 
         if !any_wkvar_change {
-            new_solutions.prompt_user(genv);
+            any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv);
         }
 
         // Now put the new solutions into the current solutions,
