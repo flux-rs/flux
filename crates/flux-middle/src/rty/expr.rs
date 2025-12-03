@@ -1826,7 +1826,6 @@ pub(crate) mod pretty {
                     let children = float_children(kidss);
                     Ok(NestedString { text, children, key: None })
                 }
-
                 ExprKind::App(func, _, args) => {
                     let func_d = func.fmt_nested(cx)?;
                     let mut texts = vec![];
