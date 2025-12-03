@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["fmt_alias_ty","format_fn_root_binder","nested_with_bound_vars"],"struct":["IdxFmt"]};
+window.SIDEBAR_ITEMS = {"fn":["fmt_alias_ty","format_fn_root_binder"],"struct":["IdxFmt"]};
