@@ -17,7 +17,7 @@ use flux_middle::{
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use itertools::izip;
 use rustc_hir::def_id::DefId;
-use rustc_infer::traits::{ImplSourceUserDefinedData, Obligation, PredicateObligation};
+use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
@@ -752,10 +752,10 @@ fn normalize_projection_ty_with_rustc<'tcx>(
 ///
 /// Use this if you are about to match structurally on an [`ExprKind`] and you need associated
 /// refinements to be normalized.
-pub fn structurally_normalize_expr(
-    genv: GlobalEnv,
+pub fn structurally_normalize_expr<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
-    infcx: &rustc_infer::infer::InferCtxt,
+    infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     expr: &Expr,
 ) -> QueryResult<Expr> {
     if let ExprKind::Alias(alias_pred, refine_args) = expr.kind() {
@@ -769,13 +769,15 @@ pub fn structurally_normalize_expr(
 /// Normalizes an [`AliasReft`]. This uses the trait solver to find the [`ImplSourceUserDefinedData`]
 /// and uses the `args` there, which we map back to Flux via refining. This loses refinements,
 /// but that's fine because [`AliasReft`] should not rely on refinements for trait solving.
-fn normalize_alias_reft(
-    genv: GlobalEnv,
+fn normalize_alias_reft<'tcx>(
+    genv: GlobalEnv<'_, 'tcx>,
     def_id: DefId,
-    infcx: &rustc_infer::infer::InferCtxt,
+    infcx: &rustc_infer::infer::InferCtxt<'tcx>,
     alias_reft: &AliasReft,
     refine_args: &RefineArgs,
 ) -> QueryResult<(bool, Expr)> {
+    let tcx = genv.tcx();
+
     let is_final = genv.assoc_refinement(alias_reft.assoc_id)?.final_;
     if is_final {
         let e = genv
@@ -785,41 +787,41 @@ fn normalize_alias_reft(
             })
             .instantiate(genv.tcx(), &alias_reft.args, &[])
             .apply(refine_args);
-        Ok((true, e))
-    } else if let Some(impl_data) = get_impl_data_for_alias_reft(infcx, def_id, alias_reft)? {
-        let tcx = infcx.tcx;
-        let impl_def_id = impl_data.impl_def_id;
-        let args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
-            impl_def_id,
-            &impl_data
-                .args
-                .lower(tcx)
-                .map_err(|reason| query_bug!("{reason:?}"))?,
-        )?;
-        let e = genv
-            .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
-            .instantiate(tcx, &args, &[])
-            .apply(refine_args);
-        Ok((true, e))
-    } else {
-        Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone())))
+        return Ok((true, e));
     }
-}
 
-fn get_impl_data_for_alias_reft<'tcx>(
-    infcx: &rustc_infer::infer::InferCtxt<'tcx>,
-    def_id: DefId,
-    alias_reft: &AliasReft,
-) -> QueryResult<Option<ImplSourceUserDefinedData<'tcx, PredicateObligation<'tcx>>>> {
-    let tcx = infcx.tcx;
+    // Get impl source
     let mut selcx = SelectionContext::new(infcx);
+    let param_env = tcx.param_env(def_id);
     let trait_ref = alias_reft.to_rustc_trait_ref(tcx);
     let trait_ref = tcx.erase_and_anonymize_regions(trait_ref);
-    let trait_pred =
-        Obligation::new(tcx, ObligationCause::dummy(), tcx.param_env(def_id), trait_ref);
-    match selcx.select(&trait_pred) {
-        Ok(Some(ImplSource::UserDefined(impl_data))) => Ok(Some(impl_data)),
-        Ok(_) => Ok(None),
-        Err(e) => bug!("error selecting {trait_pred:?}: {e:?}"),
+    let trait_pred = Obligation::new(tcx, ObligationCause::dummy(), param_env, trait_ref);
+    let impl_source = selcx
+        .select(&trait_pred)
+        .map_err(|e| query_bug!("error selecting {trait_pred:?}: {e:?}"))?;
+
+    match impl_source {
+        Some(ImplSource::UserDefined(impl_data)) => {
+            let impl_def_id = impl_data.impl_def_id;
+            let args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
+                impl_def_id,
+                &impl_data
+                    .args
+                    .lower(tcx)
+                    .map_err(|reason| query_bug!("{reason:?}"))?,
+            )?;
+            let e = genv
+                .assoc_refinement_body_for_impl(alias_reft.assoc_id, impl_def_id)?
+                .instantiate(tcx, &args, &[])
+                .apply(refine_args);
+            Ok((true, e))
+        }
+        Some(ImplSource::Builtin(..)) => {
+            let e = genv
+                .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
+                .apply(refine_args);
+            Ok((true, e))
+        }
+        _ => Ok((false, Expr::alias(alias_reft.clone(), refine_args.clone()))),
     }
 }

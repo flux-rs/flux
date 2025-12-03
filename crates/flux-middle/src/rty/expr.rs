@@ -1211,6 +1211,12 @@ impl From<u32> for Constant {
     }
 }
 
+impl From<u64> for Constant {
+    fn from(c: u64) -> Self {
+        Constant::Int(c.into())
+    }
+}
+
 impl From<u128> for Constant {
     fn from(c: u128) -> Self {
         Constant::Int(c.into())
