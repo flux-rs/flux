@@ -9,7 +9,7 @@ pub mod canonicalize;
 mod expr;
 pub mod fold;
 pub mod normalize;
-pub mod pretty;
+mod pretty;
 pub mod refining;
 pub mod region_matching;
 pub mod subst;

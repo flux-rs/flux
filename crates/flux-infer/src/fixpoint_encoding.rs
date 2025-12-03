@@ -214,19 +214,14 @@ pub struct KvarSolutionTrace {
 impl KvarSolutionTrace {
     pub fn new(cx: &PrettyCx, kvid: rty::KVid, bind_expr: &rty::Binder<rty::Expr>) -> Self {
         let mut args = Vec::new();
-        let body = rty::pretty::nested_with_bound_vars(
-            cx,
-            "",
-            bind_expr.vars(),
-            Some("".to_string()),
-            |prefix| {
+        let body = cx
+            .nested_with_bound_vars("", bind_expr.vars(), Some("".to_string()), |prefix| {
                 for arg in prefix.split(',').map(|s| s.trim().to_string()) {
                     args.push(arg);
                 }
                 bind_expr.skip_binder_ref().fmt_nested(cx)
-            },
-        )
-        .unwrap();
+            })
+            .unwrap();
 
         KvarSolutionTrace { name: format!("{kvid:?}"), args, body }
     }
