@@ -381,6 +381,27 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     pub fn hide_refinements(self, b: bool) -> Self {
         Self { hide_refinements: b, ..self }
     }
+
+    pub fn show_kvar_args(self) -> Self {
+        Self { kvar_args: KVarArgs::All, ..self }
+    }
+
+    pub fn nested_with_bound_vars(
+        &self,
+        left: &str,
+        vars: &[BoundVariableKind],
+        right: Option<String>,
+        f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
+    ) -> Result<NestedString, fmt::Error> {
+        let mut buffer = String::new();
+        self.with_bound_vars(vars, || {
+            if !vars.is_empty() {
+                let right = right.unwrap_or(". ".to_string());
+                self.fmt_bound_vars(false, left, vars, &right, &mut buffer)?;
+            }
+            f(buffer)
+        })
+    }
 }
 
 newtype_index! {

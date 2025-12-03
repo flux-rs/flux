@@ -30,9 +30,10 @@ mod queue;
 mod type_env;
 
 use checker::{Checker, trait_impl_subtyping};
-use flux_common::{dbg, result::ResultExt as _};
+use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
+use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::FixQueryCache,
+    fixpoint_encoding::{FixQueryCache, SolutionTrace},
     infer::{ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
@@ -142,6 +143,13 @@ pub fn check_fn(
                     FixpointQueryKind::Body,
                 )
                 .emit(&genv)?;
+
+            // DUMP SOLUTION
+            let tcx = genv.tcx();
+            let hir_id = tcx.local_def_id_to_hir_id(def_id);
+            let body_span = tcx.hir_span_with_body(hir_id);
+            dbg::solution!(genv, &answer.solution, body_span);
+
             let errors = answer.errors;
             report_fixpoint_errors(genv, def_id, errors)
         }
