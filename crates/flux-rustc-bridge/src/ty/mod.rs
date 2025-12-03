@@ -851,6 +851,42 @@ impl Ty {
     pub fn is_box(&self) -> bool {
         matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
     }
+
+    /// Returns true if the type *may contain* any lifetimes/regions.
+    pub fn has_lifetimes(&self) -> bool {
+        match self.kind() {
+            TyKind::Ref(..) => true,
+            TyKind::Bool
+            | TyKind::Str
+            | TyKind::Char
+            | TyKind::Float(_)
+            | TyKind::Int(_)
+            | TyKind::Uint(_)
+            | TyKind::Never => false,
+            TyKind::Array(ty, _) | TyKind::Slice(ty) => ty.has_lifetimes(),
+
+            TyKind::Tuple(tys) => tys.iter().any(|ty| ty.has_lifetimes()),
+            TyKind::Adt(_, args)
+            | TyKind::FnDef(_, args)
+            | TyKind::Closure(_, args)
+            | TyKind::Coroutine(_, args)
+            | TyKind::CoroutineWitness(_, args) => { 
+                args.iter().any(|arg| match arg {
+                    GenericArg::Lifetime(_) => true,
+                    GenericArg::Ty(ty) => ty.has_lifetimes(),
+                    GenericArg::Const(_) => false,
+                })
+            },
+
+            // TODO: handle these better!
+            TyKind::Param(..)
+            | TyKind::Alias(..)
+            | TyKind::RawPtr(..)
+            | TyKind::FnPtr(..)
+            | TyKind::Dynamic(..)
+            | TyKind::Foreign(..) => true,
+        }
+    }
 }
 
 impl<'tcx, V> ToRustc<'tcx> for Binder<V>
@@ -933,7 +969,8 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Uint(uint_ty) => rustc_ty::Ty::new_uint(tcx, *uint_ty),
             TyKind::Adt(adt_def, args) => {
                 let adt_def = adt_def.to_rustc(tcx);
-                let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
+                let args =
+                    tcx.mk_args_from_iter(args.iter().map(|arg: &GenericArg| arg.to_rustc(tcx)));
                 rustc_ty::Ty::new_adt(tcx, adt_def, args)
             }
             TyKind::FnDef(def_id, args) => {
