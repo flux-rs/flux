@@ -319,7 +319,7 @@ hassle you should never execute it directly. Instead, use <code>flux</code> or <
 <p>The <code>flux</code> binary accepts configuration flags in the format <code>-Fname=value</code>. For boolean flags, the
 <code>value</code> can be one of <code>y</code>, <code>yes</code>, <code>on</code>, <code>true</code>, <code>n</code>, <code>no</code>, <code>off</code>, <code>false</code>. Alternatively, the <code>value</code>
 can be omitted which will default to <code>true</code>. For example, to set the solver to <code>cvc5</code> and enable
-qualifier scrapping:</p>
+qualifier scraping:</p>
 <pre><code class="language-console">flux -Fsolver=cvc5 -Fscrape-quals path/to/file.rs
 </code></pre>
 <p>For all available flags, see <a href="https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html">https://flux-rs.github.io/flux/doc/flux_config/flags/struct.Flags.html</a></p>
@@ -3391,7 +3391,7 @@ when we mutate references.</p>
 };
 
 use flux_rs::{
-    assert, alias, constant, defs, detached_spec, extern_spec, invariant, opaque, refined_by, reflect, spec, specs, trusted,
+    assert, alias, constant, defs, macros::detached_spec, extern_spec, invariant, opaque, refined_by, reflect, spec, specs, trusted,
     bitvec::BV32;
 };</code></pre></pre>
 <p>Our next case study shows how Flux’s refinements can be used to make the
@@ -4388,12 +4388,12 @@ pub fn test01() {
 you can optionally also add the <em>name</em> of the function as shown for <code>fn five</code>.</p>
 <h2 id="existential-refinements"><a class="header" href="#existential-refinements">Existential Refinements</a></h2>
 <p>Of the form <code>i32{v: 0 &lt;= v}</code> (non-negative <code>i32</code>) values.</p>
-<pre><code class="language-rust noplayground noplayground">#[flux::sig(fn(x:i32) -&gt; i32{v: v &gt; x})]
+<pre><code class="language-rust noplayground noplayground">#[flux::spec(fn(x:i32) -&gt; i32{v: v &gt; x})]
 pub fn inc(x: i32) -&gt; i32 {
     x + 1
 }
 
-#[flux::sig(fn(x:i32) -&gt; i32{v: v &lt; x})]
+#[flux::spec(fn(x:i32) -&gt; i32{v: v &lt; x})]
 pub fn dec(x: i32) -&gt; i32 {
     x - 1
 }</code></pre>
@@ -8119,6 +8119,38 @@ pub fn range(lo: usize, hi: usize) -&gt; RVec&lt;usize&gt; {
         // inv: res.len() = i - lo
         res.push(i);
         i += 1;
+    }
+    res
+}</code></pre>
+<h2 id="invariant-macro"><a class="header" href="#invariant-macro">Invariant Macro</a></h2>
+<p>The <code>invariant!</code> macro can be used to simulate a restricted form of loop invariant,
+by simultaneously specifying assertions and qualifiers that can be used to establish
+that assertion.</p>
+<pre><code class="language-rust noplayground">use flux_rs::{attrs::*, macros::invariant};
+
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test_with_qualifier(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        #[flux::defs{
+            invariant qualifier Auto(res: int) { res + i == n  &amp;&amp; i &gt;= 99-99 &amp;&amp; res &gt;= 66 - 66 }
+         }]
+        const _: () = ();
+        i -= 1;
+        res += 1;
+    }
+    res
+}
+
+#[spec(fn (n: usize) -&gt; usize[n])]
+pub fn test(n: usize) -&gt; usize {
+    let mut i = n;
+    let mut res = 0;
+    while i &gt; 0 {
+        invariant!(res:int; res + i == n &amp;&amp; i &gt;= 99-99 &amp;&amp; res &gt;= 66 - 66);
+        i -= 1;
+        res += 1;
     }
     res
 }</code></pre>

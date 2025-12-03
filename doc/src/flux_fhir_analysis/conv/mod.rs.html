@@ -477,7 +477,7 @@
 <a href=#477 id=477 data-nosnippet>477</a>        env.push_layer(Layer::list(<span class="self">self</span>.results(), <span class="number">0</span>, qualifier.args));
 <a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">let </span>body = <span class="self">self</span>.conv_expr(<span class="kw-2">&amp;mut </span>env, <span class="kw-2">&amp;</span>qualifier.expr)<span class="question-mark">?</span>;
 <a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>body = rty::Binder::bind_with_vars(body, env.pop_layer().into_bound_vars(<span class="self">self</span>.genv())<span class="question-mark">?</span>);
-<a href=#480 id=480 data-nosnippet>480</a>        <span class="prelude-val">Ok</span>(rty::Qualifier { def_id: qualifier.def_id, body, global: qualifier.global })
+<a href=#480 id=480 data-nosnippet>480</a>        <span class="prelude-val">Ok</span>(rty::Qualifier { def_id: qualifier.def_id, body, kind: qualifier.kind })
 <a href=#481 id=481 data-nosnippet>481</a>    }
 <a href=#482 id=482 data-nosnippet>482</a>
 <a href=#483 id=483 data-nosnippet>483</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>conv_defn(
