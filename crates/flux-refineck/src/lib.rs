@@ -145,7 +145,6 @@ pub fn check_fn(
                 .emit(&genv)?;
 
             // DUMP SOLUTION
-            // let def_id = def_id.local_id();
             let tcx = genv.tcx();
             let hir_id = tcx.local_def_id_to_hir_id(def_id);
             let body_span = tcx.hir_span_with_body(hir_id);
