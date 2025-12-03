@@ -7,16 +7,13 @@ import { InfoProvider } from "./InfoProvider";
 /**
  * Helper function to render nested string as HTML
  */
-function nestedStringHtml(infoProvider: InfoProvider, node: NestedString): string {
-    const hasChildren = node.children && node.children.length > 0;
+function childrenHtml(infoProvider: InfoProvider, children: NestedString[] | undefined, labelText: string): string {
+    const hasChildren = children && children.length > 0;
     const toggleable = hasChildren ? "toggleable" : "";
     const labelclass = hasChildren ? " has-children" : " primitive";
-    const keyText = node.key ? node.key + ": " : "";
-    // const labelText = escapeHtml(keyText + node.text);
-    const labelText = keyText + renderText(infoProvider, escapeHtml(node.text));
 
     const childrenHtml = hasChildren
-        ? `<div class="children">${node.children!.map((child) => nestedStringHtml(infoProvider, child)).join("")}</div>`
+        ? `<div class="children">${children!.map((child) => nestedStringHtml(infoProvider, child)).join("")}</div>`
         : "";
 
     const html = `
@@ -26,6 +23,12 @@ function nestedStringHtml(infoProvider: InfoProvider, node: NestedString): strin
         </div>
         `;
     return html;
+}
+
+function nestedStringHtml(infoProvider: InfoProvider, node: NestedString): string {
+    const keyText = node.key ? node.key + ": " : "";
+    const labelText = keyText + renderText(infoProvider, escapeHtml(node.text));
+    return childrenHtml(infoProvider, node.children, labelText);
 }
 
 /**
@@ -38,8 +41,14 @@ function renderText(infoProvider: InfoProvider, text: string): string {
         if (parts.length === 0) {
             return match; // Return original if empty
         }
-        const kvarApp = { kvar: parts[0], args: parts.slice(1) };
-        return infoProvider.renderKvarApp(kvarApp);
+        const app = { kvar: parts[0], args: parts.slice(1) };
+        const expanded = infoProvider.renderKvarApp(app);
+        const raw = `${app.kvar}(${app.args.join(", ")})`;
+        if (expanded !== null) {
+            return childrenHtml(infoProvider, [{ text: expanded }], raw);
+        } else {
+            return raw;
+        }
     });
 }
 

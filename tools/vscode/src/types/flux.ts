@@ -43,11 +43,11 @@ export type KvarApp = {
 };
 
 // The `body` should be an escaped-string ...
-export type Assignment = { name: Kvar; args: string[]; body: string };
+export type Assignment = { args: string[]; body: string };
 
 export type KvarSol = {
     span: StmtSpan;
-    asgn: Assignment[];
+    asgn: Map<Kvar, Assignment>;
 };
 
 export type DefId = { file: string; index: number };

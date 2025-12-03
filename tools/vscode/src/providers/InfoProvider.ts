@@ -6,6 +6,7 @@ import type {
     CheckMode,
     FluxDef,
     FluxDefs,
+    KvarApp,
     KvarDefs,
     LineInfo,
     LineMap,
@@ -107,9 +108,22 @@ export class InfoProvider {
     /**
      * Helper function to render KvarApp
      */
-    public renderKvarApp(app: { kvar: string; args: string[] }): string {
-        const raw = `${app.kvar}(|${app.args.join(", ")}|)`;
-        return `<span class="kvar-app" title="donald-mouse"><b>${raw}</b></span>`;
+    public renderKvarApp(app: KvarApp): string | null {
+        const file = this.currentFile;
+        const line = this.currentLine;
+        const kvarDefs = file && this._kvarDefs.get(file);
+        const kvarSol = kvarDefs && kvarDefs.get(line);
+        const asgn = kvarSol && kvarSol.asgn.get(app.kvar);
+        if (asgn) {
+            let body = asgn.body;
+            asgn.args.forEach((param, i) => {
+                const value = app.args[i];
+                body = body.replaceAll(param, value);
+            });
+            return body;
+        } else {
+            return null;
+        }
     }
 
 

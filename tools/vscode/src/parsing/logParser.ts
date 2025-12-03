@@ -4,6 +4,7 @@ import type {
     Assignment,
     FluxDef,
     FluxDefs,
+    Kvar,
     KvarDefs,
     KvarSol,
     LineInfo,
@@ -209,8 +210,8 @@ function parseKvarSol(event: any): KvarSol | undefined {
         if (event.fields.event === "solution") {
             const stmt_span = parseStatementSpanJSON(event.fields.span);
             const raw_asgn = JSON.parse(event.fields.solution);
-            let asgn: Assignment[] = raw_asgn.map((b: any) => ({ name: b.name, args: b.args, body: b.body.text }));
-            return { span: stmt_span!, asgn: asgn };
+            const asgn: [Kvar, Assignment][] = raw_asgn.map((b: any) => ([b.name, { args: b.args, body: b.body.text }]));
+            return { span: stmt_span!, asgn: new Map(asgn) };
         }
     } catch (error) {
         console.log(`Failed to parse event: ${error}`);
