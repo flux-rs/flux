@@ -730,7 +730,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 genv,
                 |def_id| (self.providers.assoc_refinements_of)(genv, def_id),
                 |def_id| genv.cstore().assoc_refinements_of(def_id),
-                |_| Ok(rty::AssocRefinements::default()),
+                |def_id| Ok(genv.builtin_assoc_refts(def_id).unwrap_or_default()),
             )
         })
     }
@@ -788,10 +788,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |assoc_id| (self.providers.sort_of_assoc_reft)(genv, assoc_id),
                 |assoc_id| genv.cstore().sort_of_assoc_reft(assoc_id),
                 |assoc_id| {
-                    Err(query_bug!(
-                        assoc_id.parent(),
-                        "cannot generate default sort for assoc refinement in extern crate"
-                    ))
+                    genv.builtin_assoc_reft_sort(assoc_id).ok_or_else(|| {
+                        query_bug!(
+                            assoc_id.parent(),
+                            "assoc refinement on extern crate is not builtin"
+                        )
+                    })
                 },
             )
         })

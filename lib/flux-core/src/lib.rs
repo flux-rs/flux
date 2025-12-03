@@ -6,6 +6,9 @@ mod iter;
 mod ops;
 
 #[cfg(flux)]
+mod mem;
+
+#[cfg(flux)]
 mod option;
 
 #[cfg(flux)]
