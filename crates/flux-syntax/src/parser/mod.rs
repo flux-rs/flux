@@ -23,7 +23,7 @@ use crate::{
         ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
         RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
         TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
-        WhereBoundPredicate, free_vars,
+        WhereBoundPredicate,
     },
     symbols::{kw, sym},
     token::{self, Comma, Delimiter::*, IdentIsRaw, Or, Token, TokenKind},
@@ -462,25 +462,6 @@ fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
     }
 }
 
-fn insert_param(
-    cx: &mut ParseCtxt,
-    params: &mut Vec<RefineParam>,
-    ident: Ident,
-) -> ParseResult<()> {
-    if params.iter().any(|p| p.ident.name == ident.name) {
-        return Ok(());
-    }
-    let param = RefineParam {
-        ident,
-        sort: Sort::Infer,
-        mode: None,
-        span: ident.span,
-        node_id: cx.next_node_id(),
-    };
-    params.push(param);
-    Ok(())
-}
-
 /// ```text
 /// ⟨qualifier⟩ :=  ⟨ qualifier_kind ⟩?
 ///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
@@ -496,9 +477,20 @@ fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let hi = cx.hi();
 
     if let QualifierKind::Hint = kind {
-        for ident in free_vars(&expr) {
-            insert_param(cx, &mut params, ident)?;
+        let mut fvars = expr.free_vars();
+        for param in &params {
+            fvars.remove(&param.ident);
         }
+        params.extend(fvars.into_iter().map(|ident| {
+            RefineParam {
+                ident,
+                sort: Sort::Infer,
+                mode: None,
+                span: ident.span,
+                node_id: cx.next_node_id(),
+            }
+        }));
+
         let span = name.span;
         let str = format!("{}_{}_{}", name.name.to_ident_string(), span.lo().0, span.hi().0);
         name = Ident { name: Symbol::intern(&str), ..name };

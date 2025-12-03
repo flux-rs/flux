@@ -881,27 +881,29 @@ impl<T, P> Punctuated<T, P> {
     }
 }
 
-/// Collects all free variables in an expression.
-/// A free variable is an `ExprKind::Path` with a single identifier segment.
-pub fn free_vars(expr: &Expr) -> FxHashSet<Ident> {
-    struct FreeVarsVisitor {
-        vars: FxHashSet<Ident>,
-    }
-
-    impl visit::Visitor for FreeVarsVisitor {
-        fn visit_expr(&mut self, expr: &Expr) {
-            if let ExprKind::Path(path) = &expr.kind {
-                // Only collect paths with a single segment
-                if let [segment] = path.segments.as_slice() {
-                    self.vars.insert(segment.ident);
-                }
-            }
-            // Continue visiting child expressions
-            visit::walk_expr(self, expr);
+impl Expr {
+    /// Collects all free variables in an expression.
+    /// A free variable is an `ExprKind::Path` with a single identifier segment.
+    pub fn free_vars(&self) -> FxHashSet<Ident> {
+        struct FreeVarsVisitor {
+            vars: FxHashSet<Ident>,
         }
-    }
 
-    let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
-    visitor.visit_expr(expr);
-    visitor.vars
+        impl visit::Visitor for FreeVarsVisitor {
+            fn visit_expr(&mut self, expr: &Expr) {
+                if let ExprKind::Path(path) = &expr.kind {
+                    // Only collect paths with a single segment
+                    if let [segment] = path.segments.as_slice() {
+                        self.vars.insert(segment.ident);
+                    }
+                }
+                // Continue visiting child expressions
+                visit::walk_expr(self, expr);
+            }
+        }
+
+        let mut visitor = FreeVarsVisitor { vars: FxHashSet::default() };
+        visitor.visit_expr(self);
+        visitor.vars
+    }
 }
