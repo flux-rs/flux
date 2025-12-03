@@ -90,11 +90,17 @@
 <a href=#90 id=90 data-nosnippet>90</a>    }
 <a href=#91 id=91 data-nosnippet>91</a>}
 <a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>BigInt {
-<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#95 id=95 data-nosnippet>95</a>        <span class="kw">match </span><span class="self">self</span>.sign {
-<a href=#96 id=96 data-nosnippet>96</a>            Sign::NonNegative =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.val),
-<a href=#97 id=97 data-nosnippet>97</a>            Sign::Negative =&gt; <span class="macro">write!</span>(f, <span class="string">"-{}"</span>, <span class="self">self</span>.val),
-<a href=#98 id=98 data-nosnippet>98</a>        }
-<a href=#99 id=99 data-nosnippet>99</a>    }
-<a href=#100 id=100 data-nosnippet>100</a>}</code></pre></div></section></main></body></html>
+<a href=#93 id=93 data-nosnippet>93</a><span class="kw">impl </span>From&lt;u64&gt; <span class="kw">for </span>BigInt {
+<a href=#94 id=94 data-nosnippet>94</a>    <span class="kw">fn </span>from(val: u64) -&gt; <span class="self">Self </span>{
+<a href=#95 id=95 data-nosnippet>95</a>        BigInt { sign: Sign::NonNegative, val: val <span class="kw">as </span>u128 }
+<a href=#96 id=96 data-nosnippet>96</a>    }
+<a href=#97 id=97 data-nosnippet>97</a>}
+<a href=#98 id=98 data-nosnippet>98</a>
+<a href=#99 id=99 data-nosnippet>99</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>BigInt {
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="kw">match </span><span class="self">self</span>.sign {
+<a href=#102 id=102 data-nosnippet>102</a>            Sign::NonNegative =&gt; <span class="macro">write!</span>(f, <span class="string">"{}"</span>, <span class="self">self</span>.val),
+<a href=#103 id=103 data-nosnippet>103</a>            Sign::Negative =&gt; <span class="macro">write!</span>(f, <span class="string">"-{}"</span>, <span class="self">self</span>.val),
+<a href=#104 id=104 data-nosnippet>104</a>        }
+<a href=#105 id=105 data-nosnippet>105</a>    }
+<a href=#106 id=106 data-nosnippet>106</a>}</code></pre></div></section></main></body></html>
