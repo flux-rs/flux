@@ -73,3 +73,17 @@ Flux View Panel: shows the types and environments known at each program point
 Diagnostics Panel: shows the full flux error message when you click on a diagnostic in the editor
 
 ![Diagnostics Panel](static/flux_diagnostic.jpg)
+
+## Directory Structure
+
+```
+src/
+├── commands/         # Command registrations
+├── diagnostics/      # Diagnostic conversion & rendering
+├── parsing/          # Event & log parsing
+├── providers/        # VS Code providers (Info, View, Definition)
+├── setup/            # Setup utilities (file watcher, event listeners)
+├── types/            # TypeScript type definitions
+├── utils/            # Utility functions
+└── extension.ts      # Clean activation orchestration
+```

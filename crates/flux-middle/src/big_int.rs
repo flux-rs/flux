@@ -90,6 +90,12 @@ impl From<u32> for BigInt {
     }
 }
 
+impl From<u64> for BigInt {
+    fn from(val: u64) -> Self {
+        BigInt { sign: Sign::NonNegative, val: val as u128 }
+    }
+}
+
 impl fmt::Display for BigInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.sign {

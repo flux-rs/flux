@@ -99,6 +99,19 @@ macro_rules! _basic_block_start {
 pub use crate::_basic_block_start as basic_block_start;
 
 #[macro_export]
+macro_rules! _solution {
+    ($genv:expr, $sol:expr, $span:expr) => {{
+        if config::dump_checker_trace_info() {
+          let genv = $genv;
+          let sol_json = SolutionTrace::new(genv, $sol);
+          let span_json = SpanTrace::new(genv.tcx(), $span);
+          tracing::info!(event = "solution", span = ?span_json, solution = ?sol_json)
+        }
+    }};
+}
+pub use crate::_solution as solution;
+
+#[macro_export]
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
         if config::dump_checker_trace_info() {

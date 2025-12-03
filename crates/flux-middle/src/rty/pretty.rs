@@ -745,7 +745,7 @@ impl PrettyNested for GenericArg {
                 if ctor.vars().len() == 1 && inner.pred.is_trivially_true() && inner.idx.is_nu() {
                     inner.bty.fmt_nested(cx)
                 } else {
-                    nested_with_bound_vars(cx, "λ", ctor.vars(), None, |prefix| {
+                    cx.nested_with_bound_vars("λ", ctor.vars(), None, |prefix| {
                         let ctor_d = ctor.skip_binder_ref().fmt_nested(cx)?;
                         let text = format!("{}{}", prefix, ctor_d.text);
                         Ok(NestedString { text, children: ctor_d.children, key: None })
@@ -851,23 +851,6 @@ impl PrettyNested for BaseTy {
     }
 }
 
-pub fn nested_with_bound_vars(
-    cx: &PrettyCx,
-    left: &str,
-    vars: &[BoundVariableKind],
-    right: Option<String>,
-    f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
-) -> Result<NestedString, fmt::Error> {
-    let mut buffer = String::new();
-    cx.with_bound_vars(vars, || {
-        if !vars.is_empty() {
-            let right = right.unwrap_or(". ".to_string());
-            cx.fmt_bound_vars(false, left, vars, &right, &mut buffer)?;
-        }
-        f(buffer)
-    })
-}
-
 impl PrettyNested for Ty {
     fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
         match self.kind() {
@@ -891,7 +874,7 @@ impl PrettyNested for Ty {
                 {
                     bty.fmt_nested(cx)
                 } else {
-                    nested_with_bound_vars(cx, "∃", ty_ctor.vars(), None, |exi_str| {
+                    cx.nested_with_bound_vars("∃", ty_ctor.vars(), None, |exi_str| {
                         let ty_ctor_d = ty_ctor.skip_binder_ref().fmt_nested(cx)?;
                         let text = format!("{}{}", exi_str, ty_ctor_d.text);
                         Ok(NestedString { text, children: ty_ctor_d.children, key: None })
