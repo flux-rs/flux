@@ -3,7 +3,7 @@ mod utils;
 use std::{collections::HashSet, str::FromStr, vec};
 
 use lookahead::{AnyLit, LAngle, NonReserved, RAngle};
-use rustc_span::sym::Output;
+use rustc_span::{Symbol, sym::Output};
 use utils::{
     angle, braces, brackets, delimited, opt_angle, parens, punctuated_until,
     punctuated_with_trailing, repeat_while, sep1, until,
@@ -20,8 +20,8 @@ use crate::{
         DetachedTraitImpl, Ensures, EnumDef, Expr, ExprKind, ExprPath, ExprPathSegment, FieldExpr,
         FluxItem, FnInput, FnOutput, FnRetTy, FnSig, GenericArg, GenericArgKind, GenericBounds,
         GenericParam, Generics, Ident, ImplAssocReft, Indices, LetDecl, LitKind, Mutability,
-        ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QuantKind, RefineArg, RefineParam,
-        RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
+        ParamMode, Path, PathSegment, PrimOpProp, Qualifier, QualifierKind, QuantKind, RefineArg,
+        RefineParam, RefineParams, Requires, Sort, SortDecl, SortPath, SpecFunc, Spread, StructDef,
         TraitAssocReft, TraitRef, Trusted, Ty, TyAlias, TyKind, UnOp, VariantDef, VariantRet,
         WhereBoundPredicate,
     },
@@ -158,7 +158,10 @@ fn parse_flux_item(cx: &mut ParseCtxt) -> ParseResult<FluxItem> {
     let mut lookahead = cx.lookahead1();
     if lookahead.peek(token::Pound) || lookahead.peek(kw::Fn) {
         parse_reft_func(cx).map(FluxItem::FuncDef)
-    } else if lookahead.peek(kw::Local) || lookahead.peek(kw::Qualifier) {
+    } else if lookahead.peek(kw::Local)
+        || lookahead.peek(kw::Invariant)
+        || lookahead.peek(kw::Qualifier)
+    {
         parse_qualifier(cx).map(FluxItem::Qualifier)
     } else if lookahead.peek(kw::Opaque) {
         parse_sort_decl(cx).map(FluxItem::SortDecl)
@@ -445,19 +448,55 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
 }
 
 /// ```text
-/// ⟨qualifier⟩ :=  ⟨ local ⟩?
+/// ⟨qualifier_kind⟩ :=  local
+///                   |  invariant
+/// ```
+fn parse_qualifier_kind(cx: &mut ParseCtxt) -> ParseResult<QualifierKind> {
+    let mut lookahead = cx.lookahead1();
+    if lookahead.advance_if(kw::Local) {
+        Ok(QualifierKind::Local)
+    } else if lookahead.advance_if(kw::Invariant) {
+        Ok(QualifierKind::Hint)
+    } else {
+        Ok(QualifierKind::Global)
+    }
+}
+
+/// ```text
+/// ⟨qualifier⟩ :=  ⟨ qualifier_kind ⟩?
 ///                 qualifier ⟨ident⟩ ( ⟨refine_param⟩,* )
 ///                 ⟨block⟩
 /// ```
 fn parse_qualifier(cx: &mut ParseCtxt) -> ParseResult<Qualifier> {
     let lo = cx.lo();
-    let local = cx.advance_if(kw::Local);
+    let kind = parse_qualifier_kind(cx)?;
     cx.expect(kw::Qualifier)?;
-    let name = parse_ident(cx)?;
-    let params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
+    let mut name = parse_ident(cx)?;
+    let mut params = parens(cx, Comma, |cx| parse_refine_param(cx, RequireSort::Yes))?;
     let expr = parse_block(cx)?;
     let hi = cx.hi();
-    Ok(Qualifier { global: !local, name, params, expr, span: cx.mk_span(lo, hi) })
+
+    if let QualifierKind::Hint = kind {
+        let mut fvars = expr.free_vars();
+        for param in &params {
+            fvars.remove(&param.ident);
+        }
+        params.extend(fvars.into_iter().map(|ident| {
+            RefineParam {
+                ident,
+                sort: Sort::Infer,
+                mode: None,
+                span: ident.span,
+                node_id: cx.next_node_id(),
+            }
+        }));
+
+        let span = name.span;
+        let str = format!("{}_{}_{}", name.name.to_ident_string(), span.lo().0, span.hi().0);
+        name = Ident { name: Symbol::intern(&str), ..name };
+    }
+
+    Ok(Qualifier { name, params, expr, span: cx.mk_span(lo, hi), kind })
 }
 
 /// ```text

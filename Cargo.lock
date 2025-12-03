@@ -684,6 +684,7 @@ version = "0.1.0"
 dependencies = [
  "flux-config",
  "flux-macros",
+ "rustc-hash",
 ]
 
 [[package]]

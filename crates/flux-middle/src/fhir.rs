@@ -40,7 +40,10 @@ pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
-use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
+use crate::{
+    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    rty::QualifierKind,
+};
 
 pub enum Attr {
     Trusted(Trusted),
@@ -127,7 +130,7 @@ pub struct Qualifier<'fhir> {
     pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
     pub expr: Expr<'fhir>,
-    pub global: bool,
+    pub kind: QualifierKind,
 }
 
 #[derive(Clone, Copy, Debug)]
