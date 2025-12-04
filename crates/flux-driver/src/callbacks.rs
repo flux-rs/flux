@@ -1,4 +1,4 @@
-use std::{fs::create_dir_all, io, path::Path};
+use std::{fs::create_dir_all, io::{self, Write}, path::Path};
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
@@ -112,9 +112,9 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         println!("-----------------------");
         println!("Starting solution loop.");
 
-        let (solution, errors) =
+        let (solution, errors, user_interactions) =
             match flux_infer::wkvars::iterative_solve(genv, ck.constraints, 100, |local_id, errors| {let _ = report_fixpoint_errors(genv, local_id, errors);}) {
-                Ok((solution, errors)) => (solution, errors),
+                Ok(outputs) => outputs,
                 Err(e) => panic!("Encountered error {:?}", e),
             };
 
@@ -130,6 +130,15 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             genv,
             &config::log_dir().join(format!("{}-wkvar-solve-stats.csv", crate_name)),
         ).unwrap();
+        if config::save_user_interactions() {
+            let current_timestamp = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_millis();
+            let filename = format!("{}-{}.userinputs", crate_name, current_timestamp);
+            let file = std::fs::File::create(config::log_dir().join(filename).as_path()).unwrap();
+            let mut writer = std::io::BufWriter::new(file);
+            writer.write_all(user_interactions.into_iter().join("\n").as_bytes()).unwrap();
+            writer.write("\n".as_bytes()).unwrap();
+            writer.flush().unwrap();
+        }
         // println!("Solutions:");
         // let mut total_solved = 0;
         // let mut total_assumed = 0;

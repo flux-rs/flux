@@ -118,6 +118,14 @@ pub fn full_compilation() -> bool {
     FLAGS.full_compilation
 }
 
+pub fn save_user_interactions() -> bool {
+    FLAGS.save_user_interactions
+}
+
+pub fn user_interactions_file() -> Option<&'static PathBuf> {
+    FLAGS.user_interactions_file.as_ref()
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(try_from = "String")]
 pub struct Pos {

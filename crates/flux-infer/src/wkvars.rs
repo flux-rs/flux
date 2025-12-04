@@ -648,7 +648,7 @@ impl WKVarSolutions {
         Ok(())
     }
 
-    fn prompt_user(&mut self, genv: GlobalEnv) -> bool {
+    fn prompt_user(&mut self, genv: GlobalEnv, prev_interactions: &mut Vec<String>, file_read_user_interactions: &mut Option<Vec<String>>) -> bool {
         enum InteractionKind {
             AddGroundTruth(rty::Binder<rty::Expr>),
             RemoveSolution(rty::Expr),
@@ -683,14 +683,18 @@ impl WKVarSolutions {
         };
         let fn_pretty_cx = pretty::PrettyCx::default(genv).hide_regions(true);
         for (fn_def_id, kvids) in wkvars_by_fn.iter() {
-            let fn_name = genv.tcx().def_path_str(fn_def_id);
-            println!("fn {}", fn_name);
-            let fn_sig = genv.fn_sig(fn_def_id).unwrap();
-            let solved_fn_sig = rty::EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
-            println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
+            if file_read_user_interactions.is_none() {
+                let fn_name = genv.tcx().def_path_str(fn_def_id);
+                println!("fn {}", fn_name);
+                let fn_sig = genv.fn_sig(fn_def_id).unwrap();
+                let solved_fn_sig = rty::EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
+                println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
+            }
             for kvid in kvids {
                 let wkvid = (*fn_def_id, *kvid);
-                println!("  $wk{}", kvid.as_u32());
+                if file_read_user_interactions.is_none() {
+                    println!("  $wk{}", kvid.as_u32());
+                }
                 let solution = &self.solutions[&wkvid];
                 let ground_truth_exprs = solution.actual_exprs.iter()
                                                         .filter(|expr| !expr.skip_binder_ref().is_trivially_true()
@@ -703,10 +707,14 @@ impl WKVarSolutions {
                                                         .cloned()
                                                         .collect_vec();
                 if !ground_truth_exprs.is_empty() {
-                    println!("    Add a ground truth solution?");
+                    if file_read_user_interactions.is_none() {
+                        println!("    Add a ground truth solution?");
+                    }
                     for expr in ground_truth_exprs {
                         let id = format!("g{}", id_prefix.next().unwrap());
-                        println!("    [{}] {:?}", id, &expr);
+                        if file_read_user_interactions.is_none() {
+                            println!("    [{}] {:?}", id, &expr);
+                        }
                         let interaction = UserInteraction {
                             wkvid: (*fn_def_id, *kvid),
                             kind: InteractionKind::AddGroundTruth(expr),
@@ -715,14 +723,18 @@ impl WKVarSolutions {
                     }
                 }
                 if let Some(solved_exprs) = &solution.solved_exprs && !solved_exprs.skip_binder_ref().is_empty() {
-                    println!("    Remove an assumed solution?");
+                    if file_read_user_interactions.is_none() {
+                        println!("    Remove an assumed solution?");
+                    }
                     for expr in solved_exprs.skip_binder_ref() {
                         // Don't try to double remove
                         if solution.removed_solved_exprs.contains(expr) {
                             continue;
                         }
                         let id = format!("r{}", id_prefix.next().unwrap());
-                        println!("    [{}] {:?}", id, expr);
+                        if file_read_user_interactions.is_none() {
+                            println!("    [{}] {:?}", id, expr);
+                        }
                         let interaction = UserInteraction {
                             wkvid: (*fn_def_id, *kvid),
                             kind: InteractionKind::RemoveSolution(expr.clone()),
@@ -736,14 +748,25 @@ impl WKVarSolutions {
         let mut input = String::new();
         let mut user_inputs = vec![];
         while !input_ok {
-            println!("Enter your choices separated by commas");
+            if file_read_user_interactions.is_none() {
+                println!("Enter your choices separated by commas");
+            }
             input.clear();
-            std::io::stdin().read_line(&mut input).unwrap();
+            match file_read_user_interactions {
+                Some(interactions) => {
+                    // Read from the file
+                    // (will panic if the file doesn't have enough interactions)
+                    input = interactions.remove(0);
+                }
+                None => {
+                    std::io::stdin().read_line(&mut input).unwrap();
+                }
+            }
             if input.is_empty() || input == "\n" {
                 user_inputs = vec![];
                 break;
             }
-            match input.strip_suffix("\n").unwrap().split(",").map(|id| {
+            match input.trim_end_matches("\n").split(",").map(|id| {
                 interactions.get(id).ok_or_else(|| format!("Invalid ID: {}", id))
             }).try_collect() {
                 Ok(inputs) => {
@@ -753,6 +776,7 @@ impl WKVarSolutions {
                 Err(err) => println!("{}", err),
             }
         }
+        prev_interactions.push(input.trim_end_matches("\n").to_string());
 
         let mut any_interaction = false;
         for interaction in user_inputs {
@@ -788,7 +812,7 @@ pub fn iterative_solve<F>(
     cstrs: Constraints,
     max_iters: usize,
     report_errors: F,
-) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>)>
+) -> QueryResult<(WKVarSolutions, Vec<(LocalDefId, Vec<FixpointCheckError<Tag>>)>, Vec<String>)>
     where F: Fn(LocalDefId, Vec<FixpointCheckError<Tag>>)
 {
     let mut constraint_lhs_wkvars: FxIndexMap<LocalDefId, FxIndexSet<rty::WKVid>> =
@@ -820,6 +844,14 @@ pub fn iterative_solve<F>(
     let mut any_wkvar_change = true;
     let mut i = 1;
     let mut all_errors = Vec::new();
+    let mut user_interactions = Vec::new();
+    let mut file_read_user_interactions = if let Some(interactions_file) = flux_config::user_interactions_file() {
+        let interactions = std::fs::read_to_string(interactions_file.as_path()).unwrap().lines().map(|line| line.to_string()).collect_vec();
+        println!("Read user interactions from file:\n  {:?}", interactions);
+        Some(interactions)
+    } else {
+        None
+    };
     while any_wkvar_change && i <= max_iters {
         println!("iteration {} of {}", i, max_iters);
         any_wkvar_change = false;
@@ -923,7 +955,7 @@ pub fn iterative_solve<F>(
             for (local_id, err) in &all_errors {
                 report_errors(*local_id, err.clone());
             }
-            any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv);
+            any_wkvar_change = any_wkvar_change || new_solutions.prompt_user(genv, &mut user_interactions, &mut file_read_user_interactions);
         }
 
         // Now put the new solutions into the current solutions,
@@ -1022,7 +1054,7 @@ pub fn iterative_solve<F>(
         // }
         // i += 1;
     }
-    Ok((new_solutions, all_errors))
+    Ok((new_solutions, all_errors, user_interactions))
 }
 
 /// DEPRECATED: Solution candidates are now generated by doing qe and are no
