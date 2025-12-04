@@ -327,7 +327,6 @@ impl<T: Refine> Refine for ty::Binder<T> {
 impl Refine for ty::FnSig {
     type Output = rty::FnSig;
 
-    // TODO(auto-strong)
     // TODO(hof2)
     fn refine(&self, refiner: &Refiner) -> QueryResult<rty::FnSig> {
         let inputs = self
@@ -336,14 +335,6 @@ impl Refine for ty::FnSig {
             .map(|ty| ty.refine(refiner))
             .try_collect()?;
         let output = self.output();
-        let out_has_lifetime = output.has_lifetimes();
-        println!("TRACE: refine fn_sig: {self:?} => {out_has_lifetime}");
-        let mut ensures = vec![];
-        if !out_has_lifetime {
-            for (i, ty) in inputs.iter().enumerate() {
-                let loc = flux_rustc_bridge::mir::Local::from_usize(i + 1);
-            } 
-        }
         let ret = output.refine(refiner)?.shift_in_escaping(1);
         let output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
         // TODO(hof2) make a hoister to hoist all the stuff out of the inputs,
