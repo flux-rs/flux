@@ -624,8 +624,14 @@ fn can_auto_strong(fn_sig: &rty::PolyFnSig) -> bool {
 ///
 ///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
 
-fn auto_strong(fn_sig: rty::PolyFnSig) -> rty::PolyFnSig {
-    if !can_auto_strong(&fn_sig) {
+fn auto_strong(genv: GlobalEnv, local_id: LocalDefId, fn_sig: rty::PolyFnSig) -> rty::PolyFnSig {
+    // TODO(auto-strong): we only *really* need the first check `can_auto_strong` here.
+    // The other two skip `auto-strong` as doing it breaks various downstream things
+    // that should be fixed.
+    if !can_auto_strong(&fn_sig)
+        || matches!(genv.tcx().def_kind(local_id), DefKind::Closure)
+        || !fn_sig.skip_binder_ref().lifted
+    {
         return fn_sig;
     }
     let kind = rty::BoundReftKind::Anon;
@@ -678,7 +684,9 @@ fn auto_strong(fn_sig: rty::PolyFnSig) -> rty::PolyFnSig {
 
     // 4. Reconstruct fn sig with new inputs and output and vars
     let fn_sig = rty::FnSig { inputs: rty::List::from_vec(strg_inputs), output, ..fn_sig };
-    Binder::bind_with_vars(fn_sig, vars.into())
+    let res = Binder::bind_with_vars(fn_sig, vars.into());
+    println!("TRACE: auto-strong: transformed fn sig for {:?}:\n{:?}", local_id, res);
+    res
 }
 
 fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
@@ -707,7 +715,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 )
                 .unwrap();
             }
-            Ok(rty::EarlyBinder(auto_strong(fn_sig)))
+            Ok(rty::EarlyBinder(auto_strong(genv, def_id.local_id(), fn_sig)))
         }
         fhir::Node::Ctor => {
             let tcx = genv.tcx();

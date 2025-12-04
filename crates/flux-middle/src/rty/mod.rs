@@ -690,7 +690,7 @@ impl FnTraitPredicate {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
         let ret = self.output.clone().shift_in_escaping(1);
         let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output)
+        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output, false)
     }
 }
 
@@ -738,9 +738,10 @@ pub fn to_closure_sig(
     let fn_sig = crate::rty::FnSig::new(
         fn_sig.safety,
         fn_sig.abi,
-        fn_sig.requires.clone(), // crate::rty::List::empty(),
+        fn_sig.requires.clone(),
         inputs.into(),
         output,
+        false,
     );
 
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
@@ -1377,6 +1378,8 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
+    /// was this auto-lifted (or from a spec)
+    pub lifted: bool,
 }
 
 #[derive(
@@ -2527,7 +2530,14 @@ impl CoroutineObligPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::bind_with_vars(
-            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output),
+            FnSig::new(
+                Safety::Safe,
+                rustc_abi::ExternAbi::RustCall,
+                List::empty(),
+                inputs,
+                output,
+                false,
+            ),
             List::from(vars),
         )
     }
@@ -2649,8 +2659,9 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
+        lifted: bool,
     ) -> Self {
-        FnSig { safety, abi, requires, inputs, output }
+        FnSig { safety, abi, requires, inputs, output, lifted }
     }
 
     pub fn requires(&self) -> &[Expr] {
@@ -2771,6 +2782,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
+                    false,
                 )
             })
         })
