@@ -466,7 +466,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, false);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 

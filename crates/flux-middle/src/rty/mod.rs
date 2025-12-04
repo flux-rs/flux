@@ -2774,7 +2774,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
-                    false,
+                    true
                 )
             })
         })

@@ -1235,7 +1235,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     &[],
                 ));
                 let fn_sig =
-                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl, None)?;
+                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl, None, )?;
                 let vars = bare_fn
                     .generic_params
                     .iter()
