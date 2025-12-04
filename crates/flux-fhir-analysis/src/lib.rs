@@ -607,14 +607,22 @@ fn can_auto_strong(fn_sig: &rty::PolyFnSig) -> bool {
     !detector.has_region
 }
 
-// SRC
-// fn (x: &mut InnerTy) -> bool
-//
-// RTY
-// forall<>. fn (x: &mut InnerTy) -> bool
-//
-// Transform to
-// forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
+/// The [`auto_strong`] function transforms function signatures by automatically converting
+/// mutable reference parameters into strong references with associated ensures clauses. This
+/// transformation is applied only when the function signature does not already contain region
+/// variables in its return type.
+///
+/// Specifically, given a source function of type
+///
+///    fn (x: &mut InnerTy) -> bool
+///
+/// By default the above gives us an `rty::FnSig`
+///
+///    forall<>. fn (x: &mut InnerTy) -> bool
+///
+/// Which this function then transforms to
+///
+///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
 
 fn auto_strong(fn_sig: rty::PolyFnSig) -> rty::PolyFnSig {
     if !can_auto_strong(&fn_sig) {
@@ -632,6 +640,8 @@ fn auto_strong(fn_sig: rty::PolyFnSig) -> rty::PolyFnSig {
         let strg_ty =
             if let rty::TyKind::Indexed(rty::BaseTy::Ref(re, inner_ty, rty::Mutability::Mut), _) =
                 ty.kind()
+                && !inner_ty.is_slice()
+            // do not auto-strong slices
             {
                 // if input is &mut InnerTy create a new bound var `loc` for the strong location
                 let var = {
