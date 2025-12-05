@@ -3121,7 +3121,6 @@ fn can_auto_strong(fn_sig: &PolyFnSig) -> bool {
 /// Which this function then transforms to
 ///
 ///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
-
 pub fn auto_strong(
     genv: GlobalEnv,
     def_id: impl IntoQueryParam<DefId>,
@@ -3174,7 +3173,7 @@ pub fn auto_strong(
         for (var, inner_ty) in strg_bvars {
             let loc = Loc::Var(Var::Bound(INNERMOST.shifted_in(1), BoundReft { var, kind }));
             let path = Path::new(loc, List::empty());
-            ens.push(Ensures::Type(path, inner_ty.shift_in_escaping(1)))
+            ens.push(Ensures::Type(path, inner_ty.shift_in_escaping(1)));
         }
         FnOutput { ensures: List::from_vec(ens), ..out }
     });
