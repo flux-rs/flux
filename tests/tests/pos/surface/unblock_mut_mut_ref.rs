@@ -1,8 +1,17 @@
 use flux_rs::*;
 
+static mut DEBUG_QUEUE: Option<&'static mut DebugWrapper> = None;
+
+pub struct DebugWrapper;
+
+pub unsafe fn set_debug_queue(buffer: &'static mut DebugWrapper) {
+    unsafe {
+        DEBUG_QUEUE = Some(buffer);
+    }
+}
+
 mod bob {
-    // TODO(auto-strong) fn test00<T>(x: T) {}
-    fn test00<T>(x: &mut T) {}
+    fn test00<T>(x: T) {}
 
     #[flux::sig(fn(x: &mut i32) ensures x: i32)]
     fn test01_simple(x: &mut i32) {
@@ -12,8 +21,9 @@ mod bob {
 
 mod poly {
 
-    // TODO(auto-strong) fn test00<T>(x: T, f: impl FnOnce(&mut T)) {}
-    fn test00<T>(x: &mut T, f: impl FnOnce(&mut &mut T)) {}
+    // TODO(auto-strong)
+    // fn test00<T>(x: &mut T, f: impl FnOnce(&mut &mut T)) {}
+    fn test00<T>(x: T, f: impl FnOnce(&mut T)) {}
 
     #[flux::sig(fn(x: &mut i32) ensures x: i32)]
     fn test01(x: &mut i32) {

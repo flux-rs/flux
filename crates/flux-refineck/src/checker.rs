@@ -571,7 +571,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
-        let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+        // let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
 
@@ -933,8 +933,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
+        let fn_sig = fn_sig.instantiate(tcx, &generic_args, &early_refine_args);
         let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
         let fn_sig = fn_sig

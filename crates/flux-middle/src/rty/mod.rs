@@ -47,10 +47,13 @@ use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::Un
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
-use rustc_middle::ty::{TyCtxt, fast_reject::SimplifiedType};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
+};
+use rustc_middle::{
+    query::IntoQueryParam,
+    ty::{TyCtxt, fast_reject::SimplifiedType},
 };
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
@@ -3119,12 +3122,16 @@ fn can_auto_strong(fn_sig: &PolyFnSig) -> bool {
 ///
 ///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
 
-pub fn auto_strong(genv: GlobalEnv, local_id: LocalDefId, fn_sig: PolyFnSig) -> PolyFnSig {
+pub fn auto_strong(
+    genv: GlobalEnv,
+    def_id: impl IntoQueryParam<DefId>,
+    fn_sig: PolyFnSig,
+) -> PolyFnSig {
     // TODO(auto-strong): we only *really* need the first check `can_auto_strong` here.
     // The other two skip `auto-strong` as doing it breaks various downstream things
     // that should be fixed.
     if !can_auto_strong(&fn_sig)
-        || matches!(genv.tcx().def_kind(local_id), rustc_hir::def::DefKind::Closure)
+        || matches!(genv.def_kind(def_id), rustc_hir::def::DefKind::Closure)
         || !fn_sig.skip_binder_ref().lifted
     {
         return fn_sig;
@@ -3140,8 +3147,7 @@ pub fn auto_strong(genv: GlobalEnv, local_id: LocalDefId, fn_sig: PolyFnSig) -> 
     for ty in &fn_sig.inputs {
         let strg_ty = if let TyKind::Indexed(BaseTy::Ref(re, inner_ty, Mutability::Mut), _) =
             ty.kind()
-            && !inner_ty.is_slice()
-        // do not auto-strong slices
+        //    && !inner_ty.is_slice() do not auto-strong slices
         {
             // if input is &mut InnerTy create a new bound var `loc` for the strong location
             let var = {

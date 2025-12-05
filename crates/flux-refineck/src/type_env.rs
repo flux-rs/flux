@@ -404,7 +404,15 @@ impl<'a> TypeEnv<'a> {
         for constraint in ensures {
             match constraint {
                 Ensures::Type(path, ty) => {
-                    let actual_ty = self.get(path);
+                    let actual_ty = self.get(path).unblocked();
+                    // // TODO(auto-strong): unblock here if needed
+                    // let actual_ty = actual_ty.if let TyKind::Blocked(_) = actual_ty.kind() {
+                    //     actual_ty.unblocked() // self.unblock(infcx, place);
+                    // //     todo!("unblock here")
+                    // } else {
+                    //     actual_ty
+                    // };
+
                     at.subtyping(&actual_ty, ty, reason)?;
                 }
                 Ensures::Pred(e) => {
