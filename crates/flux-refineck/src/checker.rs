@@ -168,6 +168,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
         dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
@@ -187,12 +188,13 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
+            // let poly_sig = genv
+            //     .fn_sig(local_id)
+            //     .with_span(span)?
+            //     .instantiate_identity();
+
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv
-                .fn_sig(local_id)
-                .with_span(span)?
-                .instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -207,6 +209,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
@@ -225,9 +228,9 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv.fn_sig(def_id).with_span(span)?;
-            let poly_sig = poly_sig.instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            // let poly_sig = genv.fn_sig(def_id).with_span(span)?;
+            // let poly_sig = poly_sig.instantiate_identity();
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(root_ctxt)
         })
@@ -571,7 +574,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
-        let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+        // (auto-strong-B) let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
 
