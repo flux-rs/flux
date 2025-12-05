@@ -2664,6 +2664,10 @@ impl FnSig {
         &self.inputs
     }
 
+    pub fn no_panic(&self) -> bool {
+        self.no_panic
+    }
+
     pub fn output(&self) -> Binder<FnOutput> {
         self.output.clone()
     }
