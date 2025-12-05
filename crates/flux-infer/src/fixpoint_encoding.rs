@@ -1168,7 +1168,7 @@ impl KVarGen {
         rty::Expr::kvar(kvar)
     }
 
-    pub fn make_all_single(&mut self) {
+    pub(crate) fn make_all_single(&mut self) {
         self.kvars
             .iter_mut()
             .for_each(|decl| decl.encoding = KVarEncoding::Single);
