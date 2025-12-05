@@ -580,6 +580,8 @@ impl WKVarSolutions {
         let mut writer = csv::Writer::from_path(path.as_path())?;
         let mut total = WKVarSolutionStats::default();
         let num_fns = stats_by_fn.len();
+        let mut latex_table = String::new();
+        latex_table.push_str("Function name & Inferences & Guided Assumptions & Guided Removals & Ground Truth Expressions \\\\\n");
         stats_by_fn.into_iter().try_for_each(|(fn_name, stats)| {
             total = total.combine(&stats);
             let row = CsvRow {
@@ -594,10 +596,12 @@ impl WKVarSolutions {
             println!("  num assumed: {}", row.num_assumed_exprs);
             println!("  num removed: {}", row.num_removed_solved_exprs);
             println!("  num actual:  {}", row.num_actual_exprs);
+            latex_table.push_str(&format!("{} & {} & {} & {} & {}\\\\\n", row.fn_name, row.num_solved_exprs, row.num_assumed_exprs, row.num_removed_solved_exprs, row.num_actual_exprs));
             writer.serialize(row)
-        });
+        })?;
         let num_wkvars = self.wkvars.len();
         let num_internal_wkvars = self.internal_wkvars.len();
+        latex_table.push_str(&format!("TOTAL & {} & {} & {} & {}", total.num_solved_exprs, total.num_assumed_exprs, total.num_removed_solved_exprs, total.num_actual_exprs));
         println!("SUMMARY");
         println!("  num fns:                    {}", num_fns);
         println!("  num total wkvars:           {}", num_wkvars);
@@ -635,6 +639,7 @@ impl WKVarSolutions {
             .map(|n| format!("{}", n))
             .join("\t")
         );
+        println!("LaTeX Table:\n{}", latex_table);
         let total_row = CsvRow {
             fn_name: "TOTAL".to_string(),
             num_solved_exprs: total.num_solved_exprs,
