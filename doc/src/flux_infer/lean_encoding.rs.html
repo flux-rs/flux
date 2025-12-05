@@ -475,62 +475,61 @@
 <a href=#475 id=475 data-nosnippet>475</a>    <span class="kw">fn </span>check_proof_help(<span class="kw-2">&amp;</span><span class="self">self</span>, theorem_name: <span class="kw-2">&amp;</span>str) -&gt; io::Result&lt;()&gt; {
 <a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">let </span>proof_name = <span class="macro">format!</span>(<span class="string">"{theorem_name}_proof"</span>);
 <a href=#477 id=477 data-nosnippet>477</a>        <span class="kw">let </span>project_path = <span class="self">self</span>.lean_path.join(<span class="self">self</span>.project_name.as_str());
-<a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">let </span>proof_path = project_path.join(<span class="macro">format!</span>(
+<a href=#478 id=478 data-nosnippet>478</a>        <span class="kw">let </span>proof_path = <span class="macro">format!</span>(
 <a href=#479 id=479 data-nosnippet>479</a>            <span class="string">"{}/{}.lean"</span>,
 <a href=#480 id=480 data-nosnippet>480</a>            <span class="self">Self</span>::snake_case_to_pascal_case(<span class="self">self</span>.project_name.as_str()),
 <a href=#481 id=481 data-nosnippet>481</a>            <span class="self">Self</span>::snake_case_to_pascal_case(proof_name.as_str())
-<a href=#482 id=482 data-nosnippet>482</a>        ));
+<a href=#482 id=482 data-nosnippet>482</a>        );
 <a href=#483 id=483 data-nosnippet>483</a>        <span class="kw">let </span>child = Command::new(<span class="string">"lake"</span>)
 <a href=#484 id=484 data-nosnippet>484</a>            .arg(<span class="string">"--quiet"</span>)
-<a href=#485 id=485 data-nosnippet>485</a>            .arg(<span class="string">"--dir"</span>)
-<a href=#486 id=486 data-nosnippet>486</a>            .arg(project_path.to_str().unwrap())
-<a href=#487 id=487 data-nosnippet>487</a>            .arg(<span class="string">"lean"</span>)
-<a href=#488 id=488 data-nosnippet>488</a>            .arg(proof_path.to_str().unwrap())
-<a href=#489 id=489 data-nosnippet>489</a>            .stdout(Stdio::piped())
-<a href=#490 id=490 data-nosnippet>490</a>            .stderr(Stdio::piped())
-<a href=#491 id=491 data-nosnippet>491</a>            .spawn()<span class="question-mark">?</span>;
-<a href=#492 id=492 data-nosnippet>492</a>        <span class="kw">let </span>out = child.wait_with_output()<span class="question-mark">?</span>;
-<a href=#493 id=493 data-nosnippet>493</a>        <span class="kw">if </span>out.stderr.is_empty() &amp;&amp; out.stdout.is_empty() {
-<a href=#494 id=494 data-nosnippet>494</a>            <span class="prelude-val">Ok</span>(())
-<a href=#495 id=495 data-nosnippet>495</a>        } <span class="kw">else </span>{
-<a href=#496 id=496 data-nosnippet>496</a>            <span class="kw">let </span>stderr = std::str::from_utf8(<span class="kw-2">&amp;</span>out.stderr)
-<a href=#497 id=497 data-nosnippet>497</a>                .unwrap_or(<span class="string">"Lean exited with a non-zero return code"</span>);
-<a href=#498 id=498 data-nosnippet>498</a>            <span class="prelude-val">Err</span>(io::Error::other(stderr))
-<a href=#499 id=499 data-nosnippet>499</a>        }
-<a href=#500 id=500 data-nosnippet>500</a>    }
-<a href=#501 id=501 data-nosnippet>501</a>
-<a href=#502 id=502 data-nosnippet>502</a>    <span class="kw">pub fn </span>check_proof(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: MaybeExternId) -&gt; QueryResult&lt;()&gt; {
-<a href=#503 id=503 data-nosnippet>503</a>        <span class="kw">let </span>theorem_name = <span class="self">self
-<a href=#504 id=504 data-nosnippet>504</a>            </span>.genv
-<a href=#505 id=505 data-nosnippet>505</a>            .tcx()
-<a href=#506 id=506 data-nosnippet>506</a>            .def_path(def_id.resolved_id())
-<a href=#507 id=507 data-nosnippet>507</a>            .to_filename_friendly_no_crate()
-<a href=#508 id=508 data-nosnippet>508</a>            .replace(<span class="string">"-"</span>, <span class="string">"_"</span>);
-<a href=#509 id=509 data-nosnippet>509</a>        <span class="self">self</span>.check_proof_help(theorem_name.as_str()).map_err(|<span class="kw">_</span>| {
-<a href=#510 id=510 data-nosnippet>510</a>            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"checking proof for {} failed"</span>, theorem_name.as_str());
-<a href=#511 id=511 data-nosnippet>511</a>            <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id.resolved_id());
-<a href=#512 id=512 data-nosnippet>512</a>            QueryErr::Emitted(
-<a href=#513 id=513 data-nosnippet>513</a>                <span class="self">self</span>.genv
-<a href=#514 id=514 data-nosnippet>514</a>                    .sess()
-<a href=#515 id=515 data-nosnippet>515</a>                    .dcx()
-<a href=#516 id=516 data-nosnippet>516</a>                    .handle()
-<a href=#517 id=517 data-nosnippet>517</a>                    .struct_span_err(span, msg)
-<a href=#518 id=518 data-nosnippet>518</a>                    .emit(),
-<a href=#519 id=519 data-nosnippet>519</a>            )
-<a href=#520 id=520 data-nosnippet>520</a>        })
-<a href=#521 id=521 data-nosnippet>521</a>    }
-<a href=#522 id=522 data-nosnippet>522</a>
-<a href=#523 id=523 data-nosnippet>523</a>    <span class="kw">fn </span>snake_case_to_pascal_case(snake: <span class="kw-2">&amp;</span>str) -&gt; String {
-<a href=#524 id=524 data-nosnippet>524</a>        snake
-<a href=#525 id=525 data-nosnippet>525</a>            .split(<span class="string">'_'</span>)
-<a href=#526 id=526 data-nosnippet>526</a>            .filter(|s| !s.is_empty()) <span class="comment">// skip empty segments (handles double underscores)
-<a href=#527 id=527 data-nosnippet>527</a>            </span>.map(|word| {
-<a href=#528 id=528 data-nosnippet>528</a>                <span class="kw">let </span><span class="kw-2">mut </span>chars = word.chars();
-<a href=#529 id=529 data-nosnippet>529</a>                <span class="kw">match </span>chars.next() {
-<a href=#530 id=530 data-nosnippet>530</a>                    <span class="prelude-val">Some</span>(first) =&gt; first.to_ascii_uppercase().to_string() + chars.as_str(),
-<a href=#531 id=531 data-nosnippet>531</a>                    <span class="prelude-val">None </span>=&gt; String::new(),
-<a href=#532 id=532 data-nosnippet>532</a>                }
-<a href=#533 id=533 data-nosnippet>533</a>            })
-<a href=#534 id=534 data-nosnippet>534</a>            .collect::&lt;String&gt;()
-<a href=#535 id=535 data-nosnippet>535</a>    }
-<a href=#536 id=536 data-nosnippet>536</a>}</code></pre></div></section></main></body></html>
+<a href=#485 id=485 data-nosnippet>485</a>            .arg(<span class="string">"lean"</span>)
+<a href=#486 id=486 data-nosnippet>486</a>            .arg(proof_path)
+<a href=#487 id=487 data-nosnippet>487</a>            .stdout(Stdio::piped())
+<a href=#488 id=488 data-nosnippet>488</a>            .stderr(Stdio::piped())
+<a href=#489 id=489 data-nosnippet>489</a>            .current_dir(project_path.as_path())
+<a href=#490 id=490 data-nosnippet>490</a>            .spawn()<span class="question-mark">?</span>;
+<a href=#491 id=491 data-nosnippet>491</a>        <span class="kw">let </span>out = child.wait_with_output()<span class="question-mark">?</span>;
+<a href=#492 id=492 data-nosnippet>492</a>        <span class="kw">if </span>out.stderr.is_empty() &amp;&amp; out.stdout.is_empty() {
+<a href=#493 id=493 data-nosnippet>493</a>            <span class="prelude-val">Ok</span>(())
+<a href=#494 id=494 data-nosnippet>494</a>        } <span class="kw">else </span>{
+<a href=#495 id=495 data-nosnippet>495</a>            <span class="kw">let </span>stderr = std::str::from_utf8(<span class="kw-2">&amp;</span>out.stderr)
+<a href=#496 id=496 data-nosnippet>496</a>                .unwrap_or(<span class="string">"Lean exited with a non-zero return code"</span>);
+<a href=#497 id=497 data-nosnippet>497</a>            <span class="prelude-val">Err</span>(io::Error::other(stderr))
+<a href=#498 id=498 data-nosnippet>498</a>        }
+<a href=#499 id=499 data-nosnippet>499</a>    }
+<a href=#500 id=500 data-nosnippet>500</a>
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="kw">pub fn </span>check_proof(<span class="kw-2">&amp;</span><span class="self">self</span>, def_id: MaybeExternId) -&gt; QueryResult&lt;()&gt; {
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">let </span>theorem_name = <span class="self">self
+<a href=#503 id=503 data-nosnippet>503</a>            </span>.genv
+<a href=#504 id=504 data-nosnippet>504</a>            .tcx()
+<a href=#505 id=505 data-nosnippet>505</a>            .def_path(def_id.resolved_id())
+<a href=#506 id=506 data-nosnippet>506</a>            .to_filename_friendly_no_crate()
+<a href=#507 id=507 data-nosnippet>507</a>            .replace(<span class="string">"-"</span>, <span class="string">"_"</span>);
+<a href=#508 id=508 data-nosnippet>508</a>        <span class="self">self</span>.check_proof_help(theorem_name.as_str()).map_err(|<span class="kw">_</span>| {
+<a href=#509 id=509 data-nosnippet>509</a>            <span class="kw">let </span>msg = <span class="macro">format!</span>(<span class="string">"checking proof for {} failed"</span>, theorem_name.as_str());
+<a href=#510 id=510 data-nosnippet>510</a>            <span class="kw">let </span>span = <span class="self">self</span>.genv.tcx().def_span(def_id.resolved_id());
+<a href=#511 id=511 data-nosnippet>511</a>            QueryErr::Emitted(
+<a href=#512 id=512 data-nosnippet>512</a>                <span class="self">self</span>.genv
+<a href=#513 id=513 data-nosnippet>513</a>                    .sess()
+<a href=#514 id=514 data-nosnippet>514</a>                    .dcx()
+<a href=#515 id=515 data-nosnippet>515</a>                    .handle()
+<a href=#516 id=516 data-nosnippet>516</a>                    .struct_span_err(span, msg)
+<a href=#517 id=517 data-nosnippet>517</a>                    .emit(),
+<a href=#518 id=518 data-nosnippet>518</a>            )
+<a href=#519 id=519 data-nosnippet>519</a>        })
+<a href=#520 id=520 data-nosnippet>520</a>    }
+<a href=#521 id=521 data-nosnippet>521</a>
+<a href=#522 id=522 data-nosnippet>522</a>    <span class="kw">fn </span>snake_case_to_pascal_case(snake: <span class="kw-2">&amp;</span>str) -&gt; String {
+<a href=#523 id=523 data-nosnippet>523</a>        snake
+<a href=#524 id=524 data-nosnippet>524</a>            .split(<span class="string">'_'</span>)
+<a href=#525 id=525 data-nosnippet>525</a>            .filter(|s| !s.is_empty()) <span class="comment">// skip empty segments (handles double underscores)
+<a href=#526 id=526 data-nosnippet>526</a>            </span>.map(|word| {
+<a href=#527 id=527 data-nosnippet>527</a>                <span class="kw">let </span><span class="kw-2">mut </span>chars = word.chars();
+<a href=#528 id=528 data-nosnippet>528</a>                <span class="kw">match </span>chars.next() {
+<a href=#529 id=529 data-nosnippet>529</a>                    <span class="prelude-val">Some</span>(first) =&gt; first.to_ascii_uppercase().to_string() + chars.as_str(),
+<a href=#530 id=530 data-nosnippet>530</a>                    <span class="prelude-val">None </span>=&gt; String::new(),
+<a href=#531 id=531 data-nosnippet>531</a>                }
+<a href=#532 id=532 data-nosnippet>532</a>            })
+<a href=#533 id=533 data-nosnippet>533</a>            .collect::&lt;String&gt;()
+<a href=#534 id=534 data-nosnippet>534</a>    }
+<a href=#535 id=535 data-nosnippet>535</a>}</code></pre></div></section></main></body></html>
