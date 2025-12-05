@@ -21,8 +21,6 @@ mod bob {
 
 mod poly {
 
-    // TODO(auto-strong)
-    // fn test00<T>(x: &mut T, f: impl FnOnce(&mut &mut T)) {}
     fn test00<T>(x: T, f: impl FnOnce(&mut T)) {}
 
     #[flux::sig(fn(x: &mut i32) ensures x: i32)]

@@ -374,7 +374,6 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
             Ok(f(infcx, t))
         })
-        // .unwrap()
     }
 
     /// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end

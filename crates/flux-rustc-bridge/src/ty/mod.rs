@@ -851,44 +851,6 @@ impl Ty {
     pub fn is_box(&self) -> bool {
         matches!(self.kind(), TyKind::Adt(adt, ..) if adt.is_box())
     }
-
-    /// Returns true if the type *may contain* any lifetimes/regions.
-    pub fn has_lifetimes(&self) -> bool {
-        match self.kind() {
-            TyKind::Ref(..) => true,
-            TyKind::Bool
-            | TyKind::Str
-            | TyKind::Char
-            | TyKind::Float(_)
-            | TyKind::Int(_)
-            | TyKind::Uint(_)
-            | TyKind::Never => false,
-            TyKind::Array(ty, _) | TyKind::Slice(ty) => ty.has_lifetimes(),
-
-            TyKind::Tuple(tys) => tys.iter().any(|ty| ty.has_lifetimes()),
-            TyKind::Adt(_, args)
-            | TyKind::FnDef(_, args)
-            | TyKind::Closure(_, args)
-            | TyKind::Coroutine(_, args)
-            | TyKind::CoroutineWitness(_, args) => {
-                args.iter().any(|arg| {
-                    match arg {
-                        GenericArg::Lifetime(_) => true,
-                        GenericArg::Ty(ty) => ty.has_lifetimes(),
-                        GenericArg::Const(_) => false,
-                    }
-                })
-            }
-
-            // TODO: handle these better!
-            TyKind::Param(..)
-            | TyKind::Alias(..)
-            | TyKind::RawPtr(..)
-            | TyKind::FnPtr(..)
-            | TyKind::Dynamic(..)
-            | TyKind::Foreign(..) => true,
-        }
-    }
 }
 
 impl<'tcx, V> ToRustc<'tcx> for Binder<V>

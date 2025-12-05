@@ -188,11 +188,6 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
 
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
-            // let poly_sig = genv
-            //     .fn_sig(local_id)
-            //     .with_span(span)?
-            //     .instantiate_identity();
-
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
@@ -228,8 +223,6 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            // let poly_sig = genv.fn_sig(def_id).with_span(span)?;
-            // let poly_sig = poly_sig.instantiate_identity();
             Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(root_ctxt)
@@ -574,7 +567,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
-        // (auto-strong-B) let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
 
