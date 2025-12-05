@@ -3181,7 +3181,5 @@ pub fn auto_strong(
 
     // 4. Reconstruct fn sig with new inputs and output and vars
     let fn_sig = FnSig { inputs: List::from_vec(strg_inputs), output, ..fn_sig };
-    let res = Binder::bind_with_vars(fn_sig, vars.into());
-    // println!("TRACE: auto-strong: transformed fn sig for {:?}:\n{:?}", local_id, res);
-    res
+    Binder::bind_with_vars(fn_sig, vars.into())
 }
