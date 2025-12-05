@@ -784,11 +784,11 @@ impl WKVarSolutions {
             match &interaction.kind {
                 InteractionKind::AddGroundTruth(expr) => {
                     println!("Adding ground truth {:?} to {:?}", expr, interaction.wkvid);
-                    any_interaction = any_interaction || solution.add_assumed_expr(&expr);
+                    any_interaction = solution.add_assumed_expr(&expr) || any_interaction;
                 }
                 InteractionKind::RemoveSolution(expr) => {
                     println!("Removing {:?} from {:?}", expr, interaction.wkvid);
-                    any_interaction = any_interaction || solution.removed_solved_exprs.insert(expr.clone());
+                    any_interaction = solution.removed_solved_exprs.insert(expr.clone()) || any_interaction;
                 }
             }
         }
