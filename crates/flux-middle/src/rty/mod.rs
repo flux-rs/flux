@@ -3080,3 +3080,102 @@ impl<'a, T> LocalTableInContext<'a, T> {
         self.data.get(&fhir_id.local_id)
     }
 }
+
+fn can_auto_strong(fn_sig: &PolyFnSig) -> bool {
+    struct RegionDetector {
+        has_region: bool,
+    }
+
+    impl fold::TypeFolder for RegionDetector {
+        fn fold_region(&mut self, re: &Region) -> Region {
+            self.has_region = true;
+            *re
+        }
+    }
+    let mut detector = RegionDetector { has_region: false };
+    fn_sig
+        .skip_binder_ref()
+        .output()
+        .skip_binder_ref()
+        .ret
+        .fold_with(&mut detector);
+
+    !detector.has_region
+}
+/// The [`auto_strong`] function transforms function signatures by automatically converting
+/// mutable reference parameters into strong references with associated ensures clauses. This
+/// transformation is applied only when the function signature does not already contain region
+/// variables in its return type.
+///
+/// Specifically, given a source function of type
+///
+///    fn (x: &mut InnerTy) -> bool
+///
+/// By default the above gives us an `rty::FnSig`
+///
+///    forall<>. fn (x: &mut InnerTy) -> bool
+///
+/// Which this function then transforms to
+///
+///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
+
+pub fn auto_strong(genv: GlobalEnv, local_id: LocalDefId, fn_sig: PolyFnSig) -> PolyFnSig {
+    // TODO(auto-strong): we only *really* need the first check `can_auto_strong` here.
+    // The other two skip `auto-strong` as doing it breaks various downstream things
+    // that should be fixed.
+    if !can_auto_strong(&fn_sig)
+        || matches!(genv.tcx().def_kind(local_id), rustc_hir::def::DefKind::Closure)
+        || !fn_sig.skip_binder_ref().lifted
+    {
+        return fn_sig;
+    }
+    let kind = BoundReftKind::Anon;
+    let mut vars = fn_sig.vars().to_vec();
+    let fn_sig = fn_sig.skip_binder();
+    // new list of (bound_var, inner_ty)
+    let mut strg_bvars = vec![];
+    // new list of input types
+    let mut strg_inputs = vec![];
+    // 1. Traverse inputs collecting strong locations
+    for ty in &fn_sig.inputs {
+        let strg_ty = if let TyKind::Indexed(BaseTy::Ref(re, inner_ty, Mutability::Mut), _) =
+            ty.kind()
+            && !inner_ty.is_slice()
+        // do not auto-strong slices
+        {
+            // if input is &mut InnerTy create a new bound var `loc` for the strong location
+            let var = {
+                let idx = vars.len() + strg_bvars.len();
+                BoundVar::from_usize(idx)
+            };
+            strg_bvars.push((var, inner_ty.clone()));
+            let loc = Loc::Var(Var::Bound(INNERMOST, BoundReft { var, kind }));
+            // and transform to &strg<loc:InnerTy>
+            Ty::strg_ref(*re, Path::new(loc, List::empty()), inner_ty.clone())
+        } else {
+            // else leave input type unchanged
+            ty.clone()
+        };
+        strg_inputs.push(strg_ty);
+    }
+    // 2. Add bound vars for strong locations
+    for _ in 0..strg_bvars.len() {
+        vars.push(BoundVariableKind::Refine(Sort::Loc, InferMode::EVar, kind));
+    }
+    // 3. Add ensures for strong locations
+    let output = fn_sig.output.map(|out| {
+        let mut ens = out.ensures.to_vec();
+        for (var, inner_ty) in strg_bvars {
+            let loc = Loc::Var(Var::Bound(INNERMOST.shifted_in(1), BoundReft { var, kind }));
+            let path = Path::new(loc, List::empty());
+            ens.push(Ensures::Type(path, inner_ty.shift_in_escaping(1)))
+        }
+        FnOutput { ensures: List::from_vec(ens), ..out }
+    });
+
+    // 4. Reconstruct fn sig with new inputs and output and vars
+    let fn_sig = FnSig { inputs: List::from_vec(strg_inputs), output, ..fn_sig };
+    let res = Binder::bind_with_vars(fn_sig, vars.into());
+    // println!("TRACE: auto-strong: transformed fn sig for {:?}:\n{:?}", local_id, res);
+    res
+}
