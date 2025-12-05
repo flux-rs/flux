@@ -685,7 +685,7 @@ fn auto_strong(genv: GlobalEnv, local_id: LocalDefId, fn_sig: rty::PolyFnSig) ->
     // 4. Reconstruct fn sig with new inputs and output and vars
     let fn_sig = rty::FnSig { inputs: rty::List::from_vec(strg_inputs), output, ..fn_sig };
     let res = Binder::bind_with_vars(fn_sig, vars.into());
-    println!("TRACE: auto-strong: transformed fn sig for {:?}:\n{:?}", local_id, res);
+    // println!("TRACE: auto-strong: transformed fn sig for {:?}:\n{:?}", local_id, res);
     res
 }
 
