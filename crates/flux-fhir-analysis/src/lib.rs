@@ -610,7 +610,7 @@ fn fn_sig(genv: GlobalEnv, def_id: MaybeExternId) -> QueryResult<rty::EarlyBinde
                 )
                 .unwrap();
             }
-            let fn_sig = rty::auto_strong(genv, def_id.local_id(), fn_sig);
+            // let fn_sig = rty::auto_strong(genv, def_id.local_id(), fn_sig);
             Ok(rty::EarlyBinder(fn_sig))
         }
         fhir::Node::Ctor => {

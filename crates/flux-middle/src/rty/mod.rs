@@ -3146,7 +3146,8 @@ pub fn auto_strong(
     for ty in &fn_sig.inputs {
         let strg_ty = if let TyKind::Indexed(BaseTy::Ref(re, inner_ty, Mutability::Mut), _) =
             ty.kind()
-        //    && !inner_ty.is_slice() do not auto-strong slices
+            && !inner_ty.is_slice()
+        // TODO(auto-strong): including `slice` breaks `tock` for some reason we should replicate in our own tests...
         {
             // if input is &mut InnerTy create a new bound var `loc` for the strong location
             let var = {

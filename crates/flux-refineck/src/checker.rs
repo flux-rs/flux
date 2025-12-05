@@ -571,7 +571,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         poly_sig: PolyFnSig,
     ) -> Result {
         let genv = infcx.genv;
-        // let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+        let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
         let span = genv.tcx().def_span(def_id);
         let body_root = genv.mir(def_id).with_span(span)?;
 
