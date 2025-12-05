@@ -870,13 +870,15 @@ impl Ty {
             | TyKind::FnDef(_, args)
             | TyKind::Closure(_, args)
             | TyKind::Coroutine(_, args)
-            | TyKind::CoroutineWitness(_, args) => { 
-                args.iter().any(|arg| match arg {
-                    GenericArg::Lifetime(_) => true,
-                    GenericArg::Ty(ty) => ty.has_lifetimes(),
-                    GenericArg::Const(_) => false,
+            | TyKind::CoroutineWitness(_, args) => {
+                args.iter().any(|arg| {
+                    match arg {
+                        GenericArg::Lifetime(_) => true,
+                        GenericArg::Ty(ty) => ty.has_lifetimes(),
+                        GenericArg::Const(_) => false,
+                    }
                 })
-            },
+            }
 
             // TODO: handle these better!
             TyKind::Param(..)
