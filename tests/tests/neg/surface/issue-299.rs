@@ -28,10 +28,11 @@ enum E {
 }
 
 fn test02(x: &mut S1) {
-    x.f3 -= 1; //~ ERROR assignment
+    x.f3 -= 1;
     x.f1.f1 -= 1;
-    x.f1.f4 -= 1; //~ ERROR assignment
-}
+    x.f1.f4 -= 1;
+} //~ ERROR type invariant
+//~^ ERROR type invariant
 
 fn test03(x: S2, y: S2) {
     let mut arr = [x, y];
@@ -43,7 +44,7 @@ fn test04(x: &mut E) {
     match x {
         E::A(y) => {
             y.f1 -= 1;
-            y.f4 -= 1; //~ ERROR assignment
+            y.f4 -= 1;
         }
     }
-}
+} //~ ERROR type invariant

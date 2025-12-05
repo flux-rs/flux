@@ -168,6 +168,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
         dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
@@ -188,11 +189,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv
-                .fn_sig(local_id)
-                .with_span(span)?
-                .instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -207,6 +204,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
@@ -225,9 +223,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv.fn_sig(def_id).with_span(span)?;
-            let poly_sig = poly_sig.instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(root_ctxt)
         })
@@ -466,7 +462,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -932,8 +928,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
+        let fn_sig = fn_sig.instantiate(tcx, &generic_args, &early_refine_args);
         let fn_sig = fn_sig
-            .instantiate(tcx, &generic_args, &early_refine_args)
             .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
 
         let fn_sig = fn_sig
