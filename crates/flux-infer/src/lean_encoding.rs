@@ -475,19 +475,18 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
     fn check_proof_help(&self, theorem_name: &str) -> io::Result<()> {
         let proof_name = format!("{theorem_name}_proof");
         let project_path = self.lean_path.join(self.project_name.as_str());
-        let proof_path = project_path.join(format!(
+        let proof_path = format!(
             "{}/{}.lean",
             Self::snake_case_to_pascal_case(self.project_name.as_str()),
             Self::snake_case_to_pascal_case(proof_name.as_str())
-        ));
+        );
         let child = Command::new("lake")
             .arg("--quiet")
-            .arg("--dir")
-            .arg(project_path.to_str().unwrap())
             .arg("lean")
-            .arg(proof_path.to_str().unwrap())
+            .arg(proof_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
+            .current_dir(project_path.as_path())
             .spawn()?;
         let out = child.wait_with_output()?;
         if out.stderr.is_empty() && out.stdout.is_empty() {
