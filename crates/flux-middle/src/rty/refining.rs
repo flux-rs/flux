@@ -334,8 +334,7 @@ impl Refine for ty::FnSig {
             .iter()
             .map(|ty| ty.refine(refiner))
             .try_collect()?;
-        let output = self.output();
-        let ret = output.refine(refiner)?.shift_in_escaping(1);
+        let ret = self.output().refine(refiner)?.shift_in_escaping(1);
         let output = rty::Binder::bind_with_vars(rty::FnOutput::new(ret, vec![]), List::empty());
         // TODO(hof2) make a hoister to hoist all the stuff out of the inputs,
         // the hoister will have a list of all the variables it hoisted and the

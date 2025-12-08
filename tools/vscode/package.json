@@ -2,7 +2,7 @@
   "name": "flux-checker",
   "displayName": "Flux Refinement Type Checker",
   "description": "VSCode Extension for the Flux Refinement Type Checker for Rust",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "RanjitJhala",
   "repository": {
     "type": "git",
