@@ -532,8 +532,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_adjustment::PointerCoercion::ClosureFnPointer(_) => {
                 Some(crate::mir::PointerCast::ClosureFnPointer)
             }
-            rustc_adjustment::PointerCoercion::ReifyFnPointer => {
-                Some(crate::mir::PointerCast::ReifyFnPointer)
+            rustc_adjustment::PointerCoercion::ReifyFnPointer(safety) => {
+                Some(crate::mir::PointerCast::ReifyFnPointer(safety))
             }
             rustc_adjustment::PointerCoercion::UnsafeFnPointer
             | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
