@@ -227,6 +227,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv.fn_sig(def_id).with_span(span)?;
             let poly_sig = poly_sig.instantiate_identity();
+            println!("TRACE: refine_mode: {poly_sig:?}");
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(root_ctxt)
@@ -515,6 +516,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let span = body.span();
 
+        println!("TRACE: check_body {poly_sig:?}");
         let fn_sig = poly_sig
             .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
             .deeply_normalize(&mut infcx.at(span))

@@ -21,6 +21,7 @@ use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
+use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
 use crate::{
@@ -1047,4 +1048,52 @@ impl Assignment {
         }
         Expr::and_from_iter(preds)
     }
+}
+
+// --------------------------------------------------------------------------------------------------
+
+pub struct BinderProvenance {
+    /// Whence?
+    pub span: Option<Span>,
+    /// Why?
+    pub originator: BinderOriginator,
+}
+
+impl BinderProvenance {
+    pub fn new(originator: BinderOriginator) -> Self {
+        BinderProvenance { span: None, originator }
+    }
+
+    pub fn with_span(self, span: Span) -> Self {
+        BinderProvenance { span: Some(span), originator: self.originator }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum BinderOriginator {
+    /// Argument from the definition of a function
+    FnArg(Option<Symbol>),
+    // /// Subtyping check
+    // Sub(ConstrReason),
+    // /// Function subtyping check
+    // FnSub,
+    // /// Function call
+    // Call,
+    // // /// The return of a function call
+    // // CallReturn(CallReturn),
+    // /// Unfold a local pointer
+    // UnfoldPtr,
+    // /// Unfold a strong ref
+    // UnfoldStrgRef,
+    // /// Assume an ensures
+    // AssumeEnsures,
+    // /// Check an invariant
+    // CheckInvariant,
+    // /// For use applying the mut ref hack
+    // MutRefHack,
+    // /// Subtyping projection types
+    // /// (NOTE: not differentiating between generic arg tys)
+    // SubProjTy,
+    // SubtypeProjTy,
+    // SubtypeProjBase,
 }
