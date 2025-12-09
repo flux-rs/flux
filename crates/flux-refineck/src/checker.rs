@@ -528,7 +528,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 |_| rty::ReErased,
                 |sort, _, kind| {
                     let name = infcx.define_bound_reft_var(sort, kind);
-                    println!("TRACE: replace_bound_vars {sort:?} => {name:?}");
+                    println!("TRACE: replace_bound_vars {sort:?} => {name:?} ({kind:?})");
                     Expr::fvar(name)
                 },
             )

@@ -32,7 +32,7 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
-    refine_tree::{BinderProvenance, Cursor, Marker, RefineTree, Scope},
+    refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;

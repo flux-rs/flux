@@ -140,15 +140,9 @@ impl Cursor<'_> {
             .push_node(NodeKind::ForAll(fresh, sort.clone(), provenance));
         fresh
     }
-    /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
-    /// node. It returns the freshly generated name for the variable.
+    /// Temporary "backwards compatible" wrapper, should only use `define_var`...
     pub(crate) fn define_unknown_var(&mut self, sort: &Sort) -> Name {
-        let fresh = Name::from_usize(self.ptr.next_name_idx());
-        let provenance = BinderProvenance::unknown();
-        self.ptr = self
-            .ptr
-            .push_node(NodeKind::ForAll(fresh, sort.clone(), provenance));
-        fresh
+        self.define_var(sort, BinderProvenance::unknown())
     }
 
     /// Pushes an [assumption] and moves the cursor into the new node.
@@ -488,11 +482,13 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort, _) => {
-                cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
+            NodeKind::ForAll(name, sort, provenance) => {
+                println!("TRACE: to_fixpoint ForAll (0) {name:?}: {sort:?} ({provenance:?})");
+                cx.with_name_map(*name, provenance.clone(), |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
                     };
+                    println!("TRACE: to_fixpoint ForAll (1) {name:?}: {sort:?} ==> ");
                     Ok(Some(fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
@@ -786,7 +782,7 @@ impl RefineCtxtTrace {
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
-                NodeKind::ForAll(name, sort, _) => {
+                NodeKind::ForAll(name, sort, provenance) => {
                     let bind = RcxBind {
                         name: format_cx!(cx, "{:?}", ^name),
                         sort: format_cx!(cx, "{:?}", sort),
@@ -1060,64 +1056,4 @@ impl Assignment {
         }
         Expr::and_from_iter(preds)
     }
-}
-
-// --------------------------------------------------------------------------------------------------
-
-pub struct BinderProvenance {
-    /// Whence?
-    pub span: Option<Span>,
-    /// Why?
-    pub originator: BinderOriginator,
-}
-
-impl BinderProvenance {
-    pub fn unknown() -> Self {
-        BinderProvenance { span: None, originator: BinderOriginator::Unknown }
-    }
-
-    pub fn bound_reft_kind(kind: BoundReftKind) -> Self {
-        BinderProvenance { span: None, originator: BinderOriginator::UnfoldBoundReft(kind) }
-    }
-
-    pub fn new(originator: BinderOriginator) -> Self {
-        BinderProvenance { span: None, originator }
-    }
-
-    pub fn with_span(self, span: Span) -> Self {
-        BinderProvenance { span: Some(span), originator: self.originator }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub enum BinderOriginator {
-    /// Unknown origin
-    Unknown,
-    /// Unfolded BoundReft
-    UnfoldBoundReft(BoundReftKind),
-    /// Argument from the definition of a function
-    FnArg(Option<Symbol>),
-    // /// Subtyping check
-    // Sub(ConstrReason),
-    // /// Function subtyping check
-    // FnSub,
-    // /// Function call
-    // Call,
-    // // /// The return of a function call
-    // // CallReturn(CallReturn),
-    // /// Unfold a local pointer
-    // UnfoldPtr,
-    // /// Unfold a strong ref
-    // UnfoldStrgRef,
-    // /// Assume an ensures
-    // AssumeEnsures,
-    // /// Check an invariant
-    // CheckInvariant,
-    // /// For use applying the mut ref hack
-    // MutRefHack,
-    // /// Subtyping projection types
-    // /// (NOTE: not differentiating between generic arg tys)
-    // SubProjTy,
-    // SubtypeProjTy,
-    // SubtypeProjBase,
 }

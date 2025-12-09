@@ -11,7 +11,7 @@ use itertools::Itertools;
 use rustc_data_structures::unord::UnordMap;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
 use rustc_middle::ty::{BoundRegionKind, TyCtxt};
-use rustc_span::Symbol;
+use rustc_span::{Span, Symbol};
 
 use super::{
     Expr, GenericArg, InferMode, RefineParam, Sort,
@@ -294,3 +294,64 @@ pub enum BoundReftKind {
 }
 
 impl_slice_internable!(BoundVariableKind);
+
+// --------------------------------------------------------------------------------------------------
+
+#[derive(Clone, Debug)]
+pub struct BinderProvenance {
+    /// Whence?
+    pub span: Option<Span>,
+    /// Why?
+    pub originator: BinderOriginator,
+}
+
+impl BinderProvenance {
+    pub fn unknown() -> Self {
+        BinderProvenance { span: None, originator: BinderOriginator::Unknown }
+    }
+
+    pub fn bound_reft_kind(kind: BoundReftKind) -> Self {
+        BinderProvenance { span: None, originator: BinderOriginator::UnfoldBoundReft(kind) }
+    }
+
+    pub fn new(originator: BinderOriginator) -> Self {
+        BinderProvenance { span: None, originator }
+    }
+
+    pub fn with_span(self, span: Span) -> Self {
+        BinderProvenance { span: Some(span), originator: self.originator }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub enum BinderOriginator {
+    /// Unknown origin
+    Unknown,
+    /// Unfolded BoundReft
+    UnfoldBoundReft(BoundReftKind),
+    /// Argument from the definition of a function
+    FnArg(Option<Symbol>),
+    // /// Subtyping check
+    // Sub(ConstrReason),
+    // /// Function subtyping check
+    // FnSub,
+    // /// Function call
+    // Call,
+    // // /// The return of a function call
+    // // CallReturn(CallReturn),
+    // /// Unfold a local pointer
+    // UnfoldPtr,
+    // /// Unfold a strong ref
+    // UnfoldStrgRef,
+    // /// Assume an ensures
+    // AssumeEnsures,
+    // /// Check an invariant
+    // CheckInvariant,
+    // /// For use applying the mut ref hack
+    // MutRefHack,
+    // /// Subtyping projection types
+    // /// (NOTE: not differentiating between generic arg tys)
+    // SubProjTy,
+    // SubtypeProjTy,
+    // SubtypeProjBase,
+}
