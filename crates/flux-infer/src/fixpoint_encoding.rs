@@ -1168,6 +1168,9 @@ impl KVarGen {
         rty::Expr::kvar(kvar)
     }
 
+    // This function is called before we encode a constraint that will be translated to Lean.
+    // It's a hack that allows us to emit fewer KVars since in Lean we are not restricting solutions
+    // to predicates that use their first argument like we do in fixpoint.
     pub(crate) fn make_all_single(&mut self) {
         self.kvars
             .iter_mut()
