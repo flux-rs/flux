@@ -420,7 +420,7 @@ impl Pretty for Ty {
                 if idx.is_unit() {
                     w!(cx, f, "{:?}", bty)?;
                 } else {
-                    w!(cx, f, "{:?}[{:?}]", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
+                    w!(cx, f, "{:?}{:?}", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
