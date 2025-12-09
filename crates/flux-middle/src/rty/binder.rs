@@ -167,7 +167,7 @@ where
     pub fn replace_bound_vars(
         &self,
         mut replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
+        mut replace_expr: impl FnMut(&Sort, InferMode, BoundReftKind) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
         let mut regions = UnordMap::default();
@@ -176,8 +176,8 @@ where
                 exprs
                     .entry(breft.var)
                     .or_insert_with(|| {
-                        let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
-                        replace_expr(sort, mode)
+                        let (sort, mode, kind) = self.vars[breft.var.as_usize()].expect_refine();
+                        replace_expr(sort, mode, kind)
                     })
                     .clone()
             },
@@ -248,6 +248,10 @@ impl BoundVariableKind {
 
     pub fn expect_sort(&self) -> &Sort {
         self.expect_refine().0
+    }
+
+    pub fn expect_bound_reft_kind(&self) -> BoundReftKind {
+        self.expect_refine().2
     }
 
     /// Returns `true` if the bound variable kind is [`Refine`].

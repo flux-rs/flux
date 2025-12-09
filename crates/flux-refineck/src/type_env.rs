@@ -323,7 +323,7 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxt,
         bound: &Ty,
     ) -> InferResult<Loc> {
-        let loc = Loc::from(infcx.define_var(&Sort::Loc));
+        let loc = Loc::from(infcx.define_unknown_var(&Sort::Loc));
         let ty = infcx.unpack(bound);
         self.bindings
             .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
@@ -803,9 +803,9 @@ impl BasicBlockEnv {
         infcx: &mut InferCtxt,
         local_decls: &'a LocalDecls,
     ) -> TypeEnv<'a> {
-        let data = self
-            .data
-            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+        let data = self.data.replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        });
         for constr in &data.constrs {
             infcx.assume_pred(constr);
         }

@@ -501,7 +501,7 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
-        let loc = Loc::from(self.infcx.define_var(&Sort::Loc));
+        let loc = Loc::from(self.infcx.define_unknown_var(&Sort::Loc));
         self.insertions
             .push((loc, Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() }));
         loc
@@ -841,7 +841,9 @@ fn downcast_enum(
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
-        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
+        .replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        })
         .deeply_normalize(&mut infcx.at(span))?;
 
     infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));

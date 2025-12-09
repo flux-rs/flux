@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        BaseTy, BoundReftKind, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -133,9 +133,21 @@ impl Cursor<'_> {
 
     /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
     /// node. It returns the freshly generated name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+    pub(crate) fn define_var(&mut self, sort: &Sort, provenance: BinderProvenance) -> Name {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
-        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        self.ptr = self
+            .ptr
+            .push_node(NodeKind::ForAll(fresh, sort.clone(), provenance));
+        fresh
+    }
+    /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
+    /// node. It returns the freshly generated name for the variable.
+    pub(crate) fn define_unknown_var(&mut self, sort: &Sort) -> Name {
+        let fresh = Name::from_usize(self.ptr.next_name_idx());
+        let provenance = BinderProvenance::unknown();
+        self.ptr = self
+            .ptr
+            .push_node(NodeKind::ForAll(fresh, sort.clone(), provenance));
         fresh
     }
 
@@ -319,7 +331,7 @@ impl NodePtr {
                         params = Some(p.clone());
                         None
                     }
-                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    NodeKind::ForAll(_, sort, _) => Some(sort.clone()),
                     _ => None,
                 }
             })
@@ -342,7 +354,7 @@ impl WeakNodePtr {
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
-    ForAll(Name, Sort),
+    ForAll(Name, Sort, BinderProvenance),
     Assumption(Expr),
     Head(Expr, Tag),
     True,
@@ -452,7 +464,7 @@ impl Node {
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
                 children_to_fixpoint(cx, &self.children)?
             }
 
@@ -476,7 +488,7 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort) => {
+            NodeKind::ForAll(name, sort, _) => {
                 cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
@@ -576,7 +588,7 @@ mod pretty {
     fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut bindings: Vec<(Name, Sort)>) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::ForAll(name, sort) = &node.kind {
+            if let NodeKind::ForAll(name, sort, _) = &node.kind {
                 bindings.push((*name, sort.clone()));
                 if let [child] = &node.children[..] {
                     go(child, bindings)
@@ -632,7 +644,7 @@ mod pretty {
                     )?;
                     fmt_children(&node.children, cx, f)
                 }
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, _) => {
                     let (bindings, children) = if cx.bindings_chain {
                         bindings_chain(self)
                     } else {
@@ -708,7 +720,7 @@ mod pretty {
                             elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
                     }
-                    NodeKind::ForAll(name, sort) => {
+                    NodeKind::ForAll(name, sort, _) => {
                         elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                     }
                     NodeKind::Assumption(pred) => {
@@ -774,7 +786,7 @@ impl RefineCtxtTrace {
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, _) => {
                     let bind = RcxBind {
                         name: format_cx!(cx, "{:?}", ^name),
                         sort: format_cx!(cx, "{:?}", sort),
@@ -1060,6 +1072,14 @@ pub struct BinderProvenance {
 }
 
 impl BinderProvenance {
+    pub fn unknown() -> Self {
+        BinderProvenance { span: None, originator: BinderOriginator::Unknown }
+    }
+
+    pub fn bound_reft_kind(kind: BoundReftKind) -> Self {
+        BinderProvenance { span: None, originator: BinderOriginator::UnfoldBoundReft(kind) }
+    }
+
     pub fn new(originator: BinderOriginator) -> Self {
         BinderProvenance { span: None, originator }
     }
@@ -1071,6 +1091,10 @@ impl BinderProvenance {
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum BinderOriginator {
+    /// Unknown origin
+    Unknown,
+    /// Unfolded BoundReft
+    UnfoldBoundReft(BoundReftKind),
     /// Argument from the definition of a function
     FnArg(Option<Symbol>),
     // /// Subtyping check

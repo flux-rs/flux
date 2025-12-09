@@ -10,10 +10,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyCtor, TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
+        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
+        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, Path, PolyVariant,
+        PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
@@ -32,7 +32,7 @@ use crate::{
     evars::{EVarState, EVarStore},
     fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
-    refine_tree::{Cursor, Marker, RefineTree, Scope},
+    refine_tree::{BinderProvenance, Cursor, Marker, RefineTree, Scope},
 };
 
 pub type InferResult<T = ()> = std::result::Result<T, InferErr>;
@@ -448,8 +448,17 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_var(sort)
+    pub fn define_var(&mut self, sort: &Sort, provenance: BinderProvenance) -> Name {
+        self.cursor.define_var(sort, provenance)
+    }
+
+    pub fn define_bound_reft_var(&mut self, sort: &Sort, kind: BoundReftKind) -> Name {
+        let provenance = BinderProvenance::bound_reft_kind(kind);
+        self.define_var(sort, provenance)
+    }
+
+    pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {
+        self.cursor.define_unknown_var(sort)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -492,8 +501,9 @@ pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(self.infcx.define_bound_reft_var(sort, kind))
+        });
         if self.assume_invariants {
             self.infcx.assume_invariants(&ty);
         }
@@ -1077,7 +1087,11 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let vars = a
             .vars()
             .iter()
-            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
+            .map(|kind| {
+                let sort = kind.expect_sort();
+                let kind = kind.expect_bound_reft_kind();
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            })
             .collect_vec();
         let body_a = a.apply(&vars);
         let body_b = b.apply(&vars);

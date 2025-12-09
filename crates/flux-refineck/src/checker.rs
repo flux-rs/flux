@@ -227,7 +227,6 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
             let poly_sig = genv.fn_sig(def_id).with_span(span)?;
             let poly_sig = poly_sig.instantiate_identity();
-            println!("TRACE: refine_mode: {poly_sig:?}");
             Checker::run(infcx, local_id, inherited, poly_sig)?;
 
             Ok(root_ctxt)
@@ -276,7 +275,10 @@ fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+        .replace_bound_vars(
+            |_| rty::ReErased,
+            |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
+        )
         .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -302,7 +304,10 @@ fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+            )
             .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
@@ -325,7 +330,9 @@ fn check_fn_subtyping(
 
     let output = infcx
         .fully_resolve_evars(&output)
-        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+        .replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        });
 
     // 4. OUTPUT subtyping (f_out <: g_out)
     infcx.ensure_resolved_evars(|infcx| {
@@ -516,12 +523,17 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result {
         let span = body.span();
 
-        println!("TRACE: check_body {poly_sig:?}");
         let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, _, kind| {
+                    let name = infcx.define_bound_reft_var(sort, kind);
+                    println!("TRACE: replace_bound_vars {sort:?} => {name:?}");
+                    Expr::fvar(name)
+                },
+            )
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
-
         let mut env = TypeEnv::new(infcx, body, &fn_sig);
 
         let mut ck = Checker::new(infcx.genv, checker_id, inherited, body, fn_sig, promoted)
@@ -936,7 +948,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let late_refine_args = vec![];
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+            );
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
@@ -960,7 +975,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
-            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+            .replace_bound_refts_with(|sort, _, kind| {
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            });
 
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;

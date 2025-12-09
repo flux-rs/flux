@@ -671,6 +671,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
+        // let params = match body_id {
+        //     Some(body_id) => {
+        //         Some(
+        //             self.tcx()
+        //                 .hir_body_param_idents(body_id)
+        //                 .collect::<Vec<_>>(),
+        //         )
+        //     }
+        //     None => None,
+        // };
+
         let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id)?;
 
         let vars = late_bound_regions
