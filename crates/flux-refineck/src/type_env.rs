@@ -930,10 +930,11 @@ impl TypeEnvTrace {
         genv: GlobalEnv,
         local_names: &UnordMap<Local, Symbol>,
         local_decls: &IndexVec<Local, LocalDecl>,
+        cx: PrettyCx,
         env: &TypeEnv,
     ) -> Self {
         let mut bindings = vec![];
-        let cx = PrettyCx::default(genv).hide_regions(true);
+        // let cx = PrettyCx::default(genv).hide_regions(true);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())

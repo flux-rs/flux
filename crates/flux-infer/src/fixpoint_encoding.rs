@@ -1008,7 +1008,7 @@ impl KVarEncodingCtxt {
 
 struct LocalVarInfo {
     expr: rty::Expr,
-    provenance: BinderProvenance,
+    _provenance: BinderProvenance,
 }
 
 /// TODO(source-level-binders): remove local_var_gen,
@@ -1049,7 +1049,7 @@ impl LocalVarEnv {
     ) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
-        let info = LocalVarInfo { expr: rty::Expr::fvar(name), provenance };
+        let info = LocalVarInfo { expr: rty::Expr::fvar(name), _provenance: provenance };
         self.reverse_map.insert(fresh, info);
         fresh
     }
@@ -1821,7 +1821,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             Ok(var)
         } else {
             let fresh = self.local_var_env.fresh_name();
-            let info = LocalVarInfo { expr: arg.clone(), provenance: BinderProvenance::unknown() };
+            let info = LocalVarInfo { expr: arg.clone(), _provenance: BinderProvenance::unknown() };
             self.local_var_env.reverse_map.insert(fresh, info);
             let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), farg);
             bindings.push(fixpoint::Bind {

@@ -407,6 +407,30 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             f(buffer)
         })
     }
+
+    pub fn with_name_provenance(&mut self, name: Name, provenance: BinderProvenance) {
+        println!("TRACE: with_name_provenance {name:?} ({provenance:?})");
+        self.fvar_env.0.insert(name, provenance);
+    }
+
+    pub fn fmt_name(&self, name: &Name) -> String {
+        if let Some(provenance) = self.fvar_env.0.get(name)
+            && let Some(prefix) = provenance.opt_symbol()
+        {
+            format!("{}_{}", prefix, name.as_usize())
+        } else {
+            format!("a_{}", name.as_usize())
+        }
+    }
+    // pub fn fmt_name(&self, name: &Name, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    //     if let Some(provenance) = self.fvar_env.0.get(name)
+    //         && let Some(prefix) = provenance.opt_symbol()
+    //     {
+    //         w!(self, f, "{}_{}", ^prefix, ^name.as_usize())
+    //     } else {
+    //         w!(self, f, "a_{}", ^name.as_usize())
+    //     }
+    // }
 }
 
 newtype_index! {

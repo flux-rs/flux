@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, BoundReftKind, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        BaseTy, BinderProvenance, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -21,7 +21,6 @@ use rustc_data_structures::snapshot_map::SnapshotMap;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_index::newtype_index;
 use rustc_middle::ty::TyCtxt;
-use rustc_span::{Span, Symbol};
 use serde::Serialize;
 
 use crate::{
@@ -773,18 +772,28 @@ struct RcxBind {
 }
 
 impl RefineCtxtTrace {
-    pub fn new(genv: GlobalEnv, cursor: &Cursor) -> Self {
+    pub fn new<'genv, 'tcx>(
+        genv: GlobalEnv<'genv, 'tcx>,
+        cursor: &Cursor,
+    ) -> (Self, PrettyCx<'genv, 'tcx>) {
         let parents = ParentsIter::new(NodePtr::clone(&cursor.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
-        let cx = &PrettyCx::default(genv).show_kvar_args();
+        let mut cx0 = PrettyCx::default(genv).show_kvar_args();
+        let cx = &mut cx0;
 
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort, provenance) => {
+                    // println!("TRACE: RcxBind ForAll (0) {name:?}: {sort:?} ({provenance:?})");
+                    cx.with_name_provenance(*name, provenance.clone());
+
+                    let name_fmt = cx.fmt_name(name);
+                    println!("TRACE: RcxBind ForAll (1) {name:?}: {sort:?} ==> {name_fmt:?}");
                     let bind = RcxBind {
-                        name: format_cx!(cx, "{:?}", ^name),
+                        name: name_fmt,
+                        // name: format_cx!(cx, "{:?}", ^name),
                         sort: format_cx!(cx, "{:?}", sort),
                     };
                     bindings.push(bind);
@@ -808,7 +817,7 @@ impl RefineCtxtTrace {
                 _ => (),
             }
         });
-        Self { bindings, exprs }
+        (Self { bindings, exprs }, cx0)
     }
 }
 

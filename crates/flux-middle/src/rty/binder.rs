@@ -321,6 +321,14 @@ impl BinderProvenance {
     pub fn with_span(self, span: Span) -> Self {
         BinderProvenance { span: Some(span), originator: self.originator }
     }
+
+    pub fn opt_symbol(&self) -> Option<Symbol> {
+        match &self.originator {
+            BinderOriginator::FnArg(Some(name)) => Some(*name),
+            BinderOriginator::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
