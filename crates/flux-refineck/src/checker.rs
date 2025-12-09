@@ -72,7 +72,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
     resume_ty: Option<Ty>,
-    output: Binder<FnOutput>,
+    fn_sig: FnSig,
     /// A marker to the node in the refinement tree at the end of the basic block after applying
     /// the effects of the terminator.
     markers: IndexVec<BasicBlock, Option<Marker>>,
@@ -497,7 +497,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             body,
             resume_ty,
             visited: DenseBitSet::new_empty(bb_len),
-            output: fn_sig.output().clone(),
+            fn_sig,
             markers: IndexVec::from_fn_n(|_| None, bb_len),
             queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, root_id.to_def_id())?,
@@ -849,7 +849,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
                 let output = self
-                    .output
+                    .fn_sig.output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
                 let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
@@ -876,23 +876,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let genv = self.genv;
         let tcx = genv.tcx();
 
-        if M::NAME == "refine" {
-            let no_panic = genv.no_panic(self.checker_id.root_id());
-
-            if no_panic
-                && let Some(callee_def_id) = callee_def_id
-                && genv.def_kind(callee_def_id).is_fn_like()
-            {
-                let callee_no_panic = fn_sig.skip_binder_ref().skip_binder_ref().no_panic()
-                    || genv.no_panic(callee_def_id);
-
-                if !callee_no_panic {
-                    let callee_name = tcx.def_path_str(callee_def_id);
-                    genv.sess()
-                        .emit_err(errors::PanicError { span, callee: callee_name });
-                }
-            }
-        }
 
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
@@ -941,6 +924,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
+
+        if M::NAME == "refine" {
+            let no_panic = self.fn_sig.no_panic();
+
+            if no_panic
+                && let Some(callee_def_id) = callee_def_id
+                && genv.def_kind(callee_def_id).is_fn_like()
+            {
+                let callee_no_panic = fn_sig.no_panic();
+
+                if !callee_no_panic {
+                    let callee_name = tcx.def_path_str(callee_def_id);
+                    genv.sess()
+                        .emit_err(errors::PanicError { span, callee: callee_name });
+                }
+            }
+        }
 
         let mut at = infcx.at(span);
 
