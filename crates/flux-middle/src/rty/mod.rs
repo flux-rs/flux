@@ -700,6 +700,7 @@ pub fn to_closure_sig(
     tys: &[Ty],
     args: &flux_rustc_bridge::ty::GenericArgs,
     poly_sig: &PolyFnSig,
+    no_panic: bool,
 ) -> PolyFnSig {
     let closure_args = args.as_closure();
     let kind_ty = closure_args.kind_ty().to_rustc(tcx);
@@ -741,7 +742,7 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(), // crate::rty::List::empty(),
         inputs.into(),
         output,
-        false,
+        no_panic,
     );
 
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
