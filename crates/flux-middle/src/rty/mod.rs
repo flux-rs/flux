@@ -3135,7 +3135,6 @@ pub fn auto_strong(
     {
         return fn_sig;
     }
-    println!("TRACE: auto_strong (0) {fn_sig:?}");
     let kind = BoundReftKind::Anon;
     let mut vars = fn_sig.vars().to_vec();
     let fn_sig = fn_sig.skip_binder();
@@ -3182,7 +3181,5 @@ pub fn auto_strong(
 
     // 4. Reconstruct fn sig with new inputs and output and vars
     let fn_sig = FnSig { inputs: List::from_vec(strg_inputs), output, ..fn_sig };
-    let fn_sig = Binder::bind_with_vars(fn_sig, vars.into());
-    println!("TRACE: auto_strong (1) {fn_sig:?}");
-    fn_sig
+    Binder::bind_with_vars(fn_sig, vars.into())
 }
