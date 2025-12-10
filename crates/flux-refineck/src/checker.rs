@@ -218,7 +218,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
                 .build()
         })
         .with_span(span)?;
-        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
+        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt, &body.body);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
@@ -528,7 +528,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 |_| rty::ReErased,
                 |sort, _, kind| {
                     let name = infcx.define_bound_reft_var(sort, kind);
-                    println!("TRACE: replace_bound_vars {sort:?} => {name:?} ({kind:?})");
                     Expr::fvar(name)
                 },
             )
@@ -610,7 +609,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             &mut infcx,
             CheckerId::DefId(def_id),
             inherited,
-            &body_root.body,
+            &body_root.body, // TODO:source-level-binder
             poly_sig,
             &promoted_tys,
         )
@@ -821,7 +820,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 };
 
-                let ret = infcx.unpack(&ret);
+                let name = destination.name(&self.body.local_names);
+                let ret = infcx.unpack_at_name(name, &ret);
                 infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
@@ -2307,13 +2307,14 @@ impl ShapeResult {
     fn into_bb_envs(
         self,
         infcx: &mut InferCtxtRoot,
+        body: &Body,
     ) -> FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(checker_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx)))
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx, body)))
                     .collect();
                 (checker_id, bb_envs)
             })

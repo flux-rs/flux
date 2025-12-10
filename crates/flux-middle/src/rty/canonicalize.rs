@@ -36,6 +36,7 @@ use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use itertools::Itertools;
 use rustc_ast::Mutability;
+use rustc_span::Symbol;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
@@ -43,7 +44,7 @@ use super::{
     SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
-use crate::rty::{ExprKind, HoleKind};
+use crate::rty::{BoundReftKind, ExprKind, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -66,6 +67,7 @@ pub struct Hoister<D> {
 pub trait HoisterDelegate {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty;
     fn hoist_constr(&mut self, pred: Expr);
+    fn set_name(&mut self, name: Symbol);
 }
 
 impl<D> Hoister<D> {
@@ -147,6 +149,13 @@ impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
     }
+
+    pub fn hoist_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
+        if let Some(name) = name {
+            self.delegate.set_name(name);
+        }
+        ty.fold_with(self)
+    }
 }
 
 /// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an exi-indexed slice?
@@ -226,11 +235,12 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
 pub struct LocalHoister {
     vars: Vec<BoundVariableKind>,
     preds: Vec<Expr>,
+    name: Option<Symbol>,
 }
 
 impl LocalHoister {
     pub fn new(vars: Vec<BoundVariableKind>) -> Self {
-        LocalHoister { vars, preds: vec![] }
+        LocalHoister { vars, preds: vec![], name: None }
     }
 
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
@@ -243,6 +253,7 @@ impl HoisterDelegate for &mut LocalHoister {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
         ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
             let idx = self.vars.len();
+            let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
             self.vars
                 .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
             Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
@@ -251,6 +262,10 @@ impl HoisterDelegate for &mut LocalHoister {
 
     fn hoist_constr(&mut self, pred: Expr) {
         self.preds.push(pred);
+    }
+
+    fn set_name(&mut self, name: Symbol) {
+        self.name = Some(name);
     }
 }
 
@@ -267,7 +282,9 @@ impl PolyFnSig {
     pub fn hoist_input_binders(&self) -> Self {
         let original_vars = self.vars().to_vec();
         let fn_sig = self.skip_binder_ref();
-        let mut delegate = LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec() };
+
+        let mut delegate =
+            LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec(), name: None };
         let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
         let inputs = fn_sig

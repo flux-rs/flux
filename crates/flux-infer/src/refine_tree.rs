@@ -482,12 +482,10 @@ impl Node {
                 Some(constr)
             }
             NodeKind::ForAll(name, sort, provenance) => {
-                println!("TRACE: to_fixpoint ForAll (0) {name:?}: {sort:?} ({provenance:?})");
                 cx.with_name_map(*name, provenance.clone(), |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
                     };
-                    println!("TRACE: to_fixpoint ForAll (1) {name:?}: {sort:?} ==> ");
                     Ok(Some(fixpoint::Constraint::ForAll(
                         fixpoint::Bind {
                             name: fixpoint::Var::Local(fresh),
@@ -786,16 +784,10 @@ impl RefineCtxtTrace {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort, provenance) => {
-                    // println!("TRACE: RcxBind ForAll (0) {name:?}: {sort:?} ({provenance:?})");
                     cx.with_name_provenance(*name, provenance.clone());
 
-                    let name_fmt = cx.fmt_name(name);
-                    println!("TRACE: RcxBind ForAll (1) {name:?}: {sort:?} ==> {name_fmt:?}");
-                    let bind = RcxBind {
-                        name: name_fmt,
-                        // name: format_cx!(cx, "{:?}", ^name),
-                        sort: format_cx!(cx, "{:?}", sort),
-                    };
+                    let bind =
+                        RcxBind { name: cx.fmt_name(name), sort: format_cx!(cx, "{:?}", sort) };
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e)

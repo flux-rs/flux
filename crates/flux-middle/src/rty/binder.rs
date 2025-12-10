@@ -287,10 +287,16 @@ impl From<Sort> for BoundVariableKind {
 
 pub type BoundVariableKinds = List<BoundVariableKind>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialOrd, Ord, Encodable, Decodable)]
 pub enum BoundReftKind {
     Anon,
     Named(Symbol),
+}
+
+impl PartialEq for BoundReftKind {
+    fn eq(&self, _other: &Self) -> bool {
+        true // core::mem::discriminant(self) == core::mem::discriminant(other)
+    }
 }
 
 impl_slice_internable!(BoundVariableKind);

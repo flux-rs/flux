@@ -26,7 +26,7 @@ use rustc_middle::{
     mir::BasicBlock,
     ty::{TyCtxt, Variance},
 };
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_type_ir::Variance::Invariant;
 
 use crate::{
@@ -449,7 +449,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    pub fn define_var(&mut self, sort: &Sort, provenance: BinderProvenance) -> Name {
+    fn define_var(&mut self, sort: &Sort, provenance: BinderProvenance) -> Name {
         self.cursor.define_var(sort, provenance)
     }
 
@@ -474,6 +474,10 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.hoister(false).hoist(ty)
     }
 
+    pub fn unpack_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
+        self.hoister(false).hoist_at_name(name, ty)
+    }
+
     pub fn marker(&self) -> Marker {
         self.cursor.marker()
     }
@@ -482,7 +486,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         &mut self,
         assume_invariants: bool,
     ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, name: None })
+            .transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -498,11 +503,13 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     assume_invariants: bool,
+    name: Option<Symbol>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
         let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
+            let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
             Expr::fvar(self.infcx.define_bound_reft_var(sort, kind))
         });
         if self.assume_invariants {
@@ -513,6 +520,10 @@ impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
 
     fn hoist_constr(&mut self, pred: Expr) {
         self.infcx.assume_pred(pred);
+    }
+
+    fn set_name(&mut self, name: Symbol) {
+        self.name = Some(name);
     }
 }
 
