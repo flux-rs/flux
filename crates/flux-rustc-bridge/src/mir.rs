@@ -349,7 +349,7 @@ impl Place {
 
     // TODO(source-level-binders): use the bits from the `projection` too?
     pub fn name(&self, local_names: &UnordMap<Local, Symbol>) -> Option<Symbol> {
-        local_names.get(&self.local).cloned()
+        local_names.get(&self.local).copied()
     }
 }
 

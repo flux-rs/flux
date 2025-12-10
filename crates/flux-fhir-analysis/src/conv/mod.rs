@@ -1209,7 +1209,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     // }
 
     fn suffix_symbol<S: ToString>(sym: Symbol, suffix: S) -> Symbol {
-        let str = format!("{}{}", sym.to_string(), suffix.to_string());
+        let str = format!("{}{}", sym, suffix.to_string());
         Symbol::intern(&str)
     }
 

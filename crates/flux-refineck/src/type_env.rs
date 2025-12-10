@@ -749,7 +749,7 @@ impl BasicBlockEnvShape {
         let mut bindings = self.bindings;
         bindings.fmap_mut(|loc, ty| {
             let name = if let Loc::Local(local) = loc {
-                body.local_names.get(local).cloned()
+                body.local_names.get(local).copied()
             } else {
                 None
             };
