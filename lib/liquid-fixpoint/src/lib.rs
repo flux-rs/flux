@@ -157,6 +157,11 @@ pub fn qe_and_simplify<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec
     cstr2smt2::qe_and_simplify(constraint, free_vars, &datatype_decls)
 }
 
+pub fn check_validity<T: Types>(constraint: &FlatConstraint<T>, free_vars: &Vec<ConstDecl<T>>, datatype_decls: Vec<DataDecl<T>>) -> bool {
+    let datatype_decls = topo_sort_data_declarations(datatype_decls);
+    cstr2smt2::check_validity(constraint, free_vars, &datatype_decls)
+}
+
 
 #[derive_where(Hash, Clone, Debug)]
 pub struct ConstDecl<T: Types> {

@@ -776,6 +776,40 @@ pub(crate) fn is_constraint_satisfiable<T: Types>(
     res
 }
 
+/// Checks if a [`FlatConstraint`] is valid; for any constraints that fixpoint
+/// fails to check this is not necessary (because otherwise fixpoint's check
+/// would have succeeded); however, if we split a constraint because of a
+/// disjunction we will want to prune branches that are already satisfied.
+pub fn check_validity<T: Types>(
+    cstr: &FlatConstraint<T>,
+    consts: &Vec<ConstDecl<T>>,
+    datatype_decls: &Vec<DataDecl<T>>,
+) -> bool {
+    let solver = Solver::new();
+    let mut vars = Env::new();
+    datatype_decls.iter().for_each(|data_decl| {
+        let datatype_sort = new_datatype(&data_decl.name, &data_decl, &mut vars);
+        vars.insert_data_decl(data_decl.name.clone(), datatype_sort);
+    });
+    consts.iter().for_each(|const_decl| {
+        vars.insert(const_decl.name.clone(), new_binding(&const_decl.name.display().to_string(), &const_decl.sort, &vars))
+    });
+    for (var, sort) in &cstr.binders {
+        vars.insert(var.clone(), new_binding(&var.display().to_string(), sort, &vars));
+    }
+    solver.push();
+    for assumption in &cstr.assumptions {
+        let pred_ast = pred_to_z3(&assumption, &mut vars, AllowKVars::NoKVars);
+        solver.assert(&pred_ast);
+    }
+    let head_ast = pred_to_z3(&cstr.head, &mut vars, AllowKVars::NoKVars);
+    solver.assert(ast::Bool::not(&head_ast));
+    match solver.check() {
+        SatResult::Unsat => true,
+        _ => false,
+    }
+}
+
 pub fn qe_and_simplify<T: Types>(
     cstr: &FlatConstraint<T>,
     consts: &Vec<ConstDecl<T>>,

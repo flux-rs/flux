@@ -712,6 +712,88 @@ impl<T: Types> Expr<T> {
             }
         }
     }
+
+    /// Are there any weak kvars that are
+    ///
+    /// 1. Behind an exists
+    /// 2. In a disjunction
+    ///
+    /// which if we removed either (or both),
+    /// we would be able to access.
+    ///
+    /// NOTE: Does not handle cases where the weak
+    /// kvar is behind an exists in a conjunction, e.g.
+    ///
+    ///     x == 1
+    ///     && y == 2
+    ///     && exists z. $wk0(x, y, z)
+    ///
+    /// Maybe the correct solution is to hoist all exists
+    /// that we can and _then_ check for reachable weak kvars.
+    pub fn has_wkvar_reachable_by_split(&self) -> bool {
+        if !matches!(self, Expr::Exists(..) | Expr::Or(..)) {
+            return false;
+        }
+        match self.skip_exists() {
+            Expr::Or(exprs) => {
+                exprs.iter().any(|expr| !expr.skip_exists().wkvars_in_conj().is_empty())
+            }
+            _ => !self.wkvars_in_conj().is_empty(),
+        }
+    }
+
+    pub fn skip_exists(&self) -> &Self {
+        match self {
+            Expr::Exists(_, e) => e.skip_exists(),
+            e => e,
+        }
+    }
+
+    pub fn hoist_exists<F>(&self, fresh_var: &mut F) -> (Vec<(T::Var, Sort<T>)>, Expr<T>)
+        where F: FnMut() -> T::Var
+    {
+        match self {
+            Expr::Exists(sorts, inner_e) => {
+                // These will have the vars and sorts.
+                let mut vars = vec![];
+                // These are just the vars wrapped in exprs.
+                let mut subst_exprs = vec![];
+                for sort in sorts {
+                    let var = fresh_var();
+                    let fresh_expr = Expr::Var(var.clone());
+                    vars.push((var, sort.clone()));
+                    subst_exprs.push(fresh_expr);
+                }
+                let (new_vars, hoisted_inner) = inner_e.hoist_exists(fresh_var);
+                vars.extend(new_vars);
+                let subst_e = hoisted_inner.substitute_bvar(&subst_exprs, 0);
+                (vars, subst_e)
+            }
+            Expr::And(exprs) => {
+                let mut vars = vec![];
+                let hoisted_e = Expr::And(
+                    exprs.iter().flat_map(|expr| {
+                        let (new_vars, hoisted_e) = expr.hoist_exists(fresh_var);
+                        vars.extend(new_vars);
+                        // Flatten any conjunctions
+                        match hoisted_e {
+                            Expr::And(exprs) => exprs,
+                            hoisted_e => vec![hoisted_e],
+                        }
+                    }).collect()
+                );
+                (vars, hoisted_e)
+            }
+            _ => (vec![], self.clone())
+        }
+    }
+
+    pub fn as_conjunction(self) -> Vec<Self> {
+        match self {
+            Expr::And(exprs) => exprs,
+            _ => vec![self]
+        }
+    }
 }
 
 #[derive_where(Hash, Clone, Debug)]
