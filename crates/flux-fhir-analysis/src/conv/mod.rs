@@ -671,16 +671,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
-        // let params = match body_id {
-        //     Some(body_id) => {
-        //         Some(
-        //             self.tcx()
-        //                 .hir_body_param_idents(body_id)
-        //                 .collect::<Vec<_>>(),
-        //         )
-        //     }
-        //     None => None,
-        // };
 
         let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id)?;
 
@@ -1195,21 +1185,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(())
     }
 
-    // fn conv_ty_with_name(
-    //     &mut self,
-    //     env: &mut Env,
-    //     ty: &fhir::Ty,
-    //     name: Symbol,
-    // ) -> QueryResult<rty::Ty> {
-    //     if let fhir::TyKind::BaseTy(bty) = &ty.kind {
-    //         Ok(self.conv_bty(env, bty, Some(name))?.to_ty())
-    //     } else {
-    //         self.conv_ty(env, ty)
-    //     }
-    // }
-
     fn suffix_symbol<S: ToString>(sym: Symbol, suffix: S) -> Symbol {
-        let str = format!("{}{}", sym, suffix.to_string());
+        let str = format!("{}_{}", sym, suffix.to_string());
         Symbol::intern(&str)
     }
 
@@ -1280,7 +1257,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                let name = name.map(|sym| Self::suffix_symbol(sym, "_elem"));
+                let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
                 Ok(rty::Ty::array(self.conv_ty(env, ty, name)?, self.conv_const_arg(*len)))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
@@ -1464,7 +1441,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
             fhir::BaseTyKind::Slice(ty) => {
-                let name = name.map(|sym| Self::suffix_symbol(sym, "_elem"));
+                let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
                 let bty = rty::BaseTy::Slice(self.conv_ty(env, ty, name)?).shift_in_escaping(1);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
