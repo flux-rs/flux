@@ -690,7 +690,7 @@ impl FnTraitPredicate {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
         let ret = self.output.clone().shift_in_escaping(1);
         let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output)
+        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output, false)
     }
 }
 
@@ -700,6 +700,7 @@ pub fn to_closure_sig(
     tys: &[Ty],
     args: &flux_rustc_bridge::ty::GenericArgs,
     poly_sig: &PolyFnSig,
+    no_panic: bool,
 ) -> PolyFnSig {
     let closure_args = args.as_closure();
     let kind_ty = closure_args.kind_ty().to_rustc(tcx);
@@ -741,6 +742,7 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(), // crate::rty::List::empty(),
         inputs.into(),
         output,
+        no_panic,
     );
 
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
@@ -1377,6 +1379,7 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
+    pub no_panic: bool,
 }
 
 #[derive(
@@ -2527,7 +2530,7 @@ impl CoroutineObligPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::bind_with_vars(
-            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output),
+            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output, false),
             List::from(vars),
         )
     }
@@ -2649,8 +2652,9 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
+        no_panic: bool,
     ) -> Self {
-        FnSig { safety, abi, requires, inputs, output }
+        FnSig { safety, abi, requires, inputs, output, no_panic }
     }
 
     pub fn requires(&self) -> &[Expr] {
@@ -2659,6 +2663,10 @@ impl FnSig {
 
     pub fn inputs(&self) -> &[Ty] {
         &self.inputs
+    }
+
+    pub fn no_panic(&self) -> bool {
+        self.no_panic
     }
 
     pub fn output(&self) -> Binder<FnOutput> {
@@ -2771,6 +2779,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
+                    true
                 )
             })
         })
