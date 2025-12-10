@@ -570,7 +570,7 @@ impl WKVarSolutions {
             let wkvar_fn_name = genv.tcx().def_path_str(def_id);
             let fn_sig = genv.fn_sig(def_id).unwrap();
             let mut wkvar_subst = WKVarSubst { wkvar_instantiations };
-            let solved_fn_sig = rty::EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
+            let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
             println!("Solution: fn {}", wkvar_fn_name);
@@ -692,7 +692,7 @@ impl WKVarSolutions {
                 let fn_name = genv.tcx().def_path_str(fn_def_id);
                 println!("fn {}", fn_name);
                 let fn_sig = genv.fn_sig(fn_def_id).unwrap();
-                let solved_fn_sig = rty::EarlyBinder(wkvar_subst.fold_binder(fn_sig.skip_binder_ref()));
+                let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
                 println!("sig {:?}", pretty::with_cx!(&fn_pretty_cx, &solved_fn_sig));
             }
             for kvid in kvids {

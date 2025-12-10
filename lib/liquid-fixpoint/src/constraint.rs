@@ -821,8 +821,8 @@ impl<T: Types> Expr<T> {
             Expr::WKVar(..) => {
                 Expr::Constant(Constant::Boolean(true))
             }
-            Expr::App(head, args) => {
-                Expr::App(Box::new(head.strip_wkvars()), args.iter().map(|arg| arg.strip_wkvars()).collect())
+            Expr::App(head, sort_args, args) => {
+                Expr::App(Box::new(head.strip_wkvars()), sort_args.clone(), args.iter().map(|arg| arg.strip_wkvars()).collect())
             }
             Expr::Neg(expr) => {
                 Expr::Neg(Box::new(expr.strip_wkvars()))

@@ -756,7 +756,7 @@ where
                                                     consts.extend(constants_without_inequalities.iter().cloned());
                                                     if !check_validity(&new_constraint, &consts, data_decls.clone()) {
                                                         // println!("It is nontrivial");
-                                                        Some((wkvars, new_constraint))
+                                                        Some(new_constraint)
                                                     } else {
                                                         // println!("We can filter it out");
                                                         None
