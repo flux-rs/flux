@@ -404,7 +404,7 @@ impl<'a> TypeEnv<'a> {
         for constraint in ensures {
             match constraint {
                 Ensures::Type(path, ty) => {
-                    let actual_ty = self.get(path).unblocked();
+                    let actual_ty = self.get(path).unblocked(); // HACK
                     at.subtyping(&actual_ty, ty, reason)?;
                 }
                 Ensures::Pred(e) => {

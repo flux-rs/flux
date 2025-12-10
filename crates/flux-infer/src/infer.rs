@@ -366,7 +366,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         &mut self,
         t: &Binder<T>,
         f: impl FnOnce(&mut InferCtxt<'_, 'genv, 'tcx>, T) -> U,
-    ) -> InferResult<U>
+    ) -> U
     where
         T: TypeFoldable,
     {
@@ -374,6 +374,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
             let t = t.replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
             Ok(f(infcx, t))
         })
+        .unwrap()
     }
 
     /// Used in conjunction with [`InferCtxt::pop_evar_scope`] to ensure evars are solved at the end
@@ -750,7 +751,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             }
 
             (_, TyKind::Exists(ctor_b)) => {
-                infcx.enter_exists(ctor_b, |infcx, ty_b| self.tys(infcx, &a, &ty_b))?
+                infcx.enter_exists(ctor_b, |infcx, ty_b| self.tys(infcx, &a, &ty_b))
             }
             (_, TyKind::Constr(pred_b, ty_b)) => {
                 infcx.check_pred(pred_b, self.tag());

@@ -933,8 +933,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             TyKind::Uint(uint_ty) => rustc_ty::Ty::new_uint(tcx, *uint_ty),
             TyKind::Adt(adt_def, args) => {
                 let adt_def = adt_def.to_rustc(tcx);
-                let args =
-                    tcx.mk_args_from_iter(args.iter().map(|arg: &GenericArg| arg.to_rustc(tcx)));
+                let args = tcx.mk_args_from_iter(args.iter().map(|arg| arg.to_rustc(tcx)));
                 rustc_ty::Ty::new_adt(tcx, adt_def, args)
             }
             TyKind::FnDef(def_id, args) => {
