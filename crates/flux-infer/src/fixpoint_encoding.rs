@@ -2047,7 +2047,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
-            if info.hide && !revealed && !proven_externally {
+            if info.hide && !revealed && proven_externally.is_none() {
                 consts.push(self.fun_decl_to_fixpoint(did, scx));
             } else {
                 defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));

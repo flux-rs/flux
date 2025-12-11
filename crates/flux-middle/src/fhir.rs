@@ -63,10 +63,10 @@ pub struct AttrMap<'fhir> {
 }
 
 impl AttrMap<'_> {
-    pub(crate) fn proven_externally(&self) -> bool {
-        self.attrs
-            .iter()
-            .any(|attr| matches!(attr, Attr::ProvenExternally(_)))
+    pub(crate) fn proven_externally(&self) -> Option<Span> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::ProvenExternally(span) = *attr { Some(span) } else { None }
+        })
     }
 
     pub(crate) fn ignored(&self) -> Option<Ignored> {

@@ -584,6 +584,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ use std::{
     process::{Command, Stdio},
 };
 
+use flux_common::{dbg, dbg::SpanTrace};
 use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
@@ -422,7 +423,12 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .def_path(def_id.resolved_id())
             .to_filename_friendly_no_crate()
             .replace("-", "_");
+
         let theorem_path = self.theorem_path(&theorem_name);
+        if let Some(span) = self.genv.proven_externally(def_id.local_id()) {
+            dbg::hyperlink_json!(self.genv.tcx(), span, SpanTrace::from_pathbuf(&theorem_path))
+        }
+
         self.generate_theorem_file(&theorem_name, &theorem_path, kvars, cstr)?;
         self.generate_proof_file_if_not_present(&theorem_name)
     }

@@ -2,6 +2,7 @@
 use std::{
     fmt, fs,
     io::{self, Write},
+    path::PathBuf,
 };
 
 use flux_config as config;
@@ -38,6 +39,15 @@ impl SpanTrace {
         let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
         let file = SpanTrace::span_file(tcx, span);
         SpanTrace { file, start_line, start_col, end_line, end_col }
+    }
+    pub fn from_pathbuf(path: &PathBuf) -> Self {
+        SpanTrace {
+            file: Some(path.display().to_string()),
+            start_line: 0,
+            start_col: 0,
+            end_line: 0,
+            end_col: 0,
+        }
     }
 }
 
@@ -174,6 +184,15 @@ macro_rules! _hyperlink {
     }};
 }
 pub use crate::_hyperlink as hyperlink;
+
+#[macro_export]
+macro_rules! _hyperlink_json {
+    ($tcx:expr, $src_span:expr, $dst_json:expr) => {{
+       let src_json = SpanTrace::new($tcx, $src_span);
+       tracing::warn!(event = "hyperlink", src_span = ?src_json, dst_span = ?$dst_json)
+    }};
+}
+pub use crate::_hyperlink_json as hyperlink_json;
 
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);
