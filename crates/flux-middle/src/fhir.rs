@@ -1075,6 +1075,12 @@ pub struct PathExpr<'fhir> {
     pub span: Span,
 }
 
+impl<'fhir> PathExpr<'fhir> {
+    pub fn name(&self) -> Option<Symbol> {
+        self.segments.last().map(|ident| ident.name)
+    }
+}
+
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct ParamId {}

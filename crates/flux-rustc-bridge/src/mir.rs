@@ -346,6 +346,11 @@ impl Place {
         projection.push(PlaceElem::Deref);
         Place { local: self.local, projection }
     }
+
+    // TODO(source-level-binders): use the bits from the `projection` too?
+    pub fn name(&self, local_names: &UnordMap<Local, Symbol>) -> Option<Symbol> {
+        if self.projection.is_empty() { local_names.get(&self.local).copied() } else { None }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]

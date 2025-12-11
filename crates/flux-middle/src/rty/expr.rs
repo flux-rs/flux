@@ -942,6 +942,45 @@ newtype_index! {
     pub struct Name {}
 }
 
+impl Name {
+    pub fn as_subscript(&self) -> String {
+        self.as_usize()
+            .to_string()
+            .chars()
+            .map(|c| {
+                match c {
+                    '0' => '₀',
+                    '1' => '₁',
+                    '2' => '₂',
+                    '3' => '₃',
+                    '4' => '₄',
+                    '5' => '₅',
+                    '6' => '₆',
+                    '7' => '₇',
+                    '8' => '₈',
+                    '9' => '₉',
+                    _ => c,
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(Copy, Debug, Clone)]
+pub enum NameProvenance {
+    Unknown,
+    UnfoldBoundReft(BoundReftKind),
+}
+
+impl NameProvenance {
+    pub fn opt_symbol(&self) -> Option<Symbol> {
+        match &self {
+            NameProvenance::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
+            _ => None,
+        }
+    }
+}
+
 impl KVar {
     pub fn new(kvid: KVid, self_args: usize, args: Vec<Expr>) -> Self {
         KVar { kvid, self_args, args: List::from_vec(args) }
@@ -1263,6 +1302,7 @@ impl<T: Pretty> Pretty for FieldBind<T> {
 }
 
 pub(crate) mod pretty {
+
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
@@ -1687,7 +1727,7 @@ pub(crate) mod pretty {
             Ok(NestedString { text, children: None, key: None })
         } else if flds.len() == 1 {
             // Single field, inline index
-            text += &format_cx!(cx, "{:?}", flds[0].clone());
+            text += &flds[0].fmt_nested(cx)?.text;
             Ok(NestedString { text, children: None, key: None })
         } else {
             let keys = if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1711,6 +1751,13 @@ pub(crate) mod pretty {
         }
     }
 
+    impl PrettyNested for Name {
+        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            let text = cx.fmt_name(self);
+            Ok(NestedString { text, key: None, children: None })
+        }
+    }
+
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             let e = if cx.simplify_exprs {
@@ -1719,6 +1766,7 @@ pub(crate) mod pretty {
                 self.clone()
             };
             match e.kind() {
+                ExprKind::Var(Var::Free(name)) => name.fmt_nested(cx),
                 ExprKind::Var(..)
                 | ExprKind::Local(..)
                 | ExprKind::Constant(..)
@@ -1730,7 +1778,7 @@ pub(crate) mod pretty {
                     let kv = format!("{:?}", kvar.kvid);
                     let mut strs = vec![kv];
                     for arg in &kvar.args {
-                        strs.push(debug_nested(cx, arg)?.text);
+                        strs.push(arg.fmt_nested(cx)?.text);
                     }
                     let text = format!("##[{}]##", strs.join("##"));
                     Ok(NestedString { text, children: None, key: None })
