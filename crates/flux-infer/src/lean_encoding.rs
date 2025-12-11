@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
@@ -352,71 +352,61 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         Ok(())
     }
 
-    fn generate_theorem_file(
-        &self,
-        theorem_name: &str,
-        kvars: &[fixpoint::KVarDecl],
-        cstr: &fixpoint::Constraint,
-    ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(self.project_name.as_str());
-        let theorem_path = self.lean_path.join(
+    fn theorem_path(&self, theorem_name: &str) -> PathBuf {
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+
+        self.lean_path.join(
             format!(
                 "{}/{}/{}.lean",
                 self.project_name,
-                pascal_project_name.as_str(),
+                pascal_project_name,
                 Self::snake_case_to_pascal_case(theorem_name)
             )
             .as_str(),
-        );
+        )
+    }
+
+    fn generate_theorem_file(
+        &self,
+        theorem_name: &str,
+        theorem_path: &PathBuf,
+        kvars: &[fixpoint::KVarDecl],
+        cstr: &fixpoint::Constraint,
+    ) -> Result<(), io::Error> {
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+
         let mut theorem_file = fs::File::create(theorem_path)?;
-        writeln!(theorem_file, "import {}.Lib", pascal_project_name.as_str())?;
+        writeln!(theorem_file, "import {}.Lib", pascal_project_name)?;
         if self
             .lean_path
             .join(
                 format!(
                     "{}/{}/{}.lean",
-                    self.project_name.as_str(),
-                    pascal_project_name.as_str(),
-                    self.defs_file_name.as_str()
+                    self.project_name, pascal_project_name, self.defs_file_name
                 )
                 .as_str(),
             )
             .exists()
         {
-            writeln!(
-                theorem_file,
-                "import {}.{}",
-                pascal_project_name.as_str(),
-                self.defs_file_name.as_str()
-            )?;
+            writeln!(theorem_file, "import {}.{}", pascal_project_name, self.defs_file_name)?;
         }
         if self
             .lean_path
             .join(
-                format!(
-                    "{}/{}/OpaqueSorts.lean",
-                    self.project_name.as_str(),
-                    pascal_project_name.as_str(),
-                )
-                .as_str(),
+                format!("{}/{}/OpaqueSorts.lean", self.project_name, pascal_project_name,).as_str(),
             )
             .exists()
         {
-            writeln!(theorem_file, "import {}.OpaqueSorts", pascal_project_name.as_str())?;
+            writeln!(theorem_file, "import {}.OpaqueSorts", pascal_project_name)?;
         }
         if self
             .lean_path
             .join(
-                format!(
-                    "{}/{}/OpaqueFuncs.lean",
-                    self.project_name.as_str(),
-                    pascal_project_name.as_str(),
-                )
-                .as_str(),
+                format!("{}/{}/OpaqueFuncs.lean", self.project_name, pascal_project_name,).as_str(),
             )
             .exists()
         {
-            writeln!(theorem_file, "import {}.OpaqueFuncs", pascal_project_name.as_str())?;
+            writeln!(theorem_file, "import {}.OpaqueFuncs", pascal_project_name)?;
         }
         writeln!(
             theorem_file,
@@ -468,8 +458,9 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .def_path(def_id.resolved_id())
             .to_filename_friendly_no_crate()
             .replace("-", "_");
-        self.generate_theorem_file(theorem_name.as_str(), kvars, cstr)?;
-        self.generate_proof_file_if_not_present(theorem_name.as_str())
+        let theorem_path = self.theorem_path(&theorem_name);
+        self.generate_theorem_file(&theorem_name, &theorem_path, kvars, cstr)?;
+        self.generate_proof_file_if_not_present(&theorem_name)
     }
 
     fn check_proof_help(&self, theorem_name: &str) -> io::Result<()> {
