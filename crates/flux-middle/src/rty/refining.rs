@@ -341,7 +341,7 @@ impl Refine for ty::FnSig {
         // single hole for the "requires"; then we "fill" the hole with a KVAR
         // and generate a PolyFnSig with the hoisted variables
         // see `into_bb_env` in `type_env.rs` for an example.
-        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output))
+        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output, true))
     }
 }
 
