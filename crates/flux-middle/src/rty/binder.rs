@@ -290,28 +290,3 @@ pub enum BoundReftKind {
 }
 
 impl_slice_internable!(BoundVariableKind);
-
-// --------------------------------------------------------------------------------------------------
-
-#[derive(Copy, Debug, Clone)]
-pub enum NameProvenance {
-    Unknown,
-    UnfoldBoundReft(BoundReftKind),
-}
-
-impl NameProvenance {
-    pub fn unknown() -> Self {
-        NameProvenance::Unknown
-    }
-
-    pub fn bound_reft_kind(kind: BoundReftKind) -> Self {
-        NameProvenance::UnfoldBoundReft(kind)
-    }
-
-    pub fn opt_symbol(&self) -> Option<Symbol> {
-        match &self {
-            NameProvenance::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
-            _ => None,
-        }
-    }
-}
