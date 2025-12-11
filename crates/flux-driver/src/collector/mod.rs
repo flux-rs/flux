@@ -795,7 +795,7 @@ impl FluxAttrs {
             let attr = match attr.kind {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
                 FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
-                FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally,
+                FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally(attr.span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
