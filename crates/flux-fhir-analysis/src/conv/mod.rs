@@ -999,7 +999,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let output = self.conv_fn_output(env, &decl.output)?;
 
-        Ok(rty::FnSig::new(safety, abi, requires.into(), inputs.into(), output))
+        Ok(rty::FnSig::new(safety, abi, requires.into(), inputs.into(), output, decl.lifted))
     }
 
     fn conv_requires(
