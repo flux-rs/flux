@@ -167,7 +167,7 @@
 <a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">pub fn </span>replace_bound_vars(
 <a href=#168 id=168 data-nosnippet>168</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
 <a href=#169 id=169 data-nosnippet>169</a>        <span class="kw-2">mut </span>replace_region: <span class="kw">impl </span>FnMut(BoundRegion) -&gt; Region,
-<a href=#170 id=170 data-nosnippet>170</a>        <span class="kw-2">mut </span>replace_expr: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, InferMode) -&gt; Expr,
+<a href=#170 id=170 data-nosnippet>170</a>        <span class="kw-2">mut </span>replace_expr: <span class="kw">impl </span>FnMut(<span class="kw-2">&amp;</span>Sort, InferMode, BoundReftKind) -&gt; Expr,
 <a href=#171 id=171 data-nosnippet>171</a>    ) -&gt; T {
 <a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span><span class="kw-2">mut </span>exprs = UnordMap::default();
 <a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">let </span><span class="kw-2">mut </span>regions = UnordMap::default();
@@ -176,8 +176,8 @@
 <a href=#176 id=176 data-nosnippet>176</a>                exprs
 <a href=#177 id=177 data-nosnippet>177</a>                    .entry(breft.var)
 <a href=#178 id=178 data-nosnippet>178</a>                    .or_insert_with(|| {
-<a href=#179 id=179 data-nosnippet>179</a>                        <span class="kw">let </span>(sort, mode, <span class="kw">_</span>) = <span class="self">self</span>.vars[breft.var.as_usize()].expect_refine();
-<a href=#180 id=180 data-nosnippet>180</a>                        replace_expr(sort, mode)
+<a href=#179 id=179 data-nosnippet>179</a>                        <span class="kw">let </span>(sort, mode, kind) = <span class="self">self</span>.vars[breft.var.as_usize()].expect_refine();
+<a href=#180 id=180 data-nosnippet>180</a>                        replace_expr(sort, mode, kind)
 <a href=#181 id=181 data-nosnippet>181</a>                    })
 <a href=#182 id=182 data-nosnippet>182</a>                    .clone()
 <a href=#183 id=183 data-nosnippet>183</a>            },
@@ -238,7 +238,7 @@
 <a href=#238 id=238 data-nosnippet>238</a>}
 <a href=#239 id=239 data-nosnippet>239</a>
 <a href=#240 id=240 data-nosnippet>240</a><span class="kw">impl </span>BoundVariableKind {
-<a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">fn </span>expect_refine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Sort, InferMode, BoundReftKind) {
+<a href=#241 id=241 data-nosnippet>241</a>    <span class="kw">pub fn </span>expect_refine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>Sort, InferMode, BoundReftKind) {
 <a href=#242 id=242 data-nosnippet>242</a>        <span class="kw">if let </span>BoundVariableKind::Refine(sort, mode, kind) = <span class="self">self </span>{
 <a href=#243 id=243 data-nosnippet>243</a>            (sort, <span class="kw-2">*</span>mode, <span class="kw-2">*</span>kind)
 <a href=#244 id=244 data-nosnippet>244</a>        } <span class="kw">else </span>{
@@ -283,7 +283,7 @@
 <a href=#283 id=283 data-nosnippet>283</a>
 <a href=#284 id=284 data-nosnippet>284</a><span class="kw">pub type </span>BoundVariableKinds = List&lt;BoundVariableKind&gt;;
 <a href=#285 id=285 data-nosnippet>285</a>
-<a href=#286 id=286 data-nosnippet>286</a><span class="attr">#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+<a href=#286 id=286 data-nosnippet>286</a><span class="attr">#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encodable, Decodable)]
 <a href=#287 id=287 data-nosnippet>287</a></span><span class="kw">pub enum </span>BoundReftKind {
 <a href=#288 id=288 data-nosnippet>288</a>    Anon,
 <a href=#289 id=289 data-nosnippet>289</a>    Named(Symbol),
