@@ -422,9 +422,9 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         let proof_path = self.lean_path.join(
             format!(
                 "{}/{}/{}.lean",
-                self.project_name.as_str(),
-                module_name.as_str(),
-                Self::snake_case_to_pascal_case(proof_name.as_str())
+                self.project_name,
+                module_name,
+                Self::snake_case_to_pascal_case(&proof_name)
             )
             .as_str(),
         );
