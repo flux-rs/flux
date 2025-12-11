@@ -53,7 +53,7 @@ use crate::rty::{BoundReftKind, ExprKind, HoleKind};
 /// variables bound with a [`Binder`], and for *freeing* variables into the refinement context.
 // Should we use a builder for this?
 pub struct Hoister<D> {
-    delegate: D,
+    pub delegate: D,
     in_boxes: bool,
     in_downcast: bool,
     in_mut_refs: bool,
@@ -67,7 +67,6 @@ pub struct Hoister<D> {
 pub trait HoisterDelegate {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty;
     fn hoist_constr(&mut self, pred: Expr);
-    fn set_name(&mut self, name: Symbol);
 }
 
 impl<D> Hoister<D> {
@@ -149,13 +148,6 @@ impl<D: HoisterDelegate> Hoister<D> {
     pub fn hoist(&mut self, ty: &Ty) -> Ty {
         ty.fold_with(self)
     }
-
-    pub fn hoist_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
-        if let Some(name) = name {
-            self.delegate.set_name(name);
-        }
-        ty.fold_with(self)
-    }
 }
 
 /// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an exi-indexed slice?
@@ -235,7 +227,7 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
 pub struct LocalHoister {
     vars: Vec<BoundVariableKind>,
     preds: Vec<Expr>,
-    name: Option<Symbol>,
+    pub name: Option<Symbol>,
 }
 
 impl LocalHoister {
@@ -262,10 +254,6 @@ impl HoisterDelegate for &mut LocalHoister {
 
     fn hoist_constr(&mut self, pred: Expr) {
         self.preds.push(pred);
-    }
-
-    fn set_name(&mut self, name: Symbol) {
-        self.name = Some(name);
     }
 }
 

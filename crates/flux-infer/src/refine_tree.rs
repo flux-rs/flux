@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, BinderProvenance, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        BaseTy, NameProvenance, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -132,7 +132,7 @@ impl Cursor<'_> {
 
     /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
     /// node. It returns the freshly generated name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort, provenance: BinderProvenance) -> Name {
+    pub(crate) fn define_var(&mut self, sort: &Sort, provenance: NameProvenance) -> Name {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
         self.ptr = self
             .ptr
@@ -141,7 +141,7 @@ impl Cursor<'_> {
     }
     /// Temporary "backwards compatible" wrapper, should only use `define_var`...
     pub(crate) fn define_unknown_var(&mut self, sort: &Sort) -> Name {
-        self.define_var(sort, BinderProvenance::unknown())
+        self.define_var(sort, NameProvenance::unknown())
     }
 
     /// Pushes an [assumption] and moves the cursor into the new node.
@@ -347,7 +347,7 @@ impl WeakNodePtr {
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
-    ForAll(Name, Sort, BinderProvenance),
+    ForAll(Name, Sort, NameProvenance),
     Assumption(Expr),
     Head(Expr, Tag),
     True,

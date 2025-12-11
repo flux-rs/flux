@@ -16,7 +16,7 @@ pub mod subst;
 use std::{borrow::Cow, cmp::Ordering, fmt, hash::Hash, sync::LazyLock};
 
 pub use binder::{
-    Binder, BinderProvenance, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder,
+    Binder, NameProvenance, BoundReftKind, BoundVariableKind, BoundVariableKinds, EarlyBinder,
 };
 use bitflags::bitflags;
 pub use expr::{

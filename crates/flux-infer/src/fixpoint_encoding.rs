@@ -24,7 +24,7 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, BinderProvenance, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda,
+        self, NameProvenance, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda,
         List, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
@@ -733,7 +733,7 @@ where
     pub(crate) fn with_name_map<R>(
         &mut self,
         name: rty::Name,
-        provenance: BinderProvenance,
+        provenance: NameProvenance,
         f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
     ) -> R {
         let fresh = self.ecx.local_var_env.insert_fvar_map(name, provenance);
@@ -1008,7 +1008,7 @@ impl KVarEncodingCtxt {
 
 struct LocalVarInfo {
     expr: rty::Expr,
-    _provenance: BinderProvenance,
+    _provenance: NameProvenance,
 }
 
 /// TODO(source-level-binders): remove local_var_gen,
@@ -1045,7 +1045,7 @@ impl LocalVarEnv {
     fn insert_fvar_map(
         &mut self,
         name: rty::Name,
-        provenance: BinderProvenance,
+        provenance: NameProvenance,
     ) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
@@ -1821,7 +1821,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             Ok(var)
         } else {
             let fresh = self.local_var_env.fresh_name();
-            let info = LocalVarInfo { expr: arg.clone(), _provenance: BinderProvenance::unknown() };
+            let info = LocalVarInfo { expr: arg.clone(), _provenance: NameProvenance::unknown() };
             self.local_var_env.reverse_map.insert(fresh, info);
             let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), farg);
             bindings.push(fixpoint::Bind {

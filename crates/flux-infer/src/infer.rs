@@ -10,11 +10,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BinderProvenance, BoundReftKind,
-        BoundVariableKinds, CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr,
-        ExprKind, FieldProj, GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name,
-        Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind,
-        Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
+        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
+        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
@@ -449,12 +448,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    fn define_var(&mut self, sort: &Sort, provenance: BinderProvenance) -> Name {
+    fn define_var(&mut self, sort: &Sort, provenance: NameProvenance) -> Name {
         self.cursor.define_var(sort, provenance)
     }
 
     pub fn define_bound_reft_var(&mut self, sort: &Sort, kind: BoundReftKind) -> Name {
-        let provenance = BinderProvenance::bound_reft_kind(kind);
+        let provenance = NameProvenance::bound_reft_kind(kind);
         self.define_var(sort, provenance)
     }
 
@@ -475,7 +474,9 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn unpack_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
-        self.hoister(false).hoist_at_name(name, ty)
+        let mut hoister = self.hoister(false);
+        hoister.delegate.name = name;
+        hoister.hoist(ty)
     }
 
     pub fn marker(&self) -> Marker {
@@ -520,10 +521,6 @@ impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
 
     fn hoist_constr(&mut self, pred: Expr) {
         self.infcx.assume_pred(pred);
-    }
-
-    fn set_name(&mut self, name: Symbol) {
-        self.name = Some(name);
     }
 }
 

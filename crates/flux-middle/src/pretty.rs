@@ -139,8 +139,8 @@ pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
     rty::{
-        AdtSortDef, BinderProvenance, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam,
-        Name,
+        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name,
+        NameProvenance,
     },
 };
 
@@ -408,7 +408,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
         })
     }
 
-    pub fn with_name_provenance(&mut self, name: Name, provenance: BinderProvenance) {
+    pub fn with_name_provenance(&mut self, name: Name, provenance: NameProvenance) {
         self.fvar_env.0.insert(name, provenance);
     }
 
@@ -486,7 +486,7 @@ pub struct BoundVarEnv {
 }
 
 #[derive(Default)]
-pub struct FreeVarEnv(UnordMap<Name, BinderProvenance>);
+pub struct FreeVarEnv(UnordMap<Name, NameProvenance>);
 
 impl BoundVarEnv {
     /// Checks if a variable is

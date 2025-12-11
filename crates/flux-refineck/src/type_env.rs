@@ -753,7 +753,8 @@ impl BasicBlockEnvShape {
             } else {
                 None
             };
-            hoister.hoist_at_name(name, ty)
+            hoister.delegate.name = name;
+            hoister.hoist(ty)
         });
 
         BasicBlockEnv {
