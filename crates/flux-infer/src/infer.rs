@@ -454,8 +454,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn define_bound_reft_var(&mut self, sort: &Sort, kind: BoundReftKind) -> Name {
-        let provenance = NameProvenance::bound_reft_kind(kind);
-        self.define_var(sort, provenance)
+        self.define_var(sort, NameProvenance::UnfoldBoundReft(kind))
     }
 
     pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {

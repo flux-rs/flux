@@ -973,14 +973,6 @@ pub enum NameProvenance {
 }
 
 impl NameProvenance {
-    pub fn unknown() -> Self {
-        NameProvenance::Unknown
-    }
-
-    pub fn bound_reft_kind(kind: BoundReftKind) -> Self {
-        NameProvenance::UnfoldBoundReft(kind)
-    }
-
     pub fn opt_symbol(&self) -> Option<Symbol> {
         match &self {
             NameProvenance::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
@@ -1783,7 +1775,7 @@ pub(crate) mod pretty {
                 | ExprKind::InternalFunc(..) => debug_nested(cx, &e),
                 ExprKind::KVar(kvar) => {
                     let kv = format!("{:?}", kvar.kvid);
-                    let mut strs = vec![kv.clone()];
+                    let mut strs = vec![kv];
                     for arg in &kvar.args {
                         strs.push(arg.fmt_nested(cx)?.text);
                     }

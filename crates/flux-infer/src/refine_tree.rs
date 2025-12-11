@@ -766,7 +766,7 @@ struct RcxBind {
 }
 
 impl RefineCtxtTrace {
-    pub fn new<'genv, 'tcx>(cx: &mut PrettyCx<'genv, 'tcx>, cursor: &Cursor) -> Self {
+    pub fn new(cx: &mut PrettyCx, cursor: &Cursor) -> Self {
         let parents = ParentsIter::new(NodePtr::clone(&cursor.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
@@ -775,7 +775,7 @@ impl RefineCtxtTrace {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort, provenance) => {
-                    cx.with_name_provenance(*name, provenance.clone());
+                    cx.with_name_provenance(*name, *provenance);
 
                     let bind =
                         RcxBind { name: cx.fmt_name(name), sort: format_cx!(cx, "{:?}", sort) };
