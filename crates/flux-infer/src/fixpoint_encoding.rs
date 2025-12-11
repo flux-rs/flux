@@ -1005,8 +1005,6 @@ impl KVarEncodingCtxt {
     }
 }
 
-/// TODO(source-level-binders): remove local_var_gen,
-/// make reverse_map an `IndexVec`, make `LocalVarInfo` type `Option<rty::Expr>`
 /// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
 struct LocalVarEnv {
     local_var_gen: IndexGen<fixpoint::LocalVar>,
