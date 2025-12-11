@@ -404,8 +404,8 @@
 <a href=#404 id=404 data-nosnippet>404</a>        <span class="kw">for </span>constraint <span class="kw">in </span>ensures {
 <a href=#405 id=405 data-nosnippet>405</a>            <span class="kw">match </span>constraint {
 <a href=#406 id=406 data-nosnippet>406</a>                Ensures::Type(path, ty) =&gt; {
-<a href=#407 id=407 data-nosnippet>407</a>                    <span class="kw">let </span>actual_ty = <span class="self">self</span>.get(path);
-<a href=#408 id=408 data-nosnippet>408</a>                    at.subtyping(<span class="kw-2">&amp;</span>actual_ty, ty, reason)<span class="question-mark">?</span>;
+<a href=#407 id=407 data-nosnippet>407</a>                    <span class="kw">let </span>actual_ty = <span class="self">self</span>.get(path).unblocked(); <span class="comment">// HACK
+<a href=#408 id=408 data-nosnippet>408</a>                    </span>at.subtyping(<span class="kw-2">&amp;</span>actual_ty, ty, reason)<span class="question-mark">?</span>;
 <a href=#409 id=409 data-nosnippet>409</a>                }
 <a href=#410 id=410 data-nosnippet>410</a>                Ensures::Pred(e) =&gt; {
 <a href=#411 id=411 data-nosnippet>411</a>                    at.check_pred(e, ConstrReason::Ret);
