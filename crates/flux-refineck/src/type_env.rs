@@ -945,7 +945,6 @@ impl TypeEnvTrace {
         env: &TypeEnv,
     ) -> Self {
         let mut bindings = vec![];
-        // let cx = PrettyCx::default(genv).hide_regions(true);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())
