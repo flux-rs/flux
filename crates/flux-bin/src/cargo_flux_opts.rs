@@ -30,7 +30,6 @@ pub enum CargoFluxCommand {
 }
 
 impl CargoFluxCommand {
-    /// Returns a vector of arguments to forward to the cargo command
     pub fn forward_args(&self, cmd: &mut Command, config_file: &Path) {
         match self {
             CargoFluxCommand::Check(check_opts) => {
@@ -71,22 +70,25 @@ pub struct CheckOpts {
     #[command(flatten)]
     features: Features,
     #[command(flatten)]
+    compilation: CompilationOptions,
+    #[command(flatten)]
     manifest: ManifestOptions,
 }
 
 impl CheckOpts {
     fn forward_args(&self, cmd: &mut Command) {
-        let CheckOpts { message_format, workspace, features, manifest } = self;
+        let CheckOpts { message_format, workspace, features, compilation, manifest } = self;
         if let Some(message_format) = &message_format {
             cmd.args(["--message-format", message_format]);
         }
         workspace.forward_args(cmd);
         features.forward_args(cmd);
+        compilation.forward_args(cmd);
         manifest.forward_args(cmd);
     }
 
     fn forward_to_metadata(&self, meta: &mut MetadataCommand) {
-        let CheckOpts { message_format: _, workspace: _, features, manifest } = self;
+        let CheckOpts { features, manifest, .. } = self;
         features.forward_to_metadata(meta);
         manifest.forward_to_metadata(meta);
     }
@@ -200,6 +202,35 @@ impl Features {
         }
         if !features.is_empty() {
             meta.features(cargo_metadata::CargoOpt::SomeFeatures(features.clone()));
+        }
+    }
+}
+
+#[derive(Debug, clap::Args)]
+#[command(next_help_heading = "Compilation Options")]
+pub struct CompilationOptions {
+    #[arg(short = 'j', long, value_name = "N")]
+    /// Number of parallel jobs, defaults to # of CPUs.
+    pub jobs: Option<u32>,
+    #[arg(long)]
+    /// Do not abort the build as soon as there is an error
+    pub keep_going: bool,
+    #[arg(long, value_name = "TRIPLE")]
+    /// Check for the target triple
+    pub target: Vec<String>,
+}
+
+impl CompilationOptions {
+    fn forward_args(&self, cmd: &mut Command) {
+        let CompilationOptions { jobs, keep_going, target } = self;
+        if let Some(jobs) = jobs {
+            cmd.args(["--jobs", &format!("{jobs}")]);
+        }
+        if *keep_going {
+            cmd.arg("--keep-going");
+        }
+        for t in target {
+            cmd.args(["--target", &format!("{t}")]);
         }
     }
 }

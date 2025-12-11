@@ -407,7 +407,7 @@ pub(crate) fn conv_default_type_parameter(
     let owner = ty_param_owner(genv, def_id.resolved_id());
     let param = genv.generics_of(owner)?.param_at(idx as usize, genv)?;
     let mut cx = AfterSortck::new(genv, wfckresults).into_conv_ctxt();
-    let rty_ty = cx.conv_ty(&mut env, ty)?;
+    let rty_ty = cx.conv_ty(&mut env, ty, None)?;
     cx.try_to_ty_or_base(param.kind, ty.span, &rty_ty)
 }
 
@@ -555,7 +555,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let fields = variant
             .fields
             .iter()
-            .map(|field| self.conv_ty(&mut env, &field.ty))
+            .map(|field| self.conv_ty(&mut env, &field.ty, None))
             .try_collect()?;
 
         let adt_def = self.genv().adt_def(enum_id)?;
@@ -590,7 +590,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
             let fields = fields
                 .iter()
-                .map(|field_def| self.conv_ty(&mut env, &field_def.ty))
+                .map(|field_def| self.conv_ty(&mut env, &field_def.ty, None))
                 .try_collect()?;
 
             let vars = env.pop_layer().into_bound_vars(self.genv())?;
@@ -641,12 +641,12 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         if let Some(index) = &ty_alias.index {
             env.push_layer(Layer::list(self.results(), 0, std::slice::from_ref(index)));
-            let ty = self.conv_ty(&mut env, &ty_alias.ty)?;
+            let ty = self.conv_ty(&mut env, &ty_alias.ty, None)?;
 
             Ok(rty::Binder::bind_with_vars(ty, env.pop_layer().into_bound_vars(self.genv())?))
         } else {
             let ctor = self
-                .conv_ty(&mut env, &ty_alias.ty)?
+                .conv_ty(&mut env, &ty_alias.ty, None)?
                 .shallow_canonicalize()
                 .as_ty_or_base()
                 .as_base()
@@ -671,6 +671,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
+
         let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id)?;
 
         let vars = late_bound_regions
@@ -693,7 +694,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let mut clauses = vec![];
             for pred in fhir_predicates {
                 let span = pred.bounded_ty.span;
-                let bounded_ty = self.conv_ty(env, &pred.bounded_ty)?;
+                let bounded_ty = self.conv_ty(env, &pred.bounded_ty, None)?;
                 for clause in self.conv_generic_bounds(env, span, bounded_ty, pred.bounds)? {
                     clauses.push(clause);
                 }
@@ -986,14 +987,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let params =
             if let Some(body_id) = body_id { self.tcx().hir_body(body_id).params } else { &[] };
         for (i, ty) in decl.inputs.iter().enumerate() {
-            let ty = if let Some(param) = params.get(i)
+            let name = if let Some(param) = params.get(i)
                 && let hir::PatKind::Binding(_, _, ident, _) = param.pat.kind
             {
-                self.conv_ty_with_name(env, ty, ident.name)?
+                Some(ident.name)
             } else {
-                self.conv_ty(env, ty)?
+                None
             };
-            inputs.push(ty);
+            inputs.push(self.conv_ty(env, ty, name)?);
         }
 
         let output = self.conv_fn_output(env, &decl.output)?;
@@ -1023,7 +1024,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::Ensures> {
         match ensures {
             fhir::Ensures::Type(loc, ty) => {
-                Ok(rty::Ensures::Type(self.conv_loc(env, *loc)?, self.conv_ty(env, ty)?))
+                Ok(rty::Ensures::Type(
+                    self.conv_loc(env, *loc)?,
+                    self.conv_ty(env, ty, loc.name())?,
+                ))
             }
             fhir::Ensures::Pred(pred) => Ok(rty::Ensures::Pred(self.conv_expr(env, pred)?)),
         }
@@ -1036,7 +1040,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     ) -> QueryResult<rty::Binder<rty::FnOutput>> {
         env.push_layer(Layer::list(self.results(), 0, output.params));
 
-        let ret = self.conv_ty(env, &output.ret)?;
+        let ret = self.conv_ty(env, &output.ret, None)?;
 
         let ensures: List<rty::Ensures> = output
             .ensures
@@ -1162,7 +1166,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let fhir::AssocItemConstraintKind::Equality { term } = &constraint.kind;
         let span = term.span;
-        let term = self.conv_ty(env, term)?;
+        let term = self.conv_ty(env, term, None)?;
         let term = self.ty_to_subset_ty_ctor(span, &term)?;
 
         let clause = poly_trait_ref
@@ -1181,22 +1185,19 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok(())
     }
 
-    fn conv_ty_with_name(
+    fn suffix_symbol<S: ToString>(sym: Symbol, suffix: S) -> Symbol {
+        let str = format!("{}_{}", sym, suffix.to_string());
+        Symbol::intern(&str)
+    }
+
+    fn conv_ty(
         &mut self,
         env: &mut Env,
         ty: &fhir::Ty,
-        name: Symbol,
+        name: Option<Symbol>,
     ) -> QueryResult<rty::Ty> {
-        if let fhir::TyKind::BaseTy(bty) = &ty.kind {
-            Ok(self.conv_bty(env, bty, Some(name))?.to_ty())
-        } else {
-            self.conv_ty(env, ty)
-        }
-    }
-
-    fn conv_ty(&mut self, env: &mut Env, ty: &fhir::Ty) -> QueryResult<rty::Ty> {
         match &ty.kind {
-            fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty, None)?.to_ty()),
+            fhir::TyKind::BaseTy(bty) => Ok(self.conv_bty(env, bty, name)?.to_ty()),
             fhir::TyKind::Indexed(bty, idx) => {
                 let fhir_id = bty.fhir_id;
                 let rty::TyOrCtor::Ctor(ty_ctor) = self.conv_bty(env, bty, None)? else {
@@ -1209,7 +1210,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::TyKind::Exists(params, ty) => {
                 let layer = Layer::list(self.results(), 0, params);
                 env.push_layer(layer);
-                let ty = self.conv_ty(env, ty)?;
+                let ty = self.conv_ty(env, ty, name)?;
                 let sorts = env.pop_layer().into_bound_vars(self.genv())?;
                 if sorts.is_empty() {
                     Ok(ty.shift_out_escaping(1))
@@ -1219,13 +1220,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             }
             fhir::TyKind::StrgRef(lft, loc, ty) => {
                 let re = self.conv_lifetime(env, *lft, ty.span);
+                let name = loc.name();
                 let loc = self.conv_loc(env, **loc)?;
-                let ty = self.conv_ty(env, ty)?;
+                let ty = self.conv_ty(env, ty, name)?;
                 Ok(rty::Ty::strg_ref(re, loc, ty))
             }
             fhir::TyKind::Ref(lft, fhir::MutTy { ty, mutbl }) => {
                 let region = self.conv_lifetime(env, *lft, ty.span);
-                Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty)?, *mutbl))
+                Ok(rty::Ty::mk_ref(region, self.conv_ty(env, ty, name)?, *mutbl))
             }
             fhir::TyKind::BareFn(bare_fn) => {
                 let mut env = Env::empty();
@@ -1245,21 +1247,27 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::BaseTy::FnPtr(poly_fn_sig).to_ty())
             }
             fhir::TyKind::Tuple(tys) => {
-                let tys: List<rty::Ty> =
-                    tys.iter().map(|ty| self.conv_ty(env, ty)).try_collect()?;
+                let tys: List<rty::Ty> = tys
+                    .iter()
+                    .enumerate()
+                    .map(|(i, ty)| {
+                        self.conv_ty(env, ty, name.map(|sym| Self::suffix_symbol(sym, i)))
+                    })
+                    .try_collect()?;
                 Ok(rty::Ty::tuple(tys))
             }
             fhir::TyKind::Array(ty, len) => {
-                Ok(rty::Ty::array(self.conv_ty(env, ty)?, self.conv_const_arg(*len)))
+                let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
+                Ok(rty::Ty::array(self.conv_ty(env, ty, name)?, self.conv_const_arg(*len)))
             }
             fhir::TyKind::Never => Ok(rty::Ty::never()),
             fhir::TyKind::Constr(pred, ty) => {
                 let pred = self.conv_expr(env, pred)?;
-                Ok(rty::Ty::constr(pred, self.conv_ty(env, ty)?))
+                Ok(rty::Ty::constr(pred, self.conv_ty(env, ty, name)?))
             }
             fhir::TyKind::RawPtr(ty, mutability) => {
                 Ok(rty::Ty::indexed(
-                    rty::BaseTy::RawPtr(self.conv_ty(env, ty)?, *mutability),
+                    rty::BaseTy::RawPtr(self.conv_ty(env, ty, None)?, *mutability),
                     rty::Expr::unit(),
                 ))
             }
@@ -1433,7 +1441,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
             }
             fhir::BaseTyKind::Slice(ty) => {
-                let bty = rty::BaseTy::Slice(self.conv_ty(env, ty)?).shift_in_escaping(1);
+                let name = name.map(|sym| Self::suffix_symbol(sym, "elem"));
+                let bty = rty::BaseTy::Slice(self.conv_ty(env, ty, name)?).shift_in_escaping(1);
                 let sort = bty.sort();
                 let ty = rty::Ty::indexed(bty, rty::Expr::nu());
                 Ok(rty::TyOrCtor::Ctor(rty::Binder::bind_with_sort(ty, sort)))
@@ -1941,7 +1950,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         param: &rty::GenericParamDef,
         ty: &fhir::Ty,
     ) -> QueryResult<rty::GenericArg> {
-        let rty_ty = self.conv_ty(env, ty)?;
+        let rty_ty = self.conv_ty(env, ty, None)?;
         Ok(self.try_to_ty_or_base(param.kind, ty.span, &rty_ty)?.into())
     }
 
@@ -2123,7 +2132,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         let expr = match expr.kind {
             fhir::ExprKind::Var(QPathExpr::Resolved(path, _)) => self.conv_path_expr(env, path)?,
             fhir::ExprKind::Var(QPathExpr::TypeRelative(qself, assoc)) => {
-                let qself = self.conv_ty(env, qself)?;
+                let qself = self.conv_ty(env, qself, None)?;
                 self.conv_type_relative_const_path(expr, &qself, assoc)?
             }
             fhir::ExprKind::Literal(lit) => {

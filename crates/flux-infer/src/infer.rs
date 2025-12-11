@@ -10,10 +10,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyCtor, TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
+        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
+        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
@@ -25,7 +25,7 @@ use rustc_middle::{
     mir::BasicBlock,
     ty::{TyCtxt, Variance},
 };
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_type_ir::Variance::Invariant;
 
 use crate::{
@@ -449,8 +449,16 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_var(sort)
+    fn define_var(&mut self, sort: &Sort, provenance: NameProvenance) -> Name {
+        self.cursor.define_var(sort, provenance)
+    }
+
+    pub fn define_bound_reft_var(&mut self, sort: &Sort, kind: BoundReftKind) -> Name {
+        self.define_var(sort, NameProvenance::UnfoldBoundReft(kind))
+    }
+
+    pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {
+        self.cursor.define_var(sort, NameProvenance::Unknown)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -465,6 +473,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.hoister(false).hoist(ty)
     }
 
+    pub fn unpack_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
+        let mut hoister = self.hoister(false);
+        hoister.delegate.name = name;
+        hoister.hoist(ty)
+    }
+
     pub fn marker(&self) -> Marker {
         self.cursor.marker()
     }
@@ -473,7 +487,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         &mut self,
         assume_invariants: bool,
     ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, name: None })
+            .transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -489,12 +504,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     assume_invariants: bool,
+    name: Option<Symbol>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
+            let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
+            Expr::fvar(self.infcx.define_bound_reft_var(sort, kind))
+        });
         if self.assume_invariants {
             self.infcx.assume_invariants(&ty);
         }
@@ -1078,7 +1096,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let vars = a
             .vars()
             .iter()
-            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
+            .map(|kind| {
+                let (sort, _, kind) = kind.expect_refine();
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            })
             .collect_vec();
         let body_a = a.apply(&vars);
         let body_b = b.apply(&vars);
