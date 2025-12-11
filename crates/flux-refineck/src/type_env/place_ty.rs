@@ -276,10 +276,6 @@ impl PlacesTree {
             binding.ty = f(loc, &binding.ty)?;
             Ok(())
         })
-        // self.map.values_mut().try_for_each(|binding| {
-        //     binding.ty = f(&binding.ty)?;
-        //     Ok(())
-        // })
     }
 
     pub(crate) fn flatten(self) -> Vec<(Path, LocKind, Ty)> {
