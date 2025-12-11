@@ -238,7 +238,7 @@ pub enum BoundVariableKind {
 }
 
 impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
+    pub fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
         if let BoundVariableKind::Refine(sort, mode, kind) = self {
             (sort, *mode, *kind)
         } else {
@@ -248,10 +248,6 @@ impl BoundVariableKind {
 
     pub fn expect_sort(&self) -> &Sort {
         self.expect_refine().0
-    }
-
-    pub fn expect_bound_reft_kind(&self) -> BoundReftKind {
-        self.expect_refine().2
     }
 
     /// Returns `true` if the bound variable kind is [`Refine`].
@@ -297,7 +293,7 @@ impl_slice_internable!(BoundVariableKind);
 
 // --------------------------------------------------------------------------------------------------
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Debug, Clone)]
 pub enum NameProvenance {
     Unknown,
     UnfoldBoundReft(BoundReftKind),

@@ -458,7 +458,7 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
     }
 
     pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_unknown_var(sort)
+        self.cursor.define_var(sort, NameProvenance::Unknown)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -1097,8 +1097,7 @@ impl<'a, E: LocEnv> Sub<'a, E> {
             .vars()
             .iter()
             .map(|kind| {
-                let sort = kind.expect_sort();
-                let kind = kind.expect_bound_reft_kind();
+                let (sort, _, kind) = kind.expect_refine();
                 Expr::fvar(infcx.define_bound_reft_var(sort, kind))
             })
             .collect_vec();

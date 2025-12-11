@@ -14,6 +14,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    pretty::PrettyCx,
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
@@ -609,7 +610,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             &mut infcx,
             CheckerId::DefId(def_id),
             inherited,
-            &body_root.body, // TODO:source-level-binder
+            &body_root.body,
             poly_sig,
             &promoted_tys,
         )

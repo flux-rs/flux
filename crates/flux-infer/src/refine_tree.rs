@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, NameProvenance, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -138,10 +138,6 @@ impl Cursor<'_> {
             .ptr
             .push_node(NodeKind::ForAll(fresh, sort.clone(), provenance));
         fresh
-    }
-    /// Temporary "backwards compatible" wrapper, should only use `define_var`...
-    pub(crate) fn define_unknown_var(&mut self, sort: &Sort) -> Name {
-        self.define_var(sort, NameProvenance::unknown())
     }
 
     /// Pushes an [assumption] and moves the cursor into the new node.
@@ -482,7 +478,7 @@ impl Node {
                 Some(constr)
             }
             NodeKind::ForAll(name, sort, provenance) => {
-                cx.with_name_map(*name, provenance.clone(), |cx, fresh| -> QueryResult<_> {
+                cx.with_name_map(*name, *provenance, |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
                     };
@@ -770,15 +766,10 @@ struct RcxBind {
 }
 
 impl RefineCtxtTrace {
-    pub fn new<'genv, 'tcx>(
-        genv: GlobalEnv<'genv, 'tcx>,
-        cursor: &Cursor,
-    ) -> (Self, PrettyCx<'genv, 'tcx>) {
+    pub fn new<'genv, 'tcx>(cx: &mut PrettyCx<'genv, 'tcx>, cursor: &Cursor) -> Self {
         let parents = ParentsIter::new(NodePtr::clone(&cursor.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
-        let mut cx0 = PrettyCx::default(genv).show_kvar_args();
-        let cx = &mut cx0;
 
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
@@ -809,7 +800,7 @@ impl RefineCtxtTrace {
                 _ => (),
             }
         });
-        (Self { bindings, exprs }, cx0)
+        Self { bindings, exprs }
     }
 }
 
