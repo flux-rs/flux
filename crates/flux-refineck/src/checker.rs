@@ -943,7 +943,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
-        let fn_sig = fn_sig.instantiate(tcx, &generic_args, &early_refine_args);
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
             .replace_bound_vars(
