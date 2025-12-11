@@ -988,6 +988,7 @@ impl NameProvenance {
         }
     }
 }
+
 impl KVar {
     pub fn new(kvid: KVid, self_args: usize, args: Vec<Expr>) -> Self {
         KVar { kvid, self_args, args: List::from_vec(args) }
