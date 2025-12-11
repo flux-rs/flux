@@ -29,6 +29,9 @@ middle_query_ignored_at =
 middle_query_missing_assoc_reft_at =
     associated refinement `{$name}` is missing from implementation
 
+middle_query_missing_lean =
+    externally proven items require `flux` be run with `-Flean=check`
+
 middle_query_opaque_struct =
     invalid use of opaque struct
     .label = operation accesses the internal representation of `{$struct}`.

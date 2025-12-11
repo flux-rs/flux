@@ -42,6 +42,7 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
+    queries::QueryErr,
     rty::{self, ESpan},
 };
 use rustc_data_structures::unord::UnordMap;
@@ -136,12 +137,12 @@ pub fn check_fn(
         .map_err(|err| err.emit(genv, def_id))?;
 
         if genv.proven_externally(def_id).is_some() {
-            if flux_config::emit_lean_defs() {
+            if flux_config::lean().is_emit() {
                 infcx_root
                     .execute_lean_query(MaybeExternId::Local(def_id))
                     .emit(&genv)
             } else {
-                panic!("emit_lean_defs should be enabled if there are externally proven items");
+                Err(QueryErr::MissingLeanCheck { def_id: def_id.to_def_id() }).emit(&genv)
             }
         } else {
             // PHASE 3: invoke fixpoint on the constraint

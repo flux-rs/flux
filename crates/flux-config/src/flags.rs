@@ -3,7 +3,7 @@ use std::{env, path::PathBuf, process, str::FromStr, sync::LazyLock};
 pub use toml::Value;
 use tracing::Level;
 
-use crate::{IncludePattern, OverflowMode, PointerWidth, SmtSolver};
+use crate::{IncludePattern, LeanMode, OverflowMode, PointerWidth, SmtSolver};
 
 const FLUX_FLAG_PREFIX: &str = "-F";
 
@@ -61,7 +61,7 @@ pub struct Flags {
     pub trusted_default: bool,
     /// If `true`, all code will be ignored by default. You can selectively unignore items by marking them with `#[ignore(no)]`. The default value of this flag is `false`, i.e., all code is unignored by default.
     pub ignore_default: bool,
-    pub emit_lean_defs: bool,
+    pub lean: LeanMode,
     /// If `true`, every function is implicitly labeled with a `no_panic` by default.
     pub no_panic: bool,
 }
@@ -90,7 +90,7 @@ impl Default for Flags {
             full_compilation: false,
             trusted_default: false,
             ignore_default: false,
-            emit_lean_defs: false,
+            lean: LeanMode::default(),
             no_panic: false,
         }
     }
@@ -124,7 +124,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "full-compilation" => parse_bool(&mut flags.full_compilation, value),
             "trusted" => parse_bool(&mut flags.trusted_default, value),
             "ignore" => parse_bool(&mut flags.ignore_default, value),
-            "emit_lean_defs" => parse_bool(&mut flags.emit_lean_defs, value),
+            "lean" => parse_lean_mode(&mut flags.lean, value),
             "no-panic" => parse_bool(&mut flags.no_panic, value),
             _ => {
                 eprintln!("error: unknown flux option: `{key}`");
@@ -193,6 +193,16 @@ fn parse_pointer_width(slot: &mut PointerWidth, v: Option<&str>) -> Result<(), &
             Ok(())
         }
         _ => Err(PointerWidth::ERROR),
+    }
+}
+
+fn parse_lean_mode(slot: &mut LeanMode, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.parse()?;
+            Ok(())
+        }
+        _ => Err(LeanMode::ERROR),
     }
 }
 

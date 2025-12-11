@@ -58,8 +58,8 @@ pub fn ignore_default() -> bool {
     FLAGS.ignore_default
 }
 
-pub fn emit_lean_defs() -> bool {
-    FLAGS.emit_lean_defs
+pub fn lean() -> LeanMode {
+    FLAGS.lean
 }
 
 pub fn cache_path() -> Option<&'static Path> {
@@ -199,6 +199,52 @@ impl IncludePattern {
         }
         let glob = glob.build().map_err(|_| "failed to build glob set")?;
         Ok(IncludePattern { glob, defs, spans })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Default)]
+#[serde(try_from = "String")]
+pub enum LeanMode {
+    /// Don't do anything with lean
+    #[default]
+    Off,
+    /// Emit the lean definitions and VCs for externally proven items
+    Emit,
+    /// (Emit and) Check the lean definitions and VCs for externally proven items
+    Check,
+}
+
+impl LeanMode {
+    const ERROR: &'static str = "expected one of `emit`, or `check`";
+
+    pub fn is_emit(self) -> bool {
+        matches!(self, LeanMode::Emit | LeanMode::Check)
+    }
+
+    pub fn is_check(self) -> bool {
+        matches!(self, LeanMode::Check)
+    }
+}
+
+impl FromStr for LeanMode {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_ascii_lowercase();
+        match s.as_str() {
+            "off" => Ok(LeanMode::Off),
+            "emit" => Ok(LeanMode::Emit),
+            "check" => Ok(LeanMode::Check),
+            _ => Err(Self::ERROR),
+        }
+    }
+}
+
+impl TryFrom<String> for LeanMode {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
     }
 }
 
