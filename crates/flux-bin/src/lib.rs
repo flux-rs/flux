@@ -1,5 +1,5 @@
 use cargo_metadata::camino::Utf8Path;
-use flux_config::{OverflowMode, SmtSolver};
+use flux_config::{LeanMode, OverflowMode, SmtSolver};
 use serde::Deserialize;
 
 pub mod cargo_flux_opts;
@@ -32,6 +32,8 @@ pub struct FluxMetadata {
     /// If present, every function in the module is implicitly labeled with a `no_panic` by default.
     /// This means that the only way a function can panic is if it calls an external function without this attribute.
     pub no_panic: Option<bool>,
+    /// If present, enables lean mode
+    pub lean: Option<LeanMode>,
 }
 
 impl FluxMetadata {

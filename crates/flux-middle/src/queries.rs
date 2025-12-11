@@ -79,6 +79,10 @@ pub enum QueryErr {
         trait_id: DefId,
         name: Symbol,
     },
+    /// Need to `-Flean=check` for externally proven items
+    MissingLeanCheck {
+        def_id: DefId,
+    },
     /// An operation tried to access the internals of an opaque struct.
     OpaqueStruct {
         struct_id: DefId,
@@ -1023,6 +1027,13 @@ impl<'a> Diagnostic<'a> for QueryErr {
                         diag.arg("struct", tcx.def_path_str(struct_id));
                         diag
                     }
+                    QueryErr::MissingLeanCheck { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_missing_lean);
+                        diag.code(E0999);
+                        diag
+                    }
                 }
             },
         )
@@ -1060,6 +1071,13 @@ impl<'a> Diagnostic<'a> for QueryErrAt {
                         diag.arg("kind", tcx.def_kind(def_id).descr(def_id));
                         diag.arg("name", def_id_to_string(def_id));
                         diag.span_label(cx_span, fluent::_subdiag::label);
+                        diag
+                    }
+                    QueryErr::MissingLeanCheck { def_id } => {
+                        let def_span = tcx.def_span(def_id);
+                        let mut diag =
+                            dcx.struct_span_err(def_span, fluent::middle_query_missing_lean);
+                        diag.code(E0999);
                         diag
                     }
                     QueryErr::MissingAssocReft { name, .. } => {
