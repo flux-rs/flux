@@ -498,7 +498,7 @@ fn add_fn_fix_diagnostic<'a>(
     let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(wkvid, solution.clone())].into() };
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
-        format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
+        format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
     match genv.resolve_id(wkvid.0) {
         ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
             if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
