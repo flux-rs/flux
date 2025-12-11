@@ -20,7 +20,8 @@ use rustc_serialize::{
 };
 use rustc_session::StableCrateId;
 use rustc_span::{
-    BytePos, ByteSymbol, DUMMY_SP, SourceFile, Span, SpanDecoder, Symbol, SyntaxContext,
+    BlobDecoder, BytePos, ByteSymbol, DUMMY_SP, SourceFile, Span, SpanDecoder, Symbol,
+    SyntaxContext,
     def_id::{CrateNum, DefIndex},
     hygiene::{HygieneDecodeContext, SyntaxContextKey},
 };
@@ -103,6 +104,42 @@ pub(super) fn decode_crate_metadata(
 
 implement_ty_decoder!(DecodeContext<'a, 'tcx>);
 
+impl BlobDecoder for DecodeContext<'_, '_> {
+    fn decode_symbol(&mut self) -> Symbol {
+        let tag = self.read_u8();
+
+        match tag {
+            SYMBOL_STR => {
+                let s = self.read_str();
+                Symbol::intern(s)
+            }
+            SYMBOL_OFFSET => {
+                // read str offset
+                let pos = self.read_usize();
+
+                // move to str offset and read
+                self.opaque.with_position(pos, |d| {
+                    let s = d.read_str();
+                    Symbol::intern(s)
+                })
+            }
+            SYMBOL_PREDEFINED => {
+                let symbol_index = self.read_u32();
+                Symbol::new(symbol_index)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn decode_byte_symbol(&mut self) -> ByteSymbol {
+        ByteSymbol::intern(self.read_byte_str())
+    }
+
+    fn decode_def_index(&mut self) -> DefIndex {
+        DefIndex::from_u32(self.read_u32())
+    }
+}
+
 impl SpanDecoder for DecodeContext<'_, '_> {
     fn decode_attr_id(&mut self) -> rustc_ast::AttrId {
         self.tcx.sess.psess.attr_id_generator.mk_attr_id()
@@ -111,10 +148,6 @@ impl SpanDecoder for DecodeContext<'_, '_> {
     fn decode_crate_num(&mut self) -> CrateNum {
         let stable_id = StableCrateId::decode(self);
         self.tcx.stable_crate_id_to_crate_num(stable_id)
-    }
-
-    fn decode_def_index(&mut self) -> DefIndex {
-        DefIndex::from_u32(self.read_u32())
     }
 
     fn decode_def_id(&mut self) -> DefId {
@@ -164,36 +197,6 @@ impl SpanDecoder for DecodeContext<'_, '_> {
         let hi = lo + len;
 
         Span::new(lo, hi, ctxt, None)
-    }
-
-    fn decode_symbol(&mut self) -> rustc_span::Symbol {
-        let tag = self.read_u8();
-
-        match tag {
-            SYMBOL_STR => {
-                let s = self.read_str();
-                Symbol::intern(s)
-            }
-            SYMBOL_OFFSET => {
-                // read str offset
-                let pos = self.read_usize();
-
-                // move to str offset and read
-                self.opaque.with_position(pos, |d| {
-                    let s = d.read_str();
-                    Symbol::intern(s)
-                })
-            }
-            SYMBOL_PREDEFINED => {
-                let symbol_index = self.read_u32();
-                Symbol::new(symbol_index)
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    fn decode_byte_symbol(&mut self) -> ByteSymbol {
-        ByteSymbol::intern(self.read_byte_str())
     }
 }
 
