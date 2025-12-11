@@ -477,8 +477,8 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort, provenance) => {
-                cx.with_name_map(*name, *provenance, |cx, fresh| -> QueryResult<_> {
+            NodeKind::ForAll(name, sort, _) => {
+                cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
                     };

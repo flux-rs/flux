@@ -24,8 +24,8 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, NameProvenance, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda,
-        List, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
+        VariantIdx, fold::TypeFoldable as _,
     },
 };
 use itertools::Itertools;
@@ -733,10 +733,9 @@ where
     pub(crate) fn with_name_map<R>(
         &mut self,
         name: rty::Name,
-        provenance: NameProvenance,
         f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
     ) -> R {
-        let fresh = self.ecx.local_var_env.insert_fvar_map(name, provenance);
+        let fresh = self.ecx.local_var_env.insert_fvar_map(name);
         let r = f(self, fresh);
         self.ecx.local_var_env.remove_fvar_map(name);
         r
@@ -1006,11 +1005,6 @@ impl KVarEncodingCtxt {
     }
 }
 
-struct LocalVarInfo {
-    expr: rty::Expr,
-    _provenance: NameProvenance,
-}
-
 /// TODO(source-level-binders): remove local_var_gen,
 /// make reverse_map an `IndexVec`, make `LocalVarInfo` type `Option<rty::Expr>`
 /// Environment used to map from [`rty::Var`] to a [`fixpoint::LocalVar`].
@@ -1023,7 +1017,7 @@ struct LocalVarEnv {
     /// [`UnordMap<fixpoint::LocalVar, rty::Var>`], we encode the arguments to
     /// kvars (which can be arbitrary expressions) as local variables; thus we
     /// need to keep the output as an [`rty::Expr`] to reflect this.
-    reverse_map: UnordMap<fixpoint::LocalVar, LocalVarInfo>,
+    reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
 }
 
 impl LocalVarEnv {
@@ -1042,15 +1036,10 @@ impl LocalVarEnv {
         self.local_var_gen.fresh()
     }
 
-    fn insert_fvar_map(
-        &mut self,
-        name: rty::Name,
-        provenance: NameProvenance,
-    ) -> fixpoint::LocalVar {
+    fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
-        let info = LocalVarInfo { expr: rty::Expr::fvar(name), _provenance: provenance };
-        self.reverse_map.insert(fresh, info);
+        self.reverse_map.insert(fresh, rty::Expr::fvar(name));
         fresh
     }
 
@@ -1821,8 +1810,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             Ok(var)
         } else {
             let fresh = self.local_var_env.fresh_name();
-            let info = LocalVarInfo { expr: arg.clone(), _provenance: NameProvenance::unknown() };
-            self.local_var_env.reverse_map.insert(fresh, info);
+            self.local_var_env.reverse_map.insert(fresh, arg.clone());
             let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), farg);
             bindings.push(fixpoint::Bind {
                 name: fresh.into(),
