@@ -110,9 +110,17 @@ pub fn check_fn(
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;
         let mut closures = UnordMap::default();
+
+        let poly_sig = genv
+            .fn_sig(def_id)
+            .with_span(span)
+            .map_err(|err| err.emit(genv, def_id))?
+            .instantiate_identity();
+        let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =
-            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts)
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts, &poly_sig)
                 .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 2: generate refinement tree constraint
@@ -123,6 +131,7 @@ pub fn check_fn(
             &mut closures,
             shape_result,
             opts,
+            &poly_sig,
         )
         .map_err(|err| err.emit(genv, def_id))?;
 
