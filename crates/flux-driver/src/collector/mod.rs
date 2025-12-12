@@ -469,7 +469,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     ) -> Result<FluxAttr> {
         let invalid_attr_err = |this: &Self| {
             this.errors
-                .emit(errors::InvalidAttr { span: attr_item_span(attr_item) })
+                .emit(errors::InvalidAttr { span: attr_item_inner_span(attr_item) })
         };
 
         let [_, segment] = &attr_item.path.segments[..] else { return Err(invalid_attr_err(self)) };
@@ -572,7 +572,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if config::annots() {
             self.stats.add(self.tcx, segment.as_str(), &attr_item.args);
         }
-        Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
+        Ok(FluxAttr { kind, span: attr_item_inner_span(attr_item) })
     }
 
     fn parse<T>(
@@ -905,7 +905,7 @@ impl AttrMap {
         let mut map = Self { map: HashMap::new() };
         let err = || {
             Err(errors::AttrMapErr {
-                span: attr_item_span(attr_item),
+                span: attr_item_inner_span(attr_item),
                 message: "bad syntax".to_string(),
             })
         };
@@ -968,7 +968,8 @@ impl AttrMap {
     }
 }
 
-fn attr_item_span(attr_item: &hir::AttrItem) -> Span {
+/// Returns the span of an attribute without `#[` and `]`
+fn attr_item_inner_span(attr_item: &hir::AttrItem) -> Span {
     attr_args_span(&attr_item.args)
         .map_or(attr_item.path.span, |args_span| attr_item.path.span.to(args_span))
 }
