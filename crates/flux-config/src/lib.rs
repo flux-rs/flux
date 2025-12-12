@@ -248,6 +248,16 @@ impl TryFrom<String> for LeanMode {
     }
 }
 
+impl fmt::Display for LeanMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LeanMode::Off => write!(f, "off"),
+            LeanMode::Emit => write!(f, "emit"),
+            LeanMode::Check => write!(f, "check"),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Default)]
 #[serde(try_from = "String")]
 pub enum OverflowMode {

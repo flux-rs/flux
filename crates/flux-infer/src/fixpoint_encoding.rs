@@ -675,12 +675,8 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
-            let lean_encoder = LeanEncoder::new(
-                self.genv,
-                std::path::Path::new("./"),
-                "lean_proofs".to_string(),
-                "Defs".to_string(),
-            );
+            let lean_encoder =
+                LeanEncoder::new(self.genv, "lean_proofs".to_string(), "Defs".to_string());
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;

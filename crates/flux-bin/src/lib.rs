@@ -48,6 +48,9 @@ impl FluxMetadata {
         if let Some(v) = self.check_overflow {
             flags.push(format!("-Fcheck-overflow={v}"));
         }
+        if let Some(v) = self.lean {
+            flags.push(format!("-Flean={v}"));
+        }
         if let Some(v) = self.scrape_quals {
             flags.push(format!("-Fscrape-quals={v}"));
         }

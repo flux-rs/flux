@@ -1,7 +1,7 @@
 use std::{
     fs,
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -17,20 +17,22 @@ use crate::{
     lean_format::{self, LeanConstDecl, LeanSortDecl, LeanSortVar, LeanVar},
 };
 
-pub struct LeanEncoder<'genv, 'tcx, 'a> {
+pub struct LeanEncoder<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    lean_path: &'a Path,
+    lean_path: PathBuf,
     project_name: String,
     defs_file_name: String,
 }
 
-impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
-    pub fn new(
-        genv: GlobalEnv<'genv, 'tcx>,
-        lean_path: &'a Path,
-        project_name: String,
-        defs_file_name: String,
-    ) -> Self {
+impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>, project_name: String, defs_file_name: String) -> Self {
+        let lean_path = genv
+            .tcx()
+            .sess
+            .opts
+            .working_dir
+            .local_path_if_available()
+            .to_path_buf();
         Self { genv, lean_path, project_name, defs_file_name }
     }
 
@@ -344,12 +346,11 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
     fn generate_theorem_file(
         &self,
         theorem_name: &str,
-        theorem_path: &PathBuf,
         kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
-
+        let theorem_path = self.theorem_path(theorem_name);
         let mut theorem_file = fs::File::create(theorem_path)?;
         writeln!(theorem_file, "import {}.Lib", pascal_project_name)?;
         if self
@@ -384,7 +385,11 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
         )
     }
 
-    fn generate_proof_file_if_not_present(&self, theorem_name: &str) -> Result<(), io::Error> {
+    fn generate_proof_file_if_not_present(
+        &self,
+        def_id: MaybeExternId,
+        theorem_name: &str,
+    ) -> Result<(), io::Error> {
         let module_name = Self::snake_case_to_pascal_case(&self.project_name);
         let proof_name = format!("{theorem_name}_proof");
         let proof_path = self.lean_path.join(format!(
@@ -393,6 +398,12 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             module_name,
             Self::snake_case_to_pascal_case(&proof_name)
         ));
+
+        if let Some(span) = self.genv.proven_externally(def_id.local_id()) {
+            let dst_span = SpanTrace::from_pathbuf(&proof_path, 3, 5, proof_name.len());
+            dbg::hyperlink_json!(self.genv.tcx(), span, dst_span)
+        }
+
         if proof_path.exists() {
             return Ok(());
         }
@@ -424,13 +435,9 @@ impl<'genv, 'tcx, 'a> LeanEncoder<'genv, 'tcx, 'a> {
             .to_filename_friendly_no_crate()
             .replace("-", "_");
 
-        let theorem_path = self.theorem_path(&theorem_name);
-        if let Some(span) = self.genv.proven_externally(def_id.local_id()) {
-            dbg::hyperlink_json!(self.genv.tcx(), span, SpanTrace::from_pathbuf(&theorem_path))
-        }
+        self.generate_theorem_file(&theorem_name, kvars, cstr)?;
 
-        self.generate_theorem_file(&theorem_name, &theorem_path, kvars, cstr)?;
-        self.generate_proof_file_if_not_present(&theorem_name)
+        self.generate_proof_file_if_not_present(def_id, &theorem_name)
     }
 
     fn check_proof_help(&self, theorem_name: &str) -> io::Result<()> {

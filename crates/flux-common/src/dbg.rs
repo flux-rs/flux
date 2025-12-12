@@ -40,13 +40,13 @@ impl SpanTrace {
         let file = SpanTrace::span_file(tcx, span);
         SpanTrace { file, start_line, start_col, end_line, end_col }
     }
-    pub fn from_pathbuf(path: &PathBuf) -> Self {
+    pub fn from_pathbuf(path: &PathBuf, start_line: usize, start_col: usize, len: usize) -> Self {
         SpanTrace {
             file: Some(path.display().to_string()),
-            start_line: 0,
-            start_col: 0,
-            end_line: 0,
-            end_col: 0,
+            start_line,
+            start_col,
+            end_line: start_line,
+            end_col: start_col + len,
         }
     }
 }

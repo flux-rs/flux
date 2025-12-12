@@ -455,7 +455,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     None
                 }
             })
-            .map(|attr_item| self.parse_flux_attr(attr_item, def_kind))
+            .map(|attr_item| self.parse_flux_attr(attr_item, def_id, def_kind))
             .try_collect_exhaust()?;
 
         Ok(FluxAttrs::new(attrs))
@@ -464,6 +464,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn parse_flux_attr(
         &mut self,
         attr_item: &hir::AttrItem,
+        def_id: LocalDefId,
         def_kind: DefKind,
     ) -> Result<FluxAttr> {
         let invalid_attr_err = |this: &Self| {
@@ -549,7 +550,14 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
             }
-            ("proven_externally", hir::AttrArgs::Empty) => FluxAttrKind::ProvenExternally,
+            ("proven_externally", hir::AttrArgs::Delimited(dargs)) if dargs.tokens.len() == 1 => {
+                let span = dargs.tokens.get(0).unwrap().span();
+                FluxAttrKind::ProvenExternally(span)
+            }
+            ("proven_externally", hir::AttrArgs::Empty) => {
+                let span = self.tcx.def_span(def_id);
+                FluxAttrKind::ProvenExternally(span)
+            }
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
             ("opaque", hir::AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
@@ -645,7 +653,7 @@ struct FluxAttr {
 enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
-    ProvenExternally,
+    ProvenExternally(Span),
     Opaque,
     Reflect,
     FnSig(surface::FnSig),
@@ -795,7 +803,7 @@ impl FluxAttrs {
             let attr = match attr.kind {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
                 FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
-                FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally(attr.span),
+                FluxAttrKind::ProvenExternally(span) => surface::Attr::ProvenExternally(span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
@@ -829,7 +837,7 @@ impl FluxAttrKind {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
-            FluxAttrKind::ProvenExternally => attr_name!(ProvenExternally),
+            FluxAttrKind::ProvenExternally(_) => attr_name!(ProvenExternally),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::Reflect => attr_name!(Reflect),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
