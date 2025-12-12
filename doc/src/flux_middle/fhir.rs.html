@@ -49,7 +49,7 @@
 <a href=#49 id=49 data-nosnippet>49</a>    Trusted(Trusted),
 <a href=#50 id=50 data-nosnippet>50</a>    TrustedImpl(Trusted),
 <a href=#51 id=51 data-nosnippet>51</a>    Ignore(Ignored),
-<a href=#52 id=52 data-nosnippet>52</a>    ProvenExternally,
+<a href=#52 id=52 data-nosnippet>52</a>    ProvenExternally(Span),
 <a href=#53 id=53 data-nosnippet>53</a>    ShouldFail,
 <a href=#54 id=54 data-nosnippet>54</a>    InferOpts(PartialInferOpts),
 <a href=#55 id=55 data-nosnippet>55</a>    NoPanic,
@@ -63,10 +63,10 @@
 <a href=#63 id=63 data-nosnippet>63</a>}
 <a href=#64 id=64 data-nosnippet>64</a>
 <a href=#65 id=65 data-nosnippet>65</a><span class="kw">impl </span>AttrMap&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>proven_externally(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#67 id=67 data-nosnippet>67</a>        <span class="self">self</span>.attrs
-<a href=#68 id=68 data-nosnippet>68</a>            .iter()
-<a href=#69 id=69 data-nosnippet>69</a>            .any(|attr| <span class="macro">matches!</span>(attr, Attr::ProvenExternally))
+<a href=#66 id=66 data-nosnippet>66</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>proven_externally(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Span&gt; {
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="self">self</span>.attrs.iter().find_map(|attr| {
+<a href=#68 id=68 data-nosnippet>68</a>            <span class="kw">if let </span>Attr::ProvenExternally(span) = <span class="kw-2">*</span>attr { <span class="prelude-val">Some</span>(span) } <span class="kw">else </span>{ <span class="prelude-val">None </span>}
+<a href=#69 id=69 data-nosnippet>69</a>        })
 <a href=#70 id=70 data-nosnippet>70</a>    }
 <a href=#71 id=71 data-nosnippet>71</a>
 <a href=#72 id=72 data-nosnippet>72</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>ignored(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ignored&gt; {

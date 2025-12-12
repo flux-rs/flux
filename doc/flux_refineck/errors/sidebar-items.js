@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["AssertError","AssignError","CallSpanNote","ConditionSpanNote","DivError","ExpectedNeg","FoldError","GotoError","OverflowError","RefineError","RemError","UnderflowError","UnknownError"]};
+window.SIDEBAR_ITEMS = {"struct":["AssertError","AssignError","CallSpanNote","ConditionSpanNote","DivError","ExpectedNeg","FoldError","GotoError","MissingLean","OverflowError","RefineError","RemError","UnderflowError","UnknownError"]};
