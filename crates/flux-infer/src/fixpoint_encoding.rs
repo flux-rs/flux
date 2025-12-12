@@ -680,7 +680,8 @@ where
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
-            lean_encoder.check_proof(def_id)
+
+            if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
         } else {
             Ok(())
         }

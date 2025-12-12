@@ -42,7 +42,6 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
-    queries::QueryErr,
     rty::{self, ESpan},
 };
 use rustc_data_structures::unord::UnordMap;
@@ -142,7 +141,9 @@ pub fn check_fn(
                     .execute_lean_query(MaybeExternId::Local(def_id))
                     .emit(&genv)
             } else {
-                Err(QueryErr::MissingLeanCheck { def_id: def_id.to_def_id() }).emit(&genv)
+                Err(genv
+                    .sess()
+                    .emit_err(errors::MissingLean { span: genv.tcx().def_span(def_id) }))
             }
         } else {
             // PHASE 3: invoke fixpoint on the constraint
@@ -338,5 +339,12 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub def_descr: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_missing_lean, code = E0999)]
+    pub struct MissingLean {
+        #[primary_span]
+        pub span: Span,
     }
 }

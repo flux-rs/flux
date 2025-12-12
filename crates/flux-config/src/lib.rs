@@ -46,6 +46,10 @@ pub fn log_dir() -> &'static PathBuf {
     &FLAGS.log_dir
 }
 
+pub fn lean_dir() -> &'static PathBuf {
+    &FLAGS.lean_dir
+}
+
 pub fn is_cache_enabled() -> bool {
     FLAGS.cache.is_some()
 }
