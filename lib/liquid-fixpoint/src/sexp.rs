@@ -4,8 +4,8 @@ use std::str::Chars;
 pub enum Atom {
     S(String),
     Q(String),
-    I(i32),
-    F(f32),
+    I(i128),
+    F(f64),
     B(bool),
 }
 
@@ -121,9 +121,9 @@ impl<'a> Parser<'a> {
             "true" => Ok(Sexp::Atom(Atom::B(true))),
             "false" => Ok(Sexp::Atom(Atom::B(false))),
             _ => {
-                if let Ok(i) = s.parse::<i32>() {
+                if let Ok(i) = s.parse::<i128>() {
                     Ok(Sexp::Atom(Atom::I(i)))
-                } else if let Ok(f) = s.parse::<f32>() {
+                } else if let Ok(f) = s.parse::<f64>() {
                     Ok(Sexp::Atom(Atom::F(f)))
                 } else {
                     Ok(Sexp::Atom(Atom::S(s)))
