@@ -617,7 +617,7 @@ pub enum Attr {
     /// A `#[ignore(...)]` attribute
     Ignore(Ignored),
     /// A `#[proven_externally]` attribute
-    ProvenExternally,
+    ProvenExternally(Span),
     /// A `#[should_fail]` attribute
     ShouldFail,
     /// A `#[qualifiers(...)]` attribute
