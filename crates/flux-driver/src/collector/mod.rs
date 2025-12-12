@@ -549,14 +549,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
             }
-            //  ("proven_externally", hir::AttrArgs::Delimited(_)) => {
-            //      let span = dargs.tokens.get(0).unwrap().span();
-            //      FluxAttrKind::ProvenExternally(span)
-            // }
-            // ("proven_externally", hir::AttrArgs::Delimited(dargs)) if dargs.tokens.len() == 1 => {
-            //      let span = dargs.tokens.get(0).unwrap().span();
-            //      FluxAttrKind::ProvenExternally(span)
-            // }
             ("proven_externally", _) => {
                 let span = attr_item_inner_span(attr_item);
                 FluxAttrKind::ProvenExternally(span)
