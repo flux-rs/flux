@@ -230,7 +230,7 @@ impl CompilationOptions {
             cmd.arg("--keep-going");
         }
         for t in target {
-            cmd.args(["--target", &format!("{t}")]);
+            cmd.args(["--target", t]);
         }
     }
 }
