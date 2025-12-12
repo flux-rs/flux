@@ -1,8 +1,8 @@
 mod ast;
 mod extern_spec;
 
-use proc_macro2::{Ident, TokenStream, TokenTree};
-use quote::{ToTokens, quote, quote_spanned};
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
     Attribute, ItemEnum, ItemStruct, Token, bracketed, parse::ParseStream, parse_quote,
     spanned::Spanned,
@@ -32,10 +32,8 @@ pub fn extern_spec(attr: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 pub fn flux_tool_item_attr(name: &str, attr: TokenStream, item: TokenStream) -> TokenStream {
-    // I don't really know what I'm doing here, but spanning the quote with the item's span seems
-    // to behave correctly.
-    let span = item.span();
-    let name = TokenTree::Ident(Ident::new(name, span));
+    let span = Span::call_site();
+    let name = format_ident!("{}", name, span = span);
     if attr.is_empty() {
         quote_spanned! {span=>
             #[flux_tool::#name]
