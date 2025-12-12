@@ -455,7 +455,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     None
                 }
             })
-            .map(|attr_item| self.parse_flux_attr(attr_item, def_id, def_kind))
+            .map(|attr_item| self.parse_flux_attr(attr_item, def_kind))
             .try_collect_exhaust()?;
 
         Ok(FluxAttrs::new(attrs))
@@ -464,7 +464,6 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     fn parse_flux_attr(
         &mut self,
         attr_item: &hir::AttrItem,
-        def_id: LocalDefId,
         def_kind: DefKind,
     ) -> Result<FluxAttr> {
         let invalid_attr_err = |this: &Self| {
@@ -550,12 +549,16 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
             }
-            ("proven_externally", hir::AttrArgs::Delimited(dargs)) if dargs.tokens.len() == 1 => {
-                let span = dargs.tokens.get(0).unwrap().span();
-                FluxAttrKind::ProvenExternally(span)
-            }
-            ("proven_externally", hir::AttrArgs::Empty) => {
-                let span = self.tcx.def_span(def_id);
+            //  ("proven_externally", hir::AttrArgs::Delimited(_)) => {
+            //      let span = dargs.tokens.get(0).unwrap().span();
+            //      FluxAttrKind::ProvenExternally(span)
+            // }
+            // ("proven_externally", hir::AttrArgs::Delimited(dargs)) if dargs.tokens.len() == 1 => {
+            //      let span = dargs.tokens.get(0).unwrap().span();
+            //      FluxAttrKind::ProvenExternally(span)
+            // }
+            ("proven_externally", _) => {
+                let span = attr_item_inner_span(attr_item);
                 FluxAttrKind::ProvenExternally(span)
             }
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
