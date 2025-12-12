@@ -6,6 +6,7 @@ use std::{
 };
 
 use flux_common::{dbg, dbg::SpanTrace};
+use flux_config as config;
 use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
@@ -19,28 +20,31 @@ use crate::{
 
 pub struct LeanEncoder<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    lean_path: PathBuf,
-    project_name: String,
+    path: PathBuf,
+    project: String,
     defs_file_name: String,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, project_name: String, defs_file_name: String) -> Self {
-        let lean_path = genv
+    pub fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
+        let defs_file_name = "Defs".to_string();
+        let path = genv
             .tcx()
             .sess
             .opts
             .working_dir
             .local_path_if_available()
-            .to_path_buf();
-        Self { genv, lean_path, project_name, defs_file_name }
+            .to_path_buf()
+            .join(config::lean_dir());
+        let project = config::lean_project().to_string();
+        Self { genv, path, project, defs_file_name }
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
-        if !self.lean_path.join(&self.project_name).exists() {
+        if !self.path.join(&self.project).exists() {
             Command::new("lake")
                 .arg("new")
-                .arg(&self.project_name)
+                .arg(&self.project)
                 .arg("lib")
                 .spawn()
                 .and_then(|mut child| child.wait())
@@ -54,11 +58,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self,
         sorts: &[fixpoint::SortDecl],
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
-        let instance_path = self.lean_path.join(format!(
-            "{}/{}/OpaqueSortsInstance.lean",
-            self.project_name, pascal_project_name,
-        ));
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        let instance_path = self
+            .path
+            .join(format!("{}/{}/OpaqueSortsInstance.lean", self.project, pascal_project_name,));
         if !instance_path.exists() {
             let mut instance_file = fs::File::create(instance_path)?;
             writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
@@ -75,11 +78,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self,
         funs: &[fixpoint::ConstDecl],
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
-        let instance_path = self.lean_path.join(format!(
-            "{}/{}/OpaqueFuncsInstance.lean",
-            self.project_name, pascal_project_name,
-        ));
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        let instance_path = self
+            .path
+            .join(format!("{}/{}/OpaqueFuncsInstance.lean", self.project, pascal_project_name,));
         if !instance_path.exists() {
             let mut instance_file = fs::File::create(instance_path)?;
             writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
@@ -96,10 +98,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self,
         sorts: &[fixpoint::SortDecl],
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let mut inferred_instance_file = fs::File::create(
-            self.lean_path
-                .join(format!("{}/{}/OpaqueSorts.lean", self.project_name, pascal_project_name)),
+            self.path
+                .join(format!("{}/{}/OpaqueSorts.lean", self.project, pascal_project_name)),
         )?;
         writeln!(inferred_instance_file, "import {}.OpaqueSortsInstance\n", pascal_project_name)?;
         writeln!(
@@ -121,10 +123,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self,
         funs: &[fixpoint::ConstDecl],
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let mut inferred_instance_file = fs::File::create(
-            self.lean_path
-                .join(format!("{}/{}/OpaqueFuncs.lean", self.project_name, pascal_project_name)),
+            self.path
+                .join(format!("{}/{}/OpaqueFuncs.lean", self.project, pascal_project_name)),
         )?;
         writeln!(inferred_instance_file, "import {}.OpaqueFuncsInstance\n", pascal_project_name)?;
         writeln!(
@@ -143,12 +145,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_sort_typeclass_files(&self, sorts: &[fixpoint::SortDecl]) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
-        let mut opaque_sorts_file =
-            fs::File::create(self.lean_path.join(format!(
-                "{}/{}/OpaqueSortDefs.lean",
-                self.project_name, pascal_project_name,
-            )))?;
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        let mut opaque_sorts_file = fs::File::create(
+            self.path
+                .join(format!("{}/{}/OpaqueSortDefs.lean", self.project, pascal_project_name,)),
+        )?;
         writeln!(opaque_sorts_file, "import {}.Lib", pascal_project_name)?;
         writeln!(opaque_sorts_file, "-- FLUX OPAQUE SORT DEFS --")?;
         writeln!(opaque_sorts_file, "class FluxOpaqueSorts where")?;
@@ -165,10 +166,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         data_decls: &[fixpoint::DataDecl],
         has_opaque_sorts: bool,
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let mut structs_file = fs::File::create(
-            self.lean_path
-                .join(format!("{}/{}/Structs.lean", self.project_name, pascal_project_name,)),
+            self.path
+                .join(format!("{}/{}/Structs.lean", self.project, pascal_project_name,)),
         )?;
         writeln!(structs_file, "import {}.Lib", pascal_project_name)?;
         if has_opaque_sorts {
@@ -189,12 +190,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         has_opaque_sorts: bool,
         has_data_decls: bool,
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
-        let mut opaque_funcs_file =
-            fs::File::create(self.lean_path.join(format!(
-                "{}/{}/OpaqueFuncDefs.lean",
-                self.project_name, pascal_project_name,
-            )))?;
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        let mut opaque_funcs_file = fs::File::create(
+            self.path
+                .join(format!("{}/{}/OpaqueFuncDefs.lean", self.project, pascal_project_name,)),
+        )?;
         writeln!(opaque_funcs_file, "import {}.Lib", pascal_project_name)?;
         if has_opaque_sorts {
             writeln!(opaque_funcs_file, "import {}.OpaqueSorts", pascal_project_name)?;
@@ -219,11 +219,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         has_data_decls: bool,
         has_opaque_funcs: bool,
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
-        let defs_path = self.lean_path.join(format!(
-            "{}/{}/{}.lean",
-            self.project_name, pascal_project_name, self.defs_file_name
-        ));
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        let defs_path = self
+            .path
+            .join(format!("{}/{}/{}.lean", self.project, pascal_project_name, self.defs_file_name));
         let mut file = fs::File::create(defs_path)?;
 
         writeln!(file, "import {}.Lib", pascal_project_name)?;
@@ -246,10 +245,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_lib_file(&self) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let mut lib_file = fs::File::create(
-            self.lean_path
-                .join(format!("{}/{}/Lib.lean", self.project_name, pascal_project_name)),
+            self.path
+                .join(format!("{}/{}/Lib.lean", self.project, pascal_project_name)),
         )?;
         writeln!(
             lib_file,
@@ -333,11 +332,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn theorem_path(&self, theorem_name: &str) -> PathBuf {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
 
-        self.lean_path.join(format!(
+        self.path.join(format!(
             "{}/{}/{}.lean",
-            self.project_name,
+            self.project,
             pascal_project_name,
             Self::snake_case_to_pascal_case(theorem_name)
         ))
@@ -349,30 +348,27 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let theorem_path = self.theorem_path(theorem_name);
         let mut theorem_file = fs::File::create(theorem_path)?;
         writeln!(theorem_file, "import {}.Lib", pascal_project_name)?;
         if self
-            .lean_path
-            .join(format!(
-                "{}/{}/{}.lean",
-                self.project_name, pascal_project_name, self.defs_file_name
-            ))
+            .path
+            .join(format!("{}/{}/{}.lean", self.project, pascal_project_name, self.defs_file_name))
             .exists()
         {
             writeln!(theorem_file, "import {}.{}", pascal_project_name, self.defs_file_name)?;
         }
         if self
-            .lean_path
-            .join(format!("{}/{}/OpaqueSorts.lean", self.project_name, pascal_project_name))
+            .path
+            .join(format!("{}/{}/OpaqueSorts.lean", self.project, pascal_project_name))
             .exists()
         {
             writeln!(theorem_file, "import {}.OpaqueSorts", pascal_project_name)?;
         }
         if self
-            .lean_path
-            .join(format!("{}/{}/OpaqueFuncs.lean", self.project_name, pascal_project_name))
+            .path
+            .join(format!("{}/{}/OpaqueFuncs.lean", self.project, pascal_project_name))
             .exists()
         {
             writeln!(theorem_file, "import {}.OpaqueFuncs", pascal_project_name)?;
@@ -390,11 +386,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         def_id: MaybeExternId,
         theorem_name: &str,
     ) -> Result<(), io::Error> {
-        let module_name = Self::snake_case_to_pascal_case(&self.project_name);
+        let module_name = Self::snake_case_to_pascal_case(&self.project);
         let proof_name = format!("{theorem_name}_proof");
-        let proof_path = self.lean_path.join(format!(
+        let proof_path = self.path.join(format!(
             "{}/{}/{}.lean",
-            self.project_name,
+            self.project,
             module_name,
             Self::snake_case_to_pascal_case(&proof_name)
         ));
@@ -442,10 +438,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn check_proof_help(&self, theorem_name: &str) -> io::Result<()> {
         let proof_name = format!("{theorem_name}_proof");
-        let project_path = self.lean_path.join(&self.project_name);
+        let project_path = self.path.join(&self.project);
         let proof_path = format!(
             "{}/{}.lean",
-            Self::snake_case_to_pascal_case(&self.project_name),
+            Self::snake_case_to_pascal_case(&self.project),
             Self::snake_case_to_pascal_case(&proof_name)
         );
         let child = Command::new("lake")

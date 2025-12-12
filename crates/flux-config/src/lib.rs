@@ -50,6 +50,10 @@ pub fn lean_dir() -> &'static PathBuf {
     &FLAGS.lean_dir
 }
 
+pub fn lean_project() -> &'static str {
+    &FLAGS.lean_project
+}
+
 pub fn is_cache_enabled() -> bool {
     FLAGS.cache.is_some()
 }

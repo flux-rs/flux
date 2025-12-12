@@ -13,8 +13,10 @@ pub const EXIT_FAILURE: i32 = 2;
 pub struct Flags {
     /// Sets the directory to dump data. Defaults to `./log/`.
     pub log_dir: PathBuf,
-    /// Sets the director to put all the emitted lean definitions and verification conditions. Defaults to `./lean_proofs`.
+    /// Sets the directory to put all the emitted lean definitions and verification conditions. Defaults to `./`.
     pub lean_dir: PathBuf,
+    /// Name of the lean project. Defaults to `lean_proofs`.
+    pub lean_project: String,
     /// If present, only check files matching the [`IncludePattern`] a glob pattern.
     pub include: Option<IncludePattern>,
     /// Set the pointer size (either `32` or `64`), used to determine if an integer cast is lossy
@@ -72,7 +74,8 @@ impl Default for Flags {
     fn default() -> Self {
         Self {
             log_dir: PathBuf::from("./log/"),
-            lean_dir: PathBuf::from("./lean_proofs"),
+            lean_dir: PathBuf::from("./"),
+            lean_project: "lean_proofs".to_string(),
             dump_constraint: false,
             dump_checker_trace: None,
             dump_fhir: false,
@@ -108,6 +111,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
         let result = match key {
             "log-dir" => parse_path_buf(&mut flags.log_dir, value),
             "lean-dir" => parse_path_buf(&mut flags.lean_dir, value),
+            "lean-project" => parse_string(&mut flags.lean_project, value),
             "dump-constraint" => parse_bool(&mut flags.dump_constraint, value),
             "dump-checker-trace" => parse_opt_level(&mut flags.dump_checker_trace, value),
             "dump-fhir" => parse_bool(&mut flags.dump_fhir, value),
@@ -177,6 +181,16 @@ fn parse_bool(slot: &mut bool, v: Option<&str>) -> Result<(), &'static str> {
                 "expected no value or one of `y`, `yes`, `on`, `true`, `n`, `no`, `off`, or `false`",
             )
         }
+    }
+}
+
+fn parse_string(slot: &mut String, v: Option<&str>) -> Result<(), &'static str> {
+    match v {
+        Some(s) => {
+            *slot = s.to_string();
+            Ok(())
+        }
+        None => Err("a string"),
     }
 }
 
