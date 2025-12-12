@@ -675,16 +675,12 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
-            let lean_encoder = LeanEncoder::new(
-                self.genv,
-                std::path::Path::new("./"),
-                "lean_proofs".to_string(),
-                "Defs".to_string(),
-            );
+            let lean_encoder = LeanEncoder::new(self.genv);
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
-            lean_encoder.check_proof(def_id)
+
+            if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
         } else {
             Ok(())
         }
@@ -2047,7 +2043,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
-            if info.hide && !revealed && !proven_externally {
+            if info.hide && !revealed && proven_externally.is_none() {
                 consts.push(self.fun_decl_to_fixpoint(did, scx));
             } else {
                 defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));

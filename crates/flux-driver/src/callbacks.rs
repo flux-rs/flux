@@ -92,7 +92,7 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
-        if config::emit_lean_defs() {
+        if config::lean().is_emit() {
             ck.encode_flux_items_in_lean().unwrap_or(());
         }
 
@@ -191,12 +191,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             || !adt_defs.is_empty()
             || !fun_defs.is_empty()
         {
-            let encoder = LeanEncoder::new(
-                self.genv,
-                std::path::Path::new("./"),
-                "lean_proofs".to_string(),
-                "Defs".to_string(),
-            );
+            let encoder = LeanEncoder::new(self.genv);
             encoder
                 .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
                 .unwrap();

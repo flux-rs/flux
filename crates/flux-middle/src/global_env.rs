@@ -547,7 +547,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether the function is marked with `#[proven_externally]`
-    pub fn proven_externally(self, def_id: LocalDefId) -> bool {
+    pub fn proven_externally(self, def_id: LocalDefId) -> Option<Span> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
