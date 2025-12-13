@@ -474,21 +474,15 @@ impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
                 Ok(())
             }
             Constraint::Conj(constraints) => {
+                let n = constraints.len();
                 for (i, constraint) in constraints.iter().enumerate() {
-                    if i == 0 {
-                        cx.incr();
-                        LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
-                        cx.decr();
-                    } else {
+                    cx.incr();
+                    LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
+                    if i < n - 1 {
+                        write!(f, " ∧")?;
                         cx.newline(f)?;
-                        write!(f, "∧")?;
-                        cx.incr();
-                        cx.incr();
-                        cx.newline(f)?;
-                        LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
-                        cx.decr();
-                        cx.decr();
                     }
+                    cx.decr();
                 }
                 Ok(())
             }
