@@ -377,7 +377,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             theorem_file,
             "def {} := {}",
             theorem_name.replace(".", "_"),
-            lean_format::LeanKConstraint(kvars, cstr, self.genv)
+            lean_format::LeanKConstraint { kvars, constr: cstr, genv: self.genv }
         )
     }
 

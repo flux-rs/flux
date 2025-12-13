@@ -1,4 +1,5 @@
 use core::fmt;
+use std::fmt::Write;
 
 use flux_middle::global_env::GlobalEnv;
 use itertools::Itertools;
@@ -11,11 +12,12 @@ use crate::fixpoint_encoding::fixpoint::{
 
 struct LeanSort<'a>(&'a Sort);
 struct LeanKVarDecl<'a>(&'a KVarDecl);
-pub struct LeanKConstraint<'a, 'genv, 'tcx>(
-    pub &'a [KVarDecl],
-    pub &'a Constraint,
-    pub GlobalEnv<'genv, 'tcx>,
-);
+pub struct LeanKConstraint<'a, 'genv, 'tcx> {
+    pub genv: GlobalEnv<'genv, 'tcx>,
+    pub kvars: &'a [KVarDecl],
+    pub constr: &'a Constraint,
+}
+
 pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanSortDecl<'a, 'genv, 'tcx>(pub &'a SortDecl, pub GlobalEnv<'genv, 'tcx>);
 pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
@@ -421,14 +423,14 @@ impl<'a> fmt::Display for LeanKVarDecl<'a> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.0.is_empty() {
-            write!(f, "{}", LeanConstraint(self.1, self.2))
+        if self.kvars.is_empty() {
+            write!(f, "{}", LeanConstraint(self.constr, self.genv))
         } else {
             write!(
                 f,
                 "{}, {}",
-                self.0.iter().map(LeanKVarDecl).format(", "),
-                LeanConstraint(self.1, self.2)
+                self.kvars.iter().map(LeanKVarDecl).format(", "),
+                LeanConstraint(self.constr, self.genv)
             )
         }
     }
@@ -436,40 +438,94 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanConstraint<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut cx = ConstraintFormatter::default();
+        cx.incr();
+        cx.newline(f)?;
+        self.fmt_nested(f, &mut cx)?;
+        cx.decr();
+        Ok(())
+    }
+}
+
+impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
+    fn fmt_nested(&self, f: &mut fmt::Formatter<'_>, cx: &mut ConstraintFormatter) -> fmt::Result {
         match self.0 {
             Constraint::ForAll(bind, inner) => {
-                if bind.pred.is_trivially_true() {
-                    write!(
-                        f,
-                        "(∀ ({} : {}), {})",
-                        LeanVar(&bind.name, self.1),
-                        LeanSort(&bind.sort),
-                        LeanConstraint(inner, self.1)
-                    )
-                } else {
-                    write!(
-                        f,
-                        "(∀ ({} : {}), ({} -> {}))",
-                        LeanVar(&bind.name, self.1),
-                        LeanSort(&bind.sort),
-                        LeanPred(&bind.pred, self.1),
-                        LeanConstraint(inner, self.1)
-                    )
+                let trivial_pred = bind.pred.is_trivially_true();
+                let trivial_bind = bind.name.display().to_string().starts_with("_");
+                if !trivial_bind {
+                    write!(f, "∀ ({} : {}),", LeanVar(&bind.name, self.1), LeanSort(&bind.sort))?;
+                    cx.incr();
+                    cx.newline(f)?;
                 }
+                if !trivial_pred {
+                    write!(f, "{} ->", LeanPred(&bind.pred, self.1))?;
+                    cx.incr();
+                    cx.newline(f)?;
+                }
+                LeanConstraint(inner, self.1).fmt_nested(f, cx)?;
+                cx.decr();
+                if !trivial_pred {
+                    cx.decr();
+                }
+                if !trivial_bind {
+                    cx.decr();
+                }
+                Ok(())
             }
             Constraint::Conj(constraints) => {
-                write!(
-                    f,
-                    "({})",
-                    constraints
-                        .iter()
-                        .map(|constraint| LeanConstraint(constraint, self.1))
-                        .format(" ∧ ")
-                )
+                for (i, constraint) in constraints.iter().enumerate() {
+                    if i == 0 {
+                        cx.incr();
+                        LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
+                        cx.decr();
+                    } else {
+                        cx.newline(f)?;
+                        write!(f, "∧")?;
+                        cx.incr();
+                        cx.incr();
+                        cx.newline(f)?;
+                        LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
+                        cx.decr();
+                        cx.decr();
+                    }
+                }
+                Ok(())
             }
             Constraint::Pred(pred, _) => {
                 write!(f, "{}", LeanPred(pred, self.1))
             }
         }
+    }
+}
+
+pub trait FormatNested {
+    fn fmt_nested(&self, f: &mut fmt::Formatter<'_>, cx: &mut ConstraintFormatter) -> fmt::Result;
+}
+
+#[derive(Default)]
+pub struct ConstraintFormatter {
+    level: u32,
+}
+
+impl ConstraintFormatter {
+    pub fn incr(&mut self) {
+        self.level += 1;
+    }
+
+    pub fn decr(&mut self) {
+        self.level -= 1;
+    }
+
+    pub fn newline(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_char('\n')?;
+        self.padding(f)
+    }
+
+    pub fn padding(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for _ in 0..self.level {
+            f.write_str(" ")?;
+        }
+        Ok(())
     }
 }
