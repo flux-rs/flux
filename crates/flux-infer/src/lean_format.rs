@@ -438,7 +438,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanConstraint<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut cx = ConstraintFormatter::default();
+        let mut cx = ConstraintFormatter { level: 0, whitespace: ' ' };
         cx.incr();
         cx.newline(f)?;
         self.fmt_nested(f, &mut cx)?;
@@ -464,7 +464,6 @@ impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
                     cx.newline(f)?;
                 }
                 LeanConstraint(inner, self.1).fmt_nested(f, cx)?;
-                cx.decr();
                 if !trivial_pred {
                     cx.decr();
                 }
@@ -476,13 +475,11 @@ impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
             Constraint::Conj(constraints) => {
                 let n = constraints.len();
                 for (i, constraint) in constraints.iter().enumerate() {
-                    cx.incr();
                     LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
                     if i < n - 1 {
                         write!(f, " ∧")?;
-                        cx.newline(f)?;
                     }
-                    cx.decr();
+                    cx.newline(f)?;
                 }
                 Ok(())
             }
@@ -500,11 +497,17 @@ pub trait FormatNested {
 #[derive(Default)]
 pub struct ConstraintFormatter {
     level: u32,
+    whitespace: char,
 }
 
 impl ConstraintFormatter {
     pub fn incr(&mut self) {
         self.level += 1;
+    }
+
+    pub fn incr_char(&mut self, c: char) {
+        self.level += 1;
+        self.whitespace = c;
     }
 
     pub fn decr(&mut self) {
@@ -518,7 +521,8 @@ impl ConstraintFormatter {
 
     pub fn padding(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for _ in 0..self.level {
-            f.write_str(" ")?;
+            // f.write_str(" ")?;
+            f.write_char(self.whitespace)?;
         }
         Ok(())
     }
