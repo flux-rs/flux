@@ -668,7 +668,7 @@ enum FluxAttrKind {
     Ignore(surface::Ignored),
     ShouldFail,
     ExternSpec,
-    NoPanic,
+    NoPanic(surface::Expr),
     /// See `detachXX.rs`
     DetachedSpecs(surface::DetachedSpecs),
 }
