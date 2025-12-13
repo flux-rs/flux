@@ -131,7 +131,8 @@ pub enum SortCtor<T: Types> {
 #[derive_where(Hash, Clone, Debug)]
 pub enum Pred<T: Types> {
     And(Vec<Self>),
-    KVar(T::KVar, Vec<T::Var>),
+    // KVar(T::KVar, Vec<T::Var>),
+    KVar(T::KVar, Vec<Expr<T>>),
     Expr(Expr<T>),
 }
 

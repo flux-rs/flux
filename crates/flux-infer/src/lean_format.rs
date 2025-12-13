@@ -401,7 +401,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                     f,
                     "({} {})",
                     kvid.display().to_string().replace("$", "_"),
-                    args.iter().map(|var| LeanVar(var, self.1)).format(" ")
+                    args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
                 )
             }
         }

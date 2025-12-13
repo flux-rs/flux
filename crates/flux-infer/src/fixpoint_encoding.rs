@@ -495,6 +495,12 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
+#[derive(Clone)]
+pub enum Backend {
+    Fixpoint,
+    Lean,
+}
+
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
@@ -512,13 +518,18 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: MaybeExternId,
+        kvars: KVarGen,
+        backend: Backend,
+    ) -> Self {
         Self {
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id)),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
@@ -874,7 +885,7 @@ where
                     fixpoint::Expr::int(0),
                 )),
             });
-            return Ok(fixpoint::Pred::KVar(kvids.start, vec![var]));
+            return Ok(fixpoint::Pred::KVar(kvids.start, vec![fixpoint::Expr::Var(var)]));
         }
 
         let kvars = kvids
@@ -1239,10 +1250,15 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     /// invariants for an extern spec on an enum.
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
+    backend: Backend,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: Option<MaybeExternId>) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: Option<MaybeExternId>,
+        backend: Backend,
+    ) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
@@ -1254,6 +1270,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .infer_ctxt()
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
+            backend,
         }
     }
 
@@ -1805,12 +1822,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         sort: &rty::Sort,
         scx: &mut SortEncodingCtxt,
         bindings: &mut Vec<fixpoint::Bind>,
-    ) -> QueryResult<fixpoint::Var> {
+    ) -> QueryResult<fixpoint::Expr> {
         let farg = self.expr_to_fixpoint(arg, scx)?;
+        // If we're translating to Lean, no need to do any ANF-ing.
+        if matches!(self.backend, Backend::Lean) {
+            return Ok(farg);
+        }
         // Check if it's a variable after encoding, in case the encoding produced a variable from a
         // non-variable.
         if let fixpoint::Expr::Var(var) = farg {
-            Ok(var)
+            Ok(fixpoint::Expr::Var(var))
         } else {
             let fresh = self.local_var_env.fresh_name();
             self.local_var_env.reverse_map.insert(fresh, arg.clone());
@@ -1820,7 +1841,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 sort: scx.sort_to_fixpoint(sort),
                 pred: fixpoint::Pred::Expr(pred),
             });
-            Ok(fresh.into())
+            Ok(fixpoint::Expr::Var(fresh.into()))
         }
     }
 

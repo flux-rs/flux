@@ -267,12 +267,13 @@ impl<T: Types> fmt::Display for Pred<T> {
                     preds => write!(f, "(and {})", preds.iter().join(" ")),
                 }
             }
-            Pred::KVar(kvid, vars) => {
+            Pred::KVar(kvid, args) => {
                 write!(
                     f,
                     "(${} {})",
                     kvid.display(),
-                    vars.iter().map(Identifier::display).format(" ")
+                    args.iter().join(" "),
+                    // args.iter().map(Identifier::display).format(" ")
                 )
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
