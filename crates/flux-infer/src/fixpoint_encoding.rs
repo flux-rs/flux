@@ -24,8 +24,8 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
-        VariantIdx, fold::TypeFoldable as _,
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
+        NameProvenance, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
 use itertools::Itertools;
@@ -686,6 +686,8 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
+            // TODO(source-level-binders-lean): here self.ecx has source level names, pass that into "encode constraint"
+            todo!("Lean encoding of constraints with source-level binders");
             let lean_encoder = LeanEncoder::new(self.genv);
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
@@ -740,9 +742,10 @@ where
     pub(crate) fn with_name_map<R>(
         &mut self,
         name: rty::Name,
+        provenance: NameProvenance,
         f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
     ) -> R {
-        let fresh = self.ecx.local_var_env.insert_fvar_map(name);
+        let fresh = self.ecx.local_var_env.insert_fvar_map(name, provenance);
         let r = f(self, fresh);
         self.ecx.local_var_env.remove_fvar_map(name);
         r
@@ -1023,6 +1026,7 @@ struct LocalVarEnv {
     /// kvars (which can be arbitrary expressions) as local variables; thus we
     /// need to keep the output as an [`rty::Expr`] to reflect this.
     reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
+    provenance_map: UnordMap<fixpoint::LocalVar, NameProvenance>,
 }
 
 impl LocalVarEnv {
@@ -1032,6 +1036,7 @@ impl LocalVarEnv {
             fvars: Default::default(),
             layers: Vec::new(),
             reverse_map: Default::default(),
+            provenance_map: Default::default(),
         }
     }
 
@@ -1041,10 +1046,15 @@ impl LocalVarEnv {
         self.local_var_gen.fresh()
     }
 
-    fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
+    fn insert_fvar_map(
+        &mut self,
+        name: rty::Name,
+        provenance: NameProvenance,
+    ) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
         self.reverse_map.insert(fresh, rty::Expr::fvar(name));
+        self.provenance_map.insert(fresh, provenance);
         fresh
     }
 

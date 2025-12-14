@@ -438,7 +438,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanConstraint<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut cx = ConstraintFormatter { level: 0, whitespace: ' ' };
+        let mut cx = ConstraintFormatter::default();
         cx.incr();
         cx.newline(f)?;
         self.fmt_nested(f, &mut cx)?;
@@ -497,17 +497,11 @@ pub trait FormatNested {
 #[derive(Default)]
 pub struct ConstraintFormatter {
     level: u32,
-    whitespace: char,
 }
 
 impl ConstraintFormatter {
     pub fn incr(&mut self) {
         self.level += 1;
-    }
-
-    pub fn incr_char(&mut self, c: char) {
-        self.level += 1;
-        self.whitespace = c;
     }
 
     pub fn decr(&mut self) {
@@ -521,8 +515,7 @@ impl ConstraintFormatter {
 
     pub fn padding(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for _ in 0..self.level {
-            // f.write_str(" ")?;
-            f.write_char(self.whitespace)?;
+            f.write_str(" ")?;
         }
         Ok(())
     }
