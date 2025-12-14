@@ -1,9 +1,10 @@
 use core::fmt;
 use std::fmt::Write;
 
-use flux_middle::global_env::GlobalEnv;
+use flux_middle::{global_env::GlobalEnv, rty::NameProvenance};
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
+use rustc_data_structures::unord::UnordMap;
 
 use crate::fixpoint_encoding::fixpoint::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
@@ -16,18 +17,55 @@ pub struct LeanKConstraint<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
+    pub provenance_map: &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
 }
 
-pub struct LeanFunDef<'a, 'genv, 'tcx>(pub &'a FunDef, pub GlobalEnv<'genv, 'tcx>);
-pub struct LeanSortDecl<'a, 'genv, 'tcx>(pub &'a SortDecl, pub GlobalEnv<'genv, 'tcx>);
-pub struct LeanDataDecl<'a, 'genv, 'tcx>(pub &'a DataDecl, pub GlobalEnv<'genv, 'tcx>);
-pub struct LeanConstDecl<'a, 'genv, 'tcx>(pub &'a ConstDecl, pub GlobalEnv<'genv, 'tcx>);
+pub struct LeanFunDef<'a, 'genv, 'tcx>(
+    pub &'a FunDef,
+    pub GlobalEnv<'genv, 'tcx>,
+    pub &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+pub struct LeanSortDecl<'a, 'genv, 'tcx>(
+    pub &'a SortDecl,
+    pub GlobalEnv<'genv, 'tcx>,
+    pub &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+pub struct LeanDataDecl<'a, 'genv, 'tcx>(
+    pub &'a DataDecl,
+    pub GlobalEnv<'genv, 'tcx>,
+    pub &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+pub struct LeanConstDecl<'a, 'genv, 'tcx>(
+    pub &'a ConstDecl,
+    pub GlobalEnv<'genv, 'tcx>,
+    pub &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
 pub struct LeanSortVar<'a>(pub &'a DataSort);
-struct LeanDataField<'a>(&'a DataField);
-struct LeanConstraint<'a, 'genv, 'tcx>(&'a Constraint, GlobalEnv<'genv, 'tcx>);
-struct LeanPred<'a, 'genv, 'tcx>(&'a Pred, GlobalEnv<'genv, 'tcx>);
-struct LeanExpr<'a, 'genv, 'tcx>(&'a Expr, GlobalEnv<'genv, 'tcx>);
-pub struct LeanVar<'a, 'genv, 'tcx>(pub &'a Var, pub GlobalEnv<'genv, 'tcx>);
+struct LeanDataField<'a, 'genv, 'tcx>(
+    &'a DataField,
+    GlobalEnv<'genv, 'tcx>,
+    &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+struct LeanConstraint<'a, 'genv, 'tcx>(
+    &'a Constraint,
+    GlobalEnv<'genv, 'tcx>,
+    &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+struct LeanPred<'a, 'genv, 'tcx>(
+    &'a Pred,
+    GlobalEnv<'genv, 'tcx>,
+    &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+struct LeanExpr<'a, 'genv, 'tcx>(
+    &'a Expr,
+    GlobalEnv<'genv, 'tcx>,
+    &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
+pub struct LeanVar<'a, 'genv, 'tcx>(
+    pub &'a Var,
+    pub GlobalEnv<'genv, 'tcx>,
+    pub &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+);
 struct LeanThyFunc<'a>(&'a ThyFunc);
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanSortDecl<'a, 'genv, 'tcx> {
@@ -45,11 +83,11 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanSortDecl<'a, 'genv, 'tcx> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanConstDecl<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} : {}", LeanVar(&self.0.name, self.1), LeanSort(&self.0.sort))
+        write!(f, "{} : {}", LeanVar(&self.0.name, self.1, self.2), LeanSort(&self.0.sort))
     }
 }
 
-impl<'a> fmt::Display for LeanDataField<'a> {
+impl<'a, 'genv, 'tcx> fmt::Display for LeanDataField<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -83,7 +121,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
             )?;
             writeln!(f, "  {}::", self.0.ctors[0].name.display().to_string().replace("$", "_"),)?;
             for field in &self.0.ctors[0].fields {
-                writeln!(f, "  {}", LeanDataField(field))?;
+                writeln!(f, "  {}", LeanDataField(field, self.1, self.2))?;
             }
         } else {
             writeln!(
@@ -98,8 +136,12 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanDataDecl<'a, 'genv, 'tcx> {
                 writeln!(
                     f,
                     "| {} {}",
-                    LeanVar(&data_ctor.name, self.1),
-                    data_ctor.fields.iter().map(LeanDataField).format(" ")
+                    LeanVar(&data_ctor.name, self.1, self.2),
+                    data_ctor
+                        .fields
+                        .iter()
+                        .map(|field| LeanDataField(field, self.1, self.2))
+                        .format(" ")
                 )?;
             }
         }
@@ -165,6 +207,16 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanVar<'a, 'genv, 'tcx> {
                     write!(f, "{path}_{}", def_id.name())
                 }
             }
+            Var::Local(local_var) => {
+                // Use provenance map to render with source-level names like fmt_name in pretty.rs
+                if let Some(provenance) = self.2.get(local_var)
+                    && let Some(prefix) = provenance.opt_symbol()
+                {
+                    write!(f, "{prefix}{}", local_var.as_u32())
+                } else {
+                    write!(f, "a{}", local_var.as_u32())
+                }
+            }
             Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
                 write!(
                     f,
@@ -228,7 +280,7 @@ impl<'a> fmt::Display for LeanSort<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
-            Expr::Var(v) => write!(f, "{}", LeanVar(v, self.1)),
+            Expr::Var(v) => write!(f, "{}", LeanVar(v, self.1, self.2)),
             Expr::Constant(c) => {
                 match c {
                     Constant::Numeral(n) => write!(f, "{n}",),
@@ -249,9 +301,9 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                 write!(
                     f,
                     "({} {} {})",
-                    LeanExpr(&args[0], self.1),
+                    LeanExpr(&args[0], self.1, self.2),
                     bin_op_str,
-                    LeanExpr(&args[1], self.1)
+                    LeanExpr(&args[1], self.1, self.2)
                 )
             }
             Expr::Atom(bin_rel, args) => {
@@ -266,9 +318,9 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                 write!(
                     f,
                     "({} {} {})",
-                    LeanExpr(&args[0], self.1),
+                    LeanExpr(&args[0], self.1, self.2),
                     bin_rel_str,
-                    LeanExpr(&args[1], self.1)
+                    LeanExpr(&args[1], self.1, self.2)
                 )
             }
             Expr::App(function, sort_args, args) => {
@@ -276,20 +328,24 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                     write!(
                         f,
                         "({} {} {})",
-                        LeanExpr(function.as_ref(), self.1),
+                        LeanExpr(function.as_ref(), self.1, self.2),
                         sort_args
                             .iter()
                             .enumerate()
                             .map(|(i, s_arg)| format!("(t{i} := {})", LeanSort(s_arg)))
                             .format(" "),
-                        args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
+                        args.iter()
+                            .map(|arg| LeanExpr(arg, self.1, self.2))
+                            .format(" ")
                     )
                 } else {
                     write!(
                         f,
                         "({} {})",
-                        LeanExpr(function.as_ref(), self.1),
-                        args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
+                        LeanExpr(function.as_ref(), self.1, self.2),
+                        args.iter()
+                            .map(|arg| LeanExpr(arg, self.1, self.2))
+                            .format(" ")
                     )
                 }
             }
@@ -299,7 +355,7 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                     "({})",
                     exprs
                         .iter()
-                        .map(|expr| LeanExpr(expr, self.1))
+                        .map(|expr| LeanExpr(expr, self.1, self.2))
                         .format(" && ")
                 )
             }
@@ -309,42 +365,52 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
                     "({})",
                     exprs
                         .iter()
-                        .map(|expr| LeanExpr(expr, self.1))
+                        .map(|expr| LeanExpr(expr, self.1, self.2))
                         .format(" || ")
                 )
             }
             Expr::Neg(inner) => {
-                write!(f, "(-{})", LeanExpr(inner.as_ref(), self.1))
+                write!(f, "(-{})", LeanExpr(inner.as_ref(), self.1, self.2))
             }
             Expr::IfThenElse(ite) => {
                 let [condition, if_true, if_false] = ite.as_ref();
                 write!(
                     f,
                     "(if {} then {} else {})",
-                    LeanExpr(condition, self.1),
-                    LeanExpr(if_true, self.1),
-                    LeanExpr(if_false, self.1)
+                    LeanExpr(condition, self.1, self.2),
+                    LeanExpr(if_true, self.1, self.2),
+                    LeanExpr(if_false, self.1, self.2)
                 )
             }
             Expr::Not(inner) => {
-                write!(f, "(¬{})", LeanExpr(inner.as_ref(), self.1))
+                write!(f, "(¬{})", LeanExpr(inner.as_ref(), self.1, self.2))
             }
             Expr::Imp(implication) => {
                 let [lhs, rhs] = implication.as_ref();
-                write!(f, "({} -> {})", LeanExpr(lhs, self.1), LeanExpr(rhs, self.1))
+                write!(
+                    f,
+                    "({} -> {})",
+                    LeanExpr(lhs, self.1, self.2),
+                    LeanExpr(rhs, self.1, self.2)
+                )
             }
             Expr::Iff(equiv) => {
                 let [lhs, rhs] = equiv.as_ref();
-                write!(f, "({} <-> {})", LeanExpr(lhs, self.1), LeanExpr(rhs, self.1))
+                write!(
+                    f,
+                    "({} <-> {})",
+                    LeanExpr(lhs, self.1, self.2),
+                    LeanExpr(rhs, self.1, self.2)
+                )
             }
             Expr::Let(binder, exprs) => {
                 let [def, body] = exprs.as_ref();
                 write!(
                     f,
                     "(let {} := {}; {})",
-                    LeanVar(binder, self.1),
-                    LeanExpr(def, self.1),
-                    LeanExpr(body, self.1)
+                    LeanVar(binder, self.1, self.2),
+                    LeanExpr(def, self.1, self.2),
+                    LeanExpr(body, self.1, self.2)
                 )
             }
             Expr::ThyFunc(thy_func) => {
@@ -365,34 +431,34 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanExpr<'a, 'genv, 'tcx> {
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanFunDef<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let LeanFunDef(FunDef { name, args, out, comment: _, body }, _) = self;
+        let LeanFunDef(FunDef { name, args, out, comment: _, body }, _, provenance_map) = self;
         writeln!(
             f,
             "def {} {} : {} :=",
-            LeanVar(name, self.1),
+            LeanVar(name, self.1, provenance_map),
             args.iter()
                 .map(|(arg, arg_sort)| {
-                    format!("({} : {})", LeanVar(arg, self.1), LeanSort(arg_sort))
+                    format!("({} : {})", LeanVar(arg, self.1, provenance_map), LeanSort(arg_sort))
                 })
                 .collect::<Vec<_>>()
                 .join(" "),
             LeanSort(out)
         )?;
-        writeln!(f, "  {}", LeanExpr(body, self.1))
+        writeln!(f, "  {}", LeanExpr(body, self.1, provenance_map))
     }
 }
 
 impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
-            Pred::Expr(expr) => write!(f, "{}", LeanExpr(expr, self.1)),
+            Pred::Expr(expr) => write!(f, "{}", LeanExpr(expr, self.1, self.2)),
             Pred::And(preds) => {
                 write!(
                     f,
                     "({})",
                     preds
                         .iter()
-                        .map(|pred| LeanPred(pred, self.1))
+                        .map(|pred| LeanPred(pred, self.1, self.2))
                         .format(" ∧ ")
                 )
             }
@@ -401,7 +467,9 @@ impl<'a, 'genv, 'tcx> fmt::Display for LeanPred<'a, 'genv, 'tcx> {
                     f,
                     "({} {})",
                     kvid.display().to_string().replace("$", "_"),
-                    args.iter().map(|arg| LeanExpr(arg, self.1)).format(" ")
+                    args.iter()
+                        .map(|arg| LeanExpr(arg, self.1, self.2))
+                        .format(" ")
                 )
             }
         }
@@ -424,13 +492,13 @@ impl<'a> fmt::Display for LeanKVarDecl<'a> {
 impl<'a, 'genv, 'tcx> fmt::Display for LeanKConstraint<'a, 'genv, 'tcx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.kvars.is_empty() {
-            write!(f, "{}", LeanConstraint(self.constr, self.genv))
+            write!(f, "{}", LeanConstraint(self.constr, self.genv, self.provenance_map))
         } else {
             write!(
                 f,
                 "{}, {}",
                 self.kvars.iter().map(LeanKVarDecl).format(", "),
-                LeanConstraint(self.constr, self.genv)
+                LeanConstraint(self.constr, self.genv, self.provenance_map)
             )
         }
     }
@@ -454,16 +522,21 @@ impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
                 let trivial_pred = bind.pred.is_trivially_true();
                 let trivial_bind = bind.name.display().to_string().starts_with("_");
                 if !trivial_bind {
-                    write!(f, "∀ ({} : {}),", LeanVar(&bind.name, self.1), LeanSort(&bind.sort))?;
+                    write!(
+                        f,
+                        "∀ ({} : {}),",
+                        LeanVar(&bind.name, self.1, self.2),
+                        LeanSort(&bind.sort)
+                    )?;
                     cx.incr();
                     cx.newline(f)?;
                 }
                 if !trivial_pred {
-                    write!(f, "{} ->", LeanPred(&bind.pred, self.1))?;
+                    write!(f, "{} ->", LeanPred(&bind.pred, self.1, self.2))?;
                     cx.incr();
                     cx.newline(f)?;
                 }
-                LeanConstraint(inner, self.1).fmt_nested(f, cx)?;
+                LeanConstraint(inner, self.1, self.2).fmt_nested(f, cx)?;
                 if !trivial_pred {
                     cx.decr();
                 }
@@ -475,7 +548,7 @@ impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
             Constraint::Conj(constraints) => {
                 let n = constraints.len();
                 for (i, constraint) in constraints.iter().enumerate() {
-                    LeanConstraint(constraint, self.1).fmt_nested(f, cx)?;
+                    LeanConstraint(constraint, self.1, self.2).fmt_nested(f, cx)?;
                     if i < n - 1 {
                         write!(f, " ∧")?;
                     }
@@ -484,7 +557,7 @@ impl<'a, 'genv, 'tcx> FormatNested for LeanConstraint<'a, 'genv, 'tcx> {
                 Ok(())
             }
             Constraint::Pred(pred, _) => {
-                write!(f, "{}", LeanPred(pred, self.1))
+                write!(f, "{}", LeanPred(pred, self.1, self.2))
             }
         }
     }

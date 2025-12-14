@@ -191,7 +191,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             || !adt_defs.is_empty()
             || !fun_defs.is_empty()
         {
-            let encoder = LeanEncoder::new(self.genv);
+            let encoder = LeanEncoder::new(self.genv, Default::default());
             encoder
                 .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
                 .unwrap();

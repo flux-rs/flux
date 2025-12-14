@@ -686,9 +686,7 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
-            // TODO(source-level-binders-lean): here self.ecx has source level names, pass that into "encode constraint"
-            todo!("Lean encoding of constraints with source-level binders");
-            let lean_encoder = LeanEncoder::new(self.genv);
+            let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.provenance_map);
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
