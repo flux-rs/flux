@@ -4,8 +4,8 @@
 <a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">pub enum </span>Atom {
 <a href=#5 id=5 data-nosnippet>5</a>    S(String),
 <a href=#6 id=6 data-nosnippet>6</a>    Q(String),
-<a href=#7 id=7 data-nosnippet>7</a>    I(i32),
-<a href=#8 id=8 data-nosnippet>8</a>    F(f32),
+<a href=#7 id=7 data-nosnippet>7</a>    I(u128),
+<a href=#8 id=8 data-nosnippet>8</a>    F(f64),
 <a href=#9 id=9 data-nosnippet>9</a>    B(bool),
 <a href=#10 id=10 data-nosnippet>10</a>}
 <a href=#11 id=11 data-nosnippet>11</a>
@@ -121,9 +121,9 @@
 <a href=#121 id=121 data-nosnippet>121</a>            <span class="string">"true" </span>=&gt; <span class="prelude-val">Ok</span>(Sexp::Atom(Atom::B(<span class="bool-val">true</span>))),
 <a href=#122 id=122 data-nosnippet>122</a>            <span class="string">"false" </span>=&gt; <span class="prelude-val">Ok</span>(Sexp::Atom(Atom::B(<span class="bool-val">false</span>))),
 <a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">_ </span>=&gt; {
-<a href=#124 id=124 data-nosnippet>124</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(i) = s.parse::&lt;i32&gt;() {
+<a href=#124 id=124 data-nosnippet>124</a>                <span class="kw">if let </span><span class="prelude-val">Ok</span>(i) = s.parse::&lt;u128&gt;() {
 <a href=#125 id=125 data-nosnippet>125</a>                    <span class="prelude-val">Ok</span>(Sexp::Atom(Atom::I(i)))
-<a href=#126 id=126 data-nosnippet>126</a>                } <span class="kw">else if let </span><span class="prelude-val">Ok</span>(f) = s.parse::&lt;f32&gt;() {
+<a href=#126 id=126 data-nosnippet>126</a>                } <span class="kw">else if let </span><span class="prelude-val">Ok</span>(f) = s.parse::&lt;f64&gt;() {
 <a href=#127 id=127 data-nosnippet>127</a>                    <span class="prelude-val">Ok</span>(Sexp::Atom(Atom::F(f)))
 <a href=#128 id=128 data-nosnippet>128</a>                } <span class="kw">else </span>{
 <a href=#129 id=129 data-nosnippet>129</a>                    <span class="prelude-val">Ok</span>(Sexp::Atom(Atom::S(s)))
