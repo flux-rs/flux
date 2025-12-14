@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt};
 
 use flux_arc_interner::{Internable, Interned};
-use flux_common::index::IndexGen;
+use flux_common::{dbg::as_subscript, index::IndexGen};
 use flux_config as config;
 use rustc_abi::FieldIdx;
 use rustc_data_structures::unord::UnordMap;
@@ -413,12 +413,13 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
     }
 
     pub fn fmt_name(&self, name: &Name) -> String {
+        let subscript = as_subscript(name.as_usize());
         if let Some(provenance) = self.fvar_env.0.get(name)
             && let Some(prefix) = provenance.opt_symbol()
         {
-            format!("{}{}", prefix, name.as_subscript())
+            format!("{}{}", prefix, subscript)
         } else {
-            format!("a{}", name.as_subscript())
+            format!("a{}", subscript)
         }
     }
 }

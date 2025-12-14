@@ -1,6 +1,7 @@
 use core::fmt;
 use std::fmt::Write;
 
+use flux_common::dbg::as_subscript;
 use flux_middle::{global_env::GlobalEnv, rty::NameProvenance};
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
@@ -48,7 +49,7 @@ impl LeanFmt for &SortDecl {
 }
 
 impl LeanFmt for SortDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, _cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, _cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
             "{} {} : Type",
@@ -61,26 +62,26 @@ impl LeanFmt for SortDecl {
 }
 
 impl LeanFmt for &ConstDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for ConstDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         self.name.lean_fmt(f, cx)?;
         write!(f, " : {}", LeanSort(&self.sort))
     }
 }
 
 impl LeanFmt for &DataField {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for DataField {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, _cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, _cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
             "({} : {})",
@@ -100,13 +101,13 @@ impl<'a> fmt::Display for LeanSortVar<'a> {
 }
 
 impl LeanFmt for &DataDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for DataDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         if self.ctors.len() == 1 {
             writeln!(f, "@[ext]")?;
             writeln!(
@@ -189,13 +190,13 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
 }
 
 impl LeanFmt for &Var {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for Var {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
             Var::Global(_gvar, Some(def_id)) => {
                 let path = cx
@@ -211,13 +212,13 @@ impl LeanFmt for Var {
                 }
             }
             Var::Local(local_var) => {
-                // Use provenance map to render with source-level names like fmt_name in pretty.rs
+                let subscript = as_subscript(local_var.as_u32());
                 if let Some(provenance) = cx.provenance_map.get(local_var)
                     && let Some(prefix) = provenance.opt_symbol()
                 {
-                    write!(f, "{prefix}{}", local_var.as_u32())
+                    write!(f, "{prefix}{subscript}")
                 } else {
-                    write!(f, "a{}", local_var.as_u32())
+                    write!(f, "a{subscript}")
                 }
             }
             Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
@@ -227,6 +228,10 @@ impl LeanFmt for Var {
                     LeanSortVar(&DataSort::Adt(*adt_id)),
                     self.display().to_string().replace("$", "_")
                 )
+            }
+            Var::Param(param) => {
+                // We start with a `₀` prefix to distinguish from the `LocalVar`
+                write!(f, "{}₀{}", param.name, as_subscript(param.index))
             }
             _ => {
                 write!(f, "{}", self.display().to_string().replace("$", "_"))
@@ -281,13 +286,13 @@ impl<'a> fmt::Display for LeanSort<'a> {
 }
 
 impl LeanFmt for &Expr {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for Expr {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
             Expr::Var(v) => v.lean_fmt(f, cx),
             Expr::Constant(c) => {
@@ -425,13 +430,13 @@ impl LeanFmt for Expr {
 }
 
 impl LeanFmt for &FunDef {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for FunDef {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let FunDef { name, args, out, comment: _, body } = self;
         write!(f, "def ")?;
         name.lean_fmt(f, cx)?;
@@ -448,13 +453,13 @@ impl LeanFmt for FunDef {
 }
 
 impl LeanFmt for &Pred {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for Pred {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
             Pred::Expr(expr) => expr.lean_fmt(f, cx),
             Pred::And(preds) => {
@@ -493,7 +498,7 @@ impl<'a> fmt::Display for LeanKVarDecl<'a> {
 }
 
 impl<'a> LeanFmt for LeanKConstraint<'a> {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
         } else {
@@ -504,13 +509,13 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
 }
 
 impl LeanFmt for &Constraint {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
     }
 }
 
 impl LeanFmt for Constraint {
-    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &LeanCtxt<'_, '_, '_>) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let mut fmt_cx = ConstraintFormatter::default();
         fmt_cx.incr();
         fmt_cx.newline(f)?;

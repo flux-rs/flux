@@ -208,3 +208,45 @@ macro_rules! _debug_assert_eq3 {
     }};
 }
 pub use crate::_debug_assert_eq3 as debug_assert_eq3;
+
+pub fn as_subscript<T: ToString>(n: T) -> String {
+    n.to_string()
+        .chars()
+        .map(|c| {
+            match c {
+                '0' => '₀',
+                '1' => '₁',
+                '2' => '₂',
+                '3' => '₃',
+                '4' => '₄',
+                '5' => '₅',
+                '6' => '₆',
+                '7' => '₇',
+                '8' => '₈',
+                '9' => '₉',
+                _ => c,
+            }
+        })
+        .collect()
+}
+
+pub fn as_superscript<T: ToString>(n: T) -> String {
+    n.to_string()
+        .chars()
+        .map(|c| {
+            match c {
+                '0' => '⁰',
+                '1' => '¹',
+                '2' => '²',
+                '3' => '³',
+                '4' => '⁴',
+                '5' => '⁵',
+                '6' => '⁶',
+                '7' => '⁷',
+                '8' => '⁸',
+                '9' => '⁹',
+                _ => c,
+            }
+        })
+        .collect()
+}

@@ -942,29 +942,11 @@ newtype_index! {
     pub struct Name {}
 }
 
-impl Name {
-    pub fn as_subscript(&self) -> String {
-        self.as_usize()
-            .to_string()
-            .chars()
-            .map(|c| {
-                match c {
-                    '0' => '₀',
-                    '1' => '₁',
-                    '2' => '₂',
-                    '3' => '₃',
-                    '4' => '₄',
-                    '5' => '₅',
-                    '6' => '₆',
-                    '7' => '₇',
-                    '8' => '₈',
-                    '9' => '₉',
-                    _ => c,
-                }
-            })
-            .collect()
-    }
-}
+// impl Name {
+//     pub fn as_subscript(&self) -> String {
+//         as_subscript(self.as_usize())
+//     }
+// }
 
 #[derive(Copy, Debug, Clone)]
 pub enum NameProvenance {
