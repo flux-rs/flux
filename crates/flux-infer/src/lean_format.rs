@@ -11,6 +11,15 @@ use crate::fixpoint_encoding::fixpoint::{
     KVarDecl, Pred, Sort, SortCtor, SortDecl, Var,
 };
 
+pub struct LeanCtxt<'genv, 'tcx> {
+    pub genv: GlobalEnv<'genv, 'tcx>,
+    pub provenance_map: UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+}
+
+pub trait LeanFmt {
+    fn lean_fmt(&self, f: &mut fmt::Formatter<'_>, cx: &mut LeanCtxt<'_, '_>) -> fmt::Result;
+}
+
 struct LeanSort<'a>(&'a Sort);
 struct LeanKVarDecl<'a>(&'a KVarDecl);
 pub struct LeanKConstraint<'a, 'genv, 'tcx> {
