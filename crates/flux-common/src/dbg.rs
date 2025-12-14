@@ -2,7 +2,7 @@
 use std::{
     fmt, fs,
     io::{self, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use flux_config as config;
