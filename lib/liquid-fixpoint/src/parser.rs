@@ -186,8 +186,10 @@ where
             }
             Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.parser.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
-            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i as u128))),
-            Sexp::Atom(Atom::F(f)) => Ok(Expr::Constant(Constant::Real(*f as u128))),
+            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i))),
+            Sexp::Atom(Atom::F(_f)) => {
+                unimplemented!("Float parsing not supported in fixpoint (see Constant::Real)")
+            }
         }
     }
 
@@ -448,7 +450,6 @@ where
 
     fn parse_func_sort(&self, items: &[Sexp]) -> Result<Sort<T>, ParseError> {
         if let Sexp::Atom(Atom::I(params)) = &items[0]
-            && *params >= 0
             && let Sexp::List(inputs) = &items[1]
         {
             let params = *params as usize;
