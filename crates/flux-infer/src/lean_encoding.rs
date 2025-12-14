@@ -17,9 +17,7 @@ use rustc_data_structures::unord::UnordMap;
 
 use crate::{
     fixpoint_encoding::fixpoint,
-    lean_format::{
-        self, LeanConstDecl, LeanCtxt, LeanSortDecl, LeanSortVar, LeanVar, WithLeanCtxt,
-    },
+    lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
 pub struct LeanEncoder<'genv, 'tcx> {
@@ -95,12 +93,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
             writeln!(instance_file, "import {}.OpaqueFuncDefs\n", pascal_project_name)?;
             writeln!(instance_file, "instance : FluxOpaqueFuncs where")?;
-            let mut cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
+            let cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
             for fun in funs {
                 writeln!(
                     instance_file,
                     "  {} := sorry",
-                    WithLeanCtxt { item: LeanVar(&fun.name), cx: &mut cx }
+                    WithLeanCtxt { item: &fun.name, cx: &cx }
                 )?;
             }
         }
@@ -151,8 +149,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(
                 inferred_instance_file,
                 "def {} := fluxOpaqueFuncs.{}",
-                WithLeanCtxt { item: LeanConstDecl(fun), cx: &cx },
-                WithLeanCtxt { item: LeanVar(&fun.name), cx: &cx }
+                WithLeanCtxt { item: fun, cx: &cx },
+                WithLeanCtxt { item: &fun.name, cx: &cx }
             )?;
         }
         Ok(())
@@ -167,13 +165,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         writeln!(opaque_sorts_file, "import {}.Lib", pascal_project_name)?;
         writeln!(opaque_sorts_file, "-- FLUX OPAQUE SORT DEFS --")?;
         writeln!(opaque_sorts_file, "class FluxOpaqueSorts where")?;
-        let mut cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
+        let cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
         for sort in sorts {
-            writeln!(
-                opaque_sorts_file,
-                "  {}",
-                WithLeanCtxt { item: LeanSortDecl(sort), cx: &mut cx }
-            )?;
+            writeln!(opaque_sorts_file, "  {}", WithLeanCtxt { item: sort, cx: &cx })?;
         }
         self.generate_sorts_instance_file_if_not_present(sorts)?;
         self.generate_sorts_inferred_instance_file(sorts)?;
@@ -196,13 +190,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(structs_file, "-- STRUCT DECLS --")?;
         writeln!(structs_file, "mutual")?;
-        let mut cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
+        let cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
         for data_decl in data_decls {
-            writeln!(
-                structs_file,
-                "{}",
-                WithLeanCtxt { item: lean_format::LeanDataDecl(data_decl), cx: &mut cx }
-            )?;
+            writeln!(structs_file, "{}", WithLeanCtxt { item: data_decl, cx: &cx })?;
         }
         writeln!(structs_file, "end")?;
         Ok(())
@@ -228,13 +218,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(opaque_funcs_file, "-- OPAQUE DEFS --")?;
         writeln!(opaque_funcs_file, "class FluxOpaqueFuncs where")?;
-        let mut cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
+        let cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
         for fun in funs {
-            writeln!(
-                opaque_funcs_file,
-                "  {}",
-                WithLeanCtxt { item: LeanConstDecl(fun), cx: &mut cx }
-            )?;
+            writeln!(opaque_funcs_file, "  {}", WithLeanCtxt { item: fun, cx: &cx })?;
         }
         self.generate_funcs_instance_file_if_not_present(funs)?;
         self.generate_funcs_inferred_instance_file(funs)?;
@@ -266,13 +252,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(file, "-- FUNC DECLS --")?;
         writeln!(file, "mutual")?;
-        let mut cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
+        let cx = LeanCtxt { genv: self.genv, provenance_map: self.provenance_map.clone() };
         for fun_def in func_defs {
-            writeln!(
-                file,
-                "{}",
-                WithLeanCtxt { item: lean_format::LeanFunDef(fun_def), cx: &mut cx }
-            )?;
+            writeln!(file, "{}", WithLeanCtxt { item: fun_def, cx: &cx })?;
         }
         writeln!(file, "end")?;
         Ok(())
