@@ -131,7 +131,7 @@ where
                             let kvar = self.parser.kvar(&strs[0])?;
                             let mut args = vec![];
                             for s in &strs[1..] {
-                                args.push(Expr::Var(self.parser.var(&s)?));
+                                args.push(Expr::Var(self.parser.var(s)?));
                             }
                             Ok(Pred::KVar(kvar, args))
                         }
