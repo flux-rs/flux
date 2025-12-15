@@ -607,7 +607,9 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = if config::dump_checker_trace_info() {
+        let solution = if config::dump_checker_trace_info()
+            || self.genv.proven_externally(def_id.local_id()).is_some()
+        {
             self.parse_kvar_solutions(&result)?
         } else {
             HashMap::default()

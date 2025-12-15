@@ -30,7 +30,9 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{
+        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, Solution,
+    },
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -202,7 +204,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
-    pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
+    pub fn execute_lean_query(
+        self,
+        def_id: MaybeExternId,
+        kvar_solutions: Solution,
+    ) -> QueryResult<()> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
