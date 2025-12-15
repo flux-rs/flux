@@ -2,10 +2,9 @@ use core::fmt;
 use std::fmt::Write;
 
 use flux_common::dbg::as_subscript;
-use flux_middle::{global_env::GlobalEnv, rty::NameProvenance};
+use flux_middle::{global_env::GlobalEnv, rty::ProvenanceMap};
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
-use rustc_data_structures::unord::UnordMap;
 
 use crate::fixpoint_encoding::fixpoint::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
@@ -14,7 +13,7 @@ use crate::fixpoint_encoding::fixpoint::{
 
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub provenance_map: &'a UnordMap<LocalVar, NameProvenance>,
+    pub provenance_map: &'a ProvenanceMap<LocalVar>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -212,14 +211,7 @@ impl LeanFmt for Var {
                 }
             }
             Var::Local(local_var) => {
-                let subscript = as_subscript(local_var.as_u32());
-                if let Some(provenance) = cx.provenance_map.get(local_var)
-                    && let Some(prefix) = provenance.opt_symbol()
-                {
-                    write!(f, "{prefix}{subscript}")
-                } else {
-                    write!(f, "a{subscript}")
-                }
+                write!(f, "{}", cx.provenance_map.get(*local_var))
             }
             Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
                 write!(

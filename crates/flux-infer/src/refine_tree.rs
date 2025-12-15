@@ -775,7 +775,7 @@ impl RefineCtxtTrace {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort, provenance) => {
-                    cx.fvar_env.set(*name, Some(*provenance));
+                    cx.fvar_env.set(*name, *provenance);
                     let bind = RcxBind {
                         name: cx.fvar_env.get(*name),
                         sort: format_cx!(cx, "{:?}", sort),

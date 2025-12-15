@@ -967,10 +967,8 @@ impl<K: Eq + Hash + Into<usize>> ProvenanceMap<K> {
         ProvenanceMap { map: FxHashMap::default(), count: FxHashMap::default() }
     }
 
-    pub fn set(&mut self, key: K, provenance: Option<NameProvenance>) {
-        if let Some(provenance) = provenance
-            && let Some(prefix) = provenance.opt_symbol()
-        {
+    pub fn set(&mut self, key: K, provenance: NameProvenance) {
+        if let Some(prefix) = provenance.opt_symbol() {
             let index = self.count.entry(prefix).or_insert(0);
             let symbol = format!("{}{}", prefix, as_subscript(*index));
             self.map.insert(key, symbol);

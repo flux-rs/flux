@@ -11,9 +11,8 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::NameProvenance,
+    rty::ProvenanceMap,
 };
-use rustc_data_structures::unord::UnordMap;
 
 use crate::{
     fixpoint_encoding::fixpoint,
@@ -25,13 +24,13 @@ pub struct LeanEncoder<'genv, 'tcx> {
     path: PathBuf,
     project: String,
     defs_file_name: String,
-    provenance_map: UnordMap<fixpoint::LocalVar, NameProvenance>,
+    provenance_map: ProvenanceMap<fixpoint::LocalVar>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        provenance_map: UnordMap<fixpoint::LocalVar, NameProvenance>,
+        provenance_map: ProvenanceMap<fixpoint::LocalVar>,
     ) -> Self {
         let defs_file_name = "Defs".to_string();
         let path = genv

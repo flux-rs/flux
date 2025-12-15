@@ -25,7 +25,7 @@ use flux_middle::{
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
-        NameProvenance, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
+        NameProvenance, ProvenanceMap, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
 use itertools::Itertools;
@@ -1030,7 +1030,7 @@ struct LocalVarEnv {
     /// kvars (which can be arbitrary expressions) as local variables; thus we
     /// need to keep the output as an [`rty::Expr`] to reflect this.
     reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
-    provenance_map: UnordMap<fixpoint::LocalVar, NameProvenance>,
+    provenance_map: ProvenanceMap<fixpoint::LocalVar>,
 }
 
 impl LocalVarEnv {
@@ -1040,7 +1040,7 @@ impl LocalVarEnv {
             fvars: Default::default(),
             layers: Vec::new(),
             reverse_map: Default::default(),
-            provenance_map: Default::default(),
+            provenance_map: ProvenanceMap::new(),
         }
     }
 
@@ -1058,7 +1058,7 @@ impl LocalVarEnv {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
         self.reverse_map.insert(fresh, rty::Expr::fvar(name));
-        self.provenance_map.insert(fresh, provenance);
+        self.provenance_map.set(fresh, provenance);
         fresh
     }
 
