@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt};
 
 use flux_arc_interner::{Internable, Interned};
-use flux_common::{dbg::as_subscript, index::IndexGen};
+use flux_common::index::IndexGen;
 use flux_config as config;
 use rustc_abi::FieldIdx;
 use rustc_data_structures::unord::UnordMap;
@@ -140,7 +140,7 @@ use crate::{
     global_env::GlobalEnv,
     rty::{
         AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name,
-        NameProvenance,
+        ProvenanceMap,
     },
 };
 
@@ -198,7 +198,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
-    pub fvar_env: FreeVarEnv,
+    pub fvar_env: ProvenanceMap<Name>,
     pub bvar_env: BoundVarEnv,
     pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
 }
@@ -228,7 +228,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
-            fvar_env: FreeVarEnv::default(),
+            fvar_env: ProvenanceMap::new(),
             bvar_env: BoundVarEnv::default(),
             earlyparam_env: RefCell::new(None),
         }
@@ -407,21 +407,6 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             f(buffer)
         })
     }
-
-    pub fn with_name_provenance(&mut self, name: Name, provenance: NameProvenance) {
-        self.fvar_env.0.insert(name, provenance);
-    }
-
-    pub fn fmt_name(&self, name: &Name) -> String {
-        let subscript = as_subscript(name.as_usize());
-        if let Some(provenance) = self.fvar_env.0.get(name)
-            && let Some(prefix) = provenance.opt_symbol()
-        {
-            format!("{}{}", prefix, subscript)
-        } else {
-            format!("a{}", subscript)
-        }
-    }
 }
 
 newtype_index! {
@@ -485,9 +470,6 @@ pub struct BoundVarEnv {
     name_gen: IndexGen<BoundVarName>,
     layers: RefCell<Vec<BoundVarLayer>>,
 }
-
-#[derive(Default)]
-pub struct FreeVarEnv(UnordMap<Name, NameProvenance>);
 
 impl BoundVarEnv {
     /// Checks if a variable is

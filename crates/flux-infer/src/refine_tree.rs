@@ -775,10 +775,11 @@ impl RefineCtxtTrace {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort, provenance) => {
-                    cx.with_name_provenance(*name, *provenance);
-
-                    let bind =
-                        RcxBind { name: cx.fmt_name(name), sort: format_cx!(cx, "{:?}", sort) };
+                    cx.fvar_env.set(*name, Some(*provenance));
+                    let bind = RcxBind {
+                        name: cx.fvar_env.get(*name),
+                        sort: format_cx!(cx, "{:?}", sort),
+                    };
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e)

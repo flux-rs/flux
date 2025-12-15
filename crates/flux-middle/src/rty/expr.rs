@@ -1,7 +1,7 @@
-use std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+use std::{fmt, hash::Hash, iter, ops::ControlFlow, sync::OnceLock};
 
 use flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
-use flux_common::bug;
+use flux_common::{bug, dbg::as_subscript};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     ToRustc,
@@ -11,7 +11,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
-use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_data_structures::{fx::FxHashMap, snapshot_map::SnapshotMap};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -942,12 +942,6 @@ newtype_index! {
     pub struct Name {}
 }
 
-// impl Name {
-//     pub fn as_subscript(&self) -> String {
-//         as_subscript(self.as_usize())
-//     }
-// }
-
 #[derive(Copy, Debug, Clone)]
 pub enum NameProvenance {
     Unknown,
@@ -959,6 +953,35 @@ impl NameProvenance {
         match &self {
             NameProvenance::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
             _ => None,
+        }
+    }
+}
+
+pub struct ProvenanceMap<K: Eq + Hash> {
+    map: FxHashMap<K, String>,
+    count: FxHashMap<Symbol, usize>,
+}
+
+impl<K: Eq + Hash + Into<usize>> ProvenanceMap<K> {
+    pub fn new() -> Self {
+        ProvenanceMap { map: FxHashMap::default(), count: FxHashMap::default() }
+    }
+
+    pub fn set(&mut self, key: K, provenance: Option<NameProvenance>) {
+        if let Some(provenance) = provenance
+            && let Some(prefix) = provenance.opt_symbol()
+        {
+            let index = self.count.entry(prefix).or_insert(0);
+            let symbol = format!("{}{}", prefix, as_subscript(*index));
+            self.map.insert(key, symbol);
+            *index += 1;
+        }
+    }
+
+    pub fn get(&self, key: K) -> String {
+        match self.map.get(&key) {
+            Some(s) => s.clone(),
+            None => format!("a₊{}", as_subscript(key.into())),
         }
     }
 }
@@ -1735,7 +1758,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Name {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let text = cx.fmt_name(self);
+            let text = cx.fvar_env.get(*self);
             Ok(NestedString { text, key: None, children: None })
         }
     }
