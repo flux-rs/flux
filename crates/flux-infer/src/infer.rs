@@ -205,7 +205,6 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
     pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
-        // kvars.make_all_single();
         let evars = inner.evars;
         let mut refine_tree = self.refine_tree;
         refine_tree.replace_evars(&evars).unwrap();
