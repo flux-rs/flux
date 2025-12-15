@@ -962,18 +962,21 @@ pub struct ProvenanceMap<K: Eq + Hash> {
     count: FxHashMap<Symbol, usize>,
 }
 
-impl<K: Eq + Hash + Into<usize>> ProvenanceMap<K> {
+impl<K: Eq + Hash + Clone + Into<usize>> ProvenanceMap<K> {
     pub fn new() -> Self {
         ProvenanceMap { map: FxHashMap::default(), count: FxHashMap::default() }
     }
 
     pub fn set(&mut self, key: K, provenance: NameProvenance) {
-        if let Some(prefix) = provenance.opt_symbol() {
+        let key_idx = key.clone().into();
+        let res = if let Some(prefix) = provenance.opt_symbol() {
             let index = self.count.entry(prefix).or_insert(0);
             let symbol = format!("{}{}", prefix, as_subscript(*index));
             self.map.insert(key, symbol);
             *index += 1;
-        }
+        };
+        println!("TRACE: ProvenanceMap::set {key_idx:?}, {provenance:?} ==> {res:?}");
+        res
     }
 
     pub fn get(&self, key: K) -> String {
