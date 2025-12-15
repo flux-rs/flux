@@ -15,7 +15,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    rty::ProvenanceMap,
+    rty::PrettyMap,
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -192,7 +192,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             || !adt_defs.is_empty()
             || !fun_defs.is_empty()
         {
-            let encoder = LeanEncoder::new(self.genv, ProvenanceMap::new());
+            let encoder = LeanEncoder::new(self.genv, PrettyMap::new());
             encoder
                 .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
                 .unwrap();

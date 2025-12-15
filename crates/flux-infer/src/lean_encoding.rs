@@ -11,7 +11,7 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    rty::ProvenanceMap,
+    rty::PrettyMap,
 };
 
 use crate::{
@@ -24,13 +24,13 @@ pub struct LeanEncoder<'genv, 'tcx> {
     path: PathBuf,
     project: String,
     defs_file_name: String,
-    provenance_map: ProvenanceMap<fixpoint::LocalVar>,
+    pretty_var_map: PrettyMap<fixpoint::LocalVar>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
-        provenance_map: ProvenanceMap<fixpoint::LocalVar>,
+        pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     ) -> Self {
         let defs_file_name = "Defs".to_string();
         let path = genv
@@ -42,7 +42,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .to_path_buf()
             .join(config::lean_dir());
         let project = config::lean_project().to_string();
-        Self { genv, path, project, defs_file_name, provenance_map }
+        Self { genv, path, project, defs_file_name, pretty_var_map }
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
@@ -92,7 +92,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
             writeln!(instance_file, "import {}.OpaqueFuncDefs\n", pascal_project_name)?;
             writeln!(instance_file, "instance : FluxOpaqueFuncs where")?;
-            let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+            let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
             for fun in funs {
                 writeln!(
                     instance_file,
@@ -143,7 +143,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             inferred_instance_file,
             "def fluxOpaqueFuncs : FluxOpaqueFuncs := inferInstance\n"
         )?;
-        let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun in funs {
             writeln!(
                 inferred_instance_file,
@@ -164,7 +164,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         writeln!(opaque_sorts_file, "import {}.Lib", pascal_project_name)?;
         writeln!(opaque_sorts_file, "-- FLUX OPAQUE SORT DEFS --")?;
         writeln!(opaque_sorts_file, "class FluxOpaqueSorts where")?;
-        let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for sort in sorts {
             writeln!(opaque_sorts_file, "  {}", WithLeanCtxt { item: sort, cx: &cx })?;
         }
@@ -189,7 +189,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(structs_file, "-- STRUCT DECLS --")?;
         writeln!(structs_file, "mutual")?;
-        let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for data_decl in data_decls {
             writeln!(structs_file, "{}", WithLeanCtxt { item: data_decl, cx: &cx })?;
         }
@@ -217,7 +217,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(opaque_funcs_file, "-- OPAQUE DEFS --")?;
         writeln!(opaque_funcs_file, "class FluxOpaqueFuncs where")?;
-        let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun in funs {
             writeln!(opaque_funcs_file, "  {}", WithLeanCtxt { item: fun, cx: &cx })?;
         }
@@ -251,7 +251,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(file, "-- FUNC DECLS --")?;
         writeln!(file, "mutual")?;
-        let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun_def in func_defs {
             writeln!(file, "{}", WithLeanCtxt { item: fun_def, cx: &cx })?;
         }
@@ -388,7 +388,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         {
             writeln!(theorem_file, "import {}.OpaqueFuncs", pascal_project_name)?;
         }
-        let cx = LeanCtxt { genv: self.genv, provenance_map: &self.provenance_map };
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         writeln!(
             theorem_file,
             "def {} := {}",

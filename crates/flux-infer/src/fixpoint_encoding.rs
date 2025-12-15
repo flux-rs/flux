@@ -25,7 +25,7 @@ use flux_middle::{
     query_bug,
     rty::{
         self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
-        NameProvenance, ProvenanceMap, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
+        NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
 use itertools::Itertools;
@@ -686,7 +686,7 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
-            let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.provenance_map);
+            let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
@@ -735,6 +735,13 @@ where
             self.comments.push(format!("Tag {idx}: {tag:?}"));
             idx
         })
+    }
+
+    pub(crate) fn with_early_param(&mut self, param: &EarlyReftParam) {
+        self.ecx
+            .local_var_env
+            .pretty_var_map
+            .set(PrettyVar::Param(*param), Some(param.name));
     }
 
     pub(crate) fn with_name_map<R>(
@@ -1030,7 +1037,7 @@ struct LocalVarEnv {
     /// kvars (which can be arbitrary expressions) as local variables; thus we
     /// need to keep the output as an [`rty::Expr`] to reflect this.
     reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
-    provenance_map: ProvenanceMap<fixpoint::LocalVar>,
+    pretty_var_map: PrettyMap<fixpoint::LocalVar>,
 }
 
 impl LocalVarEnv {
@@ -1040,7 +1047,7 @@ impl LocalVarEnv {
             fvars: Default::default(),
             layers: Vec::new(),
             reverse_map: Default::default(),
-            provenance_map: ProvenanceMap::new(),
+            pretty_var_map: PrettyMap::new(),
         }
     }
 
@@ -1058,7 +1065,8 @@ impl LocalVarEnv {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
         self.reverse_map.insert(fresh, rty::Expr::fvar(name));
-        self.provenance_map.set(fresh, provenance);
+        self.pretty_var_map
+            .set(PrettyVar::Local(fresh), provenance.opt_symbol());
         fresh
     }
 

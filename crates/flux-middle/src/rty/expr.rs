@@ -957,32 +957,54 @@ impl NameProvenance {
     }
 }
 
-pub struct ProvenanceMap<K: Eq + Hash> {
-    map: FxHashMap<K, String>,
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum PrettyVar<V> {
+    Local(V),
+    Param(EarlyReftParam),
+}
+
+impl<V: Copy + Into<usize>> PrettyVar<V> {
+    pub fn as_subscript(&self) -> String {
+        let idx = match self {
+            PrettyVar::Local(v) => (*v).into(),
+            PrettyVar::Param(p) => p.index as usize,
+        };
+        as_subscript(idx)
+    }
+}
+
+pub struct PrettyMap<V: Eq + Hash> {
+    map: FxHashMap<PrettyVar<V>, String>,
     count: FxHashMap<Symbol, usize>,
 }
 
-impl<K: Eq + Hash + Clone + Into<usize>> ProvenanceMap<K> {
+impl<V: Eq + Hash + Copy + Into<usize>> PrettyMap<V> {
     pub fn new() -> Self {
-        ProvenanceMap { map: FxHashMap::default(), count: FxHashMap::default() }
+        PrettyMap { map: FxHashMap::default(), count: FxHashMap::default() }
     }
 
-    pub fn set(&mut self, key: K, provenance: NameProvenance) {
-        let key_idx = key.clone().into();
-        let res = if let Some(prefix) = provenance.opt_symbol() {
+    pub fn set(&mut self, var: PrettyVar<V>, prefix: Option<Symbol>) -> String {
+        // if already defined, return it
+        if let Some(symbol) = self.map.get(&var) {
+            return symbol.clone();
+        }
+        // else define it, and stash
+        let symbol = if let Some(prefix) = prefix {
             let index = self.count.entry(prefix).or_insert(0);
             let symbol = format!("{}{}", prefix, as_subscript(*index));
-            self.map.insert(key, symbol);
             *index += 1;
+            symbol
+        } else {
+            format!("a₊{}", var.as_subscript())
         };
-        println!("TRACE: ProvenanceMap::set {key_idx:?}, {provenance:?} ==> {res:?}");
-        res
+        self.map.insert(var, symbol.clone());
+        symbol
     }
 
-    pub fn get(&self, key: K) -> String {
-        match self.map.get(&key) {
+    pub fn get(&self, key: &PrettyVar<V>) -> String {
+        match self.map.get(key) {
             Some(s) => s.clone(),
-            None => format!("a₊{}", as_subscript(key.into())),
+            None => format!("a₊{}", key.as_subscript()),
         }
     }
 }
@@ -1759,7 +1781,7 @@ pub(crate) mod pretty {
 
     impl PrettyNested for Name {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
-            let text = cx.fvar_env.get(*self);
+            let text = cx.pretty_var_env.get(&PrettyVar::Local(*self));
             Ok(NestedString { text, key: None, children: None })
         }
     }

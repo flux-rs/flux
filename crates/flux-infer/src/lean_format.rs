@@ -1,8 +1,10 @@
 use core::fmt;
 use std::fmt::Write;
 
-use flux_common::dbg::as_subscript;
-use flux_middle::{global_env::GlobalEnv, rty::ProvenanceMap};
+use flux_middle::{
+    global_env::GlobalEnv,
+    rty::{PrettyMap, PrettyVar},
+};
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 
@@ -13,7 +15,7 @@ use crate::fixpoint_encoding::fixpoint::{
 
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub provenance_map: &'a ProvenanceMap<LocalVar>,
+    pub pretty_var_map: &'a PrettyMap<LocalVar>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -210,9 +212,6 @@ impl LeanFmt for Var {
                     write!(f, "{path}_{}", def_id.name())
                 }
             }
-            Var::Local(local_var) => {
-                write!(f, "{}", cx.provenance_map.get(*local_var))
-            }
             Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
                 write!(
                     f,
@@ -221,9 +220,11 @@ impl LeanFmt for Var {
                     self.display().to_string().replace("$", "_")
                 )
             }
+            Var::Local(local_var) => {
+                write!(f, "{}", cx.pretty_var_map.get(&PrettyVar::Local(*local_var)))
+            }
             Var::Param(param) => {
-                // We start with a `₀` prefix to distinguish from the `LocalVar`
-                write!(f, "{}₀{}", param.name, as_subscript(param.index))
+                write!(f, "{}", cx.pretty_var_map.get(&PrettyVar::Param(*param)))
             }
             _ => {
                 write!(f, "{}", self.display().to_string().replace("$", "_"))

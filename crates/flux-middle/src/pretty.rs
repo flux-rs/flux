@@ -139,8 +139,7 @@ pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
     rty::{
-        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name,
-        ProvenanceMap,
+        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name, PrettyMap,
     },
 };
 
@@ -198,7 +197,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
-    pub fvar_env: ProvenanceMap<Name>,
+    pub pretty_var_env: PrettyMap<Name>,
     pub bvar_env: BoundVarEnv,
     pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
 }
@@ -228,7 +227,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
-            fvar_env: ProvenanceMap::new(),
+            pretty_var_env: PrettyMap::new(),
             bvar_env: BoundVarEnv::default(),
             earlyparam_env: RefCell::new(None),
         }
