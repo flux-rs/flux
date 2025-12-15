@@ -9,12 +9,12 @@ use rustc_data_structures::unord::UnordMap;
 
 use crate::fixpoint_encoding::fixpoint::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr, FunDef,
-    KVarDecl, Pred, Sort, SortCtor, SortDecl, Var,
+    KVarDecl, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
 };
 
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
-    pub provenance_map: &'a UnordMap<crate::fixpoint_encoding::fixpoint::LocalVar, NameProvenance>,
+    pub provenance_map: &'a UnordMap<LocalVar, NameProvenance>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {

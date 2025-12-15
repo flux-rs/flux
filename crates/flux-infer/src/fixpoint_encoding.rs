@@ -866,7 +866,7 @@ where
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
-        let kvids = self.kcx.declare(kvar.kvid, decl);
+        let kvids = self.kcx.declare(kvar.kvid, decl, &self.ecx.backend);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
@@ -932,7 +932,12 @@ struct KVarEncodingCtxt {
 impl KVarEncodingCtxt {
     /// Declares that a kvar has to be encoded into fixpoint and assigns a range of
     /// [`fixpoint::KVid`]'s to it.
-    fn declare(&mut self, kvid: rty::KVid, decl: &KVarDecl) -> Range<fixpoint::KVid> {
+    fn declare(
+        &mut self,
+        kvid: rty::KVid,
+        decl: &KVarDecl,
+        backend: &Backend,
+    ) -> Range<fixpoint::KVid> {
         // The start of the next range
         let start = self
             .ranges
@@ -942,12 +947,13 @@ impl KVarEncodingCtxt {
         self.ranges
             .entry(kvid)
             .or_insert_with(|| {
-                match decl.encoding {
-                    KVarEncoding::Single => start..start + 1,
-                    KVarEncoding::Conj => {
-                        let n = usize::max(decl.self_args, 1);
-                        start..start + n
-                    }
+                let single_encoding = matches!(decl.encoding, KVarEncoding::Single)
+                    || matches!(backend, Backend::Lean);
+                if single_encoding {
+                    start..start + 1
+                } else {
+                    let n = usize::max(decl.self_args, 1);
+                    start..start + n
                 }
             })
             .clone()
@@ -1183,14 +1189,14 @@ impl KVarGen {
         rty::Expr::kvar(kvar)
     }
 
-    // This function is called before we encode a constraint that will be translated to Lean.
-    // It's a hack that allows us to emit fewer KVars since in Lean we are not restricting solutions
-    // to predicates that use their first argument like we do in fixpoint.
-    pub(crate) fn make_all_single(&mut self) {
-        self.kvars
-            .iter_mut()
-            .for_each(|decl| decl.encoding = KVarEncoding::Single);
-    }
+    // // This function is called before we encode a constraint that will be translated to Lean.
+    // // It's a hack that allows us to emit fewer KVars since in Lean we are not restricting solutions
+    // // to predicates that use their first argument like we do in fixpoint.
+    // pub(crate) fn make_all_single(&mut self) {
+    //     self.kvars
+    //         .iter_mut()
+    //         .for_each(|decl| decl.encoding = KVarEncoding::Single);
+    // }
 }
 
 #[derive(Clone)]

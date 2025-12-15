@@ -40,7 +40,7 @@ impl SpanTrace {
         let file = SpanTrace::span_file(tcx, span);
         SpanTrace { file, start_line, start_col, end_line, end_col }
     }
-    pub fn from_pathbuf(path: &Path, start_line: usize, start_col: usize, len: usize) -> Self {
+    pub fn from_path(path: &Path, start_line: usize, start_col: usize, len: usize) -> Self {
         SpanTrace {
             file: Some(path.display().to_string()),
             start_line,
@@ -224,27 +224,6 @@ pub fn as_subscript<T: ToString>(n: T) -> String {
                 '7' => '₇',
                 '8' => '₈',
                 '9' => '₉',
-                _ => c,
-            }
-        })
-        .collect()
-}
-
-pub fn as_superscript<T: ToString>(n: T) -> String {
-    n.to_string()
-        .chars()
-        .map(|c| {
-            match c {
-                '0' => '⁰',
-                '1' => '¹',
-                '2' => '²',
-                '3' => '³',
-                '4' => '⁴',
-                '5' => '⁵',
-                '6' => '⁶',
-                '7' => '⁷',
-                '8' => '⁸',
-                '9' => '⁹',
                 _ => c,
             }
         })

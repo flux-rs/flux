@@ -413,7 +413,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         ));
 
         if let Some(span) = self.genv.proven_externally(def_id.local_id()) {
-            let dst_span = SpanTrace::from_pathbuf(&proof_path, 3, 5, proof_name.len());
+            let dst_span = SpanTrace::from_path(&proof_path, 3, 5, proof_name.len());
             dbg::hyperlink_json!(self.genv.tcx(), span, dst_span);
         }
 
