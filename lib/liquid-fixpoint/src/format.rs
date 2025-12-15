@@ -273,7 +273,6 @@ impl<T: Types> fmt::Display for Pred<T> {
                     "(${} {})",
                     kvid.display(),
                     args.iter().join(" "),
-                    // args.iter().map(Identifier::display).format(" ")
                 )
             }
             Pred::Expr(expr) => write!(f, "({expr})"),
