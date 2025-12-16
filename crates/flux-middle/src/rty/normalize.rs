@@ -114,13 +114,15 @@ impl Successors for DepGraph {
     }
 }
 
-/// Returns
+/// Returns a vec<vec<usize>> representing the topological sort of the given
+/// definitions based on their dependencies, i.e. a vector of SCCs, where
+///    forall i < j, SCC_i does not depend on (i.e. "call") SCC_j
+///    forall i, SCC_i is a vector of mutually
+/// SCC comes befoIf there are no cycles,
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
 /// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort<T>(
-    defns: &[(FluxLocalDefId, Binder<Expr>, T)],
-) -> Result<Vec<usize>, Vec<FluxLocalDefId>> {
+fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Vec<usize>> {
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
