@@ -96,7 +96,12 @@ pub fn desugar<'genv>(
             fhir::Node::ForeignItem(genv.alloc(item))
         }
         rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
-
+        rustc_hir::Node::OpaqueTy(opaque_ty) => {
+            let item = cx.with_rust_item_ctxt(owner_id, Some(&mut opaque_tys), |cx| {
+                cx.lift_opaque_ty(opaque_ty)
+            })?;
+            fhir::Node::OpaqueTy(genv.alloc(item))
+        }
         _ => {
             return Err(query_bug!(
                 def_id,

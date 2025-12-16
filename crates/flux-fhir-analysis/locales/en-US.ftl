@@ -100,13 +100,14 @@ fhir_analysis_invalid_cast =
     .label = invalid cast
     .note = use `allow_uninterpreted_cast` to enable this cast
 
-# Structural Compatibility
-
 fhir_analysis_incompatible_refinement =
     {$def_descr} has an incompatible refinement annotation
     .label = expected a refinement of `{$expected_ty}`
     .expected_label = unrefined {$def_descr} found here
     .note = a refinement annotation must match the unrefined definition structurally
+
+fhir_analysis_async_hint =
+    mark the flux signature as `async fn`
 
 fhir_analysis_incompatible_param_count =
     {$def_descr} has an incompatible refinement annotation

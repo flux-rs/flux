@@ -513,11 +513,6 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             // Fix up the span in asyncness
             if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
                 header.asyncness = hir::IsAsync::Async(span);
-            } else {
-                // Check if Rust function is async but Flux signature is not
-                if matches!(header.asyncness, hir::IsAsync::Async(_)) {
-                    return Err(self.emit(errors::AsyncnessMismatch::new(fn_sig.span)));
-                }
             }
             (generics, decl)
         } else {
@@ -1732,6 +1727,11 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
     }
 }
 
+fn is_owner_node(genv: GlobalEnv, owner_id: MaybeExternId<OwnerId>) -> bool {
+    let hir_id = genv.tcx().local_def_id_to_hir_id(owner_id.local_id());
+    hir_id.local_id == rustc_hir::ItemLocalId::ZERO
+}
+
 /// Traverses the `hir` for an item and collects the `def_id` of any opaque type (i.e., `impl Trait` or `async`)
 /// Currently, we only support up to one opaque type and we report an error if there's more than one.
 fn collect_opaque_types(
@@ -1739,16 +1739,21 @@ fn collect_opaque_types(
     owner_id: MaybeExternId<OwnerId>,
 ) -> Result<Option<LocalDefId>> {
     let mut collector = OpaqueTypeCollector::new(genv.sess());
-    match genv.tcx().hir_owner_node(owner_id.local_id()) {
-        hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
-        hir::OwnerNode::ImplItem(impl_item) => {
-            hir::intravisit::walk_impl_item(&mut collector, impl_item);
-        }
-        hir::OwnerNode::TraitItem(trait_item) => {
-            hir::intravisit::walk_trait_item(&mut collector, trait_item);
-        }
-        hir::OwnerNode::ForeignItem(_) | hir::OwnerNode::Crate(_) | hir::OwnerNode::Synthetic => {}
-    };
+    // Check if the owner_id corresponds to a HIR owner, i.e., a function, impl, trait, etc. else bail
+    if is_owner_node(genv, owner_id) {
+        match genv.tcx().hir_owner_node(owner_id.local_id()) {
+            hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
+            hir::OwnerNode::ImplItem(impl_item) => {
+                hir::intravisit::walk_impl_item(&mut collector, impl_item);
+            }
+            hir::OwnerNode::TraitItem(trait_item) => {
+                hir::intravisit::walk_trait_item(&mut collector, trait_item);
+            }
+            hir::OwnerNode::ForeignItem(_)
+            | hir::OwnerNode::Crate(_)
+            | hir::OwnerNode::Synthetic => {}
+        };
+    }
     collector.into_result()
 }
 

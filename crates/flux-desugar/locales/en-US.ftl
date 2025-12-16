@@ -56,10 +56,6 @@ desugar_unsupported_signature =
     unsupported function signature
     .note = {$note}
 
-desugar_asyncness_mismatch =
-    function signature asyncness mismatch
-    .label = add `async` to the flux signature for rust `async` functions
-
 desugar_unresolved_path =
     cannot resolve `{$path}`
 
