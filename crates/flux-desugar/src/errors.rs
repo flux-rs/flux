@@ -150,3 +150,17 @@ pub(super) struct UnsupportedSignature<'a> {
     pub span: Span,
     pub note: &'a str,
 }
+
+#[derive(Diagnostic)]
+#[diag(desugar_asyncness_mismatch, code = E0999)]
+pub(super) struct AsyncnessMismatch {
+    #[primary_span]
+    #[label]
+    pub span: Span,
+}
+
+impl AsyncnessMismatch {
+    pub(super) fn new(span: Span) -> Self {
+        Self { span }
+    }
+}

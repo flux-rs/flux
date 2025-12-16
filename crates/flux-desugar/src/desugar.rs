@@ -513,6 +513,11 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
             // Fix up the span in asyncness
             if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
                 header.asyncness = hir::IsAsync::Async(span);
+            } else {
+                // Check if Rust function is async but Flux signature is not
+                if matches!(header.asyncness, hir::IsAsync::Async(_)) {
+                    return Err(self.emit(errors::AsyncnessMismatch::new(fn_sig.span)));
+                }
             }
             (generics, decl)
         } else {
