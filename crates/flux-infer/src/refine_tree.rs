@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, Sort, Ty, TyKind, Var,
+        BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -458,6 +458,15 @@ impl Node {
             }
 
             NodeKind::Root(params) => {
+                // declare pretty-vars for params
+                for (var, sort) in params.iter() {
+                    if let Var::EarlyParam(param) = var
+                        && !sort.is_loc()
+                    {
+                        cx.with_early_param(param)
+                    }
+                }
+
                 let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
@@ -477,8 +486,8 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort, _) => {
-                cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
+            NodeKind::ForAll(name, sort, provenance) => {
+                cx.with_name_map(*name, *provenance, |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
                     };
@@ -775,10 +784,11 @@ impl RefineCtxtTrace {
             let node = ptr.borrow();
             match &node.kind {
                 NodeKind::ForAll(name, sort, provenance) => {
-                    cx.with_name_provenance(*name, *provenance);
-
-                    let bind =
-                        RcxBind { name: cx.fmt_name(name), sort: format_cx!(cx, "{:?}", sort) };
+                    let name = cx
+                        .pretty_var_env
+                        .set(PrettyVar::Local(*name), provenance.opt_symbol());
+                    let sort = format_cx!(cx, "{:?}", sort);
+                    let bind = RcxBind { name, sort };
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e)
@@ -790,10 +800,14 @@ impl RefineCtxtTrace {
                 }
                 NodeKind::Root(binds) => {
                     for (name, sort) in binds {
-                        let bind = RcxBind {
-                            name: format_cx!(cx, "{:?}", name),
-                            sort: format_cx!(cx, "{:?}", sort),
+                        let name = if let Var::EarlyParam(param) = name {
+                            cx.pretty_var_env
+                                .set(PrettyVar::Param(*param), Some(param.name))
+                        } else {
+                            format_cx!(cx, "{:?}", name)
                         };
+                        let sort = format_cx!(cx, "{:?}", sort);
+                        let bind = RcxBind { name, sort };
                         bindings.push(bind);
                     }
                 }

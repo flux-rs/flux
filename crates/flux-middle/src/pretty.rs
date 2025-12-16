@@ -139,8 +139,7 @@ pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
     rty::{
-        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name,
-        NameProvenance,
+        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name, PrettyMap,
     },
 };
 
@@ -198,7 +197,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
-    pub fvar_env: FreeVarEnv,
+    pub pretty_var_env: PrettyMap<Name>,
     pub bvar_env: BoundVarEnv,
     pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
 }
@@ -228,7 +227,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
-            fvar_env: FreeVarEnv::default(),
+            pretty_var_env: PrettyMap::new(),
             bvar_env: BoundVarEnv::default(),
             earlyparam_env: RefCell::new(None),
         }
@@ -407,20 +406,6 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             f(buffer)
         })
     }
-
-    pub fn with_name_provenance(&mut self, name: Name, provenance: NameProvenance) {
-        self.fvar_env.0.insert(name, provenance);
-    }
-
-    pub fn fmt_name(&self, name: &Name) -> String {
-        if let Some(provenance) = self.fvar_env.0.get(name)
-            && let Some(prefix) = provenance.opt_symbol()
-        {
-            format!("{}{}", prefix, name.as_subscript())
-        } else {
-            format!("a{}", name.as_subscript())
-        }
-    }
 }
 
 newtype_index! {
@@ -484,9 +469,6 @@ pub struct BoundVarEnv {
     name_gen: IndexGen<BoundVarName>,
     layers: RefCell<Vec<BoundVarLayer>>,
 }
-
-#[derive(Default)]
-pub struct FreeVarEnv(UnordMap<Name, NameProvenance>);
 
 impl BoundVarEnv {
     /// Checks if a variable is

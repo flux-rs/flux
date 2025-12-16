@@ -2,7 +2,7 @@
 use std::{
     fmt, fs,
     io::{self, Write},
-    path::PathBuf,
+    path::Path,
 };
 
 use flux_config as config;
@@ -40,7 +40,7 @@ impl SpanTrace {
         let file = SpanTrace::span_file(tcx, span);
         SpanTrace { file, start_line, start_col, end_line, end_col }
     }
-    pub fn from_pathbuf(path: &PathBuf, start_line: usize, start_col: usize, len: usize) -> Self {
+    pub fn from_path(path: &Path, start_line: usize, start_col: usize, len: usize) -> Self {
         SpanTrace {
             file: Some(path.display().to_string()),
             start_line,
@@ -208,3 +208,24 @@ macro_rules! _debug_assert_eq3 {
     }};
 }
 pub use crate::_debug_assert_eq3 as debug_assert_eq3;
+
+pub fn as_subscript<T: ToString>(n: T) -> String {
+    n.to_string()
+        .chars()
+        .map(|c| {
+            match c {
+                '0' => '₀',
+                '1' => '₁',
+                '2' => '₂',
+                '3' => '₃',
+                '4' => '₄',
+                '5' => '₅',
+                '6' => '₆',
+                '7' => '₇',
+                '8' => '₈',
+                '9' => '₉',
+                _ => c,
+            }
+        })
+        .collect()
+}

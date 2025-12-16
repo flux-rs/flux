@@ -24,8 +24,8 @@ use flux_middle::{
     queries::QueryResult,
     query_bug,
     rty::{
-        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List, SpecFuncKind,
-        VariantIdx, fold::TypeFoldable as _,
+        self, ESpan, EarlyReftParam, GenericArgsExt, InternalFuncKind, Lambda, List,
+        NameProvenance, PrettyMap, PrettyVar, SpecFuncKind, VariantIdx, fold::TypeFoldable as _,
     },
 };
 use itertools::Itertools;
@@ -495,6 +495,12 @@ enum ConstKey<'tcx> {
     Cast(rty::Sort, rty::Sort),
 }
 
+#[derive(Clone)]
+pub enum Backend {
+    Fixpoint,
+    Lean,
+}
+
 pub struct FixpointCtxt<'genv, 'tcx, T: Eq + Hash> {
     comments: Vec<String>,
     genv: GlobalEnv<'genv, 'tcx>,
@@ -512,13 +518,18 @@ impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: MaybeExternId, kvars: KVarGen) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: MaybeExternId,
+        kvars: KVarGen,
+        backend: Backend,
+    ) -> Self {
         Self {
             comments: vec![],
             kvars,
             scx: SortEncodingCtxt::default(),
             genv,
-            ecx: ExprEncodingCtxt::new(genv, Some(def_id)),
+            ecx: ExprEncodingCtxt::new(genv, Some(def_id), backend),
             kcx: Default::default(),
             tags: IndexVec::new(),
             tags_inv: Default::default(),
@@ -675,7 +686,7 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
-            let lean_encoder = LeanEncoder::new(self.genv);
+            let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
@@ -726,12 +737,20 @@ where
         })
     }
 
+    pub(crate) fn with_early_param(&mut self, param: &EarlyReftParam) {
+        self.ecx
+            .local_var_env
+            .pretty_var_map
+            .set(PrettyVar::Param(*param), Some(param.name));
+    }
+
     pub(crate) fn with_name_map<R>(
         &mut self,
         name: rty::Name,
+        provenance: NameProvenance,
         f: impl FnOnce(&mut Self, fixpoint::LocalVar) -> R,
     ) -> R {
-        let fresh = self.ecx.local_var_env.insert_fvar_map(name);
+        let fresh = self.ecx.local_var_env.insert_fvar_map(name, provenance);
         let r = f(self, fresh);
         self.ecx.local_var_env.remove_fvar_map(name);
         r
@@ -854,7 +873,7 @@ where
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
-        let kvids = self.kcx.declare(kvar.kvid, decl);
+        let kvids = self.kcx.declare(kvar.kvid, decl, &self.ecx.backend);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
@@ -874,7 +893,7 @@ where
                     fixpoint::Expr::int(0),
                 )),
             });
-            return Ok(fixpoint::Pred::KVar(kvids.start, vec![var]));
+            return Ok(fixpoint::Pred::KVar(kvids.start, vec![fixpoint::Expr::Var(var)]));
         }
 
         let kvars = kvids
@@ -920,7 +939,12 @@ struct KVarEncodingCtxt {
 impl KVarEncodingCtxt {
     /// Declares that a kvar has to be encoded into fixpoint and assigns a range of
     /// [`fixpoint::KVid`]'s to it.
-    fn declare(&mut self, kvid: rty::KVid, decl: &KVarDecl) -> Range<fixpoint::KVid> {
+    fn declare(
+        &mut self,
+        kvid: rty::KVid,
+        decl: &KVarDecl,
+        backend: &Backend,
+    ) -> Range<fixpoint::KVid> {
         // The start of the next range
         let start = self
             .ranges
@@ -930,12 +954,13 @@ impl KVarEncodingCtxt {
         self.ranges
             .entry(kvid)
             .or_insert_with(|| {
-                match decl.encoding {
-                    KVarEncoding::Single => start..start + 1,
-                    KVarEncoding::Conj => {
-                        let n = usize::max(decl.self_args, 1);
-                        start..start + n
-                    }
+                let single_encoding = matches!(decl.encoding, KVarEncoding::Single)
+                    || matches!(backend, Backend::Lean);
+                if single_encoding {
+                    start..start + 1
+                } else {
+                    let n = usize::max(decl.self_args, 1);
+                    start..start + n
                 }
             })
             .clone()
@@ -1012,6 +1037,7 @@ struct LocalVarEnv {
     /// kvars (which can be arbitrary expressions) as local variables; thus we
     /// need to keep the output as an [`rty::Expr`] to reflect this.
     reverse_map: UnordMap<fixpoint::LocalVar, rty::Expr>,
+    pretty_var_map: PrettyMap<fixpoint::LocalVar>,
 }
 
 impl LocalVarEnv {
@@ -1021,6 +1047,7 @@ impl LocalVarEnv {
             fvars: Default::default(),
             layers: Vec::new(),
             reverse_map: Default::default(),
+            pretty_var_map: PrettyMap::new(),
         }
     }
 
@@ -1030,10 +1057,16 @@ impl LocalVarEnv {
         self.local_var_gen.fresh()
     }
 
-    fn insert_fvar_map(&mut self, name: rty::Name) -> fixpoint::LocalVar {
+    fn insert_fvar_map(
+        &mut self,
+        name: rty::Name,
+        provenance: NameProvenance,
+    ) -> fixpoint::LocalVar {
         let fresh = self.fresh_name();
         self.fvars.insert(name, fresh);
         self.reverse_map.insert(fresh, rty::Expr::fvar(name));
+        self.pretty_var_map
+            .set(PrettyVar::Local(fresh), provenance.opt_symbol());
         fresh
     }
 
@@ -1163,15 +1196,6 @@ impl KVarGen {
         let kvar = rty::KVar::new(kvid, flattened_self_args, exprs);
         rty::Expr::kvar(kvar)
     }
-
-    // This function is called before we encode a constraint that will be translated to Lean.
-    // It's a hack that allows us to emit fewer KVars since in Lean we are not restricting solutions
-    // to predicates that use their first argument like we do in fixpoint.
-    pub(crate) fn make_all_single(&mut self) {
-        self.kvars
-            .iter_mut()
-            .for_each(|decl| decl.encoding = KVarEncoding::Single);
-    }
 }
 
 #[derive(Clone)]
@@ -1239,10 +1263,15 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     /// invariants for an extern spec on an enum.
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
+    backend: Backend,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>, def_id: Option<MaybeExternId>) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        def_id: Option<MaybeExternId>,
+        backend: Backend,
+    ) -> Self {
         Self {
             genv,
             local_var_env: LocalVarEnv::new(),
@@ -1254,6 +1283,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .infer_ctxt()
                 .with_next_trait_solver(true)
                 .build(TypingMode::non_body_analysis()),
+            backend,
         }
     }
 
@@ -1805,12 +1835,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         sort: &rty::Sort,
         scx: &mut SortEncodingCtxt,
         bindings: &mut Vec<fixpoint::Bind>,
-    ) -> QueryResult<fixpoint::Var> {
+    ) -> QueryResult<fixpoint::Expr> {
         let farg = self.expr_to_fixpoint(arg, scx)?;
+        // If we're translating to Lean, no need to do any ANF-ing.
+        if matches!(self.backend, Backend::Lean) {
+            return Ok(farg);
+        }
         // Check if it's a variable after encoding, in case the encoding produced a variable from a
         // non-variable.
         if let fixpoint::Expr::Var(var) = farg {
-            Ok(var)
+            Ok(fixpoint::Expr::Var(var))
         } else {
             let fresh = self.local_var_env.fresh_name();
             self.local_var_env.reverse_map.insert(fresh, arg.clone());
@@ -1820,7 +1854,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 sort: scx.sort_to_fixpoint(sort),
                 pred: fixpoint::Pred::Expr(pred),
             });
-            Ok(fresh.into())
+            Ok(fixpoint::Expr::Var(fresh.into()))
         }
     }
 
