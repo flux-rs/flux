@@ -100,6 +100,8 @@ fhir_analysis_invalid_cast =
     .label = invalid cast
     .note = use `allow_uninterpreted_cast` to enable this cast
 
+# Structural Compatibility
+
 fhir_analysis_incompatible_refinement =
     {$def_descr} has an incompatible refinement annotation
     .label = expected a refinement of `{$expected_ty}`

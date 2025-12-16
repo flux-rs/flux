@@ -1738,22 +1738,21 @@ fn collect_opaque_types(
     genv: GlobalEnv,
     owner_id: MaybeExternId<OwnerId>,
 ) -> Result<Option<LocalDefId>> {
-    let mut collector = OpaqueTypeCollector::new(genv.sess());
-    // Check if the owner_id corresponds to a HIR owner, i.e., a function, impl, trait, etc. else bail
-    if is_owner_node(genv, owner_id) {
-        match genv.tcx().hir_owner_node(owner_id.local_id()) {
-            hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
-            hir::OwnerNode::ImplItem(impl_item) => {
-                hir::intravisit::walk_impl_item(&mut collector, impl_item);
-            }
-            hir::OwnerNode::TraitItem(trait_item) => {
-                hir::intravisit::walk_trait_item(&mut collector, trait_item);
-            }
-            hir::OwnerNode::ForeignItem(_)
-            | hir::OwnerNode::Crate(_)
-            | hir::OwnerNode::Synthetic => {}
-        };
+    // bail out if the owner_id does not correspond to a HIR owner, i.e., a function, impl, trait
+    if !is_owner_node(genv, owner_id) {
+        return Ok(None);
     }
+    let mut collector = OpaqueTypeCollector::new(genv.sess());
+    match genv.tcx().hir_owner_node(owner_id.local_id()) {
+        hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
+        hir::OwnerNode::ImplItem(impl_item) => {
+            hir::intravisit::walk_impl_item(&mut collector, impl_item);
+        }
+        hir::OwnerNode::TraitItem(trait_item) => {
+            hir::intravisit::walk_trait_item(&mut collector, trait_item);
+        }
+        hir::OwnerNode::ForeignItem(_) | hir::OwnerNode::Crate(_) | hir::OwnerNode::Synthetic => {}
+    };
     collector.into_result()
 }
 
