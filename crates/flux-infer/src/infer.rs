@@ -30,7 +30,7 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -204,14 +204,13 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
     pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
         let inner = self.inner.into_inner();
-        let mut kvars = inner.kvars;
-        kvars.make_all_single();
+        let kvars = inner.kvars;
         let evars = inner.evars;
         let mut refine_tree = self.refine_tree;
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
         fcx.generate_and_check_lean_lemmas(cstr)
     }
@@ -242,7 +241,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
         let backend = match self.opts.solver {

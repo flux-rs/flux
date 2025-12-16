@@ -4,7 +4,7 @@ use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
 use flux_infer::{
-    fixpoint_encoding::{ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
+    fixpoint_encoding::{Backend, ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
     lean_encoding::LeanEncoder,
 };
 use flux_metadata::CStore;
@@ -15,6 +15,7 @@ use flux_middle::{
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
+    rty::PrettyMap,
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -159,7 +160,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     }
 
     pub(crate) fn encode_flux_items_in_lean(&self) -> Result<(), io::Error> {
-        let mut ecx = ExprEncodingCtxt::new(self.genv, None);
+        let mut ecx = ExprEncodingCtxt::new(self.genv, None, Backend::Lean);
         let mut scx = SortEncodingCtxt::default();
         let mut fun_defs = vec![];
         let mut opaque_fun_defs = vec![];
@@ -191,7 +192,7 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
             || !adt_defs.is_empty()
             || !fun_defs.is_empty()
         {
-            let encoder = LeanEncoder::new(self.genv);
+            let encoder = LeanEncoder::new(self.genv, PrettyMap::new());
             encoder
                 .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
                 .unwrap();

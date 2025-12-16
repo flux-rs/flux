@@ -129,8 +129,10 @@ where
                     match maybe_strs {
                         Some(strs) => {
                             let kvar = self.parser.kvar(&strs[0])?;
-                            let args =
-                                strs[1..].iter().map(|s| self.parser.var(s)).try_collect()?;
+                            let mut args = vec![];
+                            for s in &strs[1..] {
+                                args.push(Expr::Var(self.parser.var(s)?));
+                            }
                             Ok(Pred::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),

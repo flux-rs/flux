@@ -11,11 +11,12 @@ use flux_middle::{
     def_id::MaybeExternId,
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
+    rty::PrettyMap,
 };
 
 use crate::{
     fixpoint_encoding::fixpoint,
-    lean_format::{self, LeanConstDecl, LeanSortDecl, LeanSortVar, LeanVar},
+    lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
 pub struct LeanEncoder<'genv, 'tcx> {
@@ -23,10 +24,14 @@ pub struct LeanEncoder<'genv, 'tcx> {
     path: PathBuf,
     project: String,
     defs_file_name: String,
+    pretty_var_map: PrettyMap<fixpoint::LocalVar>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
-    pub fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
+    pub fn new(
+        genv: GlobalEnv<'genv, 'tcx>,
+        pretty_var_map: PrettyMap<fixpoint::LocalVar>,
+    ) -> Self {
         let defs_file_name = "Defs".to_string();
         let path = genv
             .tcx()
@@ -37,7 +42,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .to_path_buf()
             .join(config::lean_dir());
         let project = config::lean_project().to_string();
-        Self { genv, path, project, defs_file_name }
+        Self { genv, path, project, defs_file_name, pretty_var_map }
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
@@ -87,8 +92,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
             writeln!(instance_file, "import {}.OpaqueFuncDefs\n", pascal_project_name)?;
             writeln!(instance_file, "instance : FluxOpaqueFuncs where")?;
+            let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
             for fun in funs {
-                writeln!(instance_file, "  {} := sorry", LeanVar(&fun.name, self.genv))?;
+                writeln!(
+                    instance_file,
+                    "  {} := sorry",
+                    WithLeanCtxt { item: &fun.name, cx: &cx }
+                )?;
             }
         }
         Ok(())
@@ -133,12 +143,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             inferred_instance_file,
             "def fluxOpaqueFuncs : FluxOpaqueFuncs := inferInstance\n"
         )?;
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun in funs {
             writeln!(
                 inferred_instance_file,
                 "def {} := fluxOpaqueFuncs.{}",
-                LeanConstDecl(fun, self.genv),
-                LeanVar(&fun.name, self.genv)
+                WithLeanCtxt { item: fun, cx: &cx },
+                WithLeanCtxt { item: &fun.name, cx: &cx }
             )?;
         }
         Ok(())
@@ -153,8 +164,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         writeln!(opaque_sorts_file, "import {}.Lib", pascal_project_name)?;
         writeln!(opaque_sorts_file, "-- FLUX OPAQUE SORT DEFS --")?;
         writeln!(opaque_sorts_file, "class FluxOpaqueSorts where")?;
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for sort in sorts {
-            writeln!(opaque_sorts_file, "  {}", LeanSortDecl(sort, self.genv))?;
+            writeln!(opaque_sorts_file, "  {}", WithLeanCtxt { item: sort, cx: &cx })?;
         }
         self.generate_sorts_instance_file_if_not_present(sorts)?;
         self.generate_sorts_inferred_instance_file(sorts)?;
@@ -177,8 +189,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(structs_file, "-- STRUCT DECLS --")?;
         writeln!(structs_file, "mutual")?;
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for data_decl in data_decls {
-            writeln!(structs_file, "{}", lean_format::LeanDataDecl(data_decl, self.genv))?;
+            writeln!(structs_file, "{}", WithLeanCtxt { item: data_decl, cx: &cx })?;
         }
         writeln!(structs_file, "end")?;
         Ok(())
@@ -204,8 +217,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(opaque_funcs_file, "-- OPAQUE DEFS --")?;
         writeln!(opaque_funcs_file, "class FluxOpaqueFuncs where")?;
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun in funs {
-            writeln!(opaque_funcs_file, "  {}", LeanConstDecl(fun, self.genv))?;
+            writeln!(opaque_funcs_file, "  {}", WithLeanCtxt { item: fun, cx: &cx })?;
         }
         self.generate_funcs_instance_file_if_not_present(funs)?;
         self.generate_funcs_inferred_instance_file(funs)?;
@@ -237,8 +251,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         writeln!(file, "-- FUNC DECLS --")?;
         writeln!(file, "mutual")?;
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun_def in func_defs {
-            writeln!(file, "{}", lean_format::LeanFunDef(fun_def, self.genv))?;
+            writeln!(file, "{}", WithLeanCtxt { item: fun_def, cx: &cx })?;
         }
         writeln!(file, "end")?;
         Ok(())
@@ -373,11 +388,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         {
             writeln!(theorem_file, "import {}.OpaqueFuncs", pascal_project_name)?;
         }
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         writeln!(
             theorem_file,
             "def {} := {}",
             theorem_name.replace(".", "_"),
-            lean_format::LeanKConstraint(kvars, cstr, self.genv)
+            WithLeanCtxt { item: lean_format::LeanKConstraint { kvars, constr: cstr }, cx: &cx }
         )
     }
 
@@ -396,8 +412,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         ));
 
         if let Some(span) = self.genv.proven_externally(def_id.local_id()) {
-            let dst_span = SpanTrace::from_pathbuf(&proof_path, 3, 5, proof_name.len());
-            dbg::hyperlink_json!(self.genv.tcx(), span, dst_span)
+            let dst_span = SpanTrace::from_path(&proof_path, 3, 5, proof_name.len());
+            dbg::hyperlink_json!(self.genv.tcx(), span, dst_span);
         }
 
         if proof_path.exists() {
