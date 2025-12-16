@@ -13,6 +13,7 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     rty::PrettyMap,
 };
+use itertools::Itertools;
 
 use crate::{
     fixpoint_encoding::fixpoint,
@@ -59,117 +60,78 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
     }
 
-    fn generate_sorts_instance_file_if_not_present(
+    fn generate_sort_defs_file_if_not_present(
         &self,
         sorts: &[fixpoint::SortDecl],
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let instance_path = self
             .path
-            .join(format!("{}/{}/OpaqueSortsInstance.lean", self.project, pascal_project_name,));
+            .join(format!("{}/{}/OpaqueSortDefs.lean", self.project, pascal_project_name,));
         if !instance_path.exists() {
             let mut instance_file = fs::File::create(instance_path)?;
-            writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
-            writeln!(instance_file, "import {}.OpaqueSortDefs\n", pascal_project_name)?;
-            writeln!(instance_file, "instance : FluxOpaqueSorts where")?;
+            writeln!(instance_file, "import {}.Lib\n", pascal_project_name)?;
+            writeln!(instance_file, "namespace OpaqueSortDefs")?;
+            let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
             for sort in sorts {
-                writeln!(instance_file, "  {} := sorry", LeanSortVar(&sort.name))?;
+                writeln!(instance_file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &cx })?;
             }
+            writeln!(instance_file, "end OpaqueSortDefs")?;
         }
         Ok(())
     }
 
-    fn generate_funcs_instance_file_if_not_present(
+    fn generate_func_defs_file_if_not_present(
         &self,
         funs: &[fixpoint::ConstDecl],
+        has_opaque_sorts: bool,
+        has_data_decls: bool,
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let instance_path = self
             .path
-            .join(format!("{}/{}/OpaqueFuncsInstance.lean", self.project, pascal_project_name,));
+            .join(format!("{}/{pascal_project_name}/OpaqueFuncDefs.lean", self.project,));
         if !instance_path.exists() {
             let mut instance_file = fs::File::create(instance_path)?;
             writeln!(instance_file, "import {}.Lib", pascal_project_name)?;
-            writeln!(instance_file, "import {}.OpaqueFuncDefs\n", pascal_project_name)?;
-            writeln!(instance_file, "instance : FluxOpaqueFuncs where")?;
+            if has_opaque_sorts {
+                writeln!(instance_file, "import {pascal_project_name}.OpaqueSorts")?;
+            }
+            if has_data_decls {
+                writeln!(instance_file, "import {pascal_project_name}.Structs")?;
+            }
+            writeln!(instance_file, "namespace OpaqueFuncDefs")?;
             let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
             for fun in funs {
-                writeln!(
-                    instance_file,
-                    "  {} := sorry",
-                    WithLeanCtxt { item: &fun.name, cx: &cx }
-                )?;
+                writeln!(instance_file, "def {} := sorry", WithLeanCtxt { item: fun, cx: &cx })?;
             }
+            writeln!(instance_file, "end OpaqueFuncDefs")?;
         }
         Ok(())
     }
 
-    fn generate_sorts_inferred_instance_file(
-        &self,
-        sorts: &[fixpoint::SortDecl],
-    ) -> Result<(), io::Error> {
+    fn generate_opaque_sort_files(&self, sorts: &[fixpoint::SortDecl]) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut inferred_instance_file = fs::File::create(
+        self.generate_sort_defs_file_if_not_present(sorts)?;
+        let mut opaque_sorts_file = fs::File::create(
             self.path
-                .join(format!("{}/{}/OpaqueSorts.lean", self.project, pascal_project_name)),
+                .join(format!("{}/{}/OpaqueSorts.lean", self.project, pascal_project_name,)),
         )?;
-        writeln!(inferred_instance_file, "import {}.OpaqueSortsInstance\n", pascal_project_name)?;
-        writeln!(
-            inferred_instance_file,
-            "def fluxOpaqueSorts : FluxOpaqueSorts := inferInstance\n"
-        )?;
+        writeln!(opaque_sorts_file, "import {}.Lib", pascal_project_name)?;
+        writeln!(opaque_sorts_file, "import {}.OpaqueSortDefs", pascal_project_name)?;
+        writeln!(opaque_sorts_file, "-- FLUX OPAQUE SORTS --")?;
         for sort in sorts {
+            writeln!(opaque_sorts_file, "@[simp]")?;
             writeln!(
-                inferred_instance_file,
-                "def {} := fluxOpaqueSorts.{}",
+                opaque_sorts_file,
+                "def {} : {} -> Type := OpaqueSortDefs.{}",
                 LeanSortVar(&sort.name),
+                (0..sort.vars)
+                    .map(|idx| format!("(t{idx} : Type) -> [Inhabited t{idx}]"))
+                    .format(" -> "),
                 LeanSortVar(&sort.name)
             )?;
         }
-        Ok(())
-    }
-
-    fn generate_funcs_inferred_instance_file(
-        &self,
-        funs: &[fixpoint::ConstDecl],
-    ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut inferred_instance_file = fs::File::create(
-            self.path
-                .join(format!("{}/{}/OpaqueFuncs.lean", self.project, pascal_project_name)),
-        )?;
-        writeln!(inferred_instance_file, "import {}.OpaqueFuncsInstance\n", pascal_project_name)?;
-        writeln!(
-            inferred_instance_file,
-            "def fluxOpaqueFuncs : FluxOpaqueFuncs := inferInstance\n"
-        )?;
-        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
-        for fun in funs {
-            writeln!(
-                inferred_instance_file,
-                "def {} := fluxOpaqueFuncs.{}",
-                WithLeanCtxt { item: fun, cx: &cx },
-                WithLeanCtxt { item: &fun.name, cx: &cx }
-            )?;
-        }
-        Ok(())
-    }
-
-    fn generate_sort_typeclass_files(&self, sorts: &[fixpoint::SortDecl]) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut opaque_sorts_file = fs::File::create(
-            self.path
-                .join(format!("{}/{}/OpaqueSortDefs.lean", self.project, pascal_project_name,)),
-        )?;
-        writeln!(opaque_sorts_file, "import {}.Lib", pascal_project_name)?;
-        writeln!(opaque_sorts_file, "-- FLUX OPAQUE SORT DEFS --")?;
-        writeln!(opaque_sorts_file, "class FluxOpaqueSorts where")?;
-        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
-        for sort in sorts {
-            writeln!(opaque_sorts_file, "  {}", WithLeanCtxt { item: sort, cx: &cx })?;
-        }
-        self.generate_sorts_instance_file_if_not_present(sorts)?;
-        self.generate_sorts_inferred_instance_file(sorts)?;
         Ok(())
     }
 
@@ -197,32 +159,36 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_func_typeclass_files(
+    fn generate_opaque_func_files(
         &self,
         funs: &[fixpoint::ConstDecl],
         has_opaque_sorts: bool,
         has_data_decls: bool,
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        self.generate_func_defs_file_if_not_present(funs, has_opaque_sorts, has_data_decls)?;
         let mut opaque_funcs_file = fs::File::create(
             self.path
-                .join(format!("{}/{}/OpaqueFuncDefs.lean", self.project, pascal_project_name,)),
+                .join(format!("{}/{}/OpaqueFuncs.lean", self.project, pascal_project_name,)),
         )?;
-        writeln!(opaque_funcs_file, "import {}.Lib", pascal_project_name)?;
+        writeln!(opaque_funcs_file, "import {pascal_project_name}.Lib")?;
         if has_opaque_sorts {
-            writeln!(opaque_funcs_file, "import {}.OpaqueSorts", pascal_project_name)?;
+            writeln!(opaque_funcs_file, "import {pascal_project_name}.OpaqueSorts")?;
         }
         if has_data_decls {
-            writeln!(opaque_funcs_file, "import {}.Structs", pascal_project_name)?;
+            writeln!(opaque_funcs_file, "import {pascal_project_name}.Structs")?;
         }
-        writeln!(opaque_funcs_file, "-- OPAQUE DEFS --")?;
-        writeln!(opaque_funcs_file, "class FluxOpaqueFuncs where")?;
+        writeln!(opaque_funcs_file, "import {pascal_project_name}.OpaqueFuncDefs")?;
         let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         for fun in funs {
-            writeln!(opaque_funcs_file, "  {}", WithLeanCtxt { item: fun, cx: &cx })?;
+            writeln!(opaque_funcs_file, "@[simp]")?;
+            writeln!(
+                opaque_funcs_file,
+                "def {} := OpaqueFuncDefs.{}",
+                WithLeanCtxt { item: fun, cx: &cx },
+                WithLeanCtxt { item: &fun.name, cx: &cx },
+            )?;
         }
-        self.generate_funcs_instance_file_if_not_present(funs)?;
-        self.generate_funcs_inferred_instance_file(funs)?;
         Ok(())
     }
 
@@ -236,18 +202,18 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let defs_path = self
             .path
-            .join(format!("{}/{}/{}.lean", self.project, pascal_project_name, self.defs_file_name));
+            .join(format!("{}/{pascal_project_name}/{}.lean", self.project, self.defs_file_name));
         let mut file = fs::File::create(defs_path)?;
 
-        writeln!(file, "import {}.Lib", pascal_project_name)?;
+        writeln!(file, "import {pascal_project_name}.Lib")?;
         if has_opaque_sorts {
-            writeln!(file, "import {}.OpaqueSorts", pascal_project_name)?;
+            writeln!(file, "import {pascal_project_name}.OpaqueSorts")?;
         }
         if has_data_decls {
-            writeln!(file, "import {}.Structs", pascal_project_name)?;
+            writeln!(file, "import {pascal_project_name}.Structs")?;
         }
         if has_opaque_funcs {
-            writeln!(file, "import {}.OpaqueFuncs", pascal_project_name)?;
+            writeln!(file, "import {pascal_project_name}.OpaqueFuncs")?;
         }
         writeln!(file, "-- FUNC DECLS --")?;
         writeln!(file, "mutual")?;
@@ -263,7 +229,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let mut lib_file = fs::File::create(
             self.path
-                .join(format!("{}/{}/Lib.lean", self.project, pascal_project_name)),
+                .join(format!("{}/{pascal_project_name}/Lib.lean", self.project)),
         )?;
         writeln!(
             lib_file,
@@ -327,13 +293,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let has_opaque_funcs = !opaque_funs.is_empty();
 
         if has_opaque_sorts {
-            self.generate_sort_typeclass_files(opaque_sorts)?;
+            self.generate_opaque_sort_files(opaque_sorts)?;
         }
         if has_data_decls {
             self.generate_struct_defs_file(data_decls, has_opaque_sorts)?;
         }
         if has_opaque_funcs {
-            self.generate_func_typeclass_files(opaque_funs, has_opaque_sorts, has_data_decls)?;
+            self.generate_opaque_func_files(opaque_funs, has_opaque_sorts, has_data_decls)?;
         }
         if !func_defs.is_empty() {
             self.generate_func_defs_file(
@@ -369,24 +335,24 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         writeln!(theorem_file, "import {}.Lib", pascal_project_name)?;
         if self
             .path
-            .join(format!("{}/{}/{}.lean", self.project, pascal_project_name, self.defs_file_name))
+            .join(format!("{}/{pascal_project_name}/{}.lean", self.project, self.defs_file_name))
             .exists()
         {
-            writeln!(theorem_file, "import {}.{}", pascal_project_name, self.defs_file_name)?;
+            writeln!(theorem_file, "import {pascal_project_name}.{}", self.defs_file_name)?;
         }
         if self
             .path
-            .join(format!("{}/{}/OpaqueSorts.lean", self.project, pascal_project_name))
+            .join(format!("{}/{pascal_project_name}/OpaqueSorts.lean", self.project))
             .exists()
         {
-            writeln!(theorem_file, "import {}.OpaqueSorts", pascal_project_name)?;
+            writeln!(theorem_file, "import {pascal_project_name}.OpaqueSorts")?;
         }
         if self
             .path
-            .join(format!("{}/{}/OpaqueFuncs.lean", self.project, pascal_project_name))
+            .join(format!("{}/{pascal_project_name}/OpaqueFuncs.lean", self.project))
             .exists()
         {
-            writeln!(theorem_file, "import {}.OpaqueFuncs", pascal_project_name)?;
+            writeln!(theorem_file, "import {pascal_project_name}.OpaqueFuncs")?;
         }
         let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         writeln!(
@@ -420,7 +386,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             return Ok(());
         }
         let mut proof_file = fs::File::create(proof_path)?;
-        writeln!(proof_file, "import {}.Lib", module_name)?;
+        writeln!(proof_file, "import {module_name}.Lib")?;
         writeln!(
             proof_file,
             "import {}.{}",
@@ -486,7 +452,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .to_filename_friendly_no_crate()
             .replace("-", "_");
         self.check_proof_help(&theorem_name).map_err(|_| {
-            let msg = format!("checking proof for {} failed", theorem_name);
+            let msg = format!("checking proof for {theorem_name} failed");
             let span = self.genv.tcx().def_span(def_id.resolved_id());
             QueryErr::Emitted(
                 self.genv
