@@ -1,10 +1,13 @@
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
-use rustc_data_structures::{fx::FxIndexSet, unord::UnordMap};
+use rustc_data_structures::{
+    fx::FxIndexSet,
+    graph::{DirectedGraph, Successors, scc::Sccs},
+    unord::UnordMap,
+};
 use rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
-use toposort_scc::IndexGraph;
 
 use super::{ESpan, fold::TypeSuperFoldable};
 use crate::{
@@ -92,6 +95,25 @@ impl NormalizedDefns {
     }
 }
 
+/// Simple graph structure for dependency analysis
+struct DepGraph {
+    successors: Vec<Vec<usize>>,
+}
+
+impl DirectedGraph for DepGraph {
+    type Node = usize;
+
+    fn num_nodes(&self) -> usize {
+        self.successors.len()
+    }
+}
+
+impl Successors for DepGraph {
+    fn successors(&self, node: Self::Node) -> impl Iterator<Item = Self::Node> {
+        self.successors[node].iter().copied()
+    }
+}
+
 /// Returns
 /// * either Ok(d1...dn) which are topologically sorted such that
 ///   forall i < j, di does not depend on i.e. "call" dj
@@ -106,27 +128,44 @@ fn toposort<T>(
         .map(|(i, defn)| (defn.0, i))
         .collect();
 
-    // 2. Make the dependency graph
-    let mut adj_list = Vec::with_capacity(defns.len());
-    for defn in defns {
+    // 2. Make the dependency graph (transposed: edges go from dependency to dependent)
+    let mut successors = vec![Vec::new(); defns.len()];
+    for (i, defn) in defns.iter().enumerate() {
         let deps = local_deps(&defn.1);
-        let ddeps = deps
-            .iter()
-            .filter_map(|s| s2i.get(s).copied())
-            .collect_vec();
-        adj_list.push(ddeps);
-    }
-    let mut g = IndexGraph::from_adjacency_list(&adj_list);
-    g.transpose();
-
-    // 3. Topologically sort the graph
-    match g.toposort_or_scc() {
-        Ok(is) => Ok(is),
-        Err(mut scc) => {
-            let cycle = scc.pop().unwrap();
-            Err(cycle.iter().map(|i| defns[*i].0).collect())
+        for dep in deps {
+            if let Some(&dep_idx) = s2i.get(&dep) {
+                // Add edge from dependency to dependent (transposed)
+                successors[dep_idx].push(i);
+            }
         }
     }
+    let graph = DepGraph { successors };
+
+    // 3. Compute SCCs using rustc's algorithm
+    let sccs = Sccs::new(&graph);
+
+    // 4. Check for cycles: any SCC with more than one node indicates a cycle
+    for scc_idx in sccs.all_sccs() {
+        let nodes = sccs.nodes_in_scc(scc_idx);
+        if nodes.len() > 1 {
+            // Found a cycle
+            return Err(nodes.iter().map(|&i| defns[i].0).collect());
+        }
+        // Check for self-loops
+        if nodes.len() == 1 {
+            let node = nodes[0];
+            if graph.successors[node].contains(&node) {
+                return Err(vec![defns[node].0]);
+            }
+        }
+    }
+
+    // 5. Return nodes in topological order (SCCs are already in reverse postorder)
+    let mut result = Vec::with_capacity(defns.len());
+    for scc_idx in sccs.all_sccs() {
+        result.extend(sccs.nodes_in_scc(scc_idx));
+    }
+    Ok(result)
 }
 
 pub fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
