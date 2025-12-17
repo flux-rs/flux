@@ -1,11 +1,11 @@
 use std::ops::ControlFlow;
 
-use itertools::Itertools;
 use rustc_data_structures::{
     fx::FxIndexSet,
     graph::{DirectedGraph, Successors, scc::Sccs},
     unord::UnordMap,
 };
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{CrateNum, DefIndex, LOCAL_CRATE};
 use rustc_macros::{TyDecodable, TyEncodable};
 
@@ -53,6 +53,8 @@ pub struct NormalizeInfo {
     pub rank: usize,
     /// whether or not this function is uninterpreted by default
     pub hide: bool,
+    /// whether or not this function is recursive
+    pub recursive: bool,
 }
 
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
@@ -66,19 +68,46 @@ impl NormalizedDefns {
         defns: &[(FluxLocalDefId, Binder<Expr>, bool)],
     ) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
-        let ds = toposort(defns)?;
+        let components = toposort(defns);
 
         // 2. Expand each defn in the sorted order
         let mut normalized = UnordMap::default();
-        let mut ids = vec![];
-        for (rank, i) in ds.iter().enumerate() {
-            let (id, body, hide) = &defns[*i];
-            let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized)));
-
-            let inline = genv.should_inline_fun(id.to_def_id());
-            let info = NormalizeInfo { body: body.clone(), inline, rank, hide: *hide };
-            ids.push(*id);
-            normalized.insert(*id, info);
+        for (rank, component) in components.into_iter().enumerate() {
+            match component {
+                Component::Single(i) => {
+                    let (id, body, hide) = &defns[i];
+                    let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized))); // TODO(rec-fun) may HANG if recursive?
+                    let inline = genv.should_inline_fun(id.to_def_id());
+                    let info = NormalizeInfo {
+                        body: body.clone(),
+                        inline,
+                        rank,
+                        hide: *hide,
+                        recursive: false,
+                    };
+                    normalized.insert(*id, info);
+                }
+                Component::SelfLoop(i) => {
+                    return Err(vec![defns[i].0]);
+                    // let (id, body, hide) = &defns[i];
+                    // let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized))); // TODO(rec-fun) may HANG if recursive?
+                    // let recursive = matches!(component, Component::SelfLoop(_));
+                    // let inline = genv.should_inline_fun(id.to_def_id());
+                    // let info = NormalizeInfo {
+                    //     body: body.clone(),
+                    //     inline,
+                    //     rank,
+                    //     hide: *hide,
+                    //     recursive: true,
+                    // };
+                    // normalized.insert(*id, info);
+                }
+                Component::Many(indices) => {
+                    // Error: recursive group of functions
+                    let rec_ids = indices.iter().map(|&i| defns[i].0).collect();
+                    return Err(rec_ids);
+                }
+            }
         }
         Ok(Self {
             krate: LOCAL_CRATE,
@@ -114,15 +143,22 @@ impl Successors for DepGraph {
     }
 }
 
-/// Returns a vec<vec<usize>> representing the topological sort of the given
+pub enum Component<T> {
+    /// A single node with no self-loop
+    Single(T),
+    /// A node with a self-loop
+    SelfLoop(T),
+    /// A strongly connected component with multiple nodes
+    Many(Vec<T>),
+}
+
+/// Returns a Vec<Component<usize>> representing the topological sort of the given
 /// definitions based on their dependencies, i.e. a vector of SCCs, where
-///    forall i < j, SCC_i does not depend on (i.e. "call") SCC_j
-///    forall i, SCC_i is a vector of mutually
-/// SCC comes befoIf there are no cycles,
-/// * either Ok(d1...dn) which are topologically sorted such that
-///   forall i < j, di does not depend on i.e. "call" dj
-/// * or Err(d1...dn) where d1 'calls' d2 'calls' ... 'calls' dn 'calls' d1
-fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Vec<usize>> {
+/// forall i < j, SCC[i] does not depend on (i.e. "call") SCC[j]
+fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Component<usize>> {
+    // 0. initialize the set of self-recursive functions
+    let mut self_loops = FxHashSet::default();
+
     // 1. Make a Symbol to Index map
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
@@ -130,14 +166,18 @@ fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Vec<usize>> {
         .map(|(i, defn)| (defn.0, i))
         .collect();
 
-    // 2. Make the dependency graph (transposed: edges go from dependency to dependent)
+    // 2. Make the dependency graph
     let mut successors = vec![Vec::new(); defns.len()];
     for (i, defn) in defns.iter().enumerate() {
         let deps = local_deps(&defn.1);
         for dep in deps {
             if let Some(&dep_idx) = s2i.get(&dep) {
                 // Add edge from dependency to dependent (transposed)
-                successors[dep_idx].push(i);
+                successors[i].push(dep_idx);
+                if i == dep_idx {
+                    // Self-loop
+                    self_loops.insert(i);
+                }
             }
         }
     }
@@ -146,28 +186,30 @@ fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Vec<usize>> {
     // 3. Compute SCCs using rustc's algorithm
     let sccs = Sccs::new(&graph);
 
-    // 4. Check for cycles: any SCC with more than one node indicates a cycle
+    // 4. Which elems are in each SCC?
+    let mut scc_vals: Vec<Vec<usize>> = vec![Vec::new(); sccs.num_sccs()];
+    for i in 0..defns.len() {
+        let scc_idx: usize = sccs.scc(i);
+        scc_vals[scc_idx].push(i);
+    }
+
+    // 5. Iterate over SCCs in topological order and classify them
+    let mut res = Vec::new();
     for scc_idx in sccs.all_sccs() {
-        let nodes = sccs.nodes_in_scc(scc_idx);
-        if nodes.len() > 1 {
-            // Found a cycle
-            return Err(nodes.iter().map(|&i| defns[i].0).collect());
-        }
-        // Check for self-loops
-        if nodes.len() == 1 {
-            let node = nodes[0];
-            if graph.successors[node].contains(&node) {
-                return Err(vec![defns[node].0]);
+        match &scc_vals[scc_idx][..] {
+            [single] => {
+                if self_loops.contains(single) {
+                    res.push(Component::SelfLoop(*single));
+                } else {
+                    res.push(Component::Single(*single));
+                }
+            }
+            many => {
+                res.push(Component::Many(many.to_vec()));
             }
         }
     }
-
-    // 5. Return nodes in topological order (SCCs are already in reverse postorder)
-    let mut result = Vec::with_capacity(defns.len());
-    for scc_idx in sccs.all_sccs() {
-        result.extend(sccs.nodes_in_scc(scc_idx));
-    }
-    Ok(result)
+    res
 }
 
 pub fn local_deps(body: &Binder<Expr>) -> FxIndexSet<FluxLocalDefId> {
