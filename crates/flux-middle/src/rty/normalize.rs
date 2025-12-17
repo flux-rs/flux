@@ -57,16 +57,20 @@ pub struct NormalizeInfo {
     pub recursive: bool,
 }
 
+pub struct PreNormalizedDefn {
+    pub def_id: FluxLocalDefId,
+    pub body: Binder<Expr>,
+    pub hide: bool,
+    pub recursive: bool,
+}
+
 pub(super) struct Normalizer<'a, 'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     defs: Option<&'a UnordMap<FluxLocalDefId, NormalizeInfo>>,
 }
 
 impl NormalizedDefns {
-    pub fn new(
-        genv: GlobalEnv,
-        defns: &[(FluxLocalDefId, Binder<Expr>, bool)],
-    ) -> Result<Self, Vec<FluxLocalDefId>> {
+    pub fn new(genv: GlobalEnv, defns: &[PreNormalizedDefn]) -> Result<Self, Vec<FluxLocalDefId>> {
         // 1. Topologically sort the Defns
         let components = toposort(defns);
 
@@ -75,36 +79,28 @@ impl NormalizedDefns {
         for (rank, component) in components.into_iter().enumerate() {
             match component {
                 Component::Single(i) => {
-                    let (id, body, hide) = &defns[i];
-                    let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized))); // TODO(rec-fun) may HANG if recursive?
-                    let inline = genv.should_inline_fun(id.to_def_id());
+                    // let (id, body, hide) = &defns[i];
+                    let defn = &defns[i];
+                    let id = &defn.def_id;
+                    let body = defn
+                        .body
+                        .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+                    let inline = genv.should_inline_fun(defn.def_id.to_def_id());
                     let info = NormalizeInfo {
                         body: body.clone(),
                         inline,
                         rank,
-                        hide: *hide,
+                        hide: defn.hide,
                         recursive: false,
                     };
                     normalized.insert(*id, info);
                 }
                 Component::SelfLoop(i) => {
-                    return Err(vec![defns[i].0]);
-                    // let (id, body, hide) = &defns[i];
-                    // let body = body.fold_with(&mut Normalizer::new(genv, Some(&normalized))); // TODO(rec-fun) may HANG if recursive?
-                    // let recursive = matches!(component, Component::SelfLoop(_));
-                    // let inline = genv.should_inline_fun(id.to_def_id());
-                    // let info = NormalizeInfo {
-                    //     body: body.clone(),
-                    //     inline,
-                    //     rank,
-                    //     hide: *hide,
-                    //     recursive: true,
-                    // };
-                    // normalized.insert(*id, info);
+                    return Err(vec![defns[i].def_id]);
                 }
                 Component::Many(indices) => {
                     // Error: recursive group of functions
-                    let rec_ids = indices.iter().map(|&i| defns[i].0).collect();
+                    let rec_ids = indices.iter().map(|&i| defns[i].def_id).collect();
                     return Err(rec_ids);
                 }
             }
@@ -155,7 +151,7 @@ pub enum Component<T> {
 /// Returns a Vec<Component<usize>> representing the topological sort of the given
 /// definitions based on their dependencies, i.e. a vector of SCCs, where
 /// forall i < j, SCC[i] does not depend on (i.e. "call") SCC[j]
-fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Component<usize>> {
+fn toposort(defns: &[PreNormalizedDefn]) -> Vec<Component<usize>> {
     // 0. initialize the set of self-recursive functions
     let mut self_loops = FxHashSet::default();
 
@@ -163,13 +159,13 @@ fn toposort<T>(defns: &[(FluxLocalDefId, Binder<Expr>, T)]) -> Vec<Component<usi
     let s2i: UnordMap<FluxLocalDefId, usize> = defns
         .iter()
         .enumerate()
-        .map(|(i, defn)| (defn.0, i))
+        .map(|(i, defn)| (defn.def_id, i))
         .collect();
 
     // 2. Make the dependency graph
     let mut successors = vec![Vec::new(); defns.len()];
     for (i, defn) in defns.iter().enumerate() {
-        let deps = local_deps(&defn.1);
+        let deps = local_deps(&defn.body);
         for dep in deps {
             if let Some(&dep_idx) = s2i.get(&dep) {
                 // Add edge from dependency to dependent (transposed)

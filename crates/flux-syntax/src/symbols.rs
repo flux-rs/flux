@@ -18,6 +18,7 @@ symbols! {
         Reft: "reft",
         Invariant: "invariant",
         RefinedBy: "refined_by",
+        Recursive: "recursive",
     }
 
     Symbols {

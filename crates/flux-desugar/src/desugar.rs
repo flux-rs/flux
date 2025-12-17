@@ -899,6 +899,7 @@ impl<'genv, 'tcx> FluxItemCtxt<'genv, 'tcx> {
             sort,
             body,
             hide: spec_func.hide,
+            recursive: spec_func.recursive,
             ident_span,
         }
     }

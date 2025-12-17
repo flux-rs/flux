@@ -33,6 +33,7 @@ use flux_middle::{
     rty::{
         self, AssocReft, Binder, WfckResults,
         fold::TypeFoldable,
+        normalize::PreNormalizedDefn,
         refining::{self, Refiner},
     },
 };
@@ -123,8 +124,14 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
 
-        if let Some(defn) = defn {
-            defns.push((func.def_id, defn, func.hide));
+        if let Some(body) = defn {
+            let defn = PreNormalizedDefn {
+                def_id: func.def_id,
+                body,
+                hide: func.hide,
+                recursive: func.recursive,
+            };
+            defns.push(defn);
         }
     }
     errors.to_result()?;
