@@ -135,7 +135,6 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
         let owner_id = self
             .genv
             .maybe_extern_id(owner_id.def_id)
-            // TODO(1404) .map(|def_id| OwnerId { def_id });
             .map(|def_id| self.genv.tcx().local_def_id_to_hir_id(def_id).owner);
         RustItemCtxt::with(self.genv, owner_id, self.resolver_output, opaque_tys, f)
     }
