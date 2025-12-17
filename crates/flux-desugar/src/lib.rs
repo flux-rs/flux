@@ -96,7 +96,7 @@ pub fn desugar<'genv>(
             fhir::Node::ForeignItem(genv.alloc(item))
         }
         rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
-        // Bit of a hack; we shouldn't desugar opaque types separately from their parent items, but happens
+        // HACK: we shouldn't desugar opaque types separately from their parent items, but happens
         // e.g. if you have an `impl Trait` in a function return type or `async fn` where the flux-spec does
         // not mention the opaque type.
         rustc_hir::Node::OpaqueTy(opaque_ty) => {
