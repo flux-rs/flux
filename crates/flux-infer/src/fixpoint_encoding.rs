@@ -686,6 +686,23 @@ where
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             self.ecx.errors.to_result()?;
 
+            println!("TRACE: generate lean lemmas for {def_id:?}");
+            let uif_consts = self
+                .ecx
+                .const_env
+                .const_map
+                .iter()
+                .filter_map(|(key, val)| {
+                    match key {
+                        ConstKey::Uif(flux_id) => {
+                            println!("TRACE: uif_const {flux_id:?}");
+                            Some(val.clone())
+                        }
+                        _ => None,
+                    }
+                })
+                .collect_vec();
+
             let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
             lean_encoder
                 .encode_constraint(def_id, &kvar_decls, &constraint)
