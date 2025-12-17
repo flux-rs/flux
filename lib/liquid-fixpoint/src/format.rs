@@ -50,7 +50,10 @@ impl<T: Types> fmt::Display for Task<T> {
         }
 
         for fun_decl in &self.define_funs {
-            writeln!(f, "{}", fun_decl.as_constant())?;
+            // fixpoint quirk where recursive functions must *also* be declared as constants
+            if fun_decl.recursive {
+                writeln!(f, "{}", fun_decl.as_constant())?;
+            }
             writeln!(f, "{fun_decl}")?;
         }
 
