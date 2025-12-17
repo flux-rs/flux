@@ -2119,6 +2119,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             body,
             out,
             comment: Some(format!("flux def: {def_id:?}")),
+            recursive: info.recursive,
         })
     }
 

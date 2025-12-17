@@ -156,6 +156,15 @@ pub struct ConstDecl<T: Types> {
 }
 
 #[derive_where(Hash)]
+pub struct FunConstant<T: Types> {
+    pub name: T::Var,
+    pub args: Vec<Sort<T>>,
+    pub out: Sort<T>,
+    #[derive_where(skip)]
+    pub comment: Option<String>,
+}
+
+#[derive_where(Hash)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
     pub args: Vec<(T::Var, Sort<T>)>,
@@ -163,6 +172,18 @@ pub struct FunDef<T: Types> {
     pub body: Expr<T>,
     #[derive_where(skip)]
     pub comment: Option<String>,
+    pub recursive: bool,
+}
+
+impl<T: Types> FunDef<T> {
+    pub fn as_constant(&self) -> FunConstant<T> {
+        FunConstant {
+            name: self.name.clone(),
+            args: self.args.iter().map(|(_, s)| s.clone()).collect(),
+            out: self.out.clone(),
+            comment: self.comment.clone(),
+        }
+    }
 }
 
 #[derive_where(Hash)]

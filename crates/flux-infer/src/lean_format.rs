@@ -430,7 +430,7 @@ impl LeanFmt for &FunDef {
 
 impl LeanFmt for FunDef {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        let FunDef { name, args, out, comment: _, body } = self;
+        let FunDef { name, args, out, comment: _, body, recursive: _ } = self;
         write!(f, "def ")?;
         name.lean_fmt(f, cx)?;
         for (arg, arg_sort) in args {

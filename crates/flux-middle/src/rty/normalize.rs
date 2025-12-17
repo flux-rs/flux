@@ -97,7 +97,7 @@ impl NormalizedDefns {
                             body: body.clone(),
                             inline,
                             rank,
-                            hide: defn.hide || recursive,
+                            hide: defn.hide, // || recursive,
                             recursive,
                         };
                         normalized.insert(*id, info);
