@@ -1727,21 +1727,12 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> for FluxItemCtxt<'genv, 'tcx> {
     }
 }
 
-fn is_owner_node(genv: GlobalEnv, owner_id: MaybeExternId<OwnerId>) -> bool {
-    let hir_id = genv.tcx().local_def_id_to_hir_id(owner_id.local_id());
-    hir_id.local_id == rustc_hir::ItemLocalId::ZERO
-}
-
 /// Traverses the `hir` for an item and collects the `def_id` of any opaque type (i.e., `impl Trait` or `async`)
 /// Currently, we only support up to one opaque type and we report an error if there's more than one.
 fn collect_opaque_types(
     genv: GlobalEnv,
     owner_id: MaybeExternId<OwnerId>,
 ) -> Result<Option<LocalDefId>> {
-    // bail out if the owner_id does not correspond to a HIR owner, i.e., a function, impl, trait
-    if !is_owner_node(genv, owner_id) {
-        return Ok(None);
-    }
     let mut collector = OpaqueTypeCollector::new(genv.sess());
     match genv.tcx().hir_owner_node(owner_id.local_id()) {
         hir::OwnerNode::Item(item) => hir::intravisit::walk_item(&mut collector, item),
