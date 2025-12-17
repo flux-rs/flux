@@ -459,11 +459,11 @@ impl Node {
 
             NodeKind::Root(params) => {
                 // declare pretty-vars for params
-                for (var, sort) in params.iter() {
+                for (var, sort) in params {
                     if let Var::EarlyParam(param) = var
                         && !sort.is_loc()
                     {
-                        cx.with_early_param(param)
+                        cx.with_early_param(param);
                     }
                 }
 
