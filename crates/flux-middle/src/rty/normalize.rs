@@ -86,16 +86,18 @@ impl NormalizedDefns {
                     if recursive && !marked_recursive {
                         return Err(vec![*id]);
                     } else {
-                        let body = defn
-                            .body
-                            .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+                        let body = if recursive {
+                            defn.body.clone()
+                        } else {
+                            defn.body
+                                .fold_with(&mut Normalizer::new(genv, Some(&normalized)))
+                        };
                         let inline = genv.should_inline_fun(defn.def_id.to_def_id());
-
                         let info = NormalizeInfo {
                             body: body.clone(),
                             inline,
                             rank,
-                            hide: defn.hide,
+                            hide: defn.hide || recursive,
                             recursive,
                         };
                         normalized.insert(*id, info);
