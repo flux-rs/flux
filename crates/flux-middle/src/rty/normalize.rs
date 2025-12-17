@@ -261,7 +261,7 @@ impl<'a, 'genv, 'tcx> Normalizer<'a, 'genv, 'tcx> {
         } else {
             &self.genv.normalized_info(*did)
         };
-        info.inline && !info.hide
+        info.inline && !info.hide && !info.recursive
     }
 
     fn at_base(expr: Expr, espan: Option<ESpan>) -> Expr {
