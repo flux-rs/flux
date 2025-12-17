@@ -78,25 +78,28 @@ impl NormalizedDefns {
         let mut normalized = UnordMap::default();
         for (rank, component) in components.into_iter().enumerate() {
             match component {
-                Component::Single(i) => {
-                    // let (id, body, hide) = &defns[i];
+                Component::Single(i) | Component::SelfLoop(i) => {
                     let defn = &defns[i];
                     let id = &defn.def_id;
-                    let body = defn
-                        .body
-                        .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
-                    let inline = genv.should_inline_fun(defn.def_id.to_def_id());
-                    let info = NormalizeInfo {
-                        body: body.clone(),
-                        inline,
-                        rank,
-                        hide: defn.hide,
-                        recursive: false,
-                    };
-                    normalized.insert(*id, info);
-                }
-                Component::SelfLoop(i) => {
-                    return Err(vec![defns[i].def_id]);
+                    let marked_recursive = defn.recursive;
+                    let recursive = matches!(component, Component::SelfLoop(_));
+                    if recursive && !marked_recursive {
+                        return Err(vec![*id]);
+                    } else {
+                        let body = defn
+                            .body
+                            .fold_with(&mut Normalizer::new(genv, Some(&normalized)));
+                        let inline = genv.should_inline_fun(defn.def_id.to_def_id());
+
+                        let info = NormalizeInfo {
+                            body: body.clone(),
+                            inline,
+                            rank,
+                            hide: defn.hide,
+                            recursive,
+                        };
+                        normalized.insert(*id, info);
+                    }
                 }
                 Component::Many(indices) => {
                     // Error: recursive group of functions

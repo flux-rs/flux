@@ -1,5 +1,5 @@
 #![flux::defs {
-    fn even(x: int) -> bool { x == 0 || odd(x-1) } //~ ERROR cycle
+    fn even(x: int) -> bool { x == 0 || odd(x-1) } //~ ERROR cycle in definitions
     fn odd(x: int) -> bool { x == 1 || even(x-1) }
 }]
 
