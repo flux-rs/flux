@@ -618,5 +618,5 @@ fn shift_in_vars(vars: &mut [rty::Var]) {
 
 fn make_weak_kvar(def_id: DefId, kvid: rty::KVid, params: Vec<rty::Var>) -> rty::WKVar {
     let args = params.iter().map(|var| rty::Expr::var(*var)).collect();
-    rty::WKVar { wkvid: (def_id, kvid), params, args }
+    rty::WKVar { wkvid: (def_id, kvid), args }
 }

@@ -416,8 +416,7 @@ where
                                 .iter()
                                 .map(|fexpr| self.fixpoint_to_expr(fexpr))
                                 .try_collect()?;
-                            // FIXME: add actual params or make this nameless
-                            Ok(rty::Expr::wkvar(rty::WKVar { wkvid: *wkvid, args: List::from_vec(e_args), params: vec![] }))
+                            Ok(rty::Expr::wkvar(rty::WKVar { wkvid: *wkvid, args: List::from_vec(e_args)}))
                         }
                         _ => {
                             unreachable!("Weak KVar has a const_key that is not a wkvid");

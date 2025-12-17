@@ -2269,7 +2269,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
                 let wk = rty::WKVar {
                     wkvid: (owner_id.to_def_id(), rty::KVid::from_u32(num)),
-                    params,
                     args: List::from_vec(args),
                 };
                 rty::Expr::wkvar(wk)

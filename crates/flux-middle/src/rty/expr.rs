@@ -1028,8 +1028,6 @@ pub type WKVid = (DefId, KVid);
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct WKVar {
     pub wkvid: WKVid,
-    /// Names of the parameters (in the same order as args)
-    pub params: Vec<Var>,
     /// Actuals passed to the weak kvar (in the same order as params)
     pub args: List<Expr>,
 }
@@ -1046,8 +1044,6 @@ impl TypeFoldable for WKVar {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(WKVar {
             wkvid: self.wkvid.try_fold_with(folder)?,
-            // NOTE: the params shouldn't change because we want to track the original names
-            params: self.params.clone(),
             args: self.args.try_fold_with(folder)?,
         })
     }
@@ -1122,8 +1118,8 @@ impl KVar {
 }
 
 impl WKVar {
-    pub fn new(def_id: DefId, kvid: KVid, params: Vec<Var>, args: Vec<Expr>) -> Self {
-        Self { wkvid: (def_id, kvid), params, args: List::from_vec(args) }
+    pub fn new(def_id: DefId, kvid: KVid, args: Vec<Expr>) -> Self {
+        Self { wkvid: (def_id, kvid), args: List::from_vec(args) }
     }
 }
 
