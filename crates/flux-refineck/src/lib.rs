@@ -155,7 +155,6 @@ pub fn check_fn(
             let tcx = genv.tcx();
             let hir_id = tcx.local_def_id_to_hir_id(def_id);
             let body_span = tcx.hir_span_with_body(hir_id);
-            println!("KVAR SOLUTIONS {:#?}", answer.solution);
             dbg::solution!(genv, &answer.solution, body_span);
 
             let errors = answer.errors;
@@ -185,13 +184,14 @@ pub fn check_fn(
             .map_err(|err| err.emit(genv, def_id))?;
 
             // PHASE 3: invoke fixpoint on the constraint
-            let answer = infcx_root
+            let solution = infcx_root
                 .execute_fixpoint_query(
                     cache,
                     MaybeExternId::Local(def_id),
                     FixpointQueryKind::Body,
                 )
-                .emit(&genv)?;
+                .map(|answer| answer.solution)
+                .unwrap_or(Default::default());
 
             let shape_result = Checker::run_in_shape_mode(
                 genv,
@@ -216,7 +216,7 @@ pub fn check_fn(
 
             if flux_config::lean().is_emit() {
                 infcx_root
-                    .execute_lean_query(MaybeExternId::Local(def_id), answer.solution)
+                    .execute_lean_query(MaybeExternId::Local(def_id), solution)
                     .emit(&genv)
             } else {
                 Err(genv
