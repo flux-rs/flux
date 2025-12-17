@@ -197,6 +197,7 @@ pub struct Task<T: Types> {
     pub constraint: Constraint<T>,
     pub qualifiers: Vec<Qualifier<T>>,
     pub scrape_quals: bool,
+    pub ple: bool,
     pub solver: SmtSolver,
 }
 

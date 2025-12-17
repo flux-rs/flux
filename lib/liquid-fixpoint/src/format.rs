@@ -29,6 +29,9 @@ impl<T: Types> fmt::Display for Constraint<T> {
 
 impl<T: Types> fmt::Display for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.ple {
+            writeln!(f, "(fixpoint \"--rewrite\")")?;
+        }
         if self.scrape_quals {
             writeln!(f, "(fixpoint \"--scrape=both\")")?;
         }

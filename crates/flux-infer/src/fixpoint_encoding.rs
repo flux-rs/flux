@@ -11,7 +11,7 @@ use flux_common::{
     iter::IterExt,
     span_bug, tracked_span_bug,
 };
-use flux_config::{self as config};
+use flux_config::{self as config, InferOpts};
 use flux_errors::Errors;
 use flux_macros::DebugAsJson;
 use flux_middle::{
@@ -542,7 +542,7 @@ where
         def_id: MaybeExternId,
         constraint: fixpoint::Constraint,
         kind: FixpointQueryKind,
-        scrape_quals: bool,
+        opts: &InferOpts,
         solver: SmtSolver,
     ) -> QueryResult<Answer<Tag>> {
         // skip checking trivial constraints
@@ -598,7 +598,8 @@ where
             define_funs,
             constraint,
             qualifiers,
-            scrape_quals,
+            scrape_quals: opts.scrape_quals,
+            ple: opts.ple,
             solver,
             data_decls: self.scx.encode_data_decls(self.genv)?,
         };

@@ -244,12 +244,12 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
 
-        let backend = match self.opts.solver {
+        let solver = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        fcx.check(cache, def_id, cstr, kind, &self.opts, solver)
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
