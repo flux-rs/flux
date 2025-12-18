@@ -108,6 +108,9 @@ fhir_analysis_incompatible_refinement =
     .expected_label = unrefined {$def_descr} found here
     .note = a refinement annotation must match the unrefined definition structurally
 
+fhir_analysis_async_hint =
+    mark the flux signature as `async fn`
+
 fhir_analysis_incompatible_param_count =
     {$def_descr} has an incompatible refinement annotation
     .label = refined signature has {$found} {$found ->

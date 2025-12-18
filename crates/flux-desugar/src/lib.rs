@@ -96,7 +96,13 @@ pub fn desugar<'genv>(
             fhir::Node::ForeignItem(genv.alloc(item))
         }
         rustc_hir::Node::Ctor(rustc_hir::VariantData::Tuple(_, _, _)) => fhir::Node::Ctor,
-
+        // HACK: we shouldn't desugar opaque types separately from their parent items, but happens
+        // e.g. if you have an `impl Trait` in a function return type or `async fn` where the flux-spec does
+        // not mention the opaque type.
+        rustc_hir::Node::OpaqueTy(opaque_ty) => {
+            let item = cx.with_rust_item_ctxt(owner_id, None, |cx| cx.lift_opaque_ty(opaque_ty))?;
+            fhir::Node::OpaqueTy(genv.alloc(item))
+        }
         _ => {
             return Err(query_bug!(
                 def_id,
@@ -129,7 +135,7 @@ impl<'genv, 'tcx> DesugarCtxt<'genv, 'tcx> {
         let owner_id = self
             .genv
             .maybe_extern_id(owner_id.def_id)
-            .map(|def_id| OwnerId { def_id });
+            .map(|def_id| self.genv.tcx().local_def_id_to_hir_id(def_id).owner);
         RustItemCtxt::with(self.genv, owner_id, self.resolver_output, opaque_tys, f)
     }
 }
