@@ -199,6 +199,7 @@ pub mod fixpoint {
 
 /// A type to represent Solutions for KVars
 pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
+pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
 
 /// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
@@ -630,6 +631,15 @@ where
         Ok(Answer { errors, solution })
     }
 
+    pub(crate) fn kvar_solution_for_lean(
+        &mut self,
+        kvid: &rty::KVid,
+        solution: &rty::Binder<rty::Expr>,
+    ) -> QueryResult<(fixpoint::KVid, FixpointSolution)> {
+        let expr = self.ecx.body_to_fixpoint(solution, &mut self.scx)?;
+        Ok((fixpoint::KVid::from_usize(kvid.as_usize()), expr))
+    }
+
     fn parse_kvar_solutions(&self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
         Ok(self.kcx.group_kvar_solution(
             result
@@ -683,6 +693,7 @@ where
     pub fn generate_and_check_lean_lemmas(
         mut self,
         constraint: fixpoint::Constraint,
+        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
@@ -690,7 +701,7 @@ where
 
             let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
             lean_encoder
-                .encode_constraint(def_id, &kvar_decls, &constraint)
+                .encode_constraint(def_id, &kvar_decls, &constraint, kvar_solutions)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
 
             if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
@@ -1501,12 +1512,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
+            rty::ExprKind::Exists(expr) => {
+                let expr = self.body_to_fixpoint(expr, scx)?;
+                fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
+            }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::Exists(_)
             | rty::ExprKind::InternalFunc(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }

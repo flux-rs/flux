@@ -365,7 +365,7 @@ where
             fixpoint::Expr::Exists(sorts, body) => {
                 let sorts: Vec<_> = sorts
                     .iter()
-                    .map(|fsort| self.fixpoint_to_sort(fsort))
+                    .map(|fsort| self.fixpoint_to_sort(&fsort.1))
                     .try_collect()?;
                 let body = self.fixpoint_to_expr(body)?;
                 Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))

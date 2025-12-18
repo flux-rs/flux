@@ -362,7 +362,12 @@ where
         self.push_scope(&names);
         let body = self.parse_expr_possibly_nested(body)?;
         self.pop_scope();
-        Ok(Expr::Exists(sorts, Box::new(body)))
+        let names: Vec<_> = names
+            .iter()
+            .map(|name| self.parser.var(name))
+            .collect::<Result<_, _>>()?;
+        let bound = names.into_iter().zip(sorts).collect();
+        Ok(Expr::Exists(bound, Box::new(body)))
     }
 
     fn parse_let(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {

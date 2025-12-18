@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, iter};
+use std::{cell::RefCell, collections::HashMap, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts, OverflowMode};
@@ -218,7 +218,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        fcx.generate_and_check_lean_lemmas(cstr)
+        let kvar_sol_funcs: HashMap<_, _> = kvar_solutions
+            .iter()
+            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(kvid, sol))
+            .collect::<Result<_, _>>()?;
+        fcx.generate_and_check_lean_lemmas(cstr, kvar_sol_funcs)
     }
 
     pub fn execute_fixpoint_query(
