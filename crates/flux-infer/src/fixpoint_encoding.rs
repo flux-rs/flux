@@ -700,44 +700,24 @@ where
         if let Some(def_id) = self.ecx.def_id {
             println!("TRACE: generate lean lemmas for {def_id:?}");
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-            let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+            let (funs, opaque_funs) = self.ecx.define_funs(def_id, &mut self.scx)?;
             self.ecx.errors.to_result()?;
-
-            let uif_consts = self.uif_consts();
-
-            let opaque_sorts = self
-                .scx
-                .user_sorts_to_fixpoint(self.genv)
-                .iter()
-                .map(|s| s.name.clone())
-                .collect::<FxHashSet<_>>();
-
-            let structs = self
-                .scx
-                .encode_data_decls(self.genv)?
-                .iter()
-                .map(|s| s.name.clone())
-                .collect::<FxHashSet<_>>();
-
-            let opaque_funs = define_constants
-                .iter()
-                .map(|c| c.name.clone())
-                .collect::<FxHashSet<_>>();
-            let funs = define_funs
-                .iter()
-                .map(|f| f.name.clone())
-                .collect::<FxHashSet<_>>();
+            let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
+            let structs = self.scx.encode_data_decls(self.genv)?;
 
             let lean_encoder = LeanEncoder::new(
                 self.genv,
+                def_id,
                 self.ecx.local_var_env.pretty_var_map,
                 opaque_sorts,
                 structs,
                 opaque_funs,
                 funs,
+                kvar_decls,
+                constraint,
             );
             lean_encoder
-                .encode_constraint(def_id, &uif_consts, &kvar_decls, &constraint)
+                .encode_constraint() // def_id, &uif_consts, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
 
             if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
