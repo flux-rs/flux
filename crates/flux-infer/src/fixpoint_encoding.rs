@@ -727,7 +727,8 @@ where
                             );
                             for i in 0..flat_constraint.assumptions.len() {
                                 let assumption = &flat_constraint.assumptions[i];
-                                let flat_constraint = match assumption {
+                                // println!("  Checking for weak kvars: assumption {:?}", assumption);
+                                let (wkvars, flat_constraint) = match assumption {
                                     fixpoint::Pred::Expr(e) => {
                                         match e {
                                             fixpoint::Expr::Or(disjuncts) => {
@@ -745,6 +746,7 @@ where
                                                     let mut new_constraint = flat_constraint_without_current_assumption.clone();
                                                     let (new_vars, hoisted_disjunct) = disjunct.hoist_exists(&mut fresh_var);
                                                     new_constraint.binders.extend(new_vars);
+                                                    let wkvars = hoisted_disjunct.wkvars_in_conj();
                                                     new_constraint.assumptions.extend(hoisted_disjunct.as_conjunction().into_iter().map(|e| fixpoint::Pred::Expr(e)));
                                                     let mut consts = new_constraint.binders.iter().map(|(var, sort)| {
                                                         fixpoint::ConstDecl {
@@ -756,7 +758,7 @@ where
                                                     consts.extend(constants_without_inequalities.iter().cloned());
                                                     if !check_validity(&new_constraint, &consts, data_decls.clone()) {
                                                         // println!("It is nontrivial");
-                                                        Some(new_constraint)
+                                                        Some((wkvars, new_constraint))
                                                     } else {
                                                         // println!("We can filter it out");
                                                         None
@@ -767,15 +769,15 @@ where
                                                 } else {
                                                     println!("!!! We have two separate disjuncts; not running a split analysis on them");
                                                     // FIXME: We shouldn't have to clone here
-                                                    flat_constraint.clone()
+                                                    (assumption.wkvars_in_conj(), flat_constraint.clone())
                                                 }
                                             }
-                                            _ => flat_constraint.clone()
+                                            _ => (assumption.wkvars_in_conj(), flat_constraint.clone())
                                         }
                                     }
                                     _ => unreachable!("assumptions must be exprs"),
                                 };
-                                for wkvar in assumption.wkvars_in_conj() {
+                                for wkvar in wkvars {
                                     let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
                                     else {
                                         panic!()
