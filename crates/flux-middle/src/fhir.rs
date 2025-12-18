@@ -1228,6 +1228,7 @@ pub struct SpecFunc<'fhir> {
     pub sort: Sort<'fhir>,
     pub body: Option<Expr<'fhir>>,
     pub hide: bool,
+    pub recursive: bool,
     pub ident_span: Span,
 }
 #[derive(Debug)]

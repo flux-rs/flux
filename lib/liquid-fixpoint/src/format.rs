@@ -4,8 +4,8 @@ use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
-    FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
-    constraint::BoundVar,
+    FixpointFmt, FunConstant, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task,
+    Types, constraint::BoundVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -29,6 +29,9 @@ impl<T: Types> fmt::Display for Constraint<T> {
 
 impl<T: Types> fmt::Display for Task<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.ple {
+            writeln!(f, "(fixpoint \"--rewrite\")")?;
+        }
         if self.scrape_quals {
             writeln!(f, "(fixpoint \"--scrape=both\")")?;
         }
@@ -50,6 +53,10 @@ impl<T: Types> fmt::Display for Task<T> {
         }
 
         for fun_decl in &self.define_funs {
+            // fixpoint quirk where recursive functions must *also* be declared as constants
+            if fun_decl.recursive {
+                writeln!(f, "{}", fun_decl.as_constant())?;
+            }
             writeln!(f, "{fun_decl}")?;
         }
 
@@ -367,11 +374,30 @@ impl<T: Types> fmt::Display for Qualifier<T> {
     }
 }
 
-impl<T: Types> fmt::Display for FunDef<T> {
+impl<T: Types> fmt::Display for FunConstant<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "(define_fun {} ({}) {} ({}))",
+            "(constant {} (func 0 ({}) {}))",
+            self.name.display(),
+            self.args
+                .iter()
+                .format_with(" ", |sort, f| { f(&format_args!("{sort}")) }),
+            self.out,
+        )?;
+        if let Some(comment) = &self.comment {
+            write!(f, "  ;; {comment}")?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: Types> fmt::Display for FunDef<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let def_kw = if self.recursive { "define" } else { "define_fun" };
+        write!(
+            f,
+            "({def_kw} {} ({}) {} ({}))",
             self.name.display(),
             self.args.iter().format_with(" ", |(name, sort), f| {
                 f(&format_args!("({} {sort})", name.display()))

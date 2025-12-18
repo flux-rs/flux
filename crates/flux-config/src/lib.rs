@@ -373,6 +373,7 @@ pub struct InferOpts {
     pub solver: SmtSolver,
     /// Whether to allow uninterpreted casts (e.g., from some random `S` to `int`).
     pub allow_uninterpreted_cast: bool,
+    pub ple: bool,
 }
 
 impl From<PartialInferOpts> for InferOpts {
@@ -384,6 +385,7 @@ impl From<PartialInferOpts> for InferOpts {
             allow_uninterpreted_cast: opts
                 .allow_uninterpreted_cast
                 .unwrap_or_else(allow_uninterpreted_cast),
+            ple: opts.ple.unwrap_or(false),
         }
     }
 }
@@ -394,6 +396,7 @@ pub struct PartialInferOpts {
     pub scrape_quals: Option<bool>,
     pub solver: Option<SmtSolver>,
     pub allow_uninterpreted_cast: Option<bool>,
+    pub ple: Option<bool>,
 }
 
 impl PartialInferOpts {
@@ -404,6 +407,7 @@ impl PartialInferOpts {
             .or(other.allow_uninterpreted_cast);
         self.scrape_quals = self.scrape_quals.or(other.scrape_quals);
         self.solver = self.solver.or(other.solver);
+        self.ple = self.ple.or(other.ple);
     }
 }
 

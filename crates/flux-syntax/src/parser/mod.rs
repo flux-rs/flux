@@ -52,6 +52,8 @@ enum SyntaxAttr {
     Hide,
     /// a `#[opaque]` attribute
     Opaque,
+    /// a `#[recursive]` attribute
+    Recursive,
 }
 
 #[derive(Default)]
@@ -77,6 +79,12 @@ impl ParsedAttrs {
         self.syntax
             .iter()
             .any(|attr| matches!(attr, SyntaxAttr::Opaque))
+    }
+
+    fn is_recursive(&self) -> bool {
+        self.syntax
+            .iter()
+            .any(|attr| matches!(attr, SyntaxAttr::Recursive))
     }
 
     fn refined_by(&mut self) -> Option<RefineParams> {
@@ -398,6 +406,8 @@ fn parse_attr(cx: &mut ParseCtxt, attrs: &mut ParsedAttrs) -> ParseResult {
         attrs.normal.push(Attr::Trusted(Trusted::Yes));
     } else if lookahead.advance_if(sym::hide) {
         attrs.syntax.push(SyntaxAttr::Hide);
+    } else if lookahead.advance_if(kw::Recursive) {
+        attrs.syntax.push(SyntaxAttr::Recursive);
     } else if lookahead.advance_if(kw::Opaque) {
         attrs.syntax.push(SyntaxAttr::Opaque);
     } else if lookahead.advance_if(kw::Reft) {
@@ -432,6 +442,7 @@ fn parse_attrs(cx: &mut ParseCtxt) -> ParseResult<ParsedAttrs> {
 fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
     let attrs = parse_attrs(cx)?;
     let hide = attrs.is_hide();
+    let recursive = attrs.is_recursive();
     cx.expect(kw::Fn)?;
     let name = parse_ident(cx)?;
     let sort_vars = opt_angle(cx, Comma, parse_ident)?;
@@ -444,7 +455,7 @@ fn parse_reft_func(cx: &mut ParseCtxt) -> ParseResult<SpecFunc> {
         cx.expect(token::Semi)?;
         None
     };
-    Ok(SpecFunc { name, sort_vars, params, output, body, hide })
+    Ok(SpecFunc { name, sort_vars, params, output, body, hide, recursive })
 }
 
 /// ```text

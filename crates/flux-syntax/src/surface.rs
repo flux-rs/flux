@@ -78,6 +78,9 @@ pub struct SpecFunc {
     /// as uninterpreted by default (only makes sense if `body` is_some ...)
     /// as otherwise it is *always* uninterpreted.
     pub hide: bool,
+    /// Is this function recursive, which operationally means hidden i.e. will not normalize/unfold,
+    /// but where the definition is passed along to the backend (Fixpoint/Lean).
+    pub recursive: bool,
 }
 
 /// A (currently global) *primop property*; see tests/tests/pos/surface/
