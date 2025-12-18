@@ -38,7 +38,6 @@ use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
-use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
@@ -557,6 +556,10 @@ where
         let def_span = self.ecx.def_span();
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
         let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+        let define_funs = define_funs.into_iter().map(|(_, def)| def).collect();
+        let define_constants = define_constants.into_iter().map(|(_, c)| c).collect_vec();
+
         let qualifiers = self
             .ecx
             .qualifiers_for(def_id.local_id(), &mut self.scx)?
@@ -592,7 +595,6 @@ where
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.to_result()?;
 
-        let define_funs = define_funs.into_iter().map(|(_, def)| def).collect();
         let task = fixpoint::Task {
             comments: self.comments.clone(),
             constants,
@@ -680,20 +682,6 @@ where
         Ok((kvid, expr))
     }
 
-    fn uif_consts(&self) -> Vec<fixpoint::Var> {
-        self.ecx
-            .const_env
-            .const_map
-            .iter()
-            .filter_map(|(key, val)| {
-                match key {
-                    ConstKey::Uif(_) => Some(val.name),
-                    _ => None,
-                }
-            })
-            .collect_vec()
-    }
-
     pub fn generate_and_check_lean_lemmas(
         mut self,
         constraint: fixpoint::Constraint,
@@ -701,19 +689,19 @@ where
         if let Some(def_id) = self.ecx.def_id {
             println!("TRACE: generate lean lemmas for {def_id:?}");
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-            let (funs, opaque_funs) = self.ecx.define_funs(def_id, &mut self.scx)?;
+            let (fun_defs, opaque_funs) = self.ecx.define_funs(def_id, &mut self.scx)?;
             self.ecx.errors.to_result()?;
             let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
-            let structs = self.scx.encode_data_decls(self.genv)?;
+            let data_decls = self.scx.encode_data_decls(self.genv)?;
 
             let lean_encoder = LeanEncoder::new(
                 self.genv,
                 def_id,
                 self.ecx.local_var_env.pretty_var_map,
                 opaque_sorts,
-                structs,
+                data_decls,
                 opaque_funs,
-                funs,
+                fun_defs,
                 kvar_decls,
                 constraint,
             );
@@ -2088,7 +2076,8 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<(Vec<(FluxDefId, fixpoint::FunDef)>, Vec<fixpoint::ConstDecl>)> {
+    ) -> QueryResult<(Vec<(FluxDefId, fixpoint::FunDef)>, Vec<(FluxDefId, fixpoint::ConstDecl)>)>
+    {
         let reveals: UnordSet<FluxDefId> = self
             .genv
             .reveals_for(def_id.local_id())
@@ -2108,7 +2097,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
             if info.hide && !revealed && proven_externally.is_none() {
-                consts.push(self.fun_decl_to_fixpoint(did, scx));
+                consts.push((did, self.fun_decl_to_fixpoint(did, scx)));
             } else {
                 defs.push((info.rank, did, self.fun_def_to_fixpoint(did, scx)?));
             };
