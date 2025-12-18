@@ -17,7 +17,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    fixpoint_encoding::{FunDeps, fixpoint},
+    fixpoint_encoding::{FunDeps, SortDeps, fixpoint},
     lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
@@ -60,8 +60,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     base: PathBuf,
     project: String,
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
-    opaque_sorts: Vec<fixpoint::SortDecl>,
-    data_decls: Vec<fixpoint::DataDecl>,
+    sort_deps: SortDeps,
     fun_deps: FunDeps,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
@@ -147,8 +146,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
-        opaque_sorts: Vec<fixpoint::SortDecl>,
-        data_decls: Vec<fixpoint::DataDecl>,
+        sort_deps: SortDeps,
         fun_deps: FunDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
@@ -169,8 +167,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             base,
             project,
             pretty_var_map,
-            opaque_sorts,
-            data_decls,
+            sort_deps,
             fun_deps,
             kvar_decls,
             constraint,
@@ -198,12 +195,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn sort_files(&self) -> FxHashMap<fixpoint::DataSort, LeanFile> {
         let mut res = FxHashMap::default();
-        for sort in &self.opaque_sorts {
+        for sort in &self.sort_deps.opaque_sorts {
             let data_sort = sort.name.clone();
             let file = LeanFile::OpaqueSort(data_sort.clone());
             res.insert(data_sort, file);
         }
-        for data_decl in &self.data_decls {
+        for data_decl in &self.sort_deps.data_decls {
             let data_sort = data_decl.name.clone();
             let file = LeanFile::Struct(data_sort.clone());
             res.insert(data_sort, file);
@@ -433,12 +430,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         self.generate_lib_file_if_not_present()?;
 
         // 2. Generate Opaque Struct Files
-        for sort in &self.opaque_sorts {
+        for sort in &self.sort_deps.opaque_sorts {
             self.generate_opaque_sort_file_if_not_present(sort)?;
         }
 
         // 2. Generate Struct Files
-        for data_decl in &self.data_decls {
+        for data_decl in &self.sort_deps.data_decls {
             self.generate_struct_file_if_not_present(data_decl)?;
         }
 
@@ -457,11 +454,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn generate_vc_imports(&self, file: &mut fs::File) -> io::Result<()> {
         writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
 
-        for sort in &self.opaque_sorts {
+        for sort in &self.sort_deps.opaque_sorts {
             writeln!(file, "{}", self.import(&LeanFile::OpaqueSort(sort.name.clone())))?;
         }
 
-        for data_decl in &self.data_decls {
+        for data_decl in &self.sort_deps.data_decls {
             writeln!(file, "{}", self.import(&LeanFile::OpaqueSort(data_decl.name.clone())))?;
         }
 

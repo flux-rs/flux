@@ -698,13 +698,13 @@ where
             self.ecx.errors.to_result()?;
             let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
             let data_decls = self.scx.encode_data_decls(self.genv)?;
+            let sort_deps = SortDeps { opaque_sorts, data_decls };
 
             let lean_encoder = LeanEncoder::new(
                 self.genv,
                 def_id,
                 self.ecx.local_var_env.pretty_var_map,
-                opaque_sorts,
-                data_decls,
+                sort_deps,
                 fun_deps,
                 kvar_decls,
                 constraint,
@@ -1286,6 +1286,11 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
+}
+
+pub struct SortDeps {
+    pub opaque_sorts: Vec<fixpoint::SortDecl>,
+    pub data_decls: Vec<fixpoint::DataDecl>,
 }
 
 pub struct FunDeps {
