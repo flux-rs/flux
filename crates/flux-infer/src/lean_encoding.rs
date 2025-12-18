@@ -130,7 +130,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 vec![project_name, "VC".to_string(), name]
             }
             LeanFile::Proof => {
-                let name = self.vc_name();
+                let name = format!("{}Proof", self.vc_name());
                 vec![project_name, "Proof".to_string(), name]
             }
         }
@@ -159,6 +159,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> Self {
+        println!("TRACE: encoder-new {def_id:?} => {fun_deps:?} and {sort_deps:?}");
         let base = genv
             .tcx()
             .sess
@@ -276,7 +277,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.opaque_fun_dependencies(opaque_fun) {
                 writeln!(file, "{}", self.import(dep))?;
             }
-            writeln!(file, "def {} := sorry", self.var_name(name))?;
+            let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
+            writeln!(file, "def {} := sorry", WithLeanCtxt { item: opaque_fun, cx: &cx })?;
         }
         Ok(())
     }
@@ -351,6 +353,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             res.push(self.fun_file(&dep_id.to_def_id()));
         }
 
+        println!("TRACE: fun_def_deps {did:?} => {res:?}");
         res
     }
 

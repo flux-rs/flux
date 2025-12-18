@@ -692,7 +692,17 @@ where
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-            let fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
+            let mut fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+            self.ecx
+                .const_env
+                .const_map
+                .into_iter()
+                .for_each(|(key, const_decl)| {
+                    if let ConstKey::Uif(did) = key {
+                        fun_deps.opaque_funs.push((did, const_decl));
+                    }
+                });
 
             self.ecx.errors.to_result()?;
             let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
@@ -1287,11 +1297,13 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     backend: Backend,
 }
 
+#[derive(Debug)]
 pub struct SortDeps {
     pub opaque_sorts: Vec<fixpoint::SortDecl>,
     pub data_decls: Vec<fixpoint::DataDecl>,
 }
 
+#[derive(Debug)]
 pub struct FunDeps {
     pub opaque_funs: Vec<(FluxDefId, fixpoint::ConstDecl)>,
     pub fun_defs: Vec<(FluxDefId, fixpoint::FunDef)>,
@@ -1967,6 +1979,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: FluxDefId,
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
+        println!("TRACE: defining uif for {:?}", def_id);
         let key = ConstKey::Uif(def_id);
         self.const_env
             .get_or_insert(key, |global_name| {
@@ -2100,10 +2113,11 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let mut consts = vec![];
         let mut defs = vec![];
 
-        // We iterate until encoding the body of functions doesn't require any more functions
-        // to be encoded.
+        // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
         let mut idx = 0;
+        println!("TRACE: define_funs (0): {def_id:?}");
         while let Some((&did, _)) = self.const_env.fun_def_map.get_index(idx) {
+            println!("TRACE: define_funs (1): {def_id:?} => {did:?}");
             idx += 1;
 
             let info = self.genv.normalized_info(did);

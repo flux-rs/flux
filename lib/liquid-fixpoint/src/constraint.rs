@@ -54,7 +54,7 @@ impl<T: Types> Constraint<T> {
     }
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct DataDecl<T: Types> {
     pub name: T::Sort,
     pub vars: usize,
@@ -71,19 +71,19 @@ impl<T: Types> DataDecl<T> {
     }
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct SortDecl<T: Types> {
     pub name: T::Sort,
     pub vars: usize,
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct DataCtor<T: Types> {
     pub name: T::Var,
     pub fields: Vec<DataField<T>>,
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct DataField<T: Types> {
     pub name: T::Var,
     pub sort: Sort<T>,
