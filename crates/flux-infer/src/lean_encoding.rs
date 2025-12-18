@@ -36,10 +36,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = genv
             .tcx()
             .sess
-            .opts
-            .working_dir
-            .local_path_if_available()
-            .to_path_buf()
+            .source_map()
+            .working_dir()
+            .local_path()
+            .unwrap()
             .join(config::lean_dir());
         let project = config::lean_project().to_string();
         Self { genv, path, project, defs_file_name, pretty_var_map }
