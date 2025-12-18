@@ -592,6 +592,7 @@ where
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.to_result()?;
 
+        let define_funs = define_funs.into_iter().map(|(_, def)| def).collect();
         let task = fixpoint::Task {
             comments: self.comments.clone(),
             constants,
@@ -2087,7 +2088,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<(Vec<fixpoint::FunDef>, Vec<fixpoint::ConstDecl>)> {
+    ) -> QueryResult<(Vec<(FluxDefId, fixpoint::FunDef)>, Vec<fixpoint::ConstDecl>)> {
         let reveals: UnordSet<FluxDefId> = self
             .genv
             .reveals_for(def_id.local_id())
@@ -2109,15 +2110,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             if info.hide && !revealed && proven_externally.is_none() {
                 consts.push(self.fun_decl_to_fixpoint(did, scx));
             } else {
-                defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));
+                defs.push((info.rank, did, self.fun_def_to_fixpoint(did, scx)?));
             };
         }
 
         // we sort by rank so the definitions go out without any forward dependencies.
         let defs = defs
             .into_iter()
-            .sorted_by_key(|(rank, _)| *rank)
-            .map(|(_, def)| def)
+            .sorted_by_key(|(rank, _, _)| *rank)
+            .map(|(_, did, def)| (did, def))
             .collect();
 
         Ok((defs, consts))
