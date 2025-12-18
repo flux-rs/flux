@@ -17,7 +17,7 @@ use itertools::Itertools;
 use rustc_hash::FxHashMap;
 
 use crate::{
-    fixpoint_encoding::fixpoint,
+    fixpoint_encoding::{FunDeps, fixpoint},
     lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
@@ -62,8 +62,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     opaque_sorts: Vec<fixpoint::SortDecl>,
     data_decls: Vec<fixpoint::DataDecl>,
-    opaque_funs: Vec<(FluxDefId, fixpoint::ConstDecl)>,
-    fun_defs: Vec<(FluxDefId, fixpoint::FunDef)>,
+    fun_deps: FunDeps,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
@@ -104,19 +103,19 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 vec![project_name, "Lib".to_string()]
             }
             LeanFile::OpaqueSort(sort) => {
-                let name = self.datasort_name(&sort);
+                let name = self.datasort_name(sort);
                 vec![project_name, "OpaqueSorts".to_string(), name]
             }
             LeanFile::Struct(sort) => {
-                let name = self.datasort_name(&sort);
+                let name = self.datasort_name(sort);
                 vec![project_name, "Structs".to_string(), name]
             }
             LeanFile::OpaqueFun(name) => {
-                let name = self.var_name(&name);
+                let name = self.var_name(name);
                 vec![project_name, "OpaqueFuncs".to_string(), name]
             }
             LeanFile::Fun(name) => {
-                let name = self.var_name(&name);
+                let name = self.var_name(name);
                 vec![project_name, "Funcs".to_string(), name]
             }
             LeanFile::VC => {
@@ -150,8 +149,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         opaque_sorts: Vec<fixpoint::SortDecl>,
         data_decls: Vec<fixpoint::DataDecl>,
-        opaque_funs: Vec<(FluxDefId, fixpoint::ConstDecl)>,
-        fun_defs: Vec<(FluxDefId, fixpoint::FunDef)>,
+        fun_deps: FunDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> Self {
@@ -173,8 +171,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             pretty_var_map,
             opaque_sorts,
             data_decls,
-            opaque_funs,
-            fun_defs,
+            fun_deps,
             kvar_decls,
             constraint,
             fun_files: FxHashMap::default(),
@@ -188,14 +185,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn fun_files(&self) -> FxHashMap<FluxDefId, LeanFile> {
         let mut res = FxHashMap::default();
-        for (did, opaque_fun) in &self.opaque_funs {
-            let var = opaque_fun.name.clone();
-            let file = LeanFile::OpaqueFun(var.clone());
+        for (did, opaque_fun) in &self.fun_deps.opaque_funs {
+            let file = LeanFile::OpaqueFun(opaque_fun.name);
             res.insert(*did, file);
         }
-        for (did, fun_def) in &self.fun_defs {
-            let var = fun_def.name.clone();
-            let file = LeanFile::Fun(var.clone());
+        for (did, fun_def) in &self.fun_deps.fun_defs {
+            let file = LeanFile::Fun(fun_def.name);
             res.insert(*did, file);
         }
         res
@@ -269,13 +264,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         opaque_fun: &fixpoint::ConstDecl,
     ) -> Result<(), io::Error> {
         let name = &opaque_fun.name;
-        let file = &LeanFile::OpaqueFun(name.clone());
+        let file = &LeanFile::OpaqueFun(*name);
         let path = self.path(file);
         if !path.exists() {
             let mut file = fs::File::create(path)?;
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             for dep in self.opaque_fun_dependencies(opaque_fun) {
-                writeln!(file, "{}", self.import(&dep))?;
+                writeln!(file, "{}", self.import(dep))?;
             }
             writeln!(file, "def {} := sorry", self.var_name(name))?;
         }
@@ -312,7 +307,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             // import sort dependencies
             for dep in self.data_decl_dependencies(data_decl) {
-                writeln!(file, "{}", self.import(&dep))?;
+                writeln!(file, "{}", self.import(dep))?;
             }
             // write data decl
             let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
@@ -361,7 +356,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         fun_def: &fixpoint::FunDef,
     ) -> Result<(), io::Error> {
         let name = &fun_def.name;
-        let file = LeanFile::Fun(name.clone());
+        let file = LeanFile::Fun(*name);
         let path = self.path(&file);
         if !path.exists() {
             let mut file = fs::File::create(path)?;
@@ -369,7 +364,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             // import sort dependencies
             for dep in self.fun_def_dependencies(did, fun_def) {
-                writeln!(file, "{}", self.import(&dep))?;
+                writeln!(file, "{}", self.import(dep))?;
             }
             // write fun def
             let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
@@ -448,12 +443,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
 
         // 3. Generate Opaque Func Files
-        for (_, opaque_fun) in &self.opaque_funs {
+        for (_, opaque_fun) in &self.fun_deps.opaque_funs {
             self.generate_opaque_fun_file_if_not_present(opaque_fun)?;
         }
 
         // 4. Generate Func Def Files
-        for (did, fun_def) in &self.fun_defs {
+        for (did, fun_def) in &self.fun_deps.fun_defs {
             self.generate_fun_def_file_if_not_present(did, fun_def)?;
         }
         Ok(())
@@ -470,12 +465,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&LeanFile::OpaqueSort(data_decl.name.clone())))?;
         }
 
-        for (_, opaque_fun) in &self.opaque_funs {
-            writeln!(file, "{}", self.import(&LeanFile::OpaqueFun(opaque_fun.name.clone())))?;
+        for (_, opaque_fun) in &self.fun_deps.opaque_funs {
+            writeln!(file, "{}", self.import(&LeanFile::OpaqueFun(opaque_fun.name)))?;
         }
 
-        for (_, fun_def) in &self.fun_defs {
-            writeln!(file, "{}", self.import(&LeanFile::Fun(fun_def.name.clone())))?;
+        for (_, fun_def) in &self.fun_deps.fun_defs {
+            writeln!(file, "{}", self.import(&LeanFile::Fun(fun_def.name)))?;
         }
 
         Ok(())
@@ -524,7 +519,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "  unfold {vc_name}")?;
             writeln!(file, "  sorry")?;
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn encode_constraint(&self) -> Result<(), io::Error> {

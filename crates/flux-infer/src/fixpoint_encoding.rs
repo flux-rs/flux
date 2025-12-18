@@ -555,10 +555,14 @@ where
         }
         let def_span = self.ecx.def_span();
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+        let fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
 
-        let define_funs = define_funs.into_iter().map(|(_, def)| def).collect();
-        let define_constants = define_constants.into_iter().map(|(_, c)| c).collect_vec();
+        let define_funs = fun_deps.fun_defs.into_iter().map(|(_, def)| def).collect();
+        let define_constants = fun_deps
+            .opaque_funs
+            .into_iter()
+            .map(|(_, c)| c)
+            .collect_vec();
 
         let qualifiers = self
             .ecx
@@ -689,7 +693,8 @@ where
         if let Some(def_id) = self.ecx.def_id {
             println!("TRACE: generate lean lemmas for {def_id:?}");
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-            let (fun_defs, opaque_funs) = self.ecx.define_funs(def_id, &mut self.scx)?;
+            let fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
+
             self.ecx.errors.to_result()?;
             let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
             let data_decls = self.scx.encode_data_decls(self.genv)?;
@@ -700,8 +705,7 @@ where
                 self.ecx.local_var_env.pretty_var_map,
                 opaque_sorts,
                 data_decls,
-                opaque_funs,
-                fun_defs,
+                fun_deps,
                 kvar_decls,
                 constraint,
             );
@@ -1282,6 +1286,11 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
+}
+
+pub struct FunDeps {
+    pub opaque_funs: Vec<(FluxDefId, fixpoint::ConstDecl)>,
+    pub fun_defs: Vec<(FluxDefId, fixpoint::FunDef)>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
@@ -2076,8 +2085,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<(Vec<(FluxDefId, fixpoint::FunDef)>, Vec<(FluxDefId, fixpoint::ConstDecl)>)>
-    {
+    ) -> QueryResult<FunDeps> {
         let reveals: UnordSet<FluxDefId> = self
             .genv
             .reveals_for(def_id.local_id())
@@ -2110,7 +2118,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .map(|(_, did, def)| (did, def))
             .collect();
 
-        Ok((defs, consts))
+        Ok(FunDeps { fun_defs: defs, opaque_funs: consts })
     }
 
     pub fn fun_decl_to_fixpoint(
