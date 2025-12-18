@@ -176,7 +176,10 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         })
     }
 
-    fn lift_opaque_ty(&mut self, opaque_ty: &hir::OpaqueTy) -> Result<fhir::OpaqueTy<'genv>> {
+    pub(crate) fn lift_opaque_ty(
+        &mut self,
+        opaque_ty: &hir::OpaqueTy,
+    ) -> Result<fhir::OpaqueTy<'genv>> {
         let bounds =
             try_alloc_slice!(self.genv, &opaque_ty.bounds, |bound| self.lift_generic_bound(bound))?;
 
