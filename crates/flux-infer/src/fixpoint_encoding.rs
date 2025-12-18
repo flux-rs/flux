@@ -38,6 +38,7 @@ use rustc_data_structures::{
     fx::{FxIndexMap, FxIndexSet},
     unord::{UnordMap, UnordSet},
 };
+use rustc_hash::FxHashSet;
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_index::newtype_index;
 use rustc_infer::infer::TyCtxtInferExt as _;
@@ -678,34 +679,65 @@ where
         Ok((kvid, expr))
     }
 
+    fn uif_consts(&self) -> Vec<fixpoint::Var> {
+        self.ecx
+            .const_env
+            .const_map
+            .iter()
+            .filter_map(|(key, val)| {
+                match key {
+                    ConstKey::Uif(_) => Some(val.name),
+                    _ => None,
+                }
+            })
+            .collect_vec()
+    }
+
     pub fn generate_and_check_lean_lemmas(
         mut self,
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
+            println!("TRACE: generate lean lemmas for {def_id:?}");
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
+            let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
             self.ecx.errors.to_result()?;
 
-            println!("TRACE: generate lean lemmas for {def_id:?}");
-            let uif_consts = self
-                .ecx
-                .const_env
-                .const_map
-                .iter()
-                .filter_map(|(key, val)| {
-                    match key {
-                        ConstKey::Uif(flux_id) => {
-                            println!("TRACE: uif_const {flux_id:?}");
-                            Some(val.clone())
-                        }
-                        _ => None,
-                    }
-                })
-                .collect_vec();
+            let uif_consts = self.uif_consts();
 
-            let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
+            let opaque_sorts = self
+                .scx
+                .user_sorts_to_fixpoint(self.genv)
+                .iter()
+                .map(|s| s.name.clone())
+                .collect::<FxHashSet<_>>();
+
+            let structs = self
+                .scx
+                .encode_data_decls(self.genv)?
+                .iter()
+                .map(|s| s.name.clone())
+                .collect::<FxHashSet<_>>();
+
+            let opaque_funs = define_constants
+                .iter()
+                .map(|c| c.name.clone())
+                .collect::<FxHashSet<_>>();
+            let funs = define_funs
+                .iter()
+                .map(|f| f.name.clone())
+                .collect::<FxHashSet<_>>();
+
+            let lean_encoder = LeanEncoder::new(
+                self.genv,
+                self.ecx.local_var_env.pretty_var_map,
+                opaque_sorts,
+                structs,
+                opaque_funs,
+                funs,
+            );
             lean_encoder
-                .encode_constraint(def_id, &kvar_decls, &constraint)
+                .encode_constraint(def_id, &uif_consts, &kvar_decls, &constraint)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
 
             if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }

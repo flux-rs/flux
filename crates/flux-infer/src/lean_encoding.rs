@@ -13,24 +13,52 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     rty::PrettyMap,
 };
+use rustc_hash::FxHashSet;
 
 use crate::{
     fixpoint_encoding::fixpoint,
     lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
+/// Different kinds of Lean files
+#[derive(Debug, Clone)]
+pub enum LeanFile {
+    /// "builtin" definitions
+    Fluxlib,
+    /// (human) opaque flux sorts, to be defined by the user in Lean
+    OpaqueSort(String),
+    /// (machine) sorts generated from flux definitions
+    Struct(String),
+    /// (human) opaque flux functions, to be defined by the user in Lean
+    OpaqueFunc(String),
+    /// (machine) functions generated from flux definitions
+    Func(String),
+    /// (machine) propositions holding the Flux VCs
+    Constraint,
+    /// (human) interactively written proofs of flux VCs
+    Proof,
+}
+
 pub struct LeanEncoder<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
-    path: PathBuf,
+    root_path: PathBuf,
     project: String,
     defs_file_name: String,
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
+    opaque_sorts: FxHashSet<fixpoint::DataSort>,
+    structs: FxHashSet<fixpoint::DataSort>,
+    opaque_funs: FxHashSet<fixpoint::Var>,
+    funs: FxHashSet<fixpoint::Var>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     pub fn new(
         genv: GlobalEnv<'genv, 'tcx>,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
+        opaque_sorts: FxHashSet<fixpoint::DataSort>,
+        structs: FxHashSet<fixpoint::DataSort>,
+        opaque_funs: FxHashSet<fixpoint::Var>,
+        funs: FxHashSet<fixpoint::Var>,
     ) -> Self {
         let defs_file_name = "Defs".to_string();
         let path = genv
@@ -42,11 +70,21 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .to_path_buf()
             .join(config::lean_dir());
         let project = config::lean_project().to_string();
-        Self { genv, path, project, defs_file_name, pretty_var_map }
+        Self {
+            genv,
+            root_path: path,
+            project,
+            defs_file_name,
+            pretty_var_map,
+            opaque_sorts,
+            structs,
+            opaque_funs,
+            funs,
+        }
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
-        if !self.path.join(&self.project).exists() {
+        if !self.root_path.join(&self.project).exists() {
             Command::new("lake")
                 .arg("new")
                 .arg(&self.project)
@@ -59,126 +97,173 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
     }
 
-    fn generate_sort_def_file_if_not_present(
+    fn generate_opaque_sort_file_if_not_present(
         &self,
         sort: &fixpoint::SortDecl,
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let pascal_sort_file_name =
-            Self::snake_case_to_pascal_case(&format!("{}", LeanSortVar(&sort.name)));
-        let instance_path = self
-            .path
-            .join(format!("{}/{pascal_project_name}/{pascal_sort_file_name}.lean", self.project));
-        if !instance_path.exists() {
-            let mut instance_file = fs::File::create(instance_path)?;
-            writeln!(instance_file, "import {}.Lib\n", pascal_project_name)?;
+        let name = format!("{}", LeanSortVar(&sort.name));
+        let path = self.path(LeanFile::OpaqueSort(name.clone()));
+        if !path.exists() {
+            let mut file = fs::File::create(path)?;
+            writeln!(file, "{}", self.import(LeanFile::Fluxlib))?;
             let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
-            writeln!(instance_file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &cx })?;
+            writeln!(file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &cx })?;
         }
         Ok(())
     }
 
-    fn generate_func_def_file_if_not_present(
+    fn generate_opaque_fun_file_if_not_present(
         &self,
-        fun: &fixpoint::ConstDecl,
-        has_opaque_sorts: bool,
-        has_data_decls: bool,
+        opaque_fun: &fixpoint::ConstDecl,
     ) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
-        let fun_name = format!("{}", WithLeanCtxt { item: &fun.name, cx: &cx });
-        let pascal_fun_file_name = Self::snake_case_to_pascal_case(&fun_name);
-        let instance_path = self
-            .path
-            .join(format!("{}/{pascal_project_name}/{pascal_fun_file_name}.lean", self.project));
-        if !instance_path.exists() {
-            let mut instance_file = fs::File::create(instance_path)?;
-            writeln!(instance_file, "import {pascal_project_name}.Lib")?;
-            if has_opaque_sorts {
-                writeln!(instance_file, "import {pascal_project_name}.OpaqueSorts")?;
+        let name = format!("{}", WithLeanCtxt { item: &opaque_fun.name, cx: &cx });
+        let path = self.path(LeanFile::OpaqueFunc(name.clone()));
+        if !path.exists() {
+            let mut file = fs::File::create(path)?;
+            writeln!(file, "{}", self.import(LeanFile::Fluxlib))?;
+            TODO("import sort dependencies?");
+            let opaque_fun_name = format!("{}", WithLeanCtxt { item: &opaque_fun.name, cx: &cx });
+            writeln!(file, "def {} := sorry", name)?;
+        }
+        Ok(())
+    }
+
+    // CUT(lean-localize-imports)
+    // fn generate_opaque_struct_files(&self, sorts: &[fixpoint::SortDecl]) -> Result<(), io::Error> {
+    //     if sorts.is_empty() {
+    //         return Ok(());
+    //     }
+    //     for sort in sorts {
+    //         self.generate_sort_def_file_if_not_present(sort)?;
+    //     }
+    //     let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+    //     let mut opaque_sorts_file = fs::File::create(
+    //         self.path
+    //             .join(format!("{}/{pascal_project_name}/OpaqueSorts.lean", self.project)),
+    //     )?;
+    //     for sort in sorts {
+    //         let pascal_sort_file_name =
+    //             Self::snake_case_to_pascal_case(&format!("{}", LeanSortVar(&sort.name)));
+    //         writeln!(opaque_sorts_file, "import {pascal_project_name}.{pascal_sort_file_name}")?;
+    //     }
+    //     Ok(())
+    // }
+
+    fn segments(&self, file: LeanFile) -> Vec<String> {
+        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+        match file {
+            LeanFile::Fluxlib => {
+                vec![pascal_project_name, "Lib".to_string()]
             }
-            if has_data_decls {
-                writeln!(instance_file, "import {pascal_project_name}.Structs")?;
+            LeanFile::OpaqueSort(name) => {
+                vec![
+                    pascal_project_name,
+                    "OpaqueSorts".to_string(),
+                    Self::snake_case_to_pascal_case(&name),
+                ]
             }
-            writeln!(instance_file, "def {} := sorry", WithLeanCtxt { item: fun, cx: &cx })?;
+            LeanFile::Struct(name) => {
+                vec![
+                    pascal_project_name,
+                    "Structs".to_string(),
+                    Self::snake_case_to_pascal_case(&name),
+                ]
+            }
+            LeanFile::OpaqueFunc(name) => {
+                vec![
+                    pascal_project_name,
+                    "OpaqueFuncs".to_string(),
+                    Self::snake_case_to_pascal_case(&name),
+                ]
+            }
+            LeanFile::Func(name) => {
+                vec![
+                    pascal_project_name,
+                    "Funcs".to_string(),
+                    Self::snake_case_to_pascal_case(&name),
+                ]
+            }
+            LeanFile::Constraint => todo!(),
+            LeanFile::Proof => todo!(),
         }
-        Ok(())
     }
 
-    fn generate_opaque_sort_files(&self, sorts: &[fixpoint::SortDecl]) -> Result<(), io::Error> {
-        if sorts.is_empty() {
-            return Ok(());
-        }
-        for sort in sorts {
-            self.generate_sort_def_file_if_not_present(sort)?;
-        }
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut opaque_sorts_file = fs::File::create(
-            self.path
-                .join(format!("{}/{pascal_project_name}/OpaqueSorts.lean", self.project)),
-        )?;
-        for sort in sorts {
-            let pascal_sort_file_name =
-                Self::snake_case_to_pascal_case(&format!("{}", LeanSortVar(&sort.name)));
-            writeln!(opaque_sorts_file, "import {pascal_project_name}.{pascal_sort_file_name}")?;
-        }
-        Ok(())
+    fn import(&self, file: LeanFile) -> String {
+        format!("import {}\n", self.segments(file).join("."))
     }
 
-    fn generate_struct_defs_file(
+    /// All paths should be generated here
+    fn path(&self, file: LeanFile) -> PathBuf {
+        let segments = self.segments(file);
+        let mut path = self.root_path.join(&self.project);
+        for segment in segments {
+            path = path.join(segment);
+        }
+        path.set_extension("lean");
+        path
+    }
+
+    fn data_decl_dependencies(&self, data_decl: &fixpoint::DataDecl) -> Vec<LeanFile> {
+        let mut acc = vec![];
+        data_decl.deps(&mut acc);
+        acc.into_iter()
+            .map(|dep| {
+                let name = format!("{}", LeanSortVar(&dep));
+                if self.structs.contains(&dep) {
+                    LeanFile::Struct(name)
+                } else {
+                    LeanFile::OpaqueSort(name)
+                }
+            })
+            .collect()
+    }
+
+    fn generate_struct_file_if_not_present(
         &self,
-        data_decls: &[fixpoint::DataDecl],
-        has_opaque_sorts: bool,
+        data_decl: &fixpoint::DataDecl,
     ) -> Result<(), io::Error> {
-        if data_decls.is_empty() {
-            return Ok(());
-        }
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut structs_file = fs::File::create(
-            self.path
-                .join(format!("{}/{}/Structs.lean", self.project, pascal_project_name,)),
-        )?;
-        writeln!(structs_file, "import {}.Lib", pascal_project_name)?;
-        if has_opaque_sorts {
-            writeln!(structs_file, "import {}.OpaqueSorts", pascal_project_name)?;
-        }
-        writeln!(structs_file, "-- STRUCT DECLS --")?;
-        writeln!(structs_file, "mutual")?;
-        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
-        for data_decl in data_decls {
-            writeln!(structs_file, "{}", WithLeanCtxt { item: data_decl, cx: &cx })?;
-        }
-        writeln!(structs_file, "end")?;
-        Ok(())
-    }
-
-    fn generate_opaque_func_files(
-        &self,
-        funs: &[fixpoint::ConstDecl],
-        has_opaque_sorts: bool,
-        has_data_decls: bool,
-    ) -> Result<(), io::Error> {
-        if funs.is_empty() {
-            return Ok(());
-        }
-        for fun in funs {
-            self.generate_func_def_file_if_not_present(fun, has_opaque_sorts, has_data_decls)?;
-        }
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut opaque_funcs_file = fs::File::create(
-            self.path
-                .join(format!("{}/{pascal_project_name}/OpaqueFuncs.lean", self.project)),
-        )?;
-        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
-        for fun in funs {
-            let fun_name = format!("{}", WithLeanCtxt { item: &fun.name, cx: &cx });
-            let pascal_fun_file_name = Self::snake_case_to_pascal_case(&fun_name);
-            writeln!(opaque_funcs_file, "import {pascal_project_name}.{pascal_fun_file_name}")?;
+        let name = format!("{}", LeanSortVar(&data_decl.name));
+        let path = self.path(LeanFile::Struct(name.clone()));
+        if !path.exists() {
+            let mut file = fs::File::create(path)?;
+            // import prelude
+            writeln!(file, "{}", self.import(LeanFile::Fluxlib))?;
+            // import sort dependencies
+            for dep in self.data_decl_dependencies(data_decl) {
+                writeln!(file, "{}", self.import(dep))?;
+            }
+            // write data decl
+            let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
+            writeln!(file, "{}", WithLeanCtxt { item: data_decl, cx: &cx })?;
         }
         Ok(())
     }
 
-    fn generate_func_defs_file(
+    // fn generate_struct_files(&self, data_decls: &[fixpoint::DataDecl]) -> Result<(), io::Error> {
+    //     if data_decls.is_empty() {
+    //         return Ok(());
+    //     }
+    //     let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
+    //     let mut structs_file = fs::File::create(
+    //         self.path
+    //             .join(format!("{}/{}/Structs.lean", self.project, pascal_project_name,)),
+    //     )?;
+    //     writeln!(structs_file, "import {}.Lib", pascal_project_name)?;
+    //     // if has_opaque_sorts {
+    //     //     writeln!(structs_file, "import {}.OpaqueSorts", pascal_project_name)?;
+    //     // }
+    //     writeln!(structs_file, "-- STRUCT DECLS --")?;
+    //     writeln!(structs_file, "mutual")?;
+    //     let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
+    //     for data_decl in data_decls {
+    //         writeln!(structs_file, "{}", WithLeanCtxt { item: data_decl, cx: &cx })?;
+    //     }
+    //     writeln!(structs_file, "end")?;
+    //     Ok(())
+    // }
+
+    fn generate_func_files(
         &self,
         func_defs: &[fixpoint::FunDef],
         has_opaque_sorts: bool,
@@ -190,7 +275,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let defs_path = self
-            .path
+            .root_path
             .join(format!("{}/{pascal_project_name}/{}.lean", self.project, self.defs_file_name));
         let mut file = fs::File::create(defs_path)?;
 
@@ -201,9 +286,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if has_data_decls {
             writeln!(file, "import {pascal_project_name}.Structs")?;
         }
-        if has_opaque_funcs {
-            writeln!(file, "import {pascal_project_name}.OpaqueFuncs")?;
-        }
+        // if has_opaque_funcs {
+        //     writeln!(file, "import {pascal_project_name}.OpaqueFuncs")?;
+        // }
         writeln!(file, "-- FUNC DECLS --")?;
         writeln!(file, "mutual")?;
         let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
@@ -214,12 +299,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_lib_file(&self) -> Result<(), io::Error> {
-        let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
-        let mut lib_file = fs::File::create(
-            self.path
-                .join(format!("{}/{pascal_project_name}/Lib.lean", self.project)),
-        )?;
+    fn generate_lib_file_if_not_present(&self) -> Result<(), io::Error> {
+        let lib_path = self.path(LeanFile::Fluxlib);
+        if lib_path.exists() {
+            return Ok(());
+        }
+        let mut lib_file = fs::File::create(lib_path)?;
+        writeln!(lib_file, "-- FLUX LIBRARY [DO NOT MODIFY] --")?;
+        // TODO: Can't we write this from a single `write!` call?
         writeln!(
             lib_file,
             "def BitVec_shiftLeft {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.shiftLeft x (s.toNat)"
@@ -275,28 +362,39 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         func_defs: &[fixpoint::FunDef],
     ) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
-        self.generate_lib_file()?;
+        self.generate_lib_file_if_not_present()?;
 
-        let has_opaque_sorts = !opaque_sorts.is_empty();
-        let has_data_decls = !data_decls.is_empty();
-        let has_opaque_funcs = !opaque_funs.is_empty();
+        // 1. Generate Opaque Struct Files
+        for sort in opaque_sorts {
+            self.generate_opaque_sort_file_if_not_present(sort)?;
+        }
+        // 2. Generate Struct Files
+        for data_decl in data_decls {
+            self.generate_struct_file_if_not_present(data_decl)?;
+        }
+        // 3. Generate Opaque Func Files
+        for opaque_fun in opaque_funs {
+            self.generate_opaque_fun_file_if_not_present(opaque_fun)?;
+        }
+        todo!("self.generate_func_defs_file...");
+        // for func_def in func_defs {
+        //     self.generate_func_def_file_if_not_present(func_def)?;
+        // }
 
-        self.generate_opaque_sort_files(opaque_sorts)?;
-        self.generate_struct_defs_file(data_decls, has_opaque_sorts)?;
-        self.generate_opaque_func_files(opaque_funs, has_opaque_sorts, has_data_decls)?;
-        self.generate_func_defs_file(
-            func_defs,
-            has_opaque_sorts,
-            has_data_decls,
-            has_opaque_funcs,
-        )?;
+        // self.generate_func_defs_file(
+        //     func_defs,
+        //     has_opaque_sorts,
+        //     has_data_decls,
+        //     has_opaque_funcs,
+        // )?;
+
         Ok(())
     }
 
     fn theorem_path(&self, theorem_name: &str) -> PathBuf {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
 
-        self.path.join(format!(
+        self.root_path.join(format!(
             "{}/{}/{}.lean",
             self.project,
             pascal_project_name,
@@ -307,6 +405,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn generate_theorem_file(
         &self,
         theorem_name: &str,
+        uif_consts: &[fixpoint::Var],
         kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
     ) -> Result<(), io::Error> {
@@ -315,26 +414,28 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let mut theorem_file = fs::File::create(theorem_path)?;
         writeln!(theorem_file, "import {}.Lib", pascal_project_name)?;
         if self
-            .path
+            .root_path
             .join(format!("{}/{pascal_project_name}/{}.lean", self.project, self.defs_file_name))
             .exists()
         {
             writeln!(theorem_file, "import {pascal_project_name}.{}", self.defs_file_name)?;
         }
         if self
-            .path
+            .root_path
             .join(format!("{}/{pascal_project_name}/OpaqueSorts.lean", self.project))
             .exists()
         {
             writeln!(theorem_file, "import {pascal_project_name}.OpaqueSorts")?;
         }
-        if self
-            .path
-            .join(format!("{}/{pascal_project_name}/OpaqueFuncs.lean", self.project))
-            .exists()
-        {
-            writeln!(theorem_file, "import {pascal_project_name}.OpaqueFuncs")?;
+        let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
+
+        // directly import the UIF/opaque constants used in the VC
+        for item in uif_consts {
+            let fun_name = format!("{}", WithLeanCtxt { item, cx: &cx });
+            let pascal_fun_file_name = Self::snake_case_to_pascal_case(&fun_name);
+            writeln!(theorem_file, "import {pascal_project_name}.{pascal_fun_file_name}")?;
         }
+
         let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         writeln!(
             theorem_file,
@@ -351,7 +452,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     ) -> Result<(), io::Error> {
         let module_name = Self::snake_case_to_pascal_case(&self.project);
         let proof_name = format!("{theorem_name}_proof");
-        let proof_path = self.path.join(format!(
+        let proof_path = self.root_path.join(format!(
             "{}/{}/{}.lean",
             self.project,
             module_name,
@@ -382,11 +483,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     pub fn encode_constraint(
         &self,
         def_id: MaybeExternId,
+        uif_consts: &[fixpoint::Var],
         kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
     ) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
-        self.generate_lib_file()?;
+        self.generate_lib_file_if_not_present()?;
         let theorem_name = self
             .genv
             .tcx()
@@ -394,14 +496,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .to_filename_friendly_no_crate()
             .replace("-", "_");
 
-        self.generate_theorem_file(&theorem_name, kvars, cstr)?;
+        self.generate_theorem_file(&theorem_name, uif_consts, kvars, cstr)?;
 
         self.generate_proof_file_if_not_present(def_id, &theorem_name)
     }
 
     fn check_proof_help(&self, theorem_name: &str) -> io::Result<()> {
         let proof_name = format!("{theorem_name}_proof");
-        let project_path = self.path.join(&self.project);
+        let project_path = self.root_path.join(&self.project);
         let proof_path = format!(
             "{}/{}.lean",
             Self::snake_case_to_pascal_case(&self.project),
