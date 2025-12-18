@@ -385,7 +385,7 @@ impl<'genv, 'tcx> InferCtxt<'genv, 'tcx> {
                 }
                 self.synth_expr(body)
             }
-            fhir::ExprKind::WeakKvar(num, args) => {
+            fhir::ExprKind::WeakKvar(num, _self_args, args) => {
                 let inputs = self.weak_kvars[&num].clone();
                 if args.len() != inputs.len() {
                     return Err(self.emit_err(errors::ArgCountMismatch::new(

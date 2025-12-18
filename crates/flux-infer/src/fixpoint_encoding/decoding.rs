@@ -112,7 +112,7 @@ where
                                         "Should be specially handled as the head of a function app."
                                     )
                                 }
-                                ConstKey::WKVar(_) => {
+                                ConstKey::WKVar(_, _) => {
                                     unreachable!("Weak kvars are not global vars");
                                 }
                             }
@@ -411,12 +411,12 @@ where
             fixpoint::Expr::WKVar(fixpoint::WKVar { wkvid, args }) => {
                 if let Some(const_key) = self.ecx.const_env.wkvar_map_rev.get(wkvid) {
                     match const_key {
-                        ConstKey::WKVar(wkvid) => {
+                        ConstKey::WKVar(wkvid, self_args) => {
                             let e_args: Vec<rty::Expr> = args
                                 .iter()
                                 .map(|fexpr| self.fixpoint_to_expr(fexpr))
                                 .try_collect()?;
-                            Ok(rty::Expr::wkvar(rty::WKVar { wkvid: *wkvid, args: List::from_vec(e_args)}))
+                            Ok(rty::Expr::wkvar(rty::WKVar { wkvid: *wkvid, self_args: *self_args, args: List::from_vec(e_args)}))
                         }
                         _ => {
                             unreachable!("Weak KVar has a const_key that is not a wkvid");

@@ -1028,7 +1028,41 @@ pub type WKVid = (DefId, KVid);
 #[derive(Clone, PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
 pub struct WKVar {
     pub wkvid: WKVid,
-    /// Actuals passed to the weak kvar (in the same order as params)
+    /// Analagous to KVar self arguments except we require that instantiations
+    /// use *at least one* of the self_args (unless there are none, in which
+    /// case there is no such requirement).
+    ///
+    /// This is mostly relevant for weak kvars corresponding to function
+    /// *outputs*. Consider the signature
+    ///
+    ///     foo: fn(x: usize) -> bool{b: $wk1(b, x)}
+    ///            requires $wk0(x)
+    ///
+    /// In this case self_args would be 1 (corresponding to the bool `b`).
+    /// Consider now the snippet
+    ///
+    ///     let b = foo(x);
+    ///     assert(x > 0);
+    ///
+    /// Suppose the assertion fails. Without the self_args requirement, we
+    /// could validly instantiate
+    ///
+    ///     $wk1(b, x) := x > 0
+    ///
+    /// But this is somewhat nonsensical because only in exceptional cases
+    /// does it make sense for `foo` to somehow "add" information to its
+    /// **argument** (`x`).
+    ///
+    /// By checking for the presence of **at least one** self arg, we
+    /// ensure that the self argument is "used"; fixpoint does a similar check.
+    ///
+    /// This is a syntactic underapproximation and doesn't preclude things like
+    ///
+    ///     $wk1(b, x) := (b => true) && (x > 0)
+    ///
+    /// But we could conceive of a more sophisticated check using the self_args.
+    pub self_args: usize,
+    /// All arguments with self arguments at the beginning.
     pub args: List<Expr>,
 }
 
@@ -1044,6 +1078,7 @@ impl TypeFoldable for WKVar {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         Ok(WKVar {
             wkvid: self.wkvid.try_fold_with(folder)?,
+            self_args: self.self_args,
             args: self.args.try_fold_with(folder)?,
         })
     }
@@ -1118,9 +1153,14 @@ impl KVar {
 }
 
 impl WKVar {
-    pub fn new(def_id: DefId, kvid: KVid, args: Vec<Expr>) -> Self {
-        Self { wkvid: (def_id, kvid), args: List::from_vec(args) }
+    fn self_args(&self) -> &[Expr] {
+        &self.args[..self.self_args]
     }
+
+    fn scope(&self) -> &[Expr] {
+        &self.args[self.self_args..]
+    }
+
 }
 
 impl Var {
@@ -1792,8 +1832,14 @@ pub(crate) mod pretty {
         fn fmt(&self, cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             // Since we reuse KVId, we need to make the serialization custom.
             // Also we will not serialize the parameters for now.
-            w!(cx, f, "$wk{}_{:?}", ^self.wkvid.1.index(), ^cx.tcx().def_path_str(self.wkvid.0))?;
-            w!(cx, f, "({:?})", join!(", ", &self.args))?;
+            w!(cx, f, "$wk{}_{}", ^self.wkvid.1.index(), ^cx.tcx().def_path_str(self.wkvid.0))?;
+            w!(
+                cx,
+                f,
+                "({:?})[{:?}]",
+                join!(", ", self.self_args()),
+                join!(", ", self.scope())
+            )?;
             Ok(())
         }
     }

@@ -1347,12 +1347,18 @@ fn unary_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
 ///                 |  ⟨trailer_expr⟩ ( ⟨expr⟩,* )
 ///                 |  ⟨atom⟩
 /// ```
+///
+/// NOTE: wkvar parsing is $wkNUM[self_args*](args*)
+/// Not sure how to update the above.
 fn parse_trailer_expr(cx: &mut ParseCtxt, allow_struct: bool) -> ParseResult<Expr> {
     let lo = cx.lo();
     if cx.advance_if(token::Dollar) {
         let num = parse_weak_kvar_name(cx)?;
-        let args = parens(cx, Comma, parse_expr_path)?;
-        let kind = ExprKind::WeakKvar(num, args);
+        let mut self_args = parens(cx, Comma, parse_expr_path)?;
+        let args = brackets(cx, Comma, parse_expr_path)?;
+        let num_self_args = self_args.len();
+        self_args.extend(args);
+        let kind = ExprKind::WeakKvar(num, num_self_args, self_args);
         let hi = cx.hi();
         return Ok(Expr { kind, node_id: cx.next_node_id(), span: cx.mk_span(lo, hi) });
     }

@@ -726,7 +726,7 @@ pub enum ExprKind {
     Block(Vec<LetDecl>, Box<Expr>),
     /// Set expression `#{ e1, e2, ..., en }`
     SetLiteral(Vec<Expr>),
-    WeakKvar(u32, Vec<ExprPath>),
+    WeakKvar(u32, usize, Vec<ExprPath>),
 }
 
 #[derive(Debug)]

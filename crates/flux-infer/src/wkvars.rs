@@ -1,7 +1,7 @@
 
 
 use std::{
-    collections::{ HashMap, hash_map::Entry, },
+    collections::{ HashMap, HashSet, hash_map::Entry },
     ops::ControlFlow,
 };
 
@@ -36,6 +36,10 @@ pub struct WKVarInstantiator<'a> {
     /// In theory this could be a Vec<rty::Expr>, but the instantiator
     /// is configured right now to only return a single solution.
     args_to_param: &'a HashMap<rty::Expr, rty::Expr>,
+    /// Set of self args
+    self_args: &'a HashSet<rty::Expr>,
+    /// Were any of the self args used in the expr?
+    any_self_args_used: bool,
     /// In theory, this could (and probably should) map to multiple
     /// solutions, i.e. a Vec<rty::Expr>.
     memo: &'a mut HashMap<rty::Expr, rty::Expr>,
@@ -69,6 +73,9 @@ impl FallibleTypeFolder for WKVarInstantiator<'_> {
         // which I think will guarantee a solution if it exists, but I am not
         // sure.
         if let Some(param) = self.args_to_param.get(e) {
+            // Check if this expression is a self_arg (if we haven't seen a
+            // self_arg) yet.
+            self.any_self_args_used |= self.self_args.contains(e);
             let param_expr = param.shift_in_escaping(self.current_index.as_u32());
             self.memo.insert(e.clone(), param_expr.clone());
             return Ok(param_expr);
@@ -90,10 +97,14 @@ impl WKVarInstantiator<'_> {
     /// which when used as a refinement will produce the original expr in this
     /// branch after all substitutions have happened.
     ///
+    /// It requires that the expression uses at least one of the first
+    /// `self_args` number of `wkvar_args`.
+    ///
     /// FIXME: This does not properly deal with expressions that have bound variables:
     /// if the expression has a bound variable, we might fail the instantiation
     /// when it should succeed.
     pub fn try_instantiate_wkvar_args(
+        self_args: usize,
         wkvar_args: &[rty::Expr],
         expr: &rty::Expr,
     ) -> Option<rty::Binder<rty::Expr>> {
@@ -112,8 +123,11 @@ impl WKVarInstantiator<'_> {
         .for_each(|(arg, param)| {
             ProductEtaExpander::eta_expand_products(param, arg, &mut args_to_param);
         });
+        let self_args = wkvar_args[..self_args].iter().cloned().collect();
         let mut instantiator = WKVarInstantiator {
             args_to_param: &args_to_param,
+            self_args: &self_args,
+            any_self_args_used: false,
             memo: &mut HashMap::new(),
             // This remains 0 because we use it to track how to shift our params,
             // so the scope is the same.
@@ -122,11 +136,16 @@ impl WKVarInstantiator<'_> {
         instantiator
             .try_fold_expr(&expr_eta_expanded_rel)
             .ok()
-            .map(|instantiated_e| {
-                rty::Binder::bind_with_sorts(
+            .and_then(|instantiated_e| {
+                if !instantiator.any_self_args_used && !instantiator.self_args.is_empty() {
+                    println!("Dropping instantiation {:?} because no self args were used", instantiated_e);
+                    None
+                } else {
+                Some(rty::Binder::bind_with_sorts(
                     instantiated_e,
                     &std::iter::repeat_n(rty::Sort::Err, wkvar_args.len()).collect_vec(),
-                )
+                ))
+                }
             })
     }
 }

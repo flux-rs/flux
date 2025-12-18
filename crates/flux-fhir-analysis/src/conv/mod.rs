@@ -2245,7 +2245,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let assns = self.conv_constructor_exprs(def_id, env, exprs, &spread)?;
                 rty::Expr::ctor_struct(def_id, assns)
             }
-            fhir::ExprKind::WeakKvar(num, fhir_args) => {
+            fhir::ExprKind::WeakKvar(num, fhir_self_args, fhir_args) => {
                 let mut params = vec![];
                 let mut args = vec![];
                 for fhir_arg in fhir_args {
@@ -2269,6 +2269,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 };
                 let wk = rty::WKVar {
                     wkvid: (owner_id.to_def_id(), rty::KVid::from_u32(num)),
+                    self_args: fhir_self_args,
                     args: List::from_vec(args),
                 };
                 rty::Expr::wkvar(wk)

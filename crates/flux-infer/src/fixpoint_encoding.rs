@@ -502,7 +502,7 @@ enum ConstKey<'tcx> {
     Lambda(Lambda),
     PrimOp(rty::BinOp),
     Cast(rty::Sort, rty::Sort),
-    WKVar((DefId, rty::KVid)),
+    WKVar((DefId, rty::KVid), usize),
 }
 
 // #[derive(Debug, Clone)]
@@ -776,7 +776,7 @@ where
                                     _ => unreachable!("assumptions must be exprs"),
                                 };
                                 for wkvar in assumption.wkvars_in_conj() {
-                                    let ConstKey::WKVar(wkvid) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
+                                    let ConstKey::WKVar(wkvid, self_args) = self.ecx.const_env.wkvar_map_rev.get(&wkvar.wkvid).unwrap()
                                     else {
                                         panic!()
                                     };
@@ -821,12 +821,12 @@ where
                                                 Ok(e) => {
                                                     if !e.is_trivially_false()
                                                         && !e.is_trivially_true() {
-                                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &e) {
+                                                        if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &e) {
                                                             println!("recording solution: {:?}", e);
                                                             if fe.max_num_disjuncts() > 2 {
                                                                 println!("WARN: skipping answer with too many disjuncts");
                                                                 // Try the regular expression
-                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
+                                                                if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                                     possible_solutions.entry(*wkvid)
                                                                         .or_default()
                                                                         .push(binder_e);
@@ -838,7 +838,7 @@ where
                                                             }
                                                         } else {
                                                             println!("got nontrivial solution but couldn't unify it: {:?} with args {:?}", fe, wkvar.args);
-                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
+                                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                                 possible_solutions.entry(*wkvid)
                                                                     .or_default()
                                                                     .push(binder_e);
@@ -853,7 +853,7 @@ where
                                         }
                                         Err(err) => {
                                             println!("failed to decode z3 expr because of {:?}", err);
-                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(&rty_args, &blame_ctx.expr) {
+                                            if let Some(binder_e) = WKVarInstantiator::try_instantiate_wkvar_args(*self_args, &rty_args, &blame_ctx.expr) {
                                                 possible_solutions.entry(*wkvid)
                                                     .or_default()
                                                     .push(binder_e);
@@ -1222,7 +1222,7 @@ where
     }
 
     fn wkvar_to_fixpoint(&mut self, wkvar: &rty::WKVar) -> QueryResult<fixpoint::Pred> {
-        if let Some(var) = self.ecx.define_const_for_wkvar(&wkvar.wkvid, &mut self.scx) {
+        if let Some(var) = self.ecx.define_const_for_wkvar(&wkvar.wkvid, wkvar.self_args, &mut self.scx) {
             let args: Vec<fixpoint::Expr> = wkvar
                 .args
                 .iter()
@@ -2346,9 +2346,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     fn define_const_for_wkvar(
         &mut self,
         wkvid: &rty::WKVid,
+        self_args: usize,
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
-        let key = ConstKey::WKVar(*wkvid);
+        let key = ConstKey::WKVar(*wkvid, self_args);
         let arg_sorts = self.genv.weak_kvars_for(wkvid.0)
                              .and_then(|wkvars_map|
                                        wkvars_map.get(&wkvid.1.as_u32())

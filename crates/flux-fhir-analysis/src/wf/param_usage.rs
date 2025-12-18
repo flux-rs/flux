@@ -146,7 +146,7 @@ impl<'a, 'genv, 'tcx> ParamUsesChecker<'a, 'genv, 'tcx> {
                 }
                 self.check_func_params_uses(body, false);
             }
-            fhir::ExprKind::WeakKvar(_, args) => {
+            fhir::ExprKind::WeakKvar(_, _, args) => {
                 for arg in args {
                     match arg {
                         fhir::QPathExpr::Resolved(path, _) => {

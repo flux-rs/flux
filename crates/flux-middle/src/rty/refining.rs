@@ -511,7 +511,8 @@ impl rty::PolyFnSig {
                 .copied()
                 .collect_vec();
             // FIXME: we should have a better way to generate the KVid.
-            let requires_wkvar = make_weak_kvar(def_id, rty::KVid::from(0_usize), params.clone());
+            // NOTE: there are no self_args for the requires weak kvar.
+            let requires_wkvar = make_weak_kvar(def_id, rty::KVid::from(0_usize), Vec::new(), params.clone());
             shift_in_vars(&mut params);
             let output_binder_params = make_vars_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
@@ -520,6 +521,7 @@ impl rty::PolyFnSig {
                     ret: add_weak_kvar_to_ty(
                         def_id,
                         rty::KVid::from(1_usize),
+                        Vec::new(),
                         params.clone(),
                         &output.ret,
                     ),
@@ -546,6 +548,10 @@ impl rty::PolyFnSig {
 fn add_weak_kvar_to_ty(
     def_id: DefId,
     kvid: rty::KVid,
+    // Mutable because we're accumulating them
+    mut self_args: Vec<rty::Var>,
+    // Mutable because we're shifting them in when we go under binders
+    // (we only will add to self_args).
     mut params: Vec<rty::Var>,
     ty: &rty::Ty,
 ) -> rty::Ty {
@@ -553,12 +559,12 @@ fn add_weak_kvar_to_ty(
     match ty.kind() {
         // Base case: make a new constraint with the weak kvar
         Indexed(_, _) => {
-            let wkvar = make_weak_kvar(def_id, kvid, params);
+            let wkvar = make_weak_kvar(def_id, kvid, self_args, params);
             Ty::constr(Expr::wkvar(wkvar), ty.clone())
         }
         // Base case: And the weak kvar onto the expression
         Constr(expr, ty) => {
-            let wkvar = make_weak_kvar(def_id, kvid, params);
+            let wkvar = make_weak_kvar(def_id, kvid, self_args, params);
             Ty::constr(Expr::and(expr, Expr::wkvar(wkvar)), ty.clone())
         }
         // This is the only recursive case where we need to update the params
@@ -567,22 +573,22 @@ fn add_weak_kvar_to_ty(
             let bound_vars = bound_ty.vars();
             shift_in_vars(&mut params);
             let exist_params = make_vars_from_bound_vars(bound_vars);
-            params.extend(exist_params);
+            self_args.extend(exist_params);
             Ty::exists(
                 bound_ty
                     .clone()
-                    .map(|ty| add_weak_kvar_to_ty(def_id, kvid, params, &ty)),
+                    .map(|ty| add_weak_kvar_to_ty(def_id, kvid, self_args, params, &ty)),
             )
         }
         // Straightforward recursive cases
         StrgRef(region, path, ty) => {
-            Ty::strg_ref(*region, path.clone(), add_weak_kvar_to_ty(def_id, kvid, params, ty))
+            Ty::strg_ref(*region, path.clone(), add_weak_kvar_to_ty(def_id, kvid, self_args, params, ty))
         }
         Downcast(adt_def, generic_args, ty, variant_idx, fields) => {
             Ty::downcast(
                 adt_def.clone(),
                 generic_args.clone(),
-                add_weak_kvar_to_ty(def_id, kvid, params, ty),
+                add_weak_kvar_to_ty(def_id, kvid, self_args, params, ty),
                 *variant_idx,
                 fields.clone(),
             )
@@ -616,7 +622,9 @@ fn shift_in_vars(vars: &mut [rty::Var]) {
     }
 }
 
-fn make_weak_kvar(def_id: DefId, kvid: rty::KVid, params: Vec<rty::Var>) -> rty::WKVar {
-    let args = params.iter().map(|var| rty::Expr::var(*var)).collect();
-    rty::WKVar { wkvid: (def_id, kvid), args }
+fn make_weak_kvar(def_id: DefId, kvid: rty::KVid, self_args: Vec<rty::Var>, params: Vec<rty::Var>) -> rty::WKVar {
+    let num_self_args = self_args.len();
+    let args = self_args.into_iter().chain(params.into_iter())
+                                    .map(|var| rty::Expr::var(var)).collect();
+    rty::WKVar { wkvid: (def_id, kvid), self_args: num_self_args, args }
 }

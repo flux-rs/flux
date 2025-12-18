@@ -1046,7 +1046,7 @@ pub enum ExprKind<'fhir> {
     SetLiteral(&'fhir [Expr<'fhir>]),
     Constructor(Option<PathExpr<'fhir>>, &'fhir [FieldExpr<'fhir>], Option<&'fhir Spread<'fhir>>),
     Block(&'fhir [LetDecl<'fhir>], &'fhir Expr<'fhir>),
-    WeakKvar(u32, &'fhir [QPathExpr<'fhir>]),
+    WeakKvar(u32, usize, &'fhir [QPathExpr<'fhir>]),
     Err(ErrorGuaranteed),
 }
 
@@ -1606,7 +1606,12 @@ impl fmt::Debug for Expr<'_> {
                 }
                 write!(f, "{body:?}")
             }
-            ExprKind::WeakKvar(num, args) => write!(f, "$wk{num}({:?})", args.iter().format(", ")),
+            ExprKind::WeakKvar(num, self_args, args) => write!(
+                f,
+                "$wk{num}({:?})[{:?}]",
+                args[..self_args].iter().format(", "),
+                args[self_args..].iter().format(", ")
+            ),
         }
     }
 }

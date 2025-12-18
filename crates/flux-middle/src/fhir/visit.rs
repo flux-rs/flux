@@ -637,7 +637,7 @@ pub fn walk_expr<'v, V: Visitor<'v>>(vis: &mut V, expr: &Expr<'v>) {
             }
             vis.visit_expr(body);
         }
-        ExprKind::WeakKvar(_, args) => {
+        ExprKind::WeakKvar(_, _, args) => {
             for arg in args {
                 walk_qpath_expr(vis, *arg);
             }
