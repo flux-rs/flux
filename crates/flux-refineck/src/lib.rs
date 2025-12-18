@@ -118,30 +118,34 @@ pub fn check_fn(
             .instantiate_identity();
         let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
 
-        if genv.proven_externally(def_id).is_none() {
-            // PHASE 1: infer shape of `TypeEnv` at the entry of join points
-            let shape_result = Checker::run_in_shape_mode(
-                genv,
-                def_id,
-                &ghost_stmts,
-                &mut closures,
-                opts,
-                &poly_sig,
-            )
-            .map_err(|err| err.emit(genv, def_id))?;
+        // PHASE 1: infer shape of `TypeEnv` at the entry of join points
+        let shape_result =
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts, &poly_sig)
+                .map_err(|err| err.emit(genv, def_id))?;
 
-            // PHASE 2: generate refinement tree constraint
-            let infcx_root = Checker::run_in_refine_mode(
-                genv,
-                def_id,
-                &ghost_stmts,
-                &mut closures,
-                shape_result,
-                opts,
-                &poly_sig,
-            )
-            .map_err(|err| err.emit(genv, def_id))?;
+        // PHASE 2: generate refinement tree constraint
+        let infcx_root = Checker::run_in_refine_mode(
+            genv,
+            def_id,
+            &ghost_stmts,
+            &mut closures,
+            shape_result,
+            opts,
+            &poly_sig,
+        )
+        .map_err(|err| err.emit(genv, def_id))?;
 
+        if genv.proven_externally(def_id).is_some() {
+            if flux_config::lean().is_emit() {
+                infcx_root
+                    .execute_lean_query(cache, MaybeExternId::Local(def_id))
+                    .emit(&genv)
+            } else {
+                Err(genv
+                    .sess()
+                    .emit_err(errors::MissingLean { span: genv.tcx().def_span(def_id) }))
+            }
+        } else {
             // PHASE 3: invoke fixpoint on the constraint
             let answer = infcx_root
                 .execute_fixpoint_query(
@@ -159,70 +163,6 @@ pub fn check_fn(
 
             let errors = answer.errors;
             report_fixpoint_errors(genv, def_id, errors)
-        } else {
-            // PHASE 1: infer shape of `TypeEnv` at the entry of join points
-            let shape_result = Checker::run_in_shape_mode(
-                genv,
-                def_id,
-                &ghost_stmts,
-                &mut closures,
-                opts,
-                &poly_sig,
-            )
-            .map_err(|err| err.emit(genv, def_id))?;
-
-            // PHASE 2: generate refinement tree constraint
-            let infcx_root = Checker::run_in_refine_mode(
-                genv,
-                def_id,
-                &ghost_stmts,
-                &mut closures,
-                shape_result,
-                opts,
-                &poly_sig,
-            )
-            .map_err(|err| err.emit(genv, def_id))?;
-
-            // PHASE 3: invoke fixpoint on the constraint
-            let solution = infcx_root
-                .execute_fixpoint_query(
-                    cache,
-                    MaybeExternId::Local(def_id),
-                    FixpointQueryKind::Body,
-                )
-                .map(|answer| answer.solution)
-                .unwrap_or(Default::default());
-
-            let shape_result = Checker::run_in_shape_mode(
-                genv,
-                def_id,
-                &ghost_stmts,
-                &mut closures,
-                opts,
-                &poly_sig,
-            )
-            .map_err(|err| err.emit(genv, def_id))?;
-
-            let infcx_root = Checker::run_in_refine_mode(
-                genv,
-                def_id,
-                &ghost_stmts,
-                &mut closures,
-                shape_result,
-                opts,
-                &poly_sig,
-            )
-            .map_err(|err| err.emit(genv, def_id))?;
-
-            if flux_config::lean().is_emit() {
-                infcx_root
-                    .execute_lean_query(MaybeExternId::Local(def_id), solution)
-                    .emit(&genv)
-            } else {
-                Err(genv
-                    .sess()
-                    .emit_err(errors::MissingLean { span: genv.tcx().def_span(def_id) }))
-            }
         }
     })?;
 

@@ -30,9 +30,7 @@ use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{
-        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, Solution,
-    },
+    fixpoint_encoding::{Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -206,8 +204,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
 
     pub fn execute_lean_query(
         self,
+        cache: &mut FixQueryCache,
         def_id: MaybeExternId,
-        kvar_solutions: Solution,
     ) -> QueryResult<()> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
@@ -216,8 +214,27 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
+        let mut fcx_for_solver =
+            FixpointCtxt::new(self.genv, def_id, kvars.clone(), Backend::Fixpoint);
+        let cstr_for_solver = refine_tree.to_fixpoint(&mut fcx_for_solver)?;
+        let solver = match self.opts.solver {
+            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+        };
+        let kvar_solutions = fcx_for_solver
+            .check(
+                cache,
+                def_id,
+                cstr_for_solver,
+                FixpointQueryKind::Body,
+                self.opts.scrape_quals,
+                solver,
+            )
+            .map(|answer| answer.solution)
+            .unwrap_or_default();
+
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let kvar_sol_funcs: HashMap<_, _> = kvar_solutions
             .iter()
             .map(|(kvid, sol)| fcx.kvar_solution_for_lean(kvid, sol))
@@ -252,7 +269,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
