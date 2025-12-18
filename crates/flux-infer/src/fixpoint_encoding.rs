@@ -691,7 +691,6 @@ where
         constraint: fixpoint::Constraint,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
-            println!("TRACE: generate lean lemmas for {def_id:?}");
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
             let fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
 
@@ -711,7 +710,7 @@ where
             );
             lean_encoder
                 .encode_constraint() // def_id, &uif_consts, &kvar_decls, &constraint)
-                .map_err(|_| query_bug!("could not encode constraint"))?;
+                .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
 
             if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
         } else {
