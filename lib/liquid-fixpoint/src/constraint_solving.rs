@@ -251,8 +251,7 @@ impl<T: Types> Constraint<T> {
                 conjuncts.iter().flat_map(|cstr| cstr.sol1(var)).collect()
             }
             Constraint::Pred(Pred::KVar(kvid, args), _tag) if var.eq(kvid) => {
-                let arg_vars = args.iter().map(|arg| Expr::Var(arg.clone())).collect();
-                vec![Solution { binders: vec![], args: arg_vars }]
+                vec![Solution { binders: vec![], args: args.clone() }]
             }
             Constraint::Pred(_, _) => vec![],
         }
@@ -286,10 +285,7 @@ impl<T: Types> Constraint<T> {
                             let (kvar_instances, mut preds) = pred.partition_pred(var);
                             preds.extend(kvar_instances.into_iter().flat_map(|(_, eqs)| {
                                 iter::zip(args, eqs).map(|(arg, eq)| {
-                                    Pred::Expr(Expr::Atom(
-                                        BinRel::Eq,
-                                        Box::new([Expr::Var(eq), arg.clone()]),
-                                    ))
+                                    Pred::Expr(Expr::Atom(BinRel::Eq, Box::new([eq, arg.clone()])))
                                 })
                             }));
                             let init = Constraint::ForAll(
@@ -395,7 +391,7 @@ impl<T: Types> Pred<T> {
     }
 
     #[allow(clippy::type_complexity)]
-    pub fn partition_pred(&self, var: &T::KVar) -> (Vec<(T::KVar, Vec<T::Var>)>, Vec<Pred<T>>) {
+    pub fn partition_pred(&self, var: &T::KVar) -> (Vec<(T::KVar, Vec<Expr<T>>)>, Vec<Pred<T>>) {
         let mut kvar_instances = vec![];
         let mut other_preds = vec![];
         self.partition_pred_help(var, &mut kvar_instances, &mut other_preds);
@@ -405,7 +401,7 @@ impl<T: Types> Pred<T> {
     fn partition_pred_help(
         &self,
         var: &T::KVar,
-        kvar_instances: &mut Vec<(T::KVar, Vec<T::Var>)>,
+        kvar_instances: &mut Vec<(T::KVar, Vec<Expr<T>>)>,
         other_preds: &mut Vec<Pred<T>>,
     ) {
         match self {
@@ -425,11 +421,11 @@ impl<T: Types> Pred<T> {
 }
 
 impl<T: Types> Expr<T> {
-    fn substitute_in_place(&mut self, v_from: &T::Var, v_to: &T::Var) {
+    fn substitute_in_place(&mut self, v_from: &T::Var, v_to: &Expr<T>) {
         match self {
             Expr::Var(v) => {
                 if v == v_from {
-                    *v = v_to.clone();
+                    *self = v_to.clone();
                 }
             }
             Expr::Iff(exprs)
@@ -472,7 +468,7 @@ impl<T: Types> Expr<T> {
         }
     }
 
-    pub(crate) fn substitute(&self, v_from: &T::Var, v_to: &T::Var) -> Self {
+    pub(crate) fn substitute(&self, v_from: &T::Var, v_to: &Expr<T>) -> Self {
         let mut new_expr = self.clone();
         new_expr.substitute_in_place(v_from, v_to);
         new_expr
