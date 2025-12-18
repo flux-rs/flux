@@ -185,11 +185,11 @@ impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
         let span = tcx.def_span(def_id);
         let sm = tcx.sess.source_map();
         let FileName::Real(file_name) = sm.span_to_filename(span) else { return true };
-        let mut file_path = file_name.local_path_if_available();
+        let Some(mut file_path) = file_name.local_path() else { return true };
 
         // If the path is absolute try to normalize it to be relative to the working_dir
         if file_path.is_absolute() {
-            let working_dir = tcx.sess.opts.working_dir.local_path_if_available();
+            let Some(working_dir) = sm.working_dir().local_path() else { return true };
             let Ok(p) = file_path.strip_prefix(working_dir) else { return true };
             file_path = p;
         }
