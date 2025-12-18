@@ -551,6 +551,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             }
             ("proven_externally", _) => {
                 let span = attr_item_inner_span(attr_item);
+                println!("TRACE: fucking proven-externally attr-span {span:?}");
                 FluxAttrKind::ProvenExternally(span)
             }
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
