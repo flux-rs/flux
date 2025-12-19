@@ -362,10 +362,11 @@ where
         self.push_scope(&names);
         let body = self.parse_expr_possibly_nested(body)?;
         let mut scope = self.pop_scope().unwrap();
-        let bound =
-            names.iter().zip(sorts).map(|(name, sort)| {
-                (scope.swap_remove(name).unwrap(), sort)
-            }).collect();
+        let bound = names
+            .iter()
+            .zip(sorts)
+            .map(|(name, sort)| (scope.swap_remove(name).unwrap(), sort))
+            .collect();
         Ok(Expr::Exists(bound, Box::new(body)))
     }
 
@@ -498,10 +499,11 @@ where
             let expr = self.parse_expr(body)?;
 
             let mut scope = self.pop_scope().unwrap();
-            let bound =
-                kvar_args.iter().zip(sorts).map(|(name, sort)| {
-                    (scope.swap_remove(name).unwrap(), sort)
-                }).collect();
+            let bound = kvar_args
+                .iter()
+                .zip(sorts)
+                .map(|(name, sort)| (scope.swap_remove(name).unwrap(), sort))
+                .collect();
             Ok((bound, expr))
         } else {
             Err(ParseError::err("expected (lambda (params) body)"))
@@ -509,7 +511,13 @@ where
     }
 
     fn push_scope(&mut self, names: &[String]) {
-        self.scopes.push(names.iter().cloned().map(|name| (name, self.parser.fresh_var())).collect());
+        self.scopes.push(
+            names
+                .iter()
+                .cloned()
+                .map(|name| (name, self.parser.fresh_var()))
+                .collect(),
+        );
     }
 
     fn pop_scope(&mut self) -> Option<IndexMap<String, T::Var>> {
@@ -517,9 +525,9 @@ where
     }
 
     fn parse_bound_var(&self, name: &str) -> Option<Expr<T>> {
-        for (_, scope) in self.scopes.iter().rev().enumerate() {
+        for scope in self.scopes.iter().rev() {
             if let Some(var) = scope.get(name) {
-                return Some(Expr::Var(var.clone()))
+                return Some(Expr::Var(var.clone()));
             }
         }
         None
@@ -666,7 +674,6 @@ impl Types for StringTypes {
 }
 
 impl FromSexp<StringTypes> for StringTypes {
-
     fn fresh_var(&mut self) -> <StringTypes as Types>::Var {
         todo!()
     }

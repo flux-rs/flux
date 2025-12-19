@@ -643,7 +643,7 @@ where
     fn parse_kvar_solutions(&mut self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
         let mut solutions = vec![];
         for b in result.solution.iter().chain(&result.non_cuts_solution) {
-            solutions.push(self.convert_kvar_bind(b)?)
+            solutions.push(self.convert_kvar_bind(b)?);
         }
         Ok(self.kcx.group_kvar_solution(solutions))
     }
@@ -660,25 +660,28 @@ where
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let mut sexp_ctx = SexpParseCtxt::new(&mut self.ecx.local_var_env).into_wrapper();
-        let (sorts, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
+        let (binder, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
         let mut vars = vec![];
-        let mut ss = vec![];
-        for (var, sort) in sorts.into_iter() {
+        let mut sorts = vec![];
+        for (var, sort) in binder {
             let fixpoint::Var::Local(local_var) = var else {
-                tracked_span_bug!("encountered non-local variable in binder");
+                tracked_span_bug!("encountered non-local variable in binder: {var:?}");
             };
-            vars.push(local_var.clone());
-            ss.push(self.fixpoint_to_sort(&sort).unwrap_or_else(|_| tracked_span_bug!("failed to parse sort")));
+            vars.push(local_var);
+            sorts.push(
+                self.fixpoint_to_sort(&sort)
+                    .unwrap_or_else(|_| tracked_span_bug!("failed to parse sort: {sort:?}")),
+            );
         }
         self.ecx.local_var_env.push_layer(vars);
         let expr = self
             .fixpoint_to_expr(&expr)
             .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
         self.ecx.local_var_env.pop_layer();
-        Ok(rty::Binder::bind_with_sorts(expr, &ss))
+        Ok(rty::Binder::bind_with_sorts(expr, &sorts))
     }
 
     fn convert_kvar_bind(
@@ -2260,7 +2263,7 @@ fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
 }
 
 struct SexpParseCtxt<'a> {
-    local_var_env: &'a mut LocalVarEnv
+    local_var_env: &'a mut LocalVarEnv,
 }
 
 impl<'a> SexpParseCtxt<'a> {
@@ -2270,7 +2273,6 @@ impl<'a> SexpParseCtxt<'a> {
 }
 
 impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
-
     fn fresh_var(&mut self) -> fixpoint::Var {
         fixpoint::Var::Local(self.local_var_env.fresh_name())
     }

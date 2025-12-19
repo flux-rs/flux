@@ -119,14 +119,15 @@ where
                             return Ok(expr.clone());
                         }
 
-                        for (depth, layer) in self.ecx.local_var_env.layers.iter().rev().enumerate() {
+                        for (depth, layer) in self.ecx.local_var_env.layers.iter().rev().enumerate()
+                        {
                             for (idx, var) in layer.iter().enumerate() {
                                 if fname == var {
                                     return Ok(rty::Expr::bvar(
                                         rty::DebruijnIndex::from_usize(depth),
                                         BoundVar::from_usize(idx),
                                         rty::BoundReftKind::Anon,
-                                    ))
+                                    ));
                                 }
                             }
                         }
@@ -374,20 +375,20 @@ where
                 let e = self.fixpoint_to_expr(fe)?;
                 Ok(rty::Expr::is_ctor(def_id, variant_idx, e))
             }
-            fixpoint::Expr::Exists(sorts, body) => {
+            fixpoint::Expr::Exists(binder, body) => {
                 let mut vars = vec![];
-                let mut ss = vec![];
-                for (var, sort) in sorts {
+                let mut sorts = vec![];
+                for (var, sort) in binder {
                     let fixpoint::Var::Local(local_var) = var else {
-                        return Err(FixpointParseError::WrongVarInIsCtor(var.clone()))
+                        return Err(FixpointParseError::WrongVarInBinder(*var));
                     };
-                    vars.push(local_var.clone());
-                    ss.push(self.fixpoint_to_sort(sort)?);
+                    vars.push(*local_var);
+                    sorts.push(self.fixpoint_to_sort(sort)?);
                 }
                 self.ecx.local_var_env.push_layer(vars);
                 let body = self.fixpoint_to_expr(body)?;
                 self.ecx.local_var_env.pop_layer();
-                Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &ss)))
+                Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
             }
             fixpoint::Expr::BoundVar(fixpoint::BoundVar { level, idx }) => {
                 Ok(rty::Expr::bvar(
@@ -429,5 +430,7 @@ pub enum FixpointParseError {
     NoLocalVar(fixpoint::LocalVar),
     /// Expecting fixpoint::Var::DataCtor
     WrongVarInIsCtor(fixpoint::Var),
+    /// Expecting fixpoint::Var::LocalVar
+    WrongVarInBinder(fixpoint::Var),
     UnknownAdt(DefId),
 }
