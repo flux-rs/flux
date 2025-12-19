@@ -3,6 +3,7 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    sync::OnceLock,
 };
 
 use flux_common::dbg::{self, SpanTrace};
@@ -21,9 +22,14 @@ use crate::{
     lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
+/// Flag to track if LeanEncoder::new has been called before
+static FIRST_INVOCATION: OnceLock<()> = OnceLock::new();
+
 /// Different kinds of Lean files
 #[derive(Eq, PartialEq, Hash, Debug, Clone)]
 pub enum LeanFile {
+    /// "Root" of the lean project, importing all the generated proofs
+    Basic,
     /// "builtin" definitions
     Fluxlib,
     /// (human) opaque flux sorts, to be defined by the user in Lean
@@ -106,6 +112,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn segments(&self, file: &LeanFile) -> Vec<String> {
         let project_name = snake_case_to_pascal_case(&self.project);
         match file {
+            LeanFile::Basic => {
+                vec![project_name.clone(), "Basic".to_string()]
+            }
             LeanFile::Fluxlib => {
                 vec![project_name, "Fluxlib".to_string()]
             }
@@ -217,7 +226,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
-        if !self.base.join(&self.project).exists() {
+        let path = self.base.join(&self.project);
+        if !path.exists() {
             Command::new("lake")
                 .arg("new")
                 .arg(&self.project)
@@ -433,24 +443,20 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn generate_vc_prelude(&self) -> Result<(), io::Error> {
         // 1. Generate lake project and lib file
-        self.generate_lake_project_if_not_present()?;
         self.generate_lib_file_if_not_present()?;
 
         // 2. Generate Opaque Struct Files
         for sort in &self.sort_deps.opaque_sorts {
             self.generate_opaque_sort_file_if_not_present(sort)?;
         }
-
         // 2. Generate Struct Files
         for data_decl in &self.sort_deps.data_decls {
             self.generate_struct_file_if_not_present(data_decl)?;
         }
-
         // 3. Generate Opaque Func Files
         for (_, opaque_fun) in &self.fun_deps.opaque_funs {
             self.generate_opaque_fun_file_if_not_present(opaque_fun)?;
         }
-
         // 4. Generate Func Def Files
         for (did, fun_def) in &self.fun_deps.fun_defs {
             self.generate_fun_def_file_if_not_present(did, fun_def)?;
@@ -526,11 +532,25 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
+    fn add_proof_import(&self) -> Result<(), io::Error> {
+        let path = self.path(&LeanFile::Basic);
+        if FIRST_INVOCATION.set(()).is_ok() {
+            // First invocation: clear existing imports
+            create_file_with_dirs(&path)?;
+            fs::write(&path, format!("-- FLUX BASIC FILE [DO NOT MODIFY] --\n\n",))?;
+        }
+        let path = self.path(&LeanFile::Basic);
+        let mut file = fs::OpenOptions::new().append(true).open(path)?;
+        writeln!(file, "{}", self.import(&LeanFile::Proof))?;
+        Ok(())
+    }
+
     pub fn encode_constraint(&self) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_file_if_not_present()?;
         self.generate_vc_file()?;
         self.generate_proof_file_if_not_present()?;
+        self.add_proof_import()?;
         Ok(())
     }
 
