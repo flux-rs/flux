@@ -3,8 +3,7 @@ use std::{ collections::{HashMap, HashSet}, iter, str::FromStr, vec};
 
 use itertools::Itertools;
 use z3::{
-    AstKind, FuncDecl, Goal, SatResult, Solver, SortKind, Tactic,
-    ast::{self, Ast},
+    AstKind, FuncDecl, Goal, SatResult, Solver, SortKind, Tactic, ast::{self, Ast}
 };
 
 use crate::{
@@ -866,7 +865,7 @@ pub fn qe_and_simplify<T: Types>(
     // println!("constraint:\n{}", &body);
     goal.assert(&body);
     let qe_and_simplify = Tactic::new("qe").and_then(&Tactic::new("ctx-simplify")).and_then(&Tactic::new("nnf"));
-    match qe_and_simplify.apply(&goal, None) {
+    match qe_and_simplify.try_for(std::time::Duration::from_secs(10)).apply(&goal, None) {
         Ok(apply_result) => {
             // println!("got result:");
             if let Some(new_goal) = apply_result.list_subgoals().last() {
@@ -904,7 +903,9 @@ pub fn qe_and_simplify<T: Types>(
             }
             Err(Z3DecodeError::NoResults)
         }
-        Err(_) => panic!("Failed to qe + simplify"),
+        // FIXME: Not a decode error, but now QE can fail due to a timeout and
+        // we don't want to panic because of this.
+        Err(_) => Err(Z3DecodeError::QEFail),
     }
 }
 
@@ -1023,6 +1024,7 @@ pub enum Z3DecodeError {
     InvalidIntConstant,
     NoResults,
     TriviallyFalse,
+    QEFail,
 }
 
 fn z3_to_expr<T: Types>(env: &Env<T>, z3: &ast::Dynamic) -> Result<Expr<T>, Z3DecodeError> {
