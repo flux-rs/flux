@@ -469,7 +469,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
 
         for data_decl in &self.sort_deps.data_decls {
-            writeln!(file, "{}", self.import(&LeanFile::OpaqueSort(data_decl.name.clone())))?;
+            writeln!(file, "{}", self.import(&LeanFile::Struct(data_decl.name.clone())))?;
         }
 
         for (_, opaque_fun) in &self.fun_deps.opaque_funs {
