@@ -113,45 +113,50 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let project_name = snake_case_to_pascal_case(&self.project);
         match file {
             LeanFile::Basic => {
-                vec![project_name.clone(), "Basic".to_string()]
+                vec![project_name.clone(), "Basic".into()]
             }
             LeanFile::Fluxlib => {
-                vec![project_name, "Fluxlib".to_string()]
+                vec![project_name, "Fluxlib".into()]
             }
             LeanFile::OpaqueSort(sort) => {
                 let name = self.datasort_name(sort);
-                vec![project_name, "OpaqueStruct".to_string(), name]
+                vec![project_name, "User".into(), "Struct".into(), name]
             }
             LeanFile::Struct(sort) => {
                 let name = self.datasort_name(sort);
-                vec![project_name, "Struct".to_string(), name]
+                vec![project_name, "Flux".into(), "Struct".into(), name]
             }
             LeanFile::OpaqueFun(name) => {
                 let name = self.var_name(name);
-                vec![project_name, "OpaqueFun".to_string(), name]
+                vec![project_name, "User".into(), "Fun".into(), name]
             }
             LeanFile::Fun(name) => {
                 let name = self.var_name(name);
-                vec![project_name, "Fun".to_string(), name]
+                vec![project_name, "Flux".into(), "Fun".into(), name]
             }
             LeanFile::VC => {
                 let name = self.vc_name();
-                vec![project_name, "VC".to_string(), name]
+                vec![project_name, "Flux".into(), "VC".into(), name]
             }
             LeanFile::Proof => {
                 let name = format!("{}Proof", self.vc_name());
-                vec![project_name, "Proof".to_string(), name]
+                vec![project_name, "User".into(), "Proof".into(), name]
             }
         }
     }
 
     fn import(&self, file: &LeanFile) -> String {
-        format!("import {}\n", self.segments(file).join("."))
+        format!("import {}", self.segments(file).join("."))
+    }
+
+    /// Project path
+    fn project(&self) -> PathBuf {
+        self.base.join(&self.project)
     }
 
     /// All paths should be generated here
     fn path(&self, file: &LeanFile) -> PathBuf {
-        let mut path = self.base.join(&self.project);
+        let mut path = self.project();
         for segment in self.segments(file) {
             path = path.join(segment);
         }
@@ -226,7 +231,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
-        let path = self.base.join(&self.project);
+        let path = self.project();
         if !path.exists() {
             Command::new("lake")
                 .arg("new")
@@ -554,23 +559,16 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn check_proof_help(&self, theorem_name: &str) -> io::Result<()> {
-        let proof_name = format!("{theorem_name}_proof");
-        let project_path = self.base.join(&self.project);
-        let proof_path = format!(
-            "{}/{}.lean",
-            snake_case_to_pascal_case(&self.project),
-            snake_case_to_pascal_case(&proof_name)
-        );
-        let child = Command::new("lake")
+    fn run_lean(&self) -> io::Result<()> {
+        let out = Command::new("lake")
             .arg("--quiet")
             .arg("lean")
-            .arg(proof_path)
+            .arg(self.path(&LeanFile::Proof))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .current_dir(project_path.as_path())
-            .spawn()?;
-        let out = child.wait_with_output()?;
+            .current_dir(self.project())
+            .spawn()?
+            .wait_with_output()?;
         if out.stderr.is_empty() && out.stdout.is_empty() {
             Ok(())
         } else {
@@ -581,14 +579,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     pub fn check_proof(&self, def_id: MaybeExternId) -> QueryResult<()> {
-        let theorem_name = self
-            .genv
-            .tcx()
-            .def_path(def_id.resolved_id())
-            .to_filename_friendly_no_crate()
-            .replace("-", "_");
-        self.check_proof_help(&theorem_name).map_err(|_| {
-            let msg = format!("checking proof for {theorem_name} failed");
+        self.run_lean().map_err(|_| {
+            let msg = format!("failed to check external proof for {def_id:?}");
             let span = self.genv.tcx().def_span(def_id.resolved_id());
             QueryErr::Emitted(
                 self.genv
