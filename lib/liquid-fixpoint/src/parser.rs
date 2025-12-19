@@ -1,11 +1,10 @@
 use std::fmt;
 
-use indexmap::IndexSet;
+use indexmap::IndexMap;
 use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
-    constraint::BoundVar,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -28,6 +27,7 @@ impl Identifier for String {
 }
 
 pub trait FromSexp<T: Types> {
+    fn fresh_var(&mut self) -> T::Var;
     // These are the only methods required to implement FromSexp
     fn var(&self, name: &str) -> Result<T::Var, ParseError>;
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
@@ -44,10 +44,10 @@ pub trait FromSexp<T: Types> {
 pub struct FromSexpWrapper<T: Types, Parser> {
     pub parser: Parser,
     pub _phantom: std::marker::PhantomData<T>,
-    scopes: Vec<IndexSet<String>>,
+    scopes: Vec<IndexMap<String, T::Var>>,
 }
 
-type KvarSolution<T> = (Vec<Sort<T>>, Expr<T>);
+type KvarSolution<T> = (Vec<(<T as Types>::Var, Sort<T>)>, Expr<T>);
 
 impl<T, Parser: FromSexp<T>> FromSexpWrapper<T, Parser>
 where
@@ -361,12 +361,11 @@ where
         }
         self.push_scope(&names);
         let body = self.parse_expr_possibly_nested(body)?;
-        self.pop_scope();
-        let names: Vec<_> = names
-            .iter()
-            .map(|name| self.parser.var(name))
-            .collect::<Result<_, _>>()?;
-        let bound = names.into_iter().zip(sorts).collect();
+        let mut scope = self.pop_scope().unwrap();
+        let bound =
+            names.iter().zip(sorts).map(|(name, sort)| {
+                (scope.swap_remove(name).unwrap(), sort)
+            }).collect();
         Ok(Expr::Exists(bound, Box::new(body)))
     }
 
@@ -490,31 +489,37 @@ where
                     return Err(ParseError::err("expected parameter names to be symbols"));
                 }
             }
-            let sorts = sorts
+            let sorts: Vec<_> = sorts
                 .into_iter()
                 .map(|sexp| self.parse_sort(sexp))
                 .try_collect()?;
             self.push_scope(&kvar_args);
 
             let expr = self.parse_expr(body)?;
-            Ok((sorts, expr))
+
+            let mut scope = self.pop_scope().unwrap();
+            let bound =
+                kvar_args.iter().zip(sorts).map(|(name, sort)| {
+                    (scope.swap_remove(name).unwrap(), sort)
+                }).collect();
+            Ok((bound, expr))
         } else {
             Err(ParseError::err("expected (lambda (params) body)"))
         }
     }
 
     fn push_scope(&mut self, names: &[String]) {
-        self.scopes.push(names.iter().cloned().collect());
+        self.scopes.push(names.iter().cloned().map(|name| (name, self.parser.fresh_var())).collect());
     }
 
-    fn pop_scope(&mut self) {
-        self.scopes.pop();
+    fn pop_scope(&mut self) -> Option<IndexMap<String, T::Var>> {
+        self.scopes.pop()
     }
 
     fn parse_bound_var(&self, name: &str) -> Option<Expr<T>> {
-        for (level, scope) in self.scopes.iter().rev().enumerate() {
-            if let Some(idx) = scope.get_index_of(name) {
-                return Some(Expr::BoundVar(BoundVar { level, idx }));
+        for (_, scope) in self.scopes.iter().rev().enumerate() {
+            if let Some(var) = scope.get(name) {
+                return Some(Expr::Var(var.clone()))
             }
         }
         None
@@ -661,6 +666,10 @@ impl Types for StringTypes {
 }
 
 impl FromSexp<StringTypes> for StringTypes {
+
+    fn fresh_var(&mut self) -> <StringTypes as Types>::Var {
+        todo!()
+    }
     fn var(&self, name: &str) -> Result<String, ParseError> {
         Ok(name.to_string())
     }
