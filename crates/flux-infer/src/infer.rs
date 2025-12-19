@@ -211,9 +211,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.simplify(self.genv);
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
-        println!("TRACE: execute_lean_query (0): {def_id:?}");
         let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        println!("TRACE: execute_lean_query (1): {def_id:?}");
         fcx.generate_and_check_lean_lemmas(cstr)
     }
 

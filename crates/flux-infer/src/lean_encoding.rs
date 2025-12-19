@@ -159,7 +159,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> Self {
-        println!("TRACE: encoder-new {def_id:?} => {fun_deps:?} and {sort_deps:?}");
         let base = genv
             .tcx()
             .sess
@@ -352,8 +351,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         for dep_id in local_deps(&info.body) {
             res.push(self.fun_file(&dep_id.to_def_id()));
         }
-
-        println!("TRACE: fun_def_deps {did:?} => {res:?}");
         res
     }
 
@@ -515,7 +512,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
         if let Some(span) = self.genv.proven_externally(self.def_id.local_id()) {
             let dst_span = SpanTrace::from_path(&path, 3, 5, proof_name.len());
-            println!("TRACE: hyperlinking proof {proof_name} to {span:?}");
             dbg::hyperlink_json!(self.genv.tcx(), span, dst_span);
         }
 

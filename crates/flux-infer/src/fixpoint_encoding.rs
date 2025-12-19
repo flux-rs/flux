@@ -1979,7 +1979,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         def_id: FluxDefId,
         scx: &mut SortEncodingCtxt,
     ) -> fixpoint::Var {
-        println!("TRACE: defining uif for {:?}", def_id);
         let key = ConstKey::Uif(def_id);
         self.const_env
             .get_or_insert(key, |global_name| {
@@ -2115,9 +2114,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
 
         // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
         let mut idx = 0;
-        println!("TRACE: define_funs (0): {def_id:?}");
         while let Some((&did, _)) = self.const_env.fun_def_map.get_index(idx) {
-            println!("TRACE: define_funs (1): {def_id:?} => {did:?}");
             idx += 1;
 
             let info = self.genv.normalized_info(did);
