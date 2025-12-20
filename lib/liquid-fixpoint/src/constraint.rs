@@ -189,7 +189,7 @@ impl<T: Types> FlatConstraint<T> {
         };
         let assumption = self.assumptions.remove(i);
         match assumption {
-            Pred::Expr(Expr::Exists(_, e)) => {
+            Pred::Expr(e@Expr::Exists(_, _)) => {
                 let (new_vars, hoisted_e) = e.hoist_exists(fresh_var);
                 self.binders.extend(new_vars);
                 self.add_assumption(Pred::Expr(hoisted_e));
