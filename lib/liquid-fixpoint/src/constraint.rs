@@ -80,7 +80,7 @@ impl<T: Types> Constraint<T> {
                 let mut flat_constrs = constr.flatten();
                 for constr in &mut flat_constrs {
                     constr.binders.push((bind.name.clone(), bind.sort.clone()));
-                    constr.assumptions.extend(bind.pred.as_conjunction())
+                    constr.add_assumption(bind.pred.clone());
                 }
                 flat_constrs
             }
@@ -144,6 +144,66 @@ impl<T: Types> FlatConstraint<T> {
             }, Box::new(constr));
         }
         constr
+    }
+
+    pub fn add_assumption(&mut self, assumption: Pred<T>) {
+        match assumption {
+            Pred::And(conjs) => {
+                self.assumptions.extend(conjs);
+            }
+            a@Pred::KVar(_, _) => {
+                self.assumptions.push(a);
+            }
+            Pred::Expr(e) => {
+                self.assumptions.extend(e.as_conjunction().into_iter().map(|e| Pred::Expr(e)))
+            }
+        }
+    }
+
+    /// Based on the property that
+    ///
+    /// ```
+    /// (p || q) => c
+    /// ==
+    /// (p => c) && (q => c)
+    /// ```
+    ///
+    /// We transform one FlatConstraint into many, effectively eliminating all
+    /// disjuncts in the assumptions.
+    ///
+    /// We assume that there are not `Pred::And(_)` in the assumptions (i.e.
+    /// that each conjunct is a separate assumption).
+    ///
+    /// This also hoists any exists in the assumptions.
+    pub fn split_disjuncts<F>(mut self, fresh_var: &mut F) -> Vec<FlatConstraint<T>>
+        where F: FnMut() -> T::Var
+    {
+        let Some(i) = self.assumptions
+                    .iter()
+                    .position(|assumption|
+                              matches!(assumption,
+                                       Pred::Expr(Expr::Exists(_, _)
+                                                  | Expr::Or(_))))
+                else {
+                    return vec![self];
+        };
+        let assumption = self.assumptions.remove(i);
+        match assumption {
+            Pred::Expr(Expr::Exists(_, e)) => {
+                let (new_vars, hoisted_e) = e.hoist_exists(fresh_var);
+                self.binders.extend(new_vars);
+                self.add_assumption(Pred::Expr(hoisted_e));
+                self.split_disjuncts(fresh_var)
+            }
+            Pred::Expr(Expr::Or(disjuncts)) => {
+                disjuncts.into_iter().flat_map(|disjunct| {
+                    let mut split_cstr = self.clone();
+                    split_cstr.add_assumption(Pred::Expr(disjunct));
+                    split_cstr.split_disjuncts(fresh_var)
+                }).collect_vec()
+            }
+            _ => unreachable!(),
+        }
     }
 }
 

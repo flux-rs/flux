@@ -747,7 +747,7 @@ where
                                                     let (new_vars, hoisted_disjunct) = disjunct.hoist_exists(&mut fresh_var);
                                                     new_constraint.binders.extend(new_vars);
                                                     let wkvars = hoisted_disjunct.wkvars_in_conj();
-                                                    new_constraint.assumptions.extend(hoisted_disjunct.as_conjunction().into_iter().map(|e| fixpoint::Pred::Expr(e)));
+                                                    new_constraint.add_assumption(fixpoint::Pred::Expr(hoisted_disjunct));
                                                     let mut consts = new_constraint.binders.iter().map(|(var, sort)| {
                                                         fixpoint::ConstDecl {
                                                             name: *var,
