@@ -376,6 +376,7 @@ impl SortEncodingCtxt {
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
+        // todo!("HEREHEREHEREHERE");
         if let Some(idx) = self.adt_sorts.get_index_of(&did) {
             AdtId::from_usize(idx)
         } else {
@@ -707,9 +708,9 @@ where
             self.ecx.errors.to_result()?;
             let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
             let data_decls = self.scx.encode_data_decls(self.genv)?;
-            let sort_deps = SortDeps { opaque_sorts, data_decls };
+            let sort_deps = SortDeps { opaque_sorts, data_decls, adt_map: self.scx.adt_sorts };
 
-            let lean_encoder = LeanEncoder::new(
+            let lean_encoder = LeanEncoder::encode(
                 self.genv,
                 def_id,
                 self.ecx.local_var_env.pretty_var_map,
@@ -717,12 +718,10 @@ where
                 fun_deps,
                 kvar_decls,
                 constraint,
-            );
-            lean_encoder
-                .encode_constraint() // def_id, &uif_consts, &kvar_decls, &constraint)
-                .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
+            )
+            .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
 
-            if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
+            if flux_config::lean().is_check() { lean_encoder.check(def_id) } else { Ok(()) }
         } else {
             Ok(())
         }
@@ -1301,6 +1300,7 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
 pub struct SortDeps {
     pub opaque_sorts: Vec<fixpoint::SortDecl>,
     pub data_decls: Vec<fixpoint::DataDecl>,
+    pub adt_map: FxIndexSet<DefId>,
 }
 
 #[derive(Debug)]
