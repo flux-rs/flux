@@ -238,7 +238,7 @@ impl SolutionTrace {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(PartialEq, Debug, Clone, Default)]
 pub struct Answer<Tag> {
     pub errors: Vec<Tag>,
     pub solution: Solution,
@@ -607,11 +607,7 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = if config::dump_checker_trace_info() {
-            self.parse_kvar_solutions(&result)?
-        } else {
-            HashMap::default()
-        };
+        let solution = self.parse_kvar_solutions(&result)?;
 
         let errors = match result.status {
             FixpointStatus::Safe(_) => vec![],
@@ -873,7 +869,7 @@ where
         bindings: &mut Vec<fixpoint::Bind>,
     ) -> QueryResult<fixpoint::Pred> {
         let decl = self.kvars.get(kvar.kvid);
-        let kvids = self.kcx.declare(kvar.kvid, decl, &self.ecx.backend);
+        let kvids = self.kcx.declare(kvar.kvid, decl);
 
         let all_args = iter::zip(&kvar.args, &decl.sorts)
             .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
@@ -939,12 +935,7 @@ struct KVarEncodingCtxt {
 impl KVarEncodingCtxt {
     /// Declares that a kvar has to be encoded into fixpoint and assigns a range of
     /// [`fixpoint::KVid`]'s to it.
-    fn declare(
-        &mut self,
-        kvid: rty::KVid,
-        decl: &KVarDecl,
-        backend: &Backend,
-    ) -> Range<fixpoint::KVid> {
+    fn declare(&mut self, kvid: rty::KVid, decl: &KVarDecl) -> Range<fixpoint::KVid> {
         // The start of the next range
         let start = self
             .ranges
@@ -954,13 +945,12 @@ impl KVarEncodingCtxt {
         self.ranges
             .entry(kvid)
             .or_insert_with(|| {
-                let single_encoding = matches!(decl.encoding, KVarEncoding::Single)
-                    || matches!(backend, Backend::Lean);
-                if single_encoding {
-                    start..start + 1
-                } else {
-                    let n = usize::max(decl.self_args, 1);
-                    start..start + n
+                match decl.encoding {
+                    KVarEncoding::Single => start..start + 1,
+                    KVarEncoding::Conj => {
+                        let n = usize::max(decl.self_args, 1);
+                        start..start + n
+                    }
                 }
             })
             .clone()
@@ -1095,6 +1085,7 @@ impl LocalVarEnv {
     }
 }
 
+#[derive(Clone)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
