@@ -489,7 +489,7 @@ fn flux_metadata_extern_location(tcx: TyCtxt, crate_num: CrateNum) -> Option<Pat
     tcx.used_crate_source(crate_num)
         .rmeta
         .as_ref()
-        .map(|(path, _)| path.with_extension("fluxmeta"))
+        .map(|path| path.with_extension("fluxmeta"))
 }
 
 // Tags for encoding Symbol's
