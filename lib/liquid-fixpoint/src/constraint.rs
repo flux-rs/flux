@@ -1,7 +1,6 @@
 use std::{collections::HashSet, hash::Hash};
 
 use derive_where::derive_where;
-use itertools::Itertools;
 
 use crate::{ThyFunc, Types};
 
