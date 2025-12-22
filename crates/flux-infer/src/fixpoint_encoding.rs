@@ -633,7 +633,7 @@ where
 
     pub(crate) fn kvar_solution_for_lean(
         &mut self,
-        kvid: &rty::KVid,
+        kvid: rty::KVid,
         solution: &rty::Binder<rty::Expr>,
     ) -> QueryResult<(fixpoint::KVid, FixpointSolution)> {
         let expr = self.ecx.body_to_fixpoint(solution, &mut self.scx)?;

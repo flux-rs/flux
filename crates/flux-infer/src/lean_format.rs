@@ -429,9 +429,6 @@ impl LeanFmt for Expr {
                 write!(f, ")")?;
                 Ok(())
             }
-            Expr::BoundVar(_) => {
-                unreachable!("bound vars should only be present in fixpoint output")
-            }
         }
     }
 }

@@ -237,7 +237,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let kvar_sol_funcs: HashMap<_, _> = kvar_solutions
             .iter()
-            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(kvid, sol))
+            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(*kvid, sol))
             .collect::<Result<_, _>>()?;
         fcx.generate_and_check_lean_lemmas(cstr, kvar_sol_funcs)
     }

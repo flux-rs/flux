@@ -5,7 +5,6 @@ use itertools::Itertools;
 use crate::{
     BinOp, BinRel, ConstDecl, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
     FixpointFmt, FunDef, Identifier, KVarDecl, Pred, Qualifier, Sort, SortCtor, Task, Types,
-    constraint::BoundVar,
 };
 
 pub(crate) fn fmt_constraint<T: Types>(
@@ -332,9 +331,6 @@ impl<T: Types> fmt::Display for Expr<T> {
                     sorts.iter().map(|binder| &binder.1).format(" "),
                     body
                 )
-            }
-            Expr::BoundVar(BoundVar { level, idx }) => {
-                write!(f, "bv{level}_{idx}")
             }
         }
     }

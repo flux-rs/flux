@@ -390,13 +390,6 @@ where
                 self.ecx.local_var_env.pop_layer();
                 Ok(rty::Expr::exists(Binder::bind_with_sorts(body, &sorts)))
             }
-            fixpoint::Expr::BoundVar(fixpoint::BoundVar { level, idx }) => {
-                Ok(rty::Expr::bvar(
-                    rty::DebruijnIndex::from_usize(*level),
-                    BoundVar::from_usize(*idx),
-                    rty::BoundReftKind::Anon,
-                ))
-            }
         }
     }
 
