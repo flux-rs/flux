@@ -30,6 +30,7 @@ serde.workspace = true
 serde_json.workspace = true
 toposort-scc.workspace = true
 tracing = "0.1"
+tempfile.workspace = true
 
 [package.metadata.rust-analyzer]
 rustc_private = true

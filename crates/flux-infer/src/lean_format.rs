@@ -119,7 +119,7 @@ impl LeanFmt for DataDecl {
                     )?;
                 }
             } else {
-                bug!("unexpected ctor {ctor:?} in datadecl")
+                bug!("unexpected ctor {ctor:?} in datadecl");
             };
         } else {
             write!(f, "inductive ")?;

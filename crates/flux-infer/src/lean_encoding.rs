@@ -1,9 +1,8 @@
 use std::{
-    fs::{self},
+    fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{Mutex, OnceLock},
 };
 
 use flux_common::dbg::{self, SpanTrace};
@@ -15,24 +14,74 @@ use flux_middle::{
     rty::{PrettyMap, local_deps},
 };
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use crate::{
     fixpoint_encoding::{FunDeps, SortDeps, fixpoint},
     lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
 
-/// Flag to track if LeanEncoder::new has been called before
-static FIRST_INVOCATION: OnceLock<()> = OnceLock::new();
-
-/// Tracks all files created by create_file_with_dirs
-static CREATED_FILES: OnceLock<Mutex<FxHashSet<PathBuf>>> = OnceLock::new();
-
 /// Helper macro to create Vec<String> from string-like values
 macro_rules! string_vec {
     ($($s:expr),* $(,)?) => {
         vec![$($s.to_string()),*]
     };
+}
+
+fn base(genv: GlobalEnv) -> PathBuf {
+    genv.tcx()
+        .sess
+        .opts
+        .working_dir
+        .local_path_if_available()
+        .to_path_buf()
+        .join(config::lean_dir())
+}
+
+fn project() -> String {
+    config::lean_project().to_string()
+}
+
+// Via Gemini: https://gemini.google.com/share/9027e898b136
+/// Renames all files and directories from 'src' to 'dst'
+fn rename_dir_contents(src: &Path, dst: &Path) -> io::Result<()> {
+    // 1. Ensure the destination root exists
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if file_type.is_dir() {
+            // 2. If it's a directory, recurse
+            rename_dir_contents(&src_path, &dst_path)?;
+        } else {
+            // 3. If it's a file, rename (overwrites if exists)
+            // On Windows, this will fail if the target file is "in use"
+            // TODO: how to FORCE overwrite on Windows?
+            fs::rename(&src_path, &dst_path)?;
+        }
+    }
+    Ok(())
+}
+
+pub fn finalize(genv: GlobalEnv) -> io::Result<()> {
+    let project = project();
+    let src = genv.temp_dir().path().join(&project);
+    let dst = base(genv).join(&project);
+    rename_dir_contents(&src, &dst)
+}
+
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+pub enum FileKind {
+    /// Files that are only written by Flux
+    Flux,
+    /// Files that are modified by users
+    User,
 }
 
 /// Different kinds of Lean files
@@ -51,42 +100,50 @@ pub enum LeanFile {
     /// (machine) functions generated from flux definitions
     Fun(fixpoint::Var),
     /// (machine) propositions holding the flux VCs
-    VC,
+    Vc,
     /// (human) interactively written proofs of flux VCs
     Proof,
 }
 
-/// Did we already create this file during this flux session?
-fn was_created_in_session(path: &Path) -> bool {
-    if let Some(created_files) = CREATED_FILES.get() {
-        if let Ok(files) = created_files.lock() {
-            return files.contains(path);
+impl LeanFile {
+    pub fn kind(&self) -> FileKind {
+        match self {
+            LeanFile::Basic
+            | LeanFile::Fluxlib
+            | LeanFile::Vc
+            | LeanFile::Fun(_)
+            | LeanFile::Struct(_) => FileKind::Flux,
+            LeanFile::OpaqueSort(_) | LeanFile::OpaqueFun(_) | LeanFile::Proof => FileKind::User,
         }
     }
-    false
 }
 
+// /// Did we already create this file during this flux session?
+// fn was_created_in_session(path: &Path) -> bool {
+//     if let Some(created_files) = CREATED_FILES.get() {
+//         if let Ok(files) = created_files.lock() {
+//             return files.contains(path);
+//         }
+//     }
+//     false
+// }
+
 /// Create a file at the given path, creating any missing parent directories.
-fn create_file_with_dirs<P: AsRef<Path>>(path: P) -> io::Result<fs::File> {
+fn create_file_with_dirs<P: AsRef<Path>>(path: P) -> io::Result<Option<fs::File>> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-
-    // Record the created file path
-    let created_files = CREATED_FILES.get_or_init(|| Mutex::new(FxHashSet::default()));
-    if let Ok(mut files) = created_files.lock() {
-        files.insert(path.to_path_buf());
+    match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(file) => Ok(Some(file)),
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(None),
+        Err(e) => Err(e),
     }
-
-    fs::File::create(path)
 }
 
 pub struct LeanEncoder<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     def_id: MaybeExternId,
-    base: PathBuf,
-    project: String,
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     sort_deps: SortDeps,
     fun_deps: FunDeps,
@@ -120,7 +177,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn segments(&self, file: &LeanFile) -> Vec<String> {
-        let project_name = snake_case_to_pascal_case(&self.project);
+        let project_name = snake_case_to_pascal_case(&project());
         match file {
             LeanFile::Basic => {
                 string_vec![project_name, "Basic"]
@@ -144,7 +201,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 let name = self.var_name(name);
                 string_vec![project_name, "Flux", "Fun", name]
             }
-            LeanFile::VC => {
+            LeanFile::Vc => {
                 let name = self.vc_name();
                 string_vec![project_name, "Flux", "VC", name]
             }
@@ -160,13 +217,18 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     /// Project path
-    fn project(&self) -> PathBuf {
-        self.base.join(&self.project)
+    fn lake_project_path(&self) -> PathBuf {
+        base(self.genv).join(project())
     }
 
     /// All paths should be generated here
     fn path(&self, file: &LeanFile) -> PathBuf {
-        let mut path = self.project();
+        let base = match file.kind() {
+            FileKind::Flux => self.genv.temp_dir().path(),
+            FileKind::User => &base(self.genv),
+        };
+        let mut path = base.join(project());
+
         for segment in self.segments(file) {
             path = path.join(segment);
         }
@@ -183,20 +245,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> Result<Self, io::Error> {
-        let project = config::lean_project().to_string();
-        let base = genv
-            .tcx()
-            .sess
-            .opts
-            .working_dir
-            .local_path_if_available()
-            .to_path_buf()
-            .join(config::lean_dir());
         let mut encoder = Self {
             genv,
             def_id,
-            base,
-            project,
             pretty_var_map,
             sort_deps,
             fun_deps,
@@ -248,11 +299,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     }
 
     fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
-        let path = self.project();
+        let path = self.lake_project_path();
         if !path.exists() {
             Command::new("lake")
                 .arg("new")
-                .arg(&self.project)
+                .arg(project())
                 .arg("lib")
                 .spawn()
                 .and_then(|mut child| child.wait())
@@ -269,10 +320,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let file = &LeanFile::OpaqueSort(name.clone());
 
         let path = self.path(file);
-        if !path.exists() {
-            let mut file = create_file_with_dirs(path)?;
+        if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             writeln!(file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })?;
+            file.sync_all()?;
         }
         Ok(())
     }
@@ -301,8 +352,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let name = &opaque_fun.name;
         let file = &LeanFile::OpaqueFun(*name);
         let path = self.path(file);
-        if !path.exists() {
-            let mut file = create_file_with_dirs(path)?;
+        if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             for dep in self.opaque_fun_dependencies(opaque_fun) {
                 writeln!(file, "{}", self.import(dep))?;
@@ -312,6 +362,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 "def {} := sorry",
                 WithLeanCtxt { item: opaque_fun, cx: &self.lean_cx() }
             )?;
+            file.sync_all()?;
         }
         Ok(())
     }
@@ -341,8 +392,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let file = &LeanFile::Struct(name.clone());
         let path = self.path(file);
         // No need to regenerate if created in this session; but otherwise regenerate as struct may have changed
-        if !was_created_in_session(&path) {
-            let mut file = create_file_with_dirs(path)?;
+        if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             // import sort dependencies
@@ -351,6 +401,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             }
             // write data decl
             writeln!(file, "{}", WithLeanCtxt { item: data_decl, cx: &self.lean_cx() })?;
+            file.sync_all()?;
         }
         Ok(())
     }
@@ -394,10 +445,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         fun_def: &fixpoint::FunDef,
     ) -> Result<(), io::Error> {
         let name = &fun_def.name;
-        let file = LeanFile::Fun(*name);
-        let path = self.path(&file);
-        if !path.exists() {
-            let mut file = create_file_with_dirs(path)?;
+        let path = self.path(&LeanFile::Fun(*name));
+        if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             // import sort dependencies
@@ -406,58 +455,58 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             }
             // write fun def
             writeln!(file, "{}", WithLeanCtxt { item: fun_def, cx: &self.lean_cx() })?;
+            file.sync_all()?;
         }
         Ok(())
     }
 
     fn generate_lib_if_absent(&self) -> Result<(), io::Error> {
         let path = self.path(&LeanFile::Fluxlib);
-        if !path.exists() {
-            let mut lib_file = create_file_with_dirs(path)?;
-            writeln!(lib_file, "-- FLUX LIBRARY [DO NOT MODIFY] --")?;
+        if let Some(mut file) = create_file_with_dirs(path)? {
+            writeln!(file, "-- FLUX LIBRARY [DO NOT MODIFY] --")?;
             // TODO: Can't we write this from a single `write!` call?
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_shiftLeft {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.shiftLeft x (s.toNat)"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_ushiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.ushiftRight x (s.toNat)"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_sshiftRight {{ n : Nat }} (x s : BitVec n) : BitVec n := BitVec.sshiftRight x (s.toNat)"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_uge {{ n : Nat }} (x y : BitVec n) := (BitVec.ult x y).not"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_sge {{ n : Nat }} (x y : BitVec n) := (BitVec.slt x y).not"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_ugt {{ n : Nat }} (x y : BitVec n) := (BitVec.ule x y).not"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def BitVec_sgt {{ n : Nat }} (x y : BitVec n) := (BitVec.sle x y).not"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def SmtMap (t0 t1 : Type) [Inhabited t0] [BEq t0] [Inhabited t1] : Type := t0 -> t1"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def SmtMap_default {{ t0 t1: Type }} (v : t1) [Inhabited t0] [BEq t0] [Inhabited t1] : SmtMap t0 t1 := fun _ => v"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def SmtMap_store {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) (v : t1) : SmtMap t0 t1 :=\n  fun x => if x == k then v else m x"
             )?;
             writeln!(
-                lib_file,
+                file,
                 "def SmtMap_select {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) := m k"
             )?;
         }
@@ -514,23 +563,27 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         self.generate_vc_prelude()?;
 
         // 2. Create file and add imports
-        let path = self.path(&LeanFile::VC);
-        let mut file = create_file_with_dirs(path)?;
-        self.generate_vc_imports(&mut file)?;
+        let path = self.path(&LeanFile::Vc);
+        if let Some(mut file) = create_file_with_dirs(path)? {
+            self.generate_vc_imports(&mut file)?;
 
-        // 3. Write the VC
-        writeln!(
-            file,
-            "def {} := {}",
-            self.vc_name(),
-            WithLeanCtxt {
-                item: lean_format::LeanKConstraint {
-                    kvars: &self.kvar_decls,
-                    constr: &self.constraint
-                },
-                cx: &self.lean_cx()
-            }
-        )
+            // 3. Write the VC
+            writeln!(
+                file,
+                "def {} := {}",
+                self.vc_name(),
+                WithLeanCtxt {
+                    item: lean_format::LeanKConstraint {
+                        kvars: &self.kvar_decls,
+                        constr: &self.constraint
+                    },
+                    cx: &self.lean_cx()
+                }
+            )?;
+            file.sync_all()?;
+        }
+
+        Ok(())
     }
 
     fn generate_proof_if_absent(&self) -> Result<(), io::Error> {
@@ -543,25 +596,28 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             dbg::hyperlink_json!(self.genv.tcx(), span, dst_span);
         }
 
-        if !path.exists() {
-            let mut file = create_file_with_dirs(path)?;
+        if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
-            writeln!(file, "{}", self.import(&LeanFile::VC))?;
+            writeln!(file, "{}", self.import(&LeanFile::Vc))?;
             writeln!(file, "def {proof_name} : {vc_name} := by")?;
             writeln!(file, "  unfold {vc_name}")?;
             writeln!(file, "  sorry")?;
+            file.sync_all()?;
         }
         Ok(())
     }
 
     fn record_proof(&self) -> Result<(), io::Error> {
         let path = self.path(&LeanFile::Basic);
-        // First invocation: reset VCs
-        if FIRST_INVOCATION.set(()).is_ok() {
-            create_file_with_dirs(&path)?;
-            fs::write(&path, format!("-- Flux VCs [DO NOT MODIFY] --\n\n",))?;
-        }
-        let mut file = fs::OpenOptions::new().append(true).open(path)?;
+
+        let mut file = match create_file_with_dirs(&path)? {
+            Some(mut file) => {
+                // First invocation: reset VCs
+                writeln!(file, "-- Flux Basic Imports [DO NOT MODIFY] --")?;
+                file
+            }
+            None => fs::OpenOptions::new().append(true).open(path)?,
+        };
         writeln!(file, "{}", self.import(&LeanFile::Proof))
     }
 
@@ -572,7 +628,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .arg(self.path(&LeanFile::Proof))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .current_dir(self.project())
+            .current_dir(self.lake_project_path())
             .spawn()?
             .wait_with_output()?;
         if out.stderr.is_empty() && out.stdout.is_empty() {

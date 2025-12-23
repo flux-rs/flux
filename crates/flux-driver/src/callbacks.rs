@@ -3,7 +3,7 @@ use std::path::Path;
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::fixpoint_encoding::FixQueryCache;
+use flux_infer::{fixpoint_encoding::FixQueryCache, lean_encoding};
 use flux_metadata::CStore;
 use flux_middle::{
     Specs,
@@ -74,6 +74,7 @@ impl FluxCallbacks {
             let result = metrics::time_it(TimingKind::Total, || check_crate(genv));
             if result.is_ok() {
                 encode_and_save_metadata(genv);
+                lean_encoding::finalize(genv).unwrap_or(());
             }
         });
         let _ = metrics::print_and_dump_timings(tcx);
