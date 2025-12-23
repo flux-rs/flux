@@ -1838,7 +1838,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let farg = self.expr_to_fixpoint(arg, scx)?;
         // If we're translating to Lean, no need to do any ANF-ing.
-        if matches!(self.backend, Backend::Lean) {
+        if matches!(self.backend, Backend::Lean) || true {
             return Ok(farg);
         }
         // Check if it's a variable after encoding, in case the encoding produced a variable from a
