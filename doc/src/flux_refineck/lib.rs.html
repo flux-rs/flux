@@ -138,7 +138,7 @@
 <a href=#138 id=138 data-nosnippet>138</a>        <span class="kw">if </span>genv.proven_externally(def_id).is_some() {
 <a href=#139 id=139 data-nosnippet>139</a>            <span class="kw">if </span>flux_config::lean().is_emit() {
 <a href=#140 id=140 data-nosnippet>140</a>                infcx_root
-<a href=#141 id=141 data-nosnippet>141</a>                    .execute_lean_query(MaybeExternId::Local(def_id))
+<a href=#141 id=141 data-nosnippet>141</a>                    .execute_lean_query(cache, MaybeExternId::Local(def_id))
 <a href=#142 id=142 data-nosnippet>142</a>                    .emit(<span class="kw-2">&amp;</span>genv)
 <a href=#143 id=143 data-nosnippet>143</a>            } <span class="kw">else </span>{
 <a href=#144 id=144 data-nosnippet>144</a>                <span class="prelude-val">Err</span>(genv

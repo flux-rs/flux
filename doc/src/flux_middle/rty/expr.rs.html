@@ -995,7 +995,7 @@
 <a href=#995 id=995 data-nosnippet>995</a>            <span class="kw-2">*</span>index += <span class="number">1</span>;
 <a href=#996 id=996 data-nosnippet>996</a>            symbol
 <a href=#997 id=997 data-nosnippet>997</a>        } <span class="kw">else </span>{
-<a href=#998 id=998 data-nosnippet>998</a>            <span class="macro">format!</span>(<span class="string">"a₊{}"</span>, var.as_subscript())
+<a href=#998 id=998 data-nosnippet>998</a>            <span class="macro">format!</span>(<span class="string">"a'{}"</span>, var.as_subscript())
 <a href=#999 id=999 data-nosnippet>999</a>        };
 <a href=#1000 id=1000 data-nosnippet>1000</a>        <span class="self">self</span>.map.insert(var, symbol.clone());
 <a href=#1001 id=1001 data-nosnippet>1001</a>        symbol
@@ -1004,7 +1004,7 @@
 <a href=#1004 id=1004 data-nosnippet>1004</a>    <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>PrettyVar&lt;V&gt;) -&gt; String {
 <a href=#1005 id=1005 data-nosnippet>1005</a>        <span class="kw">match </span><span class="self">self</span>.map.get(key) {
 <a href=#1006 id=1006 data-nosnippet>1006</a>            <span class="prelude-val">Some</span>(s) =&gt; s.clone(),
-<a href=#1007 id=1007 data-nosnippet>1007</a>            <span class="prelude-val">None </span>=&gt; <span class="macro">format!</span>(<span class="string">"a₊{}"</span>, key.as_subscript()),
+<a href=#1007 id=1007 data-nosnippet>1007</a>            <span class="prelude-val">None </span>=&gt; <span class="macro">format!</span>(<span class="string">"a'{}"</span>, key.as_subscript()),
 <a href=#1008 id=1008 data-nosnippet>1008</a>        }
 <a href=#1009 id=1009 data-nosnippet>1009</a>    }
 <a href=#1010 id=1010 data-nosnippet>1010</a>}
