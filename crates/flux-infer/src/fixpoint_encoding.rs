@@ -199,6 +199,7 @@ pub mod fixpoint {
 
 /// A type to represent Solutions for KVars
 pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
+pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
 
 /// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
@@ -607,7 +608,9 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = if config::dump_checker_trace_info() {
+        let solution = if config::dump_checker_trace_info()
+            || self.genv.proven_externally(def_id.local_id()).is_some()
+        {
             self.parse_kvar_solutions(&result)?
         } else {
             HashMap::default()
@@ -628,18 +631,24 @@ where
         Ok(Answer { errors, solution })
     }
 
-    fn parse_kvar_solutions(&self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
-        Ok(self.kcx.group_kvar_solution(
-            result
-                .solution
-                .iter()
-                .chain(&result.non_cuts_solution)
-                .map(|b| self.convert_kvar_bind(b))
-                .try_collect_vec()?,
-        ))
+    pub(crate) fn kvar_solution_for_lean(
+        &mut self,
+        kvid: rty::KVid,
+        solution: &rty::Binder<rty::Expr>,
+    ) -> QueryResult<(fixpoint::KVid, FixpointSolution)> {
+        let expr = self.ecx.body_to_fixpoint(solution, &mut self.scx)?;
+        Ok((fixpoint::KVid::from_usize(kvid.as_usize()), expr))
     }
 
-    fn convert_solution(&self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
+    fn parse_kvar_solutions(&mut self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
+        let mut solutions = vec![];
+        for b in result.solution.iter().chain(&result.non_cuts_solution) {
+            solutions.push(self.convert_kvar_bind(b)?);
+        }
+        Ok(self.kcx.group_kvar_solution(solutions))
+    }
+
+    fn convert_solution(&mut self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
         // 1. convert str -> sexp
         let mut sexp_parser = Parser::new(expr);
         let sexp = match sexp_parser.parse() {
@@ -650,27 +659,33 @@ where
         };
 
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
-        let mut sexp_ctx = SexpParseCtxt.into_wrapper();
-        let (sorts, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
+        let mut sexp_ctx = SexpParseCtxt::new(&mut self.ecx.local_var_env).into_wrapper();
+        let (binder, expr) = sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         });
 
-        // 3. convert Expr<fixpoint_encoding::Types> -> Expr<rty::Expr>
-        let sorts = sorts
-            .iter()
-            .map(|s| self.fixpoint_to_sort(s))
-            .try_collect_vec()
-            .unwrap_or_else(|err| {
-                tracked_span_bug!("failed to convert sorts: {err:?}");
-            });
+        let mut vars = vec![];
+        let mut sorts = vec![];
+        for (var, sort) in binder {
+            let fixpoint::Var::Local(local_var) = var else {
+                tracked_span_bug!("encountered non-local variable in binder: {var:?}");
+            };
+            vars.push(local_var);
+            sorts.push(
+                self.fixpoint_to_sort(&sort)
+                    .unwrap_or_else(|_| tracked_span_bug!("failed to parse sort: {sort:?}")),
+            );
+        }
+        self.ecx.local_var_env.push_layer(vars);
         let expr = self
             .fixpoint_to_expr(&expr)
             .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
+        self.ecx.local_var_env.pop_layer();
         Ok(rty::Binder::bind_with_sorts(expr, &sorts))
     }
 
     fn convert_kvar_bind(
-        &self,
+        &mut self,
         b: &liquid_fixpoint::KVarBind,
     ) -> QueryResult<(fixpoint::KVid, rty::Binder<rty::Expr>)> {
         let kvid = parse_kvid(&b.kvar);
@@ -681,6 +696,7 @@ where
     pub fn generate_and_check_lean_lemmas(
         mut self,
         constraint: fixpoint::Constraint,
+        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
@@ -688,7 +704,7 @@ where
 
             let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
             lean_encoder
-                .encode_constraint(def_id, &kvar_decls, &constraint)
+                .encode_constraint(def_id, &kvar_decls, &constraint, kvar_solutions)
                 .map_err(|_| query_bug!("could not encode constraint"))?;
 
             if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
@@ -1081,6 +1097,10 @@ impl LocalVarEnv {
         // FIXME: (ck) what to put in reverse_map here?
     }
 
+    fn push_layer(&mut self, layer: Vec<fixpoint::LocalVar>) {
+        self.layers.push(layer);
+    }
+
     fn pop_layer(&mut self) -> Vec<fixpoint::LocalVar> {
         self.layers.pop().unwrap()
     }
@@ -1095,6 +1115,7 @@ impl LocalVarEnv {
     }
 }
 
+#[derive(Clone)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating
@@ -1499,12 +1520,15 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::GlobalFunc(SpecFuncKind::Def(def_id)) => {
                 fixpoint::Expr::Var(self.declare_fun(*def_id))
             }
+            rty::ExprKind::Exists(expr) => {
+                let expr = self.body_to_fixpoint(expr, scx)?;
+                fixpoint::Expr::Exists(expr.0, Box::new(expr.1))
+            }
             rty::ExprKind::Hole(..)
             | rty::ExprKind::KVar(_)
             | rty::ExprKind::Local(_)
             | rty::ExprKind::PathProj(..)
             | rty::ExprKind::ForAll(_)
-            | rty::ExprKind::Exists(_)
             | rty::ExprKind::InternalFunc(_) => {
                 span_bug!(self.def_span(), "unexpected expr: `{expr:?}`")
             }
@@ -2238,9 +2262,21 @@ fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
     None
 }
 
-struct SexpParseCtxt;
+struct SexpParseCtxt<'a> {
+    local_var_env: &'a mut LocalVarEnv,
+}
 
-impl FromSexp<FixpointTypes> for SexpParseCtxt {
+impl<'a> SexpParseCtxt<'a> {
+    fn new(local_var_env: &'a mut LocalVarEnv) -> Self {
+        Self { local_var_env }
+    }
+}
+
+impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
+    fn fresh_var(&mut self) -> fixpoint::Var {
+        fixpoint::Var::Local(self.local_var_env.fresh_name())
+    }
+
     fn kvar(&self, name: &str) -> Result<fixpoint::KVid, ParseError> {
         bug!("TODO: SexpParse: kvar: {name}")
     }

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     io::{self, Write},
     path::PathBuf,
@@ -15,7 +16,7 @@ use flux_middle::{
 };
 
 use crate::{
-    fixpoint_encoding::fixpoint,
+    fixpoint_encoding::{FixpointSolution, fixpoint},
     lean_format::{self, LeanCtxt, LeanSortVar, WithLeanCtxt},
 };
 
@@ -309,6 +310,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         theorem_name: &str,
         kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
+        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> Result<(), io::Error> {
         let pascal_project_name = Self::snake_case_to_pascal_case(&self.project);
         let theorem_path = self.theorem_path(theorem_name);
@@ -338,9 +340,16 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let cx = LeanCtxt { genv: self.genv, pretty_var_map: &self.pretty_var_map };
         writeln!(
             theorem_file,
-            "def {} := {}",
-            theorem_name.replace(".", "_"),
-            WithLeanCtxt { item: lean_format::LeanKConstraint { kvars, constr: cstr }, cx: &cx }
+            "{}",
+            WithLeanCtxt {
+                item: lean_format::LeanKConstraint {
+                    theorem_name,
+                    kvars,
+                    constr: cstr,
+                    kvar_solutions
+                },
+                cx: &cx
+            }
         )
     }
 
@@ -384,6 +393,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         def_id: MaybeExternId,
         kvars: &[fixpoint::KVarDecl],
         cstr: &fixpoint::Constraint,
+        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_file()?;
@@ -394,7 +404,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .to_filename_friendly_no_crate()
             .replace("-", "_");
 
-        self.generate_theorem_file(&theorem_name, kvars, cstr)?;
+        self.generate_theorem_file(&theorem_name, kvars, cstr, kvar_solutions)?;
 
         self.generate_proof_file_if_not_present(def_id, &theorem_name)
     }

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, iter};
+use std::{cell::RefCell, collections::HashMap, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts, OverflowMode};
@@ -202,7 +202,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
-    pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
+    pub fn execute_lean_query(
+        self,
+        cache: &mut FixQueryCache,
+        def_id: MaybeExternId,
+    ) -> QueryResult<()> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
@@ -210,9 +214,32 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
+        let mut fcx_for_solver =
+            FixpointCtxt::new(self.genv, def_id, kvars.clone(), Backend::Fixpoint);
+        let cstr_for_solver = refine_tree.to_fixpoint(&mut fcx_for_solver)?;
+        let solver = match self.opts.solver {
+            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+        };
+        let kvar_solutions = fcx_for_solver
+            .check(
+                cache,
+                def_id,
+                cstr_for_solver,
+                FixpointQueryKind::Body,
+                self.opts.scrape_quals,
+                solver,
+            )
+            .map(|answer| answer.solution)
+            .unwrap_or_default();
+
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        fcx.generate_and_check_lean_lemmas(cstr)
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
+        let kvar_sol_funcs: HashMap<_, _> = kvar_solutions
+            .iter()
+            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(*kvid, sol))
+            .collect::<Result<_, _>>()?;
+        fcx.generate_and_check_lean_lemmas(cstr, kvar_sol_funcs)
     }
 
     pub fn execute_fixpoint_query(
@@ -242,7 +269,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         }
 
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,

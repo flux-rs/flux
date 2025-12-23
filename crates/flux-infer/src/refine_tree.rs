@@ -66,8 +66,8 @@ impl RefineTree {
         self.root.borrow_mut().simplify_top();
     }
 
-    pub(crate) fn into_fixpoint(
-        self,
+    pub(crate) fn to_fixpoint(
+        &self,
         cx: &mut FixpointCtxt<Tag>,
     ) -> QueryResult<fixpoint::Constraint> {
         Ok(self
