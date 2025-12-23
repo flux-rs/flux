@@ -511,7 +511,6 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
             unreachable!("Should not encounter theory func outside of an application")
         }
         Expr::Exists(..) => todo!("exists not yet implemented"),
-        Expr::BoundVar(_) => unreachable!("Bound vars should only be present in fixpoint's output"),
     }
 }
 

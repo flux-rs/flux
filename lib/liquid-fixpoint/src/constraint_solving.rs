@@ -461,7 +461,7 @@ impl<T: Types> Expr<T> {
                 e1.substitute_in_place(v_from, v_to);
                 e2.substitute_in_place(v_from, v_to);
             }
-            Expr::Constant(_) | Expr::ThyFunc(_) | Expr::BoundVar(_) => {}
+            Expr::Constant(_) | Expr::ThyFunc(_) => {}
             Expr::Exists(..) => {
                 todo!("unexpected! exists")
             }

@@ -138,7 +138,7 @@ pub fn check_fn(
         if genv.proven_externally(def_id).is_some() {
             if flux_config::lean().is_emit() {
                 infcx_root
-                    .execute_lean_query(MaybeExternId::Local(def_id))
+                    .execute_lean_query(cache, MaybeExternId::Local(def_id))
                     .emit(&genv)
             } else {
                 Err(genv
