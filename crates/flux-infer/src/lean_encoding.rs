@@ -610,10 +610,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
-            writeln!(
+            write!(
                 file,
-                "def {} := {}",
-                vc_name,
+                "{}",
                 WithLeanCtxt {
                     item: lean_format::LeanKConstraint {
                         theorem_name: &vc_name,

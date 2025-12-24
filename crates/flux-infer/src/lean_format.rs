@@ -559,11 +559,12 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             .collect();
 
         if !self.kvar_solutions.is_empty() {
-            writeln!(f, "namespace KVarSolutions")?;
+            writeln!(f, "namespace KVarSolutions\n")?;
             for kvar_solution in &self.kvar_solutions {
                 kvar_solution.lean_fmt(f, cx)?;
             }
-            writeln!(f, "end KVarSolutions")?;
+            writeln!(f, "\nend KVarSolutions\n\n")?;
+            writeln!(f, "open KVarSolutions\n\n")?;
         }
 
         write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;
