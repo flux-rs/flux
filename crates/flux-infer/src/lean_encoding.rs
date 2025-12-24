@@ -168,7 +168,7 @@ pub enum LeanFile {
 }
 
 impl LeanFile {
-    pub fn kind(&self) -> FileKind {
+    fn kind(&self) -> FileKind {
         match self {
             LeanFile::Basic
             | LeanFile::Fluxlib
@@ -179,7 +179,7 @@ impl LeanFile {
         }
     }
 
-    pub fn segments(&self, genv: GlobalEnv) -> Vec<String> {
+    fn segments(&self, genv: GlobalEnv) -> Vec<String> {
         let project_name = snake_case_to_pascal_case(&project());
         match self {
             LeanFile::Basic => {
