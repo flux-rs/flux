@@ -552,7 +552,8 @@ impl LeanFmt for (&KVid, &FixpointSolution) {
 
 impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        let kvars: Vec<_> = self
+        // TODO(RJ): what is this filtering about?
+        let _kvars: Vec<_> = self
             .kvars
             .iter()
             .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
@@ -569,7 +570,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
 
         write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;
 
-        if kvars.is_empty() {
+        if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
         } else {
             write!(
