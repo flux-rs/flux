@@ -74,8 +74,8 @@ impl FluxCallbacks {
             let result = metrics::time_it(TimingKind::Total, || check_crate(genv));
             if result.is_ok() {
                 encode_and_save_metadata(genv);
-                lean_encoding::finalize(genv).unwrap_or(());
             }
+            lean_encoding::finalize(genv).unwrap_or(());
         });
         let _ = metrics::print_and_dump_timings(tcx);
         sess.finish_diagnostics();
@@ -90,9 +90,6 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
-        // if config::lean().is_emit() {
-        //     ck.encode_flux_items_in_lean().unwrap_or(());
-        // }
 
         let crate_items = genv.tcx().hir_crate_items(());
 
@@ -104,11 +101,28 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
+        if config::lean().is_emit() {
+            lean_encoding::finalize(genv)
+                .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
+        }
+
+        let lean_result = if config::lean().is_check() {
+            crate_items.definitions().try_for_each_exhaust(|def_id| {
+                if genv.proven_externally(def_id).is_some() {
+                    lean_encoding::check_proof(genv, def_id.to_def_id())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Ok(())
+        };
+
         ck.cache.save().unwrap_or(());
 
         tracing::info!("Callbacks::check_crate");
 
-        result
+        result.and(lean_result)
     })
 }
 

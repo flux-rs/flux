@@ -710,7 +710,7 @@ where
             let data_decls = self.scx.encode_data_decls(self.genv)?;
             let sort_deps = SortDeps { opaque_sorts, data_decls, adt_map: self.scx.adt_sorts };
 
-            let lean_encoder = LeanEncoder::encode(
+            LeanEncoder::encode(
                 self.genv,
                 def_id,
                 self.ecx.local_var_env.pretty_var_map,
@@ -720,8 +720,8 @@ where
                 constraint,
             )
             .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
-
-            if flux_config::lean().is_check() { lean_encoder.check(def_id) } else { Ok(()) }
+            Ok(())
+            // CUT if flux_config::lean().is_check() { lean_encoder.check(def_id) } else { Ok(()) }
         } else {
             Ok(())
         }
