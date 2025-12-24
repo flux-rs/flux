@@ -53,26 +53,36 @@ impl<T: Types> Constraint<T> {
     }
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct DataDecl<T: Types> {
     pub name: T::Sort,
     pub vars: usize,
     pub ctors: Vec<DataCtor<T>>,
 }
 
-#[derive_where(Hash, Clone)]
+impl<T: Types> DataDecl<T> {
+    pub fn deps(&self, acc: &mut Vec<T::Sort>) {
+        for ctor in &self.ctors {
+            for field in &ctor.fields {
+                field.sort.deps(acc);
+            }
+        }
+    }
+}
+
+#[derive_where(Hash, Clone, Debug)]
 pub struct SortDecl<T: Types> {
     pub name: T::Sort,
     pub vars: usize,
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct DataCtor<T: Types> {
     pub name: T::Var,
     pub fields: Vec<DataField<T>>,
 }
 
-#[derive_where(Hash, Clone)]
+#[derive_where(Hash, Clone, Debug)]
 pub struct DataField<T: Types> {
     pub name: T::Var,
     pub sort: Sort<T>,
@@ -93,6 +103,26 @@ pub enum Sort<T: Types> {
 }
 
 impl<T: Types> Sort<T> {
+    pub fn deps(&self, acc: &mut Vec<T::Sort>) {
+        match self {
+            Sort::App(SortCtor::Data(dt_name), args) => {
+                acc.push(dt_name.clone());
+                for arg in args {
+                    arg.deps(acc);
+                }
+            }
+            Sort::Func(input_and_output) => {
+                let [input, output] = &**input_and_output;
+                input.deps(acc);
+                output.deps(acc);
+            }
+            Sort::Abs(_, sort) => {
+                sort.deps(acc);
+            }
+            _ => {}
+        }
+    }
+
     pub fn mk_func<I>(params: usize, inputs: I, output: Sort<T>) -> Sort<T>
     where
         I: IntoIterator<Item = Sort<T>>,
