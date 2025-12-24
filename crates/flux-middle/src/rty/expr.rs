@@ -995,7 +995,7 @@ impl<V: Eq + Hash + Copy + Into<usize>> PrettyMap<V> {
             *index += 1;
             symbol
         } else {
-            format!("a₊{}", var.as_subscript())
+            format!("a'{}", var.as_subscript())
         };
         self.map.insert(var, symbol.clone());
         symbol
@@ -1004,7 +1004,7 @@ impl<V: Eq + Hash + Copy + Into<usize>> PrettyMap<V> {
     pub fn get(&self, key: &PrettyVar<V>) -> String {
         match self.map.get(key) {
             Some(s) => s.clone(),
-            None => format!("a₊{}", key.as_subscript()),
+            None => format!("a'{}", key.as_subscript()),
         }
     }
 }

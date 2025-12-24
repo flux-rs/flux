@@ -1,5 +1,5 @@
 use core::fmt;
-use std::fmt::Write;
+use std::{collections::HashMap, fmt::Write};
 
 use flux_common::{
     bug,
@@ -14,9 +14,12 @@ use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
 use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
-use crate::fixpoint_encoding::fixpoint::{
-    self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
-    Expr, FunDef, KVarDecl, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+use crate::fixpoint_encoding::{
+    FixpointSolution,
+    fixpoint::{
+        self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
+        Expr, FunDef, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+    },
 };
 
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
@@ -41,8 +44,10 @@ pub trait LeanFmt {
 }
 
 pub struct LeanKConstraint<'a> {
+    pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
+    pub kvar_solutions: HashMap<KVid, FixpointSolution>,
 }
 
 // pub struct LeanSortVar<'a>(pub &'a DataSort);
@@ -392,7 +397,7 @@ impl LeanFmt for Expr {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
-                        write!(f, " && ")?;
+                        write!(f, " ∧ ")?;
                     }
                     expr.lean_fmt(f, cx)?;
                 }
@@ -402,7 +407,7 @@ impl LeanFmt for Expr {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
-                        write!(f, " || ")?;
+                        write!(f, " ∨ ")?;
                     }
                     expr.lean_fmt(f, cx)?;
                 }
@@ -460,11 +465,17 @@ impl LeanFmt for Expr {
             Expr::IsCtor(..) => {
                 todo!("not yet implemented: datatypes in lean")
             }
-            Expr::Exists(..) => {
-                todo!("not yet implemented: exists in lean")
-            }
-            Expr::BoundVar(_) => {
-                unreachable!("bound vars should only be present in fixpoint output")
+            Expr::Exists(bind, expr) => {
+                write!(f, "(∃ ")?;
+                for (var, sort) in bind {
+                    write!(f, "(")?;
+                    var.lean_fmt(f, cx)?;
+                    write!(f, " : {})", WithLeanCtxt { item: sort, cx })?;
+                }
+                write!(f, ", ")?;
+                expr.lean_fmt(f, cx)?;
+                write!(f, ")")?;
+                Ok(())
             }
         }
     }
@@ -525,9 +536,37 @@ impl LeanFmt for KVarDecl {
     }
 }
 
+impl LeanFmt for (&KVid, &FixpointSolution) {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        let (kvid, (binder, inner)) = self;
+        write!(f, "def k{} ", kvid.as_usize())?;
+        for (arg, sort) in binder {
+            write!(f, "(")?;
+            arg.lean_fmt(f, cx)?;
+            write!(f, " : {}) ", WithLeanCtxt { item: sort, cx })?;
+        }
+        writeln!(f, ": Prop :=")?;
+        write!(f, "  ")?;
+        inner.lean_fmt(f, cx)?;
+        Ok(())
+    }
+}
+
 impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        if self.kvars.is_empty() {
+        let kvars: Vec<_> = self
+            .kvars
+            .iter()
+            .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
+            .collect();
+
+        for kvar_solution in &self.kvar_solutions {
+            kvar_solution.lean_fmt(f, cx)?;
+        }
+
+        write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;
+
+        if kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
         } else {
             write!(

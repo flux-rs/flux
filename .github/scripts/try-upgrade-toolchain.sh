@@ -26,16 +26,34 @@ echo "Days per iteration: $days_per_iter"
 
 
 curr_toolchain=$start_toolchain
+prev_toolchain=""
+is_first_commit=true
 while true; do
   curr_toolchain=$(date -I -d "$curr_toolchain + $days_per_iter day")
   if [[ "$curr_toolchain" > "$end_toolchain" ]]; then
     curr_toolchain="$end_toolchain"
   fi
 
-  echo "::group::Upgrade to nightly-$curr_toolchain"
+  echo "::group::Upgrade (nightly-$curr_toolchain)"
+
+  # Install new toolchain and remove previous to save disk space
+  rustup toolchain install "nightly-$curr_toolchain"
+  if [ -n "$prev_toolchain" ]; then
+    rustup toolchain remove "nightly-$prev_toolchain"
+  fi
+
+
+  # Update rust-toolchain.toml and commit changes
   sed -i "s/^channel = \"nightly-[0-9\-]*\"/channel = \"nightly-$curr_toolchain\"/" rust-toolchain.toml
   git add rust-toolchain.toml
-  git commit -m "Upgrade to nightly-$curr_toolchain"
+  if $is_first_commit; then
+    git commit -m "Upgrade to nightly-$curr_toolchain"
+    is_first_commit=false
+  else
+    git commit --amend -m "Upgrade to nightly-$curr_toolchain"
+  fi
+
+  # As a caution run `cargo clean` such that previous toolchain don't cause problems
   cargo clean
   echo "::endgroup::"
 
@@ -58,6 +76,7 @@ while true; do
   cd ../flux
   echo "::endgroup::"
 
+  prev_toolchain="$curr_toolchain"
   if [[ "$curr_toolchain" == "$end_toolchain" ]]; then
     break
   fi

@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
@@ -22,7 +23,7 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{FunDeps, SortDeps, fixpoint},
+    fixpoint_encoding::{FixpointSolution, FunDeps, SortDeps, fixpoint},
     lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
 };
 
@@ -236,6 +237,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
     fun_files: FxHashMap<FluxDefId, LeanFile>,
+    kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
@@ -269,6 +271,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         fun_deps: FunDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
+        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> Result<Self, io::Error> {
         let mut encoder = Self {
             genv,
@@ -280,6 +283,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             constraint,
             fun_files: FxHashMap::default(),
             sort_files: FxHashMap::default(),
+            kvar_solutions,
         };
         encoder.fun_files = encoder.fun_files();
         encoder.sort_files = encoder.sort_files();
@@ -601,15 +605,18 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
 
+            let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
             writeln!(
                 file,
                 "def {} := {}",
-                vc_name(self.genv, def_id),
+                vc_name,
                 WithLeanCtxt {
                     item: lean_format::LeanKConstraint {
+                        theorem_name: &vc_name,
                         kvars: &self.kvar_decls,
-                        constr: &self.constraint
+                        constr: &self.constraint,
+                        kvar_solutions: self.kvar_solutions,
                     },
                     cx: &self.lean_cx()
                 }
@@ -664,9 +671,18 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         fun_deps: FunDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
+        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> Result<Self, io::Error> {
-        let encoder =
-            Self::new(genv, def_id, pretty_var_map, sort_deps, fun_deps, kvar_decls, constraint)?;
+        let encoder = Self::new(
+            genv,
+            def_id,
+            pretty_var_map,
+            sort_deps,
+            fun_deps,
+            kvar_decls,
+            constraint,
+            kvar_solutions,
+        )?;
         encoder.run()?;
         Ok(encoder)
     }
