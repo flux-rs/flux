@@ -670,12 +670,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
-        sort_deps: SortDeps,
-        fun_deps: FunDeps,
+        deps: (SortDeps, FunDeps),
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
         kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> Result<Self, io::Error> {
+        let (sort_deps, fun_deps) = deps;
         let encoder =
             Self::new(genv, def_id, pretty_var_map, sort_deps, fun_deps, kvar_decls, constraint)?;
         encoder.run(kvar_solutions)?;

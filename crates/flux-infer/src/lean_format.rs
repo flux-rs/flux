@@ -50,8 +50,6 @@ pub struct LeanKConstraint<'a> {
     pub kvar_solutions: HashMap<KVid, FixpointSolution>,
 }
 
-// pub struct LeanSortVar<'a>(pub &'a DataSort);
-// struct LeanKVarDecl<'a>(&'a KVarDecl);
 struct LeanThyFunc<'a>(&'a ThyFunc);
 
 impl LeanFmt for SortDecl {
@@ -560,8 +558,12 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
             .collect();
 
-        for kvar_solution in &self.kvar_solutions {
-            kvar_solution.lean_fmt(f, cx)?;
+        if !self.kvar_solutions.is_empty() {
+            writeln!(f, "namespace KVarSolutions")?;
+            for kvar_solution in &self.kvar_solutions {
+                kvar_solution.lean_fmt(f, cx)?;
+            }
+            writeln!(f, "end KVarSolutions")?;
         }
 
         write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;

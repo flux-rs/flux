@@ -726,12 +726,12 @@ where
             let data_decls = self.scx.encode_data_decls(self.genv)?;
             let sort_deps = SortDeps { opaque_sorts, data_decls, adt_map: self.scx.adt_sorts };
 
+            let deps = (sort_deps, fun_deps);
             LeanEncoder::encode(
                 self.genv,
                 def_id,
                 self.ecx.local_var_env.pretty_var_map,
-                sort_deps,
-                fun_deps,
+                deps,
                 kvar_decls,
                 constraint,
                 kvar_solutions,
@@ -1905,7 +1905,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
     ) -> QueryResult<fixpoint::Expr> {
         let farg = self.expr_to_fixpoint(arg, scx)?;
         // If we're translating to Lean, no need to do any ANF-ing.
-        if matches!(self.backend, Backend::Lean) || true {
+        if matches!(self.backend, Backend::Lean) {
             return Ok(farg);
         }
         // Check if it's a variable after encoding, in case the encoding produced a variable from a
