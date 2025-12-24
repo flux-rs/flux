@@ -632,7 +632,9 @@ impl FormatNested for Constraint {
             Constraint::Conj(constraints) => {
                 let n = constraints.len();
                 for (i, constraint) in constraints.iter().enumerate() {
+                    write!(f, "(")?;
                     constraint.fmt_nested(f, lean_cx, fmt_cx)?;
+                    write!(f, ")")?;
                     if i < n - 1 {
                         write!(f, " ∧")?;
                     }
