@@ -30,7 +30,7 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{
-    FixpointResult, FixpointStatus, SmtSolver,
+    FixpointResult, FixpointStatus, KVarBind, SmtSolver,
     parser::{FromSexp, ParseError},
     sexp::Parser,
 };
@@ -229,10 +229,11 @@ impl KvarSolutionTrace {
 }
 
 impl SolutionTrace {
-    pub fn new(genv: GlobalEnv, solution: &Solution) -> Self {
+    pub fn new(genv: GlobalEnv, cut_solution: &Solution, non_cut_solution: &Solution) -> Self {
         let cx = &PrettyCx::default(genv);
-        let res = solution
+        let res = cut_solution
             .iter()
+            .chain(non_cut_solution.iter())
             .map(|(kvid, bind_expr)| KvarSolutionTrace::new(cx, *kvid, bind_expr))
             .collect();
         SolutionTrace(res)
@@ -242,12 +243,13 @@ impl SolutionTrace {
 #[derive(Debug, Clone, Default)]
 pub struct Answer<Tag> {
     pub errors: Vec<Tag>,
-    pub solution: Solution,
+    pub cut_solution: Solution,
+    pub non_cut_solution: Solution,
 }
 
 impl<Tag> Answer<Tag> {
     pub fn trivial() -> Self {
-        Self { errors: Vec::new(), solution: HashMap::new() }
+        Self { errors: Vec::new(), cut_solution: HashMap::new(), non_cut_solution: HashMap::new() }
     }
 }
 
@@ -617,12 +619,12 @@ where
         }
 
         let result = Self::run_task_with_cache(self.genv, task, def_id.resolved_id(), kind, cache);
-        let solution = if config::dump_checker_trace_info()
+        let (cut_solution, non_cut_solution) = if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
         {
-            self.parse_kvar_solutions(&result)?
+            (self.parse_cut_kvar_solutions(&result)?, self.parse_non_cut_kvar_solutions(&result)?)
         } else {
-            HashMap::default()
+            (HashMap::default(), HashMap::default())
         };
 
         let errors = match result.status {
@@ -637,7 +639,7 @@ where
             }
             FixpointStatus::Crash(err) => span_bug!(def_span, "fixpoint crash: {err:?}"),
         };
-        Ok(Answer { errors, solution })
+        Ok(Answer { errors, cut_solution, non_cut_solution })
     }
 
     pub(crate) fn kvar_solution_for_lean(
@@ -649,12 +651,26 @@ where
         Ok((fixpoint::KVid::from_usize(kvid.as_usize()), expr))
     }
 
-    fn parse_kvar_solutions(&mut self, result: &FixpointResult<TagIdx>) -> QueryResult<Solution> {
+    fn parse_kvar_solutions(&mut self, kvar_binds: &[KVarBind]) -> QueryResult<Solution> {
         let mut solutions = vec![];
-        for b in result.solution.iter().chain(&result.non_cuts_solution) {
+        for b in kvar_binds {
             solutions.push(self.convert_kvar_bind(b)?);
         }
         Ok(self.kcx.group_kvar_solution(solutions))
+    }
+
+    fn parse_cut_kvar_solutions(
+        &mut self,
+        result: &FixpointResult<TagIdx>,
+    ) -> QueryResult<Solution> {
+        self.parse_kvar_solutions(&result.solution)
+    }
+
+    fn parse_non_cut_kvar_solutions(
+        &mut self,
+        result: &FixpointResult<TagIdx>,
+    ) -> QueryResult<Solution> {
+        self.parse_kvar_solutions(&result.non_cuts_solution)
     }
 
     fn convert_solution(&mut self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
@@ -705,7 +721,8 @@ where
     pub fn generate_and_check_lean_lemmas(
         mut self,
         constraint: fixpoint::Constraint,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+        cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+        non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
@@ -734,7 +751,7 @@ where
                 deps,
                 kvar_decls,
                 constraint,
-                kvar_solutions,
+                KVarSolutions { cut_solutions, non_cut_solutions },
             )
             .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
             Ok(())
@@ -1315,6 +1332,17 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
+}
+
+pub struct KVarSolutions {
+    pub cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+    pub non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+}
+
+impl KVarSolutions {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.cut_solutions.is_empty() && self.non_cut_solutions.is_empty()
+    }
 }
 
 #[derive(Debug)]

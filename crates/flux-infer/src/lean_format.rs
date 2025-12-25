@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::HashMap, fmt::Write};
+use std::fmt::Write;
 
 use flux_common::{
     bug,
@@ -15,7 +15,7 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
-    FixpointSolution,
+    FixpointSolution, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
         Expr, FunDef, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
@@ -47,7 +47,7 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
-    pub kvar_solutions: HashMap<KVid, FixpointSolution>,
+    pub kvar_solutions: KVarSolutions,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -552,17 +552,21 @@ impl LeanFmt for (&KVid, &FixpointSolution) {
 
 impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        // TODO(RJ): what is this filtering about?
-        let _kvars: Vec<_> = self
-            .kvars
-            .iter()
-            .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
-            .collect();
-
         if !self.kvar_solutions.is_empty() {
             writeln!(f, "namespace KVarSolutions\n")?;
-            for kvar_solution in &self.kvar_solutions {
-                kvar_solution.lean_fmt(f, cx)?;
+
+            if !self.kvar_solutions.cut_solutions.is_empty() {
+                writeln!(f, "-- cyclic (cut) kvars")?;
+                for kvar_solution in &self.kvar_solutions.cut_solutions {
+                    kvar_solution.lean_fmt(f, cx)?;
+                }
+            }
+
+            if !self.kvar_solutions.non_cut_solutions.is_empty() {
+                writeln!(f, "-- acyclic (non-cut) kvars")?;
+                for kvar_solution in &self.kvar_solutions.non_cut_solutions {
+                    kvar_solution.lean_fmt(f, cx)?;
+                }
             }
             writeln!(f, "\nend KVarSolutions\n\n")?;
             writeln!(f, "open KVarSolutions\n\n")?;
