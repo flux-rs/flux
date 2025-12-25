@@ -50,44 +50,6 @@ pub struct LeanKConstraint<'a> {
     pub kvar_solutions: HashMap<KVid, FixpointSolution>,
 }
 
-fn is_non_cut_kvar_help(expr: &fixpoint::Expr) -> bool {
-    match expr {
-        fixpoint::Expr::Exists(..) => true,
-        fixpoint::Expr::Var(_) => false,
-        fixpoint::Expr::Constant(_) => false,
-        fixpoint::Expr::ThyFunc(_) => false,
-        fixpoint::Expr::Not(inner)
-        | fixpoint::Expr::Neg(inner)
-        | fixpoint::Expr::IsCtor(_, inner) => is_non_cut_kvar_help(inner.as_ref()),
-        fixpoint::Expr::Atom(_, inner)
-        | fixpoint::Expr::BinaryOp(_, inner)
-        | fixpoint::Expr::Imp(inner)
-        | fixpoint::Expr::Iff(inner) => {
-            let left = &inner[0];
-            let right = &inner[1];
-            is_non_cut_kvar_help(left) || is_non_cut_kvar_help(right)
-        }
-        fixpoint::Expr::And(inner)
-        | fixpoint::Expr::Or(inner)
-        | fixpoint::Expr::App(_, _, inner) => inner.iter().any(is_non_cut_kvar_help),
-        fixpoint::Expr::IfThenElse(inner) => {
-            let c = &inner[0];
-            let t = &inner[1];
-            let f = &inner[2];
-            is_non_cut_kvar_help(c) || is_non_cut_kvar_help(t) || is_non_cut_kvar_help(f)
-        }
-        fixpoint::Expr::Let(_, inner) => {
-            let expr = &inner[0];
-            let body = &inner[1];
-            is_non_cut_kvar_help(expr) || is_non_cut_kvar_help(body)
-        }
-    }
-}
-
-fn is_non_cut_kvar(fixpoint_solution: &FixpointSolution) -> bool {
-    is_non_cut_kvar_help(&fixpoint_solution.1)
-}
-
 struct LeanThyFunc<'a>(&'a ThyFunc);
 
 impl LeanFmt for SortDecl {
@@ -597,29 +559,10 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
             .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
             .collect();
 
-        let mut cut = vec![];
-        let mut non_cut = vec![];
-        for solution in &self.kvar_solutions {
-            if is_non_cut_kvar(solution.1) {
-                non_cut.push(solution);
-            } else {
-                cut.push(solution);
-            }
-        }
-
         if !self.kvar_solutions.is_empty() {
             writeln!(f, "namespace KVarSolutions\n")?;
-            if !cut.is_empty() {
-                writeln!(f, "-- cyclic (cut) kvars")?;
-                for kvar_solution in cut {
-                    kvar_solution.lean_fmt(f, cx)?;
-                }
-            }
-            if !non_cut.is_empty() {
-                writeln!(f, "-- linear (non-cut) kvars")?;
-                for kvar_solution in non_cut {
-                    kvar_solution.lean_fmt(f, cx)?;
-                }
+            for kvar_solution in &self.kvar_solutions {
+                kvar_solution.lean_fmt(f, cx)?;
             }
             writeln!(f, "\nend KVarSolutions\n\n")?;
             writeln!(f, "open KVarSolutions\n\n")?;
