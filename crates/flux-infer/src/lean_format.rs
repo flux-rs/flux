@@ -1,24 +1,31 @@
 use core::fmt;
 use std::{collections::HashMap, fmt::Write};
 
+use flux_common::{
+    bug,
+    dbg::{self, as_subscript},
+};
 use flux_middle::{
     global_env::GlobalEnv,
     rty::{PrettyMap, PrettyVar},
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
+use rustc_data_structures::fx::FxIndexSet;
+use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
     FixpointSolution,
     fixpoint::{
-        BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
+        Expr, FunDef, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
+    pub adt_map: &'a FxIndexSet<DefId>,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -36,7 +43,6 @@ pub trait LeanFmt {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result;
 }
 
-struct LeanSort<'a>(&'a Sort);
 pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
@@ -44,22 +50,14 @@ pub struct LeanKConstraint<'a> {
     pub kvar_solutions: HashMap<KVid, FixpointSolution>,
 }
 
-pub struct LeanSortVar<'a>(pub &'a DataSort);
-struct LeanKVarDecl<'a>(&'a KVarDecl);
 struct LeanThyFunc<'a>(&'a ThyFunc);
 
-impl LeanFmt for &SortDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
-    }
-}
-
 impl LeanFmt for SortDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, _cx: &LeanCtxt) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        self.name.lean_fmt(f, cx)?;
         write!(
             f,
-            "{} {} : Type",
-            LeanSortVar(&self.name),
+            " {} : Type",
             (0..(self.vars))
                 .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                 .format(" ")
@@ -67,48 +65,35 @@ impl LeanFmt for SortDecl {
     }
 }
 
-impl LeanFmt for &ConstDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
-    }
-}
-
 impl LeanFmt for ConstDecl {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         self.name.lean_fmt(f, cx)?;
-        write!(f, " : {}", LeanSort(&self.sort))
+        write!(f, " : {}", WithLeanCtxt { item: &self.sort, cx })
     }
 }
 
-impl LeanFmt for &DataField {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
-    }
-}
-
+// TODO(lean-localize-imports) this seems wrong, but related to lack of storing `VariantIdx` in the `DataProj`
 impl LeanFmt for DataField {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, _cx: &LeanCtxt) -> fmt::Result {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
             "({} : {})",
             self.name.display().to_string().replace("$", "_"),
-            LeanSort(&self.sort)
+            WithLeanCtxt { item: &self.sort, cx }
         )
     }
 }
 
-impl<'a> fmt::Display for LeanSortVar<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
+impl LeanFmt for DataSort {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
+        match self {
             DataSort::User(def_id) => write!(f, "{}", def_id.name()),
-            _ => write!(f, "{}", self.0.display().to_string().replace("$", "_")),
+            DataSort::Tuple(n) => write!(f, "Tupleₓ{}", dbg::as_subscript(n)),
+            DataSort::Adt(adt_id) => {
+                let def_id = cx.adt_map.get_index(adt_id.as_usize()).unwrap();
+                write!(f, "{}", def_id_to_pascal_case(def_id, &cx.genv.tcx()))
+            }
         }
-    }
-}
-
-impl LeanFmt for &DataDecl {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
     }
 }
 
@@ -116,25 +101,35 @@ impl LeanFmt for DataDecl {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         if self.ctors.len() == 1 {
             writeln!(f, "@[ext]")?;
+            write!(f, "structure ")?;
+            self.name.lean_fmt(f, cx)?;
             writeln!(
                 f,
-                "structure {} {} where",
-                LeanSortVar(&self.name),
+                " {} where",
                 (0..self.vars)
                     .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                     .format(" ")
             )?;
-            writeln!(f, "  {}::", self.ctors[0].name.display().to_string().replace("$", "_"),)?;
-            for field in &self.ctors[0].fields {
-                write!(f, "  ")?;
-                field.lean_fmt(f, cx)?;
-                writeln!(f)?;
-            }
+            writeln!(f, "  {} ::", WithLeanCtxt { item: &self.ctors[0].name, cx })?;
+            let ctor = &self.ctors[0];
+            if let fixpoint::Var::DataCtor(adt_id, _) = &ctor.name {
+                for (idx, field) in ctor.fields.iter().enumerate() {
+                    writeln!(
+                        f,
+                        "    {} : {} ",
+                        WithLeanCtxt { item: LeanField(*adt_id, idx.try_into().unwrap()), cx },
+                        WithLeanCtxt { item: &field.sort, cx }
+                    )?;
+                }
+            } else {
+                bug!("unexpected ctor {ctor:?} in datadecl");
+            };
         } else {
+            write!(f, "inductive ")?;
+            self.name.lean_fmt(f, cx)?;
             writeln!(
                 f,
-                "inductive {} {} where",
-                LeanSortVar(&self.name),
+                " {} where",
                 (0..self.vars)
                     .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                     .format(" ")
@@ -195,9 +190,44 @@ impl<'a> fmt::Display for LeanThyFunc<'a> {
     }
 }
 
-impl LeanFmt for &Var {
+impl<T: LeanFmt> LeanFmt for &T {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         (*self).lean_fmt(f, cx)
+    }
+}
+
+struct LeanAdt(AdtId);
+struct LeanDataProj(AdtId, u32);
+struct LeanField(AdtId, u32);
+
+impl LeanFmt for LeanField {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        let adt_id = self.0;
+        if let Some(def_id) = cx.adt_map.get_index(adt_id.as_usize())
+            && let Ok(adt_sort_def) = cx.genv.adt_sort_def_of(def_id)
+        {
+            write!(f, "{}", adt_sort_def.struct_variant().field_names()[self.1 as usize])
+        } else {
+            write!(f, "fld{}", as_subscript(self.1 as usize))
+        }
+    }
+}
+
+impl LeanFmt for LeanAdt {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        let def_id = cx.adt_map.get_index(self.0.as_usize()).unwrap();
+        write!(f, "{}", def_id_to_pascal_case(def_id, &cx.genv.tcx()))
+    }
+}
+
+impl LeanFmt for LeanDataProj {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        write!(
+            f,
+            "{}.{}",
+            WithLeanCtxt { item: LeanAdt(self.0), cx },
+            WithLeanCtxt { item: LeanField(self.0, self.1), cx }
+        )
     }
 }
 
@@ -217,14 +247,15 @@ impl LeanFmt for Var {
                     write!(f, "{path}_{}", def_id.name())
                 }
             }
-            Var::DataCtor(adt_id, _) | Var::DataProj { adt_id, field: _ } => {
+            Var::DataCtor(adt_id, idx) => {
                 write!(
                     f,
-                    "{}.{}",
-                    LeanSortVar(&DataSort::Adt(*adt_id)),
-                    self.display().to_string().replace("$", "_")
+                    "mk{}{}",
+                    WithLeanCtxt { item: &DataSort::Adt(*adt_id), cx },
+                    as_subscript(idx.as_usize())
                 )
             }
+            Var::DataProj { adt_id, field } => LeanDataProj(*adt_id, *field).lean_fmt(f, cx),
             Var::Local(local_var) => {
                 write!(f, "{}", cx.pretty_var_map.get(&PrettyVar::Local(*local_var)))
             }
@@ -238,32 +269,44 @@ impl LeanFmt for Var {
     }
 }
 
-impl<'a> fmt::Display for LeanSort<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.0 {
+impl LeanFmt for Sort {
+    fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
+        match self {
             Sort::Int => write!(f, "Int"),
-            Sort::Bool => write!(f, "Prop"),
+            Sort::Bool => write!(f, "Bool"),
             Sort::Real => write!(f, "Real"),
             Sort::Str => write!(f, "String"),
             Sort::Func(f_sort) => {
-                write!(f, "({} -> {})", LeanSort(&f_sort[0]), LeanSort(&f_sort[1]))
+                write!(
+                    f,
+                    "({} -> {})",
+                    WithLeanCtxt { item: &f_sort[0], cx },
+                    WithLeanCtxt { item: &f_sort[1], cx }
+                )
             }
             Sort::App(sort_ctor, args) => {
                 match sort_ctor {
                     SortCtor::Data(sort) => {
                         if args.is_empty() {
-                            write!(f, "{}", LeanSortVar(sort))
+                            sort.lean_fmt(f, cx)
                         } else {
                             write!(
                                 f,
                                 "({} {})",
-                                LeanSortVar(sort),
-                                args.iter().map(LeanSort).format(" ")
+                                WithLeanCtxt { item: sort, cx },
+                                args.iter()
+                                    .map(|arg| { WithLeanCtxt { item: arg, cx } })
+                                    .format(" ")
                             )
                         }
                     }
                     SortCtor::Map => {
-                        write!(f, "(SmtMap {} {})", LeanSort(&args[0]), LeanSort(&args[1]))
+                        write!(
+                            f,
+                            "(SmtMap {} {})",
+                            WithLeanCtxt { item: &args[0], cx },
+                            WithLeanCtxt { item: &args[1], cx }
+                        )
                     }
                     _ => todo!(),
                 }
@@ -271,21 +314,24 @@ impl<'a> fmt::Display for LeanSort<'a> {
             Sort::BitVec(bv_size) => {
                 match bv_size.as_ref() {
                     Sort::BvSize(size) => write!(f, "BitVec {}", size),
-                    s => panic!("encountered sort {} where bitvec size was expected", LeanSort(s)),
+                    s => {
+                        panic!(
+                            "encountered sort {} where bitvec size was expected",
+                            WithLeanCtxt { item: s, cx }
+                        )
+                    }
                 }
             }
             Sort::Abs(v, sort) => {
-                write!(f, "{{t{v} : Type}} -> [Inhabited t{v}] -> {}", LeanSort(sort.as_ref()))
+                write!(
+                    f,
+                    "{{t{v} : Type}} -> [Inhabited t{v}] -> {}",
+                    WithLeanCtxt { item: sort.as_ref(), cx }
+                )
             }
             Sort::Var(v) => write!(f, "t{v}"),
             s => todo!("{:?}", s),
         }
-    }
-}
-
-impl LeanFmt for &Expr {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
     }
 }
 
@@ -336,7 +382,7 @@ impl LeanFmt for Expr {
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
                     for (i, s_arg) in sort_args.iter().enumerate() {
-                        write!(f, " (t{i} := {})", LeanSort(s_arg))?;
+                        write!(f, " (t{i} := {})", WithLeanCtxt { item: s_arg, cx })?;
                     }
                 }
                 for arg in args {
@@ -422,7 +468,7 @@ impl LeanFmt for Expr {
                 for (var, sort) in bind {
                     write!(f, "(")?;
                     var.lean_fmt(f, cx)?;
-                    write!(f, " : {})", LeanSort(sort))?;
+                    write!(f, " : {})", WithLeanCtxt { item: sort, cx })?;
                 }
                 write!(f, ", ")?;
                 expr.lean_fmt(f, cx)?;
@@ -430,12 +476,6 @@ impl LeanFmt for Expr {
                 Ok(())
             }
         }
-    }
-}
-
-impl LeanFmt for &FunDef {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
     }
 }
 
@@ -447,18 +487,12 @@ impl LeanFmt for FunDef {
         for (arg, arg_sort) in args {
             write!(f, " (")?;
             arg.lean_fmt(f, cx)?;
-            write!(f, " : {})", LeanSort(arg_sort))?;
+            write!(f, " : {})", WithLeanCtxt { item: arg_sort, cx })?;
         }
-        writeln!(f, " : {} :=", LeanSort(out))?;
+        writeln!(f, " : {} :=", WithLeanCtxt { item: out, cx })?;
         write!(f, "  ")?;
         body.lean_fmt(f, cx)?;
         writeln!(f)
-    }
-}
-
-impl LeanFmt for &Pred {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
     }
 }
 
@@ -488,16 +522,15 @@ impl LeanFmt for Pred {
     }
 }
 
-impl<'a> fmt::Display for LeanKVarDecl<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl LeanFmt for KVarDecl {
+    fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
         let sorts = self
-            .0
             .sorts
             .iter()
             .enumerate()
-            .map(|(i, sort)| format!("(a{i} : {})", LeanSort(sort)))
+            .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
             .format(" -> ");
-        write!(f, "∃ {} : {} -> Prop", self.0.kvid.display().to_string().replace("$", "_"), sorts)
+        write!(f, "∃ {} : {} -> Prop", self.kvid.display().to_string().replace("$", "_"), sorts)
     }
 }
 
@@ -508,7 +541,7 @@ impl LeanFmt for (&KVid, &FixpointSolution) {
         for (arg, sort) in binder {
             write!(f, "(")?;
             arg.lean_fmt(f, cx)?;
-            write!(f, " : {}) ", LeanSort(sort))?;
+            write!(f, " : {}) ", WithLeanCtxt { item: sort, cx })?;
         }
         writeln!(f, ": Prop :=")?;
         write!(f, "  ")?;
@@ -519,30 +552,37 @@ impl LeanFmt for (&KVid, &FixpointSolution) {
 
 impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        let kvars: Vec<_> = self
+        // TODO(RJ): what is this filtering about?
+        let _kvars: Vec<_> = self
             .kvars
             .iter()
             .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
             .collect();
 
-        for kvar_solution in &self.kvar_solutions {
-            kvar_solution.lean_fmt(f, cx)?;
+        if !self.kvar_solutions.is_empty() {
+            writeln!(f, "namespace KVarSolutions\n")?;
+            for kvar_solution in &self.kvar_solutions {
+                kvar_solution.lean_fmt(f, cx)?;
+            }
+            writeln!(f, "\nend KVarSolutions\n\n")?;
+            writeln!(f, "open KVarSolutions\n\n")?;
         }
 
         write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;
 
-        if kvars.is_empty() {
+        if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
         } else {
-            write!(f, "{}, ", self.kvars.iter().map(LeanKVarDecl).format(", "))?;
+            write!(
+                f,
+                "{}, ",
+                self.kvars
+                    .iter()
+                    .map(|kvar| WithLeanCtxt { item: kvar, cx })
+                    .format(", ")
+            )?;
             self.constr.lean_fmt(f, cx)
         }
-    }
-}
-
-impl LeanFmt for &Constraint {
-    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        (*self).lean_fmt(f, cx)
     }
 }
 
@@ -571,7 +611,7 @@ impl FormatNested for Constraint {
                 if !trivial_bind {
                     write!(f, "∀ (")?;
                     bind.name.lean_fmt(f, lean_cx)?;
-                    write!(f, " : {}),", LeanSort(&bind.sort))?;
+                    write!(f, " : {}),", WithLeanCtxt { item: &bind.sort, cx: lean_cx })?;
                     fmt_cx.incr();
                     fmt_cx.newline(f)?;
                 }
@@ -593,7 +633,9 @@ impl FormatNested for Constraint {
             Constraint::Conj(constraints) => {
                 let n = constraints.len();
                 for (i, constraint) in constraints.iter().enumerate() {
+                    write!(f, "(")?;
                     constraint.fmt_nested(f, lean_cx, fmt_cx)?;
+                    write!(f, ")")?;
                     if i < n - 1 {
                         write!(f, " ∧")?;
                     }
@@ -640,4 +682,26 @@ impl ConstraintFormatter {
         }
         Ok(())
     }
+}
+
+pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> String {
+    let snake = tcx
+        .def_path(*def_id)
+        .to_filename_friendly_no_crate()
+        .replace("-", "_");
+    snake_case_to_pascal_case(&snake)
+}
+
+pub fn snake_case_to_pascal_case(snake: &str) -> String {
+    snake
+        .split('_')
+        .filter(|s| !s.is_empty()) // skip empty segments (handles double underscores)
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => first.to_ascii_uppercase().to_string() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<String>()
 }

@@ -556,7 +556,15 @@ where
         }
         let def_span = self.ecx.def_span();
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-        let (define_funs, define_constants) = self.ecx.define_funs(def_id, &mut self.scx)?;
+        let fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+        let define_funs = fun_deps.fun_defs.into_iter().map(|(_, def)| def).collect();
+        let define_constants = fun_deps
+            .opaque_funs
+            .into_iter()
+            .map(|(_, c)| c)
+            .collect_vec();
+
         let qualifiers = self
             .ecx
             .qualifiers_for(def_id.local_id(), &mut self.scx)?
@@ -700,14 +708,35 @@ where
     ) -> QueryResult<()> {
         if let Some(def_id) = self.ecx.def_id {
             let kvar_decls = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
+            let mut fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
+
+            self.ecx
+                .const_env
+                .const_map
+                .into_iter()
+                .for_each(|(key, const_decl)| {
+                    if let ConstKey::Uif(did) = key {
+                        fun_deps.opaque_funs.push((did, const_decl));
+                    }
+                });
+
             self.ecx.errors.to_result()?;
+            let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
+            let data_decls = self.scx.encode_data_decls(self.genv)?;
+            let sort_deps = SortDeps { opaque_sorts, data_decls, adt_map: self.scx.adt_sorts };
 
-            let lean_encoder = LeanEncoder::new(self.genv, self.ecx.local_var_env.pretty_var_map);
-            lean_encoder
-                .encode_constraint(def_id, &kvar_decls, &constraint, kvar_solutions)
-                .map_err(|_| query_bug!("could not encode constraint"))?;
-
-            if flux_config::lean().is_check() { lean_encoder.check_proof(def_id) } else { Ok(()) }
+            let deps = (sort_deps, fun_deps);
+            LeanEncoder::encode(
+                self.genv,
+                def_id,
+                self.ecx.local_var_env.pretty_var_map,
+                deps,
+                kvar_decls,
+                constraint,
+                kvar_solutions,
+            )
+            .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
+            Ok(())
         } else {
             Ok(())
         }
@@ -1285,6 +1314,19 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
     def_id: Option<MaybeExternId>,
     infcx: rustc_infer::infer::InferCtxt<'tcx>,
     backend: Backend,
+}
+
+#[derive(Debug)]
+pub struct SortDeps {
+    pub opaque_sorts: Vec<fixpoint::SortDecl>,
+    pub data_decls: Vec<fixpoint::DataDecl>,
+    pub adt_map: FxIndexSet<DefId>,
+}
+
+#[derive(Debug)]
+pub struct FunDeps {
+    pub opaque_funs: Vec<(FluxDefId, fixpoint::ConstDecl)>,
+    pub fun_defs: Vec<(FluxDefId, fixpoint::FunDef)>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
@@ -2082,7 +2124,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<(Vec<fixpoint::FunDef>, Vec<fixpoint::ConstDecl>)> {
+    ) -> QueryResult<FunDeps> {
         let reveals: UnordSet<FluxDefId> = self
             .genv
             .reveals_for(def_id.local_id())
@@ -2093,8 +2135,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         let mut consts = vec![];
         let mut defs = vec![];
 
-        // We iterate until encoding the body of functions doesn't require any more functions
-        // to be encoded.
+        // Iterate till encoding the body of functions doesn't require any more functions to be encoded.
         let mut idx = 0;
         while let Some((&did, _)) = self.const_env.fun_def_map.get_index(idx) {
             idx += 1;
@@ -2102,20 +2143,20 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             let info = self.genv.normalized_info(did);
             let revealed = reveals.contains(&did);
             if info.hide && !revealed && proven_externally.is_none() {
-                consts.push(self.fun_decl_to_fixpoint(did, scx));
+                consts.push((did, self.fun_decl_to_fixpoint(did, scx)));
             } else {
-                defs.push((info.rank, self.fun_def_to_fixpoint(did, scx)?));
+                defs.push((info.rank, did, self.fun_def_to_fixpoint(did, scx)?));
             };
         }
 
         // we sort by rank so the definitions go out without any forward dependencies.
         let defs = defs
             .into_iter()
-            .sorted_by_key(|(rank, _)| *rank)
-            .map(|(_, def)| def)
+            .sorted_by_key(|(rank, _, _)| *rank)
+            .map(|(_, did, def)| (did, def))
             .collect();
 
-        Ok((defs, consts))
+        Ok(FunDeps { fun_defs: defs, opaque_funs: consts })
     }
 
     pub fn fun_decl_to_fixpoint(

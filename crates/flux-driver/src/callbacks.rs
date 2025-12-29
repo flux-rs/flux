@@ -1,21 +1,17 @@
-use std::{io, path::Path};
+use std::path::Path;
 
 use flux_common::{bug, cache::QueryCache, iter::IterExt, result::ResultExt};
 use flux_config::{self as config};
 use flux_errors::FluxSession;
-use flux_infer::{
-    fixpoint_encoding::{Backend, ExprEncodingCtxt, FixQueryCache, SortEncodingCtxt},
-    lean_encoding::LeanEncoder,
-};
+use flux_infer::{fixpoint_encoding::FixQueryCache, lean_encoding};
 use flux_metadata::CStore;
 use flux_middle::{
     Specs,
     def_id::MaybeExternId,
-    fhir::{self, FluxItem},
+    fhir::{self},
     global_env::GlobalEnv,
     metrics::{self, Metric, TimingKind},
     queries::{Providers, QueryResult},
-    rty::PrettyMap,
 };
 use flux_refineck as refineck;
 use itertools::Itertools;
@@ -79,6 +75,7 @@ impl FluxCallbacks {
             if result.is_ok() {
                 encode_and_save_metadata(genv);
             }
+            lean_encoding::finalize(genv).unwrap_or(());
         });
         let _ = metrics::print_and_dump_timings(tcx);
         sess.finish_diagnostics();
@@ -93,9 +90,6 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
         let _ = genv.normalized_defns(LOCAL_CRATE);
 
         let mut ck = CrateChecker::new(genv);
-        if config::lean().is_emit() {
-            ck.encode_flux_items_in_lean().unwrap_or(());
-        }
 
         let crate_items = genv.tcx().hir_crate_items(());
 
@@ -107,11 +101,28 @@ fn check_crate(genv: GlobalEnv) -> Result<(), ErrorGuaranteed> {
             .definitions()
             .try_for_each_exhaust(|def_id| ck.check_def_catching_bugs(def_id));
 
+        if config::lean().is_emit() {
+            lean_encoding::finalize(genv)
+                .unwrap_or_else(|err| bug!("error running lean-check {err:?}"));
+        }
+
+        let lean_result = if config::lean().is_check() {
+            crate_items.definitions().try_for_each_exhaust(|def_id| {
+                if genv.proven_externally(def_id).is_some() {
+                    lean_encoding::check_proof(genv, def_id.to_def_id())
+                } else {
+                    Ok(())
+                }
+            })
+        } else {
+            Ok(())
+        };
+
         ck.cache.save().unwrap_or(());
 
         tracing::info!("Callbacks::check_crate");
 
-        result
+        result.and(lean_result)
     })
 }
 
@@ -157,47 +168,6 @@ struct CrateChecker<'genv, 'tcx> {
 impl<'genv, 'tcx> CrateChecker<'genv, 'tcx> {
     fn new(genv: GlobalEnv<'genv, 'tcx>) -> Self {
         Self { genv, cache: QueryCache::load() }
-    }
-
-    pub(crate) fn encode_flux_items_in_lean(&self) -> Result<(), io::Error> {
-        let mut ecx = ExprEncodingCtxt::new(self.genv, None, Backend::Lean);
-        let mut scx = SortEncodingCtxt::default();
-        let mut fun_defs = vec![];
-        let mut opaque_fun_defs = vec![];
-        for (def_id, flux_item) in self.genv.fhir_iter_flux_items() {
-            ecx.declare_fun(def_id.to_def_id());
-            match flux_item {
-                FluxItem::Func(spec_func) if spec_func.body.is_some() => {
-                    if spec_func.params == 0 {
-                        fun_defs.push(
-                            ecx.fun_def_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx)
-                                .unwrap(),
-                        );
-                    }
-                }
-                FluxItem::Func(spec_func) => {
-                    opaque_fun_defs
-                        .push(ecx.fun_decl_to_fixpoint(spec_func.def_id.to_def_id(), &mut scx));
-                }
-                FluxItem::SortDecl(sort_decl) => {
-                    scx.declare_opaque_sort(sort_decl.def_id.to_def_id());
-                }
-                _ => {}
-            }
-        }
-        let opaque_sorts = scx.user_sorts_to_fixpoint(self.genv);
-        let adt_defs = scx.encode_data_decls(self.genv).unwrap();
-        if !opaque_sorts.is_empty()
-            || !opaque_fun_defs.is_empty()
-            || !adt_defs.is_empty()
-            || !fun_defs.is_empty()
-        {
-            let encoder = LeanEncoder::new(self.genv, PrettyMap::new());
-            encoder
-                .encode_defs(&opaque_sorts, &opaque_fun_defs, &adt_defs, &fun_defs)
-                .unwrap();
-        }
-        Ok(())
     }
 
     fn matches_def(&self, def_id: MaybeExternId, def: &str) -> bool {
