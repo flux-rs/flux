@@ -377,7 +377,6 @@ impl SortEncodingCtxt {
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
-        // todo!("HEREHEREHEREHERE");
         if let Some(idx) = self.adt_sorts.get_index_of(&did) {
             AdtId::from_usize(idx)
         } else {
