@@ -552,8 +552,10 @@ impl LeanFmt for (&KVid, &FixpointSolution) {
 
 impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        let theorem_name = self.theorem_name.replace(".", "_");
+        let namespace = format!("{}KVarSolutions", snake_case_to_pascal_case(&theorem_name));
         if !self.kvar_solutions.is_empty() {
-            writeln!(f, "namespace KVarSolutions\n")?;
+            writeln!(f, "namespace {namespace}\n")?;
 
             if !self.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;
@@ -568,11 +570,11 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
                     kvar_solution.lean_fmt(f, cx)?;
                 }
             }
-            writeln!(f, "\nend KVarSolutions\n\n")?;
-            writeln!(f, "open KVarSolutions\n\n")?;
+            writeln!(f, "\nend {namespace}\n\n")?;
+            writeln!(f, "open {namespace}\n\n")?;
         }
 
-        write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;
+        write!(f, "\n\ndef {theorem_name} := ")?;
 
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)
