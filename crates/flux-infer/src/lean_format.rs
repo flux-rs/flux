@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{collections::HashMap, fmt::Write};
+use std::fmt::Write;
 
 use flux_common::{
     bug,
@@ -15,17 +15,24 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
-    FixpointSolution,
+    FixpointSolution, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
         Expr, FunDef, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
+#[derive(Debug, Clone, Copy)]
+pub enum BoolMode {
+    Bool,
+    Prop,
+}
+
 pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
+    pub bool_mode: BoolMode,
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -47,7 +54,7 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
-    pub kvar_solutions: HashMap<KVid, FixpointSolution>,
+    pub kvar_solutions: KVarSolutions,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -273,7 +280,12 @@ impl LeanFmt for Sort {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
         match self {
             Sort::Int => write!(f, "Int"),
-            Sort::Bool => write!(f, "Bool"),
+            Sort::Bool => {
+                match cx.bool_mode {
+                    BoolMode::Bool => write!(f, "Bool"),
+                    BoolMode::Prop => write!(f, "Prop"),
+                }
+            }
             Sort::Real => write!(f, "Real"),
             Sort::Str => write!(f, "String"),
             Sort::Func(f_sort) => {
@@ -342,7 +354,12 @@ impl LeanFmt for Expr {
             Expr::Constant(c) => {
                 match c {
                     Constant::Numeral(n) => write!(f, "{n}",),
-                    Constant::Boolean(b) => write!(f, "{}", if *b { "True" } else { "False" }),
+                    Constant::Boolean(b) => {
+                        match cx.bool_mode {
+                            BoolMode::Bool => write!(f, "{}", if *b { "true" } else { "false" }),
+                            BoolMode::Prop => write!(f, "{}", if *b { "True" } else { "False" }),
+                        }
+                    }
                     Constant::String(s) => write!(f, "{}", s.display()),
                     Constant::Real(n) => write!(f, "{n}.0"),
                     Constant::BitVec(bv, size) => write!(f, "{}#{}", bv, size),
@@ -395,7 +412,10 @@ impl LeanFmt for Expr {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
-                        write!(f, " ∧ ")?;
+                        match cx.bool_mode {
+                            BoolMode::Bool => write!(f, " && ")?,
+                            BoolMode::Prop => write!(f, " ∧ ")?,
+                        };
                     }
                     expr.lean_fmt(f, cx)?;
                 }
@@ -405,7 +425,10 @@ impl LeanFmt for Expr {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
-                        write!(f, " ∨ ")?;
+                        match cx.bool_mode {
+                            BoolMode::Bool => write!(f, " || ")?,
+                            BoolMode::Prop => write!(f, " ∨ ")?,
+                        };
                     }
                     expr.lean_fmt(f, cx)?;
                 }
@@ -427,7 +450,11 @@ impl LeanFmt for Expr {
                 write!(f, ")")
             }
             Expr::Not(inner) => {
-                write!(f, "(¬")?;
+                write!(f, "(")?;
+                match cx.bool_mode {
+                    BoolMode::Bool => write!(f, "!")?,
+                    BoolMode::Prop => write!(f, "¬")?,
+                };
                 inner.as_ref().lean_fmt(f, cx)?;
                 write!(f, ")")
             }
@@ -552,23 +579,36 @@ impl LeanFmt for (&KVid, &FixpointSolution) {
 
 impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        // TODO(RJ): what is this filtering about?
-        let _kvars: Vec<_> = self
-            .kvars
-            .iter()
-            .filter(|kvar| !self.kvar_solutions.contains_key(&kvar.kvid))
-            .collect();
-
+        let theorem_name = self.theorem_name.replace(".", "_");
+        let namespace = format!("{}KVarSolutions", snake_case_to_pascal_case(&theorem_name));
         if !self.kvar_solutions.is_empty() {
-            writeln!(f, "namespace KVarSolutions\n")?;
-            for kvar_solution in &self.kvar_solutions {
-                kvar_solution.lean_fmt(f, cx)?;
+            writeln!(f, "namespace {namespace}\n")?;
+
+            let cx = LeanCtxt {
+                genv: cx.genv,
+                pretty_var_map: cx.pretty_var_map,
+                adt_map: cx.adt_map,
+                bool_mode: BoolMode::Prop,
+            };
+
+            if !self.kvar_solutions.cut_solutions.is_empty() {
+                writeln!(f, "-- cyclic (cut) kvars")?;
+                for kvar_solution in &self.kvar_solutions.cut_solutions {
+                    kvar_solution.lean_fmt(f, &cx)?;
+                }
             }
-            writeln!(f, "\nend KVarSolutions\n\n")?;
-            writeln!(f, "open KVarSolutions\n\n")?;
+
+            if !self.kvar_solutions.non_cut_solutions.is_empty() {
+                writeln!(f, "-- acyclic (non-cut) kvars")?;
+                for kvar_solution in &self.kvar_solutions.non_cut_solutions {
+                    kvar_solution.lean_fmt(f, &cx)?;
+                }
+            }
+            writeln!(f, "\nend {namespace}\n\n")?;
+            writeln!(f, "open {namespace}\n\n")?;
         }
 
-        write!(f, "\n\ndef {} := ", self.theorem_name.replace(".", "_"))?;
+        write!(f, "\n\ndef {theorem_name} := ")?;
 
         if self.kvars.is_empty() {
             self.constr.lean_fmt(f, cx)

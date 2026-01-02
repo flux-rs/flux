@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
@@ -23,8 +22,10 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{FixpointSolution, FunDeps, SortDeps, fixpoint},
-    lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
+    fixpoint_encoding::{FunDeps, KVarSolutions, SortDeps, fixpoint},
+    lean_format::{
+        self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
+    },
 };
 
 /// Helper macro to create Vec<String> from string-like values
@@ -245,6 +246,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
+            bool_mode: BoolMode::Bool,
         }
     }
 
@@ -287,10 +289,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(encoder)
     }
 
-    fn run(
-        &self,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-    ) -> Result<(), io::Error> {
+    fn run(&self, kvar_solutions: KVarSolutions) -> Result<(), io::Error> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_if_absent()?;
         self.generate_vc_file(kvar_solutions)?;
@@ -595,10 +594,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_vc_file(
-        &self,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-    ) -> Result<(), io::Error> {
+    fn generate_vc_file(&self, kvar_solutions: KVarSolutions) -> Result<(), io::Error> {
         // 1. Generate imports
         self.generate_vc_prelude()?;
 
@@ -672,7 +668,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         deps: (SortDeps, FunDeps),
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+        kvar_solutions: KVarSolutions,
     ) -> Result<Self, io::Error> {
         let (sort_deps, fun_deps) = deps;
         let encoder =
