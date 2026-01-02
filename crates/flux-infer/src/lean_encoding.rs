@@ -23,7 +23,9 @@ use rustc_span::ErrorGuaranteed;
 
 use crate::{
     fixpoint_encoding::{FunDeps, KVarSolutions, SortDeps, fixpoint},
-    lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
+    lean_format::{
+        self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
+    },
 };
 
 /// Helper macro to create Vec<String> from string-like values
@@ -244,6 +246,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
+            bool_mode: BoolMode::Bool,
         }
     }
 
