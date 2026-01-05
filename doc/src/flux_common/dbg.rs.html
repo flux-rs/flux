@@ -110,10 +110,10 @@
 <a href=#110 id=110 data-nosnippet>110</a>
 <a href=#111 id=111 data-nosnippet>111</a><span class="attr">#[macro_export]
 <a href=#112 id=112 data-nosnippet>112</a></span><span class="macro">macro_rules!</span> _solution {
-<a href=#113 id=113 data-nosnippet>113</a>    (<span class="macro-nonterminal">$genv</span>:expr, <span class="macro-nonterminal">$sol</span>:expr, <span class="macro-nonterminal">$span</span>:expr) =&gt; {{
+<a href=#113 id=113 data-nosnippet>113</a>    (<span class="macro-nonterminal">$genv</span>:expr, <span class="macro-nonterminal">$ans</span>:expr, <span class="macro-nonterminal">$span</span>:expr) =&gt; {{
 <a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">if </span>config::dump_checker_trace_info() {
 <a href=#115 id=115 data-nosnippet>115</a>          <span class="kw">let </span>genv = <span class="macro-nonterminal">$genv</span>;
-<a href=#116 id=116 data-nosnippet>116</a>          <span class="kw">let </span>sol_json = SolutionTrace::new(genv, <span class="macro-nonterminal">$sol</span>);
+<a href=#116 id=116 data-nosnippet>116</a>          <span class="kw">let </span>sol_json = SolutionTrace::new(genv, <span class="macro-nonterminal">$ans</span>);
 <a href=#117 id=117 data-nosnippet>117</a>          <span class="kw">let </span>span_json = SpanTrace::new(genv.tcx(), <span class="macro-nonterminal">$span</span>);
 <a href=#118 id=118 data-nosnippet>118</a>          <span class="macro">tracing::info!</span>(event = <span class="string">"solution"</span>, span = <span class="question-mark">?</span>span_json, solution = <span class="question-mark">?</span>sol_json)
 <a href=#119 id=119 data-nosnippet>119</a>        }

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["def_id_to_pascal_case","snake_case_to_pascal_case"],"struct":["ConstraintFormatter","LeanAdt","LeanCtxt","LeanDataProj","LeanField","LeanKConstraint","LeanThyFunc","WithLeanCtxt"],"trait":["FormatNested","LeanFmt"]};
+window.SIDEBAR_ITEMS = {"enum":["BoolMode"],"fn":["def_id_to_pascal_case","snake_case_to_pascal_case"],"struct":["ConstraintFormatter","LeanAdt","LeanCtxt","LeanDataProj","LeanField","LeanKConstraint","LeanThyFunc","WithLeanCtxt"],"trait":["FormatNested","LeanFmt"]};
