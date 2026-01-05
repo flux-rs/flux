@@ -159,7 +159,7 @@ pub fn check_fn(
             let tcx = genv.tcx();
             let hir_id = tcx.local_def_id_to_hir_id(def_id);
             let body_span = tcx.hir_span_with_body(hir_id);
-            dbg::solution!(genv, &answer.solution, body_span);
+            dbg::solution!(genv, &answer, body_span);
 
             let errors = answer.errors;
             report_fixpoint_errors(genv, def_id, errors)

@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
@@ -23,8 +22,10 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{FixpointSolution, FunDeps, SortDeps, fixpoint},
-    lean_format::{self, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case},
+    fixpoint_encoding::{FunDeps, KVarSolutions, SortDeps, fixpoint},
+    lean_format::{
+        self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
+    },
 };
 
 /// Helper macro to create Vec<String> from string-like values
@@ -245,6 +246,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
+            bool_mode: BoolMode::Bool,
         }
     }
 
@@ -270,7 +272,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         fun_deps: FunDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
-    ) -> Result<Self, io::Error> {
+    ) -> io::Result<Self> {
         let mut encoder = Self {
             genv,
             def_id,
@@ -287,10 +289,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(encoder)
     }
 
-    fn run(
-        &self,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-    ) -> Result<(), io::Error> {
+    fn run(&self, kvar_solutions: KVarSolutions) -> io::Result<()> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_if_absent()?;
         self.generate_vc_file(kvar_solutions)?;
@@ -331,7 +330,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         res
     }
 
-    fn generate_lake_project_if_not_present(&self) -> Result<(), io::Error> {
+    fn generate_lake_project_if_not_present(&self) -> io::Result<()> {
         let path = project_path(self.genv, FileKind::User);
         if !path.exists() {
             Command::new("lake")
@@ -348,7 +347,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn generate_opaque_sort_file_if_not_present(
         &self,
         sort: &fixpoint::SortDecl,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let name = self.datasort_name(&sort.name);
         let file = &LeanFile::OpaqueSort(name);
 
@@ -381,7 +380,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn generate_opaque_fun_file_if_not_present(
         &self,
         opaque_fun: &fixpoint::ConstDecl,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let name = self.var_name(&opaque_fun.name);
         let file = &LeanFile::OpaqueFun(name);
         let path = file.path(self.genv);
@@ -420,7 +419,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     fn generate_struct_file_if_not_present(
         &self,
         data_decl: &fixpoint::DataDecl,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let name = self.datasort_name(&data_decl.name);
         let file = &LeanFile::Struct(name);
         let path = file.path(self.genv);
@@ -476,7 +475,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         &self,
         did: &FluxDefId,
         fun_def: &fixpoint::FunDef,
-    ) -> Result<(), io::Error> {
+    ) -> io::Result<()> {
         let name = self.var_name(&fun_def.name);
         let path = LeanFile::Fun(name).path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
@@ -493,7 +492,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_lib_if_absent(&self) -> Result<(), io::Error> {
+    fn generate_lib_if_absent(&self) -> io::Result<()> {
         let path = LeanFile::Fluxlib.path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "-- FLUX LIBRARY [DO NOT MODIFY] --")?;
@@ -546,7 +545,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_vc_prelude(&self) -> Result<(), io::Error> {
+    fn generate_vc_prelude(&self) -> io::Result<()> {
         // 1. Generate lake project and lib file
         self.generate_lib_if_absent()?;
 
@@ -595,10 +594,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_vc_file(
-        &self,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-    ) -> Result<(), io::Error> {
+    fn generate_vc_file(&self, kvar_solutions: KVarSolutions) -> io::Result<()> {
         // 1. Generate imports
         self.generate_vc_prelude()?;
 
@@ -629,7 +625,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_proof_if_absent(&self) -> Result<(), io::Error> {
+    fn generate_proof_if_absent(&self) -> io::Result<()> {
         let def_id = self.def_id.resolved_id();
         let vc_name = vc_name(self.genv, def_id);
         let proof_name = format!("{vc_name}_proof");
@@ -651,7 +647,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn record_proof(&self) -> Result<(), io::Error> {
+    fn record_proof(&self) -> io::Result<()> {
         let path = LeanFile::Basic.path(self.genv);
 
         let mut file = match create_file_with_dirs(&path)? {
@@ -672,8 +668,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         deps: (SortDeps, FunDeps),
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
-        kvar_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-    ) -> Result<Self, io::Error> {
+        kvar_solutions: KVarSolutions,
+    ) -> io::Result<Self> {
         let (sort_deps, fun_deps) = deps;
         let encoder =
             Self::new(genv, def_id, pretty_var_map, sort_deps, fun_deps, kvar_decls, constraint)?;

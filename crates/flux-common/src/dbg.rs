@@ -110,10 +110,10 @@ pub use crate::_basic_block_start as basic_block_start;
 
 #[macro_export]
 macro_rules! _solution {
-    ($genv:expr, $sol:expr, $span:expr) => {{
+    ($genv:expr, $ans:expr, $span:expr) => {{
         if config::dump_checker_trace_info() {
           let genv = $genv;
-          let sol_json = SolutionTrace::new(genv, $sol);
+          let sol_json = SolutionTrace::new(genv, $ans);
           let span_json = SpanTrace::new(genv.tcx(), $span);
           tracing::info!(event = "solution", span = ?span_json, solution = ?sol_json)
         }
