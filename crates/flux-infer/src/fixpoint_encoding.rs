@@ -229,11 +229,10 @@ impl KvarSolutionTrace {
 }
 
 impl SolutionTrace {
-    pub fn new(genv: GlobalEnv, cut_solution: &Solution, non_cut_solution: &Solution) -> Self {
+    pub fn new<T>(genv: GlobalEnv, ans: &Answer<T>) -> Self {
         let cx = &PrettyCx::default(genv);
-        let res = cut_solution
-            .iter()
-            .chain(non_cut_solution.iter())
+        let res = ans
+            .solutions()
             .map(|(kvid, bind_expr)| KvarSolutionTrace::new(cx, *kvid, bind_expr))
             .collect();
         SolutionTrace(res)
@@ -250,6 +249,10 @@ pub struct Answer<Tag> {
 impl<Tag> Answer<Tag> {
     pub fn trivial() -> Self {
         Self { errors: Vec::new(), cut_solution: HashMap::new(), non_cut_solution: HashMap::new() }
+    }
+
+    pub fn solutions(&self) -> impl Iterator<Item = (&rty::KVid, &rty::Binder<rty::Expr>)> {
+        self.cut_solution.iter().chain(self.non_cut_solution.iter())
     }
 }
 
@@ -379,7 +382,6 @@ impl SortEncodingCtxt {
     }
 
     pub fn declare_adt(&mut self, did: DefId) -> AdtId {
-        // todo!("HEREHEREHEREHERE");
         if let Some(idx) = self.adt_sorts.get_index_of(&did) {
             AdtId::from_usize(idx)
         } else {
@@ -622,7 +624,9 @@ where
         let (cut_solution, non_cut_solution) = if config::dump_checker_trace_info()
             || self.genv.proven_externally(def_id.local_id()).is_some()
         {
-            (self.parse_cut_kvar_solutions(&result)?, self.parse_non_cut_kvar_solutions(&result)?)
+            let cut_solutions = self.parse_kvar_solutions(&result.solution)?;
+            let non_cut_solutions = self.parse_kvar_solutions(&result.non_cuts_solution)?;
+            (cut_solutions, non_cut_solutions)
         } else {
             (HashMap::default(), HashMap::default())
         };
@@ -657,20 +661,6 @@ where
             solutions.push(self.convert_kvar_bind(b)?);
         }
         Ok(self.kcx.group_kvar_solution(solutions))
-    }
-
-    fn parse_cut_kvar_solutions(
-        &mut self,
-        result: &FixpointResult<TagIdx>,
-    ) -> QueryResult<Solution> {
-        self.parse_kvar_solutions(&result.solution)
-    }
-
-    fn parse_non_cut_kvar_solutions(
-        &mut self,
-        result: &FixpointResult<TagIdx>,
-    ) -> QueryResult<Solution> {
-        self.parse_kvar_solutions(&result.non_cuts_solution)
     }
 
     fn convert_solution(&mut self, expr: &str) -> QueryResult<rty::Binder<rty::Expr>> {
