@@ -84,7 +84,7 @@ pub fn finalize(genv: GlobalEnv) -> io::Result<()> {
     let project = project();
     let src = genv.temp_dir().path().join(&project);
     let dst = base(genv).join(&project);
-    rename_dir_contents(&src, &dst)
+    if src.exists() { rename_dir_contents(&src, &dst) } else { Ok(()) }
 }
 
 fn project_path(genv: GlobalEnv, kind: FileKind) -> PathBuf {
