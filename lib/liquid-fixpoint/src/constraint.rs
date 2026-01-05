@@ -160,7 +160,6 @@ pub enum SortCtor<T: Types> {
 #[derive_where(Hash, Clone, Debug)]
 pub enum Pred<T: Types> {
     And(Vec<Self>),
-    /// When translating to `Fixpoint`, the arguments should always be `Expr::Var`.
     KVar(T::KVar, Vec<Expr<T>>),
     Expr(Expr<T>),
 }

@@ -8,7 +8,6 @@ use flux_common::{
     cache::QueryCache,
     dbg,
     index::{IndexGen, IndexVec},
-    iter::IterExt,
     span_bug, tracked_span_bug,
 };
 use flux_config::{self as config};
@@ -920,9 +919,7 @@ where
         let decl = self.kvars.get(kvar.kvid);
         let kvids = self.kcx.declare(kvar.kvid, decl, &self.ecx.backend);
 
-        let all_args = iter::zip(&kvar.args, &decl.sorts)
-            .map(|(arg, sort)| self.ecx.imm(arg, sort, &mut self.scx, bindings))
-            .try_collect_vec()?;
+        let all_args = self.ecx.exprs_to_fixpoint(&kvar.args, &mut self.scx)?;
 
         // Fixpoint doesn't support kvars without arguments, which we do generate sometimes. To get
         // around it, we encode `$k()` as ($k 0), or more precisely `(forall ((x int) (= x 0)) ... ($k x)`
@@ -1893,35 +1890,6 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 })
                 .try_collect()?,
         ))
-    }
-
-    fn imm(
-        &mut self,
-        arg: &rty::Expr,
-        sort: &rty::Sort,
-        scx: &mut SortEncodingCtxt,
-        bindings: &mut Vec<fixpoint::Bind>,
-    ) -> QueryResult<fixpoint::Expr> {
-        let farg = self.expr_to_fixpoint(arg, scx)?;
-        // If we're translating to Lean, no need to do any ANF-ing.
-        if matches!(self.backend, Backend::Lean) {
-            return Ok(farg);
-        }
-        // Check if it's a variable after encoding, in case the encoding produced a variable from a
-        // non-variable.
-        if let fixpoint::Expr::Var(var) = farg {
-            Ok(fixpoint::Expr::Var(var))
-        } else {
-            let fresh = self.local_var_env.fresh_name();
-            self.local_var_env.reverse_map.insert(fresh, arg.clone());
-            let pred = fixpoint::Expr::eq(fixpoint::Expr::Var(fresh.into()), farg);
-            bindings.push(fixpoint::Bind {
-                name: fresh.into(),
-                sort: scx.sort_to_fixpoint(sort),
-                pred: fixpoint::Pred::Expr(pred),
-            });
-            Ok(fixpoint::Expr::Var(fresh.into()))
-        }
     }
 
     /// Declare that the `def_id` of a Flux function definition needs to be encoded and assigns
