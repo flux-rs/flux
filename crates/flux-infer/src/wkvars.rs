@@ -151,7 +151,21 @@ impl WKVarInstantiator<'_> {
 }
 
 pub struct WKVarSubst {
+    /// A map from wkvid to each of the substitutions we made for it
+    /// in whatever we folded over.
+    ///
+    /// In theory there should only ever be one value in this map.
+    pub subst_instantiations: HashMap<rty::WKVid, Vec<rty::Expr>>,
     pub wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>,
+}
+
+impl WKVarSubst {
+    pub fn new(wkvar_instantiations: HashMap<rty::WKVid, rty::Binder<rty::Expr>>) -> Self {
+        WKVarSubst {
+            subst_instantiations: Default::default(),
+            wkvar_instantiations,
+        }
+    }
 }
 
 impl TypeFolder for WKVarSubst {
@@ -163,6 +177,9 @@ impl TypeFolder for WKVarSubst {
                 // The bound expression has bound vars that need to be replaced
                 // by the args given to the wkvar (in order).
                 let instantiated_e = bound_e.replace_bound_refts(&wkvar.args);
+                self.subst_instantiations.entry(*wkvid)
+                    .and_modify(|insts| insts.push(instantiated_e.clone()))
+                    .or_insert_with(|| vec![instantiated_e.clone()]);
                 // NOTE: keeps the original wkvar to allow iterative
                 // substitutions --- it gets turned into TRUE when output
                 // anyway.
@@ -588,7 +605,7 @@ impl WKVarSolutions {
         for (def_id, wkvar_instantiations) in solutions_by_fn {
             let wkvar_fn_name = genv.tcx().def_path_str(def_id);
             let fn_sig = genv.fn_sig(def_id).unwrap();
-            let mut wkvar_subst = WKVarSubst { wkvar_instantiations };
+            let mut wkvar_subst = WKVarSubst::new(wkvar_instantiations);
             let solved_fn_sig = rty::EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
             let fixed_fn_sig_snippet =
                 format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv), &solved_fn_sig));
@@ -697,14 +714,13 @@ impl WKVarSolutions {
         let double_alpha_ids = iproduct!(alphas.clone(), alphas).map(|(a1, a2)| format!("{}{}", a1, a2));
         let mut id_prefix = single_alpha_ids.chain(double_alpha_ids);
         let mut interactions: FxIndexMap<String, UserInteraction> = FxIndexMap::default();
-        let mut wkvar_subst = WKVarSubst {
-            wkvar_instantiations:
-                    self
-                        .solutions
-                        .iter()
-                        .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
-                        .collect()
-        };
+        let mut wkvar_subst = WKVarSubst::new(
+            self
+                .solutions
+                .iter()
+                .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
+                .collect()
+        );
         let fn_pretty_cx = pretty::PrettyCx::default(genv).hide_regions(true);
         for (fn_def_id, kvids) in wkvars_by_fn.iter() {
             if file_read_user_interactions.is_none() {
@@ -883,19 +899,19 @@ pub fn iterative_solve<F>(
         for cstr in &cstrs {
             let mut fcx = FixpointCtxt::new(genv, cstr.def_id, cstr.kvgen.clone());
 
-            let mut wkvar_subst = WKVarSubst {
+            let mut wkvar_subst = WKVarSubst::new(
                 // These solutions correspond to the solutions we got LAST
                 // iteration (emtpy for iteration 1). This is to prevent any
                 // solutions from this iteration affecting the results.
                 //
                 // When we run flux, we don't report only the first failing
                 // constraint, but all of them.
-                wkvar_instantiations: curr_solutions
+                curr_solutions
                     .solutions
                     .iter()
                     .filter_map(|(wkvid, solution)| solution.into_wkvar_subst().map(|subst| (wkvid.clone(), subst)))
                     .collect(),
-            };
+            );
             // if solutions.solutions.len() > 0 {
             //     println!("{:?}", cstr.refine_tree);
             // }

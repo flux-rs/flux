@@ -495,16 +495,23 @@ fn add_fn_fix_diagnostic<'a>(
         .def_ident_span(wkvid.0)
         .unwrap_or_else(|| genv.tcx().def_span(wkvid.0));
     let fn_sig = genv.fn_sig(wkvid.0).unwrap();
-    let mut wkvar_subst = WKVarSubst { wkvar_instantiations: [(wkvid, solution.clone())].into() };
+    let mut wkvar_subst = WKVarSubst::new([(wkvid, solution.clone())].into());
     let solved_fn_sig = EarlyBinder(fn_sig.skip_binder_ref().fold_with(&mut wkvar_subst));
     let fixed_fn_sig_snippet =
         format!("{:?}", pretty::with_cx!(&pretty::PrettyCx::default(genv).hide_regions(true), &solved_fn_sig));
     match genv.resolve_id(wkvid.0) {
         ResolvedDefId::Local(local_id) | ResolvedDefId::ExternSpec(local_id, _) => {
             if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
+                let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
+                assert!(subst_solutions.len() == 1);
+                let fix_type = match wkvid.1.as_u32() {
+                    0 => "precondition",
+                    1 => "postcondition",
+                    _ => unreachable!("invalid wkvid {:?}", wkvid),
+                };
                 diag.span_suggestion(
                     fn_sig.decl.span,
-                    format!("try adding the refinement {:?}", solution),
+                    format!("try adding the {} {:?}", fix_type, subst_solutions[0]),
                     fixed_fn_sig_snippet,
                     Applicability::MaybeIncorrect,
                 );
