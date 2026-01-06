@@ -191,6 +191,12 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
+            ConstrReason::NoPanic(callee) => {
+                genv.sess().emit_err(errors::PanicError {
+                    span,
+                    callee: genv.tcx().def_path_debug_str(callee),
+                })
+            }
         });
     }
 
@@ -328,5 +334,13 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub def_descr: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_panic_error, code = E0999)]
+    pub(super) struct PanicError {
+        #[primary_span]
+        pub(super) span: Span,
+        pub(super) callee: String,
     }
 }

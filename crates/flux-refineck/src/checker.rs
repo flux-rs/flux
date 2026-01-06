@@ -912,7 +912,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         for fn_trait_pred in &fn_clauses {
-            self.check_fn_trait_clause(infcx, &fn_trait_pred, span)?;
+            self.check_fn_trait_clause(infcx, fn_trait_pred, span)?;
         }
 
         // Instantiate function signature and normalize it
@@ -932,26 +932,37 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 && let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
-                for fn_trait_pred in fn_clauses.iter() {
+                for fn_trait_pred in &fn_clauses {
                     let sig = fn_trait_pred.skip_binder_ref().fndef_sig();
-                    if !sig.no_panic() {
-                        // emit error
-                        let callee_name = tcx.def_path_str(callee_def_id);
-                        genv.sess()
-                            .emit_err(errors::PanicError { span, callee: callee_name });
-                    }
-                }
-                // handle closures.
-                let fn_name = tcx.def_path_str(callee_def_id);
-                if fn_name != "std::ops::Fn::call" {
-                    let callee_no_panic = fn_sig.no_panic();
 
-                    if !callee_no_panic {
-                        let callee_name = tcx.def_path_str(callee_def_id);
-                        genv.sess()
-                            .emit_err(errors::PanicError { span, callee: callee_name });
-                    }
+                    infcx.at(span).check_pred(
+                        Expr::implies(
+                            match no_panic {
+                                true => Expr::tt(),
+                                false => Expr::ff(),
+                            },
+                            match sig.no_panic() {
+                                true => Expr::tt(),
+                                false => Expr::ff(),
+                            },
+                        ),
+                        ConstrReason::NoPanic(callee_def_id),
+                    );
                 }
+
+                infcx.at(span).check_pred(
+                    Expr::implies(
+                        match no_panic {
+                            true => Expr::tt(),
+                            false => Expr::ff(),
+                        },
+                        match fn_sig.no_panic() {
+                            true => Expr::tt(),
+                            false => Expr::ff(),
+                        },
+                    ),
+                    ConstrReason::NoPanic(callee_def_id),
+                );
             }
         }
 
@@ -2335,21 +2346,12 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_macros::Diagnostic;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_panic_error, code = E0999)]
-    pub(super) struct PanicError {
-        #[primary_span]
-        pub(super) span: Span,
-        pub(super) callee: String,
-    }
 
     #[derive(Debug)]
     pub struct CheckerError {

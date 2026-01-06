@@ -2530,7 +2530,14 @@ impl CoroutineObligPredicate {
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::bind_with_vars(
-            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output, false),
+            FnSig::new(
+                Safety::Safe,
+                rustc_abi::ExternAbi::RustCall,
+                List::empty(),
+                inputs,
+                output,
+                false,
+            ),
             List::from(vars),
         )
     }
@@ -2779,7 +2786,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
-                    true
+                    true,
                 )
             })
         })
