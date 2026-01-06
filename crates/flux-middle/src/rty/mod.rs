@@ -2551,6 +2551,7 @@ impl CoroutineObligPredicate {
                 inputs,
                 output,
                 false,
+                false,
             ),
             List::from(vars),
         )
