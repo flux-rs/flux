@@ -6,7 +6,12 @@ use flux_infer::{
     infer::{ConstrReason, GlobalEnvExt, Tag},
 };
 use flux_middle::{
-    FixpointQueryKind, def_id::MaybeExternId, fhir, global_env::GlobalEnv, queries::try_query, rty,
+    FixpointQueryKind,
+    def_id::MaybeExternId,
+    fhir,
+    global_env::GlobalEnv,
+    queries::try_query,
+    rty::{self},
 };
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
@@ -70,7 +75,9 @@ fn check_invariant(
             .emit(&genv)?
             .expect("cannot check opaque structs")
             .instantiate_identity()
-            .replace_bound_refts_with(|sort, _, _| rty::Expr::fvar(rcx.define_var(sort)));
+            .replace_bound_refts_with(|sort, _, kind| {
+                rty::Expr::fvar(rcx.define_bound_reft_var(sort, kind))
+            });
 
         for ty in variant_sig.fields() {
             let ty = rcx.unpack(ty);

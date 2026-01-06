@@ -12,7 +12,7 @@ use flux_middle::{
     pretty::{PrettyCx, PrettyNested, format_cx},
     queries::QueryResult,
     rty::{
-        BaseTy, EVid, Expr, ExprKind, KVid, Name, Sort, Ty, TyKind, Var,
+        BaseTy, EVid, Expr, ExprKind, KVid, Name, NameProvenance, PrettyVar, Sort, Ty, TyKind, Var,
         fold::{TypeFoldable, TypeSuperVisitable, TypeVisitable, TypeVisitor},
     },
 };
@@ -66,8 +66,8 @@ impl RefineTree {
         self.root.borrow_mut().simplify_top();
     }
 
-    pub(crate) fn into_fixpoint(
-        self,
+    pub(crate) fn to_fixpoint(
+        &self,
         cx: &mut FixpointCtxt<Tag>,
     ) -> QueryResult<fixpoint::Constraint> {
         Ok(self
@@ -132,9 +132,11 @@ impl Cursor<'_> {
 
     /// Defines a fresh refinement variable with the given `sort` and advance the cursor to the new
     /// node. It returns the freshly generated name for the variable.
-    pub(crate) fn define_var(&mut self, sort: &Sort) -> Name {
+    pub(crate) fn define_var(&mut self, sort: &Sort, provenance: NameProvenance) -> Name {
         let fresh = Name::from_usize(self.ptr.next_name_idx());
-        self.ptr = self.ptr.push_node(NodeKind::ForAll(fresh, sort.clone()));
+        self.ptr = self
+            .ptr
+            .push_node(NodeKind::ForAll(fresh, sort.clone(), provenance));
         fresh
     }
 
@@ -318,7 +320,7 @@ impl NodePtr {
                         params = Some(p.clone());
                         None
                     }
-                    NodeKind::ForAll(_, sort) => Some(sort.clone()),
+                    NodeKind::ForAll(_, sort, _) => Some(sort.clone()),
                     _ => None,
                 }
             })
@@ -341,7 +343,7 @@ impl WeakNodePtr {
 enum NodeKind {
     /// List of const and refinement generics
     Root(Vec<(Var, Sort)>),
-    ForAll(Name, Sort),
+    ForAll(Name, Sort, NameProvenance),
     Assumption(Expr),
     Head(Expr, Tag),
     True,
@@ -451,11 +453,20 @@ impl Node {
 
     fn to_fixpoint(&self, cx: &mut FixpointCtxt<Tag>) -> QueryResult<Option<fixpoint::Constraint>> {
         let cstr = match &self.kind {
-            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc) => {
+            NodeKind::Trace(_) | NodeKind::ForAll(_, Sort::Loc, _) => {
                 children_to_fixpoint(cx, &self.children)?
             }
 
             NodeKind::Root(params) => {
+                // declare pretty-vars for params
+                for (var, sort) in params {
+                    if let Var::EarlyParam(param) = var
+                        && !sort.is_loc()
+                    {
+                        cx.with_early_param(param);
+                    }
+                }
+
                 let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                     return Ok(None);
                 };
@@ -475,8 +486,8 @@ impl Node {
                 }
                 Some(constr)
             }
-            NodeKind::ForAll(name, sort) => {
-                cx.with_name_map(*name, |cx, fresh| -> QueryResult<_> {
+            NodeKind::ForAll(name, sort, provenance) => {
+                cx.with_name_map(*name, *provenance, |cx, fresh| -> QueryResult<_> {
                     let Some(children) = children_to_fixpoint(cx, &self.children)? else {
                         return Ok(None);
                     };
@@ -575,7 +586,7 @@ mod pretty {
     fn bindings_chain(ptr: &NodePtr) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
         fn go(ptr: &NodePtr, mut bindings: Vec<(Name, Sort)>) -> (Vec<(Name, Sort)>, Vec<NodePtr>) {
             let node = ptr.borrow();
-            if let NodeKind::ForAll(name, sort) = &node.kind {
+            if let NodeKind::ForAll(name, sort, _) = &node.kind {
                 bindings.push((*name, sort.clone()));
                 if let [child] = &node.children[..] {
                     go(child, bindings)
@@ -631,7 +642,7 @@ mod pretty {
                     )?;
                     fmt_children(&node.children, cx, f)
                 }
-                NodeKind::ForAll(name, sort) => {
+                NodeKind::ForAll(name, sort, _) => {
                     let (bindings, children) = if cx.bindings_chain {
                         bindings_chain(self)
                     } else {
@@ -707,7 +718,7 @@ mod pretty {
                             elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                         }
                     }
-                    NodeKind::ForAll(name, sort) => {
+                    NodeKind::ForAll(name, sort, _) => {
                         elements.push(format_cx!(cx, "{:?}: {:?}", ^name, sort));
                     }
                     NodeKind::Assumption(pred) => {
@@ -764,20 +775,20 @@ struct RcxBind {
 }
 
 impl RefineCtxtTrace {
-    pub fn new(genv: GlobalEnv, cursor: &Cursor) -> Self {
+    pub fn new(cx: &mut PrettyCx, cursor: &Cursor) -> Self {
         let parents = ParentsIter::new(NodePtr::clone(&cursor.ptr)).collect_vec();
         let mut bindings = vec![];
         let mut exprs = vec![];
-        let cx = &PrettyCx::default(genv).show_kvar_args();
 
         parents.into_iter().rev().for_each(|ptr| {
             let node = ptr.borrow();
             match &node.kind {
-                NodeKind::ForAll(name, sort) => {
-                    let bind = RcxBind {
-                        name: format_cx!(cx, "{:?}", ^name),
-                        sort: format_cx!(cx, "{:?}", sort),
-                    };
+                NodeKind::ForAll(name, sort, provenance) => {
+                    let name = cx
+                        .pretty_var_env
+                        .set(PrettyVar::Local(*name), provenance.opt_symbol());
+                    let sort = format_cx!(cx, "{:?}", sort);
+                    let bind = RcxBind { name, sort };
                     bindings.push(bind);
                 }
                 NodeKind::Assumption(e)
@@ -789,10 +800,14 @@ impl RefineCtxtTrace {
                 }
                 NodeKind::Root(binds) => {
                     for (name, sort) in binds {
-                        let bind = RcxBind {
-                            name: format_cx!(cx, "{:?}", name),
-                            sort: format_cx!(cx, "{:?}", sort),
+                        let name = if let Var::EarlyParam(param) = name {
+                            cx.pretty_var_env
+                                .set(PrettyVar::Param(*param), Some(param.name))
+                        } else {
+                            format_cx!(cx, "{:?}", name)
                         };
+                        let sort = format_cx!(cx, "{:?}", sort);
+                        let bind = RcxBind { name, sort };
                         bindings.push(bind);
                     }
                 }

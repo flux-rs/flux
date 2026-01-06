@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, iter};
+use std::{cell::RefCell, collections::HashMap, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts, OverflowMode};
@@ -10,10 +10,10 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyCtor, TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
+        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
+        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
@@ -25,12 +25,12 @@ use rustc_middle::{
     mir::BasicBlock,
     ty::{TyCtxt, Variance},
 };
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -203,7 +203,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
-    pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
+    pub fn execute_lean_query(
+        self,
+        cache: &mut FixQueryCache,
+        def_id: MaybeExternId,
+    ) -> QueryResult<()> {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
@@ -211,9 +215,36 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        fcx.generate_and_check_lean_lemmas(cstr)
+        let mut fcx_for_solver =
+            FixpointCtxt::new(self.genv, def_id, kvars.clone(), Backend::Fixpoint);
+        let cstr_for_solver = refine_tree.to_fixpoint(&mut fcx_for_solver)?;
+        let solver = match self.opts.solver {
+            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+        };
+        let (cut_solutions, non_cut_solutions) = fcx_for_solver
+            .check(
+                cache,
+                def_id,
+                cstr_for_solver,
+                FixpointQueryKind::Body,
+                self.opts.scrape_quals,
+                solver,
+            )
+            .map(|answer| (answer.cut_solution, answer.non_cut_solution))
+            .unwrap_or_default();
+
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
+        let cut_sol_funcs: HashMap<_, _> = cut_solutions
+            .iter()
+            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(*kvid, sol))
+            .collect::<Result<_, _>>()?;
+        let non_cut_sol_funcs: HashMap<_, _> = non_cut_solutions
+            .iter()
+            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(*kvid, sol))
+            .collect::<Result<_, _>>()?;
+        fcx.generate_and_check_lean_lemmas(cstr, cut_sol_funcs, non_cut_sol_funcs)
     }
 
     pub fn execute_fixpoint_query(
@@ -242,8 +273,8 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
 
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
@@ -449,8 +480,16 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_var(sort)
+    fn define_var(&mut self, sort: &Sort, provenance: NameProvenance) -> Name {
+        self.cursor.define_var(sort, provenance)
+    }
+
+    pub fn define_bound_reft_var(&mut self, sort: &Sort, kind: BoundReftKind) -> Name {
+        self.define_var(sort, NameProvenance::UnfoldBoundReft(kind))
+    }
+
+    pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {
+        self.cursor.define_var(sort, NameProvenance::Unknown)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -465,6 +504,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.hoister(false).hoist(ty)
     }
 
+    pub fn unpack_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
+        let mut hoister = self.hoister(false);
+        hoister.delegate.name = name;
+        hoister.hoist(ty)
+    }
+
     pub fn marker(&self) -> Marker {
         self.cursor.marker()
     }
@@ -473,7 +518,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         &mut self,
         assume_invariants: bool,
     ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, name: None })
+            .transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -489,12 +535,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     assume_invariants: bool,
+    name: Option<Symbol>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
+            let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
+            Expr::fvar(self.infcx.define_bound_reft_var(sort, kind))
+        });
         if self.assume_invariants {
             self.infcx.assume_invariants(&ty);
         }
@@ -1078,7 +1127,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let vars = a
             .vars()
             .iter()
-            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
+            .map(|kind| {
+                let (sort, _, kind) = kind.expect_refine();
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            })
             .collect_vec();
         let body_a = a.apply(&vars);
         let body_b = b.apply(&vars);

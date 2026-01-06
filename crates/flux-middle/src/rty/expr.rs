@@ -1,7 +1,7 @@
-use std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+use std::{fmt, hash::Hash, iter, ops::ControlFlow, sync::OnceLock};
 
 use flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
-use flux_common::bug;
+use flux_common::{bug, dbg::as_subscript};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     ToRustc,
@@ -11,7 +11,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
-use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_data_structures::{fx::FxHashMap, snapshot_map::SnapshotMap};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -942,6 +942,73 @@ newtype_index! {
     pub struct Name {}
 }
 
+#[derive(Copy, Debug, Clone)]
+pub enum NameProvenance {
+    Unknown,
+    UnfoldBoundReft(BoundReftKind),
+}
+
+impl NameProvenance {
+    pub fn opt_symbol(&self) -> Option<Symbol> {
+        match &self {
+            NameProvenance::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
+            _ => None,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum PrettyVar<V> {
+    Local(V),
+    Param(EarlyReftParam),
+}
+
+impl<V: Copy + Into<usize>> PrettyVar<V> {
+    pub fn as_subscript(&self) -> String {
+        let idx = match self {
+            PrettyVar::Local(v) => (*v).into(),
+            PrettyVar::Param(p) => p.index as usize,
+        };
+        as_subscript(idx)
+    }
+}
+
+pub struct PrettyMap<V: Eq + Hash> {
+    map: FxHashMap<PrettyVar<V>, String>,
+    count: FxHashMap<Symbol, usize>,
+}
+
+impl<V: Eq + Hash + Copy + Into<usize>> PrettyMap<V> {
+    pub fn new() -> Self {
+        PrettyMap { map: FxHashMap::default(), count: FxHashMap::default() }
+    }
+
+    pub fn set(&mut self, var: PrettyVar<V>, prefix: Option<Symbol>) -> String {
+        // if already defined, return it
+        if let Some(symbol) = self.map.get(&var) {
+            return symbol.clone();
+        }
+        // else define it, and stash
+        let symbol = if let Some(prefix) = prefix {
+            let index = self.count.entry(prefix).or_insert(0);
+            let symbol = format!("{}{}", prefix, as_subscript(*index));
+            *index += 1;
+            symbol
+        } else {
+            format!("a'{}", var.as_subscript())
+        };
+        self.map.insert(var, symbol.clone());
+        symbol
+    }
+
+    pub fn get(&self, key: &PrettyVar<V>) -> String {
+        match self.map.get(key) {
+            Some(s) => s.clone(),
+            None => format!("a'{}", key.as_subscript()),
+        }
+    }
+}
+
 impl KVar {
     pub fn new(kvid: KVid, self_args: usize, args: Vec<Expr>) -> Self {
         KVar { kvid, self_args, args: List::from_vec(args) }
@@ -1263,6 +1330,7 @@ impl<T: Pretty> Pretty for FieldBind<T> {
 }
 
 pub(crate) mod pretty {
+
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
@@ -1687,7 +1755,7 @@ pub(crate) mod pretty {
             Ok(NestedString { text, children: None, key: None })
         } else if flds.len() == 1 {
             // Single field, inline index
-            text += &format_cx!(cx, "{:?}", flds[0].clone());
+            text += &flds[0].fmt_nested(cx)?.text;
             Ok(NestedString { text, children: None, key: None })
         } else {
             let keys = if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1711,6 +1779,13 @@ pub(crate) mod pretty {
         }
     }
 
+    impl PrettyNested for Name {
+        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            let text = cx.pretty_var_env.get(&PrettyVar::Local(*self));
+            Ok(NestedString { text, key: None, children: None })
+        }
+    }
+
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             let e = if cx.simplify_exprs {
@@ -1719,6 +1794,7 @@ pub(crate) mod pretty {
                 self.clone()
             };
             match e.kind() {
+                ExprKind::Var(Var::Free(name)) => name.fmt_nested(cx),
                 ExprKind::Var(..)
                 | ExprKind::Local(..)
                 | ExprKind::Constant(..)
@@ -1730,7 +1806,7 @@ pub(crate) mod pretty {
                     let kv = format!("{:?}", kvar.kvid);
                     let mut strs = vec![kv];
                     for arg in &kvar.args {
-                        strs.push(debug_nested(cx, arg)?.text);
+                        strs.push(arg.fmt_nested(cx)?.text);
                     }
                     let text = format!("##[{}]##", strs.join("##"));
                     Ok(NestedString { text, children: None, key: None })

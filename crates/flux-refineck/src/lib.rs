@@ -110,9 +110,17 @@ pub fn check_fn(
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;
         let mut closures = UnordMap::default();
+
+        let poly_sig = genv
+            .fn_sig(def_id)
+            .with_span(span)
+            .map_err(|err| err.emit(genv, def_id))?
+            .instantiate_identity();
+        let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =
-            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts)
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts, &poly_sig)
                 .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 2: generate refinement tree constraint
@@ -123,16 +131,19 @@ pub fn check_fn(
             &mut closures,
             shape_result,
             opts,
+            &poly_sig,
         )
         .map_err(|err| err.emit(genv, def_id))?;
 
-        if genv.proven_externally(def_id) {
-            if flux_config::emit_lean_defs() {
+        if genv.proven_externally(def_id).is_some() {
+            if flux_config::lean().is_emit() {
                 infcx_root
-                    .execute_lean_query(MaybeExternId::Local(def_id))
+                    .execute_lean_query(cache, MaybeExternId::Local(def_id))
                     .emit(&genv)
             } else {
-                panic!("emit_lean_defs should be enabled if there are externally proven items");
+                Err(genv
+                    .sess()
+                    .emit_err(errors::MissingLean { span: genv.tcx().def_span(def_id) }))
             }
         } else {
             // PHASE 3: invoke fixpoint on the constraint
@@ -148,7 +159,7 @@ pub fn check_fn(
             let tcx = genv.tcx();
             let hir_id = tcx.local_def_id_to_hir_id(def_id);
             let body_span = tcx.hir_span_with_body(hir_id);
-            dbg::solution!(genv, &answer.solution, body_span);
+            dbg::solution!(genv, &answer, body_span);
 
             let errors = answer.errors;
             report_fixpoint_errors(genv, def_id, errors)
@@ -342,5 +353,12 @@ mod errors {
         #[primary_span]
         pub(super) span: Span,
         pub(super) callee: String,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_missing_lean, code = E0999)]
+    pub struct MissingLean {
+        #[primary_span]
+        pub span: Span,
     }
 }

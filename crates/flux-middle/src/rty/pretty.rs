@@ -282,6 +282,7 @@ impl PrettyNested for IdxFmt {
             ExprKind::Tuple(flds) if flds.is_empty() => {
                 Ok(NestedString { text: String::new(), key: None, children: None })
             }
+            ExprKind::Var(Var::Free(name)) => name.fmt_nested(cx),
             _ => self.0.fmt_nested(cx),
         }
     }
@@ -420,7 +421,7 @@ impl Pretty for Ty {
                 if idx.is_unit() {
                     w!(cx, f, "{:?}", bty)?;
                 } else {
-                    w!(cx, f, "{:?}[{:?}]", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
+                    w!(cx, f, "{:?}{:?}", parens!(bty, !bty.is_atom()), IdxFmt(idx.clone()))?;
                 }
                 Ok(())
             }
@@ -437,7 +438,7 @@ impl Pretty for Ty {
                 if cx.hide_refinements {
                     w!(cx, f, "{:?}", ty)
                 } else {
-                    w!(cx, f, "{{ {:?} | {:?} }}", ty, pred)
+                    w!(cx, f, "{{ {:?} | {:?} }}", ty, IdxFmt(pred.clone()))
                 }
             }
             TyKind::Param(param_ty) => w!(cx, f, "{}", ^param_ty),

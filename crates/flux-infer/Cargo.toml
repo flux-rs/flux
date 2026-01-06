@@ -4,8 +4,6 @@ name = "flux-infer"
 version = "0.1.0"
 
 
-
-
 [dependencies]
 flux-common.workspace = true
 flux-config.workspace = true
@@ -20,6 +18,8 @@ pad-adapter.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rustc-hash.workspace = true
+tempfile.workspace = true
+tracing = "0.1"
 
 [lints]
 workspace = true

@@ -36,6 +36,7 @@ use flux_arc_interner::List;
 use flux_macros::{TypeFoldable, TypeVisitable};
 use itertools::Itertools;
 use rustc_ast::Mutability;
+use rustc_span::Symbol;
 use rustc_type_ir::{BoundVar, INNERMOST};
 
 use super::{
@@ -43,7 +44,7 @@ use super::{
     SubsetTy, Ty, TyCtor, TyKind, TyOrBase,
     fold::{TypeFoldable, TypeFolder, TypeSuperFoldable, TypeVisitable},
 };
-use crate::rty::{ExprKind, HoleKind};
+use crate::rty::{BoundReftKind, ExprKind, HoleKind};
 
 /// The [`Hoister`] struct is responsible for hoisting existentials and predicates out of a type.
 /// It can be configured to stop hoisting at specific type constructors.
@@ -52,7 +53,7 @@ use crate::rty::{ExprKind, HoleKind};
 /// variables bound with a [`Binder`], and for *freeing* variables into the refinement context.
 // Should we use a builder for this?
 pub struct Hoister<D> {
-    delegate: D,
+    pub delegate: D,
     in_boxes: bool,
     in_downcast: bool,
     in_mut_refs: bool,
@@ -226,11 +227,12 @@ impl<D: HoisterDelegate> TypeFolder for Hoister<D> {
 pub struct LocalHoister {
     vars: Vec<BoundVariableKind>,
     preds: Vec<Expr>,
+    pub name: Option<Symbol>,
 }
 
 impl LocalHoister {
     pub fn new(vars: Vec<BoundVariableKind>) -> Self {
-        LocalHoister { vars, preds: vec![] }
+        LocalHoister { vars, preds: vec![], name: None }
     }
 
     pub fn bind<T>(self, f: impl FnOnce(List<BoundVariableKind>, Vec<Expr>) -> T) -> Binder<T> {
@@ -243,6 +245,7 @@ impl HoisterDelegate for &mut LocalHoister {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
         ty_ctor.replace_bound_refts_with(|sort, mode, kind| {
             let idx = self.vars.len();
+            let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
             self.vars
                 .push(BoundVariableKind::Refine(sort.clone(), mode, kind));
             Expr::bvar(INNERMOST, BoundVar::from_usize(idx), kind)
@@ -267,7 +270,9 @@ impl PolyFnSig {
     pub fn hoist_input_binders(&self) -> Self {
         let original_vars = self.vars().to_vec();
         let fn_sig = self.skip_binder_ref();
-        let mut delegate = LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec() };
+
+        let mut delegate =
+            LocalHoister { vars: original_vars, preds: fn_sig.requires().to_vec(), name: None };
         let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
         let inputs = fn_sig
@@ -293,6 +298,7 @@ impl PolyFnSig {
                 inputs.into(),
                 fn_sig.output().clone(),
                 fn_sig.no_panic,
+                fn_sig.lifted,
             )
         })
     }

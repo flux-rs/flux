@@ -16,6 +16,7 @@ use rustc_middle::{
 };
 use rustc_span::Span;
 pub use rustc_span::{Symbol, symbol::Ident};
+use tempfile::TempDir;
 
 use crate::{
     cstore::CrateStoreDyn,
@@ -40,6 +41,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     arena: &'genv fhir::Arena,
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
+    tempdir: TempDir,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -51,7 +53,9 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries: Queries::new(providers) };
+        let tempdir = TempDir::new().unwrap();
+        let queries = Queries::new(providers);
+        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries, tempdir };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -71,6 +75,10 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {
         self.inner.queries.resolve_crate(self)
+    }
+
+    pub fn temp_dir(self) -> &'genv TempDir {
+        &self.inner.tempdir
     }
 
     pub fn desugar(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
@@ -547,7 +555,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether the function is marked with `#[proven_externally]`
-    pub fn proven_externally(self, def_id: LocalDefId) -> bool {
+    pub fn proven_externally(self, def_id: LocalDefId) -> Option<Span> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 

@@ -584,6 +584,8 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -637,6 +639,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "tempfile",
  "toposort-scc",
  "tracing",
 ]

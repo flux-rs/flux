@@ -279,7 +279,8 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub(crate) fn unpack(&mut self, infcx: &mut InferCtxt) {
-        self.bindings.fmap_mut(|ty| infcx.hoister(true).hoist(ty));
+        self.bindings
+            .fmap_mut(|_loc, ty| infcx.hoister(true).hoist(ty));
     }
 
     pub(crate) fn unblock(&mut self, infcx: &mut InferCtxt, place: &Place) {
@@ -323,7 +324,8 @@ impl<'a> TypeEnv<'a> {
         infcx: &mut InferCtxt,
         bound: &Ty,
     ) -> InferResult<Loc> {
-        let loc = Loc::from(infcx.define_var(&Sort::Loc));
+        let name = infcx.define_unknown_var(&Sort::Loc);
+        let loc = Loc::from(name);
         let ty = infcx.unpack(bound);
         self.bindings
             .insert(loc, LocKind::LocalPtr(bound.clone()), ty);
@@ -374,7 +376,8 @@ impl<'a> TypeEnv<'a> {
     }
 
     pub fn fully_resolve_evars(&mut self, infcx: &InferCtxt) {
-        self.bindings.fmap_mut(|ty| infcx.fully_resolve_evars(ty));
+        self.bindings
+            .fmap_mut(|_loc, ty| infcx.fully_resolve_evars(ty));
     }
 
     pub(crate) fn assume_ensures(
@@ -404,7 +407,7 @@ impl<'a> TypeEnv<'a> {
         for constraint in ensures {
             match constraint {
                 Ensures::Type(path, ty) => {
-                    let actual_ty = self.get(path);
+                    let actual_ty = self.get(path).unblocked(); // HACK
                     at.subtyping(&actual_ty, ty, reason)?;
                 }
                 Ensures::Pred(e) => {
@@ -450,7 +453,7 @@ impl BasicBlockEnvShape {
 
     fn new(scope: Scope, env: TypeEnv) -> BasicBlockEnvShape {
         let mut bindings = env.bindings;
-        bindings.fmap_mut(|ty| BasicBlockEnvShape::pack_ty(&scope, ty));
+        bindings.fmap_mut(|_loc, ty| BasicBlockEnvShape::pack_ty(&scope, ty));
         BasicBlockEnvShape { scope, bindings }
     }
 
@@ -739,12 +742,20 @@ impl BasicBlockEnvShape {
         }
     }
 
-    pub fn into_bb_env(self, infcx: &mut InferCtxtRoot) -> BasicBlockEnv {
+    pub fn into_bb_env(self, infcx: &mut InferCtxtRoot, body: &Body) -> BasicBlockEnv {
         let mut delegate = LocalHoister::default();
         let mut hoister = Hoister::with_delegate(&mut delegate).transparent();
 
         let mut bindings = self.bindings;
-        bindings.fmap_mut(|ty| hoister.hoist(ty));
+        bindings.fmap_mut(|loc, ty| {
+            let name = if let Loc::Local(local) = loc {
+                body.local_names.get(local).copied()
+            } else {
+                None
+            };
+            hoister.delegate.name = name;
+            hoister.hoist(ty)
+        });
 
         BasicBlockEnv {
             // We are relying on all the types in `bindings` not having escaping bvars, otherwise
@@ -770,7 +781,7 @@ impl BasicBlockEnvShape {
                         .collect_vec();
                     infcx.fresh_kvar_in_scope(&binders, &self.scope, KVarEncoding::Conj)
                 };
-                bindings.fmap_mut(|binding| binding.replace_holes(&mut kvar_gen));
+                bindings.fmap_mut(|_, binding| binding.replace_holes(&mut kvar_gen));
 
                 BasicBlockEnvData { constrs: constrs.into(), bindings }
             }),
@@ -803,9 +814,9 @@ impl BasicBlockEnv {
         infcx: &mut InferCtxt,
         local_decls: &'a LocalDecls,
     ) -> TypeEnv<'a> {
-        let data = self
-            .data
-            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+        let data = self.data.replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        });
         for constr in &data.constrs {
             infcx.assume_pred(constr);
         }
@@ -930,10 +941,10 @@ impl TypeEnvTrace {
         genv: GlobalEnv,
         local_names: &UnordMap<Local, Symbol>,
         local_decls: &IndexVec<Local, LocalDecl>,
+        cx: PrettyCx,
         env: &TypeEnv,
     ) -> Self {
         let mut bindings = vec![];
-        let cx = PrettyCx::default(genv).hide_regions(true);
         env.bindings
             .iter()
             .filter(|(_, binding)| !binding.ty.is_uninit())

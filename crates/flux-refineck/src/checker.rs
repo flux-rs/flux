@@ -14,6 +14,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    pretty::PrettyCx,
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
@@ -168,6 +169,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
         dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
@@ -188,11 +190,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv
-                .fn_sig(local_id)
-                .with_span(span)?
-                .instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -207,6 +205,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
@@ -218,16 +217,14 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
                 .build()
         })
         .with_span(span)?;
-        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
+        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt, &body.body);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv.fn_sig(def_id).with_span(span)?;
-            let poly_sig = poly_sig.instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(root_ctxt)
         })
@@ -275,7 +272,10 @@ fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+        .replace_bound_vars(
+            |_| rty::ReErased,
+            |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
+        )
         .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -301,7 +301,10 @@ fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+            )
             .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
@@ -324,7 +327,9 @@ fn check_fn_subtyping(
 
     let output = infcx
         .fully_resolve_evars(&output)
-        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+        .replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        });
 
     // 4. OUTPUT subtyping (f_out <: g_out)
     infcx.ensure_resolved_evars(|infcx| {
@@ -466,7 +471,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true, false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -516,10 +521,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = body.span();
 
         let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, _, kind| {
+                    let name = infcx.define_bound_reft_var(sort, kind);
+                    Expr::fvar(name)
+                },
+            )
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
-
         let mut env = TypeEnv::new(infcx, body, &fn_sig);
 
         let mut ck = Checker::new(infcx.genv, checker_id, inherited, body, fn_sig, promoted)
@@ -807,7 +817,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 };
 
-                let ret = infcx.unpack(&ret);
+                let name = destination.name(&self.body.local_names);
+                let ret = infcx.unpack_at_name(name, &ret);
                 infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
@@ -919,7 +930,10 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let late_refine_args = vec![];
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+            );
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
@@ -984,7 +998,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
-            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+            .replace_bound_refts_with(|sort, _, kind| {
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            });
 
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
@@ -2315,13 +2331,14 @@ impl ShapeResult {
     fn into_bb_envs(
         self,
         infcx: &mut InferCtxtRoot,
+        body: &Body,
     ) -> FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(checker_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx)))
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx, body)))
                     .collect();
                 (checker_id, bb_envs)
             })

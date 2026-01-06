@@ -267,13 +267,13 @@ impl PlacesTree {
         ty.clone()
     }
 
-    pub(crate) fn fmap_mut(&mut self, mut f: impl FnMut(&Ty) -> Ty) {
-        self.try_fmap_mut::<!>(|ty| Ok(f(ty))).into_ok();
+    pub(crate) fn fmap_mut(&mut self, mut f: impl FnMut(&Loc, &Ty) -> Ty) {
+        self.try_fmap_mut::<!>(|loc, ty| Ok(f(loc, ty))).into_ok();
     }
 
-    fn try_fmap_mut<E>(&mut self, mut f: impl FnMut(&Ty) -> Result<Ty, E>) -> Result<(), E> {
-        self.map.values_mut().try_for_each(|binding| {
-            binding.ty = f(&binding.ty)?;
+    fn try_fmap_mut<E>(&mut self, mut f: impl FnMut(&Loc, &Ty) -> Result<Ty, E>) -> Result<(), E> {
+        self.map.iter_mut().try_for_each(|(loc, binding)| {
+            binding.ty = f(loc, &binding.ty)?;
             Ok(())
         })
     }
@@ -501,7 +501,8 @@ impl<'a, 'infcx, 'genv, 'tcx> Unfolder<'a, 'infcx, 'genv, 'tcx> {
     }
 
     fn unfold_box(&mut self, deref_ty: &Ty, alloc: &Ty) -> Loc {
-        let loc = Loc::from(self.infcx.define_var(&Sort::Loc));
+        let name = self.infcx.define_unknown_var(&Sort::Loc);
+        let loc = Loc::from(name);
         self.insertions
             .push((loc, Binding { kind: LocKind::Box(alloc.clone()), ty: deref_ty.clone() }));
         loc
@@ -841,7 +842,9 @@ fn downcast_enum(
         .variant_sig(adt.did(), variant_idx)?
         .expect("enums cannot be opaque")
         .instantiate(tcx, args, &[])
-        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)))
+        .replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        })
         .deeply_normalize(&mut infcx.at(span))?;
 
     infcx.assume_pred(Expr::eq(idx1, variant_sig.idx));
@@ -960,7 +963,7 @@ impl TypeVisitable for PlacesTree {
 impl TypeFoldable for PlacesTree {
     fn try_fold_with<F: FallibleTypeFolder>(&self, folder: &mut F) -> Result<Self, F::Error> {
         let mut this = self.clone();
-        this.try_fmap_mut(|ty| ty.try_fold_with(folder))?;
+        this.try_fmap_mut(|_, ty| ty.try_fold_with(folder))?;
         Ok(this)
     }
 }
