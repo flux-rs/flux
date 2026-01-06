@@ -950,14 +950,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             {
                 at.check_pred(
                     Expr::implies(
-                        match no_panic {
-                            true => Expr::tt(),
-                            false => Expr::ff(),
-                        },
-                        match fn_sig.no_panic() {
-                            true => Expr::tt(),
-                            false => Expr::ff(),
-                        },
+                        if no_panic { Expr::tt() } else { Expr::ff() },
+                        if fn_sig.no_panic() { Expr::tt() } else { Expr::ff() },
                     ),
                     ConstrReason::NoPanic(callee_def_id),
                 );
