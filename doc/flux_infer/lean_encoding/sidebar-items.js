@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["FileKind","LeanFile"],"fn":["base","check_proof","create_file_with_dirs","finalize","project","project_path","rename_dir_contents","run_lean","vc_name"],"macro":["string_vec"],"struct":["LeanEncoder"]};
+window.SIDEBAR_ITEMS = {"enum":["FileKind","LeanFile"],"fn":["check_proof","create_file_with_dirs","finalize","project","project_path","rename_dir_contents","run_lean","vc_name"],"macro":["string_vec"],"struct":["LeanEncoder"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["GlobalEnv","GlobalEnvInner","Ident","Symbol"]};
+window.SIDEBAR_ITEMS = {"fn":["lean_parent_dir"],"struct":["GlobalEnv","GlobalEnvInner","Ident","Symbol"]};
