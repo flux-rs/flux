@@ -884,7 +884,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         generic_args: &[GenericArg],
         actuals: &[Ty],
     ) -> Result<ResolvedCall> {
-        flux_opt::do_something();
         let genv = self.genv;
         let tcx = genv.tcx();
 
