@@ -39,16 +39,6 @@ fn vc_name(genv: GlobalEnv, def_id: DefId) -> String {
     def_id_to_pascal_case(&def_id, &genv.tcx())
 }
 
-fn base(genv: GlobalEnv) -> PathBuf {
-    genv.tcx()
-        .sess
-        .opts
-        .working_dir
-        .local_path_if_available()
-        .to_path_buf()
-        .join(config::lean_dir())
-}
-
 fn project() -> String {
     config::lean_project().to_string()
 }
@@ -83,7 +73,7 @@ fn rename_dir_contents(src: &Path, dst: &Path) -> io::Result<()> {
 pub fn finalize(genv: GlobalEnv) -> io::Result<()> {
     let project = project();
     let src = genv.temp_dir().path().join(&project);
-    let dst = base(genv).join(&project);
+    let dst = genv.lean_parent_dir().join(&project);
     if src.exists() { rename_dir_contents(&src, &dst) } else { Ok(()) }
 }
 
@@ -91,7 +81,7 @@ fn project_path(genv: GlobalEnv, kind: FileKind) -> PathBuf {
     let project = project();
     match kind {
         FileKind::Flux => genv.temp_dir().path().join(project),
-        FileKind::User => base(genv).join(project),
+        FileKind::User => genv.lean_parent_dir().join(project),
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{alloc, ptr, rc::Rc, slice};
+use std::{alloc, path::PathBuf, ptr, rc::Rc, slice};
 
 use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
@@ -53,7 +53,9 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let tempdir = TempDir::new().unwrap();
+        // The tempdir must be in the same partition as the target directory so we can `fs::rename`
+        // files in it.
+        let tempdir = TempDir::new_in(lean_parent_dir(tcx)).unwrap();
         let queries = Queries::new(providers);
         let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries, tempdir };
         f(GlobalEnv { inner: &inner })
@@ -75,6 +77,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {
         self.inner.queries.resolve_crate(self)
+    }
+
+    /// Parent directory of the Lean project.
+    pub fn lean_parent_dir(self) -> PathBuf {
+        lean_parent_dir(self.tcx())
     }
 
     pub fn temp_dir(self) -> &'genv TempDir {
@@ -678,4 +685,13 @@ impl ErrorEmitter for GlobalEnv<'_, '_> {
     fn emit<'a>(&'a self, err: impl rustc_errors::Diagnostic<'a>) -> rustc_span::ErrorGuaranteed {
         self.sess().emit(err)
     }
+}
+
+fn lean_parent_dir(tcx: TyCtxt) -> PathBuf {
+    tcx.sess
+        .opts
+        .working_dir
+        .local_path_if_available()
+        .to_path_buf()
+        .join(config::lean_dir())
 }
