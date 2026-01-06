@@ -939,6 +939,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
+        let mut at = infcx.at(span);
+
         if M::NAME == "refine" {
             let no_panic = self.fn_sig.no_panic();
 
@@ -946,25 +948,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 && let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
-                for fn_trait_pred in &fn_clauses {
-                    let sig = fn_trait_pred.skip_binder_ref().fndef_sig();
-
-                    infcx.at(span).check_pred(
-                        Expr::implies(
-                            match no_panic {
-                                true => Expr::tt(),
-                                false => Expr::ff(),
-                            },
-                            match sig.no_panic() {
-                                true => Expr::tt(),
-                                false => Expr::ff(),
-                            },
-                        ),
-                        ConstrReason::NoPanic(callee_def_id),
-                    );
-                }
-
-                infcx.at(span).check_pred(
+                at.check_pred(
                     Expr::implies(
                         match no_panic {
                             true => Expr::tt(),
@@ -979,8 +963,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 );
             }
         }
-
-        let mut at = infcx.at(span);
 
         // Check requires predicates
         for requires in fn_sig.requires() {
