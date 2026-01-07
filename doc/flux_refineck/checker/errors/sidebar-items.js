@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["CheckerError","PanicError"],"trait":["ResultExt"]};
+window.SIDEBAR_ITEMS = {"struct":["CheckerError"],"trait":["ResultExt"]};
