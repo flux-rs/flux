@@ -297,6 +297,7 @@ impl PolyFnSig {
                 preds.into(),
                 inputs.into(),
                 fn_sig.output().clone(),
+                fn_sig.no_panic,
                 fn_sig.lifted,
             )
         })
