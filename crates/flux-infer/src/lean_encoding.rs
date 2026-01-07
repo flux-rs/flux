@@ -454,8 +454,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         }
 
         // 2. Collect the fun dependencies
-        let info = self.genv.normalized_info(*did);
-        for dep_id in local_deps(&info.body) {
+        let body = self.genv.inlined_body(*did);
+        for dep_id in local_deps(&body) {
             res.push(self.fun_file(&dep_id.to_def_id()));
         }
         res

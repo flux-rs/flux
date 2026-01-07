@@ -2162,9 +2162,9 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         scx: &mut SortEncodingCtxt,
     ) -> QueryResult<fixpoint::FunDef> {
         let name = *self.const_env.fun_def_map.get(&def_id).unwrap();
-        let info = self.genv.normalized_info(def_id);
+        let body = self.genv.inlined_body(def_id);
         let out = scx.sort_to_fixpoint(self.genv.func_sort(def_id).expect_mono().output());
-        let (args, body) = self.body_to_fixpoint(&info.body, scx)?;
+        let (args, body) = self.body_to_fixpoint(&body, scx)?;
         Ok(fixpoint::FunDef {
             name,
             args,

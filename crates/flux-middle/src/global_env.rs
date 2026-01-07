@@ -146,7 +146,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::NormalizeInfo {
+    pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        self.normalized_defns(did.krate()).inlined_body(did)
+    }
+
+    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
         self.normalized_defns(did.krate()).func_info(did).clone()
     }
 
