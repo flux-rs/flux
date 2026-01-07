@@ -1866,16 +1866,16 @@ pub(crate) mod pretty {
     impl Pretty for BinOp {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                BinOp::Iff => w!(cx, f, "⇔"),
-                BinOp::Imp => w!(cx, f, "⇒"),
-                BinOp::Or => w!(cx, f, "∨"),
-                BinOp::And => w!(cx, f, "∧"),
-                BinOp::Eq => w!(cx, f, "="),
-                BinOp::Ne => w!(cx, f, "≠"),
+                BinOp::Iff => w!(cx, f, "<=>"),
+                BinOp::Imp => w!(cx, f, "=>"),
+                BinOp::Or => w!(cx, f, "||"),
+                BinOp::And => w!(cx, f, "&&"),
+                BinOp::Eq => w!(cx, f, "=="),
+                BinOp::Ne => w!(cx, f, "!="),
                 BinOp::Gt(_) => w!(cx, f, ">"),
-                BinOp::Ge(_) => w!(cx, f, "≥"),
+                BinOp::Ge(_) => w!(cx, f, ">="),
                 BinOp::Lt(_) => w!(cx, f, "<"),
-                BinOp::Le(_) => w!(cx, f, "≤"),
+                BinOp::Le(_) => w!(cx, f, "<="),
                 BinOp::Add(_) => w!(cx, f, "+"),
                 BinOp::Sub(_) => w!(cx, f, "-"),
                 BinOp::Mul(_) => w!(cx, f, "*"),
@@ -1893,7 +1893,7 @@ pub(crate) mod pretty {
     impl Pretty for UnOp {
         fn fmt(&self, _cx: &PrettyCx, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                UnOp::Not => w!(cx, f, "¬"),
+                UnOp::Not => w!(cx, f, "!"),
                 UnOp::Neg => w!(cx, f, "-"),
             }
         }
