@@ -1473,12 +1473,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_rvalue_closure(infcx, env, stmt_span, did, args, operands)
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
-                let args = args.as_coroutine();
-                let resume_ty = self.refine_default(args.resume_ty()).with_span(stmt_span)?;
+                let coroutine_args = args.as_coroutine();
+                let resume_ty = self
+                    .refine_default(coroutine_args.resume_ty())
+                    .with_span(stmt_span)?;
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, ops)
                     .with_span(stmt_span)?;
-                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
+                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
             }
             Rvalue::ShallowInitBox(operand, _) => {
                 self.check_operand(infcx, env, stmt_span, operand)

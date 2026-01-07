@@ -890,7 +890,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
             BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::Coroutine(_, resume_ty, upvars) => {
+            BaseTy::Coroutine(_, resume_ty, upvars, _) => {
                 resume_ty.visit_with(visitor)?;
                 upvars.visit_with(visitor)
             }
@@ -937,11 +937,12 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Closure(did, args, gen_args) => {
                 BaseTy::Closure(*did, args.try_fold_with(folder)?, gen_args.clone())
             }
-            BaseTy::Coroutine(did, resume_ty, args) => {
+            BaseTy::Coroutine(did, resume_ty, args, gen_args) => {
                 BaseTy::Coroutine(
                     *did,
                     resume_ty.try_fold_with(folder)?,
                     args.try_fold_with(folder)?,
+                    gen_args.clone(),
                 )
             }
             BaseTy::Dynamic(preds, region) => {
@@ -1206,4 +1207,45 @@ TrivialTypeTraversalImpls! {
     rustc_abi::ExternAbi,
     rustc_type_ir::ClosureKind,
     flux_rustc_bridge::ty::BoundRegionKind,
+}
+
+/// Used for types that are `Copy` and which **do not care arena allocated data** (i.e., don't need
+/// to be folded).
+macro_rules! TrivialClonedTypeTraversalImpls {
+    ($($ty:ty,)+) => {
+        $(
+            impl $crate::rty::fold::TypeFoldable for $ty {
+                fn try_fold_with<F: $crate::rty::fold::FallibleTypeFolder>(
+                    &self,
+                    _: &mut F,
+                ) -> ::std::result::Result<Self, F::Error> {
+                    Ok(self.clone())
+                }
+
+                #[inline]
+                fn fold_with<F: $crate::rty::fold::TypeFolder>(
+                    &self,
+                    _: &mut F,
+                ) -> Self {
+                    self.clone()
+                }
+            }
+
+            impl $crate::rty::fold::TypeVisitable for $ty {
+                #[inline]
+                fn visit_with<V: $crate::rty::fold::TypeVisitor>(
+                    &self,
+                    _: &mut V)
+                    -> ::core::ops::ControlFlow<V::BreakTy>
+                {
+                    ::core::ops::ControlFlow::Continue(())
+                }
+            }
+        )+
+    };
+}
+
+// For things that can be cloned...
+TrivialClonedTypeTraversalImpls! {
+    flux_rustc_bridge::ty::GenericArgs,
 }
