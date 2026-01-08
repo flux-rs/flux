@@ -1408,8 +1408,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        // TODO ANDREW: look up the no_panicness from the fn_sig, or somewhere.
-        Ok(Ty::closure(*did, upvar_tys, args, true))
+        let no_panic = self.genv.no_panic(*did);
+        Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }
 
     fn check_rvalue(
