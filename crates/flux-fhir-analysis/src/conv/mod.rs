@@ -1498,6 +1498,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
                 let predicates = type_param_predicates(tcx, param_id);
+                if assoc_ident == Ident::from_str("no_panic") {
+                    // haha I assume here is where we'd do something like "register no_panic for a function?"
+                    panic!("you hit it.");
+                }
                 self.probe_single_bound_for_assoc_item(
                     || {
                         tag.transitive_bounds_that_define_assoc_item(
@@ -1615,6 +1619,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
+        if assoc_name == Ident::from_str("no_panic") {
+            println!("the assoc name: {}", assoc_name);
+            println!("the tag: {}", tag.descr());
+            // create an associated refinement to return.
+        }
         let mut matching_candidates = vec![];
         for candidate in all_candidates() {
             if tag
