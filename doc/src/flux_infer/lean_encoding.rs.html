@@ -454,8 +454,8 @@
 <a href=#454 id=454 data-nosnippet>454</a>        }
 <a href=#455 id=455 data-nosnippet>455</a>
 <a href=#456 id=456 data-nosnippet>456</a>        <span class="comment">// 2. Collect the fun dependencies
-<a href=#457 id=457 data-nosnippet>457</a>        </span><span class="kw">let </span>info = <span class="self">self</span>.genv.normalized_info(<span class="kw-2">*</span>did);
-<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">for </span>dep_id <span class="kw">in </span>local_deps(<span class="kw-2">&amp;</span>info.body) {
+<a href=#457 id=457 data-nosnippet>457</a>        </span><span class="kw">let </span>body = <span class="self">self</span>.genv.inlined_body(<span class="kw-2">*</span>did);
+<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">for </span>dep_id <span class="kw">in </span>local_deps(<span class="kw-2">&amp;</span>body) {
 <a href=#459 id=459 data-nosnippet>459</a>            res.push(<span class="self">self</span>.fun_file(<span class="kw-2">&amp;</span>dep_id.to_def_id()));
 <a href=#460 id=460 data-nosnippet>460</a>        }
 <a href=#461 id=461 data-nosnippet>461</a>        res
