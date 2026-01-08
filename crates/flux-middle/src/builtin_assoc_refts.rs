@@ -10,7 +10,7 @@ use rustc_span::{DUMMY_SP, Symbol};
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, AliasReft, AssocRefinements, AssocReft},
+    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, GenericArg, SubsetTy},
 };
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -117,8 +117,19 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
         } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic") {
-            let body = rty::Expr::tt(); // TODO: fix!
-            // println!("alias reft: {:?}", alias_reft);
+            let arg = &alias_reft.args[0];
+
+            let GenericArg::Base(ty) = arg else {
+                bug!("expected base ty for no_panic assoc reft, got {:?}", arg);
+            };
+            let bty = ty.as_bty_skipping_binder();
+            let BaseTy::Closure(_, _, _, no_panic) = bty else {
+                bug!("expected closure type for no_panic assoc reft, got {:?}", bty);
+            };
+
+            println!("bty: {:?}, no_panic: {:?}", bty, no_panic);
+            let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
+
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)

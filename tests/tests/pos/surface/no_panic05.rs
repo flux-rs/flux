@@ -6,11 +6,7 @@ fn bar<F: Fn(i32) -> i32>(f: F) -> i32 {
 }
 
 #[flux::no_panic]
-fn wont_panic(a: i32) -> i32 {
-    3
-}
-
-#[flux::no_panic]
 fn foo() {
-    bar(wont_panic);
+    // This is OK because `foo` is marked `no_panic`, therefore all closures within `foo` are also no_panic.
+    bar(|x| 3);
 }

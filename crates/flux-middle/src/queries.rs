@@ -29,7 +29,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self,
+        self, Expr, FnSig,
         refining::{self, Refine, Refiner},
     },
 };
@@ -865,11 +865,31 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    let fn_sig = genv
+                    let tcx = genv.tcx();
+                    // is the function Fn::call?
+                    let is_fn_call = tcx.opt_associated_item(def_id).is_some_and(|ai| {
+                        let is_callable_trait =
+                            ai.trait_container(tcx).is_some_and(|trait_def_id| {
+                                tcx.is_lang_item(trait_def_id, rustc_hir::LangItem::Fn)
+                            });
+
+                        let is_call_method = ai.name() == Symbol::intern("call");
+
+                        is_callable_trait && is_call_method
+                    });
+
+                    let mut fn_sig = genv
                         .lower_fn_sig(def_id)?
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
+
+                    if is_fn_call {
+                        let mut inner_sig = fn_sig.clone().skip_binder();
+                        inner_sig.no_panic = Expr::tt();
+                        fn_sig = fn_sig.rebind(inner_sig);
+                    }
+
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )
