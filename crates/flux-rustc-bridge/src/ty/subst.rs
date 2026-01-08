@@ -38,7 +38,9 @@ impl Subst for Ty {
             TyKind::Ref(re, ty, mutbl) => Ty::mk_ref(*re, ty.subst(args), *mutbl),
             TyKind::Tuple(tys) => Ty::mk_tuple(tys.subst(args)),
             TyKind::Slice(ty) => Ty::mk_slice(ty.subst(args)),
-            TyKind::Closure(def_id, args2) => Ty::mk_closure(*def_id, args2.subst(args)),
+            TyKind::Closure(def_id, args2, no_panic) => {
+                Ty::mk_closure(*def_id, args2.subst(args), *no_panic)
+            }
             TyKind::Coroutine(def_id, args2) => Ty::mk_coroutine(*def_id, args2.subst(args)),
             TyKind::CoroutineWitness(def_id, args2) => {
                 Ty::mk_generator_witness(*def_id, args2.subst(args))

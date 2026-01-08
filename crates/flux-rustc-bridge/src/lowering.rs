@@ -824,7 +824,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
             }
             rustc_ty::Closure(did, args) => {
                 let args = args.lower(tcx)?;
-                Ok(Ty::mk_closure(*did, args))
+                Ok(Ty::mk_closure(*did, args, false))
             }
 
             rustc_ty::Alias(kind, alias_ty) => {

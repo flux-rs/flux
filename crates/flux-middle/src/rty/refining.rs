@@ -212,14 +212,14 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
 
     pub fn refine_ty_or_base(&self, ty: &ty::Ty) -> QueryResult<rty::TyOrBase> {
         let bty = match ty.kind() {
-            ty::TyKind::Closure(did, args) => {
+            ty::TyKind::Closure(did, args, no_panic) => {
                 let closure_args = args.as_closure();
                 let upvar_tys = closure_args
                     .upvar_tys()
                     .iter()
                     .map(|ty| ty.refine(self))
                     .try_collect()?;
-                rty::BaseTy::Closure(*did, upvar_tys, args.clone())
+                rty::BaseTy::Closure(*did, upvar_tys, args.clone(), *no_panic)
             }
             ty::TyKind::Coroutine(did, args) => {
                 let args = args.as_coroutine();

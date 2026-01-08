@@ -538,7 +538,7 @@ impl PlaceNode {
                         let PlaceNode::Downcast(.., fields) = self else { unreachable!() };
                         fields
                     }
-                    TyKind::Closure(def_id, args) => {
+                    TyKind::Closure(def_id, args, _) => {
                         let fields = args
                             .as_closure()
                             .upvar_tys()
@@ -592,7 +592,7 @@ impl PlaceNode {
                 true
             }
             PlaceNode::Closure(did, args, _) => {
-                *self = PlaceNode::Ty(Ty::mk_closure(*did, args.clone()));
+                *self = PlaceNode::Ty(Ty::mk_closure(*did, args.clone(), false));
                 true
             }
             PlaceNode::Generator(did, args, _) => {

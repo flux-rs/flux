@@ -1115,7 +1115,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .as_bty_skipping_existentials();
         let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _)) => {
+            Some(BaseTy::Closure(def_id, _, _, no_panic)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
@@ -1408,7 +1408,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        Ok(Ty::closure(*did, upvar_tys, args))
+        // TODO ANDREW: look up the no_panicness from the fn_sig, or somewhere.
+        Ok(Ty::closure(*did, upvar_tys, args, true))
     }
 
     fn check_rvalue(
