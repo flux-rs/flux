@@ -32,6 +32,7 @@ impl Default for NormalizedDefns {
     }
 }
 
+// TODO(nilehmann) should we make an enum? most of the fields don't matter for UIFs
 /// This type represents what we know about a flux-def *after*
 /// normalization, i.e. after "inlining" all or some transitively
 /// called flux-defs.
@@ -53,6 +54,8 @@ pub struct FuncInfo {
     /// we can specify the `define-fun` in the correct order, without any "forward"
     /// dependencies which the SMT solver cannot handle.
     pub rank: usize,
+    /// Whether the function is a UIF
+    pub uif: bool,
 }
 
 #[derive(Default)]
@@ -79,18 +82,24 @@ impl NormalizedDefns {
         for (rank, i) in ds.iter().enumerate() {
             let (id, body, hide) = &funs[*i];
 
-            let inline;
             if let Some(body) = body {
                 let body = body.fold_with(&mut Normalizer::new(genv, Some(&inlining)));
 
                 inlining.inlined_bodies.insert(*id, body);
-                inline = genv.should_inline_fun(id.to_def_id());
+                inlining.info.insert(
+                    *id,
+                    FuncInfo {
+                        rank,
+                        inline: genv.should_inline_fun(id.to_def_id()),
+                        hide: *hide,
+                        uif: false,
+                    },
+                );
             } else {
-                inline = false;
+                inlining
+                    .info
+                    .insert(*id, FuncInfo { rank, inline: false, hide: *hide, uif: true });
             }
-            inlining
-                .info
-                .insert(*id, FuncInfo { rank, inline, hide: *hide });
         }
         Ok(Self {
             krate: LOCAL_CRATE,
