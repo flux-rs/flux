@@ -83,6 +83,8 @@ jobs:
       - uses: actions/checkout@v4
       # Uses the lean standard action with all default input values
       - uses: leanprover/lean-action@v1
+        with:
+          build: false
 
       - name: Install fixpoint
         uses: ./.github/actions/install-fixpoint
