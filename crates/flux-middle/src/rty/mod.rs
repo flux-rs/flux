@@ -1809,6 +1809,7 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
+    // Andrew: we can add whether or not the closure is annotated with no_panic here
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),

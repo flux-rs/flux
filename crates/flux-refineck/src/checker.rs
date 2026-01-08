@@ -943,46 +943,48 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             if let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
+                // TODO: delete this special case; we can handle this with pushing the closure's
+                // no_panicness into the type itself.
                 // does the callee require no panic?
-                let callee_requires = genv
-                    .fn_sig(callee_def_id)
-                    .with_span(span)?
-                    .skip_binder()
-                    .skip_binder();
+                // let callee_requires = genv
+                //     .fn_sig(callee_def_id)
+                //     .with_span(span)?
+                //     .skip_binder()
+                //     .skip_binder();
 
-                let mut requires_no_panic = false;
-                for requires in callee_requires.requires() {
-                    if let ExprKind::Alias(ar, _) = requires.kind() {
-                        // get the type associated with the `no_panic` assoc id
-                        let trait_ref = ar.assoc_id;
-                        if trait_ref.name() == Symbol::intern("no_panic") {
-                            requires_no_panic = true;
-                            break;
-                        }
-                    }
-                }
+                // let mut requires_no_panic = false;
+                // for requires in callee_requires.requires() {
+                //     if let ExprKind::Alias(ar, _) = requires.kind() {
+                //         // get the type associated with the `no_panic` assoc id
+                //         let trait_ref = ar.assoc_id;
+                //         if trait_ref.name() == Symbol::intern("no_panic") {
+                //             requires_no_panic = true;
+                //             break;
+                //         }
+                //     }
+                // }
 
-                let caller_def_id = self.checker_id.root_id().to_def_id();
-                // it better be the case that every argument which has a FnSig has no_panic on.
-                if requires_no_panic {
-                    for actual in &actuals {
-                        if let TyKind::Indexed(BaseTy::FnDef(def_id, _), _) =
-                            infcx.unpack(&actual).kind()
-                        {
-                            let actual_fn_sig = genv
-                                .fn_sig(*def_id)
-                                .with_span(span)?
-                                .skip_binder_ref()
-                                .skip_binder_ref()
-                                .no_panic();
-                            let arg_no_panic = actual_fn_sig;
-                            infcx.at(span).check_pred(
-                                if arg_no_panic { Expr::tt() } else { Expr::ff() },
-                                ConstrReason::NoPanic(caller_def_id),
-                            );
-                        }
-                    }
-                }
+                // let caller_def_id = self.checker_id.root_id().to_def_id();
+                // // it better be the case that every argument which has a FnSig has no_panic on.
+                // if requires_no_panic {
+                //     for actual in &actuals {
+                //         if let TyKind::Indexed(BaseTy::FnDef(def_id, _), _) =
+                //             infcx.unpack(&actual).kind()
+                //         {
+                //             let actual_fn_sig = genv
+                //                 .fn_sig(*def_id)
+                //                 .with_span(span)?
+                //                 .skip_binder_ref()
+                //                 .skip_binder_ref()
+                //                 .no_panic();
+                //             let arg_no_panic = actual_fn_sig;
+                //             infcx.at(span).check_pred(
+                //                 if arg_no_panic { Expr::tt() } else { Expr::ff() },
+                //                 ConstrReason::NoPanic(caller_def_id),
+                //             );
+                //         }
+                //     }
+                // }
             }
 
             let no_panic = self.fn_sig.no_panic();
@@ -991,6 +993,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 && let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
+                println!("def_id: {:?}", callee_def_id);
+                println!("fn_sig: {:?}", fn_sig);
                 let mut callee_no_panic = fn_sig.no_panic();
                 let parent = tcx.parent(callee_def_id);
                 if tcx.is_lang_item(parent, LangItem::Fn) {
