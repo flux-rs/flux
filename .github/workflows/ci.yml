@@ -108,9 +108,11 @@ jobs:
           echo ~/.cargo/bin >> $GITHUB_PATH
 
       - name: Clone flux-to-lean-demo
-        run: |
-          git clone https://github.com/flux-rs/flux-to-lean-demo
-          cp rust-toolchain.toml tock/rust-toolchain.toml
+        uses: actions/checkout@v4
+        with:
+          repository: flux-rs/flux-to-lean-demo
+          path: flux-to-lean-demo
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check
         run: |
