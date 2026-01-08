@@ -750,9 +750,7 @@ pub enum InternalFuncKind {
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
-    /// User-defined uninterpreted functions with no definition
-    Uif(FluxDefId),
-    /// User-defined functions with a body definition
+    /// User-defined function. This can be either a function with a body or a UIF.
     Def(FluxDefId),
 }
 
@@ -1539,7 +1537,7 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
-                ExprKind::GlobalFunc(SpecFuncKind::Def(did) | SpecFuncKind::Uif(did)) => {
+                ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
                     w!(cx, f, "{}", ^did.name())
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {

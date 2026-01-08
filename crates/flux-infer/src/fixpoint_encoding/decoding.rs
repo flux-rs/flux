@@ -91,9 +91,6 @@ where
                     fixpoint::Var::Global(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
-                                ConstKey::Uif(def_id) => {
-                                    Ok(rty::Expr::global_func(SpecFuncKind::Uif(*def_id)))
-                                }
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
                                 ConstKey::Alias(_flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
@@ -261,9 +258,7 @@ where
                                         .try_collect()?;
                                     Ok(rty::Expr::alias(alias_reft, args))
                                 }
-                                ConstKey::Uif(..)
-                                | ConstKey::RustConst(..)
-                                | ConstKey::Lambda(..) => {
+                                ConstKey::RustConst(..) | ConstKey::Lambda(..) => {
                                     // These should be treated as a normal app.
                                     self.fixpoint_app_to_expr(fhead, fargs)
                                 }

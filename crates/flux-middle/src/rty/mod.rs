@@ -39,7 +39,7 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
+pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
