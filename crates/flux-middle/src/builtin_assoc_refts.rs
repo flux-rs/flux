@@ -118,7 +118,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
         } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic") {
             let body = rty::Expr::tt(); // TODO: fix!
-            println!("alias reft: {:?}", alias_reft);
+            // println!("alias reft: {:?}", alias_reft);
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)

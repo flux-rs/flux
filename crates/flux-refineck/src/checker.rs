@@ -19,8 +19,8 @@ use flux_middle::{
     query_bug,
     rty::{
         self, AdtDef, BaseTy, Binder, Bool, Clause, Constant, CoroutineObligPredicate, EarlyBinder,
-        Expr, ExprKind, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int,
-        IntTy, Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
+        Expr, FnOutput, FnSig, FnTraitPredicate, GenericArg, GenericArgsExt as _, Int, IntTy,
+        Mutability, Path, PolyFnSig, PtrKind, RefineArgs, RefineArgsExt,
         Region::ReErased,
         Ty, TyKind, Uint, UintTy, VariantIdx,
         fold::{TypeFoldable, TypeFolder, TypeSuperFoldable},
@@ -471,7 +471,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true, false);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, Expr::tt(), false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -989,13 +989,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
             let no_panic = self.fn_sig.no_panic();
 
-            if no_panic
+            if no_panic == Expr::tt()
                 && let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
-                println!("def_id: {:?}", callee_def_id);
-                println!("fn_sig: {:?}", fn_sig);
-                let mut callee_no_panic = fn_sig.no_panic();
+                // println!("def_id: {:?}", callee_def_id);
+                // println!("fn_sig: {:?}", fn_sig);
+                let mut callee_no_panic = fn_sig.no_panic() == Expr::tt();
                 let parent = tcx.parent(callee_def_id);
                 if tcx.is_lang_item(parent, LangItem::Fn) {
                     let assoc_refts = genv.assoc_refinements_of(parent).with_span(span)?;
@@ -1005,10 +1005,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 }
 
                 infcx.at(span).check_pred(
-                    Expr::implies(
-                        if no_panic { Expr::tt() } else { Expr::ff() },
-                        if callee_no_panic { Expr::tt() } else { Expr::ff() },
-                    ),
+                    Expr::implies(no_panic, if callee_no_panic { Expr::tt() } else { Expr::ff() }),
                     ConstrReason::NoPanic(callee_def_id),
                 );
             }

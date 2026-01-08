@@ -699,7 +699,7 @@ impl FnTraitPredicate {
             List::empty(),
             inputs,
             output,
-            false,
+            Expr::ff(),
             false,
         )
     }
@@ -753,7 +753,7 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(),
         inputs.into(),
         output,
-        no_panic,
+        if no_panic { crate::rty::Expr::tt() } else { crate::rty::Expr::ff() },
         false,
     );
 
@@ -1391,7 +1391,8 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
-    pub no_panic: bool,
+    // TODO: Andrew, make this an Expr instead of a bool
+    pub no_panic: Expr,
     /// was this auto-lifted (or from a spec)
     pub lifted: bool,
 }
@@ -2551,7 +2552,7 @@ impl CoroutineObligPredicate {
                 List::empty(),
                 inputs,
                 output,
-                false,
+                Expr::ff(),
                 false,
             ),
             List::from(vars),
@@ -2675,7 +2676,7 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
-        no_panic: bool,
+        no_panic: Expr,
         lifted: bool,
     ) -> Self {
         FnSig { safety, abi, requires, inputs, output, no_panic, lifted }
@@ -2689,8 +2690,8 @@ impl FnSig {
         &self.inputs
     }
 
-    pub fn no_panic(&self) -> bool {
-        self.no_panic
+    pub fn no_panic(&self) -> Expr {
+        self.no_panic.clone()
     }
 
     pub fn output(&self) -> Binder<FnOutput> {
@@ -2803,7 +2804,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
-                    true,
+                    Expr::tt(),
                     false,
                 )
             })

@@ -15,7 +15,8 @@ use super::{RefineArgsExt, fold::TypeFoldable};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    query_bug, rty,
+    query_bug,
+    rty::{self, Expr},
 };
 
 pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) -> rty::Generics {
@@ -341,7 +342,7 @@ impl Refine for ty::FnSig {
         // single hole for the "requires"; then we "fill" the hole with a KVAR
         // and generate a PolyFnSig with the hoisted variables
         // see `into_bb_env` in `type_env.rs` for an example.
-        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output, false, true))
+        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output, Expr::ff(), true))
     }
 }
 
