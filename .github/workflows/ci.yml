@@ -76,6 +76,44 @@ jobs:
           cd tock
           cargo flux -p cortexm -p rv32i
 
+  lean-demo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      # Uses the lean standard action with all default input values
+      - uses: leanprover/lean-action@v1
+
+      - name: Install fixpoint
+        uses: ./.github/actions/install-fixpoint
+        env:
+          GITHUB_TOKEN:
+            ${{ secrets.GITHUB_TOKEN }}
+
+            # Older versions hang
+      - name: Install Z3
+        uses: cda-tum/setup-z3@v1.6.6
+        with:
+          version: 4.15.3
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.8.0
+
+      - name: Install Flux
+        run: |
+          cargo x install
+          echo ~/.cargo/bin >> $GITHUB_PATH
+
+      - name: Clone flux-to-lean-demo
+        run: |
+          git clone https://github.com/flux-rs/flux-to-lean-demo
+          cp rust-toolchain.toml tock/rust-toolchain.toml
+
+      - name: Check
+        run: |
+          cd flux-to-lean-demo
+          ./runlean.sh
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:
