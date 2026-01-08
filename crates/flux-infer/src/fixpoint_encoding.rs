@@ -656,13 +656,13 @@ where
         let cut_solution = result
             .solution
             .into_iter()
-            .map(|(kvid, sol)| (kvid, self.convert_solution(&sol)))
+            .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
             .collect_vec();
 
         let non_cut_solution = result
             .non_cut_solution
             .into_iter()
-            .map(|(kvid, sol)| (kvid, self.convert_solution(&sol)))
+            .map(|(kvid, sol)| (kvid, self.fixpoint_to_solution(&sol)))
             .collect_vec();
 
         Answer {
@@ -698,53 +698,29 @@ where
         })
     }
 
-    fn convert_solution(&mut self, sol: &FixpointSolution) -> rty::Binder<rty::Expr> {
-        let mut vars = vec![];
-        let mut sorts = vec![];
-        for (var, sort) in &sol.0 {
-            let fixpoint::Var::Local(local_var) = var else {
-                tracked_span_bug!("encountered non-local variable in binder: {var:?}");
-            };
-            vars.push(*local_var);
-            sorts.push(
-                self.fixpoint_to_sort(&sort)
-                    .unwrap_or_else(|_| tracked_span_bug!("failed to parse sort: {sort:?}")),
-            );
-        }
-        self.ecx.local_var_env.push_layer(vars);
-        let expr = self
-            .fixpoint_to_expr(&sol.1)
-            .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
-        self.ecx.local_var_env.pop_layer();
-        rty::Binder::bind_with_sorts(expr, &sorts)
-    }
-
-    pub fn generate_and_check_lean_lemmas(
+    pub fn generate_lean_files(
         self,
+        def_id: MaybeExternId,
         task: fixpoint::Task,
         cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
         non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> QueryResult {
-        if let Some(def_id) = self.ecx.def_id {
-            let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
-            let sort_deps =
-                SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
+        // FIXME(nilehmann) opaque sorts should be part of the task.
+        let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
+        let sort_deps =
+            SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
-            LeanEncoder::encode(
-                self.genv,
-                def_id,
-                self.ecx.local_var_env.pretty_var_map,
-                sort_deps,
-                task.define_funs,
-                task.kvars,
-                task.constraint,
-                KVarSolutions { cut_solutions, non_cut_solutions },
-            )
-            .map_err(|err| query_bug!("could not encode constraint: {err:?}"))?;
-            Ok(())
-        } else {
-            Ok(())
-        }
+        LeanEncoder::encode(
+            self.genv,
+            def_id,
+            self.ecx.local_var_env.pretty_var_map,
+            sort_deps,
+            task.define_funs,
+            task.kvars,
+            task.constraint,
+            KVarSolutions { cut_solutions, non_cut_solutions },
+        )
+        .map_err(|err| query_bug!("could not encode constraint: {err:?}"))
     }
 
     fn run_task_with_cache(
@@ -1147,7 +1123,6 @@ impl LocalVarEnv {
     }
 }
 
-#[derive(Clone)]
 pub struct KVarGen {
     kvars: IndexVec<rty::KVid, KVarDecl>,
     /// If true, generate dummy [holes] instead of kvars. Used during shape mode to avoid generating

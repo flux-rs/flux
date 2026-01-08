@@ -220,12 +220,12 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars.clone(), Backend::Lean);
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
         let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
         let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
 
-        fcx.generate_and_check_lean_lemmas(task, result.solution, result.non_cut_solution)
+        fcx.generate_lean_files(def_id, task, result.solution, result.non_cut_solution)
     }
 
     pub fn execute_fixpoint_query(

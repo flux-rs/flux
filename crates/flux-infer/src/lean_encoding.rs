@@ -616,10 +616,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
         kvar_solutions: KVarSolutions,
-    ) -> io::Result<Self> {
+    ) -> io::Result<()> {
         let encoder =
             Self::new(genv, def_id, pretty_var_map, sort_deps, fun_deps, kvar_decls, constraint)?;
         encoder.run(kvar_solutions)?;
-        Ok(encoder)
+        Ok(())
     }
 }
