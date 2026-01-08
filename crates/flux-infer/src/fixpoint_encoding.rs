@@ -558,7 +558,7 @@ where
         solver: SmtSolver,
     ) -> QueryResult<fixpoint::Task> {
         let kvars = self.kcx.encode_kvars(&self.kvars, &mut self.scx);
-        let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?.fun_defs;
+        let define_funs = self.ecx.define_funs(def_id, &mut self.scx)?;
 
         let qualifiers = self
             .ecx
@@ -720,25 +720,22 @@ where
     }
 
     pub fn generate_and_check_lean_lemmas(
-        mut self,
+        self,
         task: fixpoint::Task,
         cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
         non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> QueryResult {
         if let Some(def_id) = self.ecx.def_id {
-            let fun_deps = self.ecx.define_funs(def_id, &mut self.scx)?;
-
-            self.ecx.errors.to_result()?;
             let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
             let sort_deps =
                 SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
-            let deps = (sort_deps, fun_deps);
             LeanEncoder::encode(
                 self.genv,
                 def_id,
                 self.ecx.local_var_env.pretty_var_map,
-                deps,
+                sort_deps,
+                task.define_funs,
                 task.kvars,
                 task.constraint,
                 KVarSolutions { cut_solutions, non_cut_solutions },
@@ -1338,11 +1335,6 @@ pub struct SortDeps {
     pub opaque_sorts: Vec<fixpoint::SortDecl>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
-}
-
-#[derive(Debug)]
-pub struct FunDeps {
-    pub fun_defs: Vec<fixpoint::FunDef>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
@@ -2098,7 +2090,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         &mut self,
         def_id: MaybeExternId,
         scx: &mut SortEncodingCtxt,
-    ) -> QueryResult<FunDeps> {
+    ) -> QueryResult<Vec<fixpoint::FunDef>> {
         let reveals: UnordSet<FluxDefId> = self
             .genv
             .reveals_for(def_id.local_id())
@@ -2130,7 +2122,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .map(|(_, def)| def)
             .collect();
 
-        Ok(FunDeps { fun_defs: defs })
+        Ok(defs)
     }
 
     fn fun_decl_to_fixpoint(
