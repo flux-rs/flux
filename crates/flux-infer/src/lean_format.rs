@@ -1,5 +1,5 @@
 use core::fmt;
-use std::fmt::Write;
+use std::{fmt::Write, iter};
 
 use flux_common::{
     bug,
@@ -18,7 +18,7 @@ use crate::fixpoint_encoding::{
     FixpointSolution, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
-        Expr, FunDef, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        Expr, FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -508,18 +508,38 @@ impl LeanFmt for Expr {
 
 impl LeanFmt for FunDef {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        let FunDef { name, args, out, comment: _, body } = self;
+        let FunDef { name, sort, comment: _, body } = self;
         write!(f, "def ")?;
         name.lean_fmt(f, cx)?;
-        for (arg, arg_sort) in args {
-            write!(f, " (")?;
-            arg.lean_fmt(f, cx)?;
-            write!(f, " : {})", WithLeanCtxt { item: arg_sort, cx })?;
+        if let Some(body) = body {
+            for (arg, arg_sort) in iter::zip(&body.args, &sort.inputs) {
+                write!(f, " (")?;
+                arg.lean_fmt(f, cx)?;
+                write!(f, " : {})", WithLeanCtxt { item: arg_sort, cx })?;
+            }
+            writeln!(f, " : {} :=", WithLeanCtxt { item: &sort.output, cx })?;
+            write!(f, "  ")?;
+            body.expr.lean_fmt(f, cx)?;
+        } else {
+            write!(f, " : {} := sorry", WithLeanCtxt { item: sort, cx })?;
         }
-        writeln!(f, " : {} :=", WithLeanCtxt { item: out, cx })?;
-        write!(f, "  ")?;
-        body.lean_fmt(f, cx)?;
         writeln!(f)
+    }
+}
+
+impl LeanFmt for FunSort {
+    fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
+        for i in 0..self.params {
+            write!(f, "t{i} -> [Inhabited t{i}] -> ")?;
+        }
+        write!(
+            f,
+            "{} -> {}",
+            self.inputs.iter().format_with(" -> ", |sort, f| {
+                f(&format_args!("{}", WithLeanCtxt { item: sort, cx }))
+            }),
+            WithLeanCtxt { item: &self.output, cx }
+        )
     }
 }
 

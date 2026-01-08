@@ -150,6 +150,26 @@ impl<T: Types> Sort<T> {
     }
 }
 
+#[derive_where(Hash, Debug)]
+pub struct FunSort<T: Types> {
+    pub params: usize,
+    pub inputs: Vec<Sort<T>>,
+    pub output: Sort<T>,
+}
+
+impl<T: Types> FunSort<T> {
+    pub fn deps(&self, acc: &mut Vec<T::Sort>) {
+        for sort in &self.inputs {
+            sort.deps(acc);
+        }
+        self.output.deps(acc);
+    }
+
+    pub fn into_sort(self) -> Sort<T> {
+        Sort::mk_func(self.params, self.inputs, self.output)
+    }
+}
+
 #[derive_where(Hash, Clone, Debug)]
 pub enum SortCtor<T: Types> {
     Set,

@@ -6,6 +6,7 @@ use std::{
 };
 
 use flux_common::{
+    bug,
     dbg::{self, SpanTrace},
     result::ResultExt,
 };
@@ -245,6 +246,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         snake_case_to_pascal_case(&name)
     }
 
+    fn lean_file_for_fun(&self, fun: &fixpoint::FunDef) -> LeanFile {
+        let name = self.var_name(&fun.name);
+        if fun.body.is_some() { LeanFile::Fun(name) } else { LeanFile::OpaqueFun(name) }
+    }
+
     fn var_name(&self, var: &fixpoint::Var) -> String {
         let name = format!("{}", WithLeanCtxt { item: var, cx: &self.lean_cx() });
         snake_case_to_pascal_case(&name)
@@ -290,15 +296,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn fun_files(&self) -> FxHashMap<FluxDefId, LeanFile> {
         let mut res = FxHashMap::default();
-        for (did, opaque_fun) in &self.fun_deps.opaque_funs {
-            let name = self.var_name(&opaque_fun.name);
-            let file = LeanFile::OpaqueFun(name);
-            res.insert(*did, file);
-        }
-        for (did, fun_def) in &self.fun_deps.fun_defs {
+        for fun_def in &self.fun_deps.fun_defs {
+            let fixpoint::Var::Global(_, Some(did)) = fun_def.name else {
+                bug!("expected global var with id")
+            };
             let name = self.var_name(&fun_def.name);
             let file = LeanFile::Fun(name);
-            res.insert(*did, file);
+            res.insert(did, file);
         }
         res
     }
@@ -345,45 +349,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             writeln!(file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })?;
-            file.sync_all()?;
-        }
-        Ok(())
-    }
-
-    fn opaque_fun_dependencies(&self, opaque_fun: &fixpoint::ConstDecl) -> Vec<&LeanFile> {
-        let name = &opaque_fun.name;
-        let mut acc = vec![];
-        opaque_fun.sort.deps(&mut acc);
-        acc.into_iter()
-            .map(|data_sort| {
-                self.sort_files.get(&data_sort).unwrap_or_else(|| {
-                    panic!(
-                        "Missing sort file for dependency {:?} of opaque fun {:?}",
-                        data_sort, name
-                    )
-                })
-            })
-            .unique()
-            .collect()
-    }
-
-    fn generate_opaque_fun_file_if_not_present(
-        &self,
-        opaque_fun: &fixpoint::ConstDecl,
-    ) -> io::Result<()> {
-        let name = self.var_name(&opaque_fun.name);
-        let file = &LeanFile::OpaqueFun(name);
-        let path = file.path(self.genv);
-        if let Some(mut file) = create_file_with_dirs(path)? {
-            writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
-            for dep in self.opaque_fun_dependencies(opaque_fun) {
-                writeln!(file, "{}", self.import(dep))?;
-            }
-            writeln!(
-                file,
-                "def {} := sorry",
-                WithLeanCtxt { item: opaque_fun, cx: &self.lean_cx() }
-            )?;
             file.sync_all()?;
         }
         Ok(())
@@ -440,34 +405,32 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .unwrap_or_else(|| panic!("Missing fun file for fun {:?}", did))
     }
 
-    fn fun_def_dependencies(&self, did: &FluxDefId, fun_def: &fixpoint::FunDef) -> Vec<&LeanFile> {
+    fn fun_def_dependencies(&self, did: FluxDefId, fun_def: &fixpoint::FunDef) -> Vec<&LeanFile> {
         let mut res = vec![];
 
         // 1. Collect the sort dependencies
         let mut sorts = vec![];
-        for (_, sort) in &fun_def.args {
-            sort.deps(&mut sorts);
-        }
-        fun_def.out.deps(&mut sorts);
+        fun_def.sort.deps(&mut sorts);
         for data_sort in sorts {
             res.push(self.sort_file(&data_sort));
         }
 
         // 2. Collect the fun dependencies
-        let body = self.genv.inlined_body(*did);
-        for dep_id in local_deps(&body) {
-            res.push(self.fun_file(&dep_id.to_def_id()));
+        if !self.genv.normalized_info(did).uif {
+            let body = self.genv.inlined_body(did);
+            for dep_id in local_deps(&body) {
+                res.push(self.fun_file(&dep_id.to_def_id()));
+            }
         }
         res
     }
 
     fn generate_fun_def_file_if_not_present(
         &self,
-        did: &FluxDefId,
+        did: FluxDefId,
         fun_def: &fixpoint::FunDef,
     ) -> io::Result<()> {
-        let name = self.var_name(&fun_def.name);
-        let path = LeanFile::Fun(name).path(self.genv);
+        let path = self.lean_file_for_fun(fun_def).path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
@@ -547,12 +510,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         for data_decl in &self.sort_deps.data_decls {
             self.generate_struct_file_if_not_present(data_decl)?;
         }
-        // 3. Generate Opaque Func Files
-        for (_, opaque_fun) in &self.fun_deps.opaque_funs {
-            self.generate_opaque_fun_file_if_not_present(opaque_fun)?;
-        }
-        // 4. Generate Func Def Files
-        for (did, fun_def) in &self.fun_deps.fun_defs {
+        // 3. Generate Func Def Files
+        for fun_def in &self.fun_deps.fun_defs {
+            let fixpoint::Var::Global(_, Some(did)) = fun_def.name else {
+                bug!("expected global var with id")
+            };
             self.generate_fun_def_file_if_not_present(did, fun_def)?;
         }
         Ok(())
@@ -571,14 +533,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&LeanFile::Struct(name)))?;
         }
 
-        for (_, opaque_fun) in &self.fun_deps.opaque_funs {
-            let name = self.var_name(&opaque_fun.name);
-            writeln!(file, "{}", self.import(&LeanFile::OpaqueFun(name)))?;
-        }
-
-        for (_, fun_def) in &self.fun_deps.fun_defs {
-            let name = self.var_name(&fun_def.name);
-            writeln!(file, "{}", self.import(&LeanFile::Fun(name)))?;
+        for fun_def in &self.fun_deps.fun_defs {
+            writeln!(file, "{}", self.import(&self.lean_file_for_fun(fun_def)))?;
         }
 
         Ok(())
