@@ -81,10 +81,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      # Uses the lean standard action with all default input values
-      - uses: leanprover/lean-action@v1
-        with:
-          build: false
+
+      - name: Install Lean via elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
 
       - name: Install fixpoint
         uses: ./.github/actions/install-fixpoint
