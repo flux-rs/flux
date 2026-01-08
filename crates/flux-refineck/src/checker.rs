@@ -944,6 +944,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         if M::NAME == "refine" {
             let no_panic = self.fn_sig.no_panic();
 
+            panic!("fn_sig type: {:?}", fn_sig);
+
             if no_panic
                 && let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
