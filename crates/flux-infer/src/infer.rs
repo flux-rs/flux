@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, fmt, iter};
+use std::{cell::RefCell, fmt, iter};
 
 use flux_common::{bug, dbg, tracked_span_assert_eq, tracked_span_bug, tracked_span_dbg_assert_eq};
 use flux_config::{self as config, InferOpts, OverflowMode};
@@ -7,6 +7,7 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
+    metrics::{self, Metric},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -207,7 +208,7 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         self,
         cache: &mut FixQueryCache,
         def_id: MaybeExternId,
-    ) -> QueryResult<()> {
+    ) -> QueryResult {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
@@ -215,36 +216,16 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let mut fcx_for_solver =
-            FixpointCtxt::new(self.genv, def_id, kvars.clone(), Backend::Fixpoint);
-        let cstr_for_solver = refine_tree.to_fixpoint(&mut fcx_for_solver)?;
         let solver = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
-        let (cut_solutions, non_cut_solutions) = fcx_for_solver
-            .check(
-                cache,
-                def_id,
-                cstr_for_solver,
-                FixpointQueryKind::Body,
-                self.opts.scrape_quals,
-                solver,
-            )
-            .map(|answer| (answer.cut_solution, answer.non_cut_solution))
-            .unwrap_or_default();
-
         let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
         let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-        let cut_sol_funcs: HashMap<_, _> = cut_solutions
-            .iter()
-            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(*kvid, sol))
-            .collect::<Result<_, _>>()?;
-        let non_cut_sol_funcs: HashMap<_, _> = non_cut_solutions
-            .iter()
-            .map(|(kvid, sol)| fcx.kvar_solution_for_lean(*kvid, sol))
-            .collect::<Result<_, _>>()?;
-        fcx.generate_and_check_lean_lemmas(cstr, cut_sol_funcs, non_cut_sol_funcs)
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+        let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
+
+        fcx.generate_lean_files(def_id, task, result.solution, result.non_cut_solution)
     }
 
     pub fn execute_fixpoint_query(
@@ -273,15 +254,25 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
-        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
-
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
+
+        // skip checking trivial constraints
+        let count = cstr.concrete_head_count();
+        metrics::incr_metric(Metric::CsTotal, count as u32);
+        if count == 0 {
+            metrics::incr_metric_if(kind.is_body(), Metric::FnTrivial);
+            return Ok(Answer::trivial());
+        }
+
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
+        let result = fcx.run_task(cache, def_id, kind, &task)?;
+        Ok(fcx.result_to_answer(result))
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
