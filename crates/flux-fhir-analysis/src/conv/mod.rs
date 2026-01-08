@@ -1499,11 +1499,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             fhir::Res::Def(DefKind::TyParam, param_id)
             | fhir::Res::SelfTyParam { trait_: param_id } => {
                 let predicates = type_param_predicates(tcx, param_id);
-                if assoc_ident == Ident::from_str("no_panic") {
-                    // haha I assume here is where we'd do something like "register no_panic for a function?"
-                    // AssocItemTag::AssocItem::
-                    // return QueryResult::Ok((Tag::AssocItem::S, None));
-                }
                 self.probe_single_bound_for_assoc_item(
                     || {
                         tag.transitive_bounds_that_define_assoc_item(

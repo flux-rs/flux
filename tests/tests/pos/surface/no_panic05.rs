@@ -6,11 +6,11 @@ fn bar<F: Fn(i32) -> i32>(f: F) -> i32 {
 }
 
 #[flux::no_panic]
-fn wont_panic() -> i32 {
+fn wont_panic(a: i32) -> i32 {
     3
 }
 
 #[flux::no_panic]
 fn foo() {
-    bar(|x| if x == 3 { wont_panic() } else { x + 1 });
+    bar(wont_panic);
 }
