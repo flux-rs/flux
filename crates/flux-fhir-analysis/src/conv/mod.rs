@@ -1170,6 +1170,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             constraint.ident,
             AssocTag::Type,
         )?;
+        panic!("blorb 1");
         let assoc_item_id = AssocTag::Type
             .trait_defines_item_named(self.genv(), candidate.def_id(), constraint.ident)?
             .unwrap()
@@ -1500,7 +1501,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let predicates = type_param_predicates(tcx, param_id);
                 if assoc_ident == Ident::from_str("no_panic") {
                     // haha I assume here is where we'd do something like "register no_panic for a function?"
-                    panic!("you hit it.");
+                    // AssocItemTag::AssocItem::
+                    // return QueryResult::Ok((Tag::AssocItem::S, None));
                 }
                 self.probe_single_bound_for_assoc_item(
                     || {
@@ -1535,7 +1537,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .lower(tcx)
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
             .refine(&self.refiner()?)?;
-
         let assoc_item = tag
             .trait_defines_item_named(self.genv(), trait_ref.def_id, assoc_ident)?
             .unwrap();
@@ -1619,11 +1620,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     where
         I: Iterator<Item = ty::PolyTraitRef<'tcx>>,
     {
-        if assoc_name == Ident::from_str("no_panic") {
-            println!("the assoc name: {}", assoc_name);
-            println!("the tag: {}", tag.descr());
-            // create an associated refinement to return.
-        }
         let mut matching_candidates = vec![];
         for candidate in all_candidates() {
             if tag

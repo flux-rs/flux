@@ -306,8 +306,11 @@ fn assoc_refinements_of(
         clippy::disallowed_methods,
         reason = "We are iterationg over associated refinemens in fhir, so this is the *source of of truth*"
     )]
+    panic!("mii is done!");
     let predicates = match &genv.fhir_expect_item(def_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
+            println!("the trait is: {:?}", trait_.assoc_refinements);
+            panic!("mii is done!");
             trait_
                 .assoc_refinements
                 .iter()
