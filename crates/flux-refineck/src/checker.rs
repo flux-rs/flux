@@ -940,7 +940,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         if M::NAME == "refine" {
-            if let Some(callee_def_id) = callee_def_id {
+            if let Some(callee_def_id) = callee_def_id
+                && genv.def_kind(callee_def_id).is_fn_like()
+            {
                 // does the callee require no panic?
                 let callee_requires = genv
                     .fn_sig(callee_def_id)

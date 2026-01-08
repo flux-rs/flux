@@ -1170,7 +1170,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             constraint.ident,
             AssocTag::Type,
         )?;
-        panic!("blorb 1");
         let assoc_item_id = AssocTag::Type
             .trait_defines_item_named(self.genv(), candidate.def_id(), constraint.ident)?
             .unwrap()
