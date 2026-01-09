@@ -1318,41 +1318,32 @@ impl KVarSolutions {
         cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
         non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
     ) -> Self {
-        KVarSolutions {
-            cut_solutions: cut_solutions
-                .into_iter()
-                .map(|(k, v)| (k, (vec![], v)))
-                .collect(),
-            non_cut_solutions: non_cut_solutions
-                .into_iter()
-                .map(|(kvid, solution)| {
-                    let bound_vars: HashSet<&fixpoint::Var> =
-                        solution.0.iter().map(|(var, _)| var).collect();
-                    let vars = solution.1.free_vars();
-                    let free_vars: Vec<_> = vars
-                        .iter()
-                        .filter(|var| {
-                            !bound_vars.contains(var)
-                                && !matches!(
-                                    var,
-                                    fixpoint::Var::DataCtor(..)
-                                        | fixpoint::Var::Global(..)
-                                        | fixpoint::Var::DataProj { .. }
-                                )
-                        })
-                        .collect();
-                    (
-                        kvid,
-                        (
-                            free_vars
-                                .into_iter()
-                                .map(|fvar| (*fvar, variable_sorts.get(fvar).unwrap().clone()))
-                                .collect(),
-                            solution,
-                        ),
+        let closed_cut_solutions = cut_solutions
+            .into_iter()
+            .map(|(k, v)| (k, (vec![], v)))
+            .collect();
+
+        let mut closed_non_cut_solutions: HashMap<fixpoint::KVid, ClosedSolution> = HashMap::new();
+        for (kvid, solution) in non_cut_solutions {
+            let bound_vars: HashSet<&_> = solution.0.iter().map(|(var, _)| var).collect();
+            let vars = solution.1.free_vars();
+            let free_vars = vars.iter().filter(|var| {
+                !bound_vars.contains(var)
+                    && !matches!(
+                        var,
+                        fixpoint::Var::DataCtor(..)
+                            | fixpoint::Var::Global(..)
+                            | fixpoint::Var::DataProj { .. }
                     )
-                })
-                .collect(),
+            });
+            let free_var_subs = free_vars
+                .map(|fvar| (*fvar, variable_sorts.get(fvar).unwrap().clone()))
+                .collect();
+            closed_non_cut_solutions.insert(kvid, (free_var_subs, solution));
+        }
+        KVarSolutions {
+            cut_solutions: closed_cut_solutions,
+            non_cut_solutions: closed_non_cut_solutions,
         }
     }
 
