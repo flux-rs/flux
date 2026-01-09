@@ -421,7 +421,7 @@
 <a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">if </span>ctor == <span class="string">"Set_Set" </span>&amp;&amp; args.len() == <span class="number">1 </span>{
 <a href=#422 id=422 data-nosnippet>422</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(Sort::App(SortCtor::Set, args));
 <a href=#423 id=423 data-nosnippet>423</a>        }
-<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">if </span>(ctor == <span class="string">"Map_t"</span>) &amp;&amp; args.len() == <span class="number">2 </span>{
+<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">if </span>(ctor == <span class="string">"Map_t" </span>|| ctor == <span class="string">"Array_t"</span>) &amp;&amp; args.len() == <span class="number">2 </span>{
 <a href=#425 id=425 data-nosnippet>425</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(Sort::App(SortCtor::Map, args));
 <a href=#426 id=426 data-nosnippet>426</a>        }
 <a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">if </span>ctor == <span class="string">"BitVec" </span>&amp;&amp; args.len() == <span class="number">1 </span>{
