@@ -15,7 +15,7 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
-    FixpointSolution, KVarSolutions,
+    ClosedSolution, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
         Expr, FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
@@ -117,9 +117,14 @@ impl LeanFmt for DataDecl {
                     .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                     .format(" ")
             )?;
-            writeln!(f, "  {} ::", WithLeanCtxt { item: &self.ctors[0].name, cx })?;
             let ctor = &self.ctors[0];
             if let fixpoint::Var::DataCtor(adt_id, _) = &ctor.name {
+                writeln!(
+                    f,
+                    "  mk{}{} ::",
+                    WithLeanCtxt { item: &DataSort::Adt(*adt_id), cx },
+                    as_subscript(0)
+                )?;
                 for (idx, field) in ctor.fields.iter().enumerate() {
                     writeln!(
                         f,
@@ -257,7 +262,8 @@ impl LeanFmt for Var {
             Var::DataCtor(adt_id, idx) => {
                 write!(
                     f,
-                    "mk{}{}",
+                    "{}.mk{}{}",
+                    WithLeanCtxt { item: LeanAdt(*adt_id), cx },
                     WithLeanCtxt { item: &DataSort::Adt(*adt_id), cx },
                     as_subscript(idx.as_usize())
                 )
@@ -585,11 +591,11 @@ impl LeanFmt for KVarDecl {
     }
 }
 
-impl LeanFmt for (&KVid, &FixpointSolution) {
+impl LeanFmt for (&KVid, &ClosedSolution) {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        let (kvid, (binder, inner)) = self;
+        let (kvid, (implicit, (explicit, inner))) = self;
         write!(f, "def k{} ", kvid.as_usize())?;
-        for (arg, sort) in binder {
+        for (arg, sort) in implicit.iter().chain(explicit) {
             write!(f, "(")?;
             arg.lean_fmt(f, cx)?;
             write!(f, " : {}) ", WithLeanCtxt { item: sort, cx })?;

@@ -1,4 +1,7 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
 use derive_where::derive_where;
 
@@ -30,6 +33,25 @@ impl<T: Types> Constraint<T> {
 
     pub fn conj(mut cstrs: Vec<Self>) -> Self {
         if cstrs.len() == 1 { cstrs.remove(0) } else { Self::Conj(cstrs) }
+    }
+
+    fn variable_sorts_help(&self, acc: &mut HashMap<T::Var, Sort<T>>) {
+        match self {
+            Constraint::ForAll(bind, inner) => {
+                acc.insert(bind.name.clone(), bind.sort.clone());
+                inner.variable_sorts_help(acc);
+            }
+            Constraint::Conj(cstrs) => {
+                cstrs.iter().for_each(|cstr| cstr.variable_sorts_help(acc));
+            }
+            Constraint::Pred(..) => {}
+        }
+    }
+
+    pub fn variable_sorts(&self) -> HashMap<T::Var, Sort<T>> {
+        let mut res = HashMap::new();
+        self.variable_sorts_help(&mut res);
+        res
     }
 
     /// Returns true if the constraint has at least one concrete RHS ("head") predicates.

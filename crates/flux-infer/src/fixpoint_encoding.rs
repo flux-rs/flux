@@ -1,6 +1,11 @@
 //! Encoding of the refinement tree into a fixpoint constraint.
 
-use std::{collections::HashMap, hash::Hash, iter, ops::Range};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+    iter,
+    ops::Range,
+};
 
 use fixpoint::AdtId;
 use flux_common::{
@@ -199,6 +204,7 @@ pub mod fixpoint {
 /// A type to represent Solutions for KVars
 pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
 pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
+pub type ClosedSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, FixpointSolution);
 
 /// A very explicit representation of [`Solution`] for debugging/tracing/serialization ONLY.
 #[derive(Serialize, DebugAsJson)]
@@ -702,8 +708,7 @@ where
         self,
         def_id: MaybeExternId,
         task: fixpoint::Task,
-        cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-        non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+        kvar_solutions: KVarSolutions,
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
@@ -718,7 +723,7 @@ where
             task.define_funs,
             task.kvars,
             task.constraint,
-            KVarSolutions { cut_solutions, non_cut_solutions },
+            kvar_solutions,
         )
         .map_err(|err| query_bug!("could not encode constraint: {err:?}"))
     }
@@ -1295,11 +1300,56 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
 }
 
 pub struct KVarSolutions {
-    pub cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-    pub non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+    pub cut_solutions: HashMap<fixpoint::KVid, ClosedSolution>,
+    pub non_cut_solutions: HashMap<fixpoint::KVid, ClosedSolution>,
 }
 
 impl KVarSolutions {
+    pub(crate) fn closed_solutions(
+        variable_sorts: HashMap<fixpoint::Var, fixpoint::Sort>,
+        cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+        non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+    ) -> Self {
+        KVarSolutions {
+            cut_solutions: cut_solutions
+                .into_iter()
+                .map(|(k, v)| (k, (vec![], v)))
+                .collect(),
+            non_cut_solutions: non_cut_solutions
+                .into_iter()
+                .map(|(kvid, solution)| {
+                    let bound_vars: HashSet<&fixpoint::Var> =
+                        solution.0.iter().map(|(var, _)| var).collect();
+                    let vars = solution.1.free_vars();
+                    let free_vars: Vec<_> = vars
+                        .iter()
+                        .filter(|var| {
+                            !bound_vars.contains(var)
+                                && !matches!(
+                                    var,
+                                    fixpoint::Var::DataCtor(..)
+                                        | fixpoint::Var::Global(..)
+                                        | fixpoint::Var::DataProj { .. }
+                                )
+                        })
+                        .collect();
+                    (
+                        kvid,
+                        (
+                            free_vars
+                                .into_iter()
+                                .map(|fvar| {
+                                    (fvar.clone(), variable_sorts.get(fvar).unwrap().clone())
+                                })
+                                .collect(),
+                            solution,
+                        ),
+                    )
+                })
+                .collect(),
+        }
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.cut_solutions.is_empty() && self.non_cut_solutions.is_empty()
     }
