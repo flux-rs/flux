@@ -421,7 +421,7 @@ where
         if ctor == "Set_Set" && args.len() == 1 {
             return Ok(Sort::App(SortCtor::Set, args));
         }
-        if (ctor == "Map_t") && args.len() == 2 {
+        if (ctor == "Map_t" || ctor == "Array_t") && args.len() == 2 {
             return Ok(Sort::App(SortCtor::Map, args));
         }
         if ctor == "BitVec" && args.len() == 1 {

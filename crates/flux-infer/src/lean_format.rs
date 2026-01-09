@@ -530,16 +530,20 @@ impl LeanFmt for FunDef {
 impl LeanFmt for FunSort {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         for i in 0..self.params {
-            write!(f, "t{i} -> [Inhabited t{i}] -> ")?;
+            write!(f, "(t{i} : Type) -> [Inhabited t{i}] -> ")?;
         }
-        write!(
-            f,
-            "{} -> {}",
-            self.inputs.iter().format_with(" -> ", |sort, f| {
-                f(&format_args!("{}", WithLeanCtxt { item: sort, cx }))
-            }),
-            WithLeanCtxt { item: &self.output, cx }
-        )
+        if self.inputs.is_empty() {
+            write!(f, "{}", WithLeanCtxt { item: &self.output, cx })
+        } else {
+            write!(
+                f,
+                "{} -> {}",
+                self.inputs.iter().format_with(" -> ", |sort, f| {
+                    f(&format_args!("{}", WithLeanCtxt { item: sort, cx }))
+                }),
+                WithLeanCtxt { item: &self.output, cx }
+            )
+        }
     }
 }
 
@@ -616,6 +620,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
                 for kvar_solution in &self.kvar_solutions.cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
                 }
+                writeln!(f)?;
             }
 
             if !self.kvar_solutions.non_cut_solutions.is_empty() {
@@ -623,6 +628,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
                 for kvar_solution in &self.kvar_solutions.non_cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
                 }
+                writeln!(f)?;
             }
             writeln!(f, "\nend {namespace}\n\n")?;
             writeln!(f, "open {namespace}\n\n")?;

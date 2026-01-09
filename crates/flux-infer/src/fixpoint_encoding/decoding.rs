@@ -27,7 +27,7 @@ where
             };
             vars.push(*local_var);
             sorts.push(
-                self.fixpoint_to_sort(&sort)
+                self.fixpoint_to_sort(sort)
                     .unwrap_or_else(|_| tracked_span_bug!("failed to parse sort: {sort:?}")),
             );
         }
