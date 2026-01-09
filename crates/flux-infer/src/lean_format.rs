@@ -6,6 +6,7 @@ use flux_common::{
     dbg::{self, as_subscript},
 };
 use flux_middle::{
+    def_id::FluxDefId,
     global_env::GlobalEnv,
     rty::{PrettyMap, PrettyVar},
 };
@@ -32,6 +33,8 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
+    pub fun_decl_map: &'a FxIndexSet<FluxDefId>,
+    pub kvar_solutions: &'a KVarSolutions,
     pub bool_mode: BoolMode,
 }
 
@@ -54,7 +57,6 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
-    pub kvar_solutions: KVarSolutions,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -247,6 +249,20 @@ impl LeanFmt for Var {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
             Var::Global(_gvar, Some(def_id)) => {
+                let path = cx
+                    .genv
+                    .tcx()
+                    .def_path(def_id.parent())
+                    .to_filename_friendly_no_crate()
+                    .replace("-", "_");
+                if path.is_empty() {
+                    write!(f, "{}", def_id.name())
+                } else {
+                    write!(f, "{path}_{}", def_id.name())
+                }
+            }
+            Var::Global(gvar, None) if cx.fun_decl_map.get_index(gvar.index()).is_some() => {
+                let def_id = *cx.fun_decl_map.get_index(gvar.index()).unwrap();
                 let path = cx
                     .genv
                     .tcx()
@@ -569,6 +585,16 @@ impl LeanFmt for Pred {
             }
             Pred::KVar(kvid, args) => {
                 write!(f, "({}", kvid.display().to_string().replace("$", "_"))?;
+                for imp in cx
+                    .kvar_solutions
+                    .non_cut_solutions
+                    .get(kvid)
+                    .map(|sol| sol.0.clone())
+                    .unwrap_or(vec![])
+                {
+                    write!(f, " ")?;
+                    imp.0.lean_fmt(f, cx)?;
+                }
                 for arg in args {
                     write!(f, " ")?;
                     arg.lean_fmt(f, cx)?;
@@ -581,9 +607,16 @@ impl LeanFmt for Pred {
 
 impl LeanFmt for KVarDecl {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
-        let sorts = self
-            .sorts
+        let implicits: Vec<_> = cx
+            .kvar_solutions
+            .non_cut_solutions
+            .get(&self.kvid)
+            .map(|solution| solution.0.clone())
+            .unwrap_or(vec![]);
+        let sorts = implicits
             .iter()
+            .map(|(_, sort)| sort)
+            .chain(&self.sorts)
             .enumerate()
             .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
             .format(" -> ");
@@ -611,27 +644,29 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let theorem_name = self.theorem_name.replace(".", "_");
         let namespace = format!("{}KVarSolutions", snake_case_to_pascal_case(&theorem_name));
-        if !self.kvar_solutions.is_empty() {
+        if !cx.kvar_solutions.is_empty() {
             writeln!(f, "namespace {namespace}\n")?;
 
             let cx = LeanCtxt {
                 genv: cx.genv,
                 pretty_var_map: cx.pretty_var_map,
                 adt_map: cx.adt_map,
+                fun_decl_map: cx.fun_decl_map,
+                kvar_solutions: cx.kvar_solutions,
                 bool_mode: BoolMode::Prop,
             };
 
-            if !self.kvar_solutions.cut_solutions.is_empty() {
+            if !cx.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;
-                for kvar_solution in &self.kvar_solutions.cut_solutions {
+                for kvar_solution in &cx.kvar_solutions.cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
                 }
                 writeln!(f)?;
             }
 
-            if !self.kvar_solutions.non_cut_solutions.is_empty() {
+            if !cx.kvar_solutions.non_cut_solutions.is_empty() {
                 writeln!(f, "-- acyclic (non-cut) kvars")?;
-                for kvar_solution in &self.kvar_solutions.non_cut_solutions {
+                for kvar_solution in &cx.kvar_solutions.non_cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
                 }
                 writeln!(f)?;
@@ -650,7 +685,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
                 "{}, ",
                 self.kvars
                     .iter()
-                    .map(|kvar| WithLeanCtxt { item: kvar, cx })
+                    .map(|kvar| { WithLeanCtxt { item: kvar, cx } })
                     .format(", ")
             )?;
             self.constr.lean_fmt(f, cx)

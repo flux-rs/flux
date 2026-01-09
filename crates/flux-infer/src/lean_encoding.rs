@@ -23,7 +23,7 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{KVarSolutions, SortDeps, fixpoint},
+    fixpoint_encoding::{FunDeps, KVarSolutions, SortDeps, fixpoint},
     lean_format::{
         self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
     },
@@ -224,7 +224,8 @@ pub struct LeanEncoder<'genv, 'tcx> {
     def_id: MaybeExternId,
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     sort_deps: SortDeps,
-    fun_deps: Vec<fixpoint::FunDef>,
+    fun_deps: FunDeps,
+    kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
@@ -237,6 +238,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
+            fun_decl_map: &self.fun_deps.fun_decl_map,
+            kvar_solutions: &self.kvar_solutions,
             bool_mode: BoolMode::Bool,
         }
     }
@@ -265,7 +268,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
-        fun_deps: Vec<fixpoint::FunDef>,
+        fun_deps: FunDeps,
+        kvar_solutions: KVarSolutions,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
@@ -276,6 +280,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             sort_deps,
             fun_deps,
             kvar_decls,
+            kvar_solutions,
             constraint,
             fun_files: FxHashMap::default(),
             sort_files: FxHashMap::default(),
@@ -285,10 +290,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(encoder)
     }
 
-    fn run(&self, kvar_solutions: KVarSolutions) -> io::Result<()> {
+    fn run(&self) -> io::Result<()> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_if_absent()?;
-        self.generate_vc_file(kvar_solutions)?;
+        self.generate_vc_file()?;
         self.generate_proof_if_absent()?;
         self.record_proof()?;
         Ok(())
@@ -296,7 +301,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn fun_files(&self) -> FxHashMap<FluxDefId, LeanFile> {
         let mut res = FxHashMap::default();
-        for fun_def in &self.fun_deps {
+        for fun_def in &self.fun_deps.define_funs {
             let fixpoint::Var::Global(_, Some(did)) = fun_def.name else {
                 bug!("expected global var with id")
             };
@@ -511,7 +516,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             self.generate_struct_file_if_not_present(data_decl)?;
         }
         // 3. Generate Func Def Files
-        for fun_def in &self.fun_deps {
+        for fun_def in &self.fun_deps.define_funs {
             let fixpoint::Var::Global(_, Some(did)) = fun_def.name else {
                 bug!("expected global var with id")
             };
@@ -533,14 +538,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&LeanFile::Struct(name)))?;
         }
 
-        for fun_def in &self.fun_deps {
+        for fun_def in &self.fun_deps.define_funs {
             writeln!(file, "{}", self.import(&self.lean_file_for_fun(fun_def)))?;
         }
 
         Ok(())
     }
 
-    fn generate_vc_file(&self, kvar_solutions: KVarSolutions) -> io::Result<()> {
+    fn generate_vc_file(&self) -> io::Result<()> {
         // 1. Generate imports
         self.generate_vc_prelude()?;
 
@@ -560,7 +565,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                         theorem_name: &vc_name,
                         kvars: &self.kvar_decls,
                         constr: &self.constraint,
-                        kvar_solutions,
                     },
                     cx: &self.lean_cx()
                 }
@@ -612,14 +616,22 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
-        fun_deps: Vec<fixpoint::FunDef>,
+        fun_deps: FunDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
         kvar_solutions: KVarSolutions,
     ) -> io::Result<()> {
-        let encoder =
-            Self::new(genv, def_id, pretty_var_map, sort_deps, fun_deps, kvar_decls, constraint)?;
-        encoder.run(kvar_solutions)?;
+        let encoder = Self::new(
+            genv,
+            def_id,
+            pretty_var_map,
+            sort_deps,
+            fun_deps,
+            kvar_solutions,
+            kvar_decls,
+            constraint,
+        )?;
+        encoder.run()?;
         Ok(())
     }
 }
