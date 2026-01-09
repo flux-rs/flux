@@ -111,10 +111,25 @@ jobs:
         run: |
           git clone https://github.com/flux-rs/flux-to-lean-demo
 
-      - name: Check
+      - name: Generate Lean Project
+        continue-on-error: true
+        working-directory: flux-to-lean-demo
         run: |
-          cd flux-to-lean-demo
-          ./runlean.sh
+          cargo flux
+
+      - name: Copy proofs
+        working-directory: flux-to-lean-demo
+        run: |
+          cp -r LeanUserProofs/* lean_proofs/LeanProofs/User/
+
+      - name: Run lean
+        working-directory: flux-to-lean-demo
+        run: |
+          cd lean_proofs && lake build
+
+      - name: Check proofs in flux
+        run: |
+          cargo flux
 
   rustfmt:
     runs-on: ubuntu-latest
