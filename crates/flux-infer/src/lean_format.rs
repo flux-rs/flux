@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{fmt::Write, iter};
+use std::{collections::HashMap, fmt::Write, iter};
 
 use flux_common::{
     bug,
@@ -33,7 +33,7 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
-    pub fun_decl_map: &'a FxIndexSet<FluxDefId>,
+    pub fun_decl_map: &'a HashMap<usize, FluxDefId>,
     pub kvar_solutions: &'a KVarSolutions,
     pub bool_mode: BoolMode,
 }
@@ -261,8 +261,8 @@ impl LeanFmt for Var {
                     write!(f, "{path}_{}", def_id.name())
                 }
             }
-            Var::Global(gvar, None) if cx.fun_decl_map.get_index(gvar.index()).is_some() => {
-                let def_id = *cx.fun_decl_map.get_index(gvar.index()).unwrap();
+            Var::Global(gvar, None) if cx.fun_decl_map.contains_key(&gvar.index()) => {
+                let def_id = *cx.fun_decl_map.get(&gvar.index()).unwrap();
                 let path = cx
                     .genv
                     .tcx()

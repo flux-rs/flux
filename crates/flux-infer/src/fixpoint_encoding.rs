@@ -714,12 +714,12 @@ where
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
-        let mut fun_decl_map = FxIndexSet::default();
+        let mut fun_decl_map = HashMap::new();
         for (def_id, var) in self.ecx.const_env.fun_decl_map {
             let fixpoint::Var::Global(idx, _) = var else {
                 bug!("non global var encountered for function")
             };
-            fun_decl_map.shift_insert(idx.index(), def_id);
+            fun_decl_map.insert(idx.index(), def_id);
         }
         let fun_deps = FunDeps { define_funs: task.define_funs, fun_decl_map };
 
@@ -1370,7 +1370,7 @@ pub struct SortDeps {
 
 pub struct FunDeps {
     pub define_funs: Vec<fixpoint::FunDef>,
-    pub fun_decl_map: FxIndexSet<FluxDefId>,
+    pub fun_decl_map: HashMap<usize, FluxDefId>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
