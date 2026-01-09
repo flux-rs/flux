@@ -951,7 +951,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             {
                 // try to use flux-opt to infer the no_panicness of the callee.
                 let callee_no_panic = fn_sig.no_panic()
-                    || infer_no_panics(genv)
+                    || infer_no_panics(genv.tcx())
                         .get(&callee_def_id)
                         .cloned()
                         .unwrap_or(false);

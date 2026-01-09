@@ -1,21 +1,22 @@
 #![feature(rustc_private)]
 
-extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use flux_middle::global_env::GlobalEnv;
 use rustc_hash::FxHashMap;
-use rustc_middle::{mir::TerminatorKind, ty};
+use rustc_middle::{
+    mir::TerminatorKind,
+    ty::{self, TyCtxt},
+};
 use rustc_span::def_id::DefId;
 
-fn get_callees(genv: &GlobalEnv, def_id: DefId) -> Vec<DefId> {
-    let body = genv.tcx().optimized_mir(def_id);
+fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
+    let body = tcx.optimized_mir(def_id);
 
     let mut callees = Vec::new();
     for bb in body.basic_blocks.iter() {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
-            let ty = func.ty(&body.local_decls, genv.tcx());
+            let ty = func.ty(&body.local_decls, *tcx);
             if let ty::FnDef(def_id, _) = ty.kind() {
                 callees.push(*def_id)
             }
@@ -25,9 +26,7 @@ fn get_callees(genv: &GlobalEnv, def_id: DefId) -> Vec<DefId> {
 }
 
 // Invariant: the DefIds in the returned map are all LocalDefIds
-pub fn infer_no_panics(genv: GlobalEnv) -> FxHashMap<DefId, bool> {
-    let tcx = genv.tcx();
-
+pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
     let mut fn_to_no_panic: FxHashMap<DefId, bool> = FxHashMap::default();
     let mut call_graph: FxHashMap<DefId, Vec<DefId>> = FxHashMap::default();
     for def_id in tcx.hir_body_owners() {
@@ -35,7 +34,7 @@ pub fn infer_no_panics(genv: GlobalEnv) -> FxHashMap<DefId, bool> {
             let def_id = def_id.to_def_id();
             // Conservatively assume functions will panic
             fn_to_no_panic.insert(def_id, false);
-            let callees = get_callees(&genv, def_id);
+            let callees = get_callees(&tcx, def_id);
             call_graph.insert(def_id, callees);
         }
     }
