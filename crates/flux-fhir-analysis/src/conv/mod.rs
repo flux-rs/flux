@@ -671,8 +671,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
+        let no_panic = self.genv().no_panic(fn_id);
 
-        let fn_sig = self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id)?;
+        let fn_sig =
+            self.conv_fn_decl(&mut env, header.safety(), header.abi, decl, body_id, no_panic)?;
 
         let vars = late_bound_regions
             .iter()
@@ -977,6 +979,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         abi: rustc_abi::ExternAbi,
         decl: &fhir::FnDecl,
         body_id: Option<BodyId>,
+        no_panic: bool,
     ) -> QueryResult<rty::FnSig> {
         let mut requires = vec![];
         for req in decl.requires {
@@ -999,7 +1002,15 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let output = self.conv_fn_output(env, &decl.output)?;
 
-        Ok(rty::FnSig::new(safety, abi, requires.into(), inputs.into(), output, decl.lifted))
+        Ok(rty::FnSig::new(
+            safety,
+            abi,
+            requires.into(),
+            inputs.into(),
+            output,
+            no_panic,
+            decl.lifted,
+        ))
     }
 
     fn conv_requires(
@@ -1236,8 +1247,14 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                     bare_fn.generic_params.len() as u32,
                     &[],
                 ));
-                let fn_sig =
-                    self.conv_fn_decl(&mut env, bare_fn.safety, bare_fn.abi, bare_fn.decl, None)?;
+                let fn_sig = self.conv_fn_decl(
+                    &mut env,
+                    bare_fn.safety,
+                    bare_fn.abi,
+                    bare_fn.decl,
+                    None,
+                    false,
+                )?;
                 let vars = bare_fn
                     .generic_params
                     .iter()

@@ -693,7 +693,15 @@ impl FnTraitPredicate {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
         let ret = self.output.clone().shift_in_escaping(1);
         let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output, false)
+        FnSig::new(
+            Safety::Safe,
+            rustc_abi::ExternAbi::Rust,
+            List::empty(),
+            inputs,
+            output,
+            false,
+            false,
+        )
     }
 }
 
@@ -703,6 +711,7 @@ pub fn to_closure_sig(
     tys: &[Ty],
     args: &flux_rustc_bridge::ty::GenericArgs,
     poly_sig: &PolyFnSig,
+    no_panic: bool,
 ) -> PolyFnSig {
     let closure_args = args.as_closure();
     let kind_ty = closure_args.kind_ty().to_rustc(tcx);
@@ -744,6 +753,7 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(),
         inputs.into(),
         output,
+        no_panic,
         false,
     );
 
@@ -1381,6 +1391,7 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
+    pub no_panic: bool,
     /// was this auto-lifted (or from a spec)
     pub lifted: bool,
 }
@@ -2540,6 +2551,7 @@ impl CoroutineObligPredicate {
                 inputs,
                 output,
                 false,
+                false,
             ),
             List::from(vars),
         )
@@ -2662,9 +2674,10 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
+        no_panic: bool,
         lifted: bool,
     ) -> Self {
-        FnSig { safety, abi, requires, inputs, output, lifted }
+        FnSig { safety, abi, requires, inputs, output, no_panic, lifted }
     }
 
     pub fn requires(&self) -> &[Expr] {
@@ -2673,6 +2686,10 @@ impl FnSig {
 
     pub fn inputs(&self) -> &[Ty] {
         &self.inputs
+    }
+
+    pub fn no_panic(&self) -> bool {
+        self.no_panic
     }
 
     pub fn output(&self) -> Binder<FnOutput> {
@@ -2785,6 +2802,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
+                    true,
                     false,
                 )
             })

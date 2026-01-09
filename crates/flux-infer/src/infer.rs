@@ -77,6 +77,7 @@ pub enum ConstrReason {
     Overflow,
     Underflow,
     Subtype(SubtypeReason),
+    NoPanic(DefId),
     Other,
 }
 

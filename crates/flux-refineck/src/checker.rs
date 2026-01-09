@@ -73,7 +73,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
     resume_ty: Option<Ty>,
-    output: Binder<FnOutput>,
+    fn_sig: FnSig,
     /// A marker to the node in the refinement tree at the end of the basic block after applying
     /// the effects of the terminator.
     markers: IndexVec<BasicBlock, Option<Marker>>,
@@ -471,7 +471,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, false);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true, false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -502,7 +502,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             body,
             resume_ty,
             visited: DenseBitSet::new_empty(bb_len),
-            output: fn_sig.output().clone(),
+            fn_sig,
             markers: IndexVec::from_fn_n(|_| None, bb_len),
             queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, root_id.to_def_id())?,
@@ -860,6 +860,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
                 let output = self
+                    .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
                 let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
@@ -886,22 +887,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
-
-        if M::NAME == "refine" {
-            let no_panic = genv.no_panic(self.checker_id.root_id());
-
-            if no_panic
-                && let Some(callee_def_id) = callee_def_id
-                && genv.def_kind(callee_def_id).is_fn_like()
-            {
-                let callee_no_panic = genv.no_panic(callee_def_id);
-                if !callee_no_panic {
-                    let callee_name = tcx.def_path_str(callee_def_id);
-                    genv.sess()
-                        .emit_err(errors::PanicError { span, callee: callee_name });
-                }
-            }
-        }
 
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
@@ -937,8 +922,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
 
-        for fn_trait_pred in fn_clauses {
-            self.check_fn_trait_clause(infcx, &fn_trait_pred, span)?;
+        for fn_trait_pred in &fn_clauses {
+            self.check_fn_trait_clause(infcx, fn_trait_pred, span)?;
         }
 
         // Instantiate function signature and normalize it
@@ -955,6 +940,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         let mut at = infcx.at(span);
+
+        if M::NAME == "refine" {
+            let no_panic = self.fn_sig.no_panic();
+
+            if no_panic
+                && let Some(callee_def_id) = callee_def_id
+                && genv.def_kind(callee_def_id).is_fn_like()
+            {
+                at.check_pred(
+                    Expr::implies(
+                        if no_panic { Expr::tt() } else { Expr::ff() },
+                        if fn_sig.no_panic() { Expr::tt() } else { Expr::ff() },
+                    ),
+                    ConstrReason::NoPanic(callee_def_id),
+                );
+            }
+        }
 
         // Check requires predicates
         for requires in fn_sig.requires() {
@@ -1323,7 +1325,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let closure_id = did.expect_local();
         let span = tcx.def_span(closure_id);
         let body = genv.mir(closure_id).with_span(span)?;
-        let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig);
+        let no_panic = self.genv.no_panic(*did);
+        let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig, no_panic);
         Checker::run(
             infcx.change_item(closure_id, &body.infcx),
             closure_id,
@@ -2336,21 +2339,12 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_macros::Diagnostic;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_panic_error, code = E0999)]
-    pub(super) struct PanicError {
-        #[primary_span]
-        pub(super) span: Span,
-        pub(super) callee: String,
-    }
 
     #[derive(Debug)]
     pub struct CheckerError {
