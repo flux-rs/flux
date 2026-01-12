@@ -202,7 +202,7 @@ pub mod fixpoint {
 }
 
 /// A type to represent Solutions for KVars
-pub type Solution = HashMap<rty::KVid, rty::Binder<rty::Expr>>;
+pub type Solution = FxIndexMap<rty::KVid, rty::Binder<rty::Expr>>;
 pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
 pub type ClosedSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, FixpointSolution);
 
@@ -246,8 +246,8 @@ impl SolutionTrace {
 
 pub struct ParsedResult {
     pub status: FixpointStatus<TagIdx>,
-    pub solution: HashMap<fixpoint::KVid, FixpointSolution>,
-    pub non_cut_solution: HashMap<fixpoint::KVid, FixpointSolution>,
+    pub solution: FxIndexMap<fixpoint::KVid, FixpointSolution>,
+    pub non_cut_solution: FxIndexMap<fixpoint::KVid, FixpointSolution>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -259,7 +259,11 @@ pub struct Answer<Tag> {
 
 impl<Tag> Answer<Tag> {
     pub fn trivial() -> Self {
-        Self { errors: Vec::new(), cut_solution: HashMap::new(), non_cut_solution: HashMap::new() }
+        Self {
+            errors: Vec::new(),
+            cut_solution: FxIndexMap::default(),
+            non_cut_solution: FxIndexMap::default(),
+        }
     }
 
     pub fn solutions(&self) -> impl Iterator<Item = (&rty::KVid, &rty::Binder<rty::Expr>)> {
@@ -638,8 +642,8 @@ where
         } else {
             Ok(ParsedResult {
                 status: result.status,
-                solution: HashMap::default(),
-                non_cut_solution: HashMap::default(),
+                solution: FxIndexMap::default(),
+                non_cut_solution: FxIndexMap::default(),
             })
         }
     }
@@ -681,7 +685,7 @@ where
     fn parse_kvar_solutions(
         &mut self,
         kvar_binds: &[KVarBind],
-    ) -> HashMap<fixpoint::KVid, FixpointSolution> {
+    ) -> FxIndexMap<fixpoint::KVid, FixpointSolution> {
         kvar_binds
             .iter()
             .map(|b| (parse_kvid(&b.kvar), self.parse_kvar_solution(&b.val)))
@@ -1036,8 +1040,8 @@ impl KVarEncodingCtxt {
     fn group_kvar_solution(
         &self,
         mut items: Vec<(fixpoint::KVid, rty::Binder<rty::Expr>)>,
-    ) -> HashMap<rty::KVid, rty::Binder<rty::Expr>> {
-        let mut map = HashMap::default();
+    ) -> FxIndexMap<rty::KVid, rty::Binder<rty::Expr>> {
+        let mut map = FxIndexMap::default();
 
         items.sort_by_key(|(kvid, _)| *kvid);
         items.reverse();
@@ -1308,22 +1312,23 @@ pub struct ExprEncodingCtxt<'genv, 'tcx> {
 }
 
 pub struct KVarSolutions {
-    pub cut_solutions: HashMap<fixpoint::KVid, ClosedSolution>,
-    pub non_cut_solutions: HashMap<fixpoint::KVid, ClosedSolution>,
+    pub cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution>,
+    pub non_cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution>,
 }
 
 impl KVarSolutions {
     pub(crate) fn closed_solutions(
         variable_sorts: HashMap<fixpoint::Var, fixpoint::Sort>,
-        cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
-        non_cut_solutions: HashMap<fixpoint::KVid, FixpointSolution>,
+        cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
+        non_cut_solutions: FxIndexMap<fixpoint::KVid, FixpointSolution>,
     ) -> Self {
         let closed_cut_solutions = cut_solutions
             .into_iter()
             .map(|(k, v)| (k, (vec![], v)))
             .collect();
 
-        let mut closed_non_cut_solutions: HashMap<fixpoint::KVid, ClosedSolution> = HashMap::new();
+        let mut closed_non_cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution> =
+            FxIndexMap::default();
         for (kvid, solution) in non_cut_solutions {
             let bound_vars: HashSet<&_> = solution.0.iter().map(|(var, _)| var).collect();
             let vars = solution.1.free_vars();

@@ -1,9 +1,7 @@
-use std::{
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use std::{collections::HashMap, hash::Hash};
 
 use derive_where::derive_where;
+use indexmap::IndexSet;
 
 use crate::{ThyFunc, Types};
 
@@ -314,8 +312,8 @@ impl<T: Types> Expr<T> {
         if exprs.len() == 1 { exprs.remove(0) } else { Self::And(exprs) }
     }
 
-    pub fn free_vars(&self) -> HashSet<T::Var> {
-        let mut vars = HashSet::new();
+    pub fn free_vars(&self) -> IndexSet<T::Var> {
+        let mut vars = IndexSet::new();
         match self {
             Expr::Constant(_) | Expr::ThyFunc(_) => {}
             Expr::Var(x) => {
@@ -355,7 +353,7 @@ impl<T: Types> Expr<T> {
                 let [var_e, body_e] = &**exprs;
                 vars.extend(var_e.free_vars());
                 let mut body_vars = body_e.free_vars();
-                body_vars.remove(name);
+                body_vars.swap_remove(name);
                 vars.extend(body_vars);
             }
             Expr::IsCtor(_v, expr) => {
@@ -366,7 +364,7 @@ impl<T: Types> Expr<T> {
             Expr::Exists(binder, expr) => {
                 let mut inner = expr.free_vars();
                 for (var, _sort) in binder {
-                    inner.remove(var);
+                    inner.swap_remove(var);
                 }
                 vars.extend(inner);
             }
