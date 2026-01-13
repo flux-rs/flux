@@ -585,6 +585,7 @@ fn add_weak_kvar_to_ty(
         // since we're going under a binder.
         Exists(bound_ty) => {
             let bound_vars = bound_ty.vars();
+            shift_in_vars(&mut self_args);
             shift_in_vars(&mut params);
             let exist_params = make_vars_and_sorts_from_bound_vars(bound_vars);
             self_args.extend(exist_params);
