@@ -158,6 +158,7 @@ where
             Sexp::List(items) => {
                 if let Sexp::Atom(Atom::S(s)) = &items[0] {
                     match s.as_str() {
+                        "cast" => self.parse_expr(&items[1]),
                         "exists" => self.parse_exists(&items[1..]),
                         "let" => self.parse_let(sexp),
                         "not" => self.parse_not(sexp),
@@ -306,7 +307,19 @@ where
     fn parse_app(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
-                let exp1 = self.parse_expr_possibly_nested(&items[0])?;
+                let Sexp::List(inner) = &items[0] else {
+                    Err(ParseError::err("Expected list for inner func"))?
+                };
+                let exp1 = match &inner[1] {
+                    Sexp::Atom(Atom::S(s)) if s == "apply" => {
+                        let func_sort = self.parse_sort(&inner[2])?;
+                        let func = self.parse_expr_possibly_nested(&items[1])?;
+                        println!("{func:?} : {func_sort:?}");
+                        func
+                    },
+                    _ => self.parse_expr_possibly_nested(&items[0])?
+                };
+                // let exp1 = self.parse_func(&items[0])?;
                 let args: Vec<Expr<T>> = items[1..]
                     .to_vec()
                     .iter()
