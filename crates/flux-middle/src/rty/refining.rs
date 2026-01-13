@@ -523,28 +523,47 @@ impl rty::PolyFnSig {
                 .collect_vec();
             // FIXME: we should have a better way to generate the KVid.
             // NOTE: there are no self_args for the requires weak kvar.
-            let requires_wkvar = make_weak_kvar(&mut weak_kvars, def_id, rty::KVid::from(0_usize), Vec::new(), params.clone());
+            let mut kvid = rty::KVid::from(0_usize);
+            let requires_wkvar = make_weak_kvar(&mut weak_kvars, def_id, &mut kvid, Vec::new(), params.clone());
+            let inputs = fn_sig
+                .inputs
+                .iter()
+                .map(|input| add_weak_kvars_to_ty(&mut weak_kvars, def_id, &mut kvid, Vec::new(), params.clone(), input))
+                .collect();
             shift_in_vars(&mut params);
             let output_binder_params = make_vars_and_sorts_from_bound_vars(fn_sig.output.vars());
             params.extend(output_binder_params);
+            let ensures =
+                if !fn_sig.output.vars().is_empty() {
+                    let ensures_wkvar = make_weak_kvar(&mut weak_kvars, def_id, &mut kvid, make_vars_and_sorts_from_bound_vars(fn_sig.output.vars()), params.clone());
+                    fn_sig.output
+                          .skip_binder_ref()
+                          .ensures
+                          .iter()
+                          .cloned()
+                          .chain(std::iter::once(rty::Ensures::Pred(rty::Expr::wkvar(ensures_wkvar))))
+                          .collect()
+                } else {
+                    fn_sig.output.skip_binder_ref().ensures.clone()
+                };
             let output = fn_sig.output.map(|output| {
                 rty::FnOutput {
-                    ret: add_weak_kvar_to_ty(
+                    ret: add_weak_kvars_to_ty(
                         &mut weak_kvars,
                         def_id,
-                        rty::KVid::from(1_usize),
+                        &mut kvid,
                         Vec::new(),
                         params.clone(),
                         &output.ret,
                     ),
-                    ensures: output.ensures,
+                    ensures,
                 }
             });
             genv.feed_weak_kvars(def_id, weak_kvars);
             rty::FnSig {
                 abi: fn_sig.abi,
                 safety: fn_sig.safety,
-                inputs: fn_sig.inputs,
+                inputs,
                 // FIXME: why do we need to clone?
                 requires: fn_sig
                     .requires
@@ -558,10 +577,10 @@ impl rty::PolyFnSig {
     }
 }
 
-fn add_weak_kvar_to_ty(
+fn add_weak_kvars_to_ty(
     wkvar_map: &mut WeakKvarMap,
     def_id: DefId,
-    kvid: rty::KVid,
+    kvid: &mut rty::KVid,
     // Mutable because we're accumulating them
     mut self_args: Vec<(rty::Var, rty::Sort)>,
     // Mutable because we're shifting them in when we go under binders
@@ -573,13 +592,35 @@ fn add_weak_kvar_to_ty(
     match ty.kind() {
         // Base case: make a new constraint with the weak kvar
         Indexed(_, _) => {
-            let wkvar = make_weak_kvar(wkvar_map, def_id, kvid, self_args, params);
-            Ty::constr(Expr::wkvar(wkvar), ty.clone())
+            // We already add weak kvars for requires and ensures, so only add a
+            // weak kvar here if it has new arguments. It can only gain new
+            // arguments by addition to self_args.
+            if !self_args.is_empty() {
+                let wkvar = make_weak_kvar(wkvar_map, def_id, kvid, self_args, params);
+                Ty::constr(Expr::wkvar(wkvar), ty.clone())
+            } else {
+                ty.clone()
+            }
         }
-        // Base case: And the weak kvar onto the expression
+        // Recursive case:
+        //   * Add the weak kvar onto the expression
+        //   * Recursively traverse the type, adding weak kvars.
+        //   * NOTE: In theory we only need to do this when we add an
+        //           existential var to the params, but I think that it is
+        //           unlikely to have multiple `Constr`s without doing so.
         Constr(expr, ty) => {
-            let wkvar = make_weak_kvar(wkvar_map, def_id, kvid, self_args, params);
-            Ty::constr(Expr::and(expr, Expr::wkvar(wkvar)), ty.clone())
+            // We already add weak kvars for requires and ensures, so only add a
+            // weak kvar here if it has new arguments. It can only gain new
+            // arguments by addition to self_args.
+            let expr =
+                if !self_args.is_empty() {
+                    let wkvar = make_weak_kvar(wkvar_map, def_id, kvid, self_args.clone(), params.clone());
+                    Expr::and(expr, Expr::wkvar(wkvar))
+                } else {
+                    expr.clone()
+            };
+            let new_ty = add_weak_kvars_to_ty(wkvar_map, def_id, kvid, self_args, params, ty);
+            Ty::constr(expr, new_ty)
         }
         // This is the only recursive case where we need to update the params
         // since we're going under a binder.
@@ -592,18 +633,18 @@ fn add_weak_kvar_to_ty(
             Ty::exists(
                 bound_ty
                     .clone()
-                    .map(|ty| add_weak_kvar_to_ty(wkvar_map, def_id, kvid, self_args, params, &ty)),
+                    .map(|ty| add_weak_kvars_to_ty(wkvar_map, def_id, kvid, self_args, params, &ty)),
             )
         }
         // Straightforward recursive cases
         StrgRef(region, path, ty) => {
-            Ty::strg_ref(*region, path.clone(), add_weak_kvar_to_ty(wkvar_map, def_id, kvid, self_args, params, ty))
+            Ty::strg_ref(*region, path.clone(), add_weak_kvars_to_ty(wkvar_map, def_id, kvid, self_args, params, ty))
         }
         Downcast(adt_def, generic_args, ty, variant_idx, fields) => {
             Ty::downcast(
                 adt_def.clone(),
                 generic_args.clone(),
-                add_weak_kvar_to_ty(wkvar_map, def_id, kvid, self_args, params, ty),
+                add_weak_kvars_to_ty(wkvar_map, def_id, kvid, self_args, params, ty),
                 *variant_idx,
                 fields.clone(),
             )
@@ -637,12 +678,14 @@ fn shift_in_vars(vars: &mut [(rty::Var, rty::Sort)]) {
     }
 }
 
-fn make_weak_kvar(wkvar_map: &mut WeakKvarMap, def_id: DefId, kvid: rty::KVid, self_args: Vec<(rty::Var, rty::Sort)>, params: Vec<(rty::Var, rty::Sort)>) -> rty::WKVar {
+fn make_weak_kvar(wkvar_map: &mut WeakKvarMap, def_id: DefId, kvid: &mut rty::KVid, self_args: Vec<(rty::Var, rty::Sort)>, params: Vec<(rty::Var, rty::Sort)>) -> rty::WKVar {
     let num_self_args = self_args.len();
     let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) = self_args.into_iter().chain(params.into_iter()).unzip();
     let arg_exprs = args.into_iter().map(|var| rty::Expr::var(var)).collect();
     // We don't have any solutions because these weak kvars are being generated
     // (solutions only come from user annotations).
     wkvar_map.insert(kvid.as_u32(), WeakKvarInfo { solutions: vec![], sorts });
-    rty::WKVar { wkvid: (def_id, kvid), self_args: num_self_args, args: arg_exprs }
+    let ret = rty::WKVar { wkvid: (def_id, *kvid), self_args: num_self_args, args: arg_exprs };
+    *kvid += 1;
+    ret
 }

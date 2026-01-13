@@ -504,14 +504,15 @@ fn add_fn_fix_diagnostic<'a>(
             if let Ok(fn_sig) = genv.fhir_expect_fn_sig(local_id) {
                 let subst_solutions = &wkvar_subst.subst_instantiations[&wkvid];
                 assert!(subst_solutions.len() == 1);
-                let fix_type = match wkvid.1.as_u32() {
-                    0 => "precondition",
-                    1 => "postcondition",
-                    _ => unreachable!("invalid wkvid {:?}", wkvid),
-                };
+                // TODO: better info about fix types
+                // let fix_type = match wkvid.1.as_u32() {
+                //     0 => "precondition",
+                //     1 => "postcondition",
+                //     _ => unreachable!("invalid wkvid {:?}", wkvid),
+                // };
                 diag.span_suggestion(
                     fn_sig.decl.span,
-                    format!("try adding the {} {:?}", fix_type, subst_solutions[0]),
+                    format!("try adding the refinement {:?}", subst_solutions[0]),
                     fixed_fn_sig_snippet,
                     Applicability::MaybeIncorrect,
                 );
