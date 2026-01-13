@@ -2374,12 +2374,16 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self_args: usize,
         scx: &mut SortEncodingCtxt,
     ) -> Option<fixpoint::Var> {
+        if !wkvid.0.is_local() {
+            let wkvid_string = format!("{}_$wk{}", self.genv.tcx().def_path(wkvid.0).to_filename_friendly_no_crate(), wkvid.1.as_u32());
+            println!("INFO: skipping encoding {} because it is not local", wkvid_string);
+            return None;
+        }
         let key = ConstKey::WKVar(*wkvid, self_args);
         let arg_sorts = self.genv.weak_kvars_for(wkvid.0)
                              .and_then(|wkvars_map|
                                        wkvars_map.get(&wkvid.1.as_u32())
-                                                 .and_then(|wkvars| wkvars.get(0))
-                                                 .map(|wkvar| wkvar.sorts())
+                                                 .map(|wkvars| wkvars.sorts.clone())
                              );
         arg_sorts.map(|arg_sorts|
             self.const_env

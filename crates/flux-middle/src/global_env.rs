@@ -34,7 +34,15 @@ pub struct GlobalEnv<'genv, 'tcx> {
     inner: &'genv GlobalEnvInner<'genv, 'tcx>,
 }
 
-pub type WeakKvarMap = UnordMap<u32, Vec<rty::Binder<rty::Expr>>>;
+pub struct WeakKvarInfo {
+    /// Solutions (if provided as ground truth annotations). Each soution is
+    /// part of a conjunction that constitutes the full ground truth.
+    pub solutions: Vec<rty::Binder<rty::Expr>>,
+    /// The sorts of the weak kvar in the order in which they appear in the
+    /// arguments.
+    pub sorts: Vec<rty::Sort>,
+}
+pub type WeakKvarMap = UnordMap<u32, WeakKvarInfo>;
 
 struct GlobalEnvInner<'genv, 'tcx> {
     tcx: TyCtxt<'tcx>,

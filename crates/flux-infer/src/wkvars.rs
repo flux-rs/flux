@@ -285,8 +285,8 @@ impl WKVarSolution {
     pub fn empty(genv: GlobalEnv, wkvid: rty::WKVid) -> Self {
         let actual_exprs;
         if let Some(solutions_map) = &genv.weak_kvars_for(wkvid.0) {
-            if let Some(sols) = solutions_map.get(&wkvid.1.as_u32()) {
-                actual_exprs = sols.clone();
+            if let Some(wkvar_info) = solutions_map.get(&wkvid.1.as_u32()) {
+                actual_exprs = wkvar_info.solutions.clone();
             } else {
                 actual_exprs = vec![];
             }

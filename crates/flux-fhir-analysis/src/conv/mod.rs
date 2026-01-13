@@ -22,7 +22,7 @@ use flux_middle::{
     THEORY_FUNCS,
     def_id::{FluxDefId, MaybeExternId},
     fhir::{self, FhirId, FluxOwnerId, QPathExpr},
-    global_env::{GlobalEnv, WeakKvarMap},
+    global_env::{GlobalEnv, WeakKvarInfo, WeakKvarMap},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
@@ -687,7 +687,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         Ok((rty::PolyFnSig::bind_with_vars(fn_sig, vars), weak_kvars))
     }
 
-    fn conv_weak_kvar(&mut self, wk: &fhir::WeakKvar) -> QueryResult<Vec<rty::Binder<rty::Expr>>> {
+    fn conv_weak_kvar(&mut self, wk: &fhir::WeakKvar) -> QueryResult<WeakKvarInfo> {
         let mut solutions = vec![];
         for solution in wk.solutions {
             let mut env = Env::new(&[]);
@@ -696,7 +696,10 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             let vars = env.pop_layer().into_bound_vars(self.genv())?;
             solutions.push(rty::Binder::bind_with_vars(e, vars));
         }
-        Ok(solutions)
+        Ok(WeakKvarInfo {
+            solutions,
+            sorts: wk.params.iter().map(|param| self.results().param_sort(param.id)).collect(),
+        })
     }
 
     pub(crate) fn conv_generic_predicates(

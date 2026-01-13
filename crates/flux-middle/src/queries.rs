@@ -870,7 +870,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
                     if genv.weak_kvars_for(def_id).is_none() {
-                        fn_sig = fn_sig.add_weak_kvars(def_id);
+                        fn_sig = fn_sig.add_weak_kvars(genv, def_id)?;
                     }
                     Ok(rty::EarlyBinder(fn_sig))
                 },
