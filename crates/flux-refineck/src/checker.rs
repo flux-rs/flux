@@ -940,72 +940,22 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .with_span(span)?;
 
         if M::NAME == "refine" {
+            let no_panic = self.fn_sig.no_panic();
+
             if let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
-                // TODO: delete this special case; we can handle this with pushing the closure's
-                // no_panicness into the type itself.
-                // does the callee require no panic?
-                // let callee_requires = genv
-                //     .fn_sig(callee_def_id)
-                //     .with_span(span)?
-                //     .skip_binder()
-                //     .skip_binder();
-
-                // let mut requires_no_panic = false;
-                // for requires in callee_requires.requires() {
-                //     if let ExprKind::Alias(ar, _) = requires.kind() {
-                //         // get the type associated with the `no_panic` assoc id
-                //         let trait_ref = ar.assoc_id;
-                //         if trait_ref.name() == Symbol::intern("no_panic") {
-                //             requires_no_panic = true;
-                //             break;
-                //         }
-                //     }
-                // }
-
-                // let caller_def_id = self.checker_id.root_id().to_def_id();
-                // // it better be the case that every argument which has a FnSig has no_panic on.
-                // if requires_no_panic {
-                //     for actual in &actuals {
-                //         if let TyKind::Indexed(BaseTy::FnDef(def_id, _), _) =
-                //             infcx.unpack(&actual).kind()
-                //         {
-                //             let actual_fn_sig = genv
-                //                 .fn_sig(*def_id)
-                //                 .with_span(span)?
-                //                 .skip_binder_ref()
-                //                 .skip_binder_ref()
-                //                 .no_panic();
-                //             let arg_no_panic = actual_fn_sig;
-                //             infcx.at(span).check_pred(
-                //                 if arg_no_panic { Expr::tt() } else { Expr::ff() },
-                //                 ConstrReason::NoPanic(caller_def_id),
-                //             );
-                //         }
-                //     }
-                // }
-            }
-
-            let no_panic = self.fn_sig.no_panic();
-
-            if no_panic == Expr::tt()
-                && let Some(callee_def_id) = callee_def_id
-                && genv.def_kind(callee_def_id).is_fn_like()
-            {
-                // println!("def_id: {:?}", callee_def_id);
-                // println!("fn_sig: {:?}", fn_sig);
-                let mut callee_no_panic = fn_sig.no_panic() == Expr::tt();
+                let mut callee_no_panic = fn_sig.no_panic();
                 let parent = tcx.parent(callee_def_id);
                 if tcx.is_lang_item(parent, LangItem::Fn) {
                     let assoc_refts = genv.assoc_refinements_of(parent).with_span(span)?;
                     if assoc_refts.find(Symbol::intern("no_panic")).is_some() {
-                        callee_no_panic = true;
+                        callee_no_panic = Expr::tt();
                     }
                 }
 
                 infcx.at(span).check_pred(
-                    Expr::implies(no_panic, if callee_no_panic { Expr::tt() } else { Expr::ff() }),
+                    Expr::implies(no_panic, callee_no_panic),
                     ConstrReason::NoPanic(callee_def_id),
                 );
             }
@@ -1115,7 +1065,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .as_bty_skipping_existentials();
         let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _, no_panic)) => {
+            Some(BaseTy::Closure(def_id, _, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };

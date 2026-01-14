@@ -29,7 +29,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, Expr, FnSig,
+        self, Expr,
         refining::{self, Refine, Refiner},
     },
 };
@@ -886,7 +886,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
                     if is_fn_call {
                         let mut inner_sig = fn_sig.clone().skip_binder();
-                        inner_sig.no_panic = Expr::tt();
+                        inner_sig.no_panic =
+                            if self.no_panic(genv, def_id) { Expr::tt() } else { Expr::ff() };
                         fn_sig = fn_sig.rebind(inner_sig);
                     }
 

@@ -824,10 +824,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
             }
             rustc_ty::Closure(did, args) => {
                 let args = args.lower(tcx)?;
-                // NOTE (Andrew): Even if the closure inherits `no_panic` from its parent,
-                // we can't get that information from this alone. unless...
-
-                Ok(Ty::mk_closure(*did, args, false))
+                Ok(Ty::mk_closure(*did, args))
             }
 
             rustc_ty::Alias(kind, alias_ty) => {

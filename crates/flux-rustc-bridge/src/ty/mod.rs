@@ -227,7 +227,7 @@ pub enum TyKind {
     Slice(Ty),
     FnPtr(PolyFnSig),
     FnDef(DefId, GenericArgs),
-    Closure(DefId, GenericArgs, bool),
+    Closure(DefId, GenericArgs),
     Coroutine(DefId, GenericArgs),
     CoroutineWitness(DefId, GenericArgs),
     Alias(AliasKind, AliasTy),
@@ -733,8 +733,8 @@ impl Ty {
         TyKind::Adt(adt_def, args).intern()
     }
 
-    pub fn mk_closure(def_id: DefId, args: impl Into<GenericArgs>, no_panic: bool) -> Ty {
-        TyKind::Closure(def_id, args.into(), no_panic).intern()
+    pub fn mk_closure(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
+        TyKind::Closure(def_id, args.into()).intern()
     }
 
     pub fn mk_fn_def(def_id: DefId, args: impl Into<GenericArgs>) -> Ty {
@@ -955,9 +955,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
             }
             TyKind::Slice(ty) => rustc_ty::Ty::new_slice(tcx, ty.to_rustc(tcx)),
             TyKind::RawPtr(ty, mutbl) => rustc_ty::Ty::new_ptr(tcx, ty.to_rustc(tcx), *mutbl),
-            TyKind::Closure(did, args, _) => {
-                rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx))
-            }
+            TyKind::Closure(did, args) => rustc_ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             TyKind::FnPtr(poly_sig) => rustc_ty::Ty::new_fn_ptr(tcx, poly_sig.to_rustc(tcx)),
             TyKind::Alias(kind, alias_ty) => {
                 rustc_ty::Ty::new_alias(tcx, kind.to_rustc(tcx), alias_ty.to_rustc(tcx))
@@ -1088,7 +1086,7 @@ impl fmt::Debug for Ty {
             TyKind::RawPtr(ty, Mutability::Mut) => write!(f, "*mut {ty:?}"),
             TyKind::RawPtr(ty, Mutability::Not) => write!(f, "*const {ty:?}"),
             TyKind::FnPtr(fn_sig) => write!(f, "{fn_sig:?}"),
-            TyKind::Closure(did, args, _) => {
+            TyKind::Closure(did, args) => {
                 write!(f, "{}", def_id_to_string(*did))?;
                 if !args.is_empty() {
                     write!(f, "<{:?}>", args.iter().format(", "))?;

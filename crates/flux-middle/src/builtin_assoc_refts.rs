@@ -10,7 +10,7 @@ use rustc_span::{DUMMY_SP, Symbol};
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, GenericArg, SubsetTy},
+    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, GenericArg},
 };
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -127,7 +127,6 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 bug!("expected closure type for no_panic assoc reft, got {:?}", bty);
             };
 
-            println!("bty: {:?}, no_panic: {:?}", bty, no_panic);
             let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
 
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)

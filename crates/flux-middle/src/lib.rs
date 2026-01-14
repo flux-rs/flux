@@ -564,7 +564,7 @@ impl PlaceTy {
                 Ok(ty.subst(args))
             }
             ty::TyKind::Tuple(tys) => Ok(tys[f.index()].clone()),
-            ty::TyKind::Closure(_, args, _) => Ok(args.as_closure().upvar_tys()[f.index()].clone()),
+            ty::TyKind::Closure(_, args) => Ok(args.as_closure().upvar_tys()[f.index()].clone()),
             _ => Err(query_bug!("extracting field of non-tuple non-adt non-closure: {self:?}")),
         }
     }
