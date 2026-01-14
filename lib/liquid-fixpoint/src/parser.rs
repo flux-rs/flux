@@ -310,22 +310,26 @@ where
                 let Sexp::List(inner) = &items[0] else {
                     Err(ParseError::err("Expected list for inner func"))?
                 };
-                let exp1 = match &inner[1] {
+                match &inner[1] {
                     Sexp::Atom(Atom::S(s)) if s == "apply" => {
                         let func_sort = self.parse_sort(&inner[2])?;
                         let func = self.parse_expr_possibly_nested(&items[1])?;
-                        println!("{func:?} : {func_sort:?}");
-                        func
-                    },
-                    _ => self.parse_expr_possibly_nested(&items[0])?
-                };
-                // let exp1 = self.parse_func(&items[0])?;
-                let args: Vec<Expr<T>> = items[1..]
-                    .to_vec()
-                    .iter()
-                    .map(|sexp| self.parse_expr_possibly_nested(sexp))
-                    .try_collect()?;
-                Ok(Expr::App(Box::new(exp1), None, args))
+                        Ok(Expr::App(Box::new(func), None, vec![], Some(func_sort)))
+                    }
+                    _ => {
+                        let args: Vec<Expr<T>> = items[1..]
+                            .to_vec()
+                            .iter()
+                            .map(|sexp| self.parse_expr_possibly_nested(sexp))
+                            .try_collect()?;
+                        Ok(Expr::App(
+                            Box::new(self.parse_expr_possibly_nested(&items[0])?),
+                            None,
+                            args,
+                            None,
+                        ))
+                    }
+                }
             }
             _ => Err(ParseError::err("Expected list for app")),
         }
@@ -458,6 +462,11 @@ where
                     Ok(Sort::Str)
                 } else if s.starts_with("Size") {
                     self.parse_bv_size(sexp)
+                } else if let Some(idx_rparen) = s.strip_prefix("@(")
+                    && let Some(s_idx) = idx_rparen.strip_suffix(")")
+                    && let Ok(idx) = s_idx.parse::<usize>()
+                {
+                    Ok(Sort::Var(idx))
                 } else {
                     let ctor = SortCtor::Data(self.parser.sort(s)?);
                     Ok(Sort::App(ctor, vec![]))

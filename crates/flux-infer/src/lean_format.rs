@@ -38,6 +38,19 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub bool_mode: BoolMode,
 }
 
+impl<'a, 'genv, 'tcx> LeanCtxt<'a, 'genv, 'tcx> {
+    pub(crate) fn with_bool_mode(&self, bool_mode: BoolMode) -> Self {
+        LeanCtxt {
+            genv: self.genv,
+            pretty_var_map: self.pretty_var_map,
+            adt_map: self.adt_map,
+            fun_decl_map: self.fun_decl_map,
+            kvar_solutions: self.kvar_solutions,
+            bool_mode,
+        }
+    }
+}
+
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
     pub item: T,
     pub cx: &'a LeanCtxt<'b, 'genv, 'tcx>,
@@ -416,7 +429,10 @@ impl LeanFmt for Expr {
                 args[1].lean_fmt(f, cx)?;
                 write!(f, ")")
             }
-            Expr::App(function, sort_args, args) => {
+            Expr::App(function, sort_args, args, out_sort) => {
+                if out_sort.is_some() {
+                    write!(f, "(")?;
+                }
                 write!(f, "(")?;
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
@@ -428,7 +444,14 @@ impl LeanFmt for Expr {
                     write!(f, " ")?;
                     arg.lean_fmt(f, cx)?;
                 }
-                write!(f, ")")
+                write!(f, ")")?;
+                if let Some(out_sort) = out_sort {
+                    write!(f, " : (")?;
+                    let sort_cx = cx.with_bool_mode(BoolMode::Bool);
+                    out_sort.lean_fmt(f, &sort_cx)?;
+                    write!(f, "))")?;
+                }
+                Ok(())
             }
             Expr::And(exprs) => {
                 write!(f, "(")?;
@@ -552,7 +575,7 @@ impl LeanFmt for FunDef {
 impl LeanFmt for FunSort {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         for i in 0..self.params {
-            write!(f, "(t{i} : Type) -> [Inhabited t{i}] -> ")?;
+            write!(f, "{{t{i} : Type}} -> [Inhabited t{i}] -> ")?;
         }
         if self.inputs.is_empty() {
             write!(f, "{}", WithLeanCtxt { item: &self.output, cx })
@@ -647,14 +670,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
         if !cx.kvar_solutions.is_empty() {
             writeln!(f, "namespace {namespace}\n")?;
 
-            let cx = LeanCtxt {
-                genv: cx.genv,
-                pretty_var_map: cx.pretty_var_map,
-                adt_map: cx.adt_map,
-                fun_decl_map: cx.fun_decl_map,
-                kvar_solutions: cx.kvar_solutions,
-                bool_mode: BoolMode::Prop,
-            };
+            let cx = cx.with_bool_mode(BoolMode::Prop);
 
             if !cx.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;

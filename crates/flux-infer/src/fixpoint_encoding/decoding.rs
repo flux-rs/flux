@@ -177,7 +177,7 @@ where
                     }
                 }
             }
-            fixpoint::Expr::App(fhead, _sort_args, fargs) => {
+            fixpoint::Expr::App(fhead, _sort_args, fargs, _out_sort) => {
                 match &**fhead {
                     fixpoint::Expr::Var(fixpoint::Var::TupleProj { arity, field }) => {
                         if fargs.len() == 1 {

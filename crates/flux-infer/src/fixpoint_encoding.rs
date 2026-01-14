@@ -1329,7 +1329,7 @@ impl KVarSolutions {
 
         let mut closed_non_cut_solutions: FxIndexMap<fixpoint::KVid, ClosedSolution> =
             FxIndexMap::default();
-        for (kvid, solution) in non_cut_solutions {
+        for (kvid, mut solution) in non_cut_solutions {
             let bound_vars: HashSet<&_> = solution.0.iter().map(|(var, _)| var).collect();
             let vars = solution.1.free_vars();
             let free_vars = vars.iter().filter(|var| {
@@ -1344,6 +1344,7 @@ impl KVarSolutions {
             let free_var_subs = free_vars
                 .map(|fvar| (*fvar, variable_sorts.get(fvar).unwrap().clone()))
                 .collect();
+            solution.1.var_sorts_to_int();
             closed_non_cut_solutions.insert(kvid, (free_var_subs, solution));
         }
         KVarSolutions {
@@ -1447,7 +1448,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .iter()
                 .map(|fld| self.expr_to_fixpoint(fld, scx))
                 .try_collect()?;
-            Ok(fixpoint::Expr::App(Box::new(ctor), None, args))
+            Ok(fixpoint::Expr::App(Box::new(ctor), None, args, None))
         }
     }
 
@@ -1466,7 +1467,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 .iter()
                 .map(|fld| self.expr_to_fixpoint(fld, scx))
                 .try_collect()?;
-            Ok(fixpoint::Expr::App(Box::new(ctor), None, args))
+            Ok(fixpoint::Expr::App(Box::new(ctor), None, args, None))
         }
     }
 
@@ -1481,7 +1482,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             InternalFuncKind::Val(op) => {
                 let func = fixpoint::Expr::Var(self.define_const_for_prim_op(op, scx));
                 let args = self.exprs_to_fixpoint(args, scx)?;
-                Ok(fixpoint::Expr::App(Box::new(func), None, args))
+                Ok(fixpoint::Expr::App(Box::new(func), None, args, None))
             }
             InternalFuncKind::Rel(op) => {
                 let expr = if let Some(prim_rel) = self.genv.prim_rel_for(op)? {
@@ -1508,7 +1509,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     rty::CastKind::Uninterpreted => {
                         let func = fixpoint::Expr::Var(self.define_const_for_cast(from, to, scx));
                         let args = self.exprs_to_fixpoint(args, scx)?;
-                        Ok(fixpoint::Expr::App(Box::new(func), None, args))
+                        Ok(fixpoint::Expr::App(Box::new(func), None, args, None))
                     }
                 }
             }
@@ -1547,7 +1548,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             rty::ExprKind::Ctor(rty::Ctor::Enum(did, idx), args) => {
                 let ctor = self.variant_to_fixpoint(scx, did, *idx);
                 let args = self.exprs_to_fixpoint(args, scx)?;
-                fixpoint::Expr::App(Box::new(fixpoint::Expr::Var(ctor)), None, args)
+                fixpoint::Expr::App(Box::new(fixpoint::Expr::Var(ctor)), None, args, None)
             }
             rty::ExprKind::ConstDefId(did) => {
                 let var = self.define_const_for_rust_const(*did, scx);
@@ -1560,7 +1561,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     let func = self.expr_to_fixpoint(func, scx)?;
                     let sort_args = self.sort_args_to_fixpoint(sort_args, scx);
                     let args = self.exprs_to_fixpoint(args, scx)?;
-                    fixpoint::Expr::App(Box::new(func), Some(sort_args), args)
+                    fixpoint::Expr::App(Box::new(func), Some(sort_args), args, None)
                 }
             }
             rty::ExprKind::IfThenElse(p, e1, e2) => {
@@ -1579,7 +1580,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     .iter()
                     .map(|expr| self.expr_to_fixpoint(expr, scx))
                     .try_collect()?;
-                fixpoint::Expr::App(Box::new(func), None, args)
+                fixpoint::Expr::App(Box::new(func), None, args, None)
             }
             rty::ExprKind::Abs(lam) => {
                 let var = self.define_const_for_lambda(lam, scx);
@@ -1681,7 +1682,12 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 }
             };
             let proj = fixpoint::Expr::Var(proj);
-            Ok(fixpoint::Expr::App(Box::new(proj), None, vec![self.expr_to_fixpoint(e, scx)?]))
+            Ok(fixpoint::Expr::App(
+                Box::new(proj),
+                None,
+                vec![self.expr_to_fixpoint(e, scx)?],
+                None,
+            ))
         }
     }
 
@@ -1808,6 +1814,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     Box::new(bv_func),
                     None,
                     vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
+                    None,
                 ));
             }
 
@@ -1820,6 +1827,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     Box::new(set_func),
                     None,
                     vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
+                    None,
                 ));
             }
 
@@ -1879,7 +1887,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let e1 = self.expr_to_fixpoint(e1, scx)?;
                 let e2 = self.expr_to_fixpoint(e2, scx)?;
                 let rel = self.bv_rel_to_fixpoint(&rel);
-                fixpoint::Expr::App(Box::new(rel), None, vec![e1, e2])
+                fixpoint::Expr::App(Box::new(rel), None, vec![e1, e2], None)
             }
             rty::Sort::Tuple(sorts) => {
                 let arity = sorts.len();
@@ -1902,6 +1910,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     Box::new(rel),
                     None,
                     vec![self.expr_to_fixpoint(e1, scx)?, self.expr_to_fixpoint(e2, scx)?],
+                    None,
                 )
             }
         };

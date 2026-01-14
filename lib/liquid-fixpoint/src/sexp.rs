@@ -50,6 +50,7 @@ impl<'a> Parser<'a> {
         match self.current {
             Some('(') => self.parse_list(),
             Some('"') => self.parse_quoted_string(),
+            Some('@') => self.parse_at_var(),
             Some(_) => self.parse_atom(),
             None => Err(ParseError::UnexpectedEOF),
         }
@@ -74,6 +75,25 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(Sexp::List(items))
+    }
+
+    fn parse_at_var(&mut self) -> Result<Sexp, ParseError> {
+        let mut result = String::new();
+        while let Some(c) = self.current {
+            match c {
+                ')' => {
+                    result.push(c);
+                    self.bump();
+                    return Ok(Sexp::Atom(Atom::S(result)));
+                }
+                _ => {
+                    result.push(c);
+                    self.bump();
+                }
+            }
+        }
+
+        Err(ParseError::UnclosedString)
     }
 
     fn parse_quoted_string(&mut self) -> Result<Sexp, ParseError> {

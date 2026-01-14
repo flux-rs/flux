@@ -1,4 +1,7 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
 use derive_where::derive_where;
 use indexmap::IndexSet;
@@ -168,6 +171,42 @@ impl<T: Types> Sort<T> {
         }
         (n, curr)
     }
+
+    fn free_var_sorts_to_int_help(&mut self, bound: &mut HashSet<usize>) {
+        match self {
+            Sort::Int
+            | Sort::Real
+            | Sort::Bool
+            | Sort::Str
+            | Sort::BvSize(..)
+            | Sort::BitVec(..) => {}
+            Sort::Abs(var, inner) => {
+                bound.insert(*var);
+                inner.free_var_sorts_to_int_help(bound);
+                bound.remove(var);
+            }
+            Sort::App(_, args) => {
+                for arg in args {
+                    arg.free_var_sorts_to_int_help(bound);
+                }
+            }
+            Sort::Func(inner) => {
+                let [arg, out] = &mut **inner;
+                arg.free_var_sorts_to_int_help(bound);
+                out.free_var_sorts_to_int_help(bound);
+            }
+            Sort::Var(v) => {
+                if !bound.contains(v) {
+                    *self = Sort::Int;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn free_var_sorts_to_int(&mut self) {
+        let mut bound = HashSet::new();
+        self.free_var_sorts_to_int_help(&mut bound);
+    }
 }
 
 #[derive_where(Hash, Debug)]
@@ -277,7 +316,7 @@ impl BoundVar {
 pub enum Expr<T: Types> {
     Constant(Constant<T>),
     Var(T::Var),
-    App(Box<Self>, Option<Vec<Sort<T>>>, Vec<Self>),
+    App(Box<Self>, Option<Vec<Sort<T>>>, Vec<Self>, Option<Sort<T>>),
     Neg(Box<Self>),
     BinaryOp(BinOp, Box<[Self; 2]>),
     IfThenElse(Box<[Self; 3]>),
@@ -312,6 +351,62 @@ impl<T: Types> Expr<T> {
         if exprs.len() == 1 { exprs.remove(0) } else { Self::And(exprs) }
     }
 
+    pub fn var_sorts_to_int(&mut self) {
+        match self {
+            Expr::Constant(_) | Expr::ThyFunc(_) | Expr::Var(_) => {}
+            Expr::App(func, sort_args, args, out_sort) => {
+                func.var_sorts_to_int();
+                for arg in args {
+                    arg.var_sorts_to_int();
+                }
+                if let Some(sort_args) = sort_args {
+                    for sort_arg in sort_args {
+                        sort_arg.free_var_sorts_to_int();
+                    }
+                }
+                if let Some(out_sort) = out_sort {
+                    out_sort.free_var_sorts_to_int();
+                }
+            }
+            Expr::Neg(e) | Expr::Not(e) => {
+                e.var_sorts_to_int();
+            }
+            Expr::BinaryOp(_, exprs)
+            | Expr::Imp(exprs)
+            | Expr::Iff(exprs)
+            | Expr::Atom(_, exprs) => {
+                let [e1, e2] = &mut **exprs;
+                e1.var_sorts_to_int();
+                e2.var_sorts_to_int();
+            }
+            Expr::IfThenElse(exprs) => {
+                let [p, e1, e2] = &mut **exprs;
+                p.var_sorts_to_int();
+                e1.var_sorts_to_int();
+                e2.var_sorts_to_int();
+            }
+            Expr::And(exprs) | Expr::Or(exprs) => {
+                for e in exprs {
+                    e.var_sorts_to_int();
+                }
+            }
+            Expr::Let(_, exprs) => {
+                let [var_e, body_e] = &mut **exprs;
+                var_e.var_sorts_to_int();
+                body_e.var_sorts_to_int();
+            }
+            Expr::IsCtor(_v, expr) => {
+                expr.var_sorts_to_int();
+            }
+            Expr::Exists(binder, expr) => {
+                for (_, sort) in binder {
+                    sort.free_var_sorts_to_int();
+                }
+                expr.var_sorts_to_int();
+            }
+        }
+    }
+
     pub fn free_vars(&self) -> IndexSet<T::Var> {
         let mut vars = IndexSet::new();
         match self {
@@ -319,7 +414,7 @@ impl<T: Types> Expr<T> {
             Expr::Var(x) => {
                 vars.insert(x.clone());
             }
-            Expr::App(func, _sort_args, args) => {
+            Expr::App(func, _sort_args, args, _out_sort) => {
                 vars.extend(func.free_vars());
                 for arg in args {
                     vars.extend(arg.free_vars());
