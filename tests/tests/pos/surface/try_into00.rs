@@ -10,17 +10,17 @@ fn assert(b: bool) {}
 #[refined_by(val: int)]
 pub struct MyNumber(#[field(i32[val])] i32);
 
-#[assoc(fn into_val(x: MyNumber) -> int { x.val })]
+#[assoc(fn into_val(x: MyNumber, y: int) -> bool { x.val == y })]
 impl TryInto<i32> for MyNumber {
     type Error = ();
 
-    #[spec(fn(self: MyNumber[@s]) -> Result<i32[Self::into_val(s)], Self::Error>)]
+    #[spec(fn(self: MyNumber[@s]) -> Result<i32[s.val], Self::Error>)]
     fn try_into(self) -> Result<i32, Self::Error> {
         Ok(self.0)
     }
 }
 
-#[spec(fn (thing: T) -> i32[T::into_val(thing)])]
+#[spec(fn (thing: T) -> i32{v: T::into_val(thing, v)})]
 fn foo<T: TryInto<i32>>(thing: T) -> i32
 where
     <T as TryInto<i32>>::Error: std::fmt::Debug,

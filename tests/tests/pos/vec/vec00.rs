@@ -55,3 +55,6 @@ pub fn pop2<T>(vec: &mut Vec<T>) -> Option<(T, T)> {
     let v2 = vec.pop().unwrap();
     Some((v1, v2))
 }
+
+#[spec(fn (x: &mut Vec<i32>[@n]) ensures x: Vec<i32>[#m])]
+fn silly(x: &mut Vec<i32>) {}
