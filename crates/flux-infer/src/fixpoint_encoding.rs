@@ -701,8 +701,16 @@ where
                 tracked_span_bug!("cannot parse sexp: {expr:?}: {err:?}");
             }
         };
+        let mut fun_decl_map = HashMap::new();
+        for (def_id, var) in &self.ecx.const_env.fun_decl_map {
+            let fixpoint::Var::Global(idx, _) = var else {
+                bug!("non global var encountered for function")
+            };
+            fun_decl_map.insert(idx.index(), *def_id);
+        }
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
-        let mut sexp_ctx = SexpParseCtxt::new(&mut self.ecx.local_var_env).into_wrapper();
+        let mut sexp_ctx =
+            SexpParseCtxt::new(&mut self.ecx.local_var_env, &fun_decl_map).into_wrapper();
         sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         })
@@ -718,21 +726,13 @@ where
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
-        let mut fun_decl_map = HashMap::new();
-        for (def_id, var) in self.ecx.const_env.fun_decl_map {
-            let fixpoint::Var::Global(idx, _) = var else {
-                bug!("non global var encountered for function")
-            };
-            fun_decl_map.insert(idx.index(), def_id);
-        }
-        let fun_deps = FunDeps { define_funs: task.define_funs, fun_decl_map };
 
         LeanEncoder::encode(
             self.genv,
             def_id,
             self.ecx.local_var_env.pretty_var_map,
             sort_deps,
-            fun_deps,
+            task.define_funs,
             task.kvars,
             task.constraint,
             kvar_solutions,
@@ -1363,11 +1363,6 @@ pub struct SortDeps {
     pub opaque_sorts: Vec<fixpoint::SortDecl>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
-}
-
-pub struct FunDeps {
-    pub define_funs: Vec<fixpoint::FunDef>,
-    pub fun_decl_map: HashMap<usize, FluxDefId>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
@@ -2253,11 +2248,14 @@ fn parse_local_var(name: &str) -> Option<fixpoint::Var> {
     None
 }
 
-fn parse_global_var(name: &str) -> Option<fixpoint::Var> {
+fn parse_global_var(name: &str, fun_decl_map: &HashMap<usize, FluxDefId>) -> Option<fixpoint::Var> {
     if let Some(rest) = name.strip_prefix('c')
         && let Ok(idx) = rest.parse::<u32>()
     {
-        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(idx), None));
+        return Some(fixpoint::Var::Global(
+            fixpoint::GlobalVar::from(idx),
+            fun_decl_map.get(&(idx as usize)).copied(),
+        ));
     }
     // try parsing as a named global variable
     if let Some(rest) = name.strip_prefix("f$")
@@ -2265,7 +2263,10 @@ fn parse_global_var(name: &str) -> Option<fixpoint::Var> {
         && parts.len() == 2
         && let Ok(global_idx) = parts[1].parse::<u32>()
     {
-        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), None));
+        return Some(fixpoint::Var::Global(
+            fixpoint::GlobalVar::from(global_idx),
+            fun_decl_map.get(&(global_idx as usize)).copied(),
+        ));
     }
     None
 }
@@ -2312,11 +2313,15 @@ fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
 
 struct SexpParseCtxt<'a> {
     local_var_env: &'a mut LocalVarEnv,
+    fun_decl_map: &'a HashMap<usize, FluxDefId>,
 }
 
 impl<'a> SexpParseCtxt<'a> {
-    fn new(local_var_env: &'a mut LocalVarEnv) -> Self {
-        Self { local_var_env }
+    fn new(
+        local_var_env: &'a mut LocalVarEnv,
+        fun_decl_map: &'a HashMap<usize, FluxDefId>,
+    ) -> Self {
+        Self { local_var_env, fun_decl_map }
     }
 }
 
@@ -2337,7 +2342,7 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
         if let Some(var) = parse_local_var(name) {
             return Ok(var);
         }
-        if let Some(var) = parse_global_var(name) {
+        if let Some(var) = parse_global_var(name, self.fun_decl_map) {
             return Ok(var);
         }
         if let Some(var) = parse_param(name) {

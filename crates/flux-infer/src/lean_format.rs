@@ -1,12 +1,11 @@
 use core::fmt;
-use std::{collections::HashMap, fmt::Write, iter};
+use std::{fmt::Write, iter};
 
 use flux_common::{
     bug,
     dbg::{self, as_subscript},
 };
 use flux_middle::{
-    def_id::FluxDefId,
     global_env::GlobalEnv,
     rty::{PrettyMap, PrettyVar},
 };
@@ -33,21 +32,13 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
-    pub fun_decl_map: &'a HashMap<usize, FluxDefId>,
     pub kvar_solutions: &'a KVarSolutions,
     pub bool_mode: BoolMode,
 }
 
 impl<'a, 'genv, 'tcx> LeanCtxt<'a, 'genv, 'tcx> {
     pub(crate) fn with_bool_mode(&self, bool_mode: BoolMode) -> Self {
-        LeanCtxt {
-            genv: self.genv,
-            pretty_var_map: self.pretty_var_map,
-            adt_map: self.adt_map,
-            fun_decl_map: self.fun_decl_map,
-            kvar_solutions: self.kvar_solutions,
-            bool_mode,
-        }
+        LeanCtxt { bool_mode, ..*self }
     }
 }
 
@@ -262,20 +253,6 @@ impl LeanFmt for Var {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
             Var::Global(_gvar, Some(def_id)) => {
-                let path = cx
-                    .genv
-                    .tcx()
-                    .def_path(def_id.parent())
-                    .to_filename_friendly_no_crate()
-                    .replace("-", "_");
-                if path.is_empty() {
-                    write!(f, "{}", def_id.name())
-                } else {
-                    write!(f, "{path}_{}", def_id.name())
-                }
-            }
-            Var::Global(gvar, None) if cx.fun_decl_map.contains_key(&gvar.index()) => {
-                let def_id = *cx.fun_decl_map.get(&gvar.index()).unwrap();
                 let path = cx
                     .genv
                     .tcx()

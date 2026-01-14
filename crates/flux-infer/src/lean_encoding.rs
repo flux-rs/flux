@@ -23,7 +23,7 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{FunDeps, KVarSolutions, SortDeps, fixpoint},
+    fixpoint_encoding::{KVarSolutions, SortDeps, fixpoint},
     lean_format::{
         self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
     },
@@ -224,7 +224,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     def_id: MaybeExternId,
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     sort_deps: SortDeps,
-    fun_deps: FunDeps,
+    fun_deps: Vec<fixpoint::FunDef>,
     kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
@@ -238,7 +238,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
-            fun_decl_map: &self.fun_deps.fun_decl_map,
             kvar_solutions: &self.kvar_solutions,
             bool_mode: BoolMode::Bool,
         }
@@ -268,7 +267,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
-        fun_deps: FunDeps,
+        fun_deps: Vec<fixpoint::FunDef>,
         kvar_solutions: KVarSolutions,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
@@ -301,7 +300,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn fun_files(&self) -> FxHashMap<FluxDefId, LeanFile> {
         let mut res = FxHashMap::default();
-        for fun_def in &self.fun_deps.define_funs {
+        for fun_def in &self.fun_deps {
             let fixpoint::Var::Global(_, Some(did)) = fun_def.name else {
                 bug!("expected global var with id")
             };
@@ -516,7 +515,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             self.generate_struct_file_if_not_present(data_decl)?;
         }
         // 3. Generate Func Def Files
-        for fun_def in &self.fun_deps.define_funs {
+        for fun_def in &self.fun_deps {
             let fixpoint::Var::Global(_, Some(did)) = fun_def.name else {
                 bug!("expected global var with id")
             };
@@ -538,7 +537,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&LeanFile::Struct(name)))?;
         }
 
-        for fun_def in &self.fun_deps.define_funs {
+        for fun_def in &self.fun_deps {
             writeln!(file, "{}", self.import(&self.lean_file_for_fun(fun_def)))?;
         }
 
@@ -616,7 +615,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
-        fun_deps: FunDeps,
+        fun_deps: Vec<fixpoint::FunDef>,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
         kvar_solutions: KVarSolutions,
