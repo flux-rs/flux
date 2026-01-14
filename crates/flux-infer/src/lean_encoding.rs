@@ -90,6 +90,7 @@ fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let proof_path = LeanFile::Proof(def_id).path(genv);
     let out = Command::new("lake")
         .arg("--quiet")
+        .arg("--log-level=error")
         .arg("lean")
         .arg(proof_path)
         .stdout(Stdio::piped())
