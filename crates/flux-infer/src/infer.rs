@@ -1022,7 +1022,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.tys(infcx, ty_a, ty_b)?;
                 }
-                self.tys(infcx, resume_ty_b, resume_ty_a)?; // TODO(RJ) Nico: is this contravariant?
+                // TODO(RJ): Treating resume type as invariant...but I think they should be contravariant(?)
+                self.tys(infcx, resume_ty_b, resume_ty_a)?;
+                self.tys(infcx, resume_ty_a, resume_ty_b)?;
+
                 Ok(())
             }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,

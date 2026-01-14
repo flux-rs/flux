@@ -760,9 +760,7 @@ pub fn to_closure_sig(
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
-#[derive(
-    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
-)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoroutineObligPredicate {
     pub def_id: DefId,
     pub resume_ty: Ty,
@@ -2113,12 +2111,6 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
             }
             BaseTy::Coroutine(did, _, _, args) => {
                 ty::Ty::new_coroutine(tcx, *did, args.to_rustc(tcx))
-                // bug!(
-                //     "TODO: HEREHEREHEREHEREHERE Generator {def_id:?} {resume_ty:?} {upvars:?} {args:?}"
-                // )
-                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
