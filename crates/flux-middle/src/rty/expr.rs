@@ -1174,6 +1174,13 @@ impl Var {
             _ => *self,
         }
     }
+
+    pub fn shift_out(&self, amount: u32) -> Self {
+        match self {
+            Var::Bound(idx, breft) => Var::Bound(idx.shifted_out(amount), *breft),
+            _ => *self,
+        }
+    }
 }
 
 impl Path {
