@@ -1,16 +1,32 @@
 #![feature(rustc_private)]
 
+extern crate rustc_hir;
 extern crate rustc_middle;
-extern crate rustc_span;
 
 use rustc_hash::FxHashMap;
+use rustc_hir::def_id::LocalDefId;
 use rustc_middle::{
     mir::TerminatorKind,
     ty::{self, TyCtxt},
 };
-use rustc_span::def_id::DefId;
 
-fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
+fn has_external_callees(tcx: &TyCtxt, def_id: LocalDefId) -> bool {
+    let body = tcx.optimized_mir(def_id);
+
+    for bb in body.basic_blocks.iter() {
+        if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
+            let ty = func.ty(&body.local_decls, *tcx);
+            if let ty::FnDef(def_id, _) = ty.kind() {
+                if !def_id.is_local() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+fn get_callees(tcx: &TyCtxt, def_id: LocalDefId) -> Vec<LocalDefId> {
     let body = tcx.optimized_mir(def_id);
 
     let mut callees = Vec::new();
@@ -18,20 +34,20 @@ fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
             let ty = func.ty(&body.local_decls, *tcx);
             if let ty::FnDef(def_id, _) = ty.kind() {
-                callees.push(*def_id)
+                if def_id.is_local() {
+                    callees.push(def_id.as_local().unwrap());
+                }
             }
         }
     }
     callees
 }
 
-// Invariant: the DefIds in the returned map are all LocalDefIds
-pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
-    let mut fn_to_no_panic: FxHashMap<DefId, bool> = FxHashMap::default();
-    let mut call_graph: FxHashMap<DefId, Vec<DefId>> = FxHashMap::default();
+pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<LocalDefId, bool> {
+    let mut fn_to_no_panic: FxHashMap<LocalDefId, bool> = FxHashMap::default();
+    let mut call_graph: FxHashMap<LocalDefId, Vec<LocalDefId>> = FxHashMap::default();
     for def_id in tcx.hir_body_owners() {
         if tcx.def_kind(def_id).is_fn_like() {
-            let def_id = def_id.to_def_id();
             // Conservatively assume functions will panic
             fn_to_no_panic.insert(def_id, false);
             let callees = get_callees(&tcx, def_id);
@@ -53,15 +69,14 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
 
             let mut ok = true;
             for callee in callees {
-                let Some(_) = callee.as_local() else {
-                    ok = false;
-                    break;
-                };
-
                 if !fn_to_no_panic.get(callee).copied().unwrap_or(false) {
                     ok = false;
                     break;
                 }
+            }
+
+            if has_external_callees(&tcx, *f) {
+                ok = false;
             }
 
             if ok {

@@ -6,6 +6,7 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
 use rustc_data_structures::unord::UnordSet;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
@@ -422,6 +423,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         def_id: LocalDefId,
     ) -> QueryResult<List<ty::BoundVariableKind>> {
         self.inner.queries.lower_late_bound_vars(self, def_id)
+    }
+
+    /// Whether we have inferred that the function cannot panic.
+    pub fn inferred_no_panic(self, def_id: LocalDefId) -> bool {
+        self.inner
+            .queries
+            .inferred_no_panic(self)
+            .get(&def_id)
+            .copied()
+            .unwrap_or(false)
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`

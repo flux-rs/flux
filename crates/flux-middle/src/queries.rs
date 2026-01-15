@@ -16,6 +16,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
+use rustc_hash::FxHashMap;
 use rustc_hir::{
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
@@ -272,6 +273,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
+    auto_inferred_no_panics: Cache<(), FxHashMap<LocalDefId, bool>>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -311,6 +313,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
+            auto_inferred_no_panics: Default::default(),
         }
     }
 
@@ -585,6 +588,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 },
             )
         })
+    }
+
+    /// An internal function that runs `flux-opt`'s no_panic inference
+    /// tool and saves the results in the query cache.
+    pub fn inferred_no_panic(&self, genv: GlobalEnv) -> FxHashMap<LocalDefId, bool> {
+        run_with_cache(&self.auto_inferred_no_panics, (), || flux_opt::infer_no_panics(genv.tcx()))
     }
 
     pub(crate) fn no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {

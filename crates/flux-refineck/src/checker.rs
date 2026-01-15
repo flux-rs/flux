@@ -950,11 +950,13 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
                 // try to use flux-opt to infer the no_panicness of the callee.
-                let callee_no_panic = fn_sig.no_panic()
-                    || infer_no_panics(genv.tcx())
-                        .get(&callee_def_id)
-                        .cloned()
-                        .unwrap_or(false);
+                let callee_no_panic = fn_sig.no_panic() || {
+                    if callee_def_id.is_local() {
+                        genv.inferred_no_panic(callee_def_id.as_local().unwrap())
+                    } else {
+                        false
+                    }
+                };
 
                 at.check_pred(
                     Expr::implies(
