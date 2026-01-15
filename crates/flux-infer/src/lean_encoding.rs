@@ -90,6 +90,7 @@ fn run_lean(genv: GlobalEnv, def_id: DefId) -> io::Result<()> {
     let proof_path = LeanFile::Proof(def_id).path(genv);
     let out = Command::new("lake")
         .arg("--quiet")
+        .arg("--log-level=error")
         .arg("lean")
         .arg(proof_path)
         .stdout(Stdio::piped())
@@ -225,6 +226,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
+    kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
@@ -237,6 +239,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
             adt_map: &self.sort_deps.adt_map,
+            kvar_solutions: &self.kvar_solutions,
             bool_mode: BoolMode::Bool,
         }
     }
@@ -266,6 +269,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
+        kvar_solutions: KVarSolutions,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
     ) -> io::Result<Self> {
@@ -276,6 +280,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             sort_deps,
             fun_deps,
             kvar_decls,
+            kvar_solutions,
             constraint,
             fun_files: FxHashMap::default(),
             sort_files: FxHashMap::default(),
@@ -285,10 +290,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(encoder)
     }
 
-    fn run(&self, kvar_solutions: KVarSolutions) -> io::Result<()> {
+    fn run(&self) -> io::Result<()> {
         self.generate_lake_project_if_not_present()?;
         self.generate_lib_if_absent()?;
-        self.generate_vc_file(kvar_solutions)?;
+        self.generate_vc_file()?;
         self.generate_proof_if_absent()?;
         self.record_proof()?;
         Ok(())
@@ -540,7 +545,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_vc_file(&self, kvar_solutions: KVarSolutions) -> io::Result<()> {
+    fn generate_vc_file(&self) -> io::Result<()> {
         // 1. Generate imports
         self.generate_vc_prelude()?;
 
@@ -560,7 +565,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                         theorem_name: &vc_name,
                         kvars: &self.kvar_decls,
                         constr: &self.constraint,
-                        kvar_solutions,
                     },
                     cx: &self.lean_cx()
                 }
@@ -617,9 +621,17 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         constraint: fixpoint::Constraint,
         kvar_solutions: KVarSolutions,
     ) -> io::Result<()> {
-        let encoder =
-            Self::new(genv, def_id, pretty_var_map, sort_deps, fun_deps, kvar_decls, constraint)?;
-        encoder.run(kvar_solutions)?;
+        let encoder = Self::new(
+            genv,
+            def_id,
+            pretty_var_map,
+            sort_deps,
+            fun_deps,
+            kvar_solutions,
+            kvar_decls,
+            constraint,
+        )?;
+        encoder.run()?;
         Ok(())
     }
 }

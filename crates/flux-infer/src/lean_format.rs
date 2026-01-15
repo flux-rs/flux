@@ -15,7 +15,7 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
-    FixpointSolution, KVarSolutions,
+    ClosedSolution, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
         Expr, FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
@@ -32,7 +32,14 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
+    pub kvar_solutions: &'a KVarSolutions,
     pub bool_mode: BoolMode,
+}
+
+impl<'a, 'genv, 'tcx> LeanCtxt<'a, 'genv, 'tcx> {
+    pub(crate) fn with_bool_mode(&self, bool_mode: BoolMode) -> Self {
+        LeanCtxt { bool_mode, ..*self }
+    }
 }
 
 pub struct WithLeanCtxt<'a, 'b, 'genv, 'tcx, T> {
@@ -54,7 +61,6 @@ pub struct LeanKConstraint<'a> {
     pub theorem_name: &'a str,
     pub kvars: &'a [KVarDecl],
     pub constr: &'a Constraint,
-    pub kvar_solutions: KVarSolutions,
 }
 
 struct LeanThyFunc<'a>(&'a ThyFunc);
@@ -117,9 +123,14 @@ impl LeanFmt for DataDecl {
                     .map(|i| format!("(t{i} : Type) [Inhabited t{i}]"))
                     .format(" ")
             )?;
-            writeln!(f, "  {} ::", WithLeanCtxt { item: &self.ctors[0].name, cx })?;
             let ctor = &self.ctors[0];
             if let fixpoint::Var::DataCtor(adt_id, _) = &ctor.name {
+                writeln!(
+                    f,
+                    "  mk{}{} ::",
+                    WithLeanCtxt { item: &DataSort::Adt(*adt_id), cx },
+                    as_subscript(0)
+                )?;
                 for (idx, field) in ctor.fields.iter().enumerate() {
                     writeln!(
                         f,
@@ -257,7 +268,8 @@ impl LeanFmt for Var {
             Var::DataCtor(adt_id, idx) => {
                 write!(
                     f,
-                    "mk{}{}",
+                    "{}.mk{}{}",
+                    WithLeanCtxt { item: LeanAdt(*adt_id), cx },
                     WithLeanCtxt { item: &DataSort::Adt(*adt_id), cx },
                     as_subscript(idx.as_usize())
                 )
@@ -394,7 +406,10 @@ impl LeanFmt for Expr {
                 args[1].lean_fmt(f, cx)?;
                 write!(f, ")")
             }
-            Expr::App(function, sort_args, args) => {
+            Expr::App(function, sort_args, args, out_sort) => {
+                if out_sort.is_some() {
+                    write!(f, "(")?;
+                }
                 write!(f, "(")?;
                 function.as_ref().lean_fmt(f, cx)?;
                 if let Some(sort_args) = sort_args {
@@ -406,7 +421,14 @@ impl LeanFmt for Expr {
                     write!(f, " ")?;
                     arg.lean_fmt(f, cx)?;
                 }
-                write!(f, ")")
+                write!(f, ")")?;
+                if let Some(out_sort) = out_sort {
+                    write!(f, " : (")?;
+                    let sort_cx = cx.with_bool_mode(BoolMode::Bool);
+                    out_sort.lean_fmt(f, &sort_cx)?;
+                    write!(f, "))")?;
+                }
+                Ok(())
             }
             Expr::And(exprs) => {
                 write!(f, "(")?;
@@ -530,7 +552,7 @@ impl LeanFmt for FunDef {
 impl LeanFmt for FunSort {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         for i in 0..self.params {
-            write!(f, "(t{i} : Type) -> [Inhabited t{i}] -> ")?;
+            write!(f, "{{t{i} : Type}} -> [Inhabited t{i}] -> ")?;
         }
         if self.inputs.is_empty() {
             write!(f, "{}", WithLeanCtxt { item: &self.output, cx })
@@ -563,6 +585,16 @@ impl LeanFmt for Pred {
             }
             Pred::KVar(kvid, args) => {
                 write!(f, "({}", kvid.display().to_string().replace("$", "_"))?;
+                for imp in cx
+                    .kvar_solutions
+                    .non_cut_solutions
+                    .get(kvid)
+                    .map(|sol| sol.0.clone())
+                    .unwrap_or(vec![])
+                {
+                    write!(f, " ")?;
+                    imp.0.lean_fmt(f, cx)?;
+                }
                 for arg in args {
                     write!(f, " ")?;
                     arg.lean_fmt(f, cx)?;
@@ -575,9 +607,16 @@ impl LeanFmt for Pred {
 
 impl LeanFmt for KVarDecl {
     fn lean_fmt(&self, f: &mut std::fmt::Formatter, cx: &LeanCtxt) -> std::fmt::Result {
-        let sorts = self
-            .sorts
+        let implicits: Vec<_> = cx
+            .kvar_solutions
+            .non_cut_solutions
+            .get(&self.kvid)
+            .map(|solution| solution.0.clone())
+            .unwrap_or(vec![]);
+        let sorts = implicits
             .iter()
+            .map(|(_, sort)| sort)
+            .chain(&self.sorts)
             .enumerate()
             .map(|(i, sort)| format!("(a{i} : {})", WithLeanCtxt { item: sort, cx }))
             .format(" -> ");
@@ -585,11 +624,11 @@ impl LeanFmt for KVarDecl {
     }
 }
 
-impl LeanFmt for (&KVid, &FixpointSolution) {
+impl LeanFmt for (&KVid, &ClosedSolution) {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        let (kvid, (binder, inner)) = self;
+        let (kvid, (implicit, (explicit, inner))) = self;
         write!(f, "def k{} ", kvid.as_usize())?;
-        for (arg, sort) in binder {
+        for (arg, sort) in implicit.iter().chain(explicit) {
             write!(f, "(")?;
             arg.lean_fmt(f, cx)?;
             write!(f, " : {}) ", WithLeanCtxt { item: sort, cx })?;
@@ -605,27 +644,22 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         let theorem_name = self.theorem_name.replace(".", "_");
         let namespace = format!("{}KVarSolutions", snake_case_to_pascal_case(&theorem_name));
-        if !self.kvar_solutions.is_empty() {
+        if !cx.kvar_solutions.is_empty() {
             writeln!(f, "namespace {namespace}\n")?;
 
-            let cx = LeanCtxt {
-                genv: cx.genv,
-                pretty_var_map: cx.pretty_var_map,
-                adt_map: cx.adt_map,
-                bool_mode: BoolMode::Prop,
-            };
+            let cx = cx.with_bool_mode(BoolMode::Prop);
 
-            if !self.kvar_solutions.cut_solutions.is_empty() {
+            if !cx.kvar_solutions.cut_solutions.is_empty() {
                 writeln!(f, "-- cyclic (cut) kvars")?;
-                for kvar_solution in &self.kvar_solutions.cut_solutions {
+                for kvar_solution in &cx.kvar_solutions.cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
                 }
                 writeln!(f)?;
             }
 
-            if !self.kvar_solutions.non_cut_solutions.is_empty() {
+            if !cx.kvar_solutions.non_cut_solutions.is_empty() {
                 writeln!(f, "-- acyclic (non-cut) kvars")?;
-                for kvar_solution in &self.kvar_solutions.non_cut_solutions {
+                for kvar_solution in &cx.kvar_solutions.non_cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
                 }
                 writeln!(f)?;
@@ -644,7 +678,7 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
                 "{}, ",
                 self.kvars
                     .iter()
-                    .map(|kvar| WithLeanCtxt { item: kvar, cx })
+                    .map(|kvar| { WithLeanCtxt { item: kvar, cx } })
                     .format(", ")
             )?;
             self.constr.lean_fmt(f, cx)
