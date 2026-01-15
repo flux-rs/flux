@@ -23,6 +23,9 @@ mod slice;
 #[cfg(flux)]
 mod num;
 
+#[cfg(flux)]
+mod convert;
+
 // -------------------------------------------------------------------
 
 #[macro_export]
