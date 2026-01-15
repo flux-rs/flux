@@ -177,7 +177,7 @@
 <a href=#177 id=177 data-nosnippet>177</a>                    }
 <a href=#178 id=178 data-nosnippet>178</a>                }
 <a href=#179 id=179 data-nosnippet>179</a>            }
-<a href=#180 id=180 data-nosnippet>180</a>            fixpoint::Expr::App(fhead, _sort_args, fargs) =&gt; {
+<a href=#180 id=180 data-nosnippet>180</a>            fixpoint::Expr::App(fhead, _sort_args, fargs, _out_sort) =&gt; {
 <a href=#181 id=181 data-nosnippet>181</a>                <span class="kw">match </span><span class="kw-2">&amp;**</span>fhead {
 <a href=#182 id=182 data-nosnippet>182</a>                    fixpoint::Expr::Var(fixpoint::Var::TupleProj { arity, field }) =&gt; {
 <a href=#183 id=183 data-nosnippet>183</a>                        <span class="kw">if </span>fargs.len() == <span class="number">1 </span>{

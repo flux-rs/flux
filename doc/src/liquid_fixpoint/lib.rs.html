@@ -333,236 +333,237 @@
 <a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">let </span><span class="kw-2">mut </span>child = Command::new(<span class="string">"fixpoint"</span>)
 <a href=#334 id=334 data-nosnippet>334</a>            .arg(<span class="string">"-q"</span>)
 <a href=#335 id=335 data-nosnippet>335</a>            .arg(<span class="string">"--stdin"</span>)
-<a href=#336 id=336 data-nosnippet>336</a>            .arg(<span class="string">"--json"</span>)
-<a href=#337 id=337 data-nosnippet>337</a>            .arg(<span class="string">"--allowho"</span>)
-<a href=#338 id=338 data-nosnippet>338</a>            .arg(<span class="string">"--allowhoqs"</span>)
-<a href=#339 id=339 data-nosnippet>339</a>            .arg(<span class="macro">format!</span>(<span class="string">"--solver={}"</span>, <span class="self">self</span>.solver))
-<a href=#340 id=340 data-nosnippet>340</a>            .stdin(Stdio::piped())
-<a href=#341 id=341 data-nosnippet>341</a>            .stdout(Stdio::piped())
-<a href=#342 id=342 data-nosnippet>342</a>            .stderr(Stdio::piped())
-<a href=#343 id=343 data-nosnippet>343</a>            .spawn()<span class="question-mark">?</span>;
-<a href=#344 id=344 data-nosnippet>344</a>        <span class="kw">let </span><span class="kw-2">mut </span>stdin = <span class="prelude-val">None</span>;
-<a href=#345 id=345 data-nosnippet>345</a>        std::mem::swap(<span class="kw-2">&amp;mut </span>stdin, <span class="kw-2">&amp;mut </span>child.stdin);
-<a href=#346 id=346 data-nosnippet>346</a>        {
-<a href=#347 id=347 data-nosnippet>347</a>            <span class="kw">let </span><span class="kw-2">mut </span>w = BufWriter::new(stdin.unwrap());
-<a href=#348 id=348 data-nosnippet>348</a>            <span class="macro">writeln!</span>(w, <span class="string">"{self}"</span>)<span class="question-mark">?</span>;
-<a href=#349 id=349 data-nosnippet>349</a>        }
-<a href=#350 id=350 data-nosnippet>350</a>        <span class="kw">let </span>out = child.wait_with_output()<span class="question-mark">?</span>;
-<a href=#351 id=351 data-nosnippet>351</a>
-<a href=#352 id=352 data-nosnippet>352</a>        serde_json::from_slice(<span class="kw-2">&amp;</span>out.stdout).map_err(|err| {
-<a href=#353 id=353 data-nosnippet>353</a>            <span class="comment">// If we fail to parse stdout fixpoint may have outputed something to stderr
-<a href=#354 id=354 data-nosnippet>354</a>            // so use that for the error instead
-<a href=#355 id=355 data-nosnippet>355</a>            </span><span class="kw">if </span>!out.stderr.is_empty() {
-<a href=#356 id=356 data-nosnippet>356</a>                <span class="kw">let </span>stderr = std::str::from_utf8(<span class="kw-2">&amp;</span>out.stderr)
-<a href=#357 id=357 data-nosnippet>357</a>                    .unwrap_or(<span class="string">"fixpoint exited with a non-zero return code"</span>);
-<a href=#358 id=358 data-nosnippet>358</a>                io::Error::other(stderr)
-<a href=#359 id=359 data-nosnippet>359</a>            } <span class="kw">else </span>{
-<a href=#360 id=360 data-nosnippet>360</a>                err.into()
-<a href=#361 id=361 data-nosnippet>361</a>            }
-<a href=#362 id=362 data-nosnippet>362</a>        })
-<a href=#363 id=363 data-nosnippet>363</a>    }
-<a href=#364 id=364 data-nosnippet>364</a>}
-<a href=#365 id=365 data-nosnippet>365</a>
-<a href=#366 id=366 data-nosnippet>366</a><span class="kw">impl</span>&lt;T: Types&gt; KVarDecl&lt;T&gt; {
-<a href=#367 id=367 data-nosnippet>367</a>    <span class="kw">pub fn </span>new(kvid: T::KVar, sorts: Vec&lt;Sort&lt;T&gt;&gt;, comment: String) -&gt; <span class="self">Self </span>{
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="self">Self </span>{ kvid, sorts, comment }
-<a href=#369 id=369 data-nosnippet>369</a>    }
-<a href=#370 id=370 data-nosnippet>370</a>}
-<a href=#371 id=371 data-nosnippet>371</a>
-<a href=#372 id=372 data-nosnippet>372</a><span class="attr">#[derive(Serialize, Deserialize)]
-<a href=#373 id=373 data-nosnippet>373</a></span><span class="kw">struct </span>ErrorInner(i32, String);
-<a href=#374 id=374 data-nosnippet>374</a>
-<a href=#375 id=375 data-nosnippet>375</a><span class="kw">impl</span>&lt;Tag: ToString&gt; Serialize <span class="kw">for </span>Error&lt;Tag&gt; {
-<a href=#376 id=376 data-nosnippet>376</a>    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">where
-<a href=#378 id=378 data-nosnippet>378</a>        </span>S: serde::Serializer,
-<a href=#379 id=379 data-nosnippet>379</a>    {
-<a href=#380 id=380 data-nosnippet>380</a>        ErrorInner(<span class="self">self</span>.id, <span class="self">self</span>.tag.to_string()).serialize(serializer)
-<a href=#381 id=381 data-nosnippet>381</a>    }
-<a href=#382 id=382 data-nosnippet>382</a>}
-<a href=#383 id=383 data-nosnippet>383</a>
-<a href=#384 id=384 data-nosnippet>384</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, Tag: FromStr&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Error&lt;Tag&gt; {
-<a href=#385 id=385 data-nosnippet>385</a>    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
-<a href=#386 id=386 data-nosnippet>386</a>    <span class="kw">where
-<a href=#387 id=387 data-nosnippet>387</a>        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-<a href=#388 id=388 data-nosnippet>388</a>    {
-<a href=#389 id=389 data-nosnippet>389</a>        <span class="kw">let </span>ErrorInner(id, tag) = Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
-<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">let </span>tag = tag
-<a href=#391 id=391 data-nosnippet>391</a>            .parse()
-<a href=#392 id=392 data-nosnippet>392</a>            .map_err(|<span class="kw">_</span>| de::Error::invalid_value(de::Unexpected::Str(<span class="kw-2">&amp;</span>tag), <span class="kw-2">&amp;</span><span class="string">"valid tag"</span>))<span class="question-mark">?</span>;
-<a href=#393 id=393 data-nosnippet>393</a>        <span class="prelude-val">Ok</span>(Error { id, tag })
-<a href=#394 id=394 data-nosnippet>394</a>    }
-<a href=#395 id=395 data-nosnippet>395</a>}
-<a href=#396 id=396 data-nosnippet>396</a>
-<a href=#397 id=397 data-nosnippet>397</a><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-<a href=#398 id=398 data-nosnippet>398</a>#[cfg_attr(feature = <span class="string">"nightly"</span>, derive(Encodable, Decodable))]
-<a href=#399 id=399 data-nosnippet>399</a></span><span class="kw">pub enum </span>ThyFunc {
-<a href=#400 id=400 data-nosnippet>400</a>    <span class="comment">// STRINGS
-<a href=#401 id=401 data-nosnippet>401</a>    </span>StrLen,
-<a href=#402 id=402 data-nosnippet>402</a>    StrConcat,
-<a href=#403 id=403 data-nosnippet>403</a>    StrPrefixOf,
-<a href=#404 id=404 data-nosnippet>404</a>    StrSuffixOf,
-<a href=#405 id=405 data-nosnippet>405</a>    StrContains,
-<a href=#406 id=406 data-nosnippet>406</a>
-<a href=#407 id=407 data-nosnippet>407</a>    <span class="comment">// BIT VECTORS
-<a href=#408 id=408 data-nosnippet>408</a>    </span>BvZeroExtend(u8),
-<a href=#409 id=409 data-nosnippet>409</a>    BvSignExtend(u8),
-<a href=#410 id=410 data-nosnippet>410</a>    IntToBv8,
-<a href=#411 id=411 data-nosnippet>411</a>    Bv8ToInt,
-<a href=#412 id=412 data-nosnippet>412</a>    IntToBv32,
-<a href=#413 id=413 data-nosnippet>413</a>    Bv32ToInt,
-<a href=#414 id=414 data-nosnippet>414</a>    IntToBv64,
-<a href=#415 id=415 data-nosnippet>415</a>    Bv64ToInt,
-<a href=#416 id=416 data-nosnippet>416</a>    BvUle,
-<a href=#417 id=417 data-nosnippet>417</a>    BvSle,
-<a href=#418 id=418 data-nosnippet>418</a>    BvUge,
-<a href=#419 id=419 data-nosnippet>419</a>    BvSge,
-<a href=#420 id=420 data-nosnippet>420</a>    BvUdiv,
-<a href=#421 id=421 data-nosnippet>421</a>    BvSdiv,
-<a href=#422 id=422 data-nosnippet>422</a>    BvSrem,
-<a href=#423 id=423 data-nosnippet>423</a>    BvUrem,
-<a href=#424 id=424 data-nosnippet>424</a>    BvLshr,
-<a href=#425 id=425 data-nosnippet>425</a>    BvAshr,
-<a href=#426 id=426 data-nosnippet>426</a>    BvAnd,
-<a href=#427 id=427 data-nosnippet>427</a>    BvOr,
-<a href=#428 id=428 data-nosnippet>428</a>    BvXor,
-<a href=#429 id=429 data-nosnippet>429</a>    BvNot,
-<a href=#430 id=430 data-nosnippet>430</a>    BvAdd,
-<a href=#431 id=431 data-nosnippet>431</a>    BvNeg,
-<a href=#432 id=432 data-nosnippet>432</a>    BvSub,
-<a href=#433 id=433 data-nosnippet>433</a>    BvMul,
-<a href=#434 id=434 data-nosnippet>434</a>    BvShl,
-<a href=#435 id=435 data-nosnippet>435</a>    BvUgt,
-<a href=#436 id=436 data-nosnippet>436</a>    BvSgt,
-<a href=#437 id=437 data-nosnippet>437</a>    BvUlt,
-<a href=#438 id=438 data-nosnippet>438</a>    BvSlt,
-<a href=#439 id=439 data-nosnippet>439</a>
-<a href=#440 id=440 data-nosnippet>440</a>    <span class="comment">// SETS
-<a href=#441 id=441 data-nosnippet>441</a>    </span><span class="doccomment">/// Make an empty set
-<a href=#442 id=442 data-nosnippet>442</a>    </span>SetEmpty,
-<a href=#443 id=443 data-nosnippet>443</a>    <span class="doccomment">/// Make a singleton set
-<a href=#444 id=444 data-nosnippet>444</a>    </span>SetSng,
-<a href=#445 id=445 data-nosnippet>445</a>    <span class="doccomment">/// Set union
-<a href=#446 id=446 data-nosnippet>446</a>    </span>SetCup,
-<a href=#447 id=447 data-nosnippet>447</a>    <span class="doccomment">/// Set intersection
-<a href=#448 id=448 data-nosnippet>448</a>    </span>SetCap,
-<a href=#449 id=449 data-nosnippet>449</a>    <span class="doccomment">/// Set difference
-<a href=#450 id=450 data-nosnippet>450</a>    </span>SetDif,
-<a href=#451 id=451 data-nosnippet>451</a>    <span class="doccomment">/// Subset
-<a href=#452 id=452 data-nosnippet>452</a>    </span>SetSub,
-<a href=#453 id=453 data-nosnippet>453</a>    <span class="doccomment">/// Set membership
-<a href=#454 id=454 data-nosnippet>454</a>    </span>SetMem,
-<a href=#455 id=455 data-nosnippet>455</a>
-<a href=#456 id=456 data-nosnippet>456</a>    <span class="comment">// MAPS
-<a href=#457 id=457 data-nosnippet>457</a>    </span><span class="doccomment">/// Create a map where all keys point to a value
-<a href=#458 id=458 data-nosnippet>458</a>    </span>MapDefault,
-<a href=#459 id=459 data-nosnippet>459</a>    <span class="doccomment">/// Select a key in a map
-<a href=#460 id=460 data-nosnippet>460</a>    </span>MapSelect,
-<a href=#461 id=461 data-nosnippet>461</a>    <span class="doccomment">/// Store a key value pair in a map
-<a href=#462 id=462 data-nosnippet>462</a>    </span>MapStore,
-<a href=#463 id=463 data-nosnippet>463</a>}
-<a href=#464 id=464 data-nosnippet>464</a>
-<a href=#465 id=465 data-nosnippet>465</a><span class="kw">impl </span>ThyFunc {
-<a href=#466 id=466 data-nosnippet>466</a>    <span class="kw">pub const </span>ALL: [ThyFunc; <span class="number">44</span>] = [
-<a href=#467 id=467 data-nosnippet>467</a>        ThyFunc::StrLen,
-<a href=#468 id=468 data-nosnippet>468</a>        ThyFunc::StrConcat,
-<a href=#469 id=469 data-nosnippet>469</a>        ThyFunc::StrPrefixOf,
-<a href=#470 id=470 data-nosnippet>470</a>        ThyFunc::StrSuffixOf,
-<a href=#471 id=471 data-nosnippet>471</a>        ThyFunc::StrContains,
-<a href=#472 id=472 data-nosnippet>472</a>        ThyFunc::IntToBv8,
-<a href=#473 id=473 data-nosnippet>473</a>        ThyFunc::Bv8ToInt,
-<a href=#474 id=474 data-nosnippet>474</a>        ThyFunc::IntToBv32,
-<a href=#475 id=475 data-nosnippet>475</a>        ThyFunc::Bv32ToInt,
-<a href=#476 id=476 data-nosnippet>476</a>        ThyFunc::IntToBv64,
-<a href=#477 id=477 data-nosnippet>477</a>        ThyFunc::Bv64ToInt,
-<a href=#478 id=478 data-nosnippet>478</a>        ThyFunc::BvAdd,
-<a href=#479 id=479 data-nosnippet>479</a>        ThyFunc::BvNeg,
-<a href=#480 id=480 data-nosnippet>480</a>        ThyFunc::BvSub,
-<a href=#481 id=481 data-nosnippet>481</a>        ThyFunc::BvShl,
-<a href=#482 id=482 data-nosnippet>482</a>        ThyFunc::BvLshr,
-<a href=#483 id=483 data-nosnippet>483</a>        ThyFunc::BvAshr,
-<a href=#484 id=484 data-nosnippet>484</a>        ThyFunc::BvMul,
-<a href=#485 id=485 data-nosnippet>485</a>        ThyFunc::BvUdiv,
-<a href=#486 id=486 data-nosnippet>486</a>        ThyFunc::BvSdiv,
-<a href=#487 id=487 data-nosnippet>487</a>        ThyFunc::BvUrem,
-<a href=#488 id=488 data-nosnippet>488</a>        ThyFunc::BvSrem,
-<a href=#489 id=489 data-nosnippet>489</a>        ThyFunc::BvAnd,
-<a href=#490 id=490 data-nosnippet>490</a>        ThyFunc::BvOr,
-<a href=#491 id=491 data-nosnippet>491</a>        ThyFunc::BvXor,
-<a href=#492 id=492 data-nosnippet>492</a>        ThyFunc::BvNot,
-<a href=#493 id=493 data-nosnippet>493</a>        ThyFunc::BvUle,
-<a href=#494 id=494 data-nosnippet>494</a>        ThyFunc::BvSle,
-<a href=#495 id=495 data-nosnippet>495</a>        ThyFunc::BvUge,
-<a href=#496 id=496 data-nosnippet>496</a>        ThyFunc::BvSge,
-<a href=#497 id=497 data-nosnippet>497</a>        ThyFunc::BvUgt,
-<a href=#498 id=498 data-nosnippet>498</a>        ThyFunc::BvSgt,
-<a href=#499 id=499 data-nosnippet>499</a>        ThyFunc::BvUlt,
-<a href=#500 id=500 data-nosnippet>500</a>        ThyFunc::BvSlt,
-<a href=#501 id=501 data-nosnippet>501</a>        ThyFunc::SetEmpty,
-<a href=#502 id=502 data-nosnippet>502</a>        ThyFunc::SetSng,
-<a href=#503 id=503 data-nosnippet>503</a>        ThyFunc::SetCup,
-<a href=#504 id=504 data-nosnippet>504</a>        ThyFunc::SetMem,
-<a href=#505 id=505 data-nosnippet>505</a>        ThyFunc::SetCap,
-<a href=#506 id=506 data-nosnippet>506</a>        ThyFunc::SetDif,
-<a href=#507 id=507 data-nosnippet>507</a>        ThyFunc::SetSub,
-<a href=#508 id=508 data-nosnippet>508</a>        ThyFunc::MapDefault,
-<a href=#509 id=509 data-nosnippet>509</a>        ThyFunc::MapSelect,
-<a href=#510 id=510 data-nosnippet>510</a>        ThyFunc::MapStore,
-<a href=#511 id=511 data-nosnippet>511</a>    ];
-<a href=#512 id=512 data-nosnippet>512</a>}
-<a href=#513 id=513 data-nosnippet>513</a>
-<a href=#514 id=514 data-nosnippet>514</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>ThyFunc {
-<a href=#515 id=515 data-nosnippet>515</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#516 id=516 data-nosnippet>516</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#517 id=517 data-nosnippet>517</a>            ThyFunc::StrLen =&gt; <span class="macro">write!</span>(f, <span class="string">"strLen"</span>),
-<a href=#518 id=518 data-nosnippet>518</a>            ThyFunc::StrConcat =&gt; <span class="macro">write!</span>(f, <span class="string">"strConcat"</span>),
-<a href=#519 id=519 data-nosnippet>519</a>            ThyFunc::StrPrefixOf =&gt; <span class="macro">write!</span>(f, <span class="string">"strPrefixOf"</span>),
-<a href=#520 id=520 data-nosnippet>520</a>            ThyFunc::StrSuffixOf =&gt; <span class="macro">write!</span>(f, <span class="string">"strSuffixOf"</span>),
-<a href=#521 id=521 data-nosnippet>521</a>            ThyFunc::StrContains =&gt; <span class="macro">write!</span>(f, <span class="string">"strContains"</span>),
-<a href=#522 id=522 data-nosnippet>522</a>            ThyFunc::BvZeroExtend(size) =&gt; {
-<a href=#523 id=523 data-nosnippet>523</a>                <span class="comment">// `app` is a hack in liquid-fixpoint used to implement indexed identifiers
-<a href=#524 id=524 data-nosnippet>524</a>                </span><span class="macro">write!</span>(f, <span class="string">"app (_ zero_extend {size})"</span>)
-<a href=#525 id=525 data-nosnippet>525</a>            }
-<a href=#526 id=526 data-nosnippet>526</a>            ThyFunc::BvSignExtend(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"app (_ sign_extend {size})"</span>),
-<a href=#527 id=527 data-nosnippet>527</a>            ThyFunc::IntToBv32 =&gt; <span class="macro">write!</span>(f, <span class="string">"int_to_bv32"</span>),
-<a href=#528 id=528 data-nosnippet>528</a>            ThyFunc::Bv32ToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"bv32_to_int"</span>),
-<a href=#529 id=529 data-nosnippet>529</a>            ThyFunc::IntToBv8 =&gt; <span class="macro">write!</span>(f, <span class="string">"int_to_bv8"</span>),
-<a href=#530 id=530 data-nosnippet>530</a>            ThyFunc::Bv8ToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"bv8_to_int"</span>),
-<a href=#531 id=531 data-nosnippet>531</a>            ThyFunc::IntToBv64 =&gt; <span class="macro">write!</span>(f, <span class="string">"int_to_bv64"</span>),
-<a href=#532 id=532 data-nosnippet>532</a>            ThyFunc::Bv64ToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"bv64_to_int"</span>),
-<a href=#533 id=533 data-nosnippet>533</a>            ThyFunc::BvUle =&gt; <span class="macro">write!</span>(f, <span class="string">"bvule"</span>),
-<a href=#534 id=534 data-nosnippet>534</a>            ThyFunc::BvSle =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsle"</span>),
-<a href=#535 id=535 data-nosnippet>535</a>            ThyFunc::BvUge =&gt; <span class="macro">write!</span>(f, <span class="string">"bvuge"</span>),
-<a href=#536 id=536 data-nosnippet>536</a>            ThyFunc::BvSge =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsge"</span>),
-<a href=#537 id=537 data-nosnippet>537</a>            ThyFunc::BvUdiv =&gt; <span class="macro">write!</span>(f, <span class="string">"bvudiv"</span>),
-<a href=#538 id=538 data-nosnippet>538</a>            ThyFunc::BvSdiv =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsdiv"</span>),
-<a href=#539 id=539 data-nosnippet>539</a>            ThyFunc::BvUrem =&gt; <span class="macro">write!</span>(f, <span class="string">"bvurem"</span>),
-<a href=#540 id=540 data-nosnippet>540</a>            ThyFunc::BvSrem =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsrem"</span>),
-<a href=#541 id=541 data-nosnippet>541</a>            ThyFunc::BvLshr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvlshr"</span>),
-<a href=#542 id=542 data-nosnippet>542</a>            ThyFunc::BvAshr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvashr"</span>),
-<a href=#543 id=543 data-nosnippet>543</a>            ThyFunc::BvAnd =&gt; <span class="macro">write!</span>(f, <span class="string">"bvand"</span>),
-<a href=#544 id=544 data-nosnippet>544</a>            ThyFunc::BvOr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvor"</span>),
-<a href=#545 id=545 data-nosnippet>545</a>            ThyFunc::BvXor =&gt; <span class="macro">write!</span>(f, <span class="string">"bvxor"</span>),
-<a href=#546 id=546 data-nosnippet>546</a>            ThyFunc::BvNot =&gt; <span class="macro">write!</span>(f, <span class="string">"bvnot"</span>),
-<a href=#547 id=547 data-nosnippet>547</a>            ThyFunc::BvAdd =&gt; <span class="macro">write!</span>(f, <span class="string">"bvadd"</span>),
-<a href=#548 id=548 data-nosnippet>548</a>            ThyFunc::BvNeg =&gt; <span class="macro">write!</span>(f, <span class="string">"bvneg"</span>),
-<a href=#549 id=549 data-nosnippet>549</a>            ThyFunc::BvSub =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsub"</span>),
-<a href=#550 id=550 data-nosnippet>550</a>            ThyFunc::BvMul =&gt; <span class="macro">write!</span>(f, <span class="string">"bvmul"</span>),
-<a href=#551 id=551 data-nosnippet>551</a>            ThyFunc::BvShl =&gt; <span class="macro">write!</span>(f, <span class="string">"bvshl"</span>),
-<a href=#552 id=552 data-nosnippet>552</a>            ThyFunc::BvUgt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvugt"</span>),
-<a href=#553 id=553 data-nosnippet>553</a>            ThyFunc::BvSgt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsgt"</span>),
-<a href=#554 id=554 data-nosnippet>554</a>            ThyFunc::BvUlt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvult"</span>),
-<a href=#555 id=555 data-nosnippet>555</a>            ThyFunc::BvSlt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvslt"</span>),
-<a href=#556 id=556 data-nosnippet>556</a>            ThyFunc::SetEmpty =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_empty"</span>),
-<a href=#557 id=557 data-nosnippet>557</a>            ThyFunc::SetSng =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_sng"</span>),
-<a href=#558 id=558 data-nosnippet>558</a>            ThyFunc::SetCup =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_cup"</span>),
-<a href=#559 id=559 data-nosnippet>559</a>            ThyFunc::SetCap =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_cap"</span>),
-<a href=#560 id=560 data-nosnippet>560</a>            ThyFunc::SetDif =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_dif"</span>),
-<a href=#561 id=561 data-nosnippet>561</a>            ThyFunc::SetMem =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_mem"</span>),
-<a href=#562 id=562 data-nosnippet>562</a>            ThyFunc::SetSub =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_sub"</span>),
-<a href=#563 id=563 data-nosnippet>563</a>            ThyFunc::MapDefault =&gt; <span class="macro">write!</span>(f, <span class="string">"Map_default"</span>),
-<a href=#564 id=564 data-nosnippet>564</a>            ThyFunc::MapSelect =&gt; <span class="macro">write!</span>(f, <span class="string">"Map_select"</span>),
-<a href=#565 id=565 data-nosnippet>565</a>            ThyFunc::MapStore =&gt; <span class="macro">write!</span>(f, <span class="string">"Map_store"</span>),
-<a href=#566 id=566 data-nosnippet>566</a>        }
-<a href=#567 id=567 data-nosnippet>567</a>    }
-<a href=#568 id=568 data-nosnippet>568</a>}</code></pre></div></section></main></body></html>
+<a href=#336 id=336 data-nosnippet>336</a>            .arg(<span class="string">"--sortedsolution"</span>)
+<a href=#337 id=337 data-nosnippet>337</a>            .arg(<span class="string">"--json"</span>)
+<a href=#338 id=338 data-nosnippet>338</a>            .arg(<span class="string">"--allowho"</span>)
+<a href=#339 id=339 data-nosnippet>339</a>            .arg(<span class="string">"--allowhoqs"</span>)
+<a href=#340 id=340 data-nosnippet>340</a>            .arg(<span class="macro">format!</span>(<span class="string">"--solver={}"</span>, <span class="self">self</span>.solver))
+<a href=#341 id=341 data-nosnippet>341</a>            .stdin(Stdio::piped())
+<a href=#342 id=342 data-nosnippet>342</a>            .stdout(Stdio::piped())
+<a href=#343 id=343 data-nosnippet>343</a>            .stderr(Stdio::piped())
+<a href=#344 id=344 data-nosnippet>344</a>            .spawn()<span class="question-mark">?</span>;
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">let </span><span class="kw-2">mut </span>stdin = <span class="prelude-val">None</span>;
+<a href=#346 id=346 data-nosnippet>346</a>        std::mem::swap(<span class="kw-2">&amp;mut </span>stdin, <span class="kw-2">&amp;mut </span>child.stdin);
+<a href=#347 id=347 data-nosnippet>347</a>        {
+<a href=#348 id=348 data-nosnippet>348</a>            <span class="kw">let </span><span class="kw-2">mut </span>w = BufWriter::new(stdin.unwrap());
+<a href=#349 id=349 data-nosnippet>349</a>            <span class="macro">writeln!</span>(w, <span class="string">"{self}"</span>)<span class="question-mark">?</span>;
+<a href=#350 id=350 data-nosnippet>350</a>        }
+<a href=#351 id=351 data-nosnippet>351</a>        <span class="kw">let </span>out = child.wait_with_output()<span class="question-mark">?</span>;
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>        serde_json::from_slice(<span class="kw-2">&amp;</span>out.stdout).map_err(|err| {
+<a href=#354 id=354 data-nosnippet>354</a>            <span class="comment">// If we fail to parse stdout fixpoint may have outputed something to stderr
+<a href=#355 id=355 data-nosnippet>355</a>            // so use that for the error instead
+<a href=#356 id=356 data-nosnippet>356</a>            </span><span class="kw">if </span>!out.stderr.is_empty() {
+<a href=#357 id=357 data-nosnippet>357</a>                <span class="kw">let </span>stderr = std::str::from_utf8(<span class="kw-2">&amp;</span>out.stderr)
+<a href=#358 id=358 data-nosnippet>358</a>                    .unwrap_or(<span class="string">"fixpoint exited with a non-zero return code"</span>);
+<a href=#359 id=359 data-nosnippet>359</a>                io::Error::other(stderr)
+<a href=#360 id=360 data-nosnippet>360</a>            } <span class="kw">else </span>{
+<a href=#361 id=361 data-nosnippet>361</a>                err.into()
+<a href=#362 id=362 data-nosnippet>362</a>            }
+<a href=#363 id=363 data-nosnippet>363</a>        })
+<a href=#364 id=364 data-nosnippet>364</a>    }
+<a href=#365 id=365 data-nosnippet>365</a>}
+<a href=#366 id=366 data-nosnippet>366</a>
+<a href=#367 id=367 data-nosnippet>367</a><span class="kw">impl</span>&lt;T: Types&gt; KVarDecl&lt;T&gt; {
+<a href=#368 id=368 data-nosnippet>368</a>    <span class="kw">pub fn </span>new(kvid: T::KVar, sorts: Vec&lt;Sort&lt;T&gt;&gt;, comment: String) -&gt; <span class="self">Self </span>{
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="self">Self </span>{ kvid, sorts, comment }
+<a href=#370 id=370 data-nosnippet>370</a>    }
+<a href=#371 id=371 data-nosnippet>371</a>}
+<a href=#372 id=372 data-nosnippet>372</a>
+<a href=#373 id=373 data-nosnippet>373</a><span class="attr">#[derive(Serialize, Deserialize)]
+<a href=#374 id=374 data-nosnippet>374</a></span><span class="kw">struct </span>ErrorInner(i32, String);
+<a href=#375 id=375 data-nosnippet>375</a>
+<a href=#376 id=376 data-nosnippet>376</a><span class="kw">impl</span>&lt;Tag: ToString&gt; Serialize <span class="kw">for </span>Error&lt;Tag&gt; {
+<a href=#377 id=377 data-nosnippet>377</a>    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+<a href=#378 id=378 data-nosnippet>378</a>    <span class="kw">where
+<a href=#379 id=379 data-nosnippet>379</a>        </span>S: serde::Serializer,
+<a href=#380 id=380 data-nosnippet>380</a>    {
+<a href=#381 id=381 data-nosnippet>381</a>        ErrorInner(<span class="self">self</span>.id, <span class="self">self</span>.tag.to_string()).serialize(serializer)
+<a href=#382 id=382 data-nosnippet>382</a>    }
+<a href=#383 id=383 data-nosnippet>383</a>}
+<a href=#384 id=384 data-nosnippet>384</a>
+<a href=#385 id=385 data-nosnippet>385</a><span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, Tag: FromStr&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Error&lt;Tag&gt; {
+<a href=#386 id=386 data-nosnippet>386</a>    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
+<a href=#387 id=387 data-nosnippet>387</a>    <span class="kw">where
+<a href=#388 id=388 data-nosnippet>388</a>        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
+<a href=#389 id=389 data-nosnippet>389</a>    {
+<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">let </span>ErrorInner(id, tag) = Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
+<a href=#391 id=391 data-nosnippet>391</a>        <span class="kw">let </span>tag = tag
+<a href=#392 id=392 data-nosnippet>392</a>            .parse()
+<a href=#393 id=393 data-nosnippet>393</a>            .map_err(|<span class="kw">_</span>| de::Error::invalid_value(de::Unexpected::Str(<span class="kw-2">&amp;</span>tag), <span class="kw-2">&amp;</span><span class="string">"valid tag"</span>))<span class="question-mark">?</span>;
+<a href=#394 id=394 data-nosnippet>394</a>        <span class="prelude-val">Ok</span>(Error { id, tag })
+<a href=#395 id=395 data-nosnippet>395</a>    }
+<a href=#396 id=396 data-nosnippet>396</a>}
+<a href=#397 id=397 data-nosnippet>397</a>
+<a href=#398 id=398 data-nosnippet>398</a><span class="attr">#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+<a href=#399 id=399 data-nosnippet>399</a>#[cfg_attr(feature = <span class="string">"nightly"</span>, derive(Encodable, Decodable))]
+<a href=#400 id=400 data-nosnippet>400</a></span><span class="kw">pub enum </span>ThyFunc {
+<a href=#401 id=401 data-nosnippet>401</a>    <span class="comment">// STRINGS
+<a href=#402 id=402 data-nosnippet>402</a>    </span>StrLen,
+<a href=#403 id=403 data-nosnippet>403</a>    StrConcat,
+<a href=#404 id=404 data-nosnippet>404</a>    StrPrefixOf,
+<a href=#405 id=405 data-nosnippet>405</a>    StrSuffixOf,
+<a href=#406 id=406 data-nosnippet>406</a>    StrContains,
+<a href=#407 id=407 data-nosnippet>407</a>
+<a href=#408 id=408 data-nosnippet>408</a>    <span class="comment">// BIT VECTORS
+<a href=#409 id=409 data-nosnippet>409</a>    </span>BvZeroExtend(u8),
+<a href=#410 id=410 data-nosnippet>410</a>    BvSignExtend(u8),
+<a href=#411 id=411 data-nosnippet>411</a>    IntToBv8,
+<a href=#412 id=412 data-nosnippet>412</a>    Bv8ToInt,
+<a href=#413 id=413 data-nosnippet>413</a>    IntToBv32,
+<a href=#414 id=414 data-nosnippet>414</a>    Bv32ToInt,
+<a href=#415 id=415 data-nosnippet>415</a>    IntToBv64,
+<a href=#416 id=416 data-nosnippet>416</a>    Bv64ToInt,
+<a href=#417 id=417 data-nosnippet>417</a>    BvUle,
+<a href=#418 id=418 data-nosnippet>418</a>    BvSle,
+<a href=#419 id=419 data-nosnippet>419</a>    BvUge,
+<a href=#420 id=420 data-nosnippet>420</a>    BvSge,
+<a href=#421 id=421 data-nosnippet>421</a>    BvUdiv,
+<a href=#422 id=422 data-nosnippet>422</a>    BvSdiv,
+<a href=#423 id=423 data-nosnippet>423</a>    BvSrem,
+<a href=#424 id=424 data-nosnippet>424</a>    BvUrem,
+<a href=#425 id=425 data-nosnippet>425</a>    BvLshr,
+<a href=#426 id=426 data-nosnippet>426</a>    BvAshr,
+<a href=#427 id=427 data-nosnippet>427</a>    BvAnd,
+<a href=#428 id=428 data-nosnippet>428</a>    BvOr,
+<a href=#429 id=429 data-nosnippet>429</a>    BvXor,
+<a href=#430 id=430 data-nosnippet>430</a>    BvNot,
+<a href=#431 id=431 data-nosnippet>431</a>    BvAdd,
+<a href=#432 id=432 data-nosnippet>432</a>    BvNeg,
+<a href=#433 id=433 data-nosnippet>433</a>    BvSub,
+<a href=#434 id=434 data-nosnippet>434</a>    BvMul,
+<a href=#435 id=435 data-nosnippet>435</a>    BvShl,
+<a href=#436 id=436 data-nosnippet>436</a>    BvUgt,
+<a href=#437 id=437 data-nosnippet>437</a>    BvSgt,
+<a href=#438 id=438 data-nosnippet>438</a>    BvUlt,
+<a href=#439 id=439 data-nosnippet>439</a>    BvSlt,
+<a href=#440 id=440 data-nosnippet>440</a>
+<a href=#441 id=441 data-nosnippet>441</a>    <span class="comment">// SETS
+<a href=#442 id=442 data-nosnippet>442</a>    </span><span class="doccomment">/// Make an empty set
+<a href=#443 id=443 data-nosnippet>443</a>    </span>SetEmpty,
+<a href=#444 id=444 data-nosnippet>444</a>    <span class="doccomment">/// Make a singleton set
+<a href=#445 id=445 data-nosnippet>445</a>    </span>SetSng,
+<a href=#446 id=446 data-nosnippet>446</a>    <span class="doccomment">/// Set union
+<a href=#447 id=447 data-nosnippet>447</a>    </span>SetCup,
+<a href=#448 id=448 data-nosnippet>448</a>    <span class="doccomment">/// Set intersection
+<a href=#449 id=449 data-nosnippet>449</a>    </span>SetCap,
+<a href=#450 id=450 data-nosnippet>450</a>    <span class="doccomment">/// Set difference
+<a href=#451 id=451 data-nosnippet>451</a>    </span>SetDif,
+<a href=#452 id=452 data-nosnippet>452</a>    <span class="doccomment">/// Subset
+<a href=#453 id=453 data-nosnippet>453</a>    </span>SetSub,
+<a href=#454 id=454 data-nosnippet>454</a>    <span class="doccomment">/// Set membership
+<a href=#455 id=455 data-nosnippet>455</a>    </span>SetMem,
+<a href=#456 id=456 data-nosnippet>456</a>
+<a href=#457 id=457 data-nosnippet>457</a>    <span class="comment">// MAPS
+<a href=#458 id=458 data-nosnippet>458</a>    </span><span class="doccomment">/// Create a map where all keys point to a value
+<a href=#459 id=459 data-nosnippet>459</a>    </span>MapDefault,
+<a href=#460 id=460 data-nosnippet>460</a>    <span class="doccomment">/// Select a key in a map
+<a href=#461 id=461 data-nosnippet>461</a>    </span>MapSelect,
+<a href=#462 id=462 data-nosnippet>462</a>    <span class="doccomment">/// Store a key value pair in a map
+<a href=#463 id=463 data-nosnippet>463</a>    </span>MapStore,
+<a href=#464 id=464 data-nosnippet>464</a>}
+<a href=#465 id=465 data-nosnippet>465</a>
+<a href=#466 id=466 data-nosnippet>466</a><span class="kw">impl </span>ThyFunc {
+<a href=#467 id=467 data-nosnippet>467</a>    <span class="kw">pub const </span>ALL: [ThyFunc; <span class="number">44</span>] = [
+<a href=#468 id=468 data-nosnippet>468</a>        ThyFunc::StrLen,
+<a href=#469 id=469 data-nosnippet>469</a>        ThyFunc::StrConcat,
+<a href=#470 id=470 data-nosnippet>470</a>        ThyFunc::StrPrefixOf,
+<a href=#471 id=471 data-nosnippet>471</a>        ThyFunc::StrSuffixOf,
+<a href=#472 id=472 data-nosnippet>472</a>        ThyFunc::StrContains,
+<a href=#473 id=473 data-nosnippet>473</a>        ThyFunc::IntToBv8,
+<a href=#474 id=474 data-nosnippet>474</a>        ThyFunc::Bv8ToInt,
+<a href=#475 id=475 data-nosnippet>475</a>        ThyFunc::IntToBv32,
+<a href=#476 id=476 data-nosnippet>476</a>        ThyFunc::Bv32ToInt,
+<a href=#477 id=477 data-nosnippet>477</a>        ThyFunc::IntToBv64,
+<a href=#478 id=478 data-nosnippet>478</a>        ThyFunc::Bv64ToInt,
+<a href=#479 id=479 data-nosnippet>479</a>        ThyFunc::BvAdd,
+<a href=#480 id=480 data-nosnippet>480</a>        ThyFunc::BvNeg,
+<a href=#481 id=481 data-nosnippet>481</a>        ThyFunc::BvSub,
+<a href=#482 id=482 data-nosnippet>482</a>        ThyFunc::BvShl,
+<a href=#483 id=483 data-nosnippet>483</a>        ThyFunc::BvLshr,
+<a href=#484 id=484 data-nosnippet>484</a>        ThyFunc::BvAshr,
+<a href=#485 id=485 data-nosnippet>485</a>        ThyFunc::BvMul,
+<a href=#486 id=486 data-nosnippet>486</a>        ThyFunc::BvUdiv,
+<a href=#487 id=487 data-nosnippet>487</a>        ThyFunc::BvSdiv,
+<a href=#488 id=488 data-nosnippet>488</a>        ThyFunc::BvUrem,
+<a href=#489 id=489 data-nosnippet>489</a>        ThyFunc::BvSrem,
+<a href=#490 id=490 data-nosnippet>490</a>        ThyFunc::BvAnd,
+<a href=#491 id=491 data-nosnippet>491</a>        ThyFunc::BvOr,
+<a href=#492 id=492 data-nosnippet>492</a>        ThyFunc::BvXor,
+<a href=#493 id=493 data-nosnippet>493</a>        ThyFunc::BvNot,
+<a href=#494 id=494 data-nosnippet>494</a>        ThyFunc::BvUle,
+<a href=#495 id=495 data-nosnippet>495</a>        ThyFunc::BvSle,
+<a href=#496 id=496 data-nosnippet>496</a>        ThyFunc::BvUge,
+<a href=#497 id=497 data-nosnippet>497</a>        ThyFunc::BvSge,
+<a href=#498 id=498 data-nosnippet>498</a>        ThyFunc::BvUgt,
+<a href=#499 id=499 data-nosnippet>499</a>        ThyFunc::BvSgt,
+<a href=#500 id=500 data-nosnippet>500</a>        ThyFunc::BvUlt,
+<a href=#501 id=501 data-nosnippet>501</a>        ThyFunc::BvSlt,
+<a href=#502 id=502 data-nosnippet>502</a>        ThyFunc::SetEmpty,
+<a href=#503 id=503 data-nosnippet>503</a>        ThyFunc::SetSng,
+<a href=#504 id=504 data-nosnippet>504</a>        ThyFunc::SetCup,
+<a href=#505 id=505 data-nosnippet>505</a>        ThyFunc::SetMem,
+<a href=#506 id=506 data-nosnippet>506</a>        ThyFunc::SetCap,
+<a href=#507 id=507 data-nosnippet>507</a>        ThyFunc::SetDif,
+<a href=#508 id=508 data-nosnippet>508</a>        ThyFunc::SetSub,
+<a href=#509 id=509 data-nosnippet>509</a>        ThyFunc::MapDefault,
+<a href=#510 id=510 data-nosnippet>510</a>        ThyFunc::MapSelect,
+<a href=#511 id=511 data-nosnippet>511</a>        ThyFunc::MapStore,
+<a href=#512 id=512 data-nosnippet>512</a>    ];
+<a href=#513 id=513 data-nosnippet>513</a>}
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>ThyFunc {
+<a href=#516 id=516 data-nosnippet>516</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#518 id=518 data-nosnippet>518</a>            ThyFunc::StrLen =&gt; <span class="macro">write!</span>(f, <span class="string">"strLen"</span>),
+<a href=#519 id=519 data-nosnippet>519</a>            ThyFunc::StrConcat =&gt; <span class="macro">write!</span>(f, <span class="string">"strConcat"</span>),
+<a href=#520 id=520 data-nosnippet>520</a>            ThyFunc::StrPrefixOf =&gt; <span class="macro">write!</span>(f, <span class="string">"strPrefixOf"</span>),
+<a href=#521 id=521 data-nosnippet>521</a>            ThyFunc::StrSuffixOf =&gt; <span class="macro">write!</span>(f, <span class="string">"strSuffixOf"</span>),
+<a href=#522 id=522 data-nosnippet>522</a>            ThyFunc::StrContains =&gt; <span class="macro">write!</span>(f, <span class="string">"strContains"</span>),
+<a href=#523 id=523 data-nosnippet>523</a>            ThyFunc::BvZeroExtend(size) =&gt; {
+<a href=#524 id=524 data-nosnippet>524</a>                <span class="comment">// `app` is a hack in liquid-fixpoint used to implement indexed identifiers
+<a href=#525 id=525 data-nosnippet>525</a>                </span><span class="macro">write!</span>(f, <span class="string">"app (_ zero_extend {size})"</span>)
+<a href=#526 id=526 data-nosnippet>526</a>            }
+<a href=#527 id=527 data-nosnippet>527</a>            ThyFunc::BvSignExtend(size) =&gt; <span class="macro">write!</span>(f, <span class="string">"app (_ sign_extend {size})"</span>),
+<a href=#528 id=528 data-nosnippet>528</a>            ThyFunc::IntToBv32 =&gt; <span class="macro">write!</span>(f, <span class="string">"int_to_bv32"</span>),
+<a href=#529 id=529 data-nosnippet>529</a>            ThyFunc::Bv32ToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"bv32_to_int"</span>),
+<a href=#530 id=530 data-nosnippet>530</a>            ThyFunc::IntToBv8 =&gt; <span class="macro">write!</span>(f, <span class="string">"int_to_bv8"</span>),
+<a href=#531 id=531 data-nosnippet>531</a>            ThyFunc::Bv8ToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"bv8_to_int"</span>),
+<a href=#532 id=532 data-nosnippet>532</a>            ThyFunc::IntToBv64 =&gt; <span class="macro">write!</span>(f, <span class="string">"int_to_bv64"</span>),
+<a href=#533 id=533 data-nosnippet>533</a>            ThyFunc::Bv64ToInt =&gt; <span class="macro">write!</span>(f, <span class="string">"bv64_to_int"</span>),
+<a href=#534 id=534 data-nosnippet>534</a>            ThyFunc::BvUle =&gt; <span class="macro">write!</span>(f, <span class="string">"bvule"</span>),
+<a href=#535 id=535 data-nosnippet>535</a>            ThyFunc::BvSle =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsle"</span>),
+<a href=#536 id=536 data-nosnippet>536</a>            ThyFunc::BvUge =&gt; <span class="macro">write!</span>(f, <span class="string">"bvuge"</span>),
+<a href=#537 id=537 data-nosnippet>537</a>            ThyFunc::BvSge =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsge"</span>),
+<a href=#538 id=538 data-nosnippet>538</a>            ThyFunc::BvUdiv =&gt; <span class="macro">write!</span>(f, <span class="string">"bvudiv"</span>),
+<a href=#539 id=539 data-nosnippet>539</a>            ThyFunc::BvSdiv =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsdiv"</span>),
+<a href=#540 id=540 data-nosnippet>540</a>            ThyFunc::BvUrem =&gt; <span class="macro">write!</span>(f, <span class="string">"bvurem"</span>),
+<a href=#541 id=541 data-nosnippet>541</a>            ThyFunc::BvSrem =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsrem"</span>),
+<a href=#542 id=542 data-nosnippet>542</a>            ThyFunc::BvLshr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvlshr"</span>),
+<a href=#543 id=543 data-nosnippet>543</a>            ThyFunc::BvAshr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvashr"</span>),
+<a href=#544 id=544 data-nosnippet>544</a>            ThyFunc::BvAnd =&gt; <span class="macro">write!</span>(f, <span class="string">"bvand"</span>),
+<a href=#545 id=545 data-nosnippet>545</a>            ThyFunc::BvOr =&gt; <span class="macro">write!</span>(f, <span class="string">"bvor"</span>),
+<a href=#546 id=546 data-nosnippet>546</a>            ThyFunc::BvXor =&gt; <span class="macro">write!</span>(f, <span class="string">"bvxor"</span>),
+<a href=#547 id=547 data-nosnippet>547</a>            ThyFunc::BvNot =&gt; <span class="macro">write!</span>(f, <span class="string">"bvnot"</span>),
+<a href=#548 id=548 data-nosnippet>548</a>            ThyFunc::BvAdd =&gt; <span class="macro">write!</span>(f, <span class="string">"bvadd"</span>),
+<a href=#549 id=549 data-nosnippet>549</a>            ThyFunc::BvNeg =&gt; <span class="macro">write!</span>(f, <span class="string">"bvneg"</span>),
+<a href=#550 id=550 data-nosnippet>550</a>            ThyFunc::BvSub =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsub"</span>),
+<a href=#551 id=551 data-nosnippet>551</a>            ThyFunc::BvMul =&gt; <span class="macro">write!</span>(f, <span class="string">"bvmul"</span>),
+<a href=#552 id=552 data-nosnippet>552</a>            ThyFunc::BvShl =&gt; <span class="macro">write!</span>(f, <span class="string">"bvshl"</span>),
+<a href=#553 id=553 data-nosnippet>553</a>            ThyFunc::BvUgt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvugt"</span>),
+<a href=#554 id=554 data-nosnippet>554</a>            ThyFunc::BvSgt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvsgt"</span>),
+<a href=#555 id=555 data-nosnippet>555</a>            ThyFunc::BvUlt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvult"</span>),
+<a href=#556 id=556 data-nosnippet>556</a>            ThyFunc::BvSlt =&gt; <span class="macro">write!</span>(f, <span class="string">"bvslt"</span>),
+<a href=#557 id=557 data-nosnippet>557</a>            ThyFunc::SetEmpty =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_empty"</span>),
+<a href=#558 id=558 data-nosnippet>558</a>            ThyFunc::SetSng =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_sng"</span>),
+<a href=#559 id=559 data-nosnippet>559</a>            ThyFunc::SetCup =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_cup"</span>),
+<a href=#560 id=560 data-nosnippet>560</a>            ThyFunc::SetCap =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_cap"</span>),
+<a href=#561 id=561 data-nosnippet>561</a>            ThyFunc::SetDif =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_dif"</span>),
+<a href=#562 id=562 data-nosnippet>562</a>            ThyFunc::SetMem =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_mem"</span>),
+<a href=#563 id=563 data-nosnippet>563</a>            ThyFunc::SetSub =&gt; <span class="macro">write!</span>(f, <span class="string">"Set_sub"</span>),
+<a href=#564 id=564 data-nosnippet>564</a>            ThyFunc::MapDefault =&gt; <span class="macro">write!</span>(f, <span class="string">"Map_default"</span>),
+<a href=#565 id=565 data-nosnippet>565</a>            ThyFunc::MapSelect =&gt; <span class="macro">write!</span>(f, <span class="string">"Map_select"</span>),
+<a href=#566 id=566 data-nosnippet>566</a>            ThyFunc::MapStore =&gt; <span class="macro">write!</span>(f, <span class="string">"Map_store"</span>),
+<a href=#567 id=567 data-nosnippet>567</a>        }
+<a href=#568 id=568 data-nosnippet>568</a>    }
+<a href=#569 id=569 data-nosnippet>569</a>}</code></pre></div></section></main></body></html>
