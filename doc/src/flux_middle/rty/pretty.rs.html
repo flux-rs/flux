@@ -579,7 +579,7 @@
 <a href=#579 id=579 data-nosnippet>579</a>            BaseTy::Closure(did, args, <span class="kw">_</span>) =&gt; {
 <a href=#580 id=580 data-nosnippet>580</a>                <span class="macro">w!</span>(cx, f, <span class="string">"{:?}&lt;{:?}&gt;"</span>, did, args)
 <a href=#581 id=581 data-nosnippet>581</a>            }
-<a href=#582 id=582 data-nosnippet>582</a>            BaseTy::Coroutine(did, resume_ty, upvars) =&gt; {
+<a href=#582 id=582 data-nosnippet>582</a>            BaseTy::Coroutine(did, resume_ty, upvars, <span class="kw">_</span>) =&gt; {
 <a href=#583 id=583 data-nosnippet>583</a>                <span class="macro">w!</span>(cx, f, <span class="string">"Coroutine({:?}, {:?})"</span>, did, resume_ty)<span class="question-mark">?</span>;
 <a href=#584 id=584 data-nosnippet>584</a>                <span class="kw">if </span>!upvars.is_empty() {
 <a href=#585 id=585 data-nosnippet>585</a>                    <span class="macro">w!</span>(cx, f, <span class="string">"&lt;{:?}&gt;"</span>, <span class="macro">join!</span>(<span class="string">", "</span>, upvars))<span class="question-mark">?</span>;
