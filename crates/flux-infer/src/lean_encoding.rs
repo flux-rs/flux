@@ -40,10 +40,6 @@ fn vc_name(genv: GlobalEnv, def_id: DefId) -> String {
     def_id_to_pascal_case(&def_id, &genv.tcx())
 }
 
-fn vc_namespace(genv: GlobalEnv, def_id: DefId) -> String {
-    format!("FluxVC{}", vc_name(genv, def_id))
-}
-
 fn project() -> String {
     config::lean_project().to_string()
 }
@@ -165,6 +161,25 @@ pub enum LeanFile {
     Proof(DefId),
 }
 
+#[derive(Eq, PartialEq, Hash, Debug, Clone)]
+pub enum LeanDefKind<'a> {
+    Struct(&'a str),
+    Function(&'a str),
+    VC(&'a str),
+    Proof(&'a str),
+}
+
+impl LeanDefKind<'_> {
+    pub(crate) fn namespace(&self) -> String {
+        match self {
+            LeanDefKind::Struct(name) => format!("FluxStruct{}", snake_case_to_pascal_case(name)),
+            LeanDefKind::Function(name) => format!("FluxFunc{}", snake_case_to_pascal_case(name)),
+            LeanDefKind::VC(name) => format!("FluxVC{}", snake_case_to_pascal_case(name)),
+            LeanDefKind::Proof(name) => format!("FluxProof{}", snake_case_to_pascal_case(name)),
+        }
+    }
+}
+
 impl LeanFile {
     fn kind(&self) -> FileKind {
         match self {
@@ -221,6 +236,21 @@ impl LeanFile {
         }
         path.set_extension("lean");
         path
+    }
+
+    fn namespace(&self, genv: GlobalEnv) -> String {
+        match self {
+            LeanFile::Basic => unreachable!(),
+            LeanFile::Fluxlib => unreachable!(),
+            LeanFile::Fun(name) | LeanFile::OpaqueFun(name) => {
+                LeanDefKind::Function(name).namespace()
+            }
+            LeanFile::Struct(name) | LeanFile::OpaqueSort(name) => {
+                LeanDefKind::Struct(name).namespace()
+            }
+            LeanFile::Vc(def_id) => LeanDefKind::VC(&vc_name(genv, *def_id)).namespace(),
+            LeanFile::Proof(def_id) => LeanDefKind::Proof(&vc_name(genv, *def_id)).namespace(),
+        }
     }
 }
 
@@ -354,11 +384,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     ) -> io::Result<()> {
         let name = self.datasort_name(&sort.name);
         let file = &LeanFile::OpaqueSort(name);
+        let sort_namespace = file.namespace(self.genv);
 
         let path = file.path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
+            writeln!(file, "\nnamespace {sort_namespace}\n")?;
             writeln!(file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })?;
+            writeln!(file, "\nend {sort_namespace}")?;
             file.sync_all()?;
         }
         Ok(())
@@ -387,17 +420,26 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
     ) -> io::Result<()> {
         let name = self.datasort_name(&data_decl.name);
         let file = &LeanFile::Struct(name);
+        let struct_namespace = file.namespace(self.genv);
         let path = file.path(self.genv);
         // No need to regenerate if created in this session; but otherwise regenerate as struct may have changed
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             // import sort dependencies
+            let mut dep_namespaces = vec![];
             for dep in self.data_decl_dependencies(data_decl) {
                 writeln!(file, "{}", self.import(dep))?;
+                dep_namespaces.push(dep.namespace(self.genv));
             }
+            for namespace in dep_namespaces {
+                writeln!(file, "open {namespace}")?;
+            }
+
+            writeln!(file, "\nnamespace {struct_namespace}\n")?;
             // write data decl
             writeln!(file, "{}", WithLeanCtxt { item: data_decl, cx: &self.lean_cx() })?;
+            writeln!(file, "\nend {struct_namespace}")?;
             file.sync_all()?;
         }
         Ok(())
@@ -445,11 +487,19 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             // import prelude
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             // import sort dependencies
+            let mut dep_namespaces = vec![];
             for dep in self.fun_def_dependencies(did, fun_def) {
                 writeln!(file, "{}", self.import(dep))?;
+                dep_namespaces.push(dep.namespace(self.genv));
+            }
+            for namespace in dep_namespaces {
+                writeln!(file, "open {namespace}")?;
             }
             // write fun def
+            let fun_namespace = LeanDefKind::Function(&self.var_name(&fun_def.name)).namespace();
+            writeln!(file, "\nnamespace {fun_namespace}\n")?;
             writeln!(file, "{}", WithLeanCtxt { item: fun_def, cx: &self.lean_cx() })?;
+            writeln!(file, "\nend {fun_namespace}")?;
             file.sync_all()?;
         }
         Ok(())
@@ -530,6 +580,22 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
+    fn vc_dep_namespaces(&self) -> Vec<String> {
+        let mut res = vec![];
+        for sort in &self.sort_deps.opaque_sorts {
+            let name = self.datasort_name(&sort.name);
+            res.push(LeanDefKind::Struct(&name).namespace());
+        }
+        for data_decl in &self.sort_deps.data_decls {
+            let name = self.datasort_name(&data_decl.name);
+            res.push(LeanDefKind::Struct(&name).namespace());
+        }
+        for fun_def in &self.fun_deps {
+            res.push(LeanDefKind::Function(&self.var_name(&fun_def.name)).namespace());
+        }
+        res
+    }
+
     fn generate_vc_imports(&self, file: &mut fs::File) -> io::Result<()> {
         writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
 
@@ -560,9 +626,13 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
 
-            let vc_namespace = vc_namespace(self.genv, def_id);
-            writeln!(file, "\nnamespace {vc_namespace}\n")?;
+            for namespace in self.vc_dep_namespaces() {
+                writeln!(file, "open {namespace}")?;
+            }
+
             let vc_name = vc_name(self.genv, def_id);
+            let vc_namespace = LeanDefKind::VC(&vc_name).namespace();
+            writeln!(file, "\nnamespace {vc_namespace}\n")?;
             // 3. Write the VC
             write!(
                 file,
@@ -585,10 +655,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn generate_proof_if_absent(&self) -> io::Result<()> {
         let def_id = self.def_id.resolved_id();
-        let vc_namespace = vc_namespace(self.genv, def_id);
         let vc_name = vc_name(self.genv, def_id);
+        let vc_namespace = LeanDefKind::VC(&vc_name).namespace();
         let qualified_vc_name = format!("{vc_namespace}.{vc_name}");
         let proof_name = format!("{vc_name}_proof");
+        let proof_namespace = LeanDefKind::Proof(&proof_name).namespace();
         let path = LeanFile::Proof(def_id).path(self.genv);
 
         if let Some(span) = self.genv.proven_externally(self.def_id.local_id()) {
@@ -599,9 +670,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             writeln!(file, "{}", self.import(&LeanFile::Vc(def_id)))?;
+            for namespace in self.vc_dep_namespaces() {
+                writeln!(file, "open {namespace}")?;
+            }
+            writeln!(file, "\nnamespace {proof_namespace}\n")?;
             writeln!(file, "def {proof_name} : {qualified_vc_name} := by")?;
             writeln!(file, "  unfold {qualified_vc_name}")?;
             writeln!(file, "  sorry")?;
+            writeln!(file, "\nend {proof_namespace}")?;
             file.sync_all()?;
         }
         Ok(())
