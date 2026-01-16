@@ -333,6 +333,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = project_path(self.genv, FileKind::User);
         if !path.exists() {
             Command::new("lake")
+                .current_dir(self.genv.lean_parent_dir())
                 .arg("new")
                 .arg(project())
                 .arg("lib")
