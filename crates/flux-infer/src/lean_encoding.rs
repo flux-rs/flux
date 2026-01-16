@@ -40,6 +40,10 @@ fn vc_name(genv: GlobalEnv, def_id: DefId) -> String {
     def_id_to_pascal_case(&def_id, &genv.tcx())
 }
 
+fn vc_namespace(genv:GlobalEnv, def_id: DefId) -> String {
+    format!("FluxVC{}", vc_name(genv, def_id))
+}
+
 fn project() -> String {
     config::lean_project().to_string()
 }
@@ -556,6 +560,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             self.generate_vc_imports(&mut file)?;
 
+            let vc_namespace = vc_namespace(self.genv, def_id);
+            writeln!(file, "\nnamespace {vc_namespace}\n")?;
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
             write!(
@@ -570,6 +576,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                     cx: &self.lean_cx()
                 }
             )?;
+            writeln!(file, "\n\nend {vc_namespace}")?;
             file.sync_all()?;
         }
 
@@ -578,7 +585,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
     fn generate_proof_if_absent(&self) -> io::Result<()> {
         let def_id = self.def_id.resolved_id();
+        let vc_namespace = vc_namespace(self.genv, def_id);
         let vc_name = vc_name(self.genv, def_id);
+        let qualified_vc_name = format!("{vc_namespace}.{vc_name}");
         let proof_name = format!("{vc_name}_proof");
         let path = LeanFile::Proof(def_id).path(self.genv);
 
@@ -590,8 +599,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             writeln!(file, "{}", self.import(&LeanFile::Vc(def_id)))?;
-            writeln!(file, "def {proof_name} : {vc_name} := by")?;
-            writeln!(file, "  unfold {vc_name}")?;
+            writeln!(file, "def {proof_name} : {qualified_vc_name} := by")?;
+            writeln!(file, "  unfold {qualified_vc_name}")?;
             writeln!(file, "  sorry")?;
             file.sync_all()?;
         }
