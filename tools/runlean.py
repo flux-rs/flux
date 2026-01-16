@@ -102,8 +102,8 @@ def main():
         else:
             print("ERROR")
             error_dirs.append((lean_dir, error_output))
-            if args.verbose and error_output:
-                print(f"    Error details: {error_output[:200]}")
+            if error_output:
+                print(f"    Error: {error_output.strip()}")
 
     # Print summary
     print()
