@@ -139,15 +139,6 @@ pub fn check_fn(
             infcx_root
                 .execute_lean_query(cache, MaybeExternId::Local(def_id))
                 .emit(&genv)
-            // if flux_config::lean().is_emit() {
-            //     infcx_root
-            //         .execute_lean_query(cache, MaybeExternId::Local(def_id))
-            //         .emit(&genv)
-            // } else {
-            //     Err(genv
-            //         .sess()
-            //         .emit_err(errors::MissingLean { span: genv.tcx().def_span(def_id) }))
-            // }
         } else {
             // PHASE 3: invoke fixpoint on the constraint
             let answer = infcx_root
