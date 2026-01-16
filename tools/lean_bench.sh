@@ -3,8 +3,8 @@
 
 set -e
 
-echo "=== Step 1: Running cargo x test --emit-lean ==="
-cargo x test --emit-lean
+echo "=== Step 1: Running tests with lean emission ==="
+python3 tools/run_tests_with_lean.py "$@"
 
 echo ""
 echo "=== Step 2: Running lean builds ==="
