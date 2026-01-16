@@ -116,11 +116,20 @@ fn run_tests_with_lean_emit(base_config: &Config, pos_path: &PathBuf) {
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
     {
-        total_tests += 1;
         let test_path = entry.path().to_path_buf();
 
         // Get the relative path from tests/pos/ (e.g., "surface/test00.rs")
         let rel_path = test_path.strip_prefix(pos_path).unwrap();
+
+        // Skip tests that don't match the filter (if any filters are specified)
+        if !base_config.filters.is_empty() {
+            let path_str = test_path.to_string_lossy();
+            if !base_config.filters.iter().any(|f| path_str.contains(f)) {
+                continue;
+            }
+        }
+
+        total_tests += 1;
 
         // Create lean output dir: ./lean_bench/<path>/<to>/<file>/
         // e.g., for tests/pos/surface/test00.rs -> ./lean_bench/surface/test00/
