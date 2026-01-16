@@ -10,7 +10,6 @@ test = false
 
 [dev-dependencies]
 itertools.workspace = true
-walkdir = "2"
 
 compiletest_rs = { version = "0.11", features = ["tmp"] }
 
