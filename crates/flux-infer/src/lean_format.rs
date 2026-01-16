@@ -798,7 +798,9 @@ pub fn def_id_to_pascal_case(def_id: &DefId, tcx: &rustc_middle::ty::TyCtxt) -> 
         .def_path(*def_id)
         .to_filename_friendly_no_crate()
         .replace("-", "_");
-    snake_case_to_pascal_case(&snake)
+    let pascal_case = snake_case_to_pascal_case(&snake);
+    let re = regex::Regex::new(r"\{impl#(\d+)\}").unwrap();
+    re.replace_all(&pascal_case, "Impl__$1__").to_string()
 }
 
 pub fn snake_case_to_pascal_case(snake: &str) -> String {

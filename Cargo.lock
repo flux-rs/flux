@@ -581,6 +581,7 @@ dependencies = [
  "itertools 0.14.0",
  "liquid-fixpoint",
  "pad-adapter",
+ "regex",
  "rustc-hash",
  "serde",
  "serde_json",
