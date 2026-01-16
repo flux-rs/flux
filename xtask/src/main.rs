@@ -28,6 +28,8 @@ xflags::xflags! {
             optional filter: String
             /// Do not check tests in Flux libs.
             optional --no-lib-tests
+            /// Emit lean files for each test in tests/pos/ to ./lean_bench/
+            optional --emit-lean
         }
         /// Run the `flux` binary on the given input file.
         cmd run {
@@ -143,6 +145,9 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
         .args(["--sysroot".as_ref(), config.dst.as_os_str()])
         .map_opt(args.filter.as_ref(), |filter, cmd| {
             cmd.args(["--filter", filter]);
+        })
+        .map_opt(args.emit_lean.then_some(&()), |_, cmd| {
+            cmd.arg("--emit-lean");
         })
         .run()
 }
