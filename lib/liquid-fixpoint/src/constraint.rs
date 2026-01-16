@@ -149,7 +149,7 @@ impl<T: Types> FlatConstraint<T> {
     pub fn add_assumption(&mut self, assumption: Pred<T>) {
         match assumption {
             Pred::And(conjs) => {
-                self.assumptions.extend(conjs);
+                self.assumptions.extend(conjs.iter().flat_map(|conj| conj.as_conjunction()));
             }
             a@Pred::KVar(_, _) => {
                 self.assumptions.push(a);
@@ -337,7 +337,7 @@ impl<T: Types> Pred<T> {
     /// i.e. Preds are always converted to Pred::And if possible.
     pub fn as_conjunction(&self) -> Vec<Self> {
         match self {
-            Pred::And(conjs) => conjs.clone(),
+            Pred::And(conjs) => conjs.iter().flat_map(|conj| conj.as_conjunction()).collect(),
             _ => vec![self.clone()],
         }
     }
