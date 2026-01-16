@@ -40,7 +40,7 @@ fn vc_name(genv: GlobalEnv, def_id: DefId) -> String {
     def_id_to_pascal_case(&def_id, &genv.tcx())
 }
 
-fn vc_namespace(genv:GlobalEnv, def_id: DefId) -> String {
+fn vc_namespace(genv: GlobalEnv, def_id: DefId) -> String {
     format!("FluxVC{}", vc_name(genv, def_id))
 }
 
