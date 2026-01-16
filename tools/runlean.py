@@ -38,9 +38,13 @@ def run_lake_build(directory: Path) -> tuple[bool, str]:
             text=True,
             timeout=300,  # 5 minute timeout per directory
         )
-        # Check both return code and stderr for errors
-        has_error = result.returncode != 0 or "error" in result.stderr.lower()
-        error_output = result.stderr if has_error else ""
+        # Filter stdout lines that start with "error: LeanProofs"
+        error_lines = [
+            line for line in result.stdout.splitlines()
+            if line.startswith("error: ")
+        ]
+        has_error = result.returncode != 0 or len(error_lines) > 0
+        error_output = "\n".join(error_lines) if error_lines else ""
         return (not has_error, error_output)
     except subprocess.TimeoutExpired:
         return (False, "Timeout expired (5 minutes)")
@@ -103,7 +107,9 @@ def main():
             print("ERROR")
             error_dirs.append((lean_dir, error_output))
             if error_output:
-                print(f"    Error: {error_output.strip()}")
+                for err in error_output.splitlines():
+                    print(f"    {err.strip()}")
+                # print(f"    Error: {error_output.strip()}")
 
     # Print summary
     print()
