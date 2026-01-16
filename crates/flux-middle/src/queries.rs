@@ -273,7 +273,7 @@ pub struct Queries<'genv, 'tcx> {
     lower_late_bound_vars: Cache<LocalDefId, QueryResult<List<ty::BoundVariableKind>>>,
     sort_decl_param_count: Cache<FluxDefId, usize>,
     no_panic: Cache<DefId, bool>,
-    auto_inferred_no_panics: Cache<(), FxHashMap<LocalDefId, bool>>,
+    auto_inferred_no_panic: Cache<DefId, bool>,
 }
 
 impl<'genv, 'tcx> Queries<'genv, 'tcx> {
@@ -313,7 +313,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             lower_late_bound_vars: Default::default(),
             sort_decl_param_count: Default::default(),
             no_panic: Default::default(),
-            auto_inferred_no_panics: Default::default(),
+            auto_inferred_no_panic: Default::default(),
         }
     }
 
@@ -592,8 +592,24 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
     /// An internal function that runs `flux-opt`'s no_panic inference
     /// tool and saves the results in the query cache.
-    pub fn inferred_no_panic(&self, genv: GlobalEnv) -> FxHashMap<LocalDefId, bool> {
-        run_with_cache(&self.auto_inferred_no_panics, (), || flux_opt::infer_no_panics(genv.tcx()))
+    pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {
+        run_with_cache(&self.auto_inferred_no_panic, def_id, || {
+            def_id.dispatch_query(
+                genv,
+                |def_id| {
+                    // i believe this is fine.
+                    let id = def_id.local_id().to_def_id();
+                    let map = flux_opt::infer_no_panics(genv.tcx());
+
+                    map.get(&id).cloned().unwrap_or(false)
+                },
+                |def_id| {
+                    let map = flux_opt::infer_no_panics(genv.tcx());
+                    Some(map.get(&def_id).cloned().unwrap_or(false))
+                },
+                |_| false,
+            )
+        })
     }
 
     pub(crate) fn no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {

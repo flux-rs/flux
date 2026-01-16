@@ -426,13 +426,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether we have inferred that the function cannot panic.
-    pub fn inferred_no_panic(self, def_id: LocalDefId) -> bool {
-        self.inner
-            .queries
-            .inferred_no_panic(self)
-            .get(&def_id)
-            .copied()
-            .unwrap_or(false)
+    pub fn inferred_no_panic(self, def_id: impl IntoQueryParam<DefId>) -> bool {
+        println!("inferred no panic check is off.");
+        false
+
+        // self.inner
+        //     .queries
+        //     .inferred_no_panic(self, def_id.into_query_param())
     }
 
     /// Whether the function is marked with `#[flux::no_panic]`
