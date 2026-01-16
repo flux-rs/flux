@@ -1,12 +1,11 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 
-use std::{env, fs, path::PathBuf};
+use std::{env, path::PathBuf};
 
 use compiletest_rs::{Config, common::Mode};
 use itertools::Itertools;
 use tests::{FLUX_SYSROOT, default_flags};
-use walkdir::WalkDir;
 
 #[derive(Debug)]
 struct Args {
