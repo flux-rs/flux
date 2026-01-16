@@ -153,8 +153,17 @@ impl LeanFmt for DataDecl {
                     .format(" ")
             )?;
             for data_ctor in &self.ctors {
+                let fixpoint::Var::DataCtor(adt_id, variant_id) = &data_ctor.name else {
+                    bug!("unexpected ctor {data_ctor:?} in datadecl")
+                };
                 write!(f, "| ")?;
-                data_ctor.name.lean_fmt(f, cx)?;
+                write!(
+                    f,
+                    " mk{}{} ",
+                    WithLeanCtxt { item: &DataSort::Adt(*adt_id), cx },
+                    as_subscript(variant_id.as_usize()),
+                )?;
+                // data_ctor.name.lean_fmt(f, cx)?;
                 for field in &data_ctor.fields {
                     write!(f, " ")?;
                     field.lean_fmt(f, cx)?;
