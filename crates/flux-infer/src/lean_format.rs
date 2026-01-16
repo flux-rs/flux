@@ -653,16 +653,16 @@ impl<'a> LeanFmt for LeanKConstraint<'a> {
                 writeln!(f, "-- cyclic (cut) kvars")?;
                 for kvar_solution in &cx.kvar_solutions.cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
+                    writeln!(f)?;
                 }
-                writeln!(f)?;
             }
 
             if !cx.kvar_solutions.non_cut_solutions.is_empty() {
                 writeln!(f, "-- acyclic (non-cut) kvars")?;
                 for kvar_solution in &cx.kvar_solutions.non_cut_solutions {
                     kvar_solution.lean_fmt(f, &cx)?;
+                    writeln!(f)?;
                 }
-                writeln!(f)?;
             }
             writeln!(f, "\nend {namespace}\n\n")?;
             writeln!(f, "open {namespace}\n\n")?;
