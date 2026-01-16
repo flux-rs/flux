@@ -687,6 +687,9 @@ impl TypeFolder for WeakKVarInserter {
     }
 }
 
+/// FIXME: Skips params currently
+///
+/// We need to handle polymorphism (in fixpoint or by monomorphizing).
 fn make_vars_and_sorts_from_bound_vars<'a, I, II>(vars: I) -> Vec<(rty::Var, rty::Sort)>
 where
     I: IntoIterator<IntoIter = II>,
@@ -695,7 +698,7 @@ where
     vars.into_iter()
         .enumerate()
         .filter_map(|(i, var_kind)| {
-            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind {
+            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind && !sort.is_param() {
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
                 Some((rty::Var::Bound(INNERMOST, bound_reft), sort.clone()))
             } else {

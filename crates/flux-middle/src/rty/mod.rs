@@ -1136,6 +1136,10 @@ impl Sort {
         }
         go(self, &mut f, &mut vec![]);
     }
+
+    pub fn is_param(&self) -> bool {
+        matches!(self, Self::Param(_))
+    }
 }
 
 /// The size of a [bit-vector]
