@@ -1,5 +1,6 @@
 // #![no_std]
 #![cfg_attr(flux, feature(allocator_api))]
+#![cfg_attr(flux, flux::no_suggestions)]
 
 #[cfg(flux)]
 pub mod slice;
