@@ -120,6 +120,11 @@ pub fn no_panic(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
+pub fn no_suggestions(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
+    attr_impl::no_suggestions(attrs, tokens)
+}
+
+#[proc_macro_attribute]
 pub fn reft(attrs: TokenStream, tokens: TokenStream) -> TokenStream {
     attr_impl::reft(attrs, tokens)
 }
@@ -176,6 +181,7 @@ mod attr_sysroot {
         should_fail,
         reft,
         no_panic,
+        no_suggestions,
         vars,
     );
 }
@@ -226,6 +232,7 @@ mod attr_dummy {
         ignore,
         should_fail,
         no_panic,
+        no_suggestions,
         reft,
         vars,
     );

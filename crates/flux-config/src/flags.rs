@@ -73,6 +73,10 @@ pub struct Flags {
     pub save_user_interactions: bool,
     /// Read the user inputs given for this run from the given file (instead from stdin).
     pub user_interactions_file: Option<PathBuf>,
+    /// If `true`, all code will have suggestions disabled. This is manifest by
+    /// no weak kvars being added to any signature. If you explicitly add a weak
+    /// kvar, it will still have suggestions given.
+    pub no_suggestions_default: bool,
 }
 
 impl Default for Flags {
@@ -104,6 +108,7 @@ impl Default for Flags {
             debug_binder_output: false,
             save_user_interactions: false,
             user_interactions_file: None,
+            no_suggestions_default: false,
         }
     }
 }
@@ -141,6 +146,7 @@ pub(crate) static FLAGS: LazyLock<Flags> = LazyLock::new(|| {
             "debug-binder-output" => parse_bool(&mut flags.debug_binder_output, value),
             "save-user-interactions" => parse_bool(&mut flags.save_user_interactions, value),
             "user-interactions-file" => parse_opt_path_buf(&mut flags.user_interactions_file, value),
+            "no-suggestions" => parse_bool(&mut flags.no_suggestions_default, value),
             _ => {
         eprintln!("error: unknown flux option: `{key}`");
         process::exit(EXIT_FAILURE);
