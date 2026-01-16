@@ -659,7 +659,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let vc_namespace = LeanDefKind::VC(&vc_name).namespace();
         let qualified_vc_name = format!("{vc_namespace}.{vc_name}");
         let proof_name = format!("{vc_name}_proof");
-        let proof_namespace = LeanDefKind::Proof(&proof_name).namespace();
+        let proof_namespace = LeanDefKind::Proof(&vc_name).namespace();
         let path = LeanFile::Proof(def_id).path(self.genv);
 
         if let Some(span) = self.genv.proven_externally(self.def_id.local_id()) {
