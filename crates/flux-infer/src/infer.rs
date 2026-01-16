@@ -1016,6 +1016,20 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::Never, BaseTy::Never) => Ok(()),
+            (
+                BaseTy::Coroutine(did1, resume_ty_a, tys_a, _),
+                BaseTy::Coroutine(did2, resume_ty_b, tys_b, _),
+            ) if did1 == did2 => {
+                debug_assert_eq!(tys_a.len(), tys_b.len());
+                for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
+                    self.tys(infcx, ty_a, ty_b)?;
+                }
+                // TODO(RJ): Treating resume type as invariant...but I think they should be contravariant(?)
+                self.tys(infcx, resume_ty_b, resume_ty_a)?;
+                self.tys(infcx, resume_ty_a, resume_ty_b)?;
+
+                Ok(())
+            }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
@@ -1145,13 +1159,14 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         bty: &BaseTy,
         alias_ty: &AliasTy,
     ) -> InferResult {
-        if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys) = bty {
+        if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys, args) = bty {
             let obligs = mk_coroutine_obligations(
                 infcx.genv,
                 def_id,
                 resume_ty,
                 upvar_tys,
                 &alias_ty.def_id,
+                args.clone(),
             )?;
             self.obligations.extend(obligs);
         } else {
@@ -1184,6 +1199,7 @@ fn mk_coroutine_obligations(
     resume_ty: &Ty,
     upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
+    args: flux_rustc_bridge::ty::GenericArgs,
 ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
     let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
     for bound in &bounds {
@@ -1195,6 +1211,7 @@ fn mk_coroutine_obligations(
                     resume_ty: resume_ty.clone(),
                     upvar_tys: upvar_tys.clone(),
                     output: output.to_ty(),
+                    args,
                 }
             })]);
         }

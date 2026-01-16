@@ -760,14 +760,13 @@ pub fn to_closure_sig(
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
-#[derive(
-    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
-)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoroutineObligPredicate {
     pub def_id: DefId,
     pub resume_ty: Ty,
     pub upvar_tys: List<Ty>,
     pub output: Ty,
+    pub args: flux_rustc_bridge::ty::GenericArgs,
 }
 
 #[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
@@ -1608,8 +1607,13 @@ impl Ty {
         BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
     }
 
-    pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
-        BaseTy::Coroutine(did, resume_ty, upvar_tys).to_ty()
+    pub fn coroutine(
+        did: DefId,
+        resume_ty: Ty,
+        upvar_tys: List<Ty>,
+        args: flux_rustc_bridge::ty::GenericArgs,
+    ) -> Ty {
+        BaseTy::Coroutine(did, resume_ty, upvar_tys, args.clone()).to_ty()
     }
 
     pub fn never() -> Ty {
@@ -1810,7 +1814,12 @@ pub enum BaseTy {
     Array(Ty, Const),
     Never,
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
-    Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
+    Coroutine(
+        DefId,
+        /*resume_ty: */ Ty,
+        /* upvar_tys: */ List<Ty>,
+        flux_rustc_bridge::ty::GenericArgs,
+    ),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
     Infer(TyVid),
@@ -2100,11 +2109,8 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let preds = tcx.mk_poly_existential_predicates(&preds);
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
-            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-                bug!("TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}")
-                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            BaseTy::Coroutine(did, _, _, args) => {
+                ty::Ty::new_coroutine(tcx, *did, args.to_rustc(tcx))
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
@@ -2537,7 +2543,12 @@ impl CoroutineObligPredicate {
         let vars = vec![];
 
         let resume_ty = &self.resume_ty;
-        let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
+        let env_ty = Ty::coroutine(
+            self.def_id,
+            resume_ty.clone(),
+            self.upvar_tys.clone(),
+            self.args.clone(),
+        );
 
         let inputs = List::from_arr([env_ty, resume_ty.clone()]);
         let output =

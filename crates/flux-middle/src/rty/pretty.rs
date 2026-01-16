@@ -579,7 +579,7 @@ impl Pretty for BaseTy {
             BaseTy::Closure(did, args, _) => {
                 w!(cx, f, "{:?}<{:?}>", did, args)
             }
-            BaseTy::Coroutine(did, resume_ty, upvars) => {
+            BaseTy::Coroutine(did, resume_ty, upvars, _) => {
                 w!(cx, f, "Coroutine({:?}, {:?})", did, resume_ty)?;
                 if !upvars.is_empty() {
                     w!(cx, f, "<{:?}>", join!(", ", upvars))?;
