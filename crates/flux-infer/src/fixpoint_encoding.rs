@@ -587,18 +587,22 @@ where
         // For now we avoid including these by default so that cases where they are not needed can work.
         // Should be removed when support is added.
         #[cfg(not(feature = "rust-fixpoint"))]
-        let constants = constants
-            .into_iter()
-            .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
-                // ∀a. a -> a -> bool
-                let sort = fixpoint::Sort::mk_func(
-                    1,
-                    [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
-                    fixpoint::Sort::Bool,
-                );
-                fixpoint::ConstDecl { name: fixpoint::Var::UIFRel(rel), sort, comment: None }
-            }))
-            .collect();
+        let constants = if matches!(self.ecx.backend, Backend::Fixpoint) {
+            constants
+                .into_iter()
+                .chain(fixpoint::BinRel::INEQUALITIES.into_iter().map(|rel| {
+                    // ∀a. a -> a -> bool
+                    let sort = fixpoint::Sort::mk_func(
+                        1,
+                        [fixpoint::Sort::Var(0), fixpoint::Sort::Var(0)],
+                        fixpoint::Sort::Bool,
+                    );
+                    fixpoint::ConstDecl { name: fixpoint::Var::UIFRel(rel), sort, comment: None }
+                }))
+                .collect()
+        } else {
+            constants
+        };
 
         // We are done encoding expressions. Check if there are any errors.
         self.ecx.errors.to_result()?;
@@ -716,6 +720,20 @@ where
         })
     }
 
+    fn is_assumed_constant(&self, const_decl: &fixpoint::ConstDecl) -> bool {
+        if let fixpoint::Var::Global(gvar, _) = const_decl.name
+            && let Some(key) = self.ecx.const_env.const_map_rev.get(&gvar)
+            && let ConstKey::RustConst(did) = key
+        {
+            return self
+                .genv
+                .constant_info(did)
+                .map(|info| matches!(info, rty::ConstantInfo::Interpreted(..)))
+                .unwrap_or(false);
+        }
+        false
+    }
+
     pub fn generate_lean_files(
         self,
         def_id: MaybeExternId,
@@ -724,6 +742,11 @@ where
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
+        let constants = task
+            .constants
+            .into_iter()
+            .filter(|const_decl| !self.is_assumed_constant(const_decl))
+            .collect();
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
@@ -733,6 +756,7 @@ where
             self.ecx.local_var_env.pretty_var_map,
             sort_deps,
             task.define_funs,
+            constants,
             task.kvars,
             task.constraint,
             kvar_solutions,
@@ -2094,17 +2118,26 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             match info {
                 rty::ConstantInfo::Uninterpreted => {}
                 rty::ConstantInfo::Interpreted(val, _) => {
+                    let const_name = const_.name;
+                    let const_sort = const_.sort.clone();
+
                     let e1 = fixpoint::Expr::Var(const_.name);
                     let e2 = self.expr_to_fixpoint(&val, scx)?;
                     let pred = fixpoint::Pred::Expr(e1.eq(e2));
-                    constraint = fixpoint::Constraint::ForAll(
-                        fixpoint::Bind {
-                            name: fixpoint::Var::Underscore,
-                            sort: fixpoint::Sort::Int,
-                            pred,
-                        },
-                        Box::new(constraint),
-                    );
+
+                    let bind = match self.backend {
+                        Backend::Fixpoint => {
+                            fixpoint::Bind {
+                                name: fixpoint::Var::Underscore,
+                                sort: fixpoint::Sort::Int,
+                                pred,
+                            }
+                        }
+                        Backend::Lean => {
+                            fixpoint::Bind { name: const_name, sort: const_sort, pred }
+                        }
+                    };
+                    constraint = fixpoint::Constraint::ForAll(bind, Box::new(constraint));
                 }
             }
         }

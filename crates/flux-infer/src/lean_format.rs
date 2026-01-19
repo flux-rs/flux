@@ -80,8 +80,12 @@ impl LeanFmt for SortDecl {
 
 impl LeanFmt for ConstDecl {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        self.name.lean_fmt(f, cx)?;
-        write!(f, " : {}", WithLeanCtxt { item: &self.sort, cx })
+        write!(
+            f,
+            "def {} : {} := sorry",
+            WithLeanCtxt { item: &self.name, cx },
+            WithLeanCtxt { item: &self.sort, cx },
+        )
     }
 }
 
