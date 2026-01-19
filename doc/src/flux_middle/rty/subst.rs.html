@@ -122,7 +122,7 @@
 <a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">fn </span>sort_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Sort, <span class="self">Self</span>::Error&gt;;
 <a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">fn </span>ty_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;Ty, <span class="self">Self</span>::Error&gt;;
 <a href=#124 id=124 data-nosnippet>124</a>    <span class="kw">fn </span>ctor_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param_ty: ParamTy) -&gt; <span class="prelude-ty">Result</span>&lt;SubsetTyCtor, <span class="self">Self</span>::Error&gt;;
-<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region;
+<a href=#125 id=125 data-nosnippet>125</a>    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; <span class="prelude-ty">Result</span>&lt;Region, <span class="self">Self</span>::Error&gt;;
 <a href=#126 id=126 data-nosnippet>126</a>    <span class="kw">fn </span>expr_for_param_const(<span class="kw-2">&amp;</span><span class="self">self</span>, param_const: ParamConst) -&gt; Expr;
 <a href=#127 id=127 data-nosnippet>127</a>    <span class="kw">fn </span>const_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>Const) -&gt; Const;
 <a href=#128 id=128 data-nosnippet>128</a>}
@@ -162,9 +162,9 @@
 <a href=#162 id=162 data-nosnippet>162</a>        }
 <a href=#163 id=163 data-nosnippet>163</a>    }
 <a href=#164 id=164 data-nosnippet>164</a>
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region {
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; <span class="prelude-ty">Result</span>&lt;Region, !&gt; {
 <a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">match </span><span class="self">self</span>.<span class="number">0</span>.get(ebr.index <span class="kw">as </span>usize) {
-<a href=#167 id=167 data-nosnippet>167</a>            <span class="prelude-val">Some</span>(GenericArg::Lifetime(re)) =&gt; <span class="kw-2">*</span>re,
+<a href=#167 id=167 data-nosnippet>167</a>            <span class="prelude-val">Some</span>(GenericArg::Lifetime(re)) =&gt; <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re),
 <a href=#168 id=168 data-nosnippet>168</a>            <span class="prelude-val">Some</span>(arg) =&gt; <span class="macro">bug!</span>(<span class="string">"expected region for generic parameter, found `{arg:?}`"</span>),
 <a href=#169 id=169 data-nosnippet>169</a>            <span class="prelude-val">None </span>=&gt; <span class="macro">bug!</span>(<span class="string">"region parameter out of range"</span>),
 <a href=#170 id=170 data-nosnippet>170</a>        }
@@ -227,7 +227,7 @@
 <a href=#227 id=227 data-nosnippet>227</a>        <span class="macro">bug!</span>(<span class="string">"unexpected base type param {param_ty:?}"</span>);
 <a href=#228 id=228 data-nosnippet>228</a>    }
 <a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; Region {
+<a href=#230 id=230 data-nosnippet>230</a>    <span class="kw">fn </span>region_for_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, ebr: EarlyParamRegion) -&gt; <span class="prelude-ty">Result</span>&lt;Region, E&gt; {
 <a href=#231 id=231 data-nosnippet>231</a>        <span class="macro">bug!</span>(<span class="string">"unexpected region param {ebr:?}"</span>);
 <a href=#232 id=232 data-nosnippet>232</a>    }
 <a href=#233 id=233 data-nosnippet>233</a>
@@ -295,7 +295,7 @@
 <a href=#295 id=295 data-nosnippet>295</a>    }
 <a href=#296 id=296 data-nosnippet>296</a>
 <a href=#297 id=297 data-nosnippet>297</a>    <span class="kw">fn </span>try_fold_region(<span class="kw-2">&amp;mut </span><span class="self">self</span>, re: <span class="kw-2">&amp;</span>Region) -&gt; <span class="prelude-ty">Result</span>&lt;Region, D::Error&gt; {
-<a href=#298 id=298 data-nosnippet>298</a>        <span class="kw">if let </span>ReEarlyParam(ebr) = <span class="kw-2">*</span>re { <span class="prelude-val">Ok</span>(<span class="self">self</span>.delegate.region_for_param(ebr)) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re) }
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="kw">if let </span>ReEarlyParam(ebr) = <span class="kw-2">*</span>re { <span class="self">self</span>.delegate.region_for_param(ebr) } <span class="kw">else </span>{ <span class="prelude-val">Ok</span>(<span class="kw-2">*</span>re) }
 <a href=#299 id=299 data-nosnippet>299</a>    }
 <a href=#300 id=300 data-nosnippet>300</a>
 <a href=#301 id=301 data-nosnippet>301</a>    <span class="kw">fn </span>try_fold_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>Expr) -&gt; <span class="prelude-ty">Result</span>&lt;Expr, D::Error&gt; {
