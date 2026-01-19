@@ -44,6 +44,16 @@ fn project() -> String {
     config::lean_project().to_string()
 }
 
+fn namespaced<F>(f: &mut fs::File, w: F) -> io::Result<()>
+where
+    F: Fn(&mut fs::File) -> io::Result<()>,
+{
+    let namespace = "F";
+    writeln!(f, "\nnamespace {namespace}\n")?;
+    w(f)?;
+    writeln!(f, "\nend {namespace}")
+}
+
 // Via Gemini: https://gemini.google.com/share/9027e898b136
 /// Renames all files and directories from 'src' to 'dst'
 fn rename_dir_contents(src: &Path, dst: &Path) -> io::Result<()> {
@@ -354,7 +364,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         let path = file.path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
-            writeln!(file, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })?;
+            namespaced(&mut file, |f| {
+                writeln!(f, "def {} := sorry", WithLeanCtxt { item: sort, cx: &self.lean_cx() })
+            })?;
             file.sync_all()?;
         }
         Ok(())
@@ -392,8 +404,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.data_decl_dependencies(data_decl) {
                 writeln!(file, "{}", self.import(dep))?;
             }
+
             // write data decl
-            writeln!(file, "{}", WithLeanCtxt { item: data_decl, cx: &self.lean_cx() })?;
+            namespaced(&mut file, |f| {
+                writeln!(f, "{}", WithLeanCtxt { item: data_decl, cx: &self.lean_cx() })
+            })?;
             file.sync_all()?;
         }
         Ok(())
@@ -444,8 +459,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep in self.fun_def_dependencies(did, fun_def) {
                 writeln!(file, "{}", self.import(dep))?;
             }
+
             // write fun def
-            writeln!(file, "{}", WithLeanCtxt { item: fun_def, cx: &self.lean_cx() })?;
+            namespaced(&mut file, |f| {
+                writeln!(f, "{}", WithLeanCtxt { item: fun_def, cx: &self.lean_cx() })
+            })?;
             file.sync_all()?;
         }
         Ok(())
@@ -558,18 +576,20 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
 
             let vc_name = vc_name(self.genv, def_id);
             // 3. Write the VC
-            write!(
-                file,
-                "{}",
-                WithLeanCtxt {
-                    item: lean_format::LeanKConstraint {
-                        theorem_name: &vc_name,
-                        kvars: &self.kvar_decls,
-                        constr: &self.constraint,
-                    },
-                    cx: &self.lean_cx()
-                }
-            )?;
+            namespaced(&mut file, |f| {
+                write!(
+                    f,
+                    "{}",
+                    WithLeanCtxt {
+                        item: lean_format::LeanKConstraint {
+                            theorem_name: &vc_name,
+                            kvars: &self.kvar_decls,
+                            constr: &self.constraint,
+                        },
+                        cx: &self.lean_cx()
+                    }
+                )
+            })?;
             file.sync_all()?;
         }
 
@@ -590,9 +610,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if let Some(mut file) = create_file_with_dirs(path)? {
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
             writeln!(file, "{}", self.import(&LeanFile::Vc(def_id)))?;
-            writeln!(file, "def {proof_name} : {vc_name} := by")?;
-            writeln!(file, "  unfold {vc_name}")?;
-            writeln!(file, "  sorry")?;
+            namespaced(&mut file, |f| {
+                writeln!(f, "def {proof_name} : {vc_name} := by")?;
+                writeln!(f, "  unfold {vc_name}")?;
+                writeln!(f, "  sorry")
+            })?;
             file.sync_all()?;
         }
         Ok(())
