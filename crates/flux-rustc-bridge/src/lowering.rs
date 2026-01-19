@@ -512,7 +512,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, ty.lower(self.tcx)?))
             }
             rustc_mir::Rvalue::ThreadLocalRef(_)
-            | rustc_mir::Rvalue::NullaryOp(..)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
@@ -636,6 +635,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Operand::Copy(place) => Ok(Operand::Copy(lower_place(self.tcx, place)?)),
             rustc_mir::Operand::Move(place) => Ok(Operand::Move(lower_place(self.tcx, place)?)),
             rustc_mir::Operand::Constant(c) => Ok(Operand::Constant(self.lower_constant(c)?)),
+            rustc_mir::Operand::RuntimeChecks(..) => {
+                Err(UnsupportedReason::new(format!("unsupported operand `{op:?}`")))
+            }
         }
     }
 
