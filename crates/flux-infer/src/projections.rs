@@ -533,10 +533,13 @@ impl GenericsSubstDelegate for &TVarSubst {
         }
     }
 
-    fn region_for_param(&mut self, ebr: rustc_middle::ty::EarlyParamRegion) -> Region {
+    fn region_for_param(
+        &mut self,
+        ebr: rustc_middle::ty::EarlyParamRegion,
+    ) -> Result<Region, Self::Error> {
         match self.args.get(ebr.index as usize) {
-            Some(Some(GenericArg::Lifetime(region))) => *region,
-            Some(None) => Region::ReErased,
+            Some(Some(GenericArg::Lifetime(region))) => Ok(*region),
+            Some(None) => Err(()),
             arg => tracked_span_bug!("expected region for generic parameter, found `{arg:?}`"),
         }
     }
