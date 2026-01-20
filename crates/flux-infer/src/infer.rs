@@ -752,15 +752,15 @@ impl LocEnv for DummyEnv {
         _: &Path,
         _: Ty,
     ) -> InferResult<Ty> {
-        bug!("call to `ptr_to_ref` on `DummyEnv`")
+        tracked_span_bug!("call to `ptr_to_ref` on `DummyEnv`")
     }
 
     fn unfold_strg_ref(&mut self, _: &mut InferCtxt, _: &Path, _: &Ty) -> InferResult<Loc> {
-        bug!("call to `unfold_str_ref` on `DummyEnv`")
+        tracked_span_bug!("call to `unfold_str_ref` on `DummyEnv`")
     }
 
     fn get(&self, _: &Path) -> Ty {
-        bug!("call to `get` on `DummyEnv`")
+        tracked_span_bug!("call to `get` on `DummyEnv`")
     }
 }
 
