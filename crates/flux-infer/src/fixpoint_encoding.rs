@@ -201,6 +201,9 @@ pub mod fixpoint {
     pub use fixpoint_generated::*;
 }
 
+/// A type for rust constants that have a concrete interpretation
+pub type InterpretedConst = (fixpoint::ConstDecl, fixpoint::Expr);
+
 /// A type to represent Solutions for KVars
 pub type Solution = FxIndexMap<rty::KVid, rty::Binder<rty::Expr>>;
 pub type FixpointSolution = (Vec<(fixpoint::Var, fixpoint::Sort)>, fixpoint::Expr);
@@ -734,6 +737,77 @@ where
         false
     }
 
+    fn extract_assumed_consts_aux(
+        &self,
+        cstr: fixpoint::Constraint,
+        acc: &mut HashMap<fixpoint::GlobalVar, fixpoint::Expr>,
+    ) -> fixpoint::Constraint {
+        match cstr {
+            fixpoint::Constraint::ForAll(bind, inner) => {
+                let inner = self.extract_assumed_consts_aux(*inner, acc);
+                if let fixpoint::Pred::Expr(fixpoint::Expr::Atom(fixpoint::BinRel::Eq, operands)) =
+                    bind.pred
+                {
+                    let [left, right] = *operands;
+                    if let fixpoint::Expr::Var(fixpoint::Var::Global(gvar, None)) = left {
+                        acc.insert(gvar, right);
+                        inner
+                    } else {
+                        let bind = fixpoint::Bind {
+                            name: bind.name,
+                            sort: bind.sort,
+                            pred: fixpoint::Pred::Expr(fixpoint::Expr::Atom(
+                                fixpoint::BinRel::Eq,
+                                Box::new([left, right]),
+                            )),
+                        };
+                        fixpoint::Constraint::ForAll(bind, Box::new(inner))
+                    }
+                } else {
+                    fixpoint::Constraint::ForAll(bind, Box::new(inner))
+                }
+            }
+            fixpoint::Constraint::Conj(cstrs) => {
+                fixpoint::Constraint::Conj(
+                    cstrs
+                        .into_iter()
+                        .map(|cstr| self.extract_assumed_consts_aux(cstr, acc))
+                        .collect(),
+                )
+            }
+            fixpoint::Constraint::Pred(..) => cstr,
+        }
+    }
+
+    fn extract_assumed_consts(
+        &self,
+        cstr: fixpoint::Constraint,
+    ) -> (HashMap<fixpoint::GlobalVar, fixpoint::Expr>, fixpoint::Constraint) {
+        let mut acc = HashMap::new();
+        let cstr = self.extract_assumed_consts_aux(cstr, &mut acc);
+        (acc, cstr)
+    }
+
+    fn compute_const_deps(
+        &self,
+        constants: Vec<fixpoint::ConstDecl>,
+        cstr: fixpoint::Constraint,
+    ) -> (ConstDeps, fixpoint::Constraint) {
+        let (mut gvar_eq_map, cstr) = self.extract_assumed_consts(cstr);
+        let mut interpreted = vec![];
+        for decl in constants {
+            let fixpoint::Var::Global(gvar, None) = &decl.name else {
+                bug!("global var expected for constant {decl:?}")
+            };
+            let gvar = *gvar;
+            if self.is_assumed_constant(&decl) {
+                interpreted.push((decl, gvar_eq_map.remove(&gvar).unwrap()));
+            }
+        }
+        let const_deps = ConstDeps { interpreted };
+        (const_deps, cstr)
+    }
+
     pub fn generate_lean_files(
         self,
         def_id: MaybeExternId,
@@ -742,11 +816,7 @@ where
     ) -> QueryResult {
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
-        let constants = task
-            .constants
-            .into_iter()
-            .filter(|const_decl| !self.is_assumed_constant(const_decl))
-            .collect();
+        let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
@@ -756,9 +826,9 @@ where
             self.ecx.local_var_env.pretty_var_map,
             sort_deps,
             task.define_funs,
-            constants,
+            const_deps,
             task.kvars,
-            task.constraint,
+            constraint,
             kvar_solutions,
         )
         .map_err(|err| query_bug!("could not encode constraint: {err:?}"))
@@ -1387,6 +1457,10 @@ pub struct SortDeps {
     pub opaque_sorts: Vec<fixpoint::SortDecl>,
     pub data_decls: Vec<fixpoint::DataDecl>,
     pub adt_map: FxIndexSet<DefId>,
+}
+
+pub struct ConstDeps {
+    pub interpreted: Vec<InterpretedConst>,
 }
 
 impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {

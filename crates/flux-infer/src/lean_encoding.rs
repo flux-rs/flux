@@ -23,7 +23,7 @@ use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
 
 use crate::{
-    fixpoint_encoding::{KVarSolutions, SortDeps, fixpoint},
+    fixpoint_encoding::{ConstDeps, InterpretedConst, KVarSolutions, SortDeps, fixpoint},
     lean_format::{
         self, BoolMode, LeanCtxt, WithLeanCtxt, def_id_to_pascal_case, snake_case_to_pascal_case,
     },
@@ -236,12 +236,13 @@ pub struct LeanEncoder<'genv, 'tcx> {
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
-    constants: Vec<fixpoint::ConstDecl>,
+    constants: ConstDeps,
     kvar_solutions: KVarSolutions,
     kvar_decls: Vec<fixpoint::KVarDecl>,
     constraint: fixpoint::Constraint,
     sort_files: FxHashMap<fixpoint::DataSort, LeanFile>,
     fun_files: FxHashMap<FluxDefId, LeanFile>,
+    const_files: FxHashMap<fixpoint::Var, LeanFile>,
 }
 
 impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
@@ -265,9 +266,9 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         if fun.body.is_some() { LeanFile::Fun(name) } else { LeanFile::OpaqueFun(name) }
     }
 
-    fn lean_file_for_const(&self, const_: &fixpoint::ConstDecl) -> LeanFile {
-        let name = self.var_name(&const_.name);
-        LeanFile::OpaqueFun(name)
+    fn lean_file_for_interpreted_const(&self, const_: &InterpretedConst) -> LeanFile {
+        let name = self.var_name(&const_.0.name);
+        LeanFile::Fun(name)
     }
 
     fn var_name(&self, var: &fixpoint::Var) -> String {
@@ -285,7 +286,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
-        constants: Vec<fixpoint::ConstDecl>,
+        constants: ConstDeps,
         kvar_solutions: KVarSolutions,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
@@ -302,9 +303,11 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             constraint,
             fun_files: FxHashMap::default(),
             sort_files: FxHashMap::default(),
+            const_files: FxHashMap::default(),
         };
         encoder.fun_files = encoder.fun_files();
         encoder.sort_files = encoder.sort_files();
+        encoder.const_files = encoder.const_files();
         Ok(encoder)
     }
 
@@ -343,6 +346,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             let name = self.datasort_name(&data_decl.name);
             let file = LeanFile::Struct(name);
             res.insert(data_sort, file);
+        }
+        res
+    }
+
+    fn const_files(&self) -> FxHashMap<fixpoint::Var, LeanFile> {
+        let mut res = FxHashMap::default();
+        for (decl, _) in &self.constants.interpreted {
+            res.insert(decl.name, LeanFile::Fun(self.var_name(&decl.name)));
         }
         res
     }
@@ -434,6 +445,12 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             .unwrap_or_else(|| panic!("Missing fun file for fun {:?}", did))
     }
 
+    fn const_file(&self, name: &fixpoint::Var) -> &LeanFile {
+        self.const_files
+            .get(name)
+            .unwrap_or_else(|| panic!("Missing const file for const {name:?}"))
+    }
+
     fn fun_def_dependencies(&self, did: FluxDefId, fun_def: &fixpoint::FunDef) -> Vec<&LeanFile> {
         let mut res = vec![];
 
@@ -450,6 +467,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             for dep_id in local_deps(&body) {
                 res.push(self.fun_file(&dep_id.to_def_id()));
             }
+        }
+
+        for (decl, _) in &self.constants.interpreted {
+            res.push(self.const_file(&decl.name));
         }
         res
     }
@@ -477,11 +498,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         Ok(())
     }
 
-    fn generate_const_decl_file_if_not_present(
+    fn generate_interpreted_const_file_if_not_present(
         &self,
-        const_decl: &fixpoint::ConstDecl,
+        interpreted_const: &InterpretedConst,
     ) -> io::Result<()> {
-        let path = self.lean_file_for_const(const_decl).path(self.genv);
+        let (const_decl, _) = interpreted_const;
+        let path = self
+            .lean_file_for_interpreted_const(interpreted_const)
+            .path(self.genv);
         if let Some(mut file) = create_file_with_dirs(path)? {
             // import prelude
             writeln!(file, "{}", self.import(&LeanFile::Fluxlib))?;
@@ -496,7 +520,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 if let Some(comment) = &const_decl.comment {
                     writeln!(f, "--{comment}")?;
                 }
-                writeln!(f, "{}", WithLeanCtxt { item: const_decl, cx: &self.lean_cx() })
+                writeln!(f, "{}", WithLeanCtxt { item: interpreted_const, cx: &self.lean_cx() })
             })?;
             file.sync_all()?;
         }
@@ -552,22 +576,10 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 file,
                 "def SmtMap_select {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) := m k"
             )?;
-            writeln!(
-                file,
-                "def gt {{ t0 : Type }} [LT t0] (l r : t0) : Prop := l > r"
-            )?;
-            writeln!(
-                file,
-                "def ge {{ t0 : Type }} [LE t0] (l r : t0) : Prop := l ≥ r"
-            )?;
-            writeln!(
-                file,
-                "def lt {{ t0 : Type }} [LT t0] (l r : t0) : Prop := l < r"
-            )?;
-            writeln!(
-                file,
-                "def le {{ t0 : Type }} [LE t0] (l r : t0) : Prop := l ≤ r"
-            )?;
+            writeln!(file, "def gt {{ t0 : Type }} [LT t0] (l r : t0) : Prop := l > r")?;
+            writeln!(file, "def ge {{ t0 : Type }} [LE t0] (l r : t0) : Prop := l ≥ r")?;
+            writeln!(file, "def lt {{ t0 : Type }} [LT t0] (l r : t0) : Prop := l < r")?;
+            writeln!(file, "def le {{ t0 : Type }} [LE t0] (l r : t0) : Prop := l ≤ r")?;
         }
         Ok(())
     }
@@ -592,8 +604,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             self.generate_fun_def_file_if_not_present(did, fun_def)?;
         }
         // 4. Generate Const Decl Files
-        for const_decl in &self.constants {
-            self.generate_const_decl_file_if_not_present(const_decl)?;
+        for const_decl in &self.constants.interpreted {
+            self.generate_interpreted_const_file_if_not_present(const_decl)?;
         }
         Ok(())
     }
@@ -615,8 +627,8 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             writeln!(file, "{}", self.import(&self.lean_file_for_fun(fun_def)))?;
         }
 
-        for const_decl in &self.constants {
-            writeln!(file, "{}", self.import(&self.lean_file_for_const(const_decl)))?;
+        for const_decl in &self.constants.interpreted {
+            writeln!(file, "{}", self.import(&self.lean_file_for_interpreted_const(const_decl)))?;
         }
 
         Ok(())
@@ -698,7 +710,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
-        constants: Vec<fixpoint::ConstDecl>,
+        constants: ConstDeps,
         kvar_decls: Vec<fixpoint::KVarDecl>,
         constraint: fixpoint::Constraint,
         kvar_solutions: KVarSolutions,

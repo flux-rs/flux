@@ -15,10 +15,10 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
-    ClosedSolution, KVarSolutions,
+    ClosedSolution, InterpretedConst, KVarSolutions,
     fixpoint::{
-        self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
-        Expr, FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
+        FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -78,13 +78,14 @@ impl LeanFmt for SortDecl {
     }
 }
 
-impl LeanFmt for ConstDecl {
+impl LeanFmt for InterpretedConst {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         write!(
             f,
-            "def {} : {} := sorry",
-            WithLeanCtxt { item: &self.name, cx },
-            WithLeanCtxt { item: &self.sort, cx },
+            "def {} : {} := {}",
+            WithLeanCtxt { item: &self.0.name, cx },
+            WithLeanCtxt { item: &self.0.sort, cx },
+            WithLeanCtxt { item: &self.1, cx }
         )
     }
 }
