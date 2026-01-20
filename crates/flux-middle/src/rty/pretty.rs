@@ -438,7 +438,7 @@ impl Pretty for Ty {
                 if cx.hide_refinements {
                     w!(cx, f, "{:?}", ty)
                 } else {
-                    w!(cx, f, "{{ {:?} | {:?} }}", ty, IdxFmt(pred.clone()))
+                    w!(cx, f, "{{ {:?} | {:?} }}", ty, pred)
                 }
             }
             TyKind::Param(param_ty) => w!(cx, f, "{}", ^param_ty),
