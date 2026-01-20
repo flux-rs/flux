@@ -18,7 +18,7 @@ use flux_middle::{
     rty::{PrettyMap, local_deps},
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::{FxHashSet, FxIndexSet};
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
