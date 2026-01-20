@@ -512,7 +512,14 @@ impl rty::PolyFnSig {
         let early_vars = self
             .early_params()
             .into_iter()
-            .map(|param| (rty::Var::EarlyParam(param), early_param_sorts.get(&param.name).unwrap().clone()))
+            .filter_map(|param| {
+                let sort = early_param_sorts.get(&param.name).unwrap().clone();
+                if !sort.is_param() && !sort.is_loc() {
+                    Some((rty::Var::EarlyParam(param), sort))
+                } else {
+                    None
+                }
+            })
             .collect_vec();
         Ok(self.map(|fn_sig| {
             // We add a weak kvar to the requires and output (only).
@@ -690,6 +697,8 @@ impl TypeFolder for WeakKVarInserter {
 /// FIXME: Skips params currently
 ///
 /// We need to handle polymorphism (in fixpoint or by monomorphizing).
+///
+/// NOTE: Skips locs because we can't encode those.
 fn make_vars_and_sorts_from_bound_vars<'a, I, II>(vars: I) -> Vec<(rty::Var, rty::Sort)>
 where
     I: IntoIterator<IntoIter = II>,
@@ -698,7 +707,7 @@ where
     vars.into_iter()
         .enumerate()
         .filter_map(|(i, var_kind)| {
-            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind && !sort.is_param() {
+            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind && !sort.is_param() && !sort.is_loc() {
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
                 Some((rty::Var::Bound(INNERMOST, bound_reft), sort.clone()))
             } else {
