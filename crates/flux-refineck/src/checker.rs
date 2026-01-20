@@ -1272,7 +1272,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         target: BasicBlock,
     ) -> Result {
         if self.is_exit_block(target) {
-            let location = self.body.terminator_loc(target);
+            // We inline *exit basic blocks* (i.e., that just return) because this typically
+            // gives us better a better error span.
+            let mut location = Location { block: target, statement_index: 0 };
+            for _ in &self.body.basic_blocks[target].statements {
+                self.check_ghost_statements_at(
+                    &mut infcx,
+                    &mut env,
+                    Point::BeforeLocation(location),
+                    span,
+                )?;
+                location = location.successor_within_block();
+            }
             self.check_ghost_statements_at(
                 &mut infcx,
                 &mut env,
