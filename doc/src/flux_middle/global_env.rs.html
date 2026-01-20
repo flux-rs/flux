@@ -283,7 +283,7 @@
 <a href=#283 id=283 data-nosnippet>283</a>        <span class="kw">let </span>trait_ref = trait_ref.skip_binder();
 <a href=#284 id=284 data-nosnippet>284</a>        <span class="kw">let </span>trait_ref = trait_ref
 <a href=#285 id=285 data-nosnippet>285</a>            .lower(<span class="self">self</span>.tcx())
-<a href=#286 id=286 data-nosnippet>286</a>            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))<span class="question-mark">?
+<a href=#286 id=286 data-nosnippet>286</a>            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))<span class="question-mark">?
 <a href=#287 id=287 data-nosnippet>287</a>            </span>.refine(<span class="kw-2">&amp;</span>Refiner::default_for_item(<span class="self">self</span>, impl_id)<span class="question-mark">?</span>)<span class="question-mark">?</span>;
 <a href=#288 id=288 data-nosnippet>288</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(rty::EarlyBinder(trait_ref)))
 <a href=#289 id=289 data-nosnippet>289</a>    }
