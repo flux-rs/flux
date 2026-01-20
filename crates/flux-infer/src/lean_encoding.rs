@@ -18,6 +18,7 @@ use flux_middle::{
     rty::{PrettyMap, local_deps},
 };
 use itertools::Itertools;
+use rustc_data_structures::fx::{FxHashSet, FxIndexSet};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
@@ -79,6 +80,38 @@ fn rename_dir_contents(src: &Path, dst: &Path) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn constant_deps(expr: &fixpoint::Expr, acc: &mut FxIndexSet<fixpoint::Var>) {
+    match expr {
+        fixpoint::Expr::Var(v) if matches!(v, fixpoint::Var::Global(_, None)) => {
+            acc.insert(*v);
+        }
+        fixpoint::Expr::App(func, _, args, _) => {
+            constant_deps(func, acc);
+            args.iter().for_each(|expr| constant_deps(expr, acc));
+        }
+        fixpoint::Expr::And(inner) | fixpoint::Expr::Or(inner) => {
+            inner.iter().for_each(|expr| constant_deps(expr, acc));
+        }
+        fixpoint::Expr::Atom(_, inner)
+        | fixpoint::Expr::BinaryOp(_, inner)
+        | fixpoint::Expr::Imp(inner)
+        | fixpoint::Expr::Iff(inner)
+        | fixpoint::Expr::Let(_, inner) => {
+            inner.iter().for_each(|expr| constant_deps(expr, acc));
+        }
+        fixpoint::Expr::IfThenElse(inner) => {
+            inner.iter().for_each(|expr| constant_deps(expr, acc));
+        }
+        fixpoint::Expr::Exists(_, inner)
+        | fixpoint::Expr::Neg(inner)
+        | fixpoint::Expr::Not(inner)
+        | fixpoint::Expr::IsCtor(_, inner) => {
+            constant_deps(inner, acc);
+        }
+        fixpoint::Expr::Var(..) | fixpoint::Expr::Constant(..) | fixpoint::Expr::ThyFunc(..) => {}
+    }
 }
 
 pub fn finalize(genv: GlobalEnv) -> io::Result<()> {
@@ -469,8 +502,14 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             }
         }
 
+        let mut deps = FxIndexSet::default();
+        if let Some(body) = &fun_def.body {
+            constant_deps(&body.expr, &mut deps);
+        }
         for (decl, _) in &self.constants.interpreted {
-            res.push(self.const_file(&decl.name));
+            if deps.contains(&decl.name) {
+                res.push(self.const_file(&decl.name));
+            }
         }
         res
     }
