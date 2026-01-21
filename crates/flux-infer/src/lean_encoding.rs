@@ -18,7 +18,7 @@ use flux_middle::{
     rty::{PrettyMap, local_deps},
 };
 use itertools::Itertools;
-use rustc_data_structures::fx::FxIndexSet;
+use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
 use rustc_span::ErrorGuaranteed;
@@ -267,6 +267,7 @@ pub struct LeanEncoder<'genv, 'tcx> {
     genv: GlobalEnv<'genv, 'tcx>,
     def_id: MaybeExternId,
     pretty_var_map: PrettyMap<fixpoint::LocalVar>,
+    pretty_const_map: FxIndexMap<fixpoint::GlobalVar, DefId>,
     sort_deps: SortDeps,
     fun_deps: Vec<fixpoint::FunDef>,
     constants: ConstDeps,
@@ -283,6 +284,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         LeanCtxt {
             genv: self.genv,
             pretty_var_map: &self.pretty_var_map,
+            pretty_const_map: &self.pretty_const_map,
             adt_map: &self.sort_deps.adt_map,
             kvar_solutions: &self.kvar_solutions,
             bool_mode: BoolMode::Bool,
@@ -317,6 +319,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
+        pretty_const_map: FxIndexMap<fixpoint::GlobalVar, DefId>,
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
@@ -328,6 +331,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv,
             def_id,
             pretty_var_map,
+            pretty_const_map,
             sort_deps,
             fun_deps,
             constants,
@@ -747,6 +751,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
         genv: GlobalEnv<'genv, 'tcx>,
         def_id: MaybeExternId,
         pretty_var_map: PrettyMap<fixpoint::LocalVar>,
+        pretty_const_map: FxIndexMap<fixpoint::GlobalVar, DefId>,
         sort_deps: SortDeps,
         fun_deps: Vec<fixpoint::FunDef>,
         constants: ConstDeps,
@@ -758,6 +763,7 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
             genv,
             def_id,
             pretty_var_map,
+            pretty_const_map,
             sort_deps,
             fun_deps,
             constants,

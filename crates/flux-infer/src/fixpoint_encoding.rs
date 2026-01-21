@@ -808,6 +808,24 @@ where
         (const_deps, cstr)
     }
 
+    fn compute_pretty_const_map(
+        &self,
+        const_deps: &ConstDeps,
+    ) -> FxIndexMap<fixpoint::GlobalVar, DefId> {
+        let mut res = FxIndexMap::default();
+        for (decl, _) in &const_deps.interpreted {
+            let fixpoint::Var::Global(gvar, None) = &decl.name else {
+                bug!("global var expected for constant {decl:?}")
+            };
+            let Some(ConstKey::RustConst(def_id)) = self.ecx.const_env.const_map_rev.get(gvar)
+            else {
+                bug!("unexpected or missing const key for {decl:?}")
+            };
+            res.insert(*gvar, *def_id);
+        }
+        res
+    }
+
     pub fn generate_lean_files(
         self,
         def_id: MaybeExternId,
@@ -817,6 +835,7 @@ where
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
+        let pretty_const_map = self.compute_pretty_const_map(&const_deps);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
@@ -824,6 +843,7 @@ where
             self.genv,
             def_id,
             self.ecx.local_var_env.pretty_var_map,
+            pretty_const_map,
             sort_deps,
             task.define_funs,
             const_deps,
