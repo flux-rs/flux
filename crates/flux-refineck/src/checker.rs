@@ -863,7 +863,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
+                let obligations =
+                    infcx.subtyping_with_env(env, &ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 

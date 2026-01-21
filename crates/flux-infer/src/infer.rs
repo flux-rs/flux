@@ -607,9 +607,10 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
-    ) -> InferResult {
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut sub = Sub::new(env, reason, self.span);
-        sub.tys(self.infcx, a, b)
+        sub.tys(self.infcx, a, b)?;
+        Ok(sub.obligations)
     }
 
     /// Relate types via subtyping and returns coroutine obligations. This doesn't handle subtyping
