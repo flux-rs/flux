@@ -615,10 +615,6 @@ impl<'genv, 'tcx> LeanEncoder<'genv, 'tcx> {
                 file,
                 "def SmtMap_select {{ t0 t1 : Type }} [Inhabited t0] [BEq t0] [Inhabited t1] (m : SmtMap t0 t1) (k : t0) := m k"
             )?;
-            writeln!(file, "def gt {{ t0 : Type }} [LT t0] (l r : t0) : Prop := l > r")?;
-            writeln!(file, "def ge {{ t0 : Type }} [LE t0] (l r : t0) : Prop := l ≥ r")?;
-            writeln!(file, "def lt {{ t0 : Type }} [LT t0] (l r : t0) : Prop := l < r")?;
-            writeln!(file, "def le {{ t0 : Type }} [LE t0] (l r : t0) : Prop := l ≤ r")?;
         }
         Ok(())
     }
