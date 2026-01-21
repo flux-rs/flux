@@ -63,6 +63,7 @@ pub mod fixpoint {
     use flux_middle::{def_id::FluxDefId, rty::EarlyReftParam};
     use liquid_fixpoint::{FixpointFmt, Identifier};
     use rustc_abi::VariantIdx;
+    use rustc_hir::def_id::DefId;
     use rustc_index::newtype_index;
     use rustc_middle::ty::ParamConst;
     use rustc_span::Symbol;
@@ -95,7 +96,8 @@ pub mod fixpoint {
     #[derive(Hash, Copy, Clone, Debug, PartialEq, Eq)]
     pub enum Var {
         Underscore,
-        Global(GlobalVar, Option<FluxDefId>),
+        Global(GlobalVar, FluxDefId),
+        Const(GlobalVar, Option<DefId>),
         Local(LocalVar),
         DataCtor(AdtId, VariantIdx),
         TupleCtor { arity: usize },
@@ -108,7 +110,7 @@ pub mod fixpoint {
 
     impl From<GlobalVar> for Var {
         fn from(v: GlobalVar) -> Self {
-            Self::Global(v, None)
+            Self::Const(v, None)
         }
     }
 
@@ -121,8 +123,8 @@ pub mod fixpoint {
     impl Identifier for Var {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                Var::Global(v, None) => write!(f, "c{}", v.as_u32()),
-                Var::Global(v, Some(did)) => write!(f, "f${}${}", did.name(), v.as_u32()),
+                Var::Global(v, did) => write!(f, "f${}${}", did.name(), v.as_u32()),
+                Var::Const(v, _) => write!(f, "c{}", v.as_u32()),
                 Var::Local(v) => write!(f, "a{}", v.as_u32()),
                 Var::DataCtor(adt_id, variant_idx) => {
                     write!(f, "mkadt{}${}", adt_id.as_u32(), variant_idx.as_u32())
@@ -715,19 +717,23 @@ where
             };
             fun_decl_map.insert(idx.index(), *def_id);
         }
+        let mut const_decl_map = HashMap::new();
+        for (gvar, key) in &self.ecx.const_env.const_map_rev {
+            if let ConstKey::RustConst(def_id) = key {
+                const_decl_map.insert(gvar.as_usize(), *def_id);
+            }
+        }
         // 2. convert sexp -> (binds, Expr<fixpoint_encoding::Types>)
         let mut sexp_ctx =
-            SexpParseCtxt::new(&mut self.ecx.local_var_env, &fun_decl_map).into_wrapper();
+            SexpParseCtxt::new(&mut self.ecx.local_var_env, &fun_decl_map, &const_decl_map)
+                .into_wrapper();
         sexp_ctx.parse_solution(&sexp).unwrap_or_else(|err| {
             tracked_span_bug!("failed to parse solution sexp {sexp:?}: {err:?}");
         })
     }
 
     fn is_assumed_constant(&self, const_decl: &fixpoint::ConstDecl) -> bool {
-        if let fixpoint::Var::Global(gvar, _) = const_decl.name
-            && let Some(key) = self.ecx.const_env.const_map_rev.get(&gvar)
-            && let ConstKey::RustConst(did) = key
-        {
+        if let fixpoint::Var::Const(_, Some(did)) = const_decl.name {
             return self
                 .genv
                 .constant_info(did)
@@ -749,7 +755,7 @@ where
                     bind.pred
                 {
                     let [left, right] = *operands;
-                    if let fixpoint::Expr::Var(fixpoint::Var::Global(gvar, None)) = left {
+                    if let fixpoint::Expr::Var(fixpoint::Var::Const(gvar, Some(_))) = left {
                         acc.insert(gvar, right);
                         inner
                     } else {
@@ -796,34 +802,16 @@ where
         let (mut gvar_eq_map, cstr) = self.extract_assumed_consts(cstr);
         let mut interpreted = vec![];
         for decl in constants {
-            let fixpoint::Var::Global(gvar, None) = &decl.name else {
-                bug!("global var expected for constant {decl:?}")
-            };
-            let gvar = *gvar;
             if self.is_assumed_constant(&decl) {
+                let fixpoint::Var::Const(gvar, _) = &decl.name else {
+                    unreachable!("assumed constants' names match fixpoint::Var::Const(..)")
+                };
+                let gvar = *gvar;
                 interpreted.push((decl, gvar_eq_map.remove(&gvar).unwrap()));
             }
         }
         let const_deps = ConstDeps { interpreted };
         (const_deps, cstr)
-    }
-
-    fn compute_pretty_const_map(
-        &self,
-        const_deps: &ConstDeps,
-    ) -> FxIndexMap<fixpoint::GlobalVar, DefId> {
-        let mut res = FxIndexMap::default();
-        for (decl, _) in &const_deps.interpreted {
-            let fixpoint::Var::Global(gvar, None) = &decl.name else {
-                bug!("global var expected for constant {decl:?}")
-            };
-            let Some(ConstKey::RustConst(def_id)) = self.ecx.const_env.const_map_rev.get(gvar)
-            else {
-                bug!("unexpected or missing const key for {decl:?}")
-            };
-            res.insert(*gvar, *def_id);
-        }
-        res
     }
 
     pub fn generate_lean_files(
@@ -835,7 +823,6 @@ where
         // FIXME(nilehmann) opaque sorts should be part of the task.
         let opaque_sorts = self.scx.user_sorts_to_fixpoint(self.genv);
         let (const_deps, constraint) = self.compute_const_deps(task.constants, task.constraint);
-        let pretty_const_map = self.compute_pretty_const_map(&const_deps);
         let sort_deps =
             SortDeps { opaque_sorts, data_decls: task.data_decls, adt_map: self.scx.adt_sorts };
 
@@ -843,7 +830,6 @@ where
             self.genv,
             def_id,
             self.ecx.local_var_env.pretty_var_map,
-            pretty_const_map,
             sort_deps,
             task.define_funs,
             const_deps,
@@ -2064,7 +2050,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .entry(def_id)
             .or_insert_with(|| {
                 let id = self.const_env.global_var_gen.fresh();
-                fixpoint::Var::Global(id, Some(def_id))
+                fixpoint::Var::Global(id, def_id)
             })
     }
 
@@ -2104,7 +2090,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, None),
+                    name: fixpoint::Var::Const(global_name, None),
                     sort,
                     comment: Some(format!("cast uif: ({from:?}) -> {to:?}")),
                 }
@@ -2125,7 +2111,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                     .func_sort_to_fixpoint(&Self::prim_op_sort(op, span))
                     .into_sort();
                 fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, None),
+                    name: fixpoint::Var::Const(global_name, None),
                     sort,
                     comment: Some(format!("prim op uif: {op:?}")),
                 }
@@ -2143,7 +2129,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
             .get_or_insert(key, |global_name| {
                 let sort = self.genv.sort_of_def_id(def_id).unwrap().unwrap();
                 fixpoint::ConstDecl {
-                    name: fixpoint::Var::Global(global_name, None),
+                    name: fixpoint::Var::Const(global_name, Some(def_id)),
                     sort: scx.sort_to_fixpoint(&sort),
                     comment: Some(format!("rust const: {}", def_id_to_string(def_id))),
                 }
@@ -2168,7 +2154,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let comment = Some(format!("alias reft: {alias_reft:?}"));
-                let name = fixpoint::Var::Global(global_name, None);
+                let name = fixpoint::Var::Const(global_name, None);
                 let fsort = rty::PolyFuncSort::new(List::empty(), fsort);
                 let sort = scx.func_sort_to_fixpoint(&fsort).into_sort();
                 fixpoint::ConstDecl { name, comment, sort }
@@ -2187,7 +2173,7 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         self.const_env
             .get_or_insert(key, |global_name| {
                 let comment = Some(format!("lambda: {lam:?}"));
-                let name = fixpoint::Var::Global(global_name, None);
+                let name = fixpoint::Var::Const(global_name, None);
                 let sort = scx
                     .func_sort_to_fixpoint(&lam.fsort().to_poly())
                     .into_sort();
@@ -2375,13 +2361,17 @@ fn parse_local_var(name: &str) -> Option<fixpoint::Var> {
     None
 }
 
-fn parse_global_var(name: &str, fun_decl_map: &HashMap<usize, FluxDefId>) -> Option<fixpoint::Var> {
+fn parse_global_var(
+    name: &str,
+    fun_decl_map: &HashMap<usize, FluxDefId>,
+    const_decl_map: &HashMap<usize, DefId>,
+) -> Option<fixpoint::Var> {
     if let Some(rest) = name.strip_prefix('c')
         && let Ok(idx) = rest.parse::<u32>()
     {
-        return Some(fixpoint::Var::Global(
+        return Some(fixpoint::Var::Const(
             fixpoint::GlobalVar::from(idx),
-            fun_decl_map.get(&(idx as usize)).copied(),
+            const_decl_map.get(&(idx as usize)).copied(),
         ));
     }
     // try parsing as a named global variable
@@ -2389,11 +2379,9 @@ fn parse_global_var(name: &str, fun_decl_map: &HashMap<usize, FluxDefId>) -> Opt
         && let parts = rest.split('$').collect::<Vec<_>>()
         && parts.len() == 2
         && let Ok(global_idx) = parts[1].parse::<u32>()
+        && let Some(def_id) = fun_decl_map.get(&(global_idx as usize)).copied()
     {
-        return Some(fixpoint::Var::Global(
-            fixpoint::GlobalVar::from(global_idx),
-            fun_decl_map.get(&(global_idx as usize)).copied(),
-        ));
+        return Some(fixpoint::Var::Global(fixpoint::GlobalVar::from(global_idx), def_id));
     }
     None
 }
@@ -2441,14 +2429,16 @@ fn parse_data_ctor(name: &str) -> Option<fixpoint::Var> {
 struct SexpParseCtxt<'a> {
     local_var_env: &'a mut LocalVarEnv,
     fun_decl_map: &'a HashMap<usize, FluxDefId>,
+    const_decl_map: &'a HashMap<usize, DefId>,
 }
 
 impl<'a> SexpParseCtxt<'a> {
     fn new(
         local_var_env: &'a mut LocalVarEnv,
         fun_decl_map: &'a HashMap<usize, FluxDefId>,
+        const_decl_map: &'a HashMap<usize, DefId>,
     ) -> Self {
-        Self { local_var_env, fun_decl_map }
+        Self { local_var_env, fun_decl_map, const_decl_map }
     }
 }
 
@@ -2469,7 +2459,7 @@ impl FromSexp<FixpointTypes> for SexpParseCtxt<'_> {
         if let Some(var) = parse_local_var(name) {
             return Ok(var);
         }
-        if let Some(var) = parse_global_var(name, self.fun_decl_map) {
+        if let Some(var) = parse_global_var(name, self.fun_decl_map, self.const_decl_map) {
             return Ok(var);
         }
         if let Some(var) = parse_param(name) {

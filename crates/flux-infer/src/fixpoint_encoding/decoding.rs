@@ -114,7 +114,7 @@ where
                     fixpoint::Var::Underscore => {
                         unreachable!("Underscore should not appear in exprs")
                     }
-                    fixpoint::Var::Global(global_var, _) => {
+                    fixpoint::Var::Global(global_var, _) | fixpoint::Var::Const(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
@@ -238,7 +238,8 @@ where
                             Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
                         }
                     }
-                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _)) => {
+                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _))
+                    | fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 // NOTE: Only a few of these are meaningfully needed,

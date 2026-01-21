@@ -11,14 +11,14 @@ use flux_middle::{
 };
 use itertools::Itertools;
 use liquid_fixpoint::{FixpointFmt, Identifier, ThyFunc};
-use rustc_data_structures::fx::{FxIndexMap, FxIndexSet};
+use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
     ClosedSolution, InterpretedConst, KVarSolutions,
     fixpoint::{
         self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
-        FunDef, FunSort, GlobalVar, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -32,7 +32,6 @@ pub struct LeanCtxt<'a, 'genv, 'tcx> {
     pub genv: GlobalEnv<'genv, 'tcx>,
     pub pretty_var_map: &'a PrettyMap<LocalVar>,
     pub adt_map: &'a FxIndexSet<DefId>,
-    pub pretty_const_map: &'a FxIndexMap<GlobalVar, DefId>,
     pub kvar_solutions: &'a KVarSolutions,
     pub bool_mode: BoolMode,
 }
@@ -267,7 +266,7 @@ impl LeanFmt for LeanDataProj {
 impl LeanFmt for Var {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
-            Var::Global(_gvar, Some(def_id)) => {
+            Var::Global(_gvar, def_id) => {
                 let path = cx
                     .genv
                     .tcx()
@@ -280,12 +279,11 @@ impl LeanFmt for Var {
                     write!(f, "{path}_{}", def_id.name())
                 }
             }
-            Var::Global(gvar, None) if cx.pretty_const_map.contains_key(gvar) => {
-                let did = *cx.pretty_const_map.get(gvar).unwrap();
+            Var::Const(_, Some(did)) => {
                 let path = cx
                     .genv
                     .tcx()
-                    .def_path(did)
+                    .def_path(*did)
                     .to_filename_friendly_no_crate()
                     .replace("-", "_");
                 write!(f, "{path}")
