@@ -1,4 +1,3 @@
-// This is bad, we try to call `f` with some function that _does_ panic.
 #[flux::no_panic]
 #[flux::sig(fn(f: F) -> i32 requires F::no_panic())]
 fn bar<F: Fn(i32) -> i32>(f: F) -> i32 {
