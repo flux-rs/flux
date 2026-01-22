@@ -10,7 +10,7 @@ use rustc_span::{DUMMY_SP, Symbol};
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, GenericArg},
+    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, Expr, GenericArg},
 };
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -125,13 +125,25 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 bug!("expected base ty for no_panic assoc reft, got {:?}", arg);
             };
             let bty = ty.as_bty_skipping_binder();
-            let BaseTy::Closure(_, _, _, no_panic) = bty else {
-                bug!("expected closure type for no_panic assoc reft, got {:?}", bty);
-            };
+            // let BaseTy::Closure(_, _, _, no_panic) = bty else {
+            //     bug!("expected closure type for no_panic assoc reft, got {:?}", bty);
+            // };
 
-            let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
+            match bty {
+                BaseTy::Closure(_, _, _, no_panic) => {
+                    // return tt/ff as before
+                    let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
 
-            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
+                    return rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool);
+                }
+                _ => {
+                    return rty::Lambda::bind_with_vars(
+                        rty::Expr::ff(),
+                        List::empty(),
+                        rty::Sort::Bool,
+                    );
+                }
+            }
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)
         }

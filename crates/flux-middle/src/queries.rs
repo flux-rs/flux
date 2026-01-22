@@ -17,19 +17,21 @@ use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
+    LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
-use rustc_span::{Span, Symbol};
+use rustc_middle::ty::ParamTy;
+use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, Expr,
+        self, AliasReft, BaseTy, Expr, GenericArg, SubsetTy,
         refining::{self, Refine, Refiner},
     },
 };
@@ -870,6 +872,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     let is_fn_call = tcx.opt_associated_item(def_id).is_some_and(|ai| {
                         let is_callable_trait =
                             ai.trait_container(tcx).is_some_and(|trait_def_id| {
+                                // this can't be FnOnce?
                                 tcx.is_lang_item(trait_def_id, rustc_hir::LangItem::Fn)
                             });
 
@@ -886,8 +889,27 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
 
                     if is_fn_call {
                         let mut inner_sig = fn_sig.clone().skip_binder();
-                        inner_sig.no_panic =
-                            if self.no_panic(genv, def_id) { Expr::tt() } else { Expr::ff() };
+
+                        let fn_once_id = FluxDefId::new(
+                            genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
+                            Symbol::intern("no_panic"),
+                        );
+
+                        let self_ty = inner_sig.inputs()[0].clone();
+                        let self_bty = match self_ty.kind() {
+                            rty::TyKind::Indexed(bty, e) => bty,
+                            _ => panic!("expected self to be a type parameter"),
+                        };
+                        let self_sty = SubsetTy::trivial(self_bty.clone(), Expr::nu());
+                        let self_sty = fn_sig.rebind(self_sty);
+
+                        let alias_reft = AliasReft {
+                            assoc_id: fn_once_id,
+                            args: List::from_vec(vec![GenericArg::Base(self_sty)]),
+                        };
+
+                        inner_sig.no_panic = Expr::alias(alias_reft, List::empty());
+
                         fn_sig = fn_sig.rebind(inner_sig);
                     }
 
