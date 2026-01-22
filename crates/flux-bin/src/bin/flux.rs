@@ -5,12 +5,16 @@ use std::{env, process::Command};
 use anyhow::Result;
 use flux_bin::utils::{
     LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
-    get_rust_toolchain, get_version, prepend_path_to_env_var,
+    get_rust_toolchain, get_version, get_version_full, prepend_path_to_env_var,
 };
 
 fn main() -> Result<()> {
     if env::args().any(|arg| arg == "--version" || arg == "-V") {
-        println!("flux {}", get_version());
+        if env::args().any(|arg| arg == "--verbose") {
+            println!("flux {}", get_version());
+        } else {
+            println!("flux {}", get_version_full());
+        }
         std::process::exit(0);
     }
 
