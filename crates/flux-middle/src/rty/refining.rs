@@ -699,6 +699,9 @@ impl TypeFolder for WeakKVarInserter {
 /// We need to handle polymorphism (in fixpoint or by monomorphizing).
 ///
 /// NOTE: Skips locs because we can't encode those.
+///       Skips unit + unit adts because they otherwise get encoded as a 0 tuple
+///       to fixpoint because we use them in the args to a weak kvar, which
+///       we don't want to do.
 fn make_vars_and_sorts_from_bound_vars<'a, I, II>(vars: I) -> Vec<(rty::Var, rty::Sort)>
 where
     I: IntoIterator<IntoIter = II>,
@@ -707,7 +710,7 @@ where
     vars.into_iter()
         .enumerate()
         .filter_map(|(i, var_kind)| {
-            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind && !sort.is_param() && !sort.is_loc() {
+            if let rty::BoundVariableKind::Refine(sort, _, reft_kind) = var_kind && !sort.is_param() && !sort.is_loc() && !sort.is_unit() && !sort.is_unit_adt().is_some() {
                 let bound_reft = rty::BoundReft { var: rty::BoundVar::from(i), kind: *reft_kind };
                 Some((rty::Var::Bound(INNERMOST, bound_reft), sort.clone()))
             } else {
@@ -729,6 +732,8 @@ fn shift_out_vars(vars: &mut [(rty::Var, rty::Sort)]) {
     }
 }
 
+// FIXME: Don't make a weak kvar if the self_args is empty if there's a weak kvar
+//        that's been created before it with a superset of its params.
 fn make_weak_kvar(wkvar_map: &mut WeakKvarMap, def_id: DefId, kvid: &mut rty::KVid, self_args: Vec<(rty::Var, rty::Sort)>, params: Vec<(rty::Var, rty::Sort)>) -> rty::WKVar {
     let num_self_args = self_args.len();
     let (args, sorts): (Vec<rty::Var>, Vec<rty::Sort>) = self_args.into_iter().chain(params.into_iter()).unzip();
