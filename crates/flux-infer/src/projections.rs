@@ -790,19 +790,6 @@ fn normalize_alias_reft<'tcx>(
         return Ok((true, e));
     }
 
-    // FnOnce::no_panic is built in, but I don't understand why the Sized builtin doesn't need this same mechanism
-    // during normalization? Maybe because there's not a mismatch b/w FnOnce::call and F::no_panic() the way
-    // we do here?
-    if alias_reft.assoc_id.name() == rustc_span::Symbol::intern("no_panic")
-        && tcx.is_lang_item(alias_reft.assoc_id.parent(), rustc_hir::LangItem::FnOnce)
-    {
-        let param_env = tcx.param_env(def_id);
-        let e = genv
-            .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
-            .apply(refine_args);
-        return Ok((true, e));
-    }
-
     // Get impl source
     let mut selcx = SelectionContext::new(infcx);
     let param_env = tcx.param_env(def_id);

@@ -23,7 +23,6 @@ use rustc_hir::{
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
-use rustc_middle::ty::ParamTy;
 use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
@@ -31,7 +30,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, AliasReft, BaseTy, Expr, GenericArg, SubsetTy,
+        self, AliasReft, Expr, GenericArg,
         refining::{self, Refine, Refiner},
     },
 };
@@ -890,23 +889,20 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     if is_fn_call {
                         let mut inner_sig = fn_sig.clone().skip_binder();
 
-                        let fn_once_id = FluxDefId::new(
+                        let fn_once_assoc_reft = genv
+                            .builtin_assoc_refts(
+                                genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
+                            )
+                            .unwrap()
+                            .find(Symbol::intern("no_panic"))
+                            .unwrap();
+
+                        let args = GenericArg::identity_for_item(
+                            genv,
                             genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
-                            Symbol::intern("no_panic"),
-                        );
+                        )?;
 
-                        let self_ty = inner_sig.inputs()[0].clone();
-                        let self_bty = match self_ty.kind() {
-                            rty::TyKind::Indexed(bty, e) => bty,
-                            _ => panic!("expected self to be a type parameter"),
-                        };
-                        let self_sty = SubsetTy::trivial(self_bty.clone(), Expr::nu());
-                        let self_sty = fn_sig.rebind(self_sty);
-
-                        let alias_reft = AliasReft {
-                            assoc_id: fn_once_id,
-                            args: List::from_vec(vec![GenericArg::Base(self_sty)]),
-                        };
+                        let alias_reft = AliasReft { assoc_id: fn_once_assoc_reft.def_id, args };
 
                         inner_sig.no_panic = Expr::alias(alias_reft, List::empty());
 

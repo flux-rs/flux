@@ -1391,7 +1391,6 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
-    // TODO: Andrew, make this an Expr instead of a bool
     pub no_panic: Expr,
     /// was this auto-lifted (or from a spec)
     pub lifted: bool,
@@ -1811,7 +1810,6 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    // Andrew: we can add whether or not the closure is annotated with no_panic here
     Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, bool),
     Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
