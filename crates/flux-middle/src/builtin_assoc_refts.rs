@@ -27,9 +27,9 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
-                // if it's a function, automatically include a no panic assoc reft if
-                // the `requires` for that function includes it.
-                if let Some(fn_def_id) = tcx.lang_items().fn_trait() {
+                // TODO: ask nico if this should mirror the statement below
+                // (panic if fn_once_trait is missing)
+                if let Some(fn_def_id) = tcx.lang_items().fn_once_trait() {
                     map.insert(
                         fn_def_id,
                         AssocRefinements {
@@ -79,7 +79,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 // Fn
                 if let Some(no_panic_id) = tcx
                     .lang_items()
-                    .fn_trait()
+                    .fn_once_trait()
                     .map(|fn_def_id| FluxDefId::new(fn_def_id, Symbol::intern("no_panic")))
                 {
                     map.insert(no_panic_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
@@ -116,7 +116,9 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-        } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic") {
+        } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic")
+            && tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+        {
             let arg = &alias_reft.args[0];
 
             let GenericArg::Base(ty) = arg else {
