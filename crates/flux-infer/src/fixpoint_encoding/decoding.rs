@@ -1,3 +1,4 @@
+use flux_common::tracked_span_bug;
 use flux_middle::{
     big_int::BigInt,
     rty::{self, Binder, EarlyReftParam, InternalFuncKind, List, SpecFuncKind},
@@ -8,11 +9,36 @@ use rustc_hir::def_id::DefId;
 use rustc_type_ir::BoundVar;
 
 use super::{ConstKey, FixpointCtxt, fixpoint};
+use crate::fixpoint_encoding::FixpointSolution;
 
 impl<'genv, 'tcx, Tag> FixpointCtxt<'genv, 'tcx, Tag>
 where
     Tag: std::hash::Hash + Eq + Copy,
 {
+    pub(crate) fn fixpoint_to_solution(
+        &mut self,
+        sol: &FixpointSolution,
+    ) -> rty::Binder<rty::Expr> {
+        let mut vars = vec![];
+        let mut sorts = vec![];
+        for (var, sort) in &sol.0 {
+            let fixpoint::Var::Local(local_var) = var else {
+                tracked_span_bug!("encountered non-local variable in binder: {var:?}");
+            };
+            vars.push(*local_var);
+            sorts.push(
+                self.fixpoint_to_sort(sort)
+                    .unwrap_or_else(|_| tracked_span_bug!("failed to parse sort: {sort:?}")),
+            );
+        }
+        self.ecx.local_var_env.push_layer(vars);
+        let expr = self
+            .fixpoint_to_expr(&sol.1)
+            .unwrap_or_else(|err| tracked_span_bug!("failed to convert expr: {err:?}"));
+        self.ecx.local_var_env.pop_layer();
+        rty::Binder::bind_with_sorts(expr, &sorts)
+    }
+
     fn fixpoint_to_sort_ctor(
         &self,
         ctor: &fixpoint::SortCtor,
@@ -88,12 +114,9 @@ where
                     fixpoint::Var::Underscore => {
                         unreachable!("Underscore should not appear in exprs")
                     }
-                    fixpoint::Var::Global(global_var, _) => {
+                    fixpoint::Var::Global(global_var, _) | fixpoint::Var::Const(global_var, _) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
-                                ConstKey::Uif(def_id) => {
-                                    Ok(rty::Expr::global_func(SpecFuncKind::Uif(*def_id)))
-                                }
                                 ConstKey::RustConst(def_id) => Ok(rty::Expr::const_def_id(*def_id)),
                                 ConstKey::Alias(_flux_id, _args) => {
                                     unreachable!("Should be special-cased as the head of an app")
@@ -154,7 +177,7 @@ where
                     }
                 }
             }
-            fixpoint::Expr::App(fhead, _sort_args, fargs) => {
+            fixpoint::Expr::App(fhead, _sort_args, fargs, _out_sort) => {
                 match &**fhead {
                     fixpoint::Expr::Var(fixpoint::Var::TupleProj { arity, field }) => {
                         if fargs.len() == 1 {
@@ -215,7 +238,8 @@ where
                             Err(FixpointParseError::UIFRelArityMismatch(fargs.len()))
                         }
                     }
-                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _)) => {
+                    fixpoint::Expr::Var(fixpoint::Var::Global(global_var, _))
+                    | fixpoint::Expr::Var(fixpoint::Var::Const(global_var, _)) => {
                         if let Some(const_key) = self.ecx.const_env.const_map_rev.get(global_var) {
                             match const_key {
                                 // NOTE: Only a few of these are meaningfully needed,
@@ -261,9 +285,7 @@ where
                                         .try_collect()?;
                                     Ok(rty::Expr::alias(alias_reft, args))
                                 }
-                                ConstKey::Uif(..)
-                                | ConstKey::RustConst(..)
-                                | ConstKey::Lambda(..) => {
+                                ConstKey::RustConst(..) | ConstKey::Lambda(..) => {
                                     // These should be treated as a normal app.
                                     self.fixpoint_app_to_expr(fhead, fargs)
                                 }

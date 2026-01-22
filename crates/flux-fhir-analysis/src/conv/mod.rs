@@ -2424,11 +2424,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let sort = rty::Sort::Func(genv.func_sort(did));
                 (rty::Expr::global_func(rty::SpecFuncKind::Def(did)), sort)
             }
-            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Uif(did)) => {
-                self.hyperlink(span, Some(genv.func_span(did)));
-                let sort = rty::Sort::Func(genv.func_sort(did));
-                (rty::Expr::global_func(rty::SpecFuncKind::Uif(did)), sort)
-            }
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf)) => {
                 let sort = THEORY_FUNCS.get(&itf).unwrap().sort.clone();
                 (rty::Expr::global_func(rty::SpecFuncKind::Thy(itf)), rty::Sort::Func(sort))

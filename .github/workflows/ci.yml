@@ -76,6 +76,63 @@ jobs:
           cd tock
           cargo flux -p cortexm -p rv32i
 
+  lean-demo:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lean via elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Install fixpoint
+        uses: ./.github/actions/install-fixpoint
+        env:
+          GITHUB_TOKEN:
+            ${{ secrets.GITHUB_TOKEN }}
+
+            # Older versions hang
+      - name: Install Z3
+        uses: cda-tum/setup-z3@v1.6.6
+        with:
+          version: 4.15.3
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2.8.0
+
+      - name: Install Flux
+        run: |
+          cargo x install
+          echo ~/.cargo/bin >> $GITHUB_PATH
+
+      - name: Clone flux-to-lean-demo
+        run: |
+          git clone https://github.com/flux-rs/flux-to-lean-demo
+
+      - name: Generate Lean Project
+        continue-on-error: true
+        working-directory: flux-to-lean-demo
+        run: |
+          cargo flux
+
+      - name: Copy proofs
+        working-directory: flux-to-lean-demo
+        run: |
+          cp -r LeanUserProofs/* lean_proofs/LeanProofs/User/
+
+      - name: Run lean
+        working-directory: flux-to-lean-demo
+        run: |
+          cd lean_proofs && lake build
+
+      - name: Check proofs in flux
+        run: |
+          cargo flux
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:

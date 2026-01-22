@@ -150,15 +150,18 @@ impl<D: HoisterDelegate> Hoister<D> {
     }
 }
 
-/// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an exi-indexed slice?
+/// Is `ty` of the form `&m (&m ... (&m T))` where `T` is an existentially indexed slice or array?
 /// We need to do a "transitive" check to deal with cases like `&mut &mut [i32]`
 /// which arise from closures like that in `tests/tests/pos/surface/closure03.rs`.
+// TODO(nilehmann) we could generalize this and hoist anything inside a mutable reference that
+// doesn't lose generality. This includes:
+// - The length of a slice (which can't change)
+// - Parameters with unit sorts
+// - Constraints that are not inside an existential (e.g., the `p` in  &mut {i32 | p})
 fn is_indexed_slice(ty: &Ty) -> bool {
-    let Some(bty) = ty.as_bty_skipping_existentials() else {
-        return false;
-    };
+    let Some(bty) = ty.as_bty_skipping_existentials() else { return false };
     match bty {
-        BaseTy::Slice(_) => true,
+        BaseTy::Slice(_) | BaseTy::Array(..) => true,
         BaseTy::Ref(_, ty, _) => is_indexed_slice(ty),
         _ => false,
     }

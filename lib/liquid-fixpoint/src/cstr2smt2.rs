@@ -492,7 +492,7 @@ fn expr_to_z3<T: Types>(expr: &Expr<T>, env: &mut Env<T>) -> ast::Dynamic {
             let if_false = expr_to_z3(&exprs[2], env);
             ast::Bool::ite(&condition, &if_true, &if_false)
         }
-        Expr::App(fun, _sort_args, args) => {
+        Expr::App(fun, _sort_args, args, _out_sort) => {
             match &**fun {
                 Expr::Var(var) => {
                     let arg_asts = args.iter().map(|arg| expr_to_z3(arg, env)).collect_vec();

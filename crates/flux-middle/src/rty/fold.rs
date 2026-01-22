@@ -890,7 +890,7 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
             BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::Coroutine(_, resume_ty, upvars) => {
+            BaseTy::Coroutine(_, resume_ty, upvars, _) => {
                 resume_ty.visit_with(visitor)?;
                 upvars.visit_with(visitor)
             }
@@ -937,11 +937,12 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Closure(did, args, gen_args, no_panic) => {
                 BaseTy::Closure(*did, args.try_fold_with(folder)?, gen_args.clone(), *no_panic)
             }
-            BaseTy::Coroutine(did, resume_ty, args) => {
+            BaseTy::Coroutine(did, resume_ty, args, gen_args) => {
                 BaseTy::Coroutine(
                     *did,
                     resume_ty.try_fold_with(folder)?,
                     args.try_fold_with(folder)?,
+                    gen_args.clone(),
                 )
             }
             BaseTy::Dynamic(preds, region) => {

@@ -863,7 +863,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
+                let obligations =
+                    infcx.subtyping_with_env(env, &ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
@@ -1249,7 +1250,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         target: BasicBlock,
     ) -> Result {
         if self.is_exit_block(target) {
-            let location = self.body.terminator_loc(target);
+            // We inline *exit basic blocks* (i.e., that just return) because this typically
+            // gives us better a better error span.
+            let mut location = Location { block: target, statement_index: 0 };
+            for _ in &self.body.basic_blocks[target].statements {
+                self.check_ghost_statements_at(
+                    &mut infcx,
+                    &mut env,
+                    Point::BeforeLocation(location),
+                    span,
+                )?;
+                location = location.successor_within_block();
+            }
             self.check_ghost_statements_at(
                 &mut infcx,
                 &mut env,
@@ -1472,12 +1484,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_rvalue_closure(infcx, env, stmt_span, did, args, operands)
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
-                let args = args.as_coroutine();
-                let resume_ty = self.refine_default(args.resume_ty()).with_span(stmt_span)?;
+                let coroutine_args = args.as_coroutine();
+                let resume_ty = self
+                    .refine_default(coroutine_args.resume_ty())
+                    .with_span(stmt_span)?;
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, ops)
                     .with_span(stmt_span)?;
-                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
+                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
             }
             Rvalue::ShallowInitBox(operand, _) => {
                 self.check_operand(infcx, env, stmt_span, operand)
@@ -1652,7 +1666,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) => {
                 let to = self.refine_default(to)?;
-                if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
+                if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
                     let current_did = infcx.def_id;

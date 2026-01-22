@@ -146,7 +146,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::NormalizeInfo {
+    pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        self.normalized_defns(did.krate()).inlined_body(did)
+    }
+
+    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
         self.normalized_defns(did.krate()).func_info(did).clone()
     }
 
@@ -279,7 +283,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         let trait_ref = trait_ref.skip_binder();
         let trait_ref = trait_ref
             .lower(self.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
+            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))?
             .refine(&Refiner::default_for_item(self, impl_id)?)?;
         Ok(Some(rty::EarlyBinder(trait_ref)))
     }

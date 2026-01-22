@@ -119,13 +119,8 @@ fn try_normalized_defns(genv: GlobalEnv) -> Result<rty::NormalizedDefns, ErrorGu
             continue;
         };
         let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
-        let Ok(defn) = cx.conv_defn(func).emit(&errors) else {
-            continue;
-        };
-
-        if let Some(defn) = defn {
-            defns.push((func.def_id, defn, func.hide));
-        }
+        let Ok(defn) = cx.conv_defn(func).emit(&errors) else { continue };
+        defns.push((func.def_id, defn, func.hide));
     }
     errors.to_result()?;
 

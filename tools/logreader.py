@@ -114,6 +114,9 @@ class Buff:
                    filters: Optional[List[str]]) -> None:
         for event in events:
             fields = event['fields']
+            
+            if 'event' not in fields:
+                continue
 
             if filters is not None and fields['event'] not in filters:
                 continue

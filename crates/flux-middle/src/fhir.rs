@@ -1243,9 +1243,7 @@ pub struct PrimOpProp<'fhir> {
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
-    /// User-defined uninterpreted functions with no definition
-    Uif(FluxDefId),
-    /// User-defined functions with a body definition
+    /// User-defined function. This can be either a function with a body or a UIF.
     Def(FluxDefId),
     /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
@@ -1254,7 +1252,7 @@ pub enum SpecFuncKind {
 impl SpecFuncKind {
     pub fn def_id(&self) -> Option<FluxDefId> {
         match self {
-            SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) => Some(*flux_id),
+            SpecFuncKind::Def(flux_id) => Some(*flux_id),
             _ => None,
         }
     }

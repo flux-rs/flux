@@ -223,10 +223,13 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                 rty::BaseTy::Closure(*did, upvar_tys, args.clone(), no_panic)
             }
             ty::TyKind::Coroutine(did, args) => {
-                let args = args.as_coroutine();
-                let resume_ty = args.resume_ty().refine(self)?;
-                let upvar_tys = args.upvar_tys().map(|ty| ty.refine(self)).try_collect()?;
-                rty::BaseTy::Coroutine(*did, resume_ty, upvar_tys)
+                let coroutine_args = args.as_coroutine();
+                let resume_ty = coroutine_args.resume_ty().refine(self)?;
+                let upvar_tys = coroutine_args
+                    .upvar_tys()
+                    .map(|ty| ty.refine(self))
+                    .try_collect()?;
+                rty::BaseTy::Coroutine(*did, resume_ty, upvar_tys, args.clone())
             }
             ty::TyKind::CoroutineWitness(..) => {
                 bug!("implement when we know what this is");
