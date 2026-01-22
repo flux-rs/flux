@@ -30,9 +30,24 @@ pub enum PanicSpec {
 #[derive(Debug, Clone)]
 pub enum PanicReason {
     Unknown,
+    ContainsPanic,
     Transitive(Vec<DefId>),
     CallsTraitMethod(String),
     CallsMethodForNoMIR(String),
+}
+
+fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
+    let lang_items = tcx.lang_items();
+    [
+        lang_items.panic_fn(),
+        lang_items.panic_fmt(),
+        lang_items.begin_panic_fn(),
+        lang_items.panic_display(),
+        lang_items.panic_cannot_unwind(),
+    ]
+    .into_iter()
+    .flatten()
+    .any(|lid| lid == def_id)
 }
 
 pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
@@ -78,6 +93,12 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
         let callees = call_graph.get(&f).unwrap().clone();
 
         for callee in callees {
+            if is_panic_or_abort_fn(tcx, callee) {
+                fn_to_no_panic.insert(f, PanicSpec::MightPanic(PanicReason::ContainsPanic));
+                fn_to_no_panic.insert(callee, PanicSpec::MightPanic(PanicReason::ContainsPanic));
+                continue;
+            }
+
             if tcx.is_mir_available(callee) {
                 if !fn_to_no_panic.contains_key(&callee) {
                     fn_to_no_panic.insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
@@ -111,7 +132,17 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                 continue;
             }
 
-            let callees = call_graph.get(&f).unwrap();
+            let callees = match call_graph.get(&f) {
+                Some(callees) => callees,
+                None => {
+                    assert!(
+                        is_panic_or_abort_fn(tcx, f) || !tcx.is_mir_available(f),
+                        "function {:?} has no call_graph entry but is neither a panic fn nor no-MIR",
+                        tcx.def_path_str(f)
+                    );
+                    continue;
+                }
+            };
 
             let mut bad_callees = Vec::new();
 
@@ -129,6 +160,9 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                 let entry = fn_to_no_panic.get_mut(&f).unwrap();
 
                 match entry {
+                    PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
+                        // KEEP strongest reason — do not overwrite
+                    }
                     PanicSpec::MightPanic(PanicReason::Unknown) => {
                         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
                     }
@@ -147,69 +181,27 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
         }
     }
 
-    println!("Hey! our no-panic analysis finished!");
-    println!("um... hm. well, here's what we found.");
-    println!("well, there were {} functions analyzed.", fn_to_no_panic.len());
-    println!("that's for sure.");
-    // map reasons to count.
-    let mut reasons_to_count: FxHashMap<String, usize> = FxHashMap::default();
-    for (k, v) in &fn_to_no_panic {
-        let reason = match v {
-            PanicSpec::WillNotPanic => "WILL NOT PANIC".to_string(),
-            PanicSpec::MightPanic(reason) => {
-                match reason {
-                    PanicReason::Unknown => "MIGHT PANIC: unknown reason".to_string(),
-                    PanicReason::Transitive(_) => "MIGHT PANIC: transitive".to_string(),
-                    PanicReason::CallsTraitMethod(_) => {
-                        "MIGHT PANIC: calls trait method".to_string()
-                    }
-                    PanicReason::CallsMethodForNoMIR(_) => {
-                        "MIGHT PANIC: calls method with no MIR".to_string()
-                    }
+    let mut reason_to_count: FxHashMap<String, usize> = FxHashMap::default();
+    for (_, reason) in fn_to_no_panic.iter() {
+        let key = match reason {
+            PanicSpec::WillNotPanic => "WillNotPanic".to_string(),
+            PanicSpec::MightPanic(r) => {
+                match r {
+                    PanicReason::Unknown => "Unknown".to_string(),
+                    PanicReason::ContainsPanic => "ContainsPanic".to_string(),
+                    PanicReason::Transitive(_) => "Transitive".to_string(),
+                    PanicReason::CallsTraitMethod(_) => "CallsTraitMethod".to_string(),
+                    PanicReason::CallsMethodForNoMIR(_) => "CallsMethodForNoMIR".to_string(),
                 }
             }
         };
-        *reasons_to_count.entry(reason).or_insert(0) += 1;
 
-        // match v {
-        //     PanicSpec::WillNotPanic => {}
-        //     PanicSpec::MightPanic(reason) => {
-        //         match reason {
-        //             PanicReason::Unknown => {
-        //                 println!("  {}: MIGHT PANIC (unknown reason)", tcx.def_path_str(*k));
-        //             }
-        //             PanicReason::Transitive(bad_callees) => {
-        //                 let callee_names: Vec<String> = bad_callees
-        //                     .iter()
-        //                     .map(|cid| tcx.def_path_str(*cid))
-        //                     .collect();
-        //                 println!(
-        //                     "  {}: MIGHT PANIC (calls functions that might panic: {})",
-        //                     tcx.def_path_str(*k),
-        //                     callee_names.join(", ")
-        //                 );
-        //             }
-        //             PanicReason::CallsTraitMethod(fn_name) => {
-        //                 println!(
-        //                     "  {}: MIGHT PANIC (calls trait method: {})",
-        //                     tcx.def_path_str(*k),
-        //                     fn_name
-        //                 );
-        //             }
-        //             PanicReason::CallsMethodForNoMIR(fn_name) => {
-        //                 println!(
-        //                     "  {}: MIGHT PANIC (calls method with no MIR: {})",
-        //                     tcx.def_path_str(*k),
-        //                     fn_name
-        //                 );
-        //             }
-        //         }
-        //     }
-        // }
+        *reason_to_count.entry(key).or_default() += 1;
     }
 
-    for (reason, count) in reasons_to_count {
-        println!("  {}: {}", reason, count);
+    println!("=== no-panic inference results ===");
+    for (reason, count) in reason_to_count {
+        println!("{:4}  {}", count, reason);
     }
 
     visualize::visualize(&tcx, call_graph, "button.rs", &fn_to_no_panic);

@@ -15,13 +15,14 @@ fn spec_to_color(spec: Option<&PanicSpec>) -> (&'static str, &'static str) {
         Some(PanicSpec::WillNotPanic) => ("green", "solid"),
         Some(PanicSpec::MightPanic(reason)) => {
             match reason {
-                PanicReason::Transitive(_) => ("orange", "bold"),
+                PanicReason::ContainsPanic => ("red", "bold"),
+                PanicReason::Transitive(_) => ("yellow", "bold"),
                 PanicReason::CallsTraitMethod(_) => ("blue", "dashed"),
-                PanicReason::CallsMethodForNoMIR(_) => ("orange", "dashed"),
-                PanicReason::Unknown => panic!("asldkjf"),
+                PanicReason::CallsMethodForNoMIR(_) => ("blue", "dashed"),
+                PanicReason::Unknown => panic!("This should never happen."),
             }
         }
-        None => ("gray", "dotted"),
+        None => unreachable!(),
     }
 }
 
@@ -30,6 +31,37 @@ pub fn emit_dot(
     call_graph: &CallGraph,
     panic_specs: &FxHashMap<DefId, PanicSpec>,
 ) -> String {
+    let mut reason_to_count = FxHashMap::default();
+    for (_, reason) in panic_specs.iter() {
+        let key = match reason {
+            PanicSpec::WillNotPanic => "WillNotPanic".to_string(),
+            PanicSpec::MightPanic(r) => {
+                match r {
+                    PanicReason::Unknown => "Unknown".to_string(),
+                    PanicReason::ContainsPanic => "ContainsPanic".to_string(),
+                    PanicReason::Transitive(_) => "Transitive".to_string(),
+                    PanicReason::CallsTraitMethod(_) => "CallsTraitMethod".to_string(),
+                    PanicReason::CallsMethodForNoMIR(_) => "CallsMethodForNoMIR".to_string(),
+                }
+            }
+        };
+
+        *reason_to_count.entry(key).or_insert(0) += 1;
+    }
+
+    println!("Callgraph panic analysis summary:");
+    for (reason, count) in reason_to_count.iter() {
+        println!("  {:<20} {}", reason, count);
+    }
+
+    // list all no mir functions
+    for (def_id, spec) in panic_specs.iter() {
+        if let PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) = spec {
+            let name = tcx.def_path_str(*def_id);
+            println!("  No MIR function: {}", name);
+        }
+    }
+
     let mut out = String::new();
 
     // Header
@@ -49,8 +81,15 @@ pub fn emit_dot(
 
     for node in added_nodes {
         let name = tcx.def_path_str(node);
-        let spec = panic_specs.get(&node);
-        let (color, style) = spec_to_color(spec);
+        let (color, style) = match panic_specs.get(&node) {
+            Some(spec) => spec_to_color(Some(spec)),
+            None => {
+                match tcx.def_kind(node) {
+                    rustc_hir::def::DefKind::AssocFn => ("blue", "dashed"),
+                    _ => ("gray", "dotted"),
+                }
+            }
+        };
         out.push_str(&format!("  \"{}\" [color={}, style={}];\n", escape(&name), color, style));
     }
 
