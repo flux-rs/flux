@@ -4,7 +4,7 @@ use flux_arc_interner::List;
 use flux_common::bug;
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::{LangItem, def_id::DefId};
+use rustc_hir::{LangItem, def::DefKind, def_id::DefId};
 use rustc_span::{DUMMY_SP, Symbol};
 
 use crate::{
@@ -27,16 +27,15 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
-                // TODO: ask nico if this should mirror the statement below
-                // (panic if fn_once_trait is missing)
-                if let Some(fn_def_id) = tcx.lang_items().fn_once_trait() {
+                // no-panic
+                if def_id.is_local() && tcx.def_kind(def_id) == DefKind::Trait {
                     map.insert(
-                        fn_def_id,
+                        def_id,
                         AssocRefinements {
                             items: List::from_arr([AssocReft::new(
-                                FluxDefId::new(fn_def_id, Symbol::intern("no_panic")),
+                                FluxDefId::new(def_id, Symbol::intern("no_panic")),
                                 false,
-                                tcx.def_span(fn_def_id),
+                                tcx.def_span(def_id),
                             )]),
                         },
                     );
@@ -76,13 +75,17 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
-                // Fn
                 if let Some(no_panic_id) = tcx
                     .lang_items()
                     .fn_once_trait()
                     .map(|fn_def_id| FluxDefId::new(fn_def_id, Symbol::intern("no_panic")))
                 {
                     map.insert(no_panic_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
+                }
+
+                // No Panic for all traits
+                if assoc_id.name() == Symbol::intern("no_panic") {
+                    map.insert(assoc_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
                 }
 
                 // Sized
@@ -104,6 +107,10 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         alias_reft: &AliasReft,
     ) -> rty::Lambda {
         let tcx = self.tcx();
+
+        if tcx.def_kind(alias_reft.assoc_id.parent()) == DefKind::Trait {
+            return rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool);
+        }
 
         if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized)
             && alias_reft.assoc_id.name() == sym::size_of

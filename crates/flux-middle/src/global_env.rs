@@ -322,6 +322,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     pub fn assoc_refinement(self, assoc_id: FluxDefId) -> QueryResult<rty::AssocReft> {
+        // intercept queries for no_panic, and divert to builtin assoc refts
+        if assoc_id.name() == Symbol::intern("no_panic") {
+            let Some(builtins) = self.builtin_assoc_refts(assoc_id.parent()) else {
+                return Err(query_bug!("the builtin map isn't there?"));
+            };
+            return Ok(builtins.get(assoc_id));
+        }
+
         Ok(self.assoc_refinements_of(assoc_id.parent())?.get(assoc_id))
     }
 

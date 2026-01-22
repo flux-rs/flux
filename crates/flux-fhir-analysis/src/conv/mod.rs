@@ -1621,6 +1621,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 .is_some()
             {
                 matching_candidates.push(candidate);
+            } else if assoc_name.name == Symbol::intern("no_panic") {
+                matching_candidates.push(candidate);
             }
         }
 
@@ -2022,6 +2024,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         assoc_tag: Tag,
         assoc_name: Ident,
     ) -> Result<!, ErrorGuaranteed> {
+        panic!("blarg!");
         Err(self.emit(errors::AmbiguousAssocItem {
             span,
             name: assoc_name,
@@ -2467,8 +2470,17 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let mut generic_args = vec![self_ty];
                 self.conv_generic_args_into(env, trait_id, trait_segment, &mut generic_args)?;
 
-                let Some(assoc_reft) = self.genv().assoc_refinements_of(trait_id)?.find(name.name)
-                else {
+                let assoc_reft = self
+                    .genv()
+                    .assoc_refinements_of(trait_id)?
+                    .find(name.name)
+                    .or_else(|| {
+                        self.genv()
+                            .builtin_assoc_refts(trait_id)
+                            .and_then(|x| x.find(name.name))
+                    });
+
+                let Some(assoc_reft) = assoc_reft else {
                     return Err(self.emit(errors::InvalidAssocReft::new(
                         trait_.span,
                         name.name,

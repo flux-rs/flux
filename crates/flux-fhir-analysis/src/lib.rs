@@ -14,7 +14,7 @@ extern crate rustc_type_ir;
 
 mod conv;
 mod wf;
-use std::{iter, rc::Rc};
+use std::{iter, rc::Rc, sync::OnceLock};
 
 use conv::{AfterSortck, ConvPhase, struct_compat};
 use flux_common::{bug, dbg, iter::IterExt, result::ResultExt};
@@ -24,8 +24,8 @@ use flux_macros::fluent_messages;
 use flux_middle::{
     def_id::{FluxDefId, FluxId, MaybeExternId},
     fhir::{
-        self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, TraitItem,
-        TraitItemKind,
+        self, ForeignItem, ForeignItemKind, ImplItem, ImplItemKind, Item, ItemKind, PrimSort,
+        SortRes, TraitAssocReft, TraitItem, TraitItemKind,
     },
     global_env::GlobalEnv,
     queries::{Providers, QueryResult},
@@ -46,7 +46,26 @@ use rustc_hir::{
     def::{CtorOf, DefKind},
     def_id::{DefId, LocalDefId},
 };
-use rustc_span::Span;
+use rustc_span::{DUMMY_SP, Span, Symbol};
+
+static NO_PANIC_ASSOC_REFT: OnceLock<TraitAssocReft<'static>> = OnceLock::new();
+
+fn no_panic_assoc_reft() -> &'static TraitAssocReft<'static> {
+    NO_PANIC_ASSOC_REFT.get_or_init(|| {
+        TraitAssocReft {
+            name: Symbol::intern("no_panic"),
+            params: &[],
+            output: fhir::Sort::Path(fhir::SortPath {
+                res: SortRes::PrimSort(PrimSort::Bool),
+                segments: &[],
+                args: &[],
+            }),
+            body: None,
+            span: DUMMY_SP,
+            final_: false,
+        }
+    })
+}
 
 fluent_messages! { "../locales/en-US.ftl" }
 
@@ -376,7 +395,13 @@ fn sort_of_assoc_reft(
 
     match &genv.fhir_expect_item(container_id.local_id())?.kind {
         fhir::ItemKind::Trait(trait_) => {
-            let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap();
+            let assoc_reft = trait_.find_assoc_reft(assoc_id.name()).unwrap_or_else(|| {
+                if assoc_id.name() == Symbol::intern("no_panic") {
+                    no_panic_assoc_reft()
+                } else {
+                    panic!("unwrap on None");
+                }
+            });
             let wfckresults = WfckResults::new(OwnerId { def_id: container_id.local_id() });
             let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
             let inputs = assoc_reft

@@ -31,7 +31,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, AliasReft, Expr, GenericArg,
+        self, AliasReft, Binder, Expr, GenericArg,
         refining::{self, Refine, Refiner},
     },
 };
@@ -763,6 +763,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         genv: GlobalEnv,
         trait_assoc_id: FluxDefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
+        // if trait_assoc_id.name() == Symbol::intern("no_panic") {
+        //     return Ok(Some(rty::EarlyBinder(rty::Lambda::bind_with_vars(
+        //         Expr::ff(),
+        //         List::empty(),
+        //         rty::Sort::Bool,
+        //     ))));
+        // }
         run_with_cache(&self.default_assoc_refinement_body, trait_assoc_id, || {
             trait_assoc_id.dispatch_query(
                 genv,
