@@ -15,10 +15,10 @@ use rustc_data_structures::fx::FxIndexSet;
 use rustc_hir::def_id::DefId;
 
 use crate::fixpoint_encoding::{
-    ClosedSolution, KVarSolutions,
+    ClosedSolution, InterpretedConst, KVarSolutions,
     fixpoint::{
-        self, AdtId, BinOp, BinRel, ConstDecl, Constant, Constraint, DataDecl, DataField, DataSort,
-        Expr, FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
+        self, AdtId, BinOp, BinRel, Constant, Constraint, DataDecl, DataField, DataSort, Expr,
+        FunDef, FunSort, KVarDecl, KVid, LocalVar, Pred, Sort, SortCtor, SortDecl, Var,
     },
 };
 
@@ -78,10 +78,15 @@ impl LeanFmt for SortDecl {
     }
 }
 
-impl LeanFmt for ConstDecl {
+impl LeanFmt for InterpretedConst {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
-        self.name.lean_fmt(f, cx)?;
-        write!(f, " : {}", WithLeanCtxt { item: &self.sort, cx })
+        write!(
+            f,
+            "def {} : {} := {}",
+            WithLeanCtxt { item: &self.0.name, cx },
+            WithLeanCtxt { item: &self.0.sort, cx },
+            WithLeanCtxt { item: &self.1, cx }
+        )
     }
 }
 
@@ -261,7 +266,7 @@ impl LeanFmt for LeanDataProj {
 impl LeanFmt for Var {
     fn lean_fmt(&self, f: &mut fmt::Formatter, cx: &LeanCtxt) -> fmt::Result {
         match self {
-            Var::Global(_gvar, Some(def_id)) => {
+            Var::Global(_gvar, def_id) => {
                 let path = cx
                     .genv
                     .tcx()
@@ -273,6 +278,15 @@ impl LeanFmt for Var {
                 } else {
                     write!(f, "{path}_{}", def_id.name())
                 }
+            }
+            Var::Const(_, Some(did)) => {
+                let path = cx
+                    .genv
+                    .tcx()
+                    .def_path(*did)
+                    .to_filename_friendly_no_crate()
+                    .replace("-", "_");
+                write!(f, "{path}")
             }
             Var::DataCtor(adt_id, idx) => {
                 write!(
