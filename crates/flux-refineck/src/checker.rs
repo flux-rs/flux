@@ -945,14 +945,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             if let Some(callee_def_id) = callee_def_id
                 && genv.def_kind(callee_def_id).is_fn_like()
             {
-                let mut callee_no_panic = fn_sig.no_panic();
-                let parent = tcx.parent(callee_def_id);
-                if tcx.is_lang_item(parent, LangItem::Fn) {
-                    let assoc_refts = genv.assoc_refinements_of(parent).with_span(span)?;
-                    if assoc_refts.find(Symbol::intern("no_panic")).is_some() {
-                        callee_no_panic = Expr::tt();
-                    }
-                }
+                let callee_no_panic = fn_sig.no_panic();
 
                 infcx.at(span).check_pred(
                     Expr::implies(no_panic, callee_no_panic),
