@@ -2193,32 +2193,46 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
         while let Some((key, const_)) = self.const_env.const_map.get_index(idx) {
             idx += 1;
 
-            let ConstKey::RustConst(def_id) = key else { continue };
-            let info = self.genv.constant_info(def_id)?;
-            match info {
-                rty::ConstantInfo::Uninterpreted => {}
-                rty::ConstantInfo::Interpreted(val, _) => {
-                    let const_name = const_.name;
-                    let const_sort = const_.sort.clone();
+            match key {
+                ConstKey::RustConst(def_id) => {
+                    let info = self.genv.constant_info(def_id)?;
+                    match info {
+                        rty::ConstantInfo::Uninterpreted => {}
+                        rty::ConstantInfo::Interpreted(val, _) => {
+                            let const_name = const_.name;
+                            let const_sort = const_.sort.clone();
 
-                    let e1 = fixpoint::Expr::Var(const_.name);
-                    let e2 = self.expr_to_fixpoint(&val, scx)?;
-                    let pred = fixpoint::Pred::Expr(e1.eq(e2));
+                            let e1 = fixpoint::Expr::Var(const_.name);
+                            let e2 = self.expr_to_fixpoint(&val, scx)?;
+                            let pred = fixpoint::Pred::Expr(e1.eq(e2));
 
-                    let bind = match self.backend {
-                        Backend::Fixpoint => {
-                            fixpoint::Bind {
-                                name: fixpoint::Var::Underscore,
-                                sort: fixpoint::Sort::Int,
-                                pred,
-                            }
+                            let bind = match self.backend {
+                                Backend::Fixpoint => {
+                                    fixpoint::Bind {
+                                        name: fixpoint::Var::Underscore,
+                                        sort: fixpoint::Sort::Int,
+                                        pred,
+                                    }
+                                }
+                                Backend::Lean => {
+                                    fixpoint::Bind { name: const_name, sort: const_sort, pred }
+                                }
+                            };
+                            constraint = fixpoint::Constraint::ForAll(bind, Box::new(constraint));
                         }
-                        Backend::Lean => {
-                            fixpoint::Bind { name: const_name, sort: const_sort, pred }
-                        }
-                    };
-                    constraint = fixpoint::Constraint::ForAll(bind, Box::new(constraint));
+                    }
                 }
+                ConstKey::Alias(..) if matches!(self.backend, Backend::Lean) => {
+                    constraint = fixpoint::Constraint::ForAll(
+                        fixpoint::Bind {
+                            name: const_.name,
+                            sort: const_.sort.clone(),
+                            pred: fixpoint::Pred::TRUE,
+                        },
+                        Box::new(constraint),
+                    );
+                }
+                _ => {}
             }
         }
         Ok(constraint)
