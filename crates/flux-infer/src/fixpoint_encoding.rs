@@ -2232,7 +2232,10 @@ impl<'genv, 'tcx> ExprEncodingCtxt<'genv, 'tcx> {
                         Box::new(constraint),
                     );
                 }
-                _ => {}
+                ConstKey::Alias(..)
+                | ConstKey::Cast(..)
+                | ConstKey::Lambda(..)
+                | ConstKey::PrimOp(..) => {}
             }
         }
         Ok(constraint)
