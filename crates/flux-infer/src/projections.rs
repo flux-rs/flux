@@ -790,6 +790,18 @@ fn normalize_alias_reft<'tcx>(
         return Ok((true, e));
     }
 
+    // if it's a builtin assoc reft, use that
+    if genv
+        .builtin_assoc_refts(alias_reft.assoc_id.parent())
+        .is_some()
+    {
+        let param_env = tcx.param_env(def_id);
+        let e = genv
+            .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
+            .apply(refine_args);
+        return Ok((true, e));
+    }
+
     // Get impl source
     let mut selcx = SelectionContext::new(infcx);
     let param_env = tcx.param_env(def_id);
