@@ -284,6 +284,7 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
                     .try_collect()?;
                 rty::BaseTy::Dynamic(exi_preds, *r)
             }
+            ty::TyKind::Pat => rty::BaseTy::Pat,
         };
         Ok(rty::TyOrBase::Base((self.refine)(bty)))
     }

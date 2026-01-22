@@ -853,6 +853,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Ty<'tcx> {
                 Ok(Ty::mk_dynamic(exi_preds, region))
             }
             rustc_ty::Foreign(def_id) => Ok(Ty::mk_foreign(*def_id)),
+            rustc_ty::Pat(..) => Ok(Ty::mk_pat()),
             _ => Err(UnsupportedReason::new(format!("unsupported type `{self:?}`"))),
         }
     }

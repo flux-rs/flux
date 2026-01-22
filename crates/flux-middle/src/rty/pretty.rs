@@ -595,6 +595,7 @@ impl Pretty for BaseTy {
             BaseTy::Foreign(def_id) => {
                 w!(cx, f, "{:?}", def_id)
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -848,6 +849,7 @@ impl PrettyNested for BaseTy {
                 let children = float_children(kidss);
                 Ok(NestedString { text, children, key: None })
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }

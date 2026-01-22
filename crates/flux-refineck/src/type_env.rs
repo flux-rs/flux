@@ -536,6 +536,9 @@ impl BasicBlockEnvShape {
                     bty.clone()
                 }
             }
+            BaseTy::Pat => {
+                todo!()
+            }
             BaseTy::Infer(..) => {
                 tracked_span_bug!("unexpected infer type")
             }
