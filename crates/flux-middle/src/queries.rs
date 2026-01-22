@@ -13,6 +13,7 @@ use flux_rustc_bridge::{
     mir::{self},
     ty,
 };
+use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
@@ -867,18 +868,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
                     let tcx = genv.tcx();
-                    // is the function Fn::call?
-                    let is_fn_call = tcx.opt_associated_item(def_id).is_some_and(|ai| {
-                        let is_callable_trait =
-                            ai.trait_container(tcx).is_some_and(|trait_def_id| {
-                                // this can't be FnOnce?
-                                tcx.is_lang_item(trait_def_id, rustc_hir::LangItem::Fn)
-                            });
-
-                        let is_call_method = ai.name() == Symbol::intern("call");
-
-                        is_callable_trait && is_call_method
-                    });
+                    let is_fn_call = sym::call == tcx.item_name(def_id);
 
                     let mut fn_sig = genv
                         .lower_fn_sig(def_id)?
