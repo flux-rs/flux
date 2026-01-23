@@ -875,12 +875,8 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
             bug!("could not get identity args for trait {trait_id:?}")
         };
 
-        println!("args: {:?}", args);
-
         let alias_reft = AliasReft { assoc_id: assoc_reft.def_id, args };
         let no_panic_inner = Expr::alias(alias_reft, List::empty());
-
-        println!("no panic inner: {:?}", no_panic_inner);
 
         let new_fn_sig = FnSig {
             safety: inner_sig.safety,

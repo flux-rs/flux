@@ -16,11 +16,11 @@ use flux_middle::{
 };
 use flux_rustc_bridge::{ToRustc, lowering::Lower};
 use itertools::izip;
-use rustc_hir::def_id::DefId;
+use rustc_hir::def_id::{DefId, DefPathHash};
 use rustc_infer::traits::Obligation;
 use rustc_middle::{
     traits::{ImplSource, ObligationCause},
-    ty::{TyCtxt, Variance},
+    ty::{AssocKind, TyCtxt, Variance},
 };
 use rustc_span::Symbol;
 use rustc_trait_selection::{
@@ -812,11 +812,27 @@ fn normalize_alias_reft<'tcx>(
         Some(ImplSource::UserDefined(impl_data)) => {
             // check to see if they're looking for no panic.
             if Symbol::intern("no_panic") == genv.assoc_refinement(alias_reft.assoc_id)?.name() {
-                let e = genv
-                    .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
-                    .apply(refine_args);
-                println!("e: {:?}", e);
-                // return Ok((true, e));
+                let mut all_no_panics: Expr = Expr::tt();
+
+                let items = tcx
+                    .impl_item_implementor_ids(impl_data.impl_def_id)
+                    .items()
+                    .map(|(trait_id, impl_id)| (tcx.def_path_hash(*impl_id), (*trait_id, *impl_id)))
+                    .into_sorted_stable_ord_by_key::<DefPathHash, _>(|(k, _)| k)
+                    .into_iter()
+                    .map(|(_, v)| v);
+
+                for (trait_id, impl_id) in items {
+                    let assoc = tcx.associated_item(trait_id);
+                    if !matches!(assoc.kind, AssocKind::Fn { name: _, has_self: _ }) {
+                        continue;
+                    }
+                    let fn_sig = genv.fn_sig(impl_id).ok().unwrap();
+                    all_no_panics =
+                        Expr::and(all_no_panics, fn_sig.skip_binder().skip_binder().no_panic());
+                }
+
+                return Ok((true, all_no_panics));
             }
 
             let impl_def_id = impl_data.impl_def_id;

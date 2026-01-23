@@ -1631,6 +1631,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         };
 
         if !matching_candidates.is_empty() {
+            println!("reporting name for assoc item: {}", assoc_name.name);
             self.report_ambiguous_assoc_item(assoc_name.span, tag, assoc_name)?;
         }
 

@@ -132,13 +132,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                     let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
                     rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
                 }
-                BaseTy::FnDef(_, _) => {
-                    panic!("hi!")
-                }
-                _ => {
-                    println!("you get nothin!");
-                    rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool)
-                }
+                _ => rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool),
             }
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)

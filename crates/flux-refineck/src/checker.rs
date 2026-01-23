@@ -948,8 +948,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             {
                 let callee_no_panic = fn_sig.no_panic();
 
-                println!("callee no panic: {:?}", callee_no_panic);
-
                 infcx.at(span).check_pred(
                     Expr::implies(no_panic, callee_no_panic),
                     ConstrReason::NoPanic(callee_def_id),
