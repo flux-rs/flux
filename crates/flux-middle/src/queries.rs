@@ -13,23 +13,25 @@ use flux_rustc_bridge::{
     mir::{self},
     ty,
 };
+use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hir::{
+    LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_index::IndexVec;
 use rustc_macros::{Decodable, Encodable};
-use rustc_span::{Span, Symbol};
+use rustc_span::{DUMMY_SP, Span, Symbol};
 
 use crate::{
     def_id::{FluxDefId, FluxId, MaybeExternId, ResolvedDefId},
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self,
+        self, AliasReft, Binder, Expr, FnSig, GenericArg,
         refining::{self, Refine, Refiner},
     },
 };
@@ -854,12 +856,47 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    fn try_apply_trait_no_panic(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+        fn_sig: rty::PolyFnSig,
+    ) -> Option<rty::PolyFnSig> {
+        let inner_sig = fn_sig.clone().skip_binder();
+        // get the parent trait for the method
+        // TODO: handle traitimpl cases?
+        let trait_id = genv.tcx().trait_of_assoc(def_id)?;
+        let assoc_reft = genv
+            .builtin_assoc_refts(trait_id)?
+            .find(Symbol::intern("no_panic"))?;
+
+        let Ok(args) = GenericArg::identity_for_item(genv, trait_id) else {
+            // maybe panic here?
+            bug!("could not get identity args for trait {trait_id:?}")
+        };
+
+        let alias_reft = AliasReft { assoc_id: assoc_reft.def_id, args };
+        let no_panic_inner = Expr::alias(alias_reft, List::empty());
+
+        let new_fn_sig = FnSig {
+            safety: inner_sig.safety,
+            abi: inner_sig.abi,
+            requires: inner_sig.requires,
+            inputs: inner_sig.inputs,
+            output: inner_sig.output,
+            no_panic: no_panic_inner,
+            lifted: inner_sig.lifted,
+        };
+
+        Some(fn_sig.rebind(new_fn_sig))
+    }
+
     pub(crate) fn fn_sig(
         &self,
         genv: GlobalEnv,
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        run_with_cache(&self.fn_sig, def_id, || {
+        let initial = run_with_cache(&self.fn_sig, def_id, || {
             def_id.dispatch_query(
                 genv,
                 |def_id| (self.providers.fn_sig)(genv, def_id),
@@ -873,7 +910,18 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )
-        })
+        });
+
+        if let Ok(ref fn_sig) = initial {
+            let fn_sig = fn_sig.clone().skip_binder();
+            if let Some(updated_sig) = self.try_apply_trait_no_panic(genv, def_id, fn_sig) {
+                Ok(rty::EarlyBinder(updated_sig))
+            } else {
+                initial
+            }
+        } else {
+            initial
+        }
     }
 }
 

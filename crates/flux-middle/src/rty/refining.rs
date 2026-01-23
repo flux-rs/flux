@@ -15,7 +15,8 @@ use super::{RefineArgsExt, fold::TypeFoldable};
 use crate::{
     global_env::GlobalEnv,
     queries::{QueryErr, QueryResult},
-    query_bug, rty,
+    query_bug,
+    rty::{self, Expr},
 };
 
 pub fn refine_generics(genv: GlobalEnv, def_id: DefId, generics: &ty::Generics) -> rty::Generics {
@@ -212,13 +213,14 @@ impl<'genv, 'tcx> Refiner<'genv, 'tcx> {
     pub fn refine_ty_or_base(&self, ty: &ty::Ty) -> QueryResult<rty::TyOrBase> {
         let bty = match ty.kind() {
             ty::TyKind::Closure(did, args) => {
+                let no_panic = self.genv.no_panic(did);
                 let closure_args = args.as_closure();
                 let upvar_tys = closure_args
                     .upvar_tys()
                     .iter()
                     .map(|ty| ty.refine(self))
                     .try_collect()?;
-                rty::BaseTy::Closure(*did, upvar_tys, args.clone())
+                rty::BaseTy::Closure(*did, upvar_tys, args.clone(), no_panic)
             }
             ty::TyKind::Coroutine(did, args) => {
                 let coroutine_args = args.as_coroutine();
@@ -344,7 +346,7 @@ impl Refine for ty::FnSig {
         // single hole for the "requires"; then we "fill" the hole with a KVAR
         // and generate a PolyFnSig with the hoisted variables
         // see `into_bb_env` in `type_env.rs` for an example.
-        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output, false, true))
+        Ok(rty::FnSig::new(self.safety, self.abi, List::empty(), inputs, output, Expr::ff(), true))
     }
 }
 

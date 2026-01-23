@@ -699,7 +699,7 @@ impl FnTraitPredicate {
             List::empty(),
             inputs,
             output,
-            false,
+            Expr::ff(),
             false,
         )
     }
@@ -721,7 +721,7 @@ pub fn to_closure_sig(
 
     let mut vars = poly_sig.vars().clone().to_vec();
     let fn_sig = poly_sig.clone().skip_binder();
-    let closure_ty = Ty::closure(closure_id.into(), tys, args);
+    let closure_ty = Ty::closure(closure_id.into(), tys, args, no_panic);
     let env_ty = match kind {
         ClosureKind::Fn => {
             vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
@@ -753,7 +753,7 @@ pub fn to_closure_sig(
         fn_sig.requires.clone(),
         inputs.into(),
         output,
-        no_panic,
+        if no_panic { crate::rty::Expr::tt() } else { crate::rty::Expr::ff() },
         false,
     );
 
@@ -1390,7 +1390,7 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
-    pub no_panic: bool,
+    pub no_panic: Expr,
     /// was this auto-lifted (or from a spec)
     pub lifted: bool,
 }
@@ -1603,8 +1603,9 @@ impl Ty {
         did: DefId,
         tys: impl Into<List<Ty>>,
         args: &flux_rustc_bridge::ty::GenericArgs,
+        no_panic: bool,
     ) -> Ty {
-        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
+        BaseTy::Closure(did, tys.into(), args.clone(), no_panic).to_ty()
     }
 
     pub fn coroutine(
@@ -1813,7 +1814,7 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, bool),
     Coroutine(
         DefId,
         /*resume_ty: */ Ty,
@@ -2100,7 +2101,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(did, _, args) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
+            BaseTy::Closure(did, _, args, _) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
@@ -2561,7 +2562,7 @@ impl CoroutineObligPredicate {
                 List::empty(),
                 inputs,
                 output,
-                false,
+                Expr::ff(),
                 false,
             ),
             List::from(vars),
@@ -2685,7 +2686,7 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
-        no_panic: bool,
+        no_panic: Expr,
         lifted: bool,
     ) -> Self {
         FnSig { safety, abi, requires, inputs, output, no_panic, lifted }
@@ -2699,8 +2700,8 @@ impl FnSig {
         &self.inputs
     }
 
-    pub fn no_panic(&self) -> bool {
-        self.no_panic
+    pub fn no_panic(&self) -> Expr {
+        self.no_panic.clone()
     }
 
     pub fn output(&self) -> Binder<FnOutput> {
@@ -2813,7 +2814,7 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
-                    true,
+                    Expr::tt(),
                     false,
                 )
             })

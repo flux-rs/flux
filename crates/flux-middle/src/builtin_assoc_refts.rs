@@ -4,13 +4,13 @@ use flux_arc_interner::List;
 use flux_common::bug;
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordMap;
-use rustc_hir::{LangItem, def_id::DefId};
-use rustc_span::DUMMY_SP;
+use rustc_hir::{LangItem, def::DefKind, def_id::DefId};
+use rustc_span::{DUMMY_SP, Symbol};
 
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, AliasReft, AssocRefinements, AssocReft},
+    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, GenericArg},
 };
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -26,6 +26,20 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 let tcx = self.tcx();
 
                 let mut map = UnordMap::default();
+
+                // no-panic
+                if def_id.is_local() && tcx.def_kind(def_id) == DefKind::Trait {
+                    map.insert(
+                        def_id,
+                        AssocRefinements {
+                            items: List::from_arr([AssocReft::new(
+                                FluxDefId::new(def_id, Symbol::intern("no_panic")),
+                                false,
+                                tcx.def_span(def_id),
+                            )]),
+                        },
+                    );
+                }
 
                 // Sized
                 let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
@@ -61,6 +75,19 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
+                if let Some(no_panic_id) = tcx
+                    .lang_items()
+                    .fn_once_trait()
+                    .map(|fn_def_id| FluxDefId::new(fn_def_id, Symbol::intern("no_panic")))
+                {
+                    map.insert(no_panic_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
+                }
+
+                // No Panic for all traits
+                if assoc_id.name() == Symbol::intern("no_panic") {
+                    map.insert(assoc_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
+                }
+
                 // Sized
                 let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
                 map.insert(
@@ -92,6 +119,21 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
+        } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic") {
+            let arg = &alias_reft.args[0];
+
+            let GenericArg::Base(ty) = arg else {
+                bug!("expected base ty for no_panic assoc reft, got {:?}", arg);
+            };
+            let bty = ty.as_bty_skipping_binder();
+
+            match bty {
+                BaseTy::Closure(_, _, _, no_panic) => {
+                    let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
+                    rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
+                }
+                _ => rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool),
+            }
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)
         }
