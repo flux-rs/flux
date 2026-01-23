@@ -13,6 +13,7 @@ use flux_middle::{
 use rustc_hash::FxHashSet;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::ty::TypingMode;
+use rustc_span::Symbol;
 
 pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> QueryResult {
     let trait_id = genv.tcx().trait_id_of_impl(impl_id.resolved_id()).unwrap();
@@ -26,7 +27,10 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
         let has_default = genv
             .default_assoc_refinement_body(trait_assoc_def_id)?
             .is_some();
-        if !impl_names.contains(&trait_assoc_reft.name()) && !has_default {
+        if !impl_names.contains(&trait_assoc_reft.name())
+            && !has_default
+            && trait_assoc_reft.name() != Symbol::intern("no_panic")
+        {
             let span = genv.tcx().def_span(impl_id);
             Err(genv.emit(errors::MissingAssocReft::new(span, trait_assoc_reft.name())))?;
         } else if impl_names.contains(&trait_assoc_reft.name()) && trait_assoc_reft.final_ {
@@ -67,6 +71,9 @@ pub fn check_impl_against_trait(genv: GlobalEnv, impl_id: MaybeExternId) -> Quer
                 .expect_impl()
                 .find_assoc_reft(name)
                 .unwrap();
+            if name == Symbol::intern("no_panic") {
+                continue;
+            }
             Err(genv.emit(errors::InvalidAssocReft::new(
                 fhir_impl_assoc_reft.span,
                 name,

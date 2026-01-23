@@ -108,10 +108,6 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
     ) -> rty::Lambda {
         let tcx = self.tcx();
 
-        if tcx.def_kind(alias_reft.assoc_id.parent()) == DefKind::Trait {
-            return rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool);
-        }
-
         if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::Sized)
             && alias_reft.assoc_id.name() == sym::size_of
         {
@@ -123,9 +119,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-        } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic")
-            && tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
-        {
+        } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic") {
             let arg = &alias_reft.args[0];
 
             let GenericArg::Base(ty) = arg else {
@@ -138,7 +132,13 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                     let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
                     rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
                 }
-                _ => rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool),
+                BaseTy::FnDef(_, _) => {
+                    panic!("hi!")
+                }
+                _ => {
+                    println!("you get nothin!");
+                    rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool)
+                }
             }
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)

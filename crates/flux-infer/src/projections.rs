@@ -22,6 +22,7 @@ use rustc_middle::{
     traits::{ImplSource, ObligationCause},
     ty::{TyCtxt, Variance},
 };
+use rustc_span::Symbol;
 use rustc_trait_selection::{
     solve::deeply_normalize,
     traits::{FulfillmentError, SelectionContext},
@@ -809,6 +810,15 @@ fn normalize_alias_reft<'tcx>(
 
     match impl_source {
         Some(ImplSource::UserDefined(impl_data)) => {
+            // check to see if they're looking for no panic.
+            if Symbol::intern("no_panic") == genv.assoc_refinement(alias_reft.assoc_id)?.name() {
+                let e = genv
+                    .builtin_assoc_reft_body(infcx.typing_env(param_env), alias_reft)
+                    .apply(refine_args);
+                println!("e: {:?}", e);
+                // return Ok((true, e));
+            }
+
             let impl_def_id = impl_data.impl_def_id;
             let args = Refiner::default_for_item(genv, def_id)?.refine_generic_args(
                 impl_def_id,

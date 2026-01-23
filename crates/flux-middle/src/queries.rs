@@ -31,7 +31,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, AliasReft, Binder, Expr, GenericArg,
+        self, AliasReft, Binder, Expr, FnSig, GenericArg,
         refining::{self, Refine, Refiner},
     },
 };
@@ -763,13 +763,6 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         genv: GlobalEnv,
         trait_assoc_id: FluxDefId,
     ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
-        // if trait_assoc_id.name() == Symbol::intern("no_panic") {
-        //     return Ok(Some(rty::EarlyBinder(rty::Lambda::bind_with_vars(
-        //         Expr::ff(),
-        //         List::empty(),
-        //         rty::Sort::Bool,
-        //     ))));
-        // }
         run_with_cache(&self.default_assoc_refinement_body, trait_assoc_id, || {
             trait_assoc_id.dispatch_query(
                 genv,
@@ -863,53 +856,76 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    fn try_apply_trait_no_panic(
+        &self,
+        genv: GlobalEnv,
+        def_id: DefId,
+        fn_sig: rty::PolyFnSig,
+    ) -> Option<rty::PolyFnSig> {
+        let inner_sig = fn_sig.clone().skip_binder();
+        // get the parent trait for the method
+        // TODO: handle traitimpl cases?
+        let trait_id = genv.tcx().trait_of_assoc(def_id)?;
+        let assoc_reft = genv
+            .builtin_assoc_refts(trait_id)?
+            .find(Symbol::intern("no_panic"))?;
+
+        let Ok(args) = GenericArg::identity_for_item(genv, trait_id) else {
+            // maybe panic here?
+            bug!("could not get identity args for trait {trait_id:?}")
+        };
+
+        println!("args: {:?}", args);
+
+        let alias_reft = AliasReft { assoc_id: assoc_reft.def_id, args };
+        let no_panic_inner = Expr::alias(alias_reft, List::empty());
+
+        println!("no panic inner: {:?}", no_panic_inner);
+
+        let new_fn_sig = FnSig {
+            safety: inner_sig.safety,
+            abi: inner_sig.abi,
+            requires: inner_sig.requires,
+            inputs: inner_sig.inputs,
+            output: inner_sig.output,
+            no_panic: no_panic_inner,
+            lifted: inner_sig.lifted,
+        };
+
+        Some(fn_sig.rebind(new_fn_sig))
+    }
+
     pub(crate) fn fn_sig(
         &self,
         genv: GlobalEnv,
         def_id: DefId,
     ) -> QueryResult<rty::EarlyBinder<rty::PolyFnSig>> {
-        run_with_cache(&self.fn_sig, def_id, || {
+        let initial = run_with_cache(&self.fn_sig, def_id, || {
             def_id.dispatch_query(
                 genv,
                 |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    let tcx = genv.tcx();
-                    let is_fn_call = sym::call == tcx.item_name(def_id);
-
-                    let mut fn_sig = genv
+                    let fn_sig = genv
                         .lower_fn_sig(def_id)?
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
-
-                    if is_fn_call {
-                        let mut inner_sig = fn_sig.clone().skip_binder();
-
-                        let fn_once_assoc_reft = genv
-                            .builtin_assoc_refts(
-                                genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
-                            )
-                            .unwrap()
-                            .find(Symbol::intern("no_panic"))
-                            .unwrap();
-
-                        let args = GenericArg::identity_for_item(
-                            genv,
-                            genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
-                        )?;
-
-                        let alias_reft = AliasReft { assoc_id: fn_once_assoc_reft.def_id, args };
-
-                        inner_sig.no_panic = Expr::alias(alias_reft, List::empty());
-
-                        fn_sig = fn_sig.rebind(inner_sig);
-                    }
-
                     Ok(rty::EarlyBinder(fn_sig))
                 },
             )
-        })
+        });
+
+        if let Ok(ref fn_sig) = initial {
+            let fn_sig = fn_sig.clone().skip_binder();
+            if let Some(updated_sig) = self.try_apply_trait_no_panic(genv, def_id, fn_sig) {
+                Ok(rty::EarlyBinder(updated_sig))
+            } else {
+                initial
+            }
+        } else {
+            initial
+        }
     }
 }
 

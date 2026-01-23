@@ -357,11 +357,14 @@ fn default_assoc_refinement_body(
     trait_assoc_id: FluxId<MaybeExternId>,
 ) -> QueryResult<Option<rty::EarlyBinder<rty::Lambda>>> {
     let trait_id = trait_assoc_id.parent();
-    let assoc_reft = genv
-        .fhir_expect_item(trait_id.local_id())?
-        .expect_trait()
-        .find_assoc_reft(trait_assoc_id.name())
-        .unwrap();
+    let assoc_reft = if trait_assoc_id.name() == Symbol::intern("no_panic") {
+        NO_PANIC_ASSOC_REFT.get().unwrap()
+    } else {
+        genv.fhir_expect_item(trait_id.local_id())?
+            .expect_trait()
+            .find_assoc_reft(trait_assoc_id.name())
+            .unwrap()
+    };
     let Some(body) = assoc_reft.body else { return Ok(None) };
     let wfckresults = genv.check_wf(trait_id.local_id())?;
     let mut cx = AfterSortck::new(genv, &wfckresults).into_conv_ctxt();
