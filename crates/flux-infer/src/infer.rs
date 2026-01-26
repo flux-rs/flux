@@ -7,13 +7,14 @@ use flux_middle::{
     FixpointQueryKind,
     def_id::MaybeExternId,
     global_env::GlobalEnv,
+    metrics::{self, Metric},
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AliasKind, AliasTy, BaseTy, Binder, BoundVariableKinds, CoroutineObligPredicate,
-        Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj, GenericArg, HoleKind, InferMode,
-        Lambda, List, Loc, Mutability, Name, Path, PolyVariant, PtrKind, RefineArgs, RefineArgsExt,
-        Region, Sort, Ty, TyCtor, TyKind, Var,
+        self, AliasKind, AliasTy, BaseTy, Binder, BoundReftKind, BoundVariableKinds,
+        CoroutineObligPredicate, Ctor, ESpan, EVid, EarlyBinder, Expr, ExprKind, FieldProj,
+        GenericArg, HoleKind, InferMode, Lambda, List, Loc, Mutability, Name, NameProvenance, Path,
+        PolyVariant, PtrKind, RefineArgs, RefineArgsExt, Region, Sort, Ty, TyCtor, TyKind, Var,
         canonicalize::{Hoister, HoisterDelegate},
         fold::TypeFoldable,
     },
@@ -25,12 +26,14 @@ use rustc_middle::{
     mir::BasicBlock,
     ty::{TyCtxt, Variance},
 };
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 use rustc_type_ir::Variance::Invariant;
 
 use crate::{
     evars::{EVarState, EVarStore},
-    fixpoint_encoding::{Answer, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen},
+    fixpoint_encoding::{
+        Answer, Backend, FixQueryCache, FixpointCtxt, KVarEncoding, KVarGen, KVarSolutions,
+    },
     projections::NormalizeExt as _,
     refine_tree::{Cursor, Marker, RefineTree, Scope},
 };
@@ -77,6 +80,7 @@ pub enum ConstrReason {
     Overflow,
     Underflow,
     Subtype(SubtypeReason),
+    NoPanic(DefId),
     Other,
 }
 
@@ -202,7 +206,11 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         inner.kvars.fresh(binders, scope.iter(), encoding)
     }
 
-    pub fn execute_lean_query(self, def_id: MaybeExternId) -> QueryResult<()> {
+    pub fn execute_lean_query(
+        self,
+        cache: &mut FixQueryCache,
+        def_id: MaybeExternId,
+    ) -> QueryResult {
         let inner = self.inner.into_inner();
         let kvars = inner.kvars;
         let evars = inner.evars;
@@ -210,9 +218,25 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
         refine_tree.replace_evars(&evars).unwrap();
         refine_tree.simplify(self.genv);
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-        fcx.generate_and_check_lean_lemmas(cstr)
+        let solver = match self.opts.solver {
+            flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
+            flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
+        };
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Lean);
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
+        let cstr_variable_sorts = cstr.variable_sorts();
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, solver)?;
+        let result = fcx.run_task(cache, def_id, FixpointQueryKind::Body, &task)?;
+
+        fcx.generate_lean_files(
+            def_id,
+            task,
+            KVarSolutions::closed_solutions(
+                cstr_variable_sorts,
+                result.solution,
+                result.non_cut_solution,
+            ),
+        )
     }
 
     pub fn execute_fixpoint_query(
@@ -241,15 +265,25 @@ impl<'genv, 'tcx> InferCtxtRoot<'genv, 'tcx> {
                 .unwrap();
         }
 
-        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars);
-        let cstr = refine_tree.into_fixpoint(&mut fcx)?;
-
         let backend = match self.opts.solver {
             flux_config::SmtSolver::Z3 => liquid_fixpoint::SmtSolver::Z3,
             flux_config::SmtSolver::CVC5 => liquid_fixpoint::SmtSolver::CVC5,
         };
 
-        fcx.check(cache, def_id, cstr, kind, self.opts.scrape_quals, backend)
+        let mut fcx = FixpointCtxt::new(self.genv, def_id, kvars, Backend::Fixpoint);
+        let cstr = refine_tree.to_fixpoint(&mut fcx)?;
+
+        // skip checking trivial constraints
+        let count = cstr.concrete_head_count();
+        metrics::incr_metric(Metric::CsTotal, count as u32);
+        if count == 0 {
+            metrics::incr_metric_if(kind.is_body(), Metric::FnTrivial);
+            return Ok(Answer::trivial());
+        }
+
+        let task = fcx.create_task(def_id, cstr, self.opts.scrape_quals, backend)?;
+        let result = fcx.run_task(cache, def_id, kind, &task)?;
+        Ok(fcx.result_to_answer(result))
     }
 
     pub fn split(self) -> (RefineTree, KVarGen) {
@@ -448,8 +482,16 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         InferCtxt { cursor: self.cursor.branch(), ..*self }
     }
 
-    pub fn define_var(&mut self, sort: &Sort) -> Name {
-        self.cursor.define_var(sort)
+    fn define_var(&mut self, sort: &Sort, provenance: NameProvenance) -> Name {
+        self.cursor.define_var(sort, provenance)
+    }
+
+    pub fn define_bound_reft_var(&mut self, sort: &Sort, kind: BoundReftKind) -> Name {
+        self.define_var(sort, NameProvenance::UnfoldBoundReft(kind))
+    }
+
+    pub fn define_unknown_var(&mut self, sort: &Sort) -> Name {
+        self.cursor.define_var(sort, NameProvenance::Unknown)
     }
 
     pub fn check_pred(&mut self, pred: impl Into<Expr>, tag: Tag) {
@@ -464,6 +506,12 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         self.hoister(false).hoist(ty)
     }
 
+    pub fn unpack_at_name(&mut self, name: Option<Symbol>, ty: &Ty) -> Ty {
+        let mut hoister = self.hoister(false);
+        hoister.delegate.name = name;
+        hoister.hoist(ty)
+    }
+
     pub fn marker(&self) -> Marker {
         self.cursor.marker()
     }
@@ -472,7 +520,8 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
         &mut self,
         assume_invariants: bool,
     ) -> Hoister<Unpacker<'_, 'infcx, 'genv, 'tcx>> {
-        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants }).transparent()
+        Hoister::with_delegate(Unpacker { infcx: self, assume_invariants, name: None })
+            .transparent()
     }
 
     pub fn assume_invariants(&mut self, ty: &Ty) {
@@ -488,12 +537,15 @@ impl<'infcx, 'genv, 'tcx> InferCtxt<'infcx, 'genv, 'tcx> {
 pub struct Unpacker<'a, 'infcx, 'genv, 'tcx> {
     infcx: &'a mut InferCtxt<'infcx, 'genv, 'tcx>,
     assume_invariants: bool,
+    name: Option<Symbol>,
 }
 
 impl HoisterDelegate for Unpacker<'_, '_, '_, '_> {
     fn hoist_exists(&mut self, ty_ctor: &TyCtor) -> Ty {
-        let ty =
-            ty_ctor.replace_bound_refts_with(|sort, _, _| Expr::fvar(self.infcx.define_var(sort)));
+        let ty = ty_ctor.replace_bound_refts_with(|sort, _, kind| {
+            let kind = if let Some(name) = self.name { BoundReftKind::Named(name) } else { kind };
+            Expr::fvar(self.infcx.define_bound_reft_var(sort, kind))
+        });
         if self.assume_invariants {
             self.infcx.assume_invariants(&ty);
         }
@@ -555,9 +607,10 @@ impl<'genv, 'tcx> InferCtxtAt<'_, '_, 'genv, 'tcx> {
         a: &Ty,
         b: &Ty,
         reason: ConstrReason,
-    ) -> InferResult {
+    ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
         let mut sub = Sub::new(env, reason, self.span);
-        sub.tys(self.infcx, a, b)
+        sub.tys(self.infcx, a, b)?;
+        Ok(sub.obligations)
     }
 
     /// Relate types via subtyping and returns coroutine obligations. This doesn't handle subtyping
@@ -700,15 +753,15 @@ impl LocEnv for DummyEnv {
         _: &Path,
         _: Ty,
     ) -> InferResult<Ty> {
-        bug!("call to `ptr_to_ref` on `DummyEnv`")
+        tracked_span_bug!("call to `ptr_to_ref` on `DummyEnv`")
     }
 
     fn unfold_strg_ref(&mut self, _: &mut InferCtxt, _: &Path, _: &Ty) -> InferResult<Loc> {
-        bug!("call to `unfold_str_ref` on `DummyEnv`")
+        tracked_span_bug!("call to `unfold_str_ref` on `DummyEnv`")
     }
 
     fn get(&self, _: &Path) -> Ty {
-        bug!("call to `get` on `DummyEnv`")
+        tracked_span_bug!("call to `get` on `DummyEnv`")
     }
 }
 
@@ -952,7 +1005,9 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 tracked_span_assert_eq!(preds_a.erase_regions(), preds_b.erase_regions());
                 Ok(())
             }
-            (BaseTy::Closure(did1, tys_a, _), BaseTy::Closure(did2, tys_b, _)) if did1 == did2 => {
+            (BaseTy::Closure(did1, tys_a, _, _), BaseTy::Closure(did2, tys_b, _, _))
+                if did1 == did2 =>
+            {
                 debug_assert_eq!(tys_a.len(), tys_b.len());
                 for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
                     self.tys(infcx, ty_a, ty_b)?;
@@ -964,6 +1019,20 @@ impl<'a, E: LocEnv> Sub<'a, E> {
                 Ok(())
             }
             (BaseTy::Never, BaseTy::Never) => Ok(()),
+            (
+                BaseTy::Coroutine(did1, resume_ty_a, tys_a, _),
+                BaseTy::Coroutine(did2, resume_ty_b, tys_b, _),
+            ) if did1 == did2 => {
+                debug_assert_eq!(tys_a.len(), tys_b.len());
+                for (ty_a, ty_b) in iter::zip(tys_a, tys_b) {
+                    self.tys(infcx, ty_a, ty_b)?;
+                }
+                // TODO(RJ): Treating resume type as invariant...but I think they should be contravariant(?)
+                self.tys(infcx, resume_ty_b, resume_ty_a)?;
+                self.tys(infcx, resume_ty_a, resume_ty_b)?;
+
+                Ok(())
+            }
             _ => Err(query_bug!("incompatible base types: `{a:?}` - `{b:?}`"))?,
         }
     }
@@ -1077,7 +1146,10 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         let vars = a
             .vars()
             .iter()
-            .map(|kind| Expr::fvar(infcx.define_var(kind.expect_sort())))
+            .map(|kind| {
+                let (sort, _, kind) = kind.expect_refine();
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            })
             .collect_vec();
         let body_a = a.apply(&vars);
         let body_b = b.apply(&vars);
@@ -1090,13 +1162,14 @@ impl<'a, E: LocEnv> Sub<'a, E> {
         bty: &BaseTy,
         alias_ty: &AliasTy,
     ) -> InferResult {
-        if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys) = bty {
+        if let BaseTy::Coroutine(def_id, resume_ty, upvar_tys, args) = bty {
             let obligs = mk_coroutine_obligations(
                 infcx.genv,
                 def_id,
                 resume_ty,
                 upvar_tys,
                 &alias_ty.def_id,
+                args.clone(),
             )?;
             self.obligations.extend(obligs);
         } else {
@@ -1129,6 +1202,7 @@ fn mk_coroutine_obligations(
     resume_ty: &Ty,
     upvar_tys: &List<Ty>,
     opaque_def_id: &DefId,
+    args: flux_rustc_bridge::ty::GenericArgs,
 ) -> InferResult<Vec<Binder<rty::CoroutineObligPredicate>>> {
     let bounds = genv.item_bounds(*opaque_def_id)?.skip_binder();
     for bound in &bounds {
@@ -1140,6 +1214,7 @@ fn mk_coroutine_obligations(
                     resume_ty: resume_ty.clone(),
                     upvar_tys: upvar_tys.clone(),
                     output: output.to_ty(),
+                    args,
                 }
             })]);
         }

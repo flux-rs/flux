@@ -26,6 +26,7 @@ echo "Days per iteration: $days_per_iter"
 
 
 curr_toolchain=$start_toolchain
+prev_toolchain=""
 while true; do
   curr_toolchain=$(date -I -d "$curr_toolchain + $days_per_iter day")
   if [[ "$curr_toolchain" > "$end_toolchain" ]]; then
@@ -36,6 +37,12 @@ while true; do
   sed -i "s/^channel = \"nightly-[0-9\-]*\"/channel = \"nightly-$curr_toolchain\"/" rust-toolchain.toml
   git add rust-toolchain.toml
   git commit -m "Upgrade to nightly-$curr_toolchain"
+
+  # Remove the previous toolchain to save disk space
+  if [ -n "$prev_toolchain" ]; then
+    rustup toolchain remove "nightly-$prev_toolchain"
+  fi
+
   cargo clean
   echo "::endgroup::"
 
@@ -58,6 +65,7 @@ while true; do
   cd ../flux
   echo "::endgroup::"
 
+  prev_toolchain="$curr_toolchain"
   if [[ "$curr_toolchain" == "$end_toolchain" ]]; then
     break
   fi

@@ -2,6 +2,7 @@
 use std::{
     fmt, fs,
     io::{self, Write},
+    path::Path,
 };
 
 use flux_config as config;
@@ -38,6 +39,15 @@ impl SpanTrace {
         let (_, start_line, start_col, end_line, end_col) = sm.span_to_location_info(span);
         let file = SpanTrace::span_file(tcx, span);
         SpanTrace { file, start_line, start_col, end_line, end_col }
+    }
+    pub fn from_path(path: &Path, start_line: usize, start_col: usize, len: usize) -> Self {
+        SpanTrace {
+            file: Some(path.display().to_string()),
+            start_line,
+            start_col,
+            end_line: start_line,
+            end_col: start_col + len,
+        }
     }
 }
 
@@ -99,6 +109,19 @@ macro_rules! _basic_block_start {
 pub use crate::_basic_block_start as basic_block_start;
 
 #[macro_export]
+macro_rules! _solution {
+    ($genv:expr, $ans:expr, $span:expr) => {{
+        if config::dump_checker_trace_info() {
+          let genv = $genv;
+          let sol_json = SolutionTrace::new(genv, $ans);
+          let span_json = SpanTrace::new(genv.tcx(), $span);
+          tracing::info!(event = "solution", span = ?span_json, solution = ?sol_json)
+        }
+    }};
+}
+pub use crate::_solution as solution;
+
+#[macro_export]
 macro_rules! _statement{
     ($pos:literal, $stmt:expr, $infcx:expr, $env:expr, $span:expr, $checker:expr) => {{
         if config::dump_checker_trace_info() {
@@ -107,8 +130,9 @@ macro_rules! _statement{
           let genv = ck.genv;
           let local_names = &ck.body.local_names;
           let local_decls = &ck.body.local_decls;
-          let rcx_json = RefineCtxtTrace::new(genv, rcx);
-          let env_json = TypeEnvTrace::new(genv, local_names, local_decls, $env);
+          let mut cx = PrettyCx::default(genv).show_kvar_args();
+          let rcx_json = RefineCtxtTrace::new(&mut cx, rcx);
+          let env_json = TypeEnvTrace::new(genv, local_names, local_decls, cx, $env);
           let span_json = SpanTrace::new(genv.tcx(), $span);
           tracing::info!(event = concat!("statement_", $pos), stmt = ?$stmt, stmt_span = ?$span, rcx = ?rcx, env = ?$env, rcx_json = ?rcx_json, env_json = ?env_json, stmt_span_json = ?span_json)
         }
@@ -162,6 +186,15 @@ macro_rules! _hyperlink {
 }
 pub use crate::_hyperlink as hyperlink;
 
+#[macro_export]
+macro_rules! _hyperlink_json {
+    ($tcx:expr, $src_span:expr, $dst_json:expr) => {{
+       let src_json = SpanTrace::new($tcx, $src_span);
+       tracing::warn!(event = "hyperlink", src_span = ?src_json, dst_span = ?$dst_json)
+    }};
+}
+pub use crate::_hyperlink_json as hyperlink_json;
+
 fn dump_base_name(tcx: TyCtxt, def_id: DefId, ext: impl AsRef<str>) -> String {
     let crate_name = tcx.crate_name(def_id.krate);
     let item_name = tcx.def_path(def_id).to_filename_friendly_no_crate();
@@ -175,3 +208,24 @@ macro_rules! _debug_assert_eq3 {
     }};
 }
 pub use crate::_debug_assert_eq3 as debug_assert_eq3;
+
+pub fn as_subscript<T: ToString>(n: T) -> String {
+    n.to_string()
+        .chars()
+        .map(|c| {
+            match c {
+                '0' => '₀',
+                '1' => '₁',
+                '2' => '₂',
+                '3' => '₃',
+                '4' => '₄',
+                '5' => '₅',
+                '6' => '₆',
+                '7' => '₇',
+                '8' => '₈',
+                '9' => '₉',
+                _ => c,
+            }
+        })
+        .collect()
+}

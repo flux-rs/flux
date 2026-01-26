@@ -138,7 +138,9 @@ pub fn pprint_with_default_cx<T: Pretty>(
 pub use crate::_impl_debug_with_default_cx as impl_debug_with_default_cx;
 use crate::{
     global_env::GlobalEnv,
-    rty::{AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam},
+    rty::{
+        AdtSortDef, BoundReft, BoundReftKind, BoundVariableKind, EarlyReftParam, Name, PrettyMap,
+    },
 };
 
 #[derive(Copy, Clone)]
@@ -195,6 +197,7 @@ pub struct PrettyCx<'genv, 'tcx> {
     pub hide_refinements: bool,
     pub hide_regions: bool,
     pub hide_sorts: bool,
+    pub pretty_var_env: PrettyMap<Name>,
     pub bvar_env: BoundVarEnv,
     pub earlyparam_env: RefCell<Option<EarlyParamEnv>>,
 }
@@ -224,6 +227,7 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
             hide_refinements: false,
             hide_regions: false,
             hide_sorts: true,
+            pretty_var_env: PrettyMap::new(),
             bvar_env: BoundVarEnv::default(),
             earlyparam_env: RefCell::new(None),
         }
@@ -380,6 +384,27 @@ impl<'genv, 'tcx> PrettyCx<'genv, 'tcx> {
 
     pub fn hide_refinements(self, b: bool) -> Self {
         Self { hide_refinements: b, ..self }
+    }
+
+    pub fn show_kvar_args(self) -> Self {
+        Self { kvar_args: KVarArgs::All, ..self }
+    }
+
+    pub fn nested_with_bound_vars(
+        &self,
+        left: &str,
+        vars: &[BoundVariableKind],
+        right: Option<String>,
+        f: impl FnOnce(String) -> Result<NestedString, fmt::Error>,
+    ) -> Result<NestedString, fmt::Error> {
+        let mut buffer = String::new();
+        self.with_bound_vars(vars, || {
+            if !vars.is_empty() {
+                let right = right.unwrap_or(". ".to_string());
+                self.fmt_bound_vars(false, left, vars, &right, &mut buffer)?;
+            }
+            f(buffer)
+        })
     }
 }
 

@@ -241,7 +241,6 @@ pub enum Rvalue<'tcx> {
     RawPtr(RawPtrKind, Place),
     Cast(CastKind, Operand<'tcx>, Ty),
     BinaryOp(BinOp, Operand<'tcx>, Operand<'tcx>),
-    NullaryOp(NullOp, Ty),
     UnaryOp(UnOp, Operand<'tcx>),
     Discriminant(Place),
     Aggregate(AggregateKind, Vec<Operand<'tcx>>),
@@ -296,12 +295,6 @@ pub enum BinOp {
     Shr,
 }
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub enum NullOp {
-    SizeOf,
-    AlignOf,
-}
-
 pub enum Operand<'tcx> {
     Copy(Place),
     Move(Place),
@@ -345,6 +338,11 @@ impl Place {
         let mut projection = self.projection.clone();
         projection.push(PlaceElem::Deref);
         Place { local: self.local, projection }
+    }
+
+    // TODO(source-level-binders): use the bits from the `projection` too?
+    pub fn name(&self, local_names: &UnordMap<Local, Symbol>) -> Option<Symbol> {
+        if self.projection.is_empty() { local_names.get(&self.local).copied() } else { None }
     }
 }
 
@@ -691,7 +689,6 @@ impl fmt::Debug for Rvalue<'_> {
             Rvalue::RawPtr(mutbl, place) => write!(f, "&raw {} {place:?}", mutbl.ptr_str()),
             Rvalue::Discriminant(place) => write!(f, "discriminant({place:?})"),
             Rvalue::BinaryOp(bin_op, op1, op2) => write!(f, "{bin_op:?}({op1:?}, {op2:?})"),
-            Rvalue::NullaryOp(null_op, ty) => write!(f, "{null_op:?}({ty:?})"),
             Rvalue::UnaryOp(un_op, op) => write!(f, "{un_op:?}({op:?})"),
             Rvalue::Aggregate(AggregateKind::Adt(def_id, variant_idx, args, _, _), operands) => {
                 let (fname, variant_name) = rustc_middle::ty::tls::with(|tcx| {

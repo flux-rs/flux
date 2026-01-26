@@ -1,11 +1,10 @@
 use std::fmt;
 
-use indexmap::IndexSet;
+use indexmap::IndexMap;
 use itertools::Itertools;
 
 use crate::{
     BinOp, BinRel, Bind, Constant, Expr, Identifier, Pred, Sort, SortCtor, ThyFunc, Types,
-    constraint::BoundVar,
     sexp::{Atom, ParseError as SexpParseError, Sexp},
 };
 
@@ -28,6 +27,7 @@ impl Identifier for String {
 }
 
 pub trait FromSexp<T: Types> {
+    fn fresh_var(&mut self) -> T::Var;
     // These are the only methods required to implement FromSexp
     fn var(&self, name: &str) -> Result<T::Var, ParseError>;
     fn kvar(&self, name: &str) -> Result<T::KVar, ParseError>;
@@ -44,10 +44,10 @@ pub trait FromSexp<T: Types> {
 pub struct FromSexpWrapper<T: Types, Parser> {
     pub parser: Parser,
     pub _phantom: std::marker::PhantomData<T>,
-    scopes: Vec<IndexSet<String>>,
+    scopes: Vec<IndexMap<String, T::Var>>,
 }
 
-type KvarSolution<T> = (Vec<Sort<T>>, Expr<T>);
+type KvarSolution<T> = (Vec<(<T as Types>::Var, Sort<T>)>, Expr<T>);
 
 impl<T, Parser: FromSexp<T>> FromSexpWrapper<T, Parser>
 where
@@ -129,8 +129,10 @@ where
                     match maybe_strs {
                         Some(strs) => {
                             let kvar = self.parser.kvar(&strs[0])?;
-                            let args =
-                                strs[1..].iter().map(|s| self.parser.var(s)).try_collect()?;
+                            let mut args = vec![];
+                            for s in &strs[1..] {
+                                args.push(Expr::Var(self.parser.var(s)?));
+                            }
                             Ok(Pred::KVar(kvar, args))
                         }
                         _ => Err(ParseError::err("Expected all list elements to be strings")),
@@ -156,6 +158,7 @@ where
             Sexp::List(items) => {
                 if let Sexp::Atom(Atom::S(s)) = &items[0] {
                     match s.as_str() {
+                        "cast" => self.parse_expr(&items[1]),
                         "exists" => self.parse_exists(&items[1..]),
                         "let" => self.parse_let(sexp),
                         "not" => self.parse_not(sexp),
@@ -186,8 +189,10 @@ where
             }
             Sexp::Atom(Atom::Q(s)) => Ok(Expr::Constant(Constant::String(self.parser.string(s)?))),
             Sexp::Atom(Atom::B(b)) => Ok(Expr::Constant(Constant::Boolean(*b))),
-            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i as u128))),
-            Sexp::Atom(Atom::F(f)) => Ok(Expr::Constant(Constant::Real(*f as u128))),
+            Sexp::Atom(Atom::I(i)) => Ok(Expr::Constant(Constant::Numeral(*i))),
+            Sexp::Atom(Atom::F(_f)) => {
+                unimplemented!("Float parsing not supported in fixpoint (see Constant::Real)")
+            }
         }
     }
 
@@ -302,13 +307,29 @@ where
     fn parse_app(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
-                let exp1 = self.parse_expr_possibly_nested(&items[0])?;
-                let args: Vec<Expr<T>> = items[1..]
-                    .to_vec()
-                    .iter()
-                    .map(|sexp| self.parse_expr_possibly_nested(sexp))
-                    .try_collect()?;
-                Ok(Expr::App(Box::new(exp1), None, args))
+                let Sexp::List(inner) = &items[0] else {
+                    Err(ParseError::err("Expected list for inner func"))?
+                };
+                match &inner[1] {
+                    Sexp::Atom(Atom::S(s)) if s == "apply" => {
+                        let func_sort = self.parse_sort(&inner[2])?;
+                        let func = self.parse_expr_possibly_nested(&items[1])?;
+                        Ok(Expr::App(Box::new(func), None, vec![], Some(func_sort)))
+                    }
+                    _ => {
+                        let args: Vec<Expr<T>> = items[1..]
+                            .to_vec()
+                            .iter()
+                            .map(|sexp| self.parse_expr_possibly_nested(sexp))
+                            .try_collect()?;
+                        Ok(Expr::App(
+                            Box::new(self.parse_expr_possibly_nested(&items[0])?),
+                            None,
+                            args,
+                            None,
+                        ))
+                    }
+                }
             }
             _ => Err(ParseError::err("Expected list for app")),
         }
@@ -357,8 +378,13 @@ where
         }
         self.push_scope(&names);
         let body = self.parse_expr_possibly_nested(body)?;
-        self.pop_scope();
-        Ok(Expr::Exists(sorts, Box::new(body)))
+        let mut scope = self.pop_scope().unwrap();
+        let bound = names
+            .iter()
+            .zip(sorts)
+            .map(|(name, sort)| (scope.swap_remove(name).unwrap(), sort))
+            .collect();
+        Ok(Expr::Exists(bound, Box::new(body)))
     }
 
     fn parse_let(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
@@ -412,7 +438,7 @@ where
         if ctor == "Set_Set" && args.len() == 1 {
             return Ok(Sort::App(SortCtor::Set, args));
         }
-        if (ctor == "Map_t") && args.len() == 2 {
+        if (ctor == "Map_t" || ctor == "Array_t") && args.len() == 2 {
             return Ok(Sort::App(SortCtor::Map, args));
         }
         if ctor == "BitVec" && args.len() == 1 {
@@ -436,6 +462,11 @@ where
                     Ok(Sort::Str)
                 } else if s.starts_with("Size") {
                     self.parse_bv_size(sexp)
+                } else if let Some(idx_rparen) = s.strip_prefix("@(")
+                    && let Some(s_idx) = idx_rparen.strip_suffix(")")
+                    && let Ok(idx) = s_idx.parse::<usize>()
+                {
+                    Ok(Sort::Var(idx))
                 } else {
                     let ctor = SortCtor::Data(self.parser.sort(s)?);
                     Ok(Sort::App(ctor, vec![]))
@@ -448,7 +479,6 @@ where
 
     fn parse_func_sort(&self, items: &[Sexp]) -> Result<Sort<T>, ParseError> {
         if let Sexp::Atom(Atom::I(params)) = &items[0]
-            && *params >= 0
             && let Sexp::List(inputs) = &items[1]
         {
             let params = *params as usize;
@@ -482,31 +512,44 @@ where
                     return Err(ParseError::err("expected parameter names to be symbols"));
                 }
             }
-            let sorts = sorts
+            let sorts: Vec<_> = sorts
                 .into_iter()
                 .map(|sexp| self.parse_sort(sexp))
                 .try_collect()?;
             self.push_scope(&kvar_args);
 
             let expr = self.parse_expr(body)?;
-            Ok((sorts, expr))
+
+            let mut scope = self.pop_scope().unwrap();
+            let bound = kvar_args
+                .iter()
+                .zip(sorts)
+                .map(|(name, sort)| (scope.swap_remove(name).unwrap(), sort))
+                .collect();
+            Ok((bound, expr))
         } else {
             Err(ParseError::err("expected (lambda (params) body)"))
         }
     }
 
     fn push_scope(&mut self, names: &[String]) {
-        self.scopes.push(names.iter().cloned().collect());
+        self.scopes.push(
+            names
+                .iter()
+                .cloned()
+                .map(|name| (name, self.parser.fresh_var()))
+                .collect(),
+        );
     }
 
-    fn pop_scope(&mut self) {
-        self.scopes.pop();
+    fn pop_scope(&mut self) -> Option<IndexMap<String, T::Var>> {
+        self.scopes.pop()
     }
 
     fn parse_bound_var(&self, name: &str) -> Option<Expr<T>> {
-        for (level, scope) in self.scopes.iter().rev().enumerate() {
-            if let Some(idx) = scope.get_index_of(name) {
-                return Some(Expr::BoundVar(BoundVar { level, idx }));
+        for scope in self.scopes.iter().rev() {
+            if let Some(var) = scope.get(name) {
+                return Some(Expr::Var(var.clone()));
             }
         }
         None
@@ -653,6 +696,9 @@ impl Types for StringTypes {
 }
 
 impl FromSexp<StringTypes> for StringTypes {
+    fn fresh_var(&mut self) -> <StringTypes as Types>::Var {
+        todo!()
+    }
     fn var(&self, name: &str) -> Result<String, ParseError> {
         Ok(name.to_string())
     }

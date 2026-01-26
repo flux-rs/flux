@@ -19,8 +19,8 @@ pub use binder::{Binder, BoundReftKind, BoundVariableKind, BoundVariableKinds, E
 use bitflags::bitflags;
 pub use expr::{
     AggregateKind, AliasReft, BinOp, BoundReft, Constant, Ctor, ESpan, EVid, EarlyReftParam, Expr,
-    ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, Path, Real,
-    SpecFuncKind, UnOp, Var,
+    ExprKind, FieldProj, HoleKind, InternalFuncKind, KVar, KVid, Lambda, Loc, Name, NameProvenance,
+    Path, PrettyMap, PrettyVar, Real, SpecFuncKind, UnOp, Var,
 };
 pub use flux_arc_interner::List;
 use flux_arc_interner::{Interned, impl_internable, impl_slice_internable};
@@ -39,7 +39,7 @@ use flux_rustc_bridge::{
     ty::{self, GenericArgsExt as _, VariantDef},
 };
 use itertools::Itertools;
-pub use normalize::{NormalizeInfo, NormalizedDefns, local_deps};
+pub use normalize::{FuncInfo, NormalizedDefns, local_deps};
 use refining::{Refine as _, Refiner};
 use rustc_abi;
 pub use rustc_abi::{FIRST_VARIANT, VariantIdx};
@@ -47,10 +47,13 @@ use rustc_data_structures::{fx::FxIndexMap, snapshot_map::SnapshotMap, unord::Un
 use rustc_hir::{LangItem, Safety, def_id::DefId};
 use rustc_index::{IndexSlice, IndexVec, newtype_index};
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable, extension};
-use rustc_middle::ty::{TyCtxt, fast_reject::SimplifiedType};
 pub use rustc_middle::{
     mir::Mutability,
     ty::{AdtFlags, ClosureKind, FloatTy, IntTy, ParamConst, ParamTy, ScalarInt, UintTy},
+};
+use rustc_middle::{
+    query::IntoQueryParam,
+    ty::{TyCtxt, fast_reject::SimplifiedType},
 };
 use rustc_span::{DUMMY_SP, Span, Symbol, sym, symbol::kw};
 use rustc_type_ir::Upcast as _;
@@ -690,7 +693,15 @@ impl FnTraitPredicate {
         let inputs = self.tupled_args.expect_tuple().iter().cloned().collect();
         let ret = self.output.clone().shift_in_escaping(1);
         let output = Binder::bind_with_vars(FnOutput::new(ret, vec![]), List::empty());
-        FnSig::new(Safety::Safe, rustc_abi::ExternAbi::Rust, List::empty(), inputs, output)
+        FnSig::new(
+            Safety::Safe,
+            rustc_abi::ExternAbi::Rust,
+            List::empty(),
+            inputs,
+            output,
+            Expr::ff(),
+            false,
+        )
     }
 }
 
@@ -700,6 +711,7 @@ pub fn to_closure_sig(
     tys: &[Ty],
     args: &flux_rustc_bridge::ty::GenericArgs,
     poly_sig: &PolyFnSig,
+    no_panic: bool,
 ) -> PolyFnSig {
     let closure_args = args.as_closure();
     let kind_ty = closure_args.kind_ty().to_rustc(tcx);
@@ -709,7 +721,7 @@ pub fn to_closure_sig(
 
     let mut vars = poly_sig.vars().clone().to_vec();
     let fn_sig = poly_sig.clone().skip_binder();
-    let closure_ty = Ty::closure(closure_id.into(), tys, args);
+    let closure_ty = Ty::closure(closure_id.into(), tys, args, no_panic);
     let env_ty = match kind {
         ClosureKind::Fn => {
             vars.push(BoundVariableKind::Region(BoundRegionKind::ClosureEnv));
@@ -738,22 +750,23 @@ pub fn to_closure_sig(
     let fn_sig = crate::rty::FnSig::new(
         fn_sig.safety,
         fn_sig.abi,
-        fn_sig.requires.clone(), // crate::rty::List::empty(),
+        fn_sig.requires.clone(),
         inputs.into(),
         output,
+        if no_panic { crate::rty::Expr::tt() } else { crate::rty::Expr::ff() },
+        false,
     );
 
     PolyFnSig::bind_with_vars(fn_sig, List::from(vars))
 }
 
-#[derive(
-    Clone, PartialEq, Eq, Hash, Debug, TyEncodable, TyDecodable, TypeVisitable, TypeFoldable,
-)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoroutineObligPredicate {
     pub def_id: DefId,
     pub resume_ty: Ty,
     pub upvar_tys: List<Ty>,
     pub output: Ty,
+    pub args: flux_rustc_bridge::ty::GenericArgs,
 }
 
 #[derive(Copy, Clone, Encodable, Decodable, Hash, PartialEq, Eq)]
@@ -1377,6 +1390,9 @@ pub struct FnSig {
     pub requires: List<Expr>,
     pub inputs: List<Ty>,
     pub output: Binder<FnOutput>,
+    pub no_panic: Expr,
+    /// was this auto-lifted (or from a spec)
+    pub lifted: bool,
 }
 
 #[derive(
@@ -1397,7 +1413,14 @@ pub enum Ensures {
 pub struct Qualifier {
     pub def_id: FluxLocalDefId,
     pub body: Binder<Expr>,
-    pub global: bool,
+    pub kind: QualifierKind,
+}
+
+#[derive(Debug, TypeFoldable, TypeVisitable, Copy, Clone)]
+pub enum QualifierKind {
+    Global,
+    Local,
+    Hint,
 }
 
 /// A `PrimOpProp` is a single property for a primitive operation which
@@ -1580,12 +1603,18 @@ impl Ty {
         did: DefId,
         tys: impl Into<List<Ty>>,
         args: &flux_rustc_bridge::ty::GenericArgs,
+        no_panic: bool,
     ) -> Ty {
-        BaseTy::Closure(did, tys.into(), args.clone()).to_ty()
+        BaseTy::Closure(did, tys.into(), args.clone(), no_panic).to_ty()
     }
 
-    pub fn coroutine(did: DefId, resume_ty: Ty, upvar_tys: List<Ty>) -> Ty {
-        BaseTy::Coroutine(did, resume_ty, upvar_tys).to_ty()
+    pub fn coroutine(
+        did: DefId,
+        resume_ty: Ty,
+        upvar_tys: List<Ty>,
+        args: flux_rustc_bridge::ty::GenericArgs,
+    ) -> Ty {
+        BaseTy::Coroutine(did, resume_ty, upvar_tys, args.clone()).to_ty()
     }
 
     pub fn never() -> Ty {
@@ -1785,12 +1814,18 @@ pub enum BaseTy {
     Alias(AliasKind, AliasTy),
     Array(Ty, Const),
     Never,
-    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs),
-    Coroutine(DefId, /*resume_ty: */ Ty, /* upvar_tys: */ List<Ty>),
+    Closure(DefId, /* upvar_tys */ List<Ty>, flux_rustc_bridge::ty::GenericArgs, bool),
+    Coroutine(
+        DefId,
+        /*resume_ty: */ Ty,
+        /* upvar_tys: */ List<Ty>,
+        flux_rustc_bridge::ty::GenericArgs,
+    ),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Param(ParamTy),
     Infer(TyVid),
     Foreign(DefId),
+    Pat,
 }
 
 impl BaseTy {
@@ -2021,6 +2056,7 @@ impl BaseTy {
             | BaseTy::Param(_)
             | BaseTy::Dynamic(..)
             | BaseTy::Infer(_) => None,
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -2067,7 +2103,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 ty::Ty::new_array_with_const_len(tcx, ty, n)
             }
             BaseTy::Never => tcx.types.never,
-            BaseTy::Closure(did, _, args) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
+            BaseTy::Closure(did, _, args, _) => ty::Ty::new_closure(tcx, *did, args.to_rustc(tcx)),
             BaseTy::Dynamic(exi_preds, re) => {
                 let preds: Vec<_> = exi_preds
                     .iter()
@@ -2076,11 +2112,8 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                 let preds = tcx.mk_poly_existential_predicates(&preds);
                 ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
-            BaseTy::Coroutine(def_id, resume_ty, upvars) => {
-                bug!("TODO: Generator {def_id:?} {resume_ty:?} {upvars:?}")
-                // let args = args.iter().map(|arg| into_rustc_generic_arg(tcx, arg));
-                // let args = tcx.mk_args_from_iter(args);
-                // ty::Ty::new_generator(*tcx, *def_id, args, mov)
+            BaseTy::Coroutine(did, _, _, args) => {
+                ty::Ty::new_coroutine(tcx, *did, args.to_rustc(tcx))
             }
             BaseTy::Infer(ty_vid) => ty::Ty::new_var(tcx, *ty_vid),
             BaseTy::Foreign(def_id) => ty::Ty::new_foreign(tcx, *def_id),
@@ -2091,6 +2124,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                     RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy(),
                 )
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -2513,14 +2547,27 @@ impl CoroutineObligPredicate {
         let vars = vec![];
 
         let resume_ty = &self.resume_ty;
-        let env_ty = Ty::coroutine(self.def_id, resume_ty.clone(), self.upvar_tys.clone());
+        let env_ty = Ty::coroutine(
+            self.def_id,
+            resume_ty.clone(),
+            self.upvar_tys.clone(),
+            self.args.clone(),
+        );
 
         let inputs = List::from_arr([env_ty, resume_ty.clone()]);
         let output =
             Binder::bind_with_vars(FnOutput::new(self.output.clone(), vec![]), List::empty());
 
         PolyFnSig::bind_with_vars(
-            FnSig::new(Safety::Safe, rustc_abi::ExternAbi::RustCall, List::empty(), inputs, output),
+            FnSig::new(
+                Safety::Safe,
+                rustc_abi::ExternAbi::RustCall,
+                List::empty(),
+                inputs,
+                output,
+                Expr::ff(),
+                false,
+            ),
             List::from(vars),
         )
     }
@@ -2642,8 +2689,10 @@ impl FnSig {
         requires: List<Expr>,
         inputs: List<Ty>,
         output: Binder<FnOutput>,
+        no_panic: Expr,
+        lifted: bool,
     ) -> Self {
-        FnSig { safety, abi, requires, inputs, output }
+        FnSig { safety, abi, requires, inputs, output, no_panic, lifted }
     }
 
     pub fn requires(&self) -> &[Expr] {
@@ -2652,6 +2701,10 @@ impl FnSig {
 
     pub fn inputs(&self) -> &[Ty] {
         &self.inputs
+    }
+
+    pub fn no_panic(&self) -> Expr {
+        self.no_panic.clone()
     }
 
     pub fn output(&self) -> Binder<FnOutput> {
@@ -2764,6 +2817,8 @@ impl EarlyBinder<PolyVariant> {
                     variant.requires.clone(),
                     inputs,
                     output,
+                    Expr::tt(),
+                    false,
                 )
             })
         })
@@ -3060,4 +3115,104 @@ impl<'a, T> LocalTableInContext<'a, T> {
         tracked_span_assert_eq!(self.owner, fhir_id.owner);
         self.data.get(&fhir_id.local_id)
     }
+}
+
+fn can_auto_strong(fn_sig: &PolyFnSig) -> bool {
+    struct RegionDetector {
+        has_region: bool,
+    }
+
+    impl fold::TypeFolder for RegionDetector {
+        fn fold_region(&mut self, re: &Region) -> Region {
+            self.has_region = true;
+            *re
+        }
+    }
+    let mut detector = RegionDetector { has_region: false };
+    fn_sig
+        .skip_binder_ref()
+        .output()
+        .skip_binder_ref()
+        .ret
+        .fold_with(&mut detector);
+
+    !detector.has_region
+}
+/// The [`auto_strong`] function transforms function signatures by automatically converting
+/// mutable reference parameters into strong references with associated ensures clauses. This
+/// transformation is applied only when the function signature does not already contain region
+/// variables in its return type.
+///
+/// Specifically, given a source function of type
+///
+///    fn (x: &mut InnerTy) -> bool
+///
+/// By default the above gives us an `rty::FnSig`
+///
+///    forall<>. fn (x: &mut InnerTy) -> bool
+///
+/// Which this function then transforms to
+///
+///     forall<l0: Loc>. fn (x: &strg<l0:InnerTy>) -> bool ensures l0:InnerTy
+pub fn auto_strong(
+    genv: GlobalEnv,
+    def_id: impl IntoQueryParam<DefId>,
+    fn_sig: PolyFnSig,
+) -> PolyFnSig {
+    // TODO(auto-strong): we only *really* need the first check `can_auto_strong` here.
+    // The other two skip `auto-strong` as doing it breaks various downstream things
+    // that should be fixed.
+    if !can_auto_strong(&fn_sig)
+        || matches!(genv.def_kind(def_id), rustc_hir::def::DefKind::Closure)
+        || !fn_sig.skip_binder_ref().lifted
+    {
+        return fn_sig;
+    }
+    let kind = BoundReftKind::Anon;
+    let mut vars = fn_sig.vars().to_vec();
+    let fn_sig = fn_sig.skip_binder();
+    // new list of (bound_var, inner_ty)
+    let mut strg_bvars = vec![];
+    // new list of input types
+    let mut strg_inputs = vec![];
+    // 1. Traverse inputs collecting strong locations
+    for ty in &fn_sig.inputs {
+        let strg_ty = if let TyKind::Indexed(BaseTy::Ref(re, inner_ty, Mutability::Mut), _) =
+            ty.kind()
+            && !inner_ty.is_slice()
+        // TODO(auto-strong): including `slice` breaks `tock` for some reason we should replicate in our own tests...
+        {
+            // if input is &mut InnerTy create a new bound var `loc` for the strong location
+            let var = {
+                let idx = vars.len() + strg_bvars.len();
+                BoundVar::from_usize(idx)
+            };
+            strg_bvars.push((var, inner_ty.clone()));
+            let loc = Loc::Var(Var::Bound(INNERMOST, BoundReft { var, kind }));
+            // and transform to &strg<loc:InnerTy>
+            Ty::strg_ref(*re, Path::new(loc, List::empty()), inner_ty.clone())
+        } else {
+            // else leave input type unchanged
+            ty.clone()
+        };
+        strg_inputs.push(strg_ty);
+    }
+    // 2. Add bound vars for strong locations
+    for _ in 0..strg_bvars.len() {
+        vars.push(BoundVariableKind::Refine(Sort::Loc, InferMode::EVar, kind));
+    }
+    // 3. Add ensures for strong locations
+    let output = fn_sig.output.map(|out| {
+        let mut ens = out.ensures.to_vec();
+        for (var, inner_ty) in strg_bvars {
+            let loc = Loc::Var(Var::Bound(INNERMOST.shifted_in(1), BoundReft { var, kind }));
+            let path = Path::new(loc, List::empty());
+            ens.push(Ensures::Type(path, inner_ty.shift_in_escaping(1)));
+        }
+        FnOutput { ensures: List::from_vec(ens), ..out }
+    });
+
+    // 4. Reconstruct fn sig with new inputs and output and vars
+    let fn_sig = FnSig { inputs: List::from_vec(strg_inputs), output, ..fn_sig };
+    Binder::bind_with_vars(fn_sig, vars.into())
 }

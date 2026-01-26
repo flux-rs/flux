@@ -52,6 +52,7 @@ impl Subst for Ty {
             TyKind::FnPtr(fn_sig) => Ty::mk_fn_ptr(fn_sig.subst(args)),
             TyKind::Dynamic(exi_preds, re) => Ty::mk_dynamic(exi_preds.subst(args), *re),
             TyKind::Foreign(def_id) => Ty::mk_foreign(*def_id),
+            TyKind::Pat => todo!(),
             TyKind::Bool
             | TyKind::Uint(_)
             | TyKind::Str

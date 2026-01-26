@@ -6,6 +6,9 @@ mod iter;
 mod ops;
 
 #[cfg(flux)]
+mod mem;
+
+#[cfg(flux)]
 mod option;
 
 #[cfg(flux)]
@@ -19,6 +22,9 @@ mod slice;
 
 #[cfg(flux)]
 mod num;
+
+#[cfg(flux)]
+mod convert;
 
 // -------------------------------------------------------------------
 

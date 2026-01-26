@@ -167,7 +167,7 @@ where
     pub fn replace_bound_vars(
         &self,
         mut replace_region: impl FnMut(BoundRegion) -> Region,
-        mut replace_expr: impl FnMut(&Sort, InferMode) -> Expr,
+        mut replace_expr: impl FnMut(&Sort, InferMode, BoundReftKind) -> Expr,
     ) -> T {
         let mut exprs = UnordMap::default();
         let mut regions = UnordMap::default();
@@ -176,8 +176,8 @@ where
                 exprs
                     .entry(breft.var)
                     .or_insert_with(|| {
-                        let (sort, mode, _) = self.vars[breft.var.as_usize()].expect_refine();
-                        replace_expr(sort, mode)
+                        let (sort, mode, kind) = self.vars[breft.var.as_usize()].expect_refine();
+                        replace_expr(sort, mode, kind)
                     })
                     .clone()
             },
@@ -238,7 +238,7 @@ pub enum BoundVariableKind {
 }
 
 impl BoundVariableKind {
-    fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
+    pub fn expect_refine(&self) -> (&Sort, InferMode, BoundReftKind) {
         if let BoundVariableKind::Refine(sort, mode, kind) = self {
             (sort, *mode, *kind)
         } else {
@@ -283,7 +283,7 @@ impl From<Sort> for BoundVariableKind {
 
 pub type BoundVariableKinds = List<BoundVariableKind>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Encodable, Decodable)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encodable, Decodable)]
 pub enum BoundReftKind {
     Anon,
     Named(Symbol),

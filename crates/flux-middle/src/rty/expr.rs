@@ -1,7 +1,7 @@
-use std::{fmt, iter, ops::ControlFlow, sync::OnceLock};
+use std::{fmt, hash::Hash, iter, ops::ControlFlow, sync::OnceLock};
 
 use flux_arc_interner::{Interned, List, impl_internable, impl_slice_internable};
-use flux_common::bug;
+use flux_common::{bug, dbg::as_subscript};
 use flux_macros::{TypeFoldable, TypeVisitable};
 use flux_rustc_bridge::{
     ToRustc,
@@ -11,7 +11,7 @@ use flux_rustc_bridge::{
 use itertools::Itertools;
 use liquid_fixpoint::ThyFunc;
 use rustc_abi::{FIRST_VARIANT, FieldIdx};
-use rustc_data_structures::snapshot_map::SnapshotMap;
+use rustc_data_structures::{fx::FxHashMap, snapshot_map::SnapshotMap};
 use rustc_hir::def_id::DefId;
 use rustc_index::newtype_index;
 use rustc_macros::{Decodable, Encodable, TyDecodable, TyEncodable};
@@ -34,7 +34,7 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        BoundVariableKind, SortArg,
+        BoundVariableKind, SortArg, SubsetTyCtor,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
@@ -91,6 +91,10 @@ pub struct AliasReft {
 }
 
 impl AliasReft {
+    pub fn self_ty(&self) -> SubsetTyCtor {
+        self.args[0].expect_base().clone()
+    }
+
     pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
         let trait_def_id = self.assoc_id.parent();
         let args = self
@@ -750,9 +754,7 @@ pub enum InternalFuncKind {
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
-    /// User-defined uninterpreted functions with no definition
-    Uif(FluxDefId),
-    /// User-defined functions with a body definition
+    /// User-defined function. This can be either a function with a body or a UIF.
     Def(FluxDefId),
 }
 
@@ -940,6 +942,73 @@ newtype_index! {
     #[orderable]
     #[encodable]
     pub struct Name {}
+}
+
+#[derive(Copy, Debug, Clone)]
+pub enum NameProvenance {
+    Unknown,
+    UnfoldBoundReft(BoundReftKind),
+}
+
+impl NameProvenance {
+    pub fn opt_symbol(&self) -> Option<Symbol> {
+        match &self {
+            NameProvenance::UnfoldBoundReft(BoundReftKind::Named(name)) => Some(*name),
+            _ => None,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub enum PrettyVar<V> {
+    Local(V),
+    Param(EarlyReftParam),
+}
+
+impl<V: Copy + Into<usize>> PrettyVar<V> {
+    pub fn as_subscript(&self) -> String {
+        let idx = match self {
+            PrettyVar::Local(v) => (*v).into(),
+            PrettyVar::Param(p) => p.index as usize,
+        };
+        as_subscript(idx)
+    }
+}
+
+pub struct PrettyMap<V: Eq + Hash> {
+    map: FxHashMap<PrettyVar<V>, String>,
+    count: FxHashMap<Symbol, usize>,
+}
+
+impl<V: Eq + Hash + Copy + Into<usize>> PrettyMap<V> {
+    pub fn new() -> Self {
+        PrettyMap { map: FxHashMap::default(), count: FxHashMap::default() }
+    }
+
+    pub fn set(&mut self, var: PrettyVar<V>, prefix: Option<Symbol>) -> String {
+        // if already defined, return it
+        if let Some(symbol) = self.map.get(&var) {
+            return symbol.clone();
+        }
+        // else define it, and stash
+        let symbol = if let Some(prefix) = prefix {
+            let index = self.count.entry(prefix).or_insert(0);
+            let symbol = format!("{}{}", prefix, as_subscript(*index));
+            *index += 1;
+            symbol
+        } else {
+            format!("a'{}", var.as_subscript())
+        };
+        self.map.insert(var, symbol.clone());
+        symbol
+    }
+
+    pub fn get(&self, key: &PrettyVar<V>) -> String {
+        match self.map.get(key) {
+            Some(s) => s.clone(),
+            None => format!("a'{}", key.as_subscript()),
+        }
+    }
 }
 
 impl KVar {
@@ -1211,6 +1280,12 @@ impl From<u32> for Constant {
     }
 }
 
+impl From<u64> for Constant {
+    fn from(c: u64) -> Self {
+        Constant::Int(c.into())
+    }
+}
+
 impl From<u128> for Constant {
     fn from(c: u128) -> Self {
         Constant::Int(c.into())
@@ -1257,10 +1332,11 @@ impl<T: Pretty> Pretty for FieldBind<T> {
 }
 
 pub(crate) mod pretty {
+
     use flux_rustc_bridge::def_id_to_string;
 
     use super::*;
-    use crate::{name_of_thy_func, rty::pretty::nested_with_bound_vars};
+    use crate::name_of_thy_func;
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
     enum Precedence {
@@ -1465,7 +1541,7 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lam) => {
                     w!(cx, f, "{:?}", lam)
                 }
-                ExprKind::GlobalFunc(SpecFuncKind::Def(did) | SpecFuncKind::Uif(did)) => {
+                ExprKind::GlobalFunc(SpecFuncKind::Def(did)) => {
                     w!(cx, f, "{}", ^did.name())
                 }
                 ExprKind::GlobalFunc(SpecFuncKind::Thy(itf)) => {
@@ -1659,7 +1735,7 @@ pub(crate) mod pretty {
     impl PrettyNested for Lambda {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             // TODO: remove redundant vars; see Ty
-            nested_with_bound_vars(cx, "λ", self.body.vars(), None, |prefix| {
+            cx.nested_with_bound_vars("λ", self.body.vars(), None, |prefix| {
                 let expr_d = self.body.skip_binder_ref().fmt_nested(cx)?;
                 let text = format!("{}{}", prefix, expr_d.text);
                 Ok(NestedString { text, children: expr_d.children, key: None })
@@ -1681,7 +1757,7 @@ pub(crate) mod pretty {
             Ok(NestedString { text, children: None, key: None })
         } else if flds.len() == 1 {
             // Single field, inline index
-            text += &format_cx!(cx, "{:?}", flds[0].clone());
+            text += &flds[0].fmt_nested(cx)?.text;
             Ok(NestedString { text, children: None, key: None })
         } else {
             let keys = if let Some(adt_sort_def) = cx.adt_sort_def_of(def_id) {
@@ -1705,6 +1781,13 @@ pub(crate) mod pretty {
         }
     }
 
+    impl PrettyNested for Name {
+        fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
+            let text = cx.pretty_var_env.get(&PrettyVar::Local(*self));
+            Ok(NestedString { text, key: None, children: None })
+        }
+    }
+
     impl PrettyNested for Expr {
         fn fmt_nested(&self, cx: &PrettyCx) -> Result<NestedString, fmt::Error> {
             let e = if cx.simplify_exprs {
@@ -1713,15 +1796,23 @@ pub(crate) mod pretty {
                 self.clone()
             };
             match e.kind() {
+                ExprKind::Var(Var::Free(name)) => name.fmt_nested(cx),
                 ExprKind::Var(..)
                 | ExprKind::Local(..)
                 | ExprKind::Constant(..)
                 | ExprKind::ConstDefId(..)
                 | ExprKind::Hole(..)
                 | ExprKind::GlobalFunc(..)
-                | ExprKind::InternalFunc(..)
-                | ExprKind::KVar(..) => debug_nested(cx, &e),
-
+                | ExprKind::InternalFunc(..) => debug_nested(cx, &e),
+                ExprKind::KVar(kvar) => {
+                    let kv = format!("{:?}", kvar.kvid);
+                    let mut strs = vec![kv];
+                    for arg in &kvar.args {
+                        strs.push(arg.fmt_nested(cx)?.text);
+                    }
+                    let text = format!("##[{}]##", strs.join("##"));
+                    Ok(NestedString { text, children: None, key: None })
+                }
                 ExprKind::IfThenElse(p, e1, e2) => {
                     let p_d = p.fmt_nested(cx)?;
                     let e1_d = e1.fmt_nested(cx)?;
@@ -1839,7 +1930,7 @@ pub(crate) mod pretty {
                 ExprKind::Abs(lambda) => lambda.fmt_nested(cx),
                 ExprKind::Let(init, body) => {
                     // FIXME this is very wrong!
-                    nested_with_bound_vars(cx, "let", body.vars(), None, |prefix| {
+                    cx.nested_with_bound_vars("let", body.vars(), None, |prefix| {
                         let body = body.skip_binder_ref().fmt_nested(cx)?;
                         let text = format!("{:?} {}{}", init, prefix, body.text);
                         Ok(NestedString { text, children: body.children, key: None })
@@ -1852,21 +1943,21 @@ pub(crate) mod pretty {
                     };
                     let right = Some(format!(" in {}..{}", rng.start, rng.end));
 
-                    nested_with_bound_vars(cx, left, body.vars(), right, |all_str| {
+                    cx.nested_with_bound_vars(left, body.vars(), right, |all_str| {
                         let expr_d = body.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })
                     })
                 }
                 ExprKind::ForAll(expr) => {
-                    nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
+                    cx.nested_with_bound_vars("∀", expr.vars(), None, |all_str| {
                         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })
                     })
                 }
                 ExprKind::Exists(expr) => {
-                    nested_with_bound_vars(cx, "∀", expr.vars(), None, |all_str| {
+                    cx.nested_with_bound_vars("∀", expr.vars(), None, |all_str| {
                         let expr_d = expr.as_ref().skip_binder().fmt_nested(cx)?;
                         let text = format!("{}{}", all_str, expr_d.text);
                         Ok(NestedString { text, children: expr_d.children, key: None })

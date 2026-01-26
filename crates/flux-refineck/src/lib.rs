@@ -30,9 +30,10 @@ mod queue;
 mod type_env;
 
 use checker::{Checker, trait_impl_subtyping};
-use flux_common::{dbg, result::ResultExt as _};
+use flux_common::{dbg, dbg::SpanTrace, result::ResultExt as _};
+use flux_config as config;
 use flux_infer::{
-    fixpoint_encoding::FixQueryCache,
+    fixpoint_encoding::{FixQueryCache, SolutionTrace},
     infer::{ConstrReason, SubtypeReason, Tag},
 };
 use flux_macros::fluent_messages;
@@ -109,9 +110,17 @@ pub fn check_fn(
             .with_span(span)
             .map_err(|err| err.emit(genv, def_id))?;
         let mut closures = UnordMap::default();
+
+        let poly_sig = genv
+            .fn_sig(def_id)
+            .with_span(span)
+            .map_err(|err| err.emit(genv, def_id))?
+            .instantiate_identity();
+        let poly_sig = rty::auto_strong(genv, def_id, poly_sig);
+
         // PHASE 1: infer shape of `TypeEnv` at the entry of join points
         let shape_result =
-            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts)
+            Checker::run_in_shape_mode(genv, def_id, &ghost_stmts, &mut closures, opts, &poly_sig)
                 .map_err(|err| err.emit(genv, def_id))?;
 
         // PHASE 2: generate refinement tree constraint
@@ -122,17 +131,14 @@ pub fn check_fn(
             &mut closures,
             shape_result,
             opts,
+            &poly_sig,
         )
         .map_err(|err| err.emit(genv, def_id))?;
 
-        if genv.proven_externally(def_id) {
-            if flux_config::emit_lean_defs() {
-                infcx_root
-                    .execute_lean_query(MaybeExternId::Local(def_id))
-                    .emit(&genv)
-            } else {
-                panic!("emit_lean_defs should be enabled if there are externally proven items");
-            }
+        if genv.proven_externally(def_id).is_some() || flux_config::lean().is_emit() {
+            infcx_root
+                .execute_lean_query(cache, MaybeExternId::Local(def_id))
+                .emit(&genv)
         } else {
             // PHASE 3: invoke fixpoint on the constraint
             let answer = infcx_root
@@ -142,6 +148,13 @@ pub fn check_fn(
                     FixpointQueryKind::Body,
                 )
                 .emit(&genv)?;
+
+            // DUMP SOLUTION
+            let tcx = genv.tcx();
+            let hir_id = tcx.local_def_id_to_hir_id(def_id);
+            let body_span = tcx.hir_span_with_body(hir_id);
+            dbg::solution!(genv, &answer, body_span);
+
             let errors = answer.errors;
             report_fixpoint_errors(genv, def_id, errors)
         }
@@ -183,6 +196,12 @@ fn report_errors(genv: GlobalEnv, errors: Vec<Tag>) -> Result<(), ErrorGuarantee
             ConstrReason::Overflow => genv.sess().emit_err(errors::OverflowError { span }),
             ConstrReason::Underflow => genv.sess().emit_err(errors::UnderflowError { span }),
             ConstrReason::Other => genv.sess().emit_err(errors::UnknownError { span }),
+            ConstrReason::NoPanic(callee) => {
+                genv.sess().emit_err(errors::PanicError {
+                    span,
+                    callee: genv.tcx().def_path_debug_str(callee),
+                })
+            }
         });
     }
 
@@ -320,5 +339,13 @@ mod errors {
         #[primary_span]
         pub span: Span,
         pub def_descr: &'static str,
+    }
+
+    #[derive(Diagnostic)]
+    #[diag(refineck_panic_error, code = E0999)]
+    pub(super) struct PanicError {
+        #[primary_span]
+        pub(super) span: Span,
+        pub(super) callee: String,
     }
 }

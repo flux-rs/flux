@@ -139,7 +139,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ItemKind::TyAlias(..) => self.collect_type_alias(owner_id, attrs)?,
             ItemKind::Impl(..) => self.collect_impl(owner_id, attrs)?,
             ItemKind::Trait(..) => self.collect_trait(owner_id, attrs)?,
-            ItemKind::Const(.., body_id) => {
+            ItemKind::Const(.., rhs) => {
                 // The flux-rs macro puts defs as an outer attribute on a `const _: () = { }`. We
                 // consider these defs to be defined in the parent of the const.
                 self.specs
@@ -148,7 +148,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     .or_default()
                     .extend(attrs.items());
 
-                if attrs.extern_spec() {
+                if attrs.extern_spec()
+                    && let hir::ConstItemRhs::Body(body_id) = rhs
+                {
                     return ExternSpecCollector::collect(self, *body_id);
                 }
 
@@ -468,7 +470,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
     ) -> Result<FluxAttr> {
         let invalid_attr_err = |this: &Self| {
             this.errors
-                .emit(errors::InvalidAttr { span: attr_item_span(attr_item) })
+                .emit(errors::InvalidAttr { span: attr_item_inner_span(attr_item) })
         };
 
         let [_, segment] = &attr_item.path.segments[..] else { return Err(invalid_attr_err(self)) };
@@ -549,7 +551,10 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
                     FluxAttrKind::TrustedImpl(b.into())
                 })?
             }
-            ("proven_externally", hir::AttrArgs::Empty) => FluxAttrKind::ProvenExternally,
+            ("proven_externally", _) => {
+                let span = attr_item_inner_span(attr_item);
+                FluxAttrKind::ProvenExternally(span)
+            }
             ("trusted_impl", hir::AttrArgs::Empty) => FluxAttrKind::TrustedImpl(Trusted::Yes),
             ("opaque", hir::AttrArgs::Empty) => FluxAttrKind::Opaque,
             ("reflect", hir::AttrArgs::Empty) => FluxAttrKind::Reflect,
@@ -564,7 +569,7 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
         if config::annots() {
             self.stats.add(self.tcx, segment.as_str(), &attr_item.args);
         }
-        Ok(FluxAttr { kind, span: attr_item_span(attr_item) })
+        Ok(FluxAttr { kind, span: attr_item_inner_span(attr_item) })
     }
 
     fn parse<T>(
@@ -645,7 +650,7 @@ struct FluxAttr {
 enum FluxAttrKind {
     Trusted(Trusted),
     TrustedImpl(Trusted),
-    ProvenExternally,
+    ProvenExternally(Span),
     Opaque,
     Reflect,
     FnSig(surface::FnSig),
@@ -795,7 +800,7 @@ impl FluxAttrs {
             let attr = match attr.kind {
                 FluxAttrKind::Trusted(trusted) => surface::Attr::Trusted(trusted),
                 FluxAttrKind::TrustedImpl(trusted) => surface::Attr::TrustedImpl(trusted),
-                FluxAttrKind::ProvenExternally => surface::Attr::ProvenExternally,
+                FluxAttrKind::ProvenExternally(span) => surface::Attr::ProvenExternally(span),
                 FluxAttrKind::QualNames(names) => surface::Attr::Qualifiers(names),
                 FluxAttrKind::RevealNames(names) => surface::Attr::Reveal(names),
                 FluxAttrKind::InferOpts(opts) => surface::Attr::InferOpts(opts),
@@ -829,7 +834,7 @@ impl FluxAttrKind {
         match self {
             FluxAttrKind::Trusted(_) => attr_name!(Trusted),
             FluxAttrKind::TrustedImpl(_) => attr_name!(TrustedImpl),
-            FluxAttrKind::ProvenExternally => attr_name!(ProvenExternally),
+            FluxAttrKind::ProvenExternally(_) => attr_name!(ProvenExternally),
             FluxAttrKind::Opaque => attr_name!(Opaque),
             FluxAttrKind::Reflect => attr_name!(Reflect),
             FluxAttrKind::FnSig(_) => attr_name!(FnSig),
@@ -897,7 +902,7 @@ impl AttrMap {
         let mut map = Self { map: HashMap::new() };
         let err = || {
             Err(errors::AttrMapErr {
-                span: attr_item_span(attr_item),
+                span: attr_item_inner_span(attr_item),
                 message: "bad syntax".to_string(),
             })
         };
@@ -960,7 +965,8 @@ impl AttrMap {
     }
 }
 
-fn attr_item_span(attr_item: &hir::AttrItem) -> Span {
+/// Returns the span of an attribute without `#[` and `]`
+fn attr_item_inner_span(attr_item: &hir::AttrItem) -> Span {
     attr_args_span(&attr_item.args)
         .map_or(attr_item.path.span, |args_span| attr_item.path.span.to(args_span))
 }

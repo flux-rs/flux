@@ -14,6 +14,7 @@ use flux_infer::{
 };
 use flux_middle::{
     global_env::GlobalEnv,
+    pretty::PrettyCx,
     queries::{QueryResult, try_query},
     query_bug,
     rty::{
@@ -72,7 +73,7 @@ pub(crate) struct Checker<'ck, 'genv, 'tcx, M> {
     body: &'ck Body<'tcx>,
     /// The type used for the `resume` argument if we are checking a generator.
     resume_ty: Option<Ty>,
-    output: Binder<FnOutput>,
+    fn_sig: FnSig,
     /// A marker to the node in the refinement tree at the end of the basic block after applying
     /// the effects of the terminator.
     markers: IndexVec<BasicBlock, Option<Marker>>,
@@ -120,6 +121,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
+    #[expect(dead_code)]
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -168,6 +170,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
         ghost_stmts: &'ck UnordMap<CheckerId, GhostStatements>,
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<ShapeResult> {
         let def_id = local_id.to_def_id();
         dbg::shape_mode_span!(genv.tcx(), local_id).in_scope(|| {
@@ -188,11 +191,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, ShapeMode> {
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
 
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv
-                .fn_sig(local_id)
-                .with_span(span)?
-                .instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(ShapeResult(mode.bb_envs))
         })
@@ -207,6 +206,7 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
         closures: &'ck mut UnordMap<DefId, PolyFnSig>,
         bb_env_shapes: ShapeResult,
         opts: InferOpts,
+        poly_sig: &PolyFnSig,
     ) -> Result<InferCtxtRoot<'genv, 'tcx>> {
         let def_id = local_id.to_def_id();
         let span = genv.tcx().def_span(def_id);
@@ -218,16 +218,14 @@ impl<'genv, 'tcx> Checker<'_, 'genv, 'tcx, RefineMode> {
                 .build()
         })
         .with_span(span)?;
-        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt);
+        let bb_envs = bb_env_shapes.into_bb_envs(&mut root_ctxt, &body.body);
 
         dbg::refine_mode_span!(genv.tcx(), def_id, bb_envs).in_scope(|| {
             // Check the body of the function def_id against its signature
             let mut mode = RefineMode { bb_envs };
             let inherited = Inherited::new(&mut mode, ghost_stmts, closures);
             let infcx = root_ctxt.infcx(def_id, &body.infcx);
-            let poly_sig = genv.fn_sig(def_id).with_span(span)?;
-            let poly_sig = poly_sig.instantiate_identity();
-            Checker::run(infcx, local_id, inherited, poly_sig)?;
+            Checker::run(infcx, local_id, inherited, poly_sig.clone())?;
 
             Ok(root_ctxt)
         })
@@ -275,7 +273,10 @@ fn check_fn_subtyping(
     let tcx = infcx.genv.tcx();
 
     let super_sig = super_sig
-        .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+        .replace_bound_vars(
+            |_| rty::ReErased,
+            |sort, _, kind| Expr::fvar(infcx.define_bound_reft_var(sort, kind)),
+        )
         .deeply_normalize(&mut infcx)?;
 
     // 1. Unpack `T_g` input types
@@ -301,7 +302,10 @@ fn check_fn_subtyping(
         };
         // ... jump right here.
         let sub_sig = sub_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+            )
             .deeply_normalize(infcx)?;
 
         // 3. INPUT subtyping (g-input <: f-input)
@@ -324,7 +328,9 @@ fn check_fn_subtyping(
 
     let output = infcx
         .fully_resolve_evars(&output)
-        .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+        .replace_bound_refts_with(|sort, _, kind| {
+            Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+        });
 
     // 4. OUTPUT subtyping (f_out <: g_out)
     infcx.ensure_resolved_evars(|infcx| {
@@ -400,10 +406,8 @@ fn find_trait_item(
 ) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
     let tcx = genv.tcx();
     let def_id = def_id.to_def_id();
-    if let Some(impl_id) = tcx.impl_of_assoc(def_id)
-        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
-    {
-        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+    if let Some(impl_id) = tcx.trait_impl_of_assoc(def_id) {
+        let impl_trait_ref = genv.impl_trait_ref(impl_id)?.instantiate_identity();
         let trait_item_id = tcx.associated_item(def_id).trait_item_def_id().unwrap();
         return Ok(Some((impl_trait_ref, trait_item_id)));
     }
@@ -466,7 +470,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, Expr::tt(), false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -497,7 +501,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             body,
             resume_ty,
             visited: DenseBitSet::new_empty(bb_len),
-            output: fn_sig.output().clone(),
+            fn_sig,
             markers: IndexVec::from_fn_n(|_| None, bb_len),
             queue: WorkQueue::empty(bb_len, &body.dominator_order_rank),
             default_refiner: Refiner::default_for_item(genv, root_id.to_def_id())?,
@@ -516,10 +520,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let span = body.span();
 
         let fn_sig = poly_sig
-            .replace_bound_vars(|_| rty::ReErased, |sort, _| Expr::fvar(infcx.define_var(sort)))
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, _, kind| {
+                    let name = infcx.define_bound_reft_var(sort, kind);
+                    Expr::fvar(name)
+                },
+            )
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
-
         let mut env = TypeEnv::new(infcx, body, &fn_sig);
 
         let mut ck = Checker::new(infcx.genv, checker_id, inherited, body, fn_sig, promoted)
@@ -807,7 +816,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     }
                 };
 
-                let ret = infcx.unpack(&ret);
+                let name = destination.name(&self.body.local_names);
+                let ret = infcx.unpack_at_name(name, &ret);
                 infcx.assume_invariants(&ret);
 
                 env.assign(&mut infcx.at(terminator_span), destination, ret)
@@ -849,9 +859,11 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .ensure_resolved_evars(|infcx| {
                 let ret_place_ty = env.lookup_place(infcx, Place::RETURN)?;
                 let output = self
+                    .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
+                let obligations =
+                    infcx.subtyping_with_env(env, &ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
@@ -875,22 +887,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
     ) -> Result<ResolvedCall> {
         let genv = self.genv;
         let tcx = genv.tcx();
-
-        if M::NAME == "refine" {
-            let no_panic = genv.no_panic(self.checker_id.root_id());
-
-            if no_panic
-                && let Some(callee_def_id) = callee_def_id
-                && genv.def_kind(callee_def_id).is_fn_like()
-            {
-                let callee_no_panic = genv.no_panic(callee_def_id);
-                if !callee_no_panic {
-                    let callee_name = tcx.def_path_str(callee_def_id);
-                    genv.sess()
-                        .emit_err(errors::PanicError { span, callee: callee_name });
-                }
-            }
-        }
 
         let actuals =
             unfold_local_ptrs(infcx, env, fn_sig.skip_binder_ref(), actuals).with_span(span)?;
@@ -926,21 +922,35 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .check_non_closure_clauses(&clauses, ConstrReason::Call)
             .with_span(span)?;
 
-        for fn_trait_pred in fn_clauses {
-            self.check_fn_trait_clause(infcx, &fn_trait_pred, span)?;
+        for fn_trait_pred in &fn_clauses {
+            self.check_fn_trait_clause(infcx, fn_trait_pred, span)?;
         }
 
         // Instantiate function signature and normalize it
         let late_refine_args = vec![];
         let fn_sig = fn_sig
             .instantiate(tcx, &generic_args, &early_refine_args)
-            .replace_bound_vars(|_| rty::ReErased, |sort, mode| infcx.fresh_infer_var(sort, mode));
+            .replace_bound_vars(
+                |_| rty::ReErased,
+                |sort, mode, _| infcx.fresh_infer_var(sort, mode),
+            );
 
         let fn_sig = fn_sig
             .deeply_normalize(&mut infcx.at(span))
             .with_span(span)?;
 
         let mut at = infcx.at(span);
+
+        if let Some(callee_def_id) = callee_def_id
+            && genv.def_kind(callee_def_id).is_fn_like()
+        {
+            let callee_no_panic = fn_sig.no_panic();
+
+            at.check_pred(
+                Expr::implies(self.fn_sig.no_panic(), callee_no_panic),
+                ConstrReason::NoPanic(callee_def_id),
+            );
+        }
 
         // Check requires predicates
         for requires in fn_sig.requires() {
@@ -958,7 +968,9 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let output = infcx
             .fully_resolve_evars(&fn_sig.output)
-            .replace_bound_refts_with(|sort, _, _| Expr::fvar(infcx.define_var(sort)));
+            .replace_bound_refts_with(|sort, _, kind| {
+                Expr::fvar(infcx.define_bound_reft_var(sort, kind))
+            });
 
         env.assume_ensures(infcx, &output.ensures, span);
         fold_local_ptrs(infcx, env, span).with_span(span)?;
@@ -1042,7 +1054,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .as_bty_skipping_existentials();
         let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _)) => {
+            Some(BaseTy::Closure(def_id, _, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
@@ -1233,7 +1245,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         target: BasicBlock,
     ) -> Result {
         if self.is_exit_block(target) {
-            let location = self.body.terminator_loc(target);
+            // We inline *exit basic blocks* (i.e., that just return) because this typically
+            // gives us better a better error span.
+            let mut location = Location { block: target, statement_index: 0 };
+            for _ in &self.body.basic_blocks[target].statements {
+                self.check_ghost_statements_at(
+                    &mut infcx,
+                    &mut env,
+                    Point::BeforeLocation(location),
+                    span,
+                )?;
+                location = location.successor_within_block();
+            }
             self.check_ghost_statements_at(
                 &mut infcx,
                 &mut env,
@@ -1307,7 +1330,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         let closure_id = did.expect_local();
         let span = tcx.def_span(closure_id);
         let body = genv.mir(closure_id).with_span(span)?;
-        let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig);
+        let no_panic = self.genv.no_panic(*did);
+        let closure_sig = rty::to_closure_sig(tcx, closure_id, upvar_tys, args, poly_sig, no_panic);
         Checker::run(
             infcx.change_item(closure_id, &body.infcx),
             closure_id,
@@ -1334,7 +1358,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        Ok(Ty::closure(*did, upvar_tys, args))
+        let no_panic = self.genv.no_panic(*did);
+        Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }
 
     fn check_rvalue(
@@ -1392,7 +1417,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_binary_op(infcx, env, stmt_span, *bin_op, op1, op2)
                     .with_span(stmt_span)
             }
-            Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
+
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                 self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
@@ -1454,12 +1479,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_rvalue_closure(infcx, env, stmt_span, did, args, operands)
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
-                let args = args.as_coroutine();
-                let resume_ty = self.refine_default(args.resume_ty()).with_span(stmt_span)?;
+                let coroutine_args = args.as_coroutine();
+                let resume_ty = self
+                    .refine_default(coroutine_args.resume_ty())
+                    .with_span(stmt_span)?;
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, ops)
                     .with_span(stmt_span)?;
-                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
+                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
             }
             Rvalue::ShallowInitBox(operand, _) => {
                 self.check_operand(infcx, env, stmt_span, operand)
@@ -1519,16 +1546,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
-        }
-    }
-
-    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &ty::Ty) -> Ty {
-        match null_op {
-            mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
-                // We could try to get the layout of type to index this with the actual value, but
-                // this enough for now. Revisit if we ever need the precision.
-                Ty::uint(UintTy::Usize)
-            }
         }
     }
 
@@ -1634,7 +1651,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) => {
                 let to = self.refine_default(to)?;
-                if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
+                if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
                     let current_did = infcx.def_id;
@@ -2288,13 +2305,14 @@ impl ShapeResult {
     fn into_bb_envs(
         self,
         infcx: &mut InferCtxtRoot,
+        body: &Body,
     ) -> FxHashMap<CheckerId, FxHashMap<BasicBlock, BasicBlockEnv>> {
         self.0
             .into_iter()
             .map(|(checker_id, shapes)| {
                 let bb_envs = shapes
                     .into_iter()
-                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx)))
+                    .map(|(bb, shape)| (bb, shape.into_bb_env(infcx, body)))
                     .collect();
                 (checker_id, bb_envs)
             })
@@ -2319,21 +2337,12 @@ fn marker_at_dominator<'a>(
 pub(crate) mod errors {
     use flux_errors::{E0999, ErrorGuaranteed};
     use flux_infer::infer::InferErr;
-    use flux_macros::Diagnostic;
     use flux_middle::{global_env::GlobalEnv, queries::ErrCtxt};
     use rustc_errors::Diagnostic;
     use rustc_hir::def_id::LocalDefId;
     use rustc_span::Span;
 
     use crate::fluent_generated as fluent;
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_panic_error, code = E0999)]
-    pub(super) struct PanicError {
-        #[primary_span]
-        pub(super) span: Span,
-        pub(super) callee: String,
-    }
 
     #[derive(Debug)]
     pub struct CheckerError {

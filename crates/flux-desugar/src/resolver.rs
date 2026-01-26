@@ -133,11 +133,7 @@ impl<'genv, 'tcx> CrateResolver<'genv, 'tcx> {
                         let parent = parent.def_id.to_def_id();
                         let name = defn.name.name;
                         let def_id = FluxDefId::new(parent, name);
-                        let kind = if defn.body.is_some() {
-                            fhir::SpecFuncKind::Def(def_id)
-                        } else {
-                            fhir::SpecFuncKind::Uif(def_id)
-                        };
+                        let kind = fhir::SpecFuncKind::Def(def_id);
                         self.func_decls.insert(defn.name.name, kind);
                     }
                     surface::FluxItem::PrimOpProp(primop_prop) => {

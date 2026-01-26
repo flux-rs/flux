@@ -176,7 +176,10 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
         })
     }
 
-    fn lift_opaque_ty(&mut self, opaque_ty: &hir::OpaqueTy) -> Result<fhir::OpaqueTy<'genv>> {
+    pub(crate) fn lift_opaque_ty(
+        &mut self,
+        opaque_ty: &hir::OpaqueTy,
+    ) -> Result<fhir::OpaqueTy<'genv>> {
         let bounds =
             try_alloc_slice!(self.genv, &opaque_ty.bounds, |bound| self.lift_generic_bound(bound))?;
 
@@ -429,12 +432,6 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 let qself = self.lift_ty(qself);
                 let segment = self.lift_path_segment(segment)?;
                 Ok(fhir::QPath::TypeRelative(self.genv.alloc(qself), self.genv.alloc(segment)))
-            }
-            hir::QPath::LangItem(_, _) => {
-                Err(self.emit_unsupported(&format!(
-                    "unsupported type: `{}`",
-                    rustc_hir_pretty::qpath_to_string(&self.genv.tcx(), &qpath)
-                )))
             }
         }
     }

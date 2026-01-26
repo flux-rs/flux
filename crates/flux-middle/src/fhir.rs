@@ -40,13 +40,16 @@ pub use rustc_middle::mir::Mutability;
 use rustc_middle::{middle::resolve_bound_vars::ResolvedArg, ty::TyCtxt};
 use rustc_span::{ErrorGuaranteed, Span, Symbol, symbol::Ident};
 
-use crate::def_id::{FluxDefId, FluxLocalDefId, MaybeExternId};
+use crate::{
+    def_id::{FluxDefId, FluxLocalDefId, MaybeExternId},
+    rty::QualifierKind,
+};
 
 pub enum Attr {
     Trusted(Trusted),
     TrustedImpl(Trusted),
     Ignore(Ignored),
-    ProvenExternally,
+    ProvenExternally(Span),
     ShouldFail,
     InferOpts(PartialInferOpts),
     NoPanic,
@@ -60,10 +63,10 @@ pub struct AttrMap<'fhir> {
 }
 
 impl AttrMap<'_> {
-    pub(crate) fn proven_externally(&self) -> bool {
-        self.attrs
-            .iter()
-            .any(|attr| matches!(attr, Attr::ProvenExternally))
+    pub(crate) fn proven_externally(&self) -> Option<Span> {
+        self.attrs.iter().find_map(|attr| {
+            if let Attr::ProvenExternally(span) = *attr { Some(span) } else { None }
+        })
     }
 
     pub(crate) fn ignored(&self) -> Option<Ignored> {
@@ -127,7 +130,7 @@ pub struct Qualifier<'fhir> {
     pub def_id: FluxLocalDefId,
     pub args: &'fhir [RefineParam<'fhir>],
     pub expr: Expr<'fhir>,
-    pub global: bool,
+    pub kind: QualifierKind,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1072,6 +1075,12 @@ pub struct PathExpr<'fhir> {
     pub span: Span,
 }
 
+impl<'fhir> PathExpr<'fhir> {
+    pub fn name(&self) -> Option<Symbol> {
+        self.segments.last().map(|ident| ident.name)
+    }
+}
+
 newtype_index! {
     #[debug_format = "a{}"]
     pub struct ParamId {}
@@ -1234,9 +1243,7 @@ pub struct PrimOpProp<'fhir> {
 pub enum SpecFuncKind {
     /// Theory symbols *interpreted* by the SMT solver
     Thy(liquid_fixpoint::ThyFunc),
-    /// User-defined uninterpreted functions with no definition
-    Uif(FluxDefId),
-    /// User-defined functions with a body definition
+    /// User-defined function. This can be either a function with a body or a UIF.
     Def(FluxDefId),
     /// Casts between sorts: id for char, int; if-then-else for bool-int; uninterpreted otherwise.
     Cast,
@@ -1245,7 +1252,7 @@ pub enum SpecFuncKind {
 impl SpecFuncKind {
     pub fn def_id(&self) -> Option<FluxDefId> {
         match self {
-            SpecFuncKind::Uif(flux_id) | SpecFuncKind::Def(flux_id) => Some(*flux_id),
+            SpecFuncKind::Def(flux_id) => Some(*flux_id),
             _ => None,
         }
     }

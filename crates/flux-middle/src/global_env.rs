@@ -1,12 +1,14 @@
-use std::{alloc, ptr, rc::Rc, slice};
+use std::{alloc, path::PathBuf, ptr, rc::Rc, slice};
 
 use flux_arc_interner::List;
 use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
+use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
 use rustc_hir::{
+    LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
 };
@@ -16,6 +18,7 @@ use rustc_middle::{
 };
 use rustc_span::Span;
 pub use rustc_span::{Symbol, symbol::Ident};
+use tempfile::TempDir;
 
 use crate::{
     cstore::CrateStoreDyn,
@@ -24,7 +27,7 @@ use crate::{
     queries::{Providers, Queries, QueryErr, QueryResult},
     query_bug,
     rty::{
-        self,
+        self, QualifierKind,
         refining::{Refine as _, Refiner},
     },
 };
@@ -40,6 +43,7 @@ struct GlobalEnvInner<'genv, 'tcx> {
     arena: &'genv fhir::Arena,
     cstore: Box<CrateStoreDyn>,
     queries: Queries<'genv, 'tcx>,
+    tempdir: TempDir,
 }
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -51,7 +55,11 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         providers: Providers,
         f: impl for<'genv> FnOnce(GlobalEnv<'genv, 'tcx>) -> R,
     ) -> R {
-        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries: Queries::new(providers) };
+        // The tempdir must be in the same partition as the target directory so we can `fs::rename`
+        // files in it.
+        let tempdir = TempDir::new_in(lean_parent_dir(tcx)).unwrap();
+        let queries = Queries::new(providers);
+        let inner = GlobalEnvInner { tcx, sess, cstore, arena, queries, tempdir };
         f(GlobalEnv { inner: &inner })
     }
 }
@@ -71,6 +79,15 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
     pub fn resolve_crate(self) -> &'genv crate::ResolverOutput {
         self.inner.queries.resolve_crate(self)
+    }
+
+    /// Parent directory of the Lean project.
+    pub fn lean_parent_dir(self) -> PathBuf {
+        lean_parent_dir(self.tcx())
+    }
+
+    pub fn temp_dir(self) -> &'genv TempDir {
+        &self.inner.tempdir
     }
 
     pub fn desugar(self, def_id: LocalDefId) -> QueryResult<fhir::Node<'genv>> {
@@ -131,7 +148,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::NormalizeInfo {
+    pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        self.normalized_defns(did.krate()).inlined_body(did)
+    }
+
+    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
         self.normalized_defns(did.krate()).func_info(did).clone()
     }
 
@@ -154,10 +175,13 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     ) -> QueryResult<impl Iterator<Item = &'genv rty::Qualifier>> {
         let quals = self.fhir_attr_map(did).qualifiers;
         let names: UnordSet<_> = quals.iter().copied().collect();
-        Ok(self
-            .qualifiers()?
-            .iter()
-            .filter(move |qual| qual.global || names.contains(&qual.def_id)))
+        Ok(self.qualifiers()?.iter().filter(move |qual| {
+            match qual.kind {
+                QualifierKind::Global => true,
+                QualifierKind::Hint => qual.def_id.parent() == did,
+                QualifierKind::Local => names.contains(&qual.def_id),
+            }
+        }))
     }
 
     /// Return the list of flux function definitions that should be revelaed for item
@@ -253,17 +277,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.check_wf(self, def_id)
     }
 
-    pub fn impl_trait_ref(
-        self,
-        impl_id: DefId,
-    ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let Some(trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
+    pub fn impl_trait_ref(self, impl_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TraitRef>> {
+        let trait_ref = self.tcx().impl_trait_ref(impl_id);
         let trait_ref = trait_ref.skip_binder();
         let trait_ref = trait_ref
             .lower(self.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
+            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))?
             .refine(&Refiner::default_for_item(self, impl_id)?)?;
-        Ok(Some(rty::EarlyBinder(trait_ref)))
+        Ok(rty::EarlyBinder(trait_ref))
     }
 
     pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
@@ -323,10 +344,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         // Otherwise, check if the trait has a default body
         if let Some(body) = self.default_assoc_refinement_body(trait_assoc_id)? {
-            let impl_trait_ref = self
-                .impl_trait_ref(impl_id)?
-                .unwrap()
-                .instantiate_identity();
+            let impl_trait_ref = self.impl_trait_ref(impl_id)?.instantiate_identity();
             return Ok(rty::EarlyBinder(body.instantiate(self.tcx(), &impl_trait_ref.args, &[])));
         }
 
@@ -443,8 +461,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn is_fn_output(&self, def_id: DefId) -> bool {
         let def_span = self.tcx().def_span(def_id);
         self.tcx()
-            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, def_span)
+            .require_lang_item(LangItem::FnOnceOutput, def_span)
             == def_id
+    }
+
+    /// Returns whether `def_id` is the `call` method in the `Fn` trait.
+    pub fn is_fn_call(&self, def_id: DefId) -> bool {
+        let tcx = self.tcx();
+        let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
+        let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
+        assoc_item.name() == sym::call && tcx.is_lang_item(trait_id, LangItem::Fn)
     }
 
     /// Iterator over all local def ids that are not a extern spec
@@ -544,7 +570,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     }
 
     /// Whether the function is marked with `#[proven_externally]`
-    pub fn proven_externally(self, def_id: LocalDefId) -> bool {
+    pub fn proven_externally(self, def_id: LocalDefId) -> Option<Span> {
         self.fhir_attr_map(def_id).proven_externally()
     }
 
@@ -667,4 +693,13 @@ impl ErrorEmitter for GlobalEnv<'_, '_> {
     fn emit<'a>(&'a self, err: impl rustc_errors::Diagnostic<'a>) -> rustc_span::ErrorGuaranteed {
         self.sess().emit(err)
     }
+}
+
+fn lean_parent_dir(tcx: TyCtxt) -> PathBuf {
+    tcx.sess
+        .opts
+        .working_dir
+        .local_path_if_available()
+        .to_path_buf()
+        .join(config::lean_dir())
 }

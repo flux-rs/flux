@@ -7,32 +7,32 @@ use std::{
 };
 
 use flux_rs::{
-    assert, alias, constant, defs, detached_spec, extern_spec, invariant, opaque, refined_by, reflect, spec, specs, trusted,
+    assert, alias, constant, defs, macros::detached_spec, extern_spec, invariant, opaque, refined_by, reflect, spec, specs, trusted,
     bitvec::BV32;
 };
 ```
 
 Our next case study shows how Flux’s refinements can be used to make the
-*typestate* even more expressive by connecting typestates with run-time
+_typestate_ even more expressive by connecting typestates with run-time
 values to avoiding the blowup that ensues from using (only) Rust’s types
 [^1] while still providing compile-time correctness guarantees. Lets
 explore this idea by building a library to manipulate GPIO pins on
-embedded hardware where each *port* comprises multiple *pins* each of
+embedded hardware where each _port_ comprises multiple _pins_ each of
 which can be set to be in `Input` or `Output` mode, and must be used
 according to its current mode.
 
 ## Bitvectors
 
-The pins” modes will be configured and accessed via *bitwise* operations
+The pins” modes will be configured and accessed via _bitwise_ operations
 on dedicated hardware registers. Flux lets us precisely track the
 results of bitwise operations — just like we can track arithmetic
 operations (\[ch\]:02_refinements) or set operations (\[ch\]:12_sets) —
 with a special `flux_rs::bitvec::BV32` type that represents 32-bit
-bitvectors as an *opaque* (see [this chapter](ch06_vectors).md) newtype wrapper around
+bitvectors as an _opaque_ (see [this chapter](ch06_vectors).md) newtype wrapper around
 `u32` indexed by a `bitvec<32>` that tracks the bits of the underlying
 `u32` [^2].
 
-``` rust
+```rust
 #[refined_by(x: bitvec<32>)]        // bitvector-valued index
 pub struct BV32(u32);
 ```
@@ -40,18 +40,18 @@ pub struct BV32(u32);
 ### Creating and Operating on Bitvectors
 
 The API for `BV32` has methods to convert from and to `u32` whose refine
-contracts use the *logical functions* `bv_int_to_bv32` and
+contracts use the _logical functions_ `bv_int_to_bv32` and
 `bv_bv32_to_int` to convert between the `int` index (of the `u32`) and
 its `bitvec<32>` representation (of the `BV32`).
 
-``` rs
+```rs
 impl BV32 {
   #[spec(fn(value: u32) -> BV32[bv_int_to_bv32(value)])]
   pub fn new(value: u32) -> BV32 { BV32(value) }
 }
 ```
 
-``` rs
+```rs
 impl Into<u32> for BV32 {
   #[spec(fn(self:BV32) -> u32[bv_bv32_to_int(self)])]
   pub fn into(self) -> u32 { self.0 }
@@ -59,11 +59,11 @@ impl Into<u32> for BV32 {
 ```
 
 **Bitvector Operations** The `flux_rs::bitvec` library implements the
-various traits like `BitAnd`, `BitOr`, `Not`, `Shl`, `Shr`, *etc.* to
+various traits like `BitAnd`, `BitOr`, `Not`, `Shl`, `Shr`, _etc._ to
 enable bitwise operations on `BV32` values. For example, the
-*left-shift* (`<<`) operation is implemented as
+_left-shift_ (`<<`) operation is implemented as
 
-``` rust
+```rust
 impl Shl<u32> for BV32 {
   #[spec(fn(self, rhs: u32) -> BV32[self << bv_int_to_bv32(rhs)])]
   fn shl(self, rhs: u32) -> BV32 { BV32(self.0 << rhs) }
@@ -72,7 +72,7 @@ impl Shl<u32> for BV32 {
 
 and the bitwise or (`|`) operation is implemented as
 
-``` rust
+```rust
 impl BitOr for BV32 {
   #[spec(fn(self, rhs: BV32) -> BV32[self | rhs])]
   fn bitor(self, rhs: BV32) -> BV32 { BV32(self.0 | rhs.0) }
@@ -95,8 +95,8 @@ fn test_shl_or() {
 
 ### Getting and Setting Individual Bits
 
-Next, lets use the bitwise operations to write functions that *get* or
-*set* a bit at a particular position in a `BV32`.
+Next, lets use the bitwise operations to write functions that _get_ or
+_set_ a bit at a particular position in a `BV32`.
 
 **Valid Bit Positions** Lets first write an alias for valid bit
 positions (`0` to `31`)
@@ -109,7 +109,7 @@ type Pin = u8;
 Note that while `rustc` will allow any `u8` value to be used as a `Pin`,
 Flux will complain if we try to use a value outside the valid range.
 
-**Getting the Value of a Pin** We can now write a function that *gets*
+**Getting the Value of a Pin** We can now write a function that _gets_
 the value of a `BV32` at a given position by returning `true` if the bit
 is set to `1` and `false` otherwise.
 
@@ -120,7 +120,7 @@ fn get_pin(bv: BV32, pin: Pin) -> bool {
 ```
 
 **Setting the Value of a Pin** Similarly, we can write a function that
-takes as input a `bool` and *sets* the bit at the given position to `1`
+takes as input a `bool` and _sets_ the bit at the given position to `1`
 if the `bool` is `true` and to `0` otherwise.
 
 ```rust, editable
@@ -133,10 +133,10 @@ fn set_pin(bv:BV32, pin:Pin, b:bool) -> BV32 {
 }
 ```
 
-**Refinement-Level Get/Set Functions** To verify code that *uses*
+**Refinement-Level Get/Set Functions** To verify code that _uses_
 `get_pin` and `set_pin`, we need to specify their behavior using Flux
-contracts. The most direct way to do so is to write *refinement
-functions* (see [this chapter](ch04_structs.md#refinement-functions)) like `get_pin`,
+contracts. The most direct way to do so is to write _refinement
+functions_ (see [this chapter](ch04_structs.md#refinement-functions)) like `get_pin`,
 defined below
 
 ```rust, editable
@@ -163,8 +163,8 @@ defs! {
 }
 ```
 
-**Syntax:** While we have tried to make the syntax of the *refinement
-function* `set_pin` shown above *look like* the implementation of the
+**Syntax:** While we have tried to make the syntax of the _refinement
+function_ `set_pin` shown above _look like_ the implementation of the
 Rust method of the same name, they are not the same thing. Indeed,
 notice we wrote `bv_not` instead of `!` in the refinement function as
 `!` is reserved for boolean negation inside refinement expressions.
@@ -197,13 +197,13 @@ fn test_get_set_pin() {
 
 Lets tuck the newly learned information about bitvectors into our
 pockets and now turn to the issue at hand: developing an API for
-interacting with *General Purpose Input/Output* (GPIO) *ports* in
+interacting with _General Purpose Input/Output_ (GPIO) _ports_ in
 low-level embedded microcontrollers.
 
 **Ports and Pins** GPIO ports are the conduit through which
-microcontrollers “talk” to the external world, *e.g.* to read sensors
+microcontrollers “talk” to the external world, _e.g._ to read sensors
 that determine key-presses or light up output LEDs. GPIO ports, are
-themselves collections of *pins* that can be configured individually as
+themselves collections of _pins_ that can be configured individually as
 either `Input` or `Output`, and which can then be read from or written
 to accordingly. The developer must take care to use each pin according
 to how it’s mode was configured, as otherwise the hardware may produce
@@ -211,8 +211,8 @@ invalid data or worse, may destroy the hardware by releasing its “magic
 smoke” [^3]!
 
 **Registers** In common hardware platforms like the STM32, ports are
-controlled via dedicated *memory mapped port registers* which control
-the modes and input and output values of *all* the pins in that port,
+controlled via dedicated _memory mapped port registers_ which control
+the modes and input and output values of _all_ the pins in that port,
 where the i<sup>th</sup> bit in the register corresponds to the
 i<sup>th</sup> pin of the port. We can model such registers in Rust as
 
@@ -251,7 +251,7 @@ detached_spec! {
 ```
 
 Similarly, lets refine `struct Gpio` to track the `modes` of the
-`Registers` that it *points to*
+`Registers` that it _points to_
 
 ```rust, editable
 #[refined_by(modes: bitvec<32>)]
@@ -261,9 +261,9 @@ Similarly, lets refine `struct Gpio` to track the `modes` of the
 
 **Private Trusted API** As the actual `Registers` must be accessed
 directly via `unsafe` pointer dereferences, we mark the `struct` as
-`opaque` (see [this chapter](ch06_vectors).md) and write a small suite of *private*
-`trusted` (*i.e.* unverified) methods for the `unsafe` dereferences,
-that we will then use to to build a verified *public* API for port
+`opaque` (see [this chapter](ch06_vectors).md) and write a small suite of _private_
+`trusted` (_i.e._ unverified) methods for the `unsafe` dereferences,
+that we will then use to to build a verified _public_ API for port
 access.
 
 ```rust, editable
@@ -324,7 +324,7 @@ fn take_peripherals() -> Option<Peripherals> {
 ## Using Modes
 
 Next, lets use the private methods to implement a public API for GPIO
-access that *gets* and *sets* a pin’s modes, and ensures it is used
+access that _gets_ and _sets_ a pin’s modes, and ensures it is used
 according to its mode. First, lets write an `enum` to represent the
 modes of a `Pin`
 
@@ -334,7 +334,7 @@ enum Mode { Input, Output }
 flux_core::eq!(Mode);
 ```
 
-We *could* have just used `bool` but sadly, I kept mixing up whether
+We _could_ have just used `bool` but sadly, I kept mixing up whether
 `true` meant `Input` or `Output`. An `enum` rather dispels the
 confusion! However it will be quite convenient to convert between `Mode`
 and `bool` with two helper functions
@@ -427,7 +427,7 @@ fn test_get_set(gpio: &mut Gpio) {
 
 **Input and Output Pins** We want the methods that read from and write
 to a `Pin` to only be invoked on pins that are configured to be in
-`Input` or `Output` mode respectively. First, lets write a type *alias*
+`Input` or `Output` mode respectively. First, lets write a type _alias_
 for such pins (as always, paired with a matching Rust-level alias that
 can be used in Rust signatures.)
 
@@ -441,9 +441,9 @@ type Out = Pin;
 
 **Dependent Aliases**: Unlike the definition of `Pin` which is simply a
 `u8` between `0` and `32`, the definitions of the aliases `In` and `Out`
-*depend on* the `bitvec<32>` index `m`. This is essential as actual
-*mode* is stored in the `modes` register and not the `Pin` itself. Flux
-supports such *dependent aliases* with *alias parameters* like
+_depend on_ the `bitvec<32>` index `m`. This is essential as actual
+_mode_ is stored in the `modes` register and not the `Pin` itself. Flux
+supports such _dependent aliases_ with _alias parameters_ like
 `m: bitvec<32>` that can be used in the alias body, and which must then
 be supplied wherever the aliases are used in Flux specifications.
 
@@ -514,7 +514,7 @@ fn test_read_write() {
 ```
 
 **Reading Multiple Pins** Your turn! Consider the function below that
-takes as input *sequence* of Pins, and returns as output a vector of the
+takes as input _sequence_ of Pins, and returns as output a vector of the
 `bool` obtained from reading the sequence of `Pins`.
 
 **EXERCISE:** Write a `spec` that lets Flux verify `read_pins`.
@@ -564,7 +564,7 @@ fn detect_and_set(gpio: &mut Gpio, pin: Pin) -> Option<bool> {
 ```
 
 **Blinking a Status LED** One often wants an embedded device to blink,
-*e.g.* to let us know its alive and kicking. The usual maneuver is to
+_e.g._ to let us know its alive and kicking. The usual maneuver is to
 toggle a dedicated status LED pin inside the main loop of the
 application.
 
@@ -600,7 +600,7 @@ fn app() {
 
 ## Summary
 
-In this chapter, we learned about Flux’s support for *bitvector* valued
+In this chapter, we learned about Flux’s support for _bitvector_ valued
 refinements via the `BV` type, and how to use bitvectors to track the
 modes of GPIO pins, to write a verified GPIO library that ensures pins
 are used per their configuration.
@@ -612,7 +612,7 @@ drawbacks. First, we get a explosion in the number of types, and the
 attendant duplication of methods. Second, and perhaps more
 importantantly, we end up tracking the state of the `Pin` at the
 type-level, when we really want to track state of the `modes` register
-to avoid any shenanigans that might arise *concurrently* accessing
+to avoid any shenanigans that might arise _concurrently_ accessing
 different pins of the same port. (The classic typestate approach would
 end up having to create 2<sup>32</sup> different types to track all mode
 configurations of a single port!)
@@ -624,7 +624,8 @@ configured mode.
 
 [^1]: See <https://www.ecorax.net/macro-bunker-1/>
 
-[^2]: Flux also supports `BV8`, `BV16` and `BV64` types for 8-, 16- and
+[^2]:
+    Flux also supports `BV8`, `BV16` and `BV64` types for 8-, 16- and
     64-bit bitvectors, but lets focus on `BV32` for simplicity
 
 [^3]: <https://en.wikipedia.org/wiki/Magic_smoke>

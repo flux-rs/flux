@@ -189,6 +189,13 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
         }
     }
 
+    fn is_async_fn(&self) -> bool {
+        self.genv
+            .tcx()
+            .asyncness(self.owner_id.resolved_id())
+            .is_async()
+    }
+
     fn zip_poly_fn_sig(&mut self, a: &rty::PolyFnSig, b: &rty::PolyFnSig) -> Result<(), FnSigErr> {
         self.enter_binders(a, b, |this, a, b| this.zip_fn_sig(a, b))
     }
@@ -589,6 +596,7 @@ impl<'genv, 'tcx> Zipper<'genv, 'tcx> {
                     self.genv,
                     self.owner_id,
                     decl,
+                    self.is_async_fn(),
                 ));
             }
             FnSigErr::Ensures { i, expected } => {
@@ -653,6 +661,8 @@ mod errors {
         expected_span: Option<Span>,
         expected_ty: rustc_middle::ty::Ty<'tcx>,
         def_descr: &'static str,
+        #[help(fhir_analysis_async_hint)]
+        async_hint: Option<()>,
     }
 
     impl<'tcx> IncompatibleRefinement<'tcx> {
@@ -667,6 +677,7 @@ mod errors {
                 def_descr: tcx.def_descr(def_id.resolved_id()),
                 expected_span: Some(tcx.def_span(def_id)),
                 expected_ty: tcx.type_of(def_id).skip_binder(),
+                async_hint: None,
             }
         }
 
@@ -700,6 +711,7 @@ mod errors {
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
                 expected_span,
                 expected_ty,
+                async_hint: None,
             }
         }
 
@@ -707,6 +719,7 @@ mod errors {
             genv: GlobalEnv<'_, 'tcx>,
             fn_id: MaybeExternId,
             decl: &fhir::FnDecl,
+            is_async: bool,
         ) -> Self {
             let expected_span = match fn_id {
                 MaybeExternId::Local(local_id) => {
@@ -725,11 +738,15 @@ mod errors {
                 .output()
                 .skip_binder();
             let spec_span = decl.output.ret.span;
+
+            let async_hint = if is_async { Some(()) } else { None };
+
             Self {
                 span: spec_span,
                 def_descr: genv.tcx().def_descr(fn_id.resolved_id()),
                 expected_span,
                 expected_ty,
+                async_hint,
             }
         }
 
@@ -749,6 +766,7 @@ mod errors {
                 def_descr: tcx.def_descr(fn_id.resolved_id()),
                 expected_span: None,
                 expected_ty: expected.to_rustc(tcx),
+                async_hint: None,
             }
         }
 
@@ -782,6 +800,7 @@ mod errors {
                 def_descr: tcx.def_descr(field_def.did),
                 expected_span: Some(tcx.def_span(field_def.did)),
                 expected_ty: tcx.type_of(field_def.did).skip_binder(),
+                async_hint: None,
             }
         }
     }
