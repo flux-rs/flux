@@ -114,14 +114,15 @@
 <a href=#114 id=114 data-nosnippet>114</a>            | rty::BaseTy::Never
 <a href=#115 id=115 data-nosnippet>115</a>            | rty::BaseTy::Foreign(..) =&gt; rty::Sort::unit(),
 <a href=#116 id=116 data-nosnippet>116</a>            rty::BaseTy::Infer(<span class="kw">_</span>) =&gt; <span class="macro">tracked_span_bug!</span>(),
-<a href=#117 id=117 data-nosnippet>117</a>        }
-<a href=#118 id=118 data-nosnippet>118</a>    }
-<a href=#119 id=119 data-nosnippet>119</a>}
-<a href=#120 id=120 data-nosnippet>120</a>
-<a href=#121 id=121 data-nosnippet>121</a><span class="kw">impl </span>rty::AliasReft {
-<a href=#122 id=122 data-nosnippet>122</a>    <span class="kw">pub fn </span>fsort(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;rty::FuncSort&gt; {
-<a href=#123 id=123 data-nosnippet>123</a>        <span class="prelude-val">Ok</span>(genv
-<a href=#124 id=124 data-nosnippet>124</a>            .sort_of_assoc_reft(<span class="self">self</span>.assoc_id)<span class="question-mark">?
-<a href=#125 id=125 data-nosnippet>125</a>            </span>.instantiate(genv.tcx(), <span class="kw-2">&amp;</span><span class="self">self</span>.args, <span class="kw-2">&amp;</span>[]))
-<a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>}</code></pre></div></section></main></body></html>
+<a href=#117 id=117 data-nosnippet>117</a>            rty::BaseTy::Pat =&gt; rty::Sort::unit()
+<a href=#118 id=118 data-nosnippet>118</a>        }
+<a href=#119 id=119 data-nosnippet>119</a>    }
+<a href=#120 id=120 data-nosnippet>120</a>}
+<a href=#121 id=121 data-nosnippet>121</a>
+<a href=#122 id=122 data-nosnippet>122</a><span class="kw">impl </span>rty::AliasReft {
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">pub fn </span>fsort(<span class="kw-2">&amp;</span><span class="self">self</span>, genv: GlobalEnv) -&gt; QueryResult&lt;rty::FuncSort&gt; {
+<a href=#124 id=124 data-nosnippet>124</a>        <span class="prelude-val">Ok</span>(genv
+<a href=#125 id=125 data-nosnippet>125</a>            .sort_of_assoc_reft(<span class="self">self</span>.assoc_id)<span class="question-mark">?
+<a href=#126 id=126 data-nosnippet>126</a>            </span>.instantiate(genv.tcx(), <span class="kw-2">&amp;</span><span class="self">self</span>.args, <span class="kw-2">&amp;</span>[]))
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>}</code></pre></div></section></main></body></html>
