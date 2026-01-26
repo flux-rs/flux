@@ -34,7 +34,7 @@ use crate::{
     pretty::*,
     queries::QueryResult,
     rty::{
-        BoundVariableKind, SortArg,
+        BoundVariableKind, SortArg, SubsetTyCtor,
         fold::{
             TypeFoldable, TypeFolder, TypeSuperFoldable, TypeSuperVisitable, TypeVisitable as _,
             TypeVisitor,
@@ -91,6 +91,10 @@ pub struct AliasReft {
 }
 
 impl AliasReft {
+    pub fn self_ty(&self) -> SubsetTyCtor {
+        self.args[0].expect_base().clone()
+    }
+
     pub fn to_rustc_trait_ref<'tcx>(&self, tcx: TyCtxt<'tcx>) -> rustc_middle::ty::TraitRef<'tcx> {
         let trait_def_id = self.assoc_id.parent();
         let args = self

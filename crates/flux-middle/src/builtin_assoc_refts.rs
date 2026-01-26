@@ -10,7 +10,7 @@ use rustc_span::DUMMY_SP;
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy, GenericArg},
+    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy},
 };
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -115,20 +115,18 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
         } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
             && alias_reft.assoc_id.name() == sym::no_panic
         {
-            let arg = &alias_reft.args[0];
-
-            let GenericArg::Base(ty) = arg else {
-                bug!("expected base ty for no_panic assoc reft, got {:?}", arg);
-            };
-            let bty = ty.as_bty_skipping_binder();
-
-            match bty {
+            let self_ty = alias_reft.self_ty();
+            let body = match self_ty.as_bty_skipping_binder() {
                 BaseTy::Closure(_, _, _, no_panic) => {
-                    let body = if *no_panic { rty::Expr::tt() } else { rty::Expr::ff() };
-                    rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
+                    if *no_panic {
+                        rty::Expr::tt()
+                    } else {
+                        rty::Expr::ff()
+                    }
                 }
-                _ => rty::Lambda::bind_with_vars(rty::Expr::ff(), List::empty(), rty::Sort::Bool),
-            }
+                _ => rty::Expr::ff(),
+            };
+            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)
         }
