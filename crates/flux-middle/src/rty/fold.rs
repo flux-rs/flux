@@ -896,6 +896,7 @@ impl TypeSuperVisitable for BaseTy {
             }
             BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
             BaseTy::Int(_)
+            | BaseTy::Pat
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
@@ -948,6 +949,7 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Dynamic(preds, region) => {
                 BaseTy::Dynamic(preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
+            BaseTy::Pat => BaseTy::Pat,
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)

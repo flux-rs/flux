@@ -114,6 +114,7 @@ impl rty::BaseTy {
             | rty::BaseTy::Never
             | rty::BaseTy::Foreign(..) => rty::Sort::unit(),
             rty::BaseTy::Infer(_) => tracked_span_bug!(),
+            rty::BaseTy::Pat => rty::Sort::unit()
         }
     }
 }

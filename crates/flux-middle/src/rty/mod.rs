@@ -1825,6 +1825,7 @@ pub enum BaseTy {
     Param(ParamTy),
     Infer(TyVid),
     Foreign(DefId),
+    Pat,
 }
 
 impl BaseTy {
@@ -2055,6 +2056,7 @@ impl BaseTy {
             | BaseTy::Param(_)
             | BaseTy::Dynamic(..)
             | BaseTy::Infer(_) => None,
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -2122,6 +2124,7 @@ impl<'tcx> ToRustc<'tcx> for BaseTy {
                     RawPtrKind::FakeForPtrMetadata.to_mutbl_lossy(),
                 )
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }
