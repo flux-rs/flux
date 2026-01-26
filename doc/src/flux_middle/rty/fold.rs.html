@@ -934,8 +934,8 @@
 <a href=#934 id=934 data-nosnippet>934</a>            BaseTy::Array(ty, c) =&gt; {
 <a href=#935 id=935 data-nosnippet>935</a>                BaseTy::Array(ty.try_fold_with(folder)<span class="question-mark">?</span>, c.try_fold_with(folder)<span class="question-mark">?</span>)
 <a href=#936 id=936 data-nosnippet>936</a>            }
-<a href=#937 id=937 data-nosnippet>937</a>            BaseTy::Closure(did, args, gen_args) =&gt; {
-<a href=#938 id=938 data-nosnippet>938</a>                BaseTy::Closure(<span class="kw-2">*</span>did, args.try_fold_with(folder)<span class="question-mark">?</span>, gen_args.clone())
+<a href=#937 id=937 data-nosnippet>937</a>            BaseTy::Closure(did, args, gen_args, no_panic) =&gt; {
+<a href=#938 id=938 data-nosnippet>938</a>                BaseTy::Closure(<span class="kw-2">*</span>did, args.try_fold_with(folder)<span class="question-mark">?</span>, gen_args.clone(), <span class="kw-2">*</span>no_panic)
 <a href=#939 id=939 data-nosnippet>939</a>            }
 <a href=#940 id=940 data-nosnippet>940</a>            BaseTy::Coroutine(did, resume_ty, args, gen_args) =&gt; {
 <a href=#941 id=941 data-nosnippet>941</a>                BaseTy::Coroutine(
