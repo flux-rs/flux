@@ -671,6 +671,8 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
         env.push_layer(Layer::list(self.results(), late_bound_regions.len() as u32, &[]));
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
+        // TODO: here, split on the no_panicness. if we see a nopanicif(e) attribute, then
+        // use e. otherwise, we'll have to default to this value here.
         let no_panic = self.genv().no_panic(fn_id);
 
         let fn_sig =
