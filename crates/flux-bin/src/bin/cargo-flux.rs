@@ -12,7 +12,7 @@ use flux_bin::{
     cargo_flux_opts::{CargoFluxCommand, Cli},
     utils::{
         EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
-        get_version, get_version_full,
+        print_version_and_exit,
     },
 };
 use itertools::Itertools;
@@ -23,24 +23,14 @@ fn main() {
 
     // Handle version flag (-V or --version)
     if version {
-        if verbose {
-            println!("cargo-flux {}", get_version_full());
-        } else {
-            println!("cargo-flux {}", get_version());
-        }
-        exit(0);
+        print_version_and_exit("cargo-flux", verbose);
     }
 
     let command = command.unwrap_or(CargoFluxCommand::Check(check_opts));
 
     // Handle version subcommand
     if let CargoFluxCommand::Version { verbose } = command {
-        if verbose {
-            println!("cargo-flux {}", get_version_full());
-        } else {
-            println!("cargo-flux {}", get_version());
-        }
-        exit(0);
+        print_version_and_exit("cargo-flux", verbose);
     }
 
     match run(command) {

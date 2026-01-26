@@ -118,3 +118,12 @@ pub fn get_version() -> &'static str {
 pub fn get_version_full() -> &'static str {
     concat!(env!("GIT_SHA_FULL"), " (", env!("GIT_DATE"), ")")
 }
+
+pub fn print_version_and_exit(program_name: &str, verbose: bool) -> ! {
+    if verbose {
+        println!("{} {}", program_name, get_version_full());
+    } else {
+        println!("{} {}", program_name, get_version());
+    }
+    std::process::exit(0)
+}
