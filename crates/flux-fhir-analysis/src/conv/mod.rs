@@ -26,8 +26,8 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, BoundReftKind, ESpan, INNERMOST, InternalFuncKind, List, RefineArgsExt,
-        WfckResults,
+        self, AssocReft, BoundReftKind, ESpan, Expr, INNERMOST, InternalFuncKind, List,
+        RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
     },
@@ -1008,7 +1008,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             requires.into(),
             inputs.into(),
             output,
-            no_panic,
+            if no_panic { Expr::tt() } else { Expr::ff() },
             decl.lifted,
         ))
     }
@@ -1531,7 +1531,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .lower(tcx)
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
             .refine(&self.refiner()?)?;
-
         let assoc_item = tag
             .trait_defines_item_named(self.genv(), trait_ref.def_id, assoc_ident)?
             .unwrap();

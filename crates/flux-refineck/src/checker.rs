@@ -121,6 +121,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
+    #[expect(dead_code)]
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -471,7 +472,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true, false);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, Expr::tt(), false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -942,21 +943,15 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut at = infcx.at(span);
 
-        if M::NAME == "refine" {
-            let no_panic = self.fn_sig.no_panic();
+        if let Some(callee_def_id) = callee_def_id
+            && genv.def_kind(callee_def_id).is_fn_like()
+        {
+            let callee_no_panic = fn_sig.no_panic();
 
-            if no_panic
-                && let Some(callee_def_id) = callee_def_id
-                && genv.def_kind(callee_def_id).is_fn_like()
-            {
-                at.check_pred(
-                    Expr::implies(
-                        if no_panic { Expr::tt() } else { Expr::ff() },
-                        if fn_sig.no_panic() { Expr::tt() } else { Expr::ff() },
-                    ),
-                    ConstrReason::NoPanic(callee_def_id),
-                );
-            }
+            at.check_pred(
+                Expr::implies(self.fn_sig.no_panic(), callee_no_panic),
+                ConstrReason::NoPanic(callee_def_id),
+            );
         }
 
         // Check requires predicates
@@ -1061,7 +1056,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .as_bty_skipping_existentials();
         let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _)) => {
+            Some(BaseTy::Closure(def_id, _, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
@@ -1365,7 +1360,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        Ok(Ty::closure(*did, upvar_tys, args))
+        let no_panic = self.genv.no_panic(*did);
+        Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }
 
     fn check_rvalue(

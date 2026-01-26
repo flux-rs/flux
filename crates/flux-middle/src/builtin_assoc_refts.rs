@@ -10,7 +10,7 @@ use rustc_span::DUMMY_SP;
 use crate::{
     def_id::FluxDefId,
     global_env::GlobalEnv,
-    rty::{self, AliasReft, AssocRefinements, AssocReft},
+    rty::{self, AliasReft, AssocRefinements, AssocReft, BaseTy},
 };
 
 impl<'tcx> GlobalEnv<'_, 'tcx> {
@@ -26,6 +26,19 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 let tcx = self.tcx();
 
                 let mut map = UnordMap::default();
+
+                // FnOnce
+                let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
+                map.insert(
+                    fn_once_id,
+                    AssocRefinements {
+                        items: List::from_arr([AssocReft::new(
+                            FluxDefId::new(fn_once_id, sym::no_panic),
+                            false,
+                            tcx.def_span(fn_once_id),
+                        )]),
+                    },
+                );
 
                 // Sized
                 let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
@@ -61,6 +74,13 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
+                // FnOnce
+                let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
+                map.insert(
+                    FluxDefId::new(fn_once_id, sym::no_panic),
+                    rty::FuncSort::new(vec![], rty::Sort::Bool),
+                );
+
                 // Sized
                 let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
                 map.insert(
@@ -92,6 +112,21 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
+        } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+            && alias_reft.assoc_id.name() == sym::no_panic
+        {
+            let self_ty = alias_reft.self_ty();
+            let body = match self_ty.as_bty_skipping_binder() {
+                BaseTy::Closure(_, _, _, no_panic) => {
+                    if *no_panic {
+                        rty::Expr::tt()
+                    } else {
+                        rty::Expr::ff()
+                    }
+                }
+                _ => rty::Expr::ff(),
+            };
+            rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Bool)
         } else {
             bug!("invalid builtin assoc reft {:?}", alias_reft.assoc_id)
         }
