@@ -524,6 +524,9 @@ impl<'a, 'tcx> SpecCollector<'a, 'tcx> {
             ("invariant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::Invariant)?
             }
+            ("no_panic_if", hir::AttrArgs::Delimited(dargs)) => {
+                self.parse(dargs, ParseSess::parse_expr, FluxAttrKind::NoPanicIf)?
+            }
             ("constant", hir::AttrArgs::Delimited(dargs)) => {
                 self.parse(dargs, ParseSess::parse_constant_info, FluxAttrKind::Constant)?
             }
@@ -822,6 +825,7 @@ impl FluxAttrs {
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
+                | FluxAttrKind::NoPanicIf(_)
                 | FluxAttrKind::DetachedSpecs(_) => continue,
             };
             attrs.push(attr);
@@ -857,6 +861,7 @@ impl FluxAttrKind {
             FluxAttrKind::ExternSpec => attr_name!(ExternSpec),
             FluxAttrKind::DetachedSpecs(_) => attr_name!(DetachedSpecs),
             FluxAttrKind::NoPanic => attr_name!(NoPanic),
+            FluxAttrKind::NoPanicIf(_) => attr_name!(NoPanicIf),
         }
     }
 }

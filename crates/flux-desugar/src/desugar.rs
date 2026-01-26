@@ -481,7 +481,7 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
         fn_sig: Option<&surface::FnSig>,
     ) -> Result<(fhir::Generics<'genv>, fhir::FnSig<'genv>)> {
         let mut header = self.lift_fn_header();
-        let (generics, decl) = if let Some(fn_sig) = fn_sig {
+        let (generics, decl, no_panic_if) = if let Some(fn_sig) = fn_sig {
             self.fn_sig_scope = Some(fn_sig.node_id);
 
             let mut requires = vec![];
@@ -510,18 +510,20 @@ impl<'a, 'genv, 'tcx: 'genv> RustItemCtxt<'a, 'genv, 'tcx> {
                 span: fn_sig.span,
                 lifted: false,
             };
+
             // Fix up the span in asyncness
             if let surface::Async::Yes { span, .. } = fn_sig.asyncness {
                 header.asyncness = hir::IsAsync::Async(span);
             }
-            (generics, decl)
+
+            (generics, decl, fn_sig.no_panic.as_ref().map(|e| self.desugar_expr(&e)))
         } else {
-            (self.lift_generics(), self.lift_fn_decl())
+            (self.lift_generics(), self.lift_fn_decl(), None)
         };
         if config::dump_fhir() {
             dbg::dump_item_info(self.genv.tcx(), self.owner.local_id(), "fhir", decl).unwrap();
         }
-        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl) }))
+        Ok((generics, fhir::FnSig { header, decl: self.genv.alloc(decl), no_panic_if }))
     }
 
     fn desugar_fn_sig_refine_params(
