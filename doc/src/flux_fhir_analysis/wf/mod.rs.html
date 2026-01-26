@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (b6f0945e4 2025-10-08)" data-channel="nightly" data-search-js="search-8d3311b9.js" data-stringdex-js="stringdex-828709d0.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/wf/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Checks type well-formedness
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-fhir-analysis/src/wf/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_fhir_analysis" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (c871d09d1 2025-11-24)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_fhir_analysis/wf/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="doccomment">//! Checks type well-formedness
 <a href=#2 id=2 data-nosnippet>2</a>//!
 <a href=#3 id=3 data-nosnippet>3</a>//! Well-formedness checking assumes names are correctly bound which is guaranteed after desugaring.
 <a href=#4 id=4 data-nosnippet>4</a>
@@ -120,7 +120,7 @@
 <a href=#120 id=120 data-nosnippet>120</a>}
 <a href=#121 id=121 data-nosnippet>121</a>
 <a href=#122 id=122 data-nosnippet>122</a><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; Wf&lt;<span class="lifetime">'a</span>, <span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt; {
-<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">fn </span>with(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#123 id=123 data-nosnippet>123</a>    <span class="kw">fn </span>with(infcx: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>InferCtxt&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#124 id=124 data-nosnippet>124</a>        <span class="kw">let </span>errors = Errors::new(infcx.genv.sess());
 <a href=#125 id=125 data-nosnippet>125</a>        <span class="kw">let </span><span class="kw-2">mut </span>wf = <span class="self">Self </span>{
 <a href=#126 id=126 data-nosnippet>126</a>            infcx,
@@ -151,7 +151,7 @@
 <a href=#151 id=151 data-nosnippet>151</a>
 <a href=#152 id=152 data-nosnippet>152</a>    <span class="comment">// We special-case primop applications to declare their parameters because their
 <a href=#153 id=153 data-nosnippet>153</a>    // parameters are implicit from the underlying primop and must not be declared explicitly.
-<a href=#154 id=154 data-nosnippet>154</a>    </span><span class="kw">fn </span>declare_params_for_primop_prop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, primop_prop: <span class="kw-2">&amp;</span>fhir::PrimOpProp&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#154 id=154 data-nosnippet>154</a>    </span><span class="kw">fn </span>declare_params_for_primop_prop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, primop_prop: <span class="kw-2">&amp;</span>fhir::PrimOpProp&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#155 id=155 data-nosnippet>155</a>        <span class="kw">let </span><span class="prelude-val">Some</span>((sorts, <span class="kw">_</span>)) = prim_op_sort(<span class="kw-2">&amp;</span>primop_prop.op) <span class="kw">else </span>{
 <a href=#156 id=156 data-nosnippet>156</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="self">self
 <a href=#157 id=157 data-nosnippet>157</a>                </span>.errors
@@ -175,7 +175,7 @@
 <a href=#175 id=175 data-nosnippet>175</a>    }
 <a href=#176 id=176 data-nosnippet>176</a>
 <a href=#177 id=177 data-nosnippet>177</a>    <span class="doccomment">/// Recursively traverse `item` and declare all refinement parameters
-<a href=#178 id=178 data-nosnippet>178</a>    </span><span class="kw">fn </span>declare_params_for_flux_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#178 id=178 data-nosnippet>178</a>    </span><span class="kw">fn </span>declare_params_for_flux_item(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: fhir::FluxItem&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">if let </span>fhir::FluxItem::PrimOpProp(primop_prop) = item {
 <a href=#180 id=180 data-nosnippet>180</a>            <span class="self">self</span>.declare_params_for_primop_prop(primop_prop)
 <a href=#181 id=181 data-nosnippet>181</a>        } <span class="kw">else </span>{
@@ -184,7 +184,7 @@
 <a href=#184 id=184 data-nosnippet>184</a>    }
 <a href=#185 id=185 data-nosnippet>185</a>
 <a href=#186 id=186 data-nosnippet>186</a>    <span class="doccomment">/// Recursively traverse `node` and declare all refinement parameters
-<a href=#187 id=187 data-nosnippet>187</a>    </span><span class="kw">fn </span>declare_params_for_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#187 id=187 data-nosnippet>187</a>    </span><span class="kw">fn </span>declare_params_for_node(<span class="kw-2">&amp;mut </span><span class="self">self</span>, node: <span class="kw-2">&amp;</span>fhir::OwnerNode&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#188 id=188 data-nosnippet>188</a>        visit_refine_params(|vis| vis.visit_node(node), |param| <span class="self">self</span>.declare_param(param))
 <a href=#189 id=189 data-nosnippet>189</a>    }
 <a href=#190 id=190 data-nosnippet>190</a>
@@ -193,7 +193,7 @@
 <a href=#193 id=193 data-nosnippet>193</a>        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
 <a href=#194 id=194 data-nosnippet>194</a>        params: <span class="kw-2">&amp;</span>[fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;],
 <a href=#195 id=195 data-nosnippet>195</a>        invariants: <span class="kw-2">&amp;</span>[fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;],
-<a href=#196 id=196 data-nosnippet>196</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#196 id=196 data-nosnippet>196</a>    ) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#197 id=197 data-nosnippet>197</a>        <span class="kw">for </span>param <span class="kw">in </span>params {
 <a href=#198 id=198 data-nosnippet>198</a>            <span class="self">self</span>.declare_param(param)<span class="question-mark">?</span>;
 <a href=#199 id=199 data-nosnippet>199</a>        }
@@ -203,11 +203,11 @@
 <a href=#203 id=203 data-nosnippet>203</a>        <span class="prelude-val">Ok</span>(())
 <a href=#204 id=204 data-nosnippet>204</a>    }
 <a href=#205 id=205 data-nosnippet>205</a>
-<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">fn </span>declare_params_in_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="kw">fn </span>declare_params_in_expr(<span class="kw-2">&amp;mut </span><span class="self">self</span>, expr: <span class="kw-2">&amp;</span>fhir::Expr&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#207 id=207 data-nosnippet>207</a>        visit_refine_params(|vis| vis.visit_expr(expr), |param| <span class="self">self</span>.declare_param(param))
 <a href=#208 id=208 data-nosnippet>208</a>    }
 <a href=#209 id=209 data-nosnippet>209</a>
-<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">fn </span>declare_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">fn </span>declare_param(<span class="kw-2">&amp;mut </span><span class="self">self</span>, param: <span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'genv</span>&gt;) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>sort = <span class="self">self
 <a href=#212 id=212 data-nosnippet>212</a>            </span>.as_conv_ctxt()
 <a href=#213 id=213 data-nosnippet>213</a>            .conv_sort(<span class="kw-2">&amp;</span>param.sort)
@@ -495,8 +495,8 @@
 <a href=#495 id=495 data-nosnippet>495</a>    }
 <a href=#496 id=496 data-nosnippet>496</a>}
 <a href=#497 id=497 data-nosnippet>497</a>
-<a href=#498 id=498 data-nosnippet>498</a><span class="kw">fn </span>visit_refine_params&lt;<span class="lifetime">'a</span>, F&gt;(visit: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>RefineParamVisitor&lt;F&gt;), f: F) -&gt; <span class="prelude-ty">Result</span>
-<a href=#499 id=499 data-nosnippet>499</a><span class="kw">where
+<a href=#498 id=498 data-nosnippet>498</a><span class="kw">fn </span>visit_refine_params&lt;<span class="lifetime">'a</span>, F&gt;(visit: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>RefineParamVisitor&lt;F&gt;), f: F) -&gt; <span class="prelude-ty">Result
+<a href=#499 id=499 data-nosnippet>499</a></span><span class="kw">where
 <a href=#500 id=500 data-nosnippet>500</a>    </span>F: FnMut(<span class="kw-2">&amp;</span>fhir::RefineParam&lt;<span class="lifetime">'a</span>&gt;) -&gt; <span class="prelude-ty">Result</span>,
 <a href=#501 id=501 data-nosnippet>501</a>{
 <a href=#502 id=502 data-nosnippet>502</a>    <span class="kw">let </span><span class="kw-2">mut </span>visitor = RefineParamVisitor { f, err: <span class="prelude-val">None </span>};
@@ -597,4 +597,5 @@
 <a href=#597 id=597 data-nosnippet>597</a>    <span class="kw">fn </span>node_sort_args(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: FhirId) -&gt; rty::List&lt;rty::SortArg&gt; {
 <a href=#598 id=598 data-nosnippet>598</a>        rty::List::empty()
 <a href=#599 id=599 data-nosnippet>599</a>    }
-<a href=#600 id=600 data-nosnippet>600</a>}</code></pre></div></section></main></body></html>
+<a href=#600 id=600 data-nosnippet>600</a>}
+</code></pre></div></section></main></body></html>

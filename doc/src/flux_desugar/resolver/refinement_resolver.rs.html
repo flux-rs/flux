@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver/refinement_resolver.rs`."><title>refinement_resolver.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (b6f0945e4 2025-10-08)" data-channel="nightly" data-search-js="search-8d3311b9.js" data-stringdex-js="stringdex-828709d0.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/resolver/</div>refinement_resolver.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::ops::ControlFlow;
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/flux-desugar/src/resolver/refinement_resolver.rs`."><title>refinement_resolver.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="flux_desugar" data-themes="" data-resource-suffix="" data-rustdoc-version="1.93.0-nightly (c871d09d1 2025-11-24)" data-channel="nightly" data-search-js="search-680b2199.js" data-stringdex-js="stringdex-a3946164.js" data-settings-js="settings-c38705f0.js" ><script src="../../../static.files/storage-e2aeef58.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-a410ff4d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">flux_desugar/resolver/</div>refinement_resolver.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span>std::ops::ControlFlow;
 <a href=#2 id=2 data-nosnippet>2</a>
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>flux_common::index::IndexGen;
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>flux_errors::Errors;
@@ -418,14 +418,14 @@
 <a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_flux_item(
 <a href=#419 id=419 data-nosnippet>419</a>        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 <a href=#420 id=420 data-nosnippet>420</a>        item: <span class="kw-2">&amp;</span>FluxItem,
-<a href=#421 id=421 data-nosnippet>421</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#421 id=421 data-nosnippet>421</a>    ) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#422 id=422 data-nosnippet>422</a>        <span class="self">Self</span>::for_flux_item(resolver, item).run(|r| r.visit_flux_item(item))
 <a href=#423 id=423 data-nosnippet>423</a>    }
 <a href=#424 id=424 data-nosnippet>424</a>
 <a href=#425 id=425 data-nosnippet>425</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_item(
 <a href=#426 id=426 data-nosnippet>426</a>        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 <a href=#427 id=427 data-nosnippet>427</a>        item: <span class="kw-2">&amp;</span>surface::Item,
-<a href=#428 id=428 data-nosnippet>428</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#428 id=428 data-nosnippet>428</a>    ) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#429 id=429 data-nosnippet>429</a>        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_item(item))<span class="question-mark">?</span>;
 <a href=#430 id=430 data-nosnippet>430</a>        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_item(item))
 <a href=#431 id=431 data-nosnippet>431</a>    }
@@ -433,7 +433,7 @@
 <a href=#433 id=433 data-nosnippet>433</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_trait_item(
 <a href=#434 id=434 data-nosnippet>434</a>        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 <a href=#435 id=435 data-nosnippet>435</a>        item: <span class="kw-2">&amp;</span>surface::TraitItemFn,
-<a href=#436 id=436 data-nosnippet>436</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#436 id=436 data-nosnippet>436</a>    ) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#437 id=437 data-nosnippet>437</a>        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_trait_item(item))<span class="question-mark">?</span>;
 <a href=#438 id=438 data-nosnippet>438</a>        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_trait_item(item))
 <a href=#439 id=439 data-nosnippet>439</a>    }
@@ -441,7 +441,7 @@
 <a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>resolve_impl_item(
 <a href=#442 id=442 data-nosnippet>442</a>        resolver: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>CrateResolver&lt;<span class="lifetime">'genv</span>, <span class="lifetime">'tcx</span>&gt;,
 <a href=#443 id=443 data-nosnippet>443</a>        item: <span class="kw-2">&amp;</span>surface::ImplItemFn,
-<a href=#444 id=444 data-nosnippet>444</a>    ) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#444 id=444 data-nosnippet>444</a>    ) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#445 id=445 data-nosnippet>445</a>        IllegalBinderVisitor::new(resolver).run(|vis| vis.visit_impl_item(item))<span class="question-mark">?</span>;
 <a href=#446 id=446 data-nosnippet>446</a>        <span class="self">Self</span>::for_rust_item(resolver).run(|vis| vis.visit_impl_item(item))
 <a href=#447 id=447 data-nosnippet>447</a>    }
@@ -458,7 +458,7 @@
 <a href=#458 id=458 data-nosnippet>458</a>        }
 <a href=#459 id=459 data-nosnippet>459</a>    }
 <a href=#460 id=460 data-nosnippet>460</a>
-<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">fn </span>run(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ScopedVisitorWrapper&lt;<span class="self">Self</span>&gt;)) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">fn </span>run(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ScopedVisitorWrapper&lt;<span class="self">Self</span>&gt;)) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#462 id=462 data-nosnippet>462</a>        <span class="kw">let </span><span class="kw-2">mut </span>wrapper = <span class="self">self</span>.wrap();
 <a href=#463 id=463 data-nosnippet>463</a>        f(<span class="kw-2">&amp;mut </span>wrapper);
 <a href=#464 id=464 data-nosnippet>464</a>        wrapper.<span class="number">0</span>.finish()
@@ -640,7 +640,7 @@
 <a href=#640 id=640 data-nosnippet>640</a>        </span>}
 <a href=#641 id=641 data-nosnippet>641</a>    }
 <a href=#642 id=642 data-nosnippet>642</a>
-<a href=#643 id=643 data-nosnippet>643</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>finish(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#643 id=643 data-nosnippet>643</a>    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>finish(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#644 id=644 data-nosnippet>644</a>        <span class="kw">let </span>param_id_gen = IndexGen::new();
 <a href=#645 id=645 data-nosnippet>645</a>        <span class="kw">let </span><span class="kw-2">mut </span>params = FxIndexMap::default();
 <a href=#646 id=646 data-nosnippet>646</a>
@@ -793,7 +793,7 @@
 <a href=#793 id=793 data-nosnippet>793</a>        <span class="self">Self </span>{ scopes: <span class="macro">vec!</span>[], resolver, errors }
 <a href=#794 id=794 data-nosnippet>794</a>    }
 <a href=#795 id=795 data-nosnippet>795</a>
-<a href=#796 id=796 data-nosnippet>796</a>    <span class="kw">fn </span>run(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ScopedVisitorWrapper&lt;<span class="self">Self</span>&gt;)) -&gt; <span class="prelude-ty">Result</span> {
+<a href=#796 id=796 data-nosnippet>796</a>    <span class="kw">fn </span>run(<span class="self">self</span>, f: <span class="kw">impl </span>FnOnce(<span class="kw-2">&amp;mut </span>ScopedVisitorWrapper&lt;<span class="self">Self</span>&gt;)) -&gt; <span class="prelude-ty">Result </span>{
 <a href=#797 id=797 data-nosnippet>797</a>        <span class="kw">let </span><span class="kw-2">mut </span>vis = <span class="self">self</span>.wrap();
 <a href=#798 id=798 data-nosnippet>798</a>        f(<span class="kw-2">&amp;mut </span>vis);
 <a href=#799 id=799 data-nosnippet>799</a>        vis.<span class="number">0</span>.errors.to_result()
@@ -950,4 +950,5 @@
 <a href=#950 id=950 data-nosnippet>950</a>            <span class="self">Self </span>{ span, kind: kind.token_str() }
 <a href=#951 id=951 data-nosnippet>951</a>        }
 <a href=#952 id=952 data-nosnippet>952</a>    }
-<a href=#953 id=953 data-nosnippet>953</a>}</code></pre></div></section></main></body></html>
+<a href=#953 id=953 data-nosnippet>953</a>}
+</code></pre></div></section></main></body></html>
