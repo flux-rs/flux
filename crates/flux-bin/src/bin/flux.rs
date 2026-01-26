@@ -11,9 +11,9 @@ use flux_bin::utils::{
 fn main() -> Result<()> {
     if env::args().any(|arg| arg == "--version" || arg == "-V") {
         if env::args().any(|arg| arg == "--verbose") {
-            println!("flux {}", get_version());
-        } else {
             println!("flux {}", get_version_full());
+        } else {
+            println!("flux {}", get_version());
         }
         std::process::exit(0);
     }

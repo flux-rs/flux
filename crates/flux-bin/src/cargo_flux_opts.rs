@@ -2,12 +2,13 @@ use std::{path::Path, process::Command};
 
 use cargo_metadata::{MetadataCommand, camino::Utf8PathBuf};
 
-use crate::{cargo_style, utils::get_version};
+use crate::cargo_style;
 
 #[derive(clap::Parser)]
 #[command(name = "cargo")]
 #[command(bin_name = "cargo")]
 #[command(styles = cargo_style::CLAP_STYLING)]
+#[command(disable_version_flag = true)]
 pub enum Cli {
     /// Flux's integration with Cargo
     Flux {
@@ -16,17 +17,30 @@ pub enum Cli {
 
         #[command(subcommand)]
         command: Option<CargoFluxCommand>,
+
+        /// Print version information
+        #[arg(short = 'V', long = "version")]
+        version: bool,
+
+        /// Print verbose version information (use with --version or -V)
+        #[arg(short = 'v', long = "verbose")]
+        verbose: bool,
     },
 }
 
 #[derive(clap::Subcommand)]
-#[command(version = get_version())]
 pub enum CargoFluxCommand {
     /// Check a local package and its dependencies for errors using Flux.
     /// This is the default command when no subcommand is provided.
     Check(CheckOpts),
     /// Remove artifacts that cargo-flux has generated in the past
     Clean(CleanOpts),
+    /// Display version information
+    Version {
+        /// Print verbose version information
+        #[arg(short = 'v', long)]
+        verbose: bool,
+    },
 }
 
 impl CargoFluxCommand {
@@ -39,6 +53,9 @@ impl CargoFluxCommand {
             CargoFluxCommand::Clean(clean_opts) => {
                 cmd.arg("clean");
                 clean_opts.forward_args(cmd);
+            }
+            CargoFluxCommand::Version { .. } => {
+                // Version is handled separately in main, not forwarded to cargo
             }
         }
         cmd.args(["--profile", "flux"]);
@@ -53,6 +70,9 @@ impl CargoFluxCommand {
             }
             CargoFluxCommand::Clean(clean_options) => {
                 clean_options.forward_to_metadata(&mut meta);
+            }
+            CargoFluxCommand::Version { .. } => {
+                // Version is handled separately in main, no metadata needed
             }
         }
         meta
