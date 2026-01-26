@@ -406,10 +406,8 @@ fn find_trait_item(
 ) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
     let tcx = genv.tcx();
     let def_id = def_id.to_def_id();
-    if let Some(impl_id) = tcx.impl_of_assoc(def_id)
-        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
-    {
-        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+    if let Some(impl_id) = tcx.trait_impl_of_assoc(def_id) {
+        let impl_trait_ref = genv.impl_trait_ref(impl_id)?.instantiate_identity();
         let trait_item_id = tcx.associated_item(def_id).trait_item_def_id().unwrap();
         return Ok(Some((impl_trait_ref, trait_item_id)));
     }
@@ -1419,7 +1417,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_binary_op(infcx, env, stmt_span, *bin_op, op1, op2)
                     .with_span(stmt_span)
             }
-            Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
+
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                 self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
@@ -1548,16 +1546,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
-        }
-    }
-
-    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &ty::Ty) -> Ty {
-        match null_op {
-            mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
-                // We could try to get the layout of type to index this with the actual value, but
-                // this enough for now. Revisit if we ever need the precision.
-                Ty::uint(UintTy::Usize)
-            }
         }
     }
 

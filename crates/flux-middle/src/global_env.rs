@@ -277,17 +277,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.check_wf(self, def_id)
     }
 
-    pub fn impl_trait_ref(
-        self,
-        impl_id: DefId,
-    ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let Some(trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
+    pub fn impl_trait_ref(self, impl_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TraitRef>> {
+        let trait_ref = self.tcx().impl_trait_ref(impl_id);
         let trait_ref = trait_ref.skip_binder();
         let trait_ref = trait_ref
             .lower(self.tcx())
             .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))?
             .refine(&Refiner::default_for_item(self, impl_id)?)?;
-        Ok(Some(rty::EarlyBinder(trait_ref)))
+        Ok(rty::EarlyBinder(trait_ref))
     }
 
     pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
@@ -347,10 +344,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         // Otherwise, check if the trait has a default body
         if let Some(body) = self.default_assoc_refinement_body(trait_assoc_id)? {
-            let impl_trait_ref = self
-                .impl_trait_ref(impl_id)?
-                .unwrap()
-                .instantiate_identity();
+            let impl_trait_ref = self.impl_trait_ref(impl_id)?.instantiate_identity();
             return Ok(rty::EarlyBinder(body.instantiate(self.tcx(), &impl_trait_ref.args, &[])));
         }
 
