@@ -868,38 +868,33 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
                     let tcx = genv.tcx();
-                    let is_fn_call = sym::call == tcx.item_name(def_id);
 
-                    let mut fn_sig = genv
+                    let mut poly_sig = genv
                         .lower_fn_sig(def_id)?
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
 
-                    if is_fn_call {
-                        let mut inner_sig = fn_sig.clone().skip_binder();
+                    if genv.is_fn_call(def_id) {
+                        let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
 
-                        let fn_once_assoc_reft = genv
-                            .builtin_assoc_refts(
-                                genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
-                            )
+                        let fn_once_no_panic = genv
+                            .builtin_assoc_refts(fn_once_id)
                             .unwrap()
                             .find(sym::no_panic)
                             .unwrap();
 
-                        let args = GenericArg::identity_for_item(
-                            genv,
-                            genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
-                        )?;
+                        let args = GenericArg::identity_for_item(genv, fn_once_id)?;
 
-                        let alias_reft = AliasReft { assoc_id: fn_once_assoc_reft.def_id, args };
+                        let alias_reft = AliasReft { assoc_id: fn_once_no_panic.def_id, args };
 
-                        inner_sig.no_panic = Expr::alias(alias_reft, List::empty());
-
-                        fn_sig = fn_sig.rebind(inner_sig);
+                        poly_sig = poly_sig.map(|mut fn_sig| {
+                            fn_sig.no_panic = Expr::alias(alias_reft, List::empty());
+                            fn_sig
+                        });
                     }
 
-                    Ok(rty::EarlyBinder(fn_sig))
+                    Ok(rty::EarlyBinder(poly_sig))
                 },
             )
         })

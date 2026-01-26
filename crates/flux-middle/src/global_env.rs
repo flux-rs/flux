@@ -5,8 +5,10 @@ use flux_common::{bug, result::ErrorEmitter};
 use flux_config as config;
 use flux_errors::FluxSession;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
+use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
 use rustc_hir::{
+    LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
 };
@@ -465,8 +467,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn is_fn_output(&self, def_id: DefId) -> bool {
         let def_span = self.tcx().def_span(def_id);
         self.tcx()
-            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, def_span)
+            .require_lang_item(LangItem::FnOnceOutput, def_span)
             == def_id
+    }
+
+    /// Returns whether `def_id` is the `call` method in the `Fn` trait.
+    pub fn is_fn_call(&self, def_id: DefId) -> bool {
+        let tcx = self.tcx();
+        let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
+        let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
+        assoc_item.name() == sym::call && tcx.is_lang_item(trait_id, LangItem::Fn)
     }
 
     /// Iterator over all local def ids that are not a extern spec

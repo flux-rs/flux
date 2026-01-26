@@ -27,20 +27,18 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
-                // TODO: ask nico if this should mirror the statement below
-                // (panic if fn_once_trait is missing)
-                if let Some(fn_def_id) = tcx.lang_items().fn_once_trait() {
-                    map.insert(
-                        fn_def_id,
-                        AssocRefinements {
-                            items: List::from_arr([AssocReft::new(
-                                FluxDefId::new(fn_def_id, sym::no_panic),
-                                false,
-                                tcx.def_span(fn_def_id),
-                            )]),
-                        },
-                    );
-                }
+                // FnOnce
+                let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
+                map.insert(
+                    fn_once_id,
+                    AssocRefinements {
+                        items: List::from_arr([AssocReft::new(
+                            FluxDefId::new(fn_once_id, sym::no_panic),
+                            false,
+                            tcx.def_span(fn_once_id),
+                        )]),
+                    },
+                );
 
                 // Sized
                 let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
@@ -76,14 +74,12 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
 
                 let mut map = UnordMap::default();
 
-                // Fn
-                if let Some(no_panic_id) = tcx
-                    .lang_items()
-                    .fn_once_trait()
-                    .map(|fn_def_id| FluxDefId::new(fn_def_id, sym::no_panic))
-                {
-                    map.insert(no_panic_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
-                }
+                // FnOnce
+                let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
+                map.insert(
+                    FluxDefId::new(fn_once_id, sym::no_panic),
+                    rty::FuncSort::new(vec![], rty::Sort::Bool),
+                );
 
                 // Sized
                 let sized_id = tcx.require_lang_item(LangItem::Sized, DUMMY_SP);
@@ -116,8 +112,8 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-        } else if alias_reft.assoc_id.name() == sym::no_panic
-            && tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+        } else if tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
+            && alias_reft.assoc_id.name() == sym::no_panic
         {
             let arg = &alias_reft.args[0];
 
