@@ -5,7 +5,7 @@ use flux_common::bug;
 use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordMap;
 use rustc_hir::{LangItem, def_id::DefId};
-use rustc_span::{DUMMY_SP, Symbol};
+use rustc_span::DUMMY_SP;
 
 use crate::{
     def_id::FluxDefId,
@@ -34,7 +34,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                         fn_def_id,
                         AssocRefinements {
                             items: List::from_arr([AssocReft::new(
-                                FluxDefId::new(fn_def_id, Symbol::intern("no_panic")),
+                                FluxDefId::new(fn_def_id, sym::no_panic),
                                 false,
                                 tcx.def_span(fn_def_id),
                             )]),
@@ -80,7 +80,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 if let Some(no_panic_id) = tcx
                     .lang_items()
                     .fn_once_trait()
-                    .map(|fn_def_id| FluxDefId::new(fn_def_id, Symbol::intern("no_panic")))
+                    .map(|fn_def_id| FluxDefId::new(fn_def_id, sym::no_panic))
                 {
                     map.insert(no_panic_id, rty::FuncSort::new(vec![], rty::Sort::Bool));
                 }
@@ -116,7 +116,7 @@ impl<'tcx> GlobalEnv<'_, 'tcx> {
                 .bytes();
             let body = rty::Expr::constant(rty::Constant::from(size));
             rty::Lambda::bind_with_vars(body, List::empty(), rty::Sort::Int)
-        } else if alias_reft.assoc_id.name() == Symbol::intern("no_panic")
+        } else if alias_reft.assoc_id.name() == sym::no_panic
             && tcx.is_lang_item(alias_reft.assoc_id.parent(), LangItem::FnOnce)
         {
             let arg = &alias_reft.args[0];

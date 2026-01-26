@@ -884,7 +884,7 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                                 genv.tcx().require_lang_item(LangItem::FnOnce, DUMMY_SP),
                             )
                             .unwrap()
-                            .find(Symbol::intern("no_panic"))
+                            .find(sym::no_panic)
                             .unwrap();
 
                         let args = GenericArg::identity_for_item(
