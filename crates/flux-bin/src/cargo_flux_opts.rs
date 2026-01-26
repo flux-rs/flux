@@ -16,11 +16,18 @@ pub enum Cli {
 
         #[command(subcommand)]
         command: Option<CargoFluxCommand>,
+
+        /// Print version information
+        #[arg(short = 'V', long, action = clap::ArgAction::SetTrue)]
+        version: bool,
+
+        /// Use verbose output (-Vv for more verbose output)
+        #[arg(short, long, action = clap::ArgAction::Count)]
+        verbose: u8,
     },
 }
 
 #[derive(clap::Subcommand)]
-#[command(version = get_version())]
 pub enum CargoFluxCommand {
     /// Check a local package and its dependencies for errors using Flux.
     /// This is the default command when no subcommand is provided.

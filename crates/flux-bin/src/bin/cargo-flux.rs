@@ -21,17 +21,12 @@ use tempfile::NamedTempFile;
 fn main() {
     let Cli::Flux { check_opts, command, version, verbose } = Cli::parse();
 
-    // Handle version flag (-V or --version)
+    // Handle version flag (-V or --version with optional -v for verbose)
     if version {
-        print_version_and_exit("cargo-flux", verbose);
+        print_version_and_exit("cargo-flux", verbose > 0);
     }
 
     let command = command.unwrap_or(CargoFluxCommand::Check(check_opts));
-
-    // Handle version subcommand
-    if let CargoFluxCommand::Version { verbose } = command {
-        print_version_and_exit("cargo-flux", verbose);
-    }
 
     match run(command) {
         Ok(exit_code) => exit(exit_code),
