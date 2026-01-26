@@ -629,6 +629,8 @@ pub enum Attr {
     InferOpts(PartialInferOpts),
     /// A `#[no_panic]` attribute
     NoPanic,
+    /// A `#[no_panic_if]` attribute
+    NoPanicIf(Expr),
 }
 
 #[derive(Debug)]
