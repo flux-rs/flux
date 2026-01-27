@@ -36,4 +36,6 @@ jobs:
       - name: Install Z3
         uses: cda-tum/setup-z3@v1.6.6
         with:
+          # Note: Using 4.12.1 for standard tests. Some specialized tests (vtock/lean-demo)
+          # may use different versions in their specific CI jobs.
           version: 4.12.1
