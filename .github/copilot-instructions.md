@@ -11,26 +11,6 @@ Flux is a refinement type checker for Rust. This is a Rust workspace with multip
 
 ## Build & Test Instructions
 
-### Build Commands
-
-**IMPORTANT**: Always use `cargo xtask` (or `cargo x`) for building and testing. Do NOT use plain `cargo build` or `cargo test` directly on workspace crates as Flux requires special sysroot setup.
-
-1. **Build Flux binary** (development):
-   ```bash
-   cargo xtask install --profile dev
-   ```
-   This installs flux binaries to `~/.cargo/bin` and precompiled libraries to `~/.flux`
-
-2. **Build for release**:
-   ```bash
-   cargo xtask install --profile release
-   ```
-
-3. **Build sysroot only** (when modifying libraries):
-   ```bash
-   cargo xtask build-sysroot
-   ```
-
 ### Test Commands
 
 1. **Run all regression tests**:
@@ -67,19 +47,6 @@ Flux is a refinement type checker for Rust. This is a Rust workspace with multip
    ```
    Uses `clippy.toml` with custom lints defined in `Cargo.toml` workspace section
 
-3. **Check for typos**:
-   ```bash
-   # Configuration in typos.toml
-   typos
-   ```
-
-### Common Issues & Workarounds
-
-- **"Cannot find flux-driver"**: Run `cargo xtask build-sysroot` to rebuild the sysroot
-- **Test timeout**: Some tests require Z3 4.15.3 (not 4.12.1) to avoid hanging
-- **Library changes not reflected**: Force rebuild with `cargo xtask build-sysroot`
-- **Tests failing after dependency changes**: Clean and rebuild with `cargo xtask install --profile dev`
-
 ## Project Layout
 
 ### Directory Structure
@@ -101,10 +68,9 @@ Flux is a refinement type checker for Rust. This is a Rust workspace with multip
 │   └── flux-alloc/  - Extern specs for alloc
 ├── tests/           - Regression test suite
 │   ├── pos/         - Tests that should type check
-│   ├── neg/         - Tests that should fail with errors
-│   └── ui/          - UI tests
+│   └── neg/         - Tests that should fail with errors
 ├── xtask/           - Build system implementation
-├── book/            - User documentation (mdBook)
+├── book/            - User documentation (mdBook).
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml   - Main CI: tests, vtock, lean-demo, rustfmt, clippy
@@ -119,14 +85,11 @@ Flux is a refinement type checker for Rust. This is a Rust workspace with multip
 - **clippy.toml**: Clippy configuration (allowed/denied lints)
 - **rustfmt.toml**: Code formatting rules
 - **typos.toml**: Spell checking configuration
-- **backtracetk.toml**: Backtrace configuration
-- **NOTES.md**: Developer notes (measures, UIF, etc.)
 - **book/src/guide/develop.md**: Detailed developer guide
 
 ### Architecture Notes
 
 - **Flux is a rustc driver**: It integrates with the Rust compiler as a custom driver
-- **Sysroot setup is required**: Libraries must be pre-compiled to `<repo>/sysroot/` (local dev/tests) or `~/.flux` (installed)
 - **Two-stage execution**: 
   1. Build flux-driver and cargo-flux binaries
   2. Use cargo-flux to build libraries with refinement types
@@ -149,29 +112,21 @@ All jobs (except formatting/clippy) require fixpoint and Z3 to be installed firs
 Before submitting changes:
 
 1. **Format code**: `cargo fmt`
-2. **Run clippy**: `cargo clippy` (should have no warnings)
-3. **Run affected tests**: `cargo xtask test <filter>` for relevant test subsets
-4. **Build documentation** (if docs changed): `cargo xtask doc`
-5. **Verify library changes**: If you modified `lib/*`, run `cargo xtask build-sysroot` then re-test
+2. **Run regression tests**: `cargo xtask test`
 
 ## Important Conventions
 
 - **Error reporting**: Use `bug!`, `span_bug!`, `tracked_span_bug!`, or `QueryErr::bug` for unreachable code paths
 - **Debugging flags**: `-Ztrack-diagnostics=y` to show where errors are emitted (enabled by `cargo xtask run`)
-- **MIR dumping**: Use `-Zdump-mir=<stage>` to dump MIR at different stages
-- **Macro expansion**: Use `cargo xtask expand <file>` to see expanded code
 - **Backtraces**: Set `RUST_BACKTRACE=1`; dev profile gives better traces
-- **Library testing**: When changing lib/* crates, use `cargo xtask build-sysroot` to force rebuild
 
 ## Development Workflow
 
 1. Make changes to relevant crates in `crates/` or `lib/`
-2. If library changes: `cargo xtask build-sysroot`
-3. Test specific functionality: `cargo xtask test <filter>`
-4. Or test single file: `cargo xtask run <file.rs>`
-5. Run formatter: `cargo fmt`
-6. Run clippy: `cargo clippy`
-7. Run full test suite: `cargo xtask test`
+2. Test specific functionality: `cargo xtask test <filter>`
+3. Or test single file: `cargo xtask run <file.rs>`
+4. Run formatter: `cargo fmt`
+5. Run full test suite: `cargo xtask test`
 
 ## Trust These Instructions
 
@@ -179,5 +134,4 @@ The information above has been validated against the repository structure, CI co
 
 - **ALWAYS use `cargo xtask`** for building and testing
 - **NEVER run `cargo test`** directly on the workspace
-- **ALWAYS rebuild sysroot** after library changes
 - Refer to these instructions first before searching the codebase for build/test commands
