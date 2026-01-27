@@ -5,13 +5,13 @@
 <a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>anyhow::Result;
 <a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>flux_bin::utils::{
 <a href=#7 id=7 data-nosnippet>7</a>    LIB_PATH, flux_sysroot_dir, get_flux_driver_path, get_rust_lib_path, get_rust_sysroot,
-<a href=#8 id=8 data-nosnippet>8</a>    get_rust_toolchain, get_version, prepend_path_to_env_var,
+<a href=#8 id=8 data-nosnippet>8</a>    get_rust_toolchain, prepend_path_to_env_var, print_version_and_exit,
 <a href=#9 id=9 data-nosnippet>9</a>};
 <a href=#10 id=10 data-nosnippet>10</a>
 <a href=#11 id=11 data-nosnippet>11</a><span class="kw">fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
 <a href=#12 id=12 data-nosnippet>12</a>    <span class="kw">if </span>env::args().any(|arg| arg == <span class="string">"--version" </span>|| arg == <span class="string">"-V"</span>) {
-<a href=#13 id=13 data-nosnippet>13</a>        <span class="macro">println!</span>(<span class="string">"flux {}"</span>, get_version());
-<a href=#14 id=14 data-nosnippet>14</a>        std::process::exit(<span class="number">0</span>);
+<a href=#13 id=13 data-nosnippet>13</a>        <span class="kw">let </span>verbose = env::args().any(|arg| arg == <span class="string">"--verbose"</span>);
+<a href=#14 id=14 data-nosnippet>14</a>        print_version_and_exit(<span class="string">"flux"</span>, verbose);
 <a href=#15 id=15 data-nosnippet>15</a>    }
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a>    <span class="kw">let </span>flux_sysroot = flux_sysroot_dir();
