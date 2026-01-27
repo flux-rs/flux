@@ -131,7 +131,7 @@ Before building or testing, you MUST have the following dependencies installed:
 ### Architecture Notes
 
 - **Flux is a rustc driver**: It integrates with the Rust compiler as a custom driver
-- **Sysroot setup is required**: Libraries must be pre-compiled to `~/.flux` (local dev) or `~/.flux` (installed)
+- **Sysroot setup is required**: Libraries must be pre-compiled to `<repo>/sysroot/` (local dev/tests) or `~/.flux` (installed)
 - **Two-stage execution**: 
   1. Build flux-driver and cargo-flux binaries
   2. Use cargo-flux to build libraries with refinement types
