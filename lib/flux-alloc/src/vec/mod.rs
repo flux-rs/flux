@@ -25,8 +25,13 @@ impl<T> Vec<T> {
 // requires all methods in an extern spec impl to be from the same rustc impl block, and doesn't
 // support multiple extern specs for the same type signature.
 // 
-// This needs to be fixed in Flux itself to support the new rustc organization. For now, these
-// method specs are commented out, which will cause some tests to fail.
+// This temporarily disables specs for these methods, causing 4 test failures:
+// - tests/pos/vec/vec00.rs
+// - tests/pos/surface/iter_vec00.rs
+// - tests/pos/surface/closure11.rs
+// - tests/pos/surface/closure12.rs
+//
+// This needs to be fixed in Flux itself to support the new rustc organization.
 //
 // #[extern_spec]
 // impl<T, A: Allocator> Vec<T, A> {
