@@ -672,6 +672,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let body_id = self.tcx().hir_node_by_def_id(fn_id.local_id()).body_id();
 
+        println!("my no panic if is: {:?}", fn_sig.no_panic_if);
         let no_panic = if let Some(e) = fn_sig.no_panic_if {
             let expr = self.conv_expr(&mut env, &e)?;
             expr

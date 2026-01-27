@@ -761,6 +761,10 @@ impl FluxAttrs {
         read_attr!(self, FnSig)
     }
 
+    fn no_panic_spec(&mut self) -> Option<surface::Expr> {
+        read_attr!(self, NoPanicIf)
+    }
+
     fn ty_alias(&mut self) -> Option<Box<surface::TyAlias>> {
         read_attr!(self, TypeAlias)
     }
@@ -841,6 +845,7 @@ impl FluxAttrs {
                 FluxAttrKind::Ignore(ignored) => surface::Attr::Ignore(ignored),
                 FluxAttrKind::ShouldFail => surface::Attr::ShouldFail,
                 FluxAttrKind::NoPanic => surface::Attr::NoPanic,
+                FluxAttrKind::NoPanicIf(expr) => surface::Attr::NoPanicIf(expr),
                 FluxAttrKind::Opaque
                 | FluxAttrKind::Reflect
                 | FluxAttrKind::FnSig(_)
@@ -855,7 +860,6 @@ impl FluxAttrs {
                 | FluxAttrKind::Variant(_)
                 | FluxAttrKind::Invariant(_)
                 | FluxAttrKind::ExternSpec
-                | FluxAttrKind::NoPanicIf(_)
                 | FluxAttrKind::DetachedSpecs(_) => continue,
             };
             attrs.push(attr);
