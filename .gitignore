@@ -5,4 +5,5 @@ target
 log
 sysroot/
 
-.DS_Storefixpoint
+.DS_Store
+fixpoint
