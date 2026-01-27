@@ -1175,7 +1175,7 @@ impl<Id1, Id2> TryFrom<rustc_hir::def::Res<Id1>> for Res<Id2> {
         match res {
             rustc_hir::def::Res::Def(kind, did) => Ok(Res::Def(kind, did)),
             rustc_hir::def::Res::PrimTy(prim_ty) => Ok(Res::PrimTy(prim_ty)),
-            rustc_hir::def::Res::SelfTyAlias { alias_to, forbid_generic: false, is_trait_impl } => {
+            rustc_hir::def::Res::SelfTyAlias { alias_to, is_trait_impl } => {
                 Ok(Res::SelfTyAlias { alias_to, is_trait_impl })
             }
             rustc_hir::def::Res::SelfTyParam { trait_ } => Ok(Res::SelfTyParam { trait_ }),
