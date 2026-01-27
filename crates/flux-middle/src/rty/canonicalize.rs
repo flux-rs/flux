@@ -443,7 +443,7 @@ mod pretty {
                             if constr.pred().is_trivially_true() {
                                 w!(cx, f_body, "{:?}", &constr.ty)
                             } else {
-                                w!(cx, f_body, "{:?} | {:?}", &constr.ty, &constr.pred)
+                                w!(cx, f_body, "{{{:?} | {:?}}}", &constr.ty, &constr.pred)
                             }
                         },
                         |(), bound_var_layer, body| {
