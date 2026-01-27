@@ -7,14 +7,9 @@ Flux is a refinement type checker for Rust. This is a Rust workspace with multip
 **Languages & Frameworks:** Rust (edition 2024), custom rustc integration  
 **Repository Size:** ~15 crates in workspace + 4 library packages + test suites
 
+**Note:** Required dependencies (fixpoint and Z3) are automatically installed in the Copilot coding agent environment via `.github/workflows/copilot-setup-steps.yml`.
+
 ## Build & Test Instructions
-
-### Prerequisites
-
-Before building or testing, you MUST have the following dependencies installed:
-- **fixpoint**: Use `.github/actions/install-fixpoint` action or install from https://github.com/ucsd-progsys/liquid-fixpoint
-- **Z3 SMT solver**: Version 4.12.1 for regular tests, 4.15.3 for vtock/lean-demo tests
-- **Rust toolchain**: Specified in `rust-toolchain.toml` (edition 2024)
 
 ### Build Commands
 
@@ -147,7 +142,7 @@ The `.github/workflows/ci.yml` runs on push/PR to main:
 4. **rustfmt job**: Checks code formatting
 5. **clippy job**: Runs `cargo check` and `cargo clippy`
 
-All jobs (except formatting/clippy) require fixpoint and Z3 to be installed first.
+All jobs (except formatting/clippy) require fixpoint and Z3 to be installed first. In the Copilot coding agent environment, these dependencies are automatically installed via `.github/workflows/copilot-setup-steps.yml`.
 
 ## Validation Steps
 
