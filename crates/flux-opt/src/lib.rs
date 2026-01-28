@@ -79,7 +79,6 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Option<Vec<DefId>> {
                     };
 
                     // Case 2: it's a trait method.
-                    let trait_ref = rustc_ty::TraitRef::from_assoc(*tcx, trait_id, *args);
                     let param_env = tcx.param_env(def_id);
                     let infcx = tcx
                         .infer_ctxt()
