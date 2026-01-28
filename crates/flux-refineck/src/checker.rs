@@ -27,7 +27,6 @@ use flux_middle::{
         refining::{Refine, Refiner},
     },
 };
-use flux_opt::infer_no_panics;
 use flux_rustc_bridge::{
     self, ToRustc,
     mir::{

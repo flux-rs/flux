@@ -159,6 +159,25 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             } else {
                 let entry = fn_to_no_panic.get_mut(&f).unwrap();
 
+                // match entry {
+                //     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
+                //         // KEEP strongest reason — do not overwrite
+                //     }
+                //     PanicSpec::MightPanic(PanicReason::Unknown) => {
+                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                //     }
+                //     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
+                //         // OK to refine transitive → more precise transitive
+                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                //     }
+                //     PanicSpec::MightPanic(
+                //         PanicReason::CallsTraitMethod(_) | PanicReason::CallsMethodForNoMIR(_),
+                //     ) => {
+                //         // KEEP stronger reason — do not overwrite
+                //     }
+                //     PanicSpec::WillNotPanic => unreachable!(),
+                // }
+
                 match entry {
                     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
                         // KEEP strongest reason — do not overwrite
@@ -167,12 +186,14 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
                     }
                     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
-                        // OK to refine transitive → more precise transitive
                         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
                     }
-                    PanicSpec::MightPanic(
-                        PanicReason::CallsTraitMethod(_) | PanicReason::CallsMethodForNoMIR(_),
-                    ) => {
+                    PanicSpec::MightPanic(PanicReason::CallsTraitMethod(_)) => {
+                        // TEMPORARY: treat CallsTraitMethod as WillNotPanic
+                        *entry = PanicSpec::WillNotPanic;
+                        changed = true;
+                    }
+                    PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) => {
                         // KEEP stronger reason — do not overwrite
                     }
                     PanicSpec::WillNotPanic => unreachable!(),
@@ -197,6 +218,17 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
         };
 
         *reason_to_count.entry(key).or_default() += 1;
+    }
+
+    for no_mir_fn in fn_to_no_panic.iter().filter_map(|(&k, v)| {
+        if let PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) = v {
+            Some(k)
+        } else {
+            None
+        }
+    }) {
+        let name = tcx.def_path_str(no_mir_fn);
+        println!("  No MIR function: {}", name);
     }
 
     println!("=== no-panic inference results ===");

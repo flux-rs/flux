@@ -601,13 +601,26 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     let id = def_id.local_id().to_def_id();
                     let map = flux_opt::infer_no_panics(genv.tcx());
 
-                    map.get(&id).cloned().unwrap_or(false)
+                    let name = genv.tcx().def_path_str(def_id);
+
+                    map.get(&id).cloned().unwrap_or((|| {
+                        println!("I couldn't find the ID for {name} in the no_panic map");
+                        false
+                    })())
                 },
                 |def_id| {
                     let map = flux_opt::infer_no_panics(genv.tcx());
-                    Some(map.get(&def_id).cloned().unwrap_or(false))
+                    let name = genv.tcx().def_path_str(def_id);
+                    Some(map.get(&def_id).cloned().unwrap_or((|| {
+                        println!("I couldn't find the ID for {name} in the no_panic map");
+                        false
+                    })()))
                 },
-                |_| false,
+                |id| {
+                    let name = genv.tcx().def_path_str(id);
+                    println!("I couldn't find the ID for {name} in the default case.");
+                    false
+                },
             )
         })
     }

@@ -55,12 +55,12 @@ pub fn emit_dot(
     }
 
     // list all no mir functions
-    for (def_id, spec) in panic_specs.iter() {
-        if let PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) = spec {
-            let name = tcx.def_path_str(*def_id);
-            println!("  No MIR function: {}", name);
-        }
-    }
+    // for (def_id, spec) in panic_specs.iter() {
+    //     if let PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) = spec {
+    //         let name = tcx.def_path_str(*def_id);
+    //         println!("  No MIR function: {}", name);
+    //     }
+    // }
 
     let mut out = String::new();
 
