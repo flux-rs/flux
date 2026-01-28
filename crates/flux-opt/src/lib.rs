@@ -55,8 +55,10 @@ fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
     .any(|lid| lid == def_id)
 }
 
-// TODO: make this return a Option<DefId> in the cases where we can't see that the ty.kind() is an FnDef.
-pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
+// Grabs the callees of a function from its MIR.
+// Returns Some(...) if all callees (1) are free functions, or (2) can be resolved to impl methods.
+// If even one callee cannot be resolved, or is a closure, returns None.
+pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Option<Vec<DefId>> {
     let body = tcx.optimized_mir(def_id);
 
     let mut callees = Vec::new();
@@ -88,24 +90,17 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
                     let resolved = resolve_call_query(*tcx, &mut selcx, param_env, *def_id, args);
 
                     let Some((impl_id, _)) = resolved else {
-                        // unable to resolve impl — assume the worst.
-                        // println!(
-                        //     "I can't resolve the impl for trait method: {}",
-                        //     tcx.def_path_str(*def_id)
-                        // );
-                        continue;
+                        return None;
                     };
-                    // println!(
-                    //     "Yay! I am able to resolve the impl for trait method: {}",
-                    //     tcx.def_path_str(*def_id)
-                    // );
                     callees.push(impl_id);
                 }
-                _ => (),
+                _ => {
+                    return None;
+                }
             };
         }
     }
-    callees
+    Some(callees)
 }
 
 pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
@@ -126,8 +121,19 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             bug!("missing MIR for local function");
         }
 
-        fn_to_no_panic.insert(def_id, PanicSpec::MightPanic(PanicReason::Unknown));
-        call_graph.insert(def_id, get_callees(&tcx, def_id));
+        match get_callees(&tcx, def_id) {
+            Some(callees) => {
+                fn_to_no_panic.insert(def_id, PanicSpec::MightPanic(PanicReason::Unknown));
+                call_graph.insert(def_id, callees);
+            }
+            None => {
+                // Cannot resolve callees: assume might panic
+                // for now, i'm labelling this as "has panic", but later i'll update this
+                // to have a more accurate signal.
+                fn_to_no_panic.insert(def_id, PanicSpec::MightPanic(PanicReason::ContainsPanic));
+                continue;
+            }
+        }
         worklist.push(def_id);
     }
 
@@ -144,22 +150,24 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
 
             if tcx.is_mir_available(callee) {
                 if !fn_to_no_panic.contains_key(&callee) {
-                    fn_to_no_panic.insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
-                    call_graph.insert(callee, get_callees(&tcx, callee));
-                    worklist.push(callee);
+                    match get_callees(&tcx, callee) {
+                        Some(callees) => {
+                            fn_to_no_panic
+                                .insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
+                            call_graph.insert(callee, callees);
+                            worklist.push(callee);
+                        }
+                        None => {
+                            // Callee has unresolved calls ⇒ conservatively might panic
+                            fn_to_no_panic
+                                .insert(callee, PanicSpec::MightPanic(PanicReason::ContainsPanic));
+                            // Intentionally do NOT add to call_graph or worklist
+                        }
+                    }
                 }
             } else {
-                let fn_name = tcx.def_path_str(callee);
-
-                // Missing MIR: record *why* f cannot be proven no-panic
-                println!("I can't find the MIR for function: {}", fn_name);
-
-                let reason = match tcx.def_kind(callee) {
-                    rustc_hir::def::DefKind::AssocFn => PanicReason::CallsTraitMethod(fn_name),
-                    _ => PanicReason::CallsMethodForNoMIR(fn_name),
-                };
-
-                fn_to_no_panic.insert(f, PanicSpec::MightPanic(reason));
+                // no MIR (extern, intrinsic, etc.)
+                fn_to_no_panic.insert(callee, PanicSpec::MightPanic(PanicReason::ContainsPanic));
             }
         }
     }
@@ -180,11 +188,7 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             let callees = match call_graph.get(&f) {
                 Some(callees) => callees,
                 None => {
-                    assert!(
-                        is_panic_or_abort_fn(tcx, f) || !tcx.is_mir_available(f),
-                        "function {:?} has no call_graph entry but is neither a panic fn nor no-MIR",
-                        tcx.def_path_str(f)
-                    );
+                    // This means that we hit a case where we couldn't resolve a callee.
                     continue;
                 }
             };
@@ -222,27 +226,6 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                     }
                     PanicSpec::WillNotPanic => unreachable!(),
                 }
-
-                // match entry {
-                //     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
-                //         // KEEP strongest reason — do not overwrite
-                //     }
-                //     PanicSpec::MightPanic(PanicReason::Unknown) => {
-                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
-                //     }
-                //     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
-                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
-                //     }
-                //     PanicSpec::MightPanic(PanicReason::CallsTraitMethod(_)) => {
-                //         // TEMPORARY: treat CallsTraitMethod as WillNotPanic
-                //         *entry = PanicSpec::WillNotPanic;
-                //         changed = true;
-                //     }
-                //     PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) => {
-                //         // KEEP stronger reason — do not overwrite
-                //     }
-                //     PanicSpec::WillNotPanic => unreachable!(),
-                // }
             }
         }
     }
