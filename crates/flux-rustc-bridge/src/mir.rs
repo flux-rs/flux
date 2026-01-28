@@ -12,7 +12,7 @@ use rustc_data_structures::{
     graph::{self, DirectedGraph, StartNode, dominators::Dominators},
     unord::UnordMap,
 };
-use rustc_hir::def_id::DefId;
+use rustc_hir::{self as hir, def_id::DefId};
 use rustc_index::IndexSlice;
 use rustc_macros::{TyDecodable, TyEncodable};
 use rustc_middle::mir::{Promoted, VarDebugInfoContents};
@@ -263,7 +263,7 @@ pub enum PointerCast {
     MutToConstPointer,
     Unsize,
     ClosureFnPointer,
-    ReifyFnPointer,
+    ReifyFnPointer(hir::Safety),
 }
 
 #[derive(Debug)]
@@ -740,7 +740,7 @@ impl fmt::Debug for PointerCast {
             PointerCast::MutToConstPointer => write!(f, "MutToConstPointer"),
             PointerCast::Unsize => write!(f, "Unsize"),
             PointerCast::ClosureFnPointer => write!(f, "ClosureFnPointer"),
-            PointerCast::ReifyFnPointer => write!(f, "ReifyFnPointer"),
+            PointerCast::ReifyFnPointer(safety) => write!(f, "ReifyFnPointer({safety})"),
         }
     }
 }

@@ -512,7 +512,6 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
                 Ok(Rvalue::ShallowInitBox(self.lower_operand(op)?, ty.lower(self.tcx)?))
             }
             rustc_mir::Rvalue::ThreadLocalRef(_)
-            | rustc_mir::Rvalue::NullaryOp(..)
             | rustc_mir::Rvalue::CopyForDeref(_)
             | rustc_mir::Rvalue::WrapUnsafeBinder(..) => {
                 Err(UnsupportedReason::new(format!("unsupported rvalue `{rvalue:?}`")))
@@ -532,8 +531,8 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_adjustment::PointerCoercion::ClosureFnPointer(_) => {
                 Some(crate::mir::PointerCast::ClosureFnPointer)
             }
-            rustc_adjustment::PointerCoercion::ReifyFnPointer => {
-                Some(crate::mir::PointerCast::ReifyFnPointer)
+            rustc_adjustment::PointerCoercion::ReifyFnPointer(safety) => {
+                Some(crate::mir::PointerCast::ReifyFnPointer(safety))
             }
             rustc_adjustment::PointerCoercion::UnsafeFnPointer
             | rustc_adjustment::PointerCoercion::ArrayToPointer => None,
@@ -636,6 +635,9 @@ impl<'sess, 'tcx> MirLoweringCtxt<'_, 'sess, 'tcx> {
             rustc_mir::Operand::Copy(place) => Ok(Operand::Copy(lower_place(self.tcx, place)?)),
             rustc_mir::Operand::Move(place) => Ok(Operand::Move(lower_place(self.tcx, place)?)),
             rustc_mir::Operand::Constant(c) => Ok(Operand::Constant(self.lower_constant(c)?)),
+            rustc_mir::Operand::RuntimeChecks(..) => {
+                Err(UnsupportedReason::new(format!("unsupported operand `{op:?}`")))
+            }
         }
     }
 
@@ -722,14 +724,14 @@ impl<'tcx> Lower<'tcx> for &'tcx rustc_ty::List<rustc_ty::BoundVariableKind> {
 }
 
 impl<'tcx> Lower<'tcx> for rustc_ty::ValTree<'tcx> {
-    type R = crate::ty::ValTree;
+    type R = Result<crate::ty::ValTree, UnsupportedReason>;
 
-    fn lower(self, _tcx: TyCtxt<'tcx>) -> Self::R {
+    fn lower(self, tcx: TyCtxt<'tcx>) -> Self::R {
         match &*self {
-            rustc_ty::ValTreeKind::Leaf(scalar_int) => crate::ty::ValTree::Leaf(*scalar_int),
-            rustc_ty::ValTreeKind::Branch(trees) => {
-                let trees = trees.iter().map(|tree| tree.lower(_tcx)).collect();
-                crate::ty::ValTree::Branch(trees)
+            rustc_ty::ValTreeKind::Leaf(scalar_int) => Ok(crate::ty::ValTree::Leaf(*scalar_int)),
+            rustc_ty::ValTreeKind::Branch(consts) => {
+                let trees = consts.iter().map(|c| c.lower(tcx)).try_collect()?;
+                Ok(crate::ty::ValTree::Branch(trees))
             }
         }
     }
@@ -744,7 +746,7 @@ impl<'tcx> Lower<'tcx> for rustc_ty::Const<'tcx> {
                 ConstKind::Param(ParamConst { name: param_const.name, index: param_const.index })
             }
             rustc_type_ir::ConstKind::Value(value) => {
-                ConstKind::Value(value.ty.lower(tcx)?, value.valtree.lower(tcx))
+                ConstKind::Value(value.ty.lower(tcx)?, value.valtree.lower(tcx)?)
             }
             rustc_type_ir::ConstKind::Unevaluated(c) => {
                 // TODO: raise unsupported if c.args is not empty?
