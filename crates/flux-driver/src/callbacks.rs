@@ -23,7 +23,7 @@ use rustc_hir::{
     def_id::{DefId, LOCAL_CRATE, LocalDefId},
 };
 use rustc_interface::interface::Compiler;
-use rustc_middle::{query, ty::TyCtxt};
+use rustc_middle::{query, ty::TyCtxt, util};
 use rustc_session::config::OutputType;
 use rustc_span::FileName;
 
@@ -37,7 +37,7 @@ impl Callbacks for FluxCallbacks {
         assert!(config.override_queries.is_none());
 
         config.override_queries = Some(|_, local| {
-            local.mir_borrowck = mir_borrowck;
+            local.queries.mir_borrowck = mir_borrowck;
         });
         // this should always be empty otherwise something changed in rustc and all our assumptions
         // about symbol interning are wrong.
@@ -368,8 +368,8 @@ fn mir_borrowck<'tcx>(
             flux_common::mir_storage::store_mir_body(tcx, def_id, body_with_facts);
         }
     }
-    let mut providers = query::Providers::default();
-    rustc_borrowck::provide(&mut providers);
-    let original_mir_borrowck = providers.mir_borrowck;
+    let mut providers = util::Providers::default();
+    rustc_borrowck::provide(&mut providers.queries);
+    let original_mir_borrowck = providers.queries.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
 }
