@@ -103,6 +103,7 @@ fn trait_ref_impl_id<'tcx>(
     Some((impl_data.impl_def_id, impl_data.args))
 }
 
+// Andrew: look at this function
 pub fn resolve_trait_ref_impl_id<'tcx>(
     tcx: TyCtxt<'tcx>,
     def_id: DefId,
@@ -116,7 +117,8 @@ pub fn resolve_trait_ref_impl_id<'tcx>(
     trait_ref_impl_id(tcx, &mut SelectionContext::new(&infcx), param_env, trait_ref)
 }
 
-fn resolve_call_query<'tcx>(
+// Andrew: look at this function too
+pub fn resolve_call_query<'tcx>(
     tcx: TyCtxt<'tcx>,
     selcx: &mut SelectionContext<'_, 'tcx>,
     param_env: ParamEnv<'tcx>,

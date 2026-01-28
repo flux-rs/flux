@@ -1,17 +1,22 @@
 #![feature(rustc_private)]
 
 extern crate rustc_hir;
+extern crate rustc_infer;
 extern crate rustc_middle;
+extern crate rustc_trait_selection;
 
 use std::collections::HashSet;
 
 use flux_common::bug;
+use flux_rustc_bridge::lowering::{resolve_call_query, resolve_trait_ref_impl_id};
 use rustc_hash::FxHashMap;
 use rustc_hir::def_id::DefId;
+use rustc_infer::infer::TyCtxtInferExt;
 use rustc_middle::{
     mir::{Body, Operand, StatementKind, TerminatorKind},
-    ty::{self, TyCtxt},
+    ty::{self as rustc_ty, TyCtxt, TypingMode},
 };
+use rustc_trait_selection::traits::SelectionContext;
 
 pub type CallGraph = FxHashMap<DefId, Vec<DefId>>;
 
@@ -50,6 +55,7 @@ fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
     .any(|lid| lid == def_id)
 }
 
+// TODO: make this return a Option<DefId> in the cases where we can't see that the ty.kind() is an FnDef.
 pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
     let body = tcx.optimized_mir(def_id);
 
@@ -57,9 +63,42 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
     for bb in body.basic_blocks.iter() {
         if let TerminatorKind::Call { func, .. } = &bb.terminator().kind {
             let ty = func.ty(&body.local_decls, *tcx);
-            if let ty::FnDef(def_id, _) = ty.kind() {
-                callees.push(*def_id);
-            }
+            // 1. Here, try to resolve the callee to either a method in an impl or a free function.
+            // Otherwise, assume the caller can panic.
+            // We can resolve the callee DefId by constructing a inferctxt from the tyctxt
+
+            match ty.kind() {
+                rustc_middle::ty::TyKind::FnDef(def_id, args) => {
+                    // 1. resolve.
+                    let Some(trait_id) = tcx.trait_of_assoc(*def_id) else {
+                        // Case 1: it's a free function.
+                        callees.push(*def_id);
+                        continue;
+                    };
+
+                    // Case 2: it's a trait method.
+                    let trait_ref = rustc_ty::TraitRef::from_assoc(*tcx, trait_id, *args);
+                    let param_env = tcx.param_env(def_id);
+                    let infcx = tcx
+                        .infer_ctxt()
+                        .with_next_trait_solver(true)
+                        .build(TypingMode::non_body_analysis());
+                    let mut selcx = SelectionContext::new(&infcx);
+
+                    let resolved = resolve_call_query(*tcx, &mut selcx, param_env, *def_id, args);
+
+                    let Some((impl_id, _)) = resolved else {
+                        // unable to resolve impl — assume the worst.
+                        println!(
+                            "I can't resolve the impl for trait method: {}",
+                            tcx.def_path_str(*def_id)
+                        );
+                        continue;
+                    };
+                    callees.push(impl_id);
+                }
+                _ => (),
+            };
         }
     }
     callees
@@ -106,8 +145,10 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                     worklist.push(callee);
                 }
             } else {
-                // Missing MIR: record *why* f cannot be proven no-panic
                 let fn_name = tcx.def_path_str(callee);
+
+                // Missing MIR: record *why* f cannot be proven no-panic
+                println!("I can't find the MIR for function: {}", fn_name);
 
                 let reason = match tcx.def_kind(callee) {
                     rustc_hir::def::DefKind::AssocFn => PanicReason::CallsTraitMethod(fn_name),
@@ -159,25 +200,6 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             } else {
                 let entry = fn_to_no_panic.get_mut(&f).unwrap();
 
-                // match entry {
-                //     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
-                //         // KEEP strongest reason — do not overwrite
-                //     }
-                //     PanicSpec::MightPanic(PanicReason::Unknown) => {
-                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
-                //     }
-                //     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
-                //         // OK to refine transitive → more precise transitive
-                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
-                //     }
-                //     PanicSpec::MightPanic(
-                //         PanicReason::CallsTraitMethod(_) | PanicReason::CallsMethodForNoMIR(_),
-                //     ) => {
-                //         // KEEP stronger reason — do not overwrite
-                //     }
-                //     PanicSpec::WillNotPanic => unreachable!(),
-                // }
-
                 match entry {
                     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
                         // KEEP strongest reason — do not overwrite
@@ -186,18 +208,37 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
                     }
                     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
+                        // OK to refine transitive → more precise transitive
                         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
                     }
-                    PanicSpec::MightPanic(PanicReason::CallsTraitMethod(_)) => {
-                        // TEMPORARY: treat CallsTraitMethod as WillNotPanic
-                        *entry = PanicSpec::WillNotPanic;
-                        changed = true;
-                    }
-                    PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) => {
+                    PanicSpec::MightPanic(
+                        PanicReason::CallsTraitMethod(_) | PanicReason::CallsMethodForNoMIR(_),
+                    ) => {
                         // KEEP stronger reason — do not overwrite
                     }
                     PanicSpec::WillNotPanic => unreachable!(),
                 }
+
+                // match entry {
+                //     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
+                //         // KEEP strongest reason — do not overwrite
+                //     }
+                //     PanicSpec::MightPanic(PanicReason::Unknown) => {
+                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                //     }
+                //     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
+                //         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                //     }
+                //     PanicSpec::MightPanic(PanicReason::CallsTraitMethod(_)) => {
+                //         // TEMPORARY: treat CallsTraitMethod as WillNotPanic
+                //         *entry = PanicSpec::WillNotPanic;
+                //         changed = true;
+                //     }
+                //     PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) => {
+                //         // KEEP stronger reason — do not overwrite
+                //     }
+                //     PanicSpec::WillNotPanic => unreachable!(),
+                // }
             }
         }
     }

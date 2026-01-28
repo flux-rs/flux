@@ -590,6 +590,12 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
         })
     }
 
+    fn is_trait_method(&self, genv: GlobalEnv, def_id: DefId) -> bool {
+        //     let reason = match tcx.def_kind(callee) {
+        // rustc_hir::def::DefKind::AssocFn => PanicReason::CallsTraitMethod(fn_name),
+        matches!(genv.tcx().def_kind(def_id), rustc_hir::def::DefKind::AssocFn)
+    }
+
     /// An internal function that runs `flux-opt`'s no_panic inference
     /// tool and saves the results in the query cache.
     pub(crate) fn inferred_no_panic(&self, genv: GlobalEnv, def_id: DefId) -> bool {
@@ -598,7 +604,13 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 genv,
                 |def_id| {
                     // i believe this is fine.
+
                     let id = def_id.local_id().to_def_id();
+                    // if self.is_trait_method(genv, id) {
+                    //     // for fun, let's assume trait methods will never panic.
+                    //     return true;
+                    // }
+
                     let map = flux_opt::infer_no_panics(genv.tcx());
 
                     let name = genv.tcx().def_path_str(def_id);
@@ -609,6 +621,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     })())
                 },
                 |def_id| {
+                    // if self.is_trait_method(genv, def_id) {
+                    //     // for fun, let's assume trait methods will never panic.
+                    //     return Some(true);
+                    // }
                     let map = flux_opt::infer_no_panics(genv.tcx());
                     let name = genv.tcx().def_path_str(def_id);
                     Some(map.get(&def_id).cloned().unwrap_or((|| {
@@ -617,6 +633,10 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                     })()))
                 },
                 |id| {
+                    if self.is_trait_method(genv, def_id) {
+                        // for fun, let's assume trait methods will never panic.
+                        return true;
+                    }
                     let name = genv.tcx().def_path_str(id);
                     println!("I couldn't find the ID for {name} in the default case.");
                     false
