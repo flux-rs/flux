@@ -89,11 +89,13 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Option<Vec<DefId>> {
                     let resolved = resolve_call_query(*tcx, &mut selcx, param_env, *def_id, args);
 
                     let Some((impl_id, _)) = resolved else {
+                        // None case 1: we fail to resolve a trait method to an impl.
                         return None;
                     };
                     callees.push(impl_id);
                 }
                 _ => {
+                    // None case 2: We're trying to reason about something that's not an FnDef.
                     return None;
                 }
             };
