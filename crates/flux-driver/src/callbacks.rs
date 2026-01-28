@@ -37,7 +37,7 @@ impl Callbacks for FluxCallbacks {
         assert!(config.override_queries.is_none());
 
         config.override_queries = Some(|_, local| {
-            local.mir_borrowck = mir_borrowck;
+            local.queries.mir_borrowck = mir_borrowck;
         });
         // this should always be empty otherwise something changed in rustc and all our assumptions
         // about symbol interning are wrong.
@@ -370,6 +370,6 @@ fn mir_borrowck<'tcx>(
     }
     let mut providers = query::Providers::default();
     rustc_borrowck::provide(&mut providers);
-    let original_mir_borrowck = providers.mir_borrowck;
+    let original_mir_borrowck = providers.queries.mir_borrowck;
     original_mir_borrowck(tcx, def_id)
 }
