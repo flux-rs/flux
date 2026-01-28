@@ -89,12 +89,16 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Vec<DefId> {
 
                     let Some((impl_id, _)) = resolved else {
                         // unable to resolve impl — assume the worst.
-                        println!(
-                            "I can't resolve the impl for trait method: {}",
-                            tcx.def_path_str(*def_id)
-                        );
+                        // println!(
+                        //     "I can't resolve the impl for trait method: {}",
+                        //     tcx.def_path_str(*def_id)
+                        // );
                         continue;
                     };
+                    // println!(
+                    //     "Yay! I am able to resolve the impl for trait method: {}",
+                    //     tcx.def_path_str(*def_id)
+                    // );
                     callees.push(impl_id);
                 }
                 _ => (),
