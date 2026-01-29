@@ -4,7 +4,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_hir::def_id::DefId;
 use rustc_middle::ty::TyCtxt;
 
-use crate::{CallGraph, PanicReason, PanicSpec};
+use crate::{CallGraph, CannotResolveReason, PanicReason, PanicSpec};
 
 fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
@@ -19,6 +19,7 @@ fn spec_to_color(spec: Option<&PanicSpec>) -> (&'static str, &'static str) {
                 PanicReason::Transitive(_) => ("yellow", "bold"),
                 PanicReason::CallsTraitMethod(_) => ("blue", "dashed"),
                 PanicReason::CallsMethodForNoMIR(_) => ("blue", "dashed"),
+                PanicReason::CannotResolve(_) => ("orange", "dotted"),
                 PanicReason::Unknown => panic!("This should never happen."),
             }
         }
@@ -42,6 +43,16 @@ pub fn emit_dot(
                     PanicReason::Transitive(_) => "Transitive".to_string(),
                     PanicReason::CallsTraitMethod(_) => "CallsTraitMethod".to_string(),
                     PanicReason::CallsMethodForNoMIR(_) => "CallsMethodForNoMIR".to_string(),
+                    PanicReason::CannotResolve(r) => {
+                        match r {
+                            CannotResolveReason::UnresolvedTraitMethod(_) => {
+                                "CannotResolve:UnresolvedTraitMethod".to_string()
+                            }
+                            CannotResolveReason::NotFnDef(_) => {
+                                "CannotResolve:NotFnDef".to_string()
+                            }
+                        }
+                    }
                 }
             }
         };
@@ -53,14 +64,6 @@ pub fn emit_dot(
     for (reason, count) in reason_to_count.iter() {
         println!("  {:<20} {}", reason, count);
     }
-
-    // list all no mir functions
-    // for (def_id, spec) in panic_specs.iter() {
-    //     if let PanicSpec::MightPanic(PanicReason::CallsMethodForNoMIR(_)) = spec {
-    //         let name = tcx.def_path_str(*def_id);
-    //         println!("  No MIR function: {}", name);
-    //     }
-    // }
 
     let mut out = String::new();
 

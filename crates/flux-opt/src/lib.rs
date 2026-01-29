@@ -39,6 +39,13 @@ pub enum PanicReason {
     Transitive(Vec<DefId>),
     CallsTraitMethod(String),
     CallsMethodForNoMIR(String),
+    CannotResolve(CannotResolveReason),
+}
+
+#[derive(Debug, Clone)]
+pub enum CannotResolveReason {
+    UnresolvedTraitMethod(DefId),
+    NotFnDef(DefId),
 }
 
 fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
@@ -58,7 +65,7 @@ fn is_panic_or_abort_fn(tcx: TyCtxt<'_>, def_id: DefId) -> bool {
 // Grabs the callees of a function from its MIR.
 // Returns Some(...) if all callees (1) are free functions, or (2) can be resolved to impl methods.
 // If even one callee cannot be resolved, or is a closure, returns None.
-pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Option<Vec<DefId>> {
+pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Result<Vec<DefId>, CannotResolveReason> {
     let body = tcx.optimized_mir(def_id);
 
     let mut callees = Vec::new();
@@ -71,14 +78,12 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Option<Vec<DefId>> {
 
             match ty.kind() {
                 rustc_middle::ty::TyKind::FnDef(def_id, args) => {
-                    // 1. resolve.
                     let Some(trait_id) = tcx.trait_of_assoc(*def_id) else {
-                        // Case 1: it's a free function.
+                        // If it's a free function, there's no need to resolve.
                         callees.push(*def_id);
                         continue;
                     };
 
-                    // Case 2: it's a trait method.
                     let param_env = tcx.param_env(def_id);
                     let infcx = tcx
                         .infer_ctxt()
@@ -89,19 +94,19 @@ pub(crate) fn get_callees(tcx: &TyCtxt, def_id: DefId) -> Option<Vec<DefId>> {
                     let resolved = resolve_call_query(*tcx, &mut selcx, param_env, *def_id, args);
 
                     let Some((impl_id, _)) = resolved else {
-                        // None case 1: we fail to resolve a trait method to an impl.
-                        return None;
+                        // Error case 1: we fail to resolve a trait method to an impl.
+                        return Err(CannotResolveReason::UnresolvedTraitMethod(*def_id));
                     };
                     callees.push(impl_id);
                 }
                 _ => {
-                    // None case 2: We're trying to reason about something that's not an FnDef.
-                    return None;
+                    // Error case 2: We're trying to reason about something that's not an FnDef.
+                    return Err(CannotResolveReason::NotFnDef(def_id));
                 }
             };
         }
     }
-    Some(callees)
+    Ok(callees)
 }
 
 pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
@@ -123,15 +128,16 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
         }
 
         match get_callees(&tcx, def_id) {
-            Some(callees) => {
+            Ok(callees) => {
                 fn_to_no_panic.insert(def_id, PanicSpec::MightPanic(PanicReason::Unknown));
                 call_graph.insert(def_id, callees);
             }
-            None => {
+            Err(reason) => {
                 // Cannot resolve callees: assume might panic
                 // for now, i'm labelling this as "has panic", but later i'll update this
                 // to have a more accurate signal.
-                fn_to_no_panic.insert(def_id, PanicSpec::MightPanic(PanicReason::ContainsPanic));
+                fn_to_no_panic
+                    .insert(def_id, PanicSpec::MightPanic(PanicReason::CannotResolve(reason)));
                 continue;
             }
         }
@@ -152,16 +158,18 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             if tcx.is_mir_available(callee) {
                 if !fn_to_no_panic.contains_key(&callee) {
                     match get_callees(&tcx, callee) {
-                        Some(callees) => {
+                        Ok(callees) => {
                             fn_to_no_panic
                                 .insert(callee, PanicSpec::MightPanic(PanicReason::Unknown));
                             call_graph.insert(callee, callees);
                             worklist.push(callee);
                         }
-                        None => {
+                        Err(reason) => {
                             // Callee has unresolved calls ⇒ conservatively might panic
-                            fn_to_no_panic
-                                .insert(callee, PanicSpec::MightPanic(PanicReason::ContainsPanic));
+                            fn_to_no_panic.insert(
+                                callee,
+                                PanicSpec::MightPanic(PanicReason::CannotResolve(reason)),
+                            );
                             // Intentionally do NOT add to call_graph or worklist
                         }
                     }
@@ -209,6 +217,7 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
             } else {
                 let entry = fn_to_no_panic.get_mut(&f).unwrap();
 
+                // TODO: make this a helper method
                 match entry {
                     PanicSpec::MightPanic(PanicReason::ContainsPanic) => {
                         // KEEP strongest reason — do not overwrite
@@ -219,6 +228,9 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                     PanicSpec::MightPanic(PanicReason::Transitive(_)) => {
                         // OK to refine transitive → more precise transitive
                         *entry = PanicSpec::MightPanic(PanicReason::Transitive(bad_callees));
+                    }
+                    PanicSpec::MightPanic(PanicReason::CannotResolve(_)) => {
+                        // KEEP stronger reason — do not overwrite
                     }
                     PanicSpec::MightPanic(
                         PanicReason::CallsTraitMethod(_) | PanicReason::CallsMethodForNoMIR(_),
@@ -242,6 +254,16 @@ pub fn infer_no_panics(tcx: TyCtxt) -> FxHashMap<DefId, bool> {
                     PanicReason::Transitive(_) => "Transitive".to_string(),
                     PanicReason::CallsTraitMethod(_) => "CallsTraitMethod".to_string(),
                     PanicReason::CallsMethodForNoMIR(_) => "CallsMethodForNoMIR".to_string(),
+                    PanicReason::CannotResolve(reason) => {
+                        match reason {
+                            CannotResolveReason::UnresolvedTraitMethod(_) => {
+                                "CannotResolve:UnresolvedTraitMethod".to_string()
+                            }
+                            CannotResolveReason::NotFnDef(_) => {
+                                "CannotResolve:NotFnDef".to_string()
+                            }
+                        }
+                    }
                 }
             }
         };
