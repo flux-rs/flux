@@ -433,12 +433,6 @@ impl<'genv> RustItemCtxt<'_, 'genv, '_> {
                 let segment = self.lift_path_segment(segment)?;
                 Ok(fhir::QPath::TypeRelative(self.genv.alloc(qself), self.genv.alloc(segment)))
             }
-            hir::QPath::LangItem(_, _) => {
-                Err(self.emit_unsupported(&format!(
-                    "unsupported type: `{}`",
-                    rustc_hir_pretty::qpath_to_string(&self.genv.tcx(), &qpath)
-                )))
-            }
         }
     }
 

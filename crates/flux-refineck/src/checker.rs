@@ -122,6 +122,7 @@ impl<'ck, M: Mode> Inherited<'ck, M> {
 }
 
 pub(crate) trait Mode: Sized {
+    #[expect(dead_code)]
     const NAME: &str;
 
     fn enter_basic_block<'ck, 'genv, 'tcx>(
@@ -406,10 +407,8 @@ fn find_trait_item(
 ) -> QueryResult<Option<(rty::TraitRef, DefId)>> {
     let tcx = genv.tcx();
     let def_id = def_id.to_def_id();
-    if let Some(impl_id) = tcx.impl_of_assoc(def_id)
-        && let Some(impl_trait_ref) = genv.impl_trait_ref(impl_id)?
-    {
-        let impl_trait_ref = impl_trait_ref.instantiate_identity();
+    if let Some(impl_id) = tcx.trait_impl_of_assoc(def_id) {
+        let impl_trait_ref = genv.impl_trait_ref(impl_id)?.instantiate_identity();
         let trait_item_id = tcx.associated_item(def_id).trait_item_def_id().unwrap();
         return Ok(Some((impl_trait_ref, trait_item_id)));
     }
@@ -472,7 +471,7 @@ fn promoted_fn_sig(ty: &Ty) -> PolyFnSig {
     let inputs = rty::List::empty();
     let output =
         Binder::bind_with_vars(FnOutput::new(ty.clone(), rty::List::empty()), rty::List::empty());
-    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, true, false);
+    let fn_sig = crate::rty::FnSig::new(safety, abi, requires, inputs, output, Expr::tt(), false);
     PolyFnSig::bind_with_vars(fn_sig, crate::rty::List::empty())
 }
 
@@ -864,7 +863,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                     .fn_sig
                     .output
                     .replace_bound_refts_with(|sort, mode, _| infcx.fresh_infer_var(sort, mode));
-                let obligations = infcx.subtyping(&ret_place_ty, &output.ret, ConstrReason::Ret)?;
+                let obligations =
+                    infcx.subtyping_with_env(env, &ret_place_ty, &output.ret, ConstrReason::Ret)?;
 
                 env.check_ensures(infcx, &output.ensures, ConstrReason::Ret)?;
 
@@ -942,26 +942,23 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
 
         let mut at = infcx.at(span);
 
-        if M::NAME == "refine" {
-            let no_panic = self.fn_sig.no_panic();
+        if let Some(callee_def_id) = callee_def_id
+            && genv.def_kind(callee_def_id).is_fn_like()
+        {
+            let callee_no_panic = fn_sig.no_panic();
 
-            if no_panic
-                && let Some(callee_def_id) = callee_def_id
-                && genv.def_kind(callee_def_id).is_fn_like()
-            {
-                // try to use flux-opt to infer the no_panicness of the callee.
-                let auto_inferred_panic_spec = genv.inferred_no_panic(callee_def_id);
-                let callee_no_panic = fn_sig.no_panic()
-                    || matches!(auto_inferred_panic_spec, PanicSpec::WillNotPanic);
+            let auto_inferred_panic_spec = genv.inferred_no_panic(callee_def_id);
 
-                at.check_pred(
-                    Expr::implies(
-                        if no_panic { Expr::tt() } else { Expr::ff() },
-                        if callee_no_panic { Expr::tt() } else { Expr::ff() },
-                    ),
-                    ConstrReason::NoPanic(callee_def_id, auto_inferred_panic_spec),
-                );
-            }
+            let infer_panic_expr = if matches!(auto_inferred_panic_spec, PanicSpec::WillNotPanic) {
+                Expr::tt()
+            } else {
+                Expr::ff()
+            };
+
+            at.check_pred(
+                Expr::implies(self.fn_sig.no_panic(), Expr::or(callee_no_panic, infer_panic_expr)),
+                ConstrReason::NoPanic(callee_def_id, auto_inferred_panic_spec),
+            );
         }
 
         // Check requires predicates
@@ -1066,7 +1063,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             .as_bty_skipping_existentials();
         let oblig_sig = poly_fn_trait_pred.map_ref(|fn_trait_pred| fn_trait_pred.fndef_sig());
         match self_ty {
-            Some(BaseTy::Closure(def_id, _, _)) => {
+            Some(BaseTy::Closure(def_id, _, _, _)) => {
                 let Some(poly_sig) = self.inherited.closures.get(def_id).cloned() else {
                     span_bug!(span, "missing template for closure {def_id:?}");
                 };
@@ -1257,7 +1254,18 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         target: BasicBlock,
     ) -> Result {
         if self.is_exit_block(target) {
-            let location = self.body.terminator_loc(target);
+            // We inline *exit basic blocks* (i.e., that just return) because this typically
+            // gives us better a better error span.
+            let mut location = Location { block: target, statement_index: 0 };
+            for _ in &self.body.basic_blocks[target].statements {
+                self.check_ghost_statements_at(
+                    &mut infcx,
+                    &mut env,
+                    Point::BeforeLocation(location),
+                    span,
+                )?;
+                location = location.successor_within_block();
+            }
             self.check_ghost_statements_at(
                 &mut infcx,
                 &mut env,
@@ -1359,7 +1367,8 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
         // (3) "Save" the closure type in the `closures` map
         self.inherited.closures.insert(*did, poly_sig);
         // (4) Return the closure type
-        Ok(Ty::closure(*did, upvar_tys, args))
+        let no_panic = self.genv.no_panic(*did);
+        Ok(Ty::closure(*did, upvar_tys, args, no_panic))
     }
 
     fn check_rvalue(
@@ -1417,7 +1426,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_binary_op(infcx, env, stmt_span, *bin_op, op1, op2)
                     .with_span(stmt_span)
             }
-            Rvalue::NullaryOp(null_op, ty) => Ok(self.check_nullary_op(*null_op, ty)),
+
             Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Copy(place))
             | Rvalue::UnaryOp(UnOp::PtrMetadata, Operand::Move(place)) => {
                 self.check_raw_ptr_metadata(infcx, env, stmt_span, place)
@@ -1479,12 +1488,14 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 self.check_rvalue_closure(infcx, env, stmt_span, did, args, operands)
             }
             Rvalue::Aggregate(AggregateKind::Coroutine(did, args), ops) => {
-                let args = args.as_coroutine();
-                let resume_ty = self.refine_default(args.resume_ty()).with_span(stmt_span)?;
+                let coroutine_args = args.as_coroutine();
+                let resume_ty = self
+                    .refine_default(coroutine_args.resume_ty())
+                    .with_span(stmt_span)?;
                 let upvar_tys = self
                     .check_operands(infcx, env, stmt_span, ops)
                     .with_span(stmt_span)?;
-                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into()))
+                Ok(Ty::coroutine(*did, resume_ty, upvar_tys.into(), args.clone()))
             }
             Rvalue::ShallowInitBox(operand, _) => {
                 self.check_operand(infcx, env, stmt_span, operand)
@@ -1544,16 +1555,6 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
                 Ok(rule.output_type)
             }
             _ => tracked_span_bug!("incompatible types: `{ty1:?}` `{ty2:?}`"),
-        }
-    }
-
-    fn check_nullary_op(&self, null_op: mir::NullOp, _ty: &ty::Ty) -> Ty {
-        match null_op {
-            mir::NullOp::SizeOf | mir::NullOp::AlignOf => {
-                // We could try to get the layout of type to index this with the actual value, but
-                // this enough for now. Revisit if we ever need the precision.
-                Ty::uint(UintTy::Usize)
-            }
         }
     }
 
@@ -1659,7 +1660,7 @@ impl<'ck, 'genv, 'tcx, M: Mode> Checker<'ck, 'genv, 'tcx, M> {
             | CastKind::PointerWithExposedProvenance => self.refine_default(to)?,
             CastKind::PointerCoercion(mir::PointerCast::ReifyFnPointer) => {
                 let to = self.refine_default(to)?;
-                if let TyKind::Indexed(rty::BaseTy::FnDef(def_id, args), _) = from.kind()
+                if let TyKind::Indexed(BaseTy::FnDef(def_id, args), _) = from.kind()
                     && let TyKind::Indexed(BaseTy::FnPtr(super_sig), _) = to.kind()
                 {
                     let current_did = infcx.def_id;

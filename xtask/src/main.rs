@@ -29,6 +29,11 @@ xflags::xflags! {
             /// Do not check tests in Flux libs.
             optional --no-lib-tests
         }
+        /// Run lean benchmarks: emit lean files for each test in tests/pos/
+        cmd lean-bench {
+            /// Only run tests containing `filter` as a substring.
+            optional filter: String
+        }
         /// Run the `flux` binary on the given input file.
         cmd run {
             /// Input file
@@ -109,6 +114,7 @@ fn main() -> anyhow::Result<()> {
     }
     match cmd.subcommand {
         XtaskCmd::Test(args) => test(args, cmd.rust_fixpoint),
+        XtaskCmd::LeanBench(args) => lean_bench(args, cmd.rust_fixpoint),
         XtaskCmd::Run(args) => run(args, cmd.rust_fixpoint),
         XtaskCmd::Install(args) => install(&args, &extra, cmd.rust_fixpoint),
         XtaskCmd::Doc(args) => doc(args),
@@ -145,6 +151,134 @@ fn test(args: Test, rust_fixpoint: bool) -> anyhow::Result<()> {
             cmd.args(["--filter", filter]);
         })
         .run()
+}
+
+fn lean_bench(args: LeanBench, rust_fixpoint: bool) -> anyhow::Result<()> {
+    use walkdir::WalkDir;
+
+    let config = SysrootConfig {
+        profile: Profile::Dev,
+        rust_fixpoint,
+        dst: local_sysroot_dir()?,
+        build_libs: BuildLibs { force: false, tests: false, libs: FluxLib::ALL },
+    };
+    install_sysroot(&config)?;
+    let flux = build_binary("flux", config.profile, false)?;
+
+    let pos_path = PathBuf::from("tests/tests/pos");
+    let lean_bench_dir = PathBuf::from("tests/lean_bench");
+
+    if !pos_path.exists() {
+        return Err(anyhow!("tests/tests/pos directory not found"));
+    }
+
+    // Find all .rs test files
+    let test_files: Vec<PathBuf> = WalkDir::new(&pos_path)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "rs"))
+        .map(|e| e.path().to_path_buf())
+        .filter(|path| {
+            // Apply filter if specified
+            if let Some(ref filter) = args.filter {
+                path.to_string_lossy().contains(filter)
+            } else {
+                true
+            }
+        })
+        .collect();
+
+    if test_files.is_empty() {
+        if args.filter.is_some() {
+            eprintln!("No test files found matching filter: {:?}", args.filter);
+        } else {
+            eprintln!("No test files found under {:?}", pos_path);
+        }
+        return Ok(());
+    }
+
+    eprintln!("Found {} test files", test_files.len());
+    eprintln!("{}", "-".repeat(60));
+
+    let mut failures: Vec<(PathBuf, String)> = Vec::new();
+    let mut successes = 0;
+
+    for (i, test_path) in test_files.iter().enumerate() {
+        let rel_path = test_path.strip_prefix(&pos_path).unwrap();
+
+        // Create lean output dir: ./tests/lean_bench/<path>/<to>/<file>/
+        let mut lean_dir = lean_bench_dir.clone();
+        if let Some(parent) = rel_path.parent() {
+            if parent != Path::new("") {
+                lean_dir.push(parent);
+            }
+        }
+        if let Some(stem) = rel_path.file_stem() {
+            lean_dir.push(stem);
+        }
+
+        eprint!("[{}/{}] Running: {} ... ", i + 1, test_files.len(), rel_path.display());
+
+        // Create the output directory
+        if let Err(e) = fs::create_dir_all(&lean_dir) {
+            eprintln!("ERROR");
+            failures.push((test_path.clone(), format!("Failed to create directory: {}", e)));
+            continue;
+        }
+
+        // Build rustc flags
+        let mut rustc_flags = tests::default_flags();
+        rustc_flags.push("-Flean=emit".to_string());
+        rustc_flags.push(format!("-Flean-dir={}", lean_dir.display()));
+
+        // Run the test
+        let result = Command::new(&flux)
+            .args(&rustc_flags)
+            .arg(test_path)
+            .env(FLUX_SYSROOT, &config.dst)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output();
+
+        match result {
+            Ok(output) if output.status.success() => {
+                eprintln!("OK");
+                successes += 1;
+            }
+            Ok(output) => {
+                eprintln!("ERROR");
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                failures.push((test_path.clone(), stderr));
+            }
+            Err(e) => {
+                eprintln!("ERROR");
+                failures.push((test_path.clone(), e.to_string()));
+            }
+        }
+    }
+
+    // Print summary
+    eprintln!();
+    eprintln!("{}", "=".repeat(60));
+    eprintln!("SUMMARY");
+    eprintln!("{}", "=".repeat(60));
+    eprintln!("Total tests run: {}", test_files.len());
+    eprintln!("Passed: {}", successes);
+    eprintln!("Failed: {}", failures.len());
+
+    if !failures.is_empty() {
+        eprintln!();
+        eprintln!("Failed tests:");
+        for (path, _) in &failures {
+            let rel_path = path.strip_prefix(&pos_path).unwrap_or(path);
+            eprintln!("  - {}", rel_path.display());
+        }
+        eprintln!("{}", "=".repeat(60));
+        return Err(anyhow!("{} test(s) failed", failures.len()));
+    }
+
+    eprintln!("{}", "=".repeat(60));
+    Ok(())
 }
 
 fn run(args: Run, rust_fixpoint: bool) -> anyhow::Result<()> {

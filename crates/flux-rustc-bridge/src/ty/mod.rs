@@ -234,6 +234,7 @@ pub enum TyKind {
     RawPtr(Ty, Mutability),
     Dynamic(List<Binder<ExistentialPredicate>>, Region),
     Foreign(DefId),
+    Pat,
 }
 
 #[derive(PartialEq, Eq, Hash, TyEncodable, TyDecodable)]
@@ -818,6 +819,10 @@ impl Ty {
         TyKind::Foreign(def_id).intern()
     }
 
+    pub fn mk_pat() -> Ty {
+        TyKind::Pat.intern()
+    }
+
     pub fn deref(&self) -> Ty {
         match self.kind() {
             TyKind::Adt(adt_def, args) if adt_def.is_box() => args[0].expect_type().clone(),
@@ -969,6 +974,7 @@ impl<'tcx> ToRustc<'tcx> for Ty {
                 let preds = tcx.mk_poly_existential_predicates(&preds);
                 rustc_ty::Ty::new_dynamic(tcx, preds, re.to_rustc(tcx))
             }
+            TyKind::Pat => todo!(),
             TyKind::Coroutine(_, _) | TyKind::CoroutineWitness(_, _) => {
                 bug!("TODO: to_rustc for `{self:?}`")
             }
@@ -1130,6 +1136,7 @@ impl fmt::Debug for Ty {
             TyKind::Foreign(def_id) => {
                 write!(f, "Foreign {def_id:?}")
             }
+            TyKind::Pat => todo!(),
         }
     }
 }

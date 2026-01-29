@@ -158,6 +158,7 @@ where
             Sexp::List(items) => {
                 if let Sexp::Atom(Atom::S(s)) = &items[0] {
                     match s.as_str() {
+                        "cast" => self.parse_expr(&items[1]),
                         "exists" => self.parse_exists(&items[1..]),
                         "let" => self.parse_let(sexp),
                         "not" => self.parse_not(sexp),
@@ -306,13 +307,29 @@ where
     fn parse_app(&mut self, sexp: &Sexp) -> Result<Expr<T>, ParseError> {
         match sexp {
             Sexp::List(items) => {
-                let exp1 = self.parse_expr_possibly_nested(&items[0])?;
-                let args: Vec<Expr<T>> = items[1..]
-                    .to_vec()
-                    .iter()
-                    .map(|sexp| self.parse_expr_possibly_nested(sexp))
-                    .try_collect()?;
-                Ok(Expr::App(Box::new(exp1), None, args))
+                let Sexp::List(inner) = &items[0] else {
+                    Err(ParseError::err("Expected list for inner func"))?
+                };
+                match &inner[1] {
+                    Sexp::Atom(Atom::S(s)) if s == "apply" => {
+                        let func_sort = self.parse_sort(&inner[2])?;
+                        let func = self.parse_expr_possibly_nested(&items[1])?;
+                        Ok(Expr::App(Box::new(func), None, vec![], Some(func_sort)))
+                    }
+                    _ => {
+                        let args: Vec<Expr<T>> = items[1..]
+                            .to_vec()
+                            .iter()
+                            .map(|sexp| self.parse_expr_possibly_nested(sexp))
+                            .try_collect()?;
+                        Ok(Expr::App(
+                            Box::new(self.parse_expr_possibly_nested(&items[0])?),
+                            None,
+                            args,
+                            None,
+                        ))
+                    }
+                }
             }
             _ => Err(ParseError::err("Expected list for app")),
         }
@@ -421,7 +438,7 @@ where
         if ctor == "Set_Set" && args.len() == 1 {
             return Ok(Sort::App(SortCtor::Set, args));
         }
-        if (ctor == "Map_t") && args.len() == 2 {
+        if (ctor == "Map_t" || ctor == "Array_t") && args.len() == 2 {
             return Ok(Sort::App(SortCtor::Map, args));
         }
         if ctor == "BitVec" && args.len() == 1 {
@@ -445,6 +462,11 @@ where
                     Ok(Sort::Str)
                 } else if s.starts_with("Size") {
                     self.parse_bv_size(sexp)
+                } else if let Some(idx_rparen) = s.strip_prefix("@(")
+                    && let Some(s_idx) = idx_rparen.strip_suffix(")")
+                    && let Ok(idx) = s_idx.parse::<usize>()
+                {
+                    Ok(Sort::Var(idx))
                 } else {
                     let ctor = SortCtor::Data(self.parser.sort(s)?);
                     Ok(Sort::App(ctor, vec![]))

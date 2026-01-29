@@ -135,16 +135,10 @@ pub fn check_fn(
         )
         .map_err(|err| err.emit(genv, def_id))?;
 
-        if genv.proven_externally(def_id).is_some() {
-            if flux_config::lean().is_emit() {
-                infcx_root
-                    .execute_lean_query(cache, MaybeExternId::Local(def_id))
-                    .emit(&genv)
-            } else {
-                Err(genv
-                    .sess()
-                    .emit_err(errors::MissingLean { span: genv.tcx().def_span(def_id) }))
-            }
+        if genv.proven_externally(def_id).is_some() || flux_config::lean().is_emit() {
+            infcx_root
+                .execute_lean_query(cache, MaybeExternId::Local(def_id))
+                .emit(&genv)
         } else {
             // PHASE 3: invoke fixpoint on the constraint
             let answer = infcx_root
@@ -355,12 +349,5 @@ mod errors {
         pub(super) span: Span,
         pub(super) callee: String,
         pub(super) reason: String,
-    }
-
-    #[derive(Diagnostic)]
-    #[diag(refineck_missing_lean, code = E0999)]
-    pub struct MissingLean {
-        #[primary_span]
-        pub span: Span,
     }
 }

@@ -12,15 +12,23 @@ use flux_bin::{
     cargo_flux_opts::{CargoFluxCommand, Cli},
     utils::{
         EXIT_ERR, flux_sysroot_dir, get_binary_path, get_flux_driver_path, get_rust_toolchain,
+        print_version_and_exit,
     },
 };
 use itertools::Itertools;
 use tempfile::NamedTempFile;
 
 fn main() {
-    let Cli::Flux { check_opts, command } = Cli::parse();
+    let Cli::Flux { check_opts, command, version, verbose } = Cli::parse();
 
-    match run(command.unwrap_or(CargoFluxCommand::Check(check_opts))) {
+    // Handle version flag (-V or --version with optional -v for verbose)
+    if version {
+        print_version_and_exit("cargo-flux", verbose > 0);
+    }
+
+    let command = command.unwrap_or(CargoFluxCommand::Check(check_opts));
+
+    match run(command) {
         Ok(exit_code) => exit(exit_code),
         Err(e) => {
             println!("Failed to run `cargo-flux`, error={e}");

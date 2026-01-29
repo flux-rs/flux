@@ -15,11 +15,13 @@ use flux_rustc_bridge::{
     mir::{self},
     ty,
 };
+use flux_syntax::symbols::sym;
 use itertools::Itertools;
 use rustc_data_structures::unord::{ExtendUnord, UnordMap};
 use rustc_errors::Diagnostic;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
+    LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LOCAL_CRATE, LocalDefId},
 };
@@ -27,7 +29,7 @@ use rustc_index::IndexVec;
 use rustc_infer::infer::TyCtxtInferExt;
 use rustc_macros::{Decodable, Encodable};
 use rustc_middle::ty::TypingMode;
-use rustc_span::{Span, Symbol};
+use rustc_span::{DUMMY_SP, Span, Symbol};
 use rustc_trait_selection::traits::SelectionContext;
 
 use crate::{
@@ -35,7 +37,7 @@ use crate::{
     fhir,
     global_env::GlobalEnv,
     rty::{
-        self, GenericArg,
+        self, AliasReft, Expr, GenericArg,
         refining::{self, Refine, Refiner},
     },
 };
@@ -900,12 +902,34 @@ impl<'genv, 'tcx> Queries<'genv, 'tcx> {
                 |def_id| (self.providers.fn_sig)(genv, def_id),
                 |def_id| genv.cstore().fn_sig(def_id),
                 |def_id| {
-                    let fn_sig = genv
+                    let tcx = genv.tcx();
+
+                    let mut poly_sig = genv
                         .lower_fn_sig(def_id)?
                         .skip_binder()
                         .refine(&Refiner::default_for_item(genv, def_id)?)?
                         .hoist_input_binders();
-                    Ok(rty::EarlyBinder(fn_sig))
+
+                    if genv.is_fn_call(def_id) {
+                        let fn_once_id = tcx.require_lang_item(LangItem::FnOnce, DUMMY_SP);
+
+                        let fn_once_no_panic = genv
+                            .builtin_assoc_refts(fn_once_id)
+                            .unwrap()
+                            .find(sym::no_panic)
+                            .unwrap();
+
+                        let args = GenericArg::identity_for_item(genv, fn_once_id)?;
+
+                        let alias_reft = AliasReft { assoc_id: fn_once_no_panic.def_id, args };
+
+                        poly_sig = poly_sig.map(|mut fn_sig| {
+                            fn_sig.no_panic = Expr::alias(alias_reft, List::empty());
+                            fn_sig
+                        });
+                    }
+
+                    Ok(rty::EarlyBinder(poly_sig))
                 },
             )
         })

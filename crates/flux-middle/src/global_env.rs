@@ -6,9 +6,11 @@ use flux_config as config;
 use flux_errors::FluxSession;
 use flux_opt::PanicSpec;
 use flux_rustc_bridge::{self, lowering::Lower, mir, ty};
+use flux_syntax::symbols::sym;
 use rustc_data_structures::unord::UnordSet;
 use rustc_hash::FxHashMap;
 use rustc_hir::{
+    LangItem,
     def::DefKind,
     def_id::{CrateNum, DefId, LocalDefId},
 };
@@ -148,7 +150,11 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         }
     }
 
-    pub fn normalized_info(self, did: FluxDefId) -> rty::NormalizeInfo {
+    pub fn inlined_body(self, did: FluxDefId) -> rty::Binder<rty::Expr> {
+        self.normalized_defns(did.krate()).inlined_body(did)
+    }
+
+    pub fn normalized_info(self, did: FluxDefId) -> rty::FuncInfo {
         self.normalized_defns(did.krate()).func_info(did).clone()
     }
 
@@ -273,17 +279,14 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
         self.inner.queries.check_wf(self, def_id)
     }
 
-    pub fn impl_trait_ref(
-        self,
-        impl_id: DefId,
-    ) -> QueryResult<Option<rty::EarlyBinder<rty::TraitRef>>> {
-        let Some(trait_ref) = self.tcx().impl_trait_ref(impl_id) else { return Ok(None) };
+    pub fn impl_trait_ref(self, impl_id: DefId) -> QueryResult<rty::EarlyBinder<rty::TraitRef>> {
+        let trait_ref = self.tcx().impl_trait_ref(impl_id);
         let trait_ref = trait_ref.skip_binder();
         let trait_ref = trait_ref
             .lower(self.tcx())
-            .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
+            .map_err(|err| QueryErr::unsupported(impl_id, err.into_err()))?
             .refine(&Refiner::default_for_item(self, impl_id)?)?;
-        Ok(Some(rty::EarlyBinder(trait_ref)))
+        Ok(rty::EarlyBinder(trait_ref))
     }
 
     pub fn generics_of(self, def_id: impl IntoQueryParam<DefId>) -> QueryResult<rty::Generics> {
@@ -343,10 +346,7 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
 
         // Otherwise, check if the trait has a default body
         if let Some(body) = self.default_assoc_refinement_body(trait_assoc_id)? {
-            let impl_trait_ref = self
-                .impl_trait_ref(impl_id)?
-                .unwrap()
-                .instantiate_identity();
+            let impl_trait_ref = self.impl_trait_ref(impl_id)?.instantiate_identity();
             return Ok(rty::EarlyBinder(body.instantiate(self.tcx(), &impl_trait_ref.args, &[])));
         }
 
@@ -470,8 +470,16 @@ impl<'genv, 'tcx> GlobalEnv<'genv, 'tcx> {
     pub fn is_fn_output(&self, def_id: DefId) -> bool {
         let def_span = self.tcx().def_span(def_id);
         self.tcx()
-            .require_lang_item(rustc_hir::LangItem::FnOnceOutput, def_span)
+            .require_lang_item(LangItem::FnOnceOutput, def_span)
             == def_id
+    }
+
+    /// Returns whether `def_id` is the `call` method in the `Fn` trait.
+    pub fn is_fn_call(&self, def_id: DefId) -> bool {
+        let tcx = self.tcx();
+        let Some(assoc_item) = tcx.opt_associated_item(def_id) else { return false };
+        let Some(trait_id) = assoc_item.trait_container(tcx) else { return false };
+        assoc_item.name() == sym::call && tcx.is_lang_item(trait_id, LangItem::Fn)
     }
 
     /// Iterator over all local def ids that are not a extern spec

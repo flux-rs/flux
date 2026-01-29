@@ -49,9 +49,6 @@ refineck_unsupported_call =
 refineck_expected_neg =
     {$def_descr} marked with `#[should_fail]` didn't produce a refinement type error
 
-refineck_missing_lean =
-    externally proven items require `flux` be run with `-Flean=check` or `-Flean=emit`
-
 # Invariant checking
 
 refineck_invalid_invariant =

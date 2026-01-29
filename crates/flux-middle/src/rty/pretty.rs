@@ -576,10 +576,10 @@ impl Pretty for BaseTy {
             BaseTy::Alias(kind, alias_ty) => fmt_alias_ty(cx, f, *kind, alias_ty),
             BaseTy::Array(ty, c) => w!(cx, f, "[{:?}; {:?}]", ty, ^c),
             BaseTy::Never => w!(cx, f, "!"),
-            BaseTy::Closure(did, args, _) => {
+            BaseTy::Closure(did, args, _, _) => {
                 w!(cx, f, "{:?}<{:?}>", did, args)
             }
-            BaseTy::Coroutine(did, resume_ty, upvars) => {
+            BaseTy::Coroutine(did, resume_ty, upvars, _) => {
                 w!(cx, f, "Coroutine({:?}, {:?})", did, resume_ty)?;
                 if !upvars.is_empty() {
                     w!(cx, f, "<{:?}>", join!(", ", upvars))?;
@@ -595,6 +595,7 @@ impl Pretty for BaseTy {
             BaseTy::Foreign(def_id) => {
                 w!(cx, f, "{:?}", def_id)
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }
@@ -848,6 +849,7 @@ impl PrettyNested for BaseTy {
                 let children = float_children(kidss);
                 Ok(NestedString { text, children, key: None })
             }
+            BaseTy::Pat => todo!(),
         }
     }
 }

@@ -26,8 +26,8 @@ use flux_middle::{
     queries::{QueryErr, QueryResult},
     query_bug,
     rty::{
-        self, AssocReft, BoundReftKind, ESpan, INNERMOST, InternalFuncKind, List, RefineArgsExt,
-        WfckResults,
+        self, AssocReft, BoundReftKind, ESpan, Expr, INNERMOST, InternalFuncKind, List,
+        RefineArgsExt, WfckResults,
         fold::TypeFoldable,
         refining::{self, Refine, Refiner},
     },
@@ -898,8 +898,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let assoc_segment =
                     fhir::PathSegment { args: &[], constraints: &[], ident, res: fhir::Res::Err };
                 let mut env = Env::empty();
-                let alias_ty =
-                    self.conv_type_relative_type_path(&mut env, ident.span, res, &assoc_segment)?;
+                let alias_ty = self.conv_type_relative_type_path(&mut env, res, &assoc_segment)?;
                 return Ok(rty::Sort::Alias(rty::AliasKind::Projection, alias_ty));
             }
             fhir::SortRes::PrimSort(fhir::PrimSort::Set) => {
@@ -1008,7 +1007,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             requires.into(),
             inputs.into(),
             output,
-            no_panic,
+            if no_panic { Expr::tt() } else { Expr::ff() },
             decl.lifted,
         ))
     }
@@ -1450,7 +1449,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let qself_res =
                     if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
                 let alias_ty = self
-                    .conv_type_relative_type_path(env, qself.span, qself_res, segment)?
+                    .conv_type_relative_type_path(env, qself_res, segment)?
                     .shift_in_escaping(1);
                 let bty = rty::BaseTy::Alias(rty::AliasKind::Projection, alias_ty);
                 let sort = bty.sort();
@@ -1471,7 +1470,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_type_relative_path<Tag: AssocItemTag>(
         &mut self,
         tag: Tag,
-        qself_span: Span,
         qself_res: fhir::Res,
         assoc_ident: Ident,
     ) -> QueryResult<(Tag::AssocItem<'tcx>, rty::TraitRef)> {
@@ -1479,10 +1477,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
 
         let bound = match qself_res {
             fhir::Res::SelfTyAlias { alias_to: impl_def_id, is_trait_impl: true } => {
-                let Some(trait_ref) = tcx.impl_trait_ref(impl_def_id) else {
-                    // A cycle error occurred most likely (comment copied from rustc)
-                    span_bug!(qself_span, "expected cycle error");
-                };
+                let trait_ref = tcx.impl_trait_ref(impl_def_id);
 
                 self.probe_single_bound_for_assoc_item(
                     || {
@@ -1531,7 +1526,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
             .lower(tcx)
             .map_err(|err| QueryErr::unsupported(trait_ref.def_id, err.into_err()))?
             .refine(&self.refiner()?)?;
-
         let assoc_item = tag
             .trait_defines_item_named(self.genv(), trait_ref.def_id, assoc_ident)?
             .unwrap();
@@ -1542,16 +1536,11 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
     fn conv_type_relative_type_path(
         &mut self,
         env: &mut Env,
-        qself_span: Span,
         qself_res: fhir::Res,
         assoc_segment: &fhir::PathSegment,
     ) -> QueryResult<rty::AliasTy> {
-        let (assoc_item, trait_ref) = self.conv_type_relative_path(
-            AssocTag::Type,
-            qself_span,
-            qself_res,
-            assoc_segment.ident,
-        )?;
+        let (assoc_item, trait_ref) =
+            self.conv_type_relative_path(AssocTag::Type, qself_res, assoc_segment.ident)?;
 
         let assoc_id = assoc_item.def_id;
         let mut args = trait_ref.args.to_vec();
@@ -2425,11 +2414,6 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let sort = rty::Sort::Func(genv.func_sort(did));
                 (rty::Expr::global_func(rty::SpecFuncKind::Def(did)), sort)
             }
-            fhir::Res::GlobalFunc(fhir::SpecFuncKind::Uif(did)) => {
-                self.hyperlink(span, Some(genv.func_span(did)));
-                let sort = rty::Sort::Func(genv.func_sort(did));
-                (rty::Expr::global_func(rty::SpecFuncKind::Uif(did)), sort)
-            }
             fhir::Res::GlobalFunc(fhir::SpecFuncKind::Thy(itf)) => {
                 let sort = THEORY_FUNCS.get(&itf).unwrap().sort.clone();
                 (rty::Expr::global_func(rty::SpecFuncKind::Thy(itf)), rty::Sort::Func(sort))
@@ -2492,7 +2476,7 @@ impl<'genv, 'tcx: 'genv, P: ConvPhase<'genv, 'tcx>> ConvCtxt<P> {
                 let qself_res =
                     if let Some(path) = qself.as_path() { path.res } else { fhir::Res::Err };
                 let (assoc_reft, trait_ref) =
-                    self.conv_type_relative_path(AssocReftTag, qself.span, qself_res, *name)?;
+                    self.conv_type_relative_path(AssocReftTag, qself_res, *name)?;
                 rty::AliasReft { assoc_id: assoc_reft.def_id, args: trait_ref.args }
             }
         };

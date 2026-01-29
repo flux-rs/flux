@@ -890,12 +890,13 @@ impl TypeSuperVisitable for BaseTy {
             BaseTy::Tuple(tys) => tys.visit_with(visitor),
             BaseTy::Alias(_, alias_ty) => alias_ty.visit_with(visitor),
             BaseTy::Array(ty, _) => ty.visit_with(visitor),
-            BaseTy::Coroutine(_, resume_ty, upvars) => {
+            BaseTy::Coroutine(_, resume_ty, upvars, _) => {
                 resume_ty.visit_with(visitor)?;
                 upvars.visit_with(visitor)
             }
             BaseTy::Dynamic(exi_preds, _) => exi_preds.visit_with(visitor),
             BaseTy::Int(_)
+            | BaseTy::Pat
             | BaseTy::Uint(_)
             | BaseTy::Bool
             | BaseTy::Float(_)
@@ -934,19 +935,21 @@ impl TypeSuperFoldable for BaseTy {
             BaseTy::Array(ty, c) => {
                 BaseTy::Array(ty.try_fold_with(folder)?, c.try_fold_with(folder)?)
             }
-            BaseTy::Closure(did, args, gen_args) => {
-                BaseTy::Closure(*did, args.try_fold_with(folder)?, gen_args.clone())
+            BaseTy::Closure(did, args, gen_args, no_panic) => {
+                BaseTy::Closure(*did, args.try_fold_with(folder)?, gen_args.clone(), *no_panic)
             }
-            BaseTy::Coroutine(did, resume_ty, args) => {
+            BaseTy::Coroutine(did, resume_ty, args, gen_args) => {
                 BaseTy::Coroutine(
                     *did,
                     resume_ty.try_fold_with(folder)?,
                     args.try_fold_with(folder)?,
+                    gen_args.clone(),
                 )
             }
             BaseTy::Dynamic(preds, region) => {
                 BaseTy::Dynamic(preds.try_fold_with(folder)?, region.try_fold_with(folder)?)
             }
+            BaseTy::Pat => BaseTy::Pat,
             BaseTy::Int(_)
             | BaseTy::Param(_)
             | BaseTy::Uint(_)

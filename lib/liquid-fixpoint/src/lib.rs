@@ -38,8 +38,8 @@ use std::{
 };
 
 pub use constraint::{
-    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr, Pred,
-    Qualifier, Sort, SortCtor, SortDecl,
+    BinOp, BinRel, Bind, BoundVar, Constant, Constraint, DataCtor, DataDecl, DataField, Expr,
+    FunSort, Pred, Qualifier, Sort, SortCtor, SortDecl,
 };
 use derive_where::derive_where;
 #[cfg(feature = "nightly")]
@@ -124,6 +124,8 @@ macro_rules! declare_types {
             pub type KVarDecl = $crate::KVarDecl<FixpointTypes>;
             pub type ConstDecl = $crate::ConstDecl<FixpointTypes>;
             pub type FunDef = $crate::FunDef<FixpointTypes>;
+            pub type FunSort = $crate::FunSort<FixpointTypes>;
+            pub type FunBody = $crate::FunBody<FixpointTypes>;
             pub type Task = $crate::Task<FixpointTypes>;
             pub type Qualifier = $crate::Qualifier<FixpointTypes>;
             pub type Sort = $crate::Sort<FixpointTypes>;
@@ -158,11 +160,16 @@ pub struct ConstDecl<T: Types> {
 #[derive_where(Hash, Debug)]
 pub struct FunDef<T: Types> {
     pub name: T::Var,
-    pub args: Vec<(T::Var, Sort<T>)>,
-    pub out: Sort<T>,
-    pub body: Expr<T>,
+    pub sort: FunSort<T>,
+    pub body: Option<FunBody<T>>,
     #[derive_where(skip)]
     pub comment: Option<String>,
+}
+
+#[derive_where(Hash, Debug)]
+pub struct FunBody<T: Types> {
+    pub args: Vec<T::Var>,
+    pub expr: Expr<T>,
 }
 
 #[derive_where(Hash)]
@@ -326,6 +333,7 @@ impl<T: Types> Task<T> {
         let mut child = Command::new("fixpoint")
             .arg("-q")
             .arg("--stdin")
+            .arg("--sortedsolution")
             .arg("--json")
             .arg("--allowho")
             .arg("--allowhoqs")

@@ -71,7 +71,7 @@ the `RVec`'s fields' values.
 
 This is quite _unlike_ [`Positivei32` example](./03-structs.md)
 where the index held the actual value of the field,
-or the [`Timer` example)(./04-enums.md) where the
+or the [`Timer` example](./04-enums.md) where the
 index held the value of the countdown.
 
 Instead, with an _opaque_ `struct` the idea is that the value

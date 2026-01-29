@@ -44,12 +44,14 @@ hashbrown = "0.14.5"
 home = "0.5.11"
 itertools = "0.14.0"
 pad-adapter = "0.1.1"
+regex = "1.10"
 rustc-hash = "2.1.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tempfile = "3.19.1"
 toml = "0.9"
 toposort-scc = "0.5.4"
+walkdir = "2.5"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
